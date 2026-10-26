@@ -26,7 +26,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["HELD", "Held", "held_attributes_of", "held_by_domain", "read_held"]
+__all__ = ["HELD", "WHOLE", "Held", "held_attributes_of", "held_by_domain", "held_whole", "read_held"]
+
+#: The attribute name that holds a unit whole: every number it keeps, as
+#: K's organs are held. A ledger kept at module scope is one value, not an
+#: object with fields, so it can only be held this way.
+WHOLE: str = "*"
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +132,11 @@ def held_attributes_of(unit: str) -> frozenset[str]:
     return frozenset(entry.attribute for entry in HELD if entry.unit == unit)
 
 
+def held_whole(unit: str) -> bool:
+    """Whether K* holds this unit entire rather than some of its attributes."""
+    return WHOLE in held_attributes_of(unit)
+
+
 def held_by_domain(domain: str) -> tuple[Held, ...]:
     return tuple(entry for entry in HELD if entry.domain == domain)
 
@@ -186,8 +196,10 @@ def read_held(kernel: Any, units: Mapping[str, Any] | None = None, organs: Any =
         organ = live.get(entry.unit)
         if organ is None:
             continue
-        value = getattr(organ, entry.attribute, None)
-        name = f"held.{entry.unit}.{entry.attribute}"
+        if entry.attribute == WHOLE:
+            value, name = organ, f"held.{entry.unit}"
+        else:
+            value, name = getattr(organ, entry.attribute, None), f"held.{entry.unit}.{entry.attribute}"
         if isinstance(value, bool):
             out[name] = 1.0 if value else 0.0
         elif isinstance(value, (int, float)):

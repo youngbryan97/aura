@@ -111,7 +111,7 @@ async def main(argv: list[str] | None = None) -> int:
 
     import numpy as np
 
-    from core.subject.carrier_reads import HELD, ORGANS_WHOLE, held_attributes_of, read_held
+    from core.subject.carrier_reads import HELD, ORGANS_WHOLE, held_attributes_of, held_whole, read_held
     from core.subject.closure import _core_attributes
     from core.subject.copies import identical
     from core.subject.driver import CONDITIONS, build_runtime, calibrate_clock, quiesce_organism, start_organism
@@ -182,6 +182,8 @@ async def main(argv: list[str] | None = None) -> int:
             if name not in held_units:
                 yield name, None
                 continue
+            if held_whole(name):
+                continue
             entry = (snaps[0].module_state or {}).get(key)
             captured = entry[1] if isinstance(entry, tuple) and len(entry) == 2 else None
             for attribute in sorted(captured) if isinstance(captured, dict) else ():
@@ -191,6 +193,8 @@ async def main(argv: list[str] | None = None) -> int:
         for name in names:
             if name not in held_units:
                 yield name, None
+                continue
+            if held_whole(name):
                 continue
             entry = snaps[0].services.get(name) if name in snaps[0].services else snaps[0].phases.get(name)
             for key in sorted(entry) if isinstance(entry, dict) else ():

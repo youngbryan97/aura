@@ -167,3 +167,37 @@ def test_the_count_of_messages_her_discourse_tracker_keeps_is_held_with_her_work
 
     assert "_turn_count" in held_attributes_of("discourse_tracker")
     assert Held("discourse_tracker", "_turn_count", "G") in held_by_domain("G")
+
+
+def test_a_ledger_kept_at_module_scope_is_held_whole_read_whole_and_held_still_by_a_cut(monkeypatch):
+    """Her affect keeps learned ledgers at module scope, and swapping one moved K on every fresh seed.
+
+    A ledger is one value, not an object with fields, so K* holds it whole:
+    the reader reads its contents, and a cut of its domain puts it back in
+    place so every holder keeps the same ledger.
+    """
+    import sys
+    import types
+
+    from core.subject import carrier_reads
+    from core.subject.carrier_reads import WHOLE, Held, held_whole, read_held
+    from core.subject.clamp import Clamp
+
+    module = types.ModuleType("core._ledger_probe")
+    module._LEDGER = {"praise": [0.2, 0.4], "rebuke": [0.6]}
+    monkeypatch.setitem(sys.modules, "core._ledger_probe", module)
+    unit = "module:core._ledger_probe:_LEDGER"
+    monkeypatch.setattr(carrier_reads, "HELD", carrier_reads.HELD + (Held(unit, WHOLE, "A"),))
+
+    assert held_whole(unit)
+    read = read_held(SimpleNamespace(_phases=[]))
+    assert read[f"held.{unit}#"] == 2.0
+
+    runtime = SimpleNamespace(state=SimpleNamespace(), organs=None, kernel=SimpleNamespace(_phases=[]))
+    clamp = Clamp(runtime, ["A"])
+    ledger = module._LEDGER
+    ledger["praise"].append(0.9)
+    ledger["new"] = [1.0]
+    clamp.apply()
+    assert module._LEDGER is ledger
+    assert ledger == {"praise": [0.2, 0.4], "rebuke": [0.6]}

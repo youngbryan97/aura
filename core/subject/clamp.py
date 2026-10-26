@@ -382,12 +382,20 @@ class Clamp:
         # recurrent cognition directly, so a clamp on affect that left them free
         # would let affect reach the other side of the cut around the clamp.
         self.held.clear()
-        from core.subject.carrier_reads import _units, held_by_domain
+        from core.subject.carrier_reads import WHOLE, _units, held_by_domain
 
         units = _units(getattr(self.holder, "kernel", None), getattr(self.holder, "organs", None))
         for domain in self.domains:
             for entry in held_by_domain(domain):
                 organ = units.get(entry.unit)
+                if organ is not None and entry.attribute == WHOLE:
+                    # A unit held whole: an object restored field by field, or a
+                    # ledger restored in place, so its holders keep the same one.
+                    if hasattr(organ, "__dict__"):
+                        self.held.append((organ, WHOLE, _organ_state(organ), True))
+                    else:
+                        self.held.append((organ, WHOLE, copy.deepcopy(organ), False))
+                    continue
                 if organ is None or not hasattr(organ, entry.attribute):
                     continue
                 value = getattr(organ, entry.attribute)
@@ -426,6 +434,9 @@ class Clamp:
                 # The object itself, restored field by field, so whatever else
                 # holds a reference to it holds the same object.
                 _restore_organ(owner, saved)
+                continue
+            if attribute == "*":
+                _restore_into(owner, saved, set())
                 continue
             current = getattr(owner, attribute, None)
             if isinstance(current, (dict, list, set, deque)) and _restore_into(current, saved, set()):
