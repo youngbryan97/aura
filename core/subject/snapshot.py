@@ -69,6 +69,21 @@ __all__ = [
 #: How the capture marks a field it had to take apart rather than copy whole.
 _NESTED = "__nested__"
 
+#: A field that held another registered service, captured as that service's
+#: name. Skipped by value because the service is carried under its own name, it
+#: was left out of the restore altogether, so after one the field still held
+#: whatever object the previous arm had ended on. MEASURED 25 October: eight of
+#: 201 references between units came back as some other object after a single
+#: restore, six of them the unity runtime's own `_last_*` records, whose state
+#: K reads at every anchor and which then differed between untouched twins. A
+#: link is put back as the live service of that name.
+_LINK = "__link__"
+
+
+def _service_names() -> dict[int, str]:
+    """Every built service by identity, so a reference to one can be kept as its name."""
+    return {id(instance): name for name, instance in _built_services().items() if instance is not None}
+
 #: How deep the capture goes into an organ's own objects. Two is enough to
 #: reach the world model's forward network through its wrapper, and shallow
 #: enough that a graph of references cannot turn a snapshot into a traversal.
@@ -106,8 +121,13 @@ def _organ_state(organ: Any, depth: int = 0, skip: frozenset[int] = frozenset())
             continue
         # Already carried under its own name. A phase holds references to
         # services, and capturing them twice doubles the cost of every fork
-        # and writes the same values through two paths.
+        # and writes the same values through two paths. Kept as a link, so the
+        # restore points the field back at the live service rather than leaving
+        # the previous arm's object in it (`_LINK`).
         if id(value) in skip:
+            named = _service_names().get(id(value))
+            if named is not None:
+                out[name] = (_LINK, named)
             continue
         if hasattr(value, "__dict__") and depth < _ORGAN_DEPTH and _holds_furniture(value):
             out[name] = (_NESTED, _organ_state(value, depth + 1, skip))
@@ -169,7 +189,20 @@ def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
         if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
             _restore_organ(getattr(organ, name, None), value[1])
             continue
+        if isinstance(value, tuple) and len(value) == 2 and value[0] == _LINK:
+            _relink(organ, name, value[1])
+            continue
         _put_back(organ, name, value, seen)
+
+
+def _relink(organ: Any, name: str, service: str) -> None:
+    """Point a field back at the live service it held at the snapshot."""
+    live = _built_services().get(service)
+    if live is not None and getattr(organ, name, _ABSENT) is not live:
+        try:
+            setattr(organ, name, live)
+        except (AttributeError, TypeError):
+            return
 
 
 def _restore_guarded(organ: Any, saved: Mapping[str, Any]) -> None:
@@ -194,6 +227,9 @@ def _restore_guarded(organ: Any, saved: Mapping[str, Any]) -> None:
         for name, value in saved.items():
             if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
                 _restore_organ(getattr(organ, name, None), value[1])
+                continue
+            if isinstance(value, tuple) and len(value) == 2 and value[0] == _LINK:
+                _relink(organ, name, value[1])
                 continue
             if name not in protected:
                 _put_back(organ, name, value, seen)

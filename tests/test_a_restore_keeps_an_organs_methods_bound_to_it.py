@@ -60,3 +60,30 @@ def test_her_affect_grounding_keeps_its_conditions():
     engine = module.AffectGroundingEngine()
     _restore_organ(engine, _organ_state(engine))
     assert all(getattr(method, "__self__", None) is engine for method in engine._conditions.values())
+
+
+def test_a_field_that_held_another_service_points_back_at_it_after_a_restore():
+    """The unity runtime keeps its last records as fields that are also published services.
+
+    Skipped by value because each is carried under its own name, those fields
+    were left out of the restore, so they kept whatever object the previous arm
+    ended on and K*'s unity readings differed between untouched twins.
+    """
+    from core.container import ServiceContainer
+    from core.subject.snapshot import _organ_state, _restore_organ
+
+    class Record:
+        def __init__(self, level: float) -> None:
+            self.level = level
+
+    published = Record(0.5)
+    ServiceContainer.register_instance("_test_published_record", published)
+    try:
+        holder = type("Holder", (), {})()
+        holder.last = published
+        saved = _organ_state(holder, skip=frozenset({id(published)}))
+        holder.last = Record(0.9)
+        _restore_organ(holder, saved)
+        assert holder.last is published
+    finally:
+        getattr(ServiceContainer, "_services", {}).pop("_test_published_record", None)

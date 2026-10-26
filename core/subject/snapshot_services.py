@@ -83,13 +83,18 @@ def _restore_services(saved: Mapping[str, dict[str, Any]]) -> None:
     if not saved:
         return
     built = _built_services()
+    # Published values first. Each is republished as a new object, and an organ
+    # that keeps one as a field is relinked to the live service of that name
+    # (`_LINK`); restored before the republish, it was pointed at the object the
+    # registry was about to replace, and the unity runtime's six `_last_*`
+    # records came back as objects nothing else held.
     for name, fields in saved.items():
         instance = built.get(name)
-        if instance is None:
-            continue
-        if _is_published_value(instance):
+        if instance is not None and _is_published_value(instance):
             _republish(name, instance, fields)
-        else:
+    for name, fields in saved.items():
+        instance = built.get(name)
+        if instance is not None and not _is_published_value(instance):
             _restore_organ(instance, fields)
 
 

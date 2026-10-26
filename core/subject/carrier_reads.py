@@ -57,6 +57,12 @@ HELD: tuple[Held, ...] = (
     Held("neurochemical_system", "chemicals", "I"),
     Held("neurochemical_system", "_control", "I"),
     Held("neurochemical_system", "_tick_count", "I"),
+    # Her running sense of load, which sets the threat her heartbeat signals
+    # (the interventional test on seed 23's anchors, at every anchor).
+    Held("existential_stakes", "_rolling_cpu_load", "I"),
+    # Self-state: the beliefs she holds, her beliefs about herself among them
+    # (the interventional test, at every anchor once the order of swaps let it).
+    Held("belief_authority", "_beliefs", "S"),
     # Recurrent cognition: the self-predictive loop, binding oscillations, STDP traces.
     Held("closed_causal_loop", "_loop_state", "C"),
     Held("closed_causal_loop", "_predictor", "C"),

@@ -66,9 +66,11 @@ def container(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
 def test_a_service_held_by_another_is_not_copied_under_its_owner(container) -> None:
     carried = frozenset(id(obj) for obj in container.values())
     saved = _service_state(skip=carried)
-    assert "chemistry" not in saved["substrate_authority"]
-    assert "gate" not in saved["substrate_authority"]
-    assert "chemistry" not in saved["somatic_marker_gate"]
+    # Not copied: kept as a link to the service's own name, which a restore
+    # points back at the live service (`_LINK` in core/subject/snapshot.py).
+    assert saved["substrate_authority"]["chemistry"][0] == "__link__"
+    assert saved["substrate_authority"]["gate"] == ("__link__", "somatic_marker_gate")
+    assert saved["somatic_marker_gate"]["chemistry"][0] == "__link__"
     # Its own state is still carried, under its own name.
     assert saved["neurochemical_system"]["history"] == [0.1, 0.2]
 
