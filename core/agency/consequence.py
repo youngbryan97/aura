@@ -174,6 +174,12 @@ def get_consequence_model() -> ConsequenceModel:
     return _MODEL
 
 
+def reset_for_test() -> None:
+    """Forget every learned consequence, so one test's history is not the next test's habit."""
+    global _MODEL
+    _MODEL = None
+
+
 def worth_in_this_world(worth: float, kind: str, state: Any) -> float:
     """`ConsequenceModel.worth_here` on the process's model and the world in her state."""
     return get_consequence_model().worth_here(worth, kind, world_of(state))

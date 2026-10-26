@@ -1515,6 +1515,15 @@ _TEST_SCOPED_RESET_FUNCTIONS = (
     ("core.agency.intention_loop", "reset_intention_loop_for_test"),
     ("core.security.permission_guard", "reset_permission_guard_for_test"),
     ("core.memory.associative_entity_memory", "reset_associative_entity_memory_for_test"),
+    # What she has learned from outcomes, kept in process-wide ledgers. Left
+    # alone, one test that ran the organism taught every later test a habit:
+    # a choice test read `read_room` where the drives say `make_room`, and a
+    # workspace test saw memory win a competition perception should, each only
+    # after the tests before it had run.
+    ("core.agency.consequence", "reset_for_test"),
+    ("core.affect.what_winning_earned", "reset_for_test"),
+    ("core.affect.what_it_was_worth", "reset_for_test"),
+    ("core.soma.good_news", "reset_for_test"),
 )
 
 
