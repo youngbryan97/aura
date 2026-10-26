@@ -1,13 +1,16 @@
 {
   "all": {
     "per_file": {
-      "ARCHITECTURE.md": 4,
+      "CLAIMS_MATRIX.md": 1,
+      "CLAUDE.md": 1,
       "INSTALL.md": 2,
-      "README.md": 3,
+      "README.md": 2,
+      "docs/AURA_1_0_MASTER_TODO.md": 1,
+      "docs/GENERALITY_TODO.md": 1,
       "docs/PHI_LIVE_MEASUREMENT_HANDOFF.md": 1,
-      "docs/USER_GUIDE.md": 1
+      "docs/PLAYING_GAMES_HANDOFF.md": 1
     },
-    "total": 11
+    "total": 10
   },
   "code": {
     "per_file": {

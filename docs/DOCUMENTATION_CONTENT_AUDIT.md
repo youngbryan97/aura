@@ -82,6 +82,15 @@ practical interpretation and limits. Its examples are illustrative numbers,
 not additional experiment results. Shared words such as phi, free energy,
 alpha and subject must retain the definition used by the relevant page.
 
+## Validation record
+
+The [dated validation record](evidence/DOCUMENTATION_CONTENT_AUDIT_2026-10-25.json)
+records the 81 focused checks, 164 passing smoke tests with one skip, zero
+current document-drift findings, regenerated references and the public URL
+results. It also records resource limits and what was not measured. The final
+link pass covered 982 Markdown pages: no ordinary relative file/heading target
+was missing; 314 public URLs answered and ten remained unverified.
+
 ## What remains conditional
 
 Historical records and frozen protocols intentionally preserve earlier states

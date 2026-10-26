@@ -664,14 +664,16 @@ also carries the operational subcommands (`doctor`, `conformance`,
 
 Requirements: Python 3.12+, macOS on Apple Silicon, 64 GB RAM recommended. The
 primary model is `Aura-Cortex` (fused Qwen3.8-27B, migrated from the historical
-32B checkpoint). The Brainstem fallback is 9B and loads on demand. First boot
-takes 30–60 seconds while Metal compiles shaders.
+32B checkpoint). The Brainstem source default is the compressed 27B listed
+in the model table; it loads only when admitted. Cold-start time depends on
+the artifact, cache state, shader compilation and host load.
 
 Hardware honesty: Bryan's target machine is an M5-class Apple Silicon Mac with
 64 GB unified memory. The 27B Cortex works there as a primary conversation
 lane, while heartbeat/background work still belongs to the substrate, Brainstem,
-or Reflex lanes. On lower-memory machines, the hardware auditor rejects heavy
-weights for real-time tiers; use the 1.5B or 9B lanes there.
+or Reflex lanes. On lower-memory machines, choose a smaller declared profile
+and measure it separately; a historical small-model result does not qualify
+the present Cortex configuration.
 
 There's also a `Dockerfile` and `docker-compose.yml` if you want Redis and Celery
 running alongside. The tracked workspace defaults to `owner_autonomous` posture
