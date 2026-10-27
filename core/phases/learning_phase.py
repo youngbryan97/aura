@@ -216,6 +216,11 @@ async def read_what_the_turn_was_worth(state: AuraState, *, person: str = "", se
             reading = read_turn(state)
             direction = broadcast(reading)
             lessons = await asyncio.to_thread(teach_connections, reading)
+            # And what she holds in mind settles on what the turn was worth.
+            # See memory_retrieval.settle_on_what_it_was_worth.
+            from core.phases.memory_retrieval import settle_on_what_it_was_worth
+
+            settle_on_what_it_was_worth(state)
             # And what it leaves her to work on. See core/soma/reserve.py.
             from core.affect.what_it_was_worth import dose
             from core.soma.reserve import get_reserve_ledger

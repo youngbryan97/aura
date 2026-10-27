@@ -443,9 +443,9 @@ def _cut_feeling_from_recall() -> None:
     assignments); in a model with the test's structure, a recall moved by
     nothing her inner state carries read -0.11. Here the search by feeling
     finds nothing, the feeling cue and the percept cue's reading of her mood
-    are skipped, and the settle step neither re-weighs nor brings feeling back.
-    Process-wide and deterministic, so every arm of a fork runs the same
-    recall.
+    are skipped, and neither settle step re-weighs, by feeling or by what the
+    turn was worth. Process-wide and deterministic, so every arm of a fork runs
+    the same recall.
     """
     import core.phases.memory_retrieval as recall
     from core.memory.memory_facade import MemoryFacade
@@ -464,8 +464,9 @@ def _cut_feeling_from_recall() -> None:
     recall._cued_by_the_percept = percept_cue_without_mood
     recall._cued_by_what_she_feels = lambda candidates, felt_by_text, affect, salience: candidates
     recall.settle_on_what_she_feels = settle_nothing
+    recall.settle_on_what_it_was_worth = settle_nothing
     MemoryFacade.search_by_feeling = lambda self, now, limit=5: []
-    _log("control: recall by words and percept alone, with no route from her feeling to what she recalls")
+    _log("control: recall by words and percept alone, with no route from her feeling or her worth to what she recalls")
 
 
 #: Where a coordinator leaves what its workers read, inside its run directory.

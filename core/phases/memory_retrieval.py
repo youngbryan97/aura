@@ -401,14 +401,49 @@ def settle_on_what_she_feels(state: Any) -> bool:
     So the candidates recall weighed are weighed again, from the scores the
     words and the percept gave them, by what sets her feeling apart now against
     what set each memory's apart then, at the gain recall ran at, and she holds
-    as many of the best as she held before. The pool is used once.
-    Returns whether what she holds changed.
+    as many of the best as she held before, and the pool, at the scores it
+    settled on, is left for the turn's worth to weigh once more
+    (`settle_on_what_it_was_worth`). Returns whether what she holds changed.
 
     What she then held also brought its feeling back, at the same gain, at
     b2188d64d. It moved with the inner state at 0.63 in a model with the
     content test's structure, and in her it took "moves together", averaged
     over twelve fold assignments, from 0.525 to 0.035 on seed 23, 0.415 to
     0.139 on seed 31 and 0.215 to 0.032 on seed 73. Taken out.
+    """
+    cognition = getattr(state, "cognition", None)
+    pool = getattr(cognition, "recall_pool", None)
+    if cognition is None or not isinstance(pool, dict) or not pool or pool.get("felt"):
+        return False
+    candidates = list(pool.get("candidates") or [])
+    held = list(getattr(cognition, "long_term_memory", []) or [])
+    salience = float(pool.get("salience") or 0.0)
+    cognition.recall_pool = {**pool, "felt": True}
+    if not candidates or not held or salience <= 0.0:
+        return False
+    from core.memory.felt_at_encoding import felt_now, resonance, usual
+
+    now = felt_now(getattr(state, "affect", None))
+    stamps = {_unlabelled(str(entry["text"])): entry.get("felt") for entry in candidates if entry.get("felt")}
+    if not now or not stamps:
+        return False
+    centre = usual(stamps)
+    return _settle(
+        cognition, candidates, held, salience,
+        lambda text: resonance(now, stamps.get(_unlabelled(text)), centre),
+        keep_pool={**pool, "felt": True},
+    )
+
+
+def settle_on_what_it_was_worth(state: Any) -> bool:
+    """Weigh this turn's recall again by what the turn turned out to be worth.
+
+    Her worth is read when the turn ends, after recall and after the affect
+    phase have both settled what she holds. Each candidate is weighed from the
+    score it settled at by how near this turn's worth lies to the worth its
+    memory was made at, at the gain recall ran at, and she holds as many of the
+    best as she held before. See core/memory/worth_at_encoding.py. The pool is
+    used once. Returns whether what she holds changed.
     """
     cognition = getattr(state, "cognition", None)
     pool = getattr(cognition, "recall_pool", None)
@@ -420,28 +455,51 @@ def settle_on_what_she_feels(state: Any) -> bool:
     salience = float(pool.get("salience") or 0.0)
     if not candidates or not held or salience <= 0.0:
         return False
-    from core.memory.felt_at_encoding import felt_now, resonance, usual
+    from core.memory.worth_at_encoding import decode, near, worth_now
 
-    now = felt_now(getattr(state, "affect", None))
-    stamps = {_unlabelled(str(entry["text"])): entry.get("felt") for entry in candidates if entry.get("felt")}
-    if not now or not stamps:
+    now = worth_now()
+    stamps = {
+        _unlabelled(str(entry["text"])): stamp
+        for entry in candidates
+        if (stamp := decode(entry.get("worth"))) is not None
+    }
+    if now is None or not stamps:
         return False
-    centre = usual(stamps)
+    return _settle(cognition, candidates, held, salience, lambda text: near(now, stamps.get(_unlabelled(text))))
+
+
+def _settle(
+    cognition: Any,
+    candidates: list[dict[str, Any]],
+    held: list[Any],
+    salience: float,
+    nearness: Any,
+    *,
+    keep_pool: dict[str, Any] | None = None,
+) -> bool:
+    """Close each candidate's gap to full relevance by its nearness at the recall gain, and hold the best.
+
+    With `keep_pool`, the candidates are left on her at the scores they
+    settled at, for the next weighing.
+    """
     from core.consciousness.substrate_gates import get_substrate_gates
 
     gain = min(1.0, salience * get_substrate_gates().multiplier("recall"))
-    reread: list[tuple[float, str]] = []
+    reread: list[tuple[float, str, dict[str, Any]]] = []
     for entry in candidates:
         text = str(entry["text"])
         bounded = max(0.0, min(1.0, float(entry["score"])))
-        updated = bounded + (1.0 - bounded) * resonance(now, stamps.get(_unlabelled(text)), centre) * gain
-        reread.append((updated, _rescored(text, bounded, updated)))
+        updated = bounded + (1.0 - bounded) * float(nearness(text)) * gain
+        rescored = _rescored(text, bounded, updated)
+        reread.append((updated, rescored, {**entry, "text": rescored, "score": updated}))
     reread.sort(key=lambda item: item[0], reverse=True)
     kept = reread[: len(held)]
-    settled = [text for _, text in kept]
+    settled = [text for _, text, _ in kept]
     changed = [_unlabelled(text) for text in settled] != [_unlabelled(str(text)) for text in held]
     cognition.long_term_memory = settled
-    cognition.memory_scores = [round(float(score), 4) for score, _ in kept]
+    cognition.memory_scores = [round(float(score), 4) for score, _, _ in kept]
+    if keep_pool is not None:
+        cognition.recall_pool = {**keep_pool, "candidates": [entry for _, _, entry in reread]}
     return changed
 
 
@@ -584,7 +642,7 @@ class MemoryRetrievalPhase(BasePhase):
         return query
 
     @staticmethod
-    def _execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text=None, context_by_text=None):
+    def _execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text=None, context_by_text=None, worth_by_text=None):
         metadata = _safe_metadata(item.get("metadata", {}))
         emotional_valence = _safe_float(metadata.get("emotional_valence"))
         importance = _safe_float(metadata.get("importance"))
@@ -613,6 +671,9 @@ class MemoryRetrievalPhase(BasePhase):
         # And where her field stood. See core/memory/context_at_encoding.py.
         if context_by_text is not None and metadata.get("context"):
             context_by_text[f"[memory score={weighted_score:.3f}] {content}"] = metadata.get("context")
+        # And what her last turn was worth. See core/memory/worth_at_encoding.py.
+        if worth_by_text is not None and metadata.get("worth"):
+            worth_by_text[f"[memory score={weighted_score:.3f}] {content}"] = metadata.get("worth")
         # Whether the person she is with now was part of it.
         # The principal a personal record was written for is
         # stored with it; a record written for somebody else
@@ -1147,6 +1208,8 @@ class MemoryRetrievalPhase(BasePhase):
         felt_by_text: dict[str, Any] = {}
         # And where her field stood when each was made.
         context_by_text: dict[str, Any] = {}
+        # And what her last turn was worth.
+        worth_by_text: dict[str, Any] = {}
 
         if dual_res:
             memory_candidates.append(
@@ -1180,6 +1243,8 @@ class MemoryRetrievalPhase(BasePhase):
                             felt_by_text[f"[{km.get('type', 'fact')}] {content}"] = metadata.get("felt")
                         if metadata.get("context"):
                             context_by_text[f"[{km.get('type', 'fact')}] {content}"] = metadata.get("context")
+                        if metadata.get("worth"):
+                            worth_by_text[f"[{km.get('type', 'fact')}] {content}"] = metadata.get("worth")
 
                     affect_sources.append((content, emotional_valence, importance))
 
@@ -1188,7 +1253,7 @@ class MemoryRetrievalPhase(BasePhase):
                 if isinstance(item, dict):
                     content = _safe_text(item.get("content") or item.get("text"), max_chars=2_000)
                     if content:
-                        importance = self._execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text, context_by_text=context_by_text)
+                        importance = self._execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text, context_by_text=context_by_text, worth_by_text=worth_by_text)
                 elif item:
                     memory_candidates.append(
                         (0.35, f"[memory] {_safe_text(item, max_chars=2_000)}")
@@ -1202,7 +1267,7 @@ class MemoryRetrievalPhase(BasePhase):
                     if content and content not in found:
                         found.add(content)
                         self._execute_metadata(affect_sources, content, effective_memory_salience, item,
-                                               memory_candidates, partner_id, shared_texts, state, felt_by_text, context_by_text=context_by_text)
+                                               memory_candidates, partner_id, shared_texts, state, felt_by_text, context_by_text=context_by_text, worth_by_text=worth_by_text)
         if episodic_res:
             for ep in _iter_retrieval_items(episodic_res):
                 desc = _safe_text(
@@ -1293,10 +1358,16 @@ class MemoryRetrievalPhase(BasePhase):
         # Kept for the affect phase, which weighs them again by what she feels
         # once she has felt what arrived. See `settle_on_what_she_feels`.
         felt_by_content = _by_content(felt_by_text or {})
+        worth_by_content = _by_content(worth_by_text or {})
         recall_pool = {
             "salience": float(effective_memory_salience),
             "candidates": [
-                {"text": text, "score": float(score), "felt": felt_by_content.get(_unlabelled(text))}
+                {
+                    "text": text,
+                    "score": float(score),
+                    "felt": felt_by_content.get(_unlabelled(text)),
+                    "worth": worth_by_content.get(_unlabelled(text)),
+                }
                 for score, text in memory_candidates
             ],
         }

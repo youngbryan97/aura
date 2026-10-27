@@ -64,7 +64,7 @@ def test_she_holds_as_many_as_recall_kept() -> None:
 def test_the_pool_is_used_once() -> None:
     her = _her({"joy": 0.7, "fear": 0.1, "calm": 0.1}, _pool(), ["[memory score=0.400] an ordinary errand"])
     recall.settle_on_what_she_feels(her)
-    assert her.cognition.recall_pool == {}
+    assert her.cognition.recall_pool.get("felt") is True
     before = list(her.cognition.long_term_memory)
     her.affect.emotions = {"joy": 0.1, "fear": 0.7, "calm": 0.1}
     assert recall.settle_on_what_she_feels(her) is False

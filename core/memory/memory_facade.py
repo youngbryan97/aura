@@ -1978,13 +1978,14 @@ class MemoryFacade(_NormalisesWhatItReturns):
 
 
 def _stamp_felt(metadata: dict[str, Any]) -> dict[str, Any]:
-    """Every write carries the feeling it was made in, and where her field stood.
+    """Every write carries the feeling it was made in, where her field stood, and what her last turn was worth.
 
-    See core/memory/felt_at_encoding.py and core/memory/context_at_encoding.py.
-    Module-level since 2026-09-21: the facade was one method over its ratchet
-    and this reads nothing of the facade's.
+    See core/memory/felt_at_encoding.py, core/memory/context_at_encoding.py and
+    core/memory/worth_at_encoding.py. Module-level since 2026-09-21: the facade
+    was one method over its ratchet and this reads nothing of the facade's.
     """
     from core.memory.context_at_encoding import stamp as stamp_context
     from core.memory.felt_at_encoding import stamp_from_repository
+    from core.memory.worth_at_encoding import stamp as stamp_worth
 
-    return stamp_context(stamp_from_repository(metadata))
+    return stamp_worth(stamp_context(stamp_from_repository(metadata)))
