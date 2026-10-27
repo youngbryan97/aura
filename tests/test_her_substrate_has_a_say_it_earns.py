@@ -107,14 +107,13 @@ def test_recall_asks_its_gate(monkeypatch):
 
     captured = {}
 
-    def held_now(now, apart):
+    def resonance(now, felt, centre):
         captured.setdefault("calls", 0)
         captured["calls"] += 1
         return 0.5
 
     monkeypatch.setattr("core.memory.felt_at_encoding.felt_now", lambda affect: {"valence": 0.2})
-    monkeypatch.setattr("core.memory.felt_at_encoding.distinctive", lambda felt: {"a memory": {}})
-    monkeypatch.setattr("core.memory.felt_at_encoding.held_now", held_now)
+    monkeypatch.setattr("core.memory.felt_at_encoding.resonance", resonance)
     candidates = [(0.2, "a memory")]
     _fixed(monkeypatch, {"recall": 1.0})
     plain = memory_retrieval._cued_by_what_she_feels(candidates, {"a memory": {}}, object(), 0.3)[0][0]

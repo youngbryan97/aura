@@ -356,19 +356,22 @@ def _cued_by_what_she_feels(
     fifth of that wide, so every alignment sat near one and a change in how
     she felt moved a score by a hundredth: on seed 7 a displacement that moved
     her internal geometry by 0.178 moved what she recalled by 0.011. A
-    recollection now closes the gap to full relevance by the share of its
-    distinctive feeling she holds now, at the gain affect gives memory, the
-    way the percept's does at the percept's salience. See
-    core/memory/felt_at_encoding.py.
+    recollection now closes the gap to full relevance by how far what sets her
+    feeling apart now matches what set its feeling apart then, both measured
+    from the feeling the competing memories share (`felt_at_encoding.resonance`),
+    at the gain affect gives memory, the way the percept's does at the
+    percept's salience. The share of its feeling she held could not tell one
+    memory from the next when she felt many things at once.
     """
     if not felt_by_text or memory_salience <= 0.0:
         return memory_candidates
-    from core.memory.felt_at_encoding import distinctive, felt_now, held_now
+    from core.memory.felt_at_encoding import felt_now, resonance, usual
 
     now = felt_now(affect)
     if not now:
         return memory_candidates
-    set_apart = distinctive(_by_content(felt_by_text))
+    stamps = _by_content(felt_by_text)
+    centre = usual(stamps)
     # Scaled by what her substrate has learned the pull of feeling on recall
     # should be now. See core/consciousness/substrate_gates.py.
     from core.consciousness.substrate_gates import get_substrate_gates
@@ -377,7 +380,7 @@ def _cued_by_what_she_feels(
     reread: list[tuple[float, str]] = []
     for score, text in memory_candidates:
         bounded = max(0.0, min(1.0, float(score)))
-        updated = bounded + (1.0 - bounded) * held_now(now, set_apart.get(_unlabelled(text))) * gain
+        updated = bounded + (1.0 - bounded) * resonance(now, stamps.get(_unlabelled(text)), centre) * gain
         reread.append((updated, _rescored(text, bounded, updated)))
     return reread
 

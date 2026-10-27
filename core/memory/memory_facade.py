@@ -932,17 +932,22 @@ class MemoryFacade(_NormalisesWhatItReturns):
         what the words found: on 24 October, feeling better changed what she
         recalled on most presentations and the distance between what a good and
         a bad percept brought back by 0.0002 on average, where her internal
-        state drew them 0.94 closer. Scored by `felt_at_encoding.held_now`, the
-        share of what she felt then that she holds now; memories made at rest
-        carry nothing and are not returned. Synchronous; callers off the loop.
+        state drew them 0.94 closer. Scored by `felt_at_encoding.resonance`: what
+        sets her feeling now apart from what her memories share, against what set
+        each apart then; memories made at rest carry nothing and are not returned. Synchronous; callers off the loop.
         """
-        from core.memory.felt_at_encoding import FELT_KEY, held_now
+        from core.memory.felt_at_encoding import FELT_KEY, resonance, usual
 
         if not now:
             return []
         memories = self._stamped_memories(FELT_KEY)
+        centre = usual({index: metadata.get(FELT_KEY) for index, (_, metadata, _) in enumerate(memories)})
         scored = sorted(
-            ((held, index) for index, (_, metadata, _) in enumerate(memories) if (held := held_now(now, metadata.get(FELT_KEY))) > 0.0),
+            (
+                (held, index)
+                for index, (_, metadata, _) in enumerate(memories)
+                if (held := resonance(now, metadata.get(FELT_KEY), centre)) > 0.0
+            ),
             reverse=True,
         )
         return [

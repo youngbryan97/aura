@@ -46,6 +46,8 @@ metadata, and a nested value is dropped by them without saying so.
 
 from __future__ import annotations
 
+import math
+
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -57,6 +59,8 @@ __all__ = [
     "encode",
     "felt_now",
     "held_now",
+    "resonance",
+    "usual",
     "percept_carried",
     "stamp",
     "stamp_from_repository",
@@ -243,3 +247,39 @@ def held_now(now: Mapping[str, float], felt: Any) -> float:
         return 0.0
     held = sum(value * max(0.0, float(now.get(name, 0.0))) / strongest for name, value in feeling.items())
     return max(0.0, min(1.0, held / total))
+
+
+def usual(felts: Mapping[str, Any]) -> dict[str, float]:
+    """The feeling the memories in a pool share: each emotion's mean over the stamps that carry any."""
+    decoded = [decode(value) if not isinstance(value, Mapping) else dict(value) for value in felts.values()]
+    carrying = [feeling for feeling in decoded if feeling]
+    if not carrying:
+        return {}
+    names = {name for feeling in carrying for name in feeling}
+    return {name: sum(float(feeling.get(name, 0.0)) for feeling in carrying) / len(carrying) for name in names}
+
+
+def resonance(now: Mapping[str, float], felt: Any, centre: Mapping[str, float]) -> float:
+    """How far what is distinctive about how she feels now matches what was distinctive then, from 0 to 1.
+
+    Both are measured from `centre`, the feeling the competing memories share
+    (`usual`), and compared as a correlation across every emotion either names;
+    a match facing away counts as none. `held_now` asks what share of a
+    memory's feeling she holds, and she holds many feelings above her
+    baselines at once (their sum was 12.3 on seed 71, 26 October), so nearly
+    every memory was held alike, a nudge to her mood lifted them together, and
+    the five she kept changed in a quarter of recalls. What sets now apart
+    from her usual is what calls up what was set apart then. An ordinary mood
+    calls up nothing in particular.
+    """
+    then = decode(felt) if not isinstance(felt, Mapping) else dict(felt)
+    if not now or not then:
+        return 0.0
+    names = set(now) | set(then) | set(centre)
+    a = [float(now.get(name, 0.0)) - float(centre.get(name, 0.0)) for name in names]
+    b = [float(then.get(name, 0.0)) - float(centre.get(name, 0.0)) for name in names]
+    norm = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
+    if norm <= 0.0:
+        return 0.0
+    return max(0.0, min(1.0, sum(x * y for x, y in zip(a, b)) / norm))
+
