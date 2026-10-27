@@ -591,7 +591,8 @@ class ClosureReport:
             and self.leak_upper is not None
             and self.leak_upper < self.margin
             and self.smallest_leak_resolved is not None
-            and self.smallest_leak_resolved <= self.margin
+            and math.isfinite(self.smallest_leak_resolved)
+            and 0.0 < self.smallest_leak_resolved <= self.margin
         ):
             return CLOSED
         return UNRESOLVED
@@ -1166,7 +1167,11 @@ def _resolution(
             "detected": found,
             "refined": refined,
         })
-        if found and (resolved is None or scored["leak"] < resolved):
+        # A plant read open shows the gate's reach only by a positive pooled
+        # leak: one fold can open while the pooled leak is below zero, and a
+        # resolution below zero passed `<= margin` whatever the gate could find
+        # (the carrier of 26 October recorded -0.0014).
+        if found and scored["leak"] > 0.0 and (resolved is None or scored["leak"] < resolved):
             resolved = scored["leak"]
         return found
 

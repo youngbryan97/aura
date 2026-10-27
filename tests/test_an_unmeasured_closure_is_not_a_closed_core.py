@@ -64,6 +64,39 @@ def test_a_gate_that_cannot_resolve_the_margin_cannot_close() -> None:
     assert report.verdict == "UNRESOLVED"
 
 
+def test_a_resolution_at_or_below_zero_is_no_certificate() -> None:
+    """The carrier of 26 October read closed on a resolution of -0.0014, which `<= margin` let through."""
+    for resolution in (-0.0014, 0.0, float("nan"), float("-inf")):
+        report = _report(periphery_width=12, leak=0.0, leak_lower=-0.002, leak_upper=0.004,
+                         smallest_leak_resolved=resolution, margin=0.01)
+        assert report.verdict == "UNRESOLVED", resolution
+
+
+def test_a_plant_found_only_by_one_fold_does_not_set_the_resolution(monkeypatch) -> None:
+    """A planted leak read open by one fold, with its pooled leak below zero, shows no reach."""
+    import numpy as np
+
+    import core.subject.closure as closure
+
+    calls = []
+
+    def scored(*args, **kwargs):
+        calls.append(1)
+        # The width search is wide enough at once; every plant after it is read
+        # open by one fold with its pooled leak below zero.
+        if len(calls) == 1:
+            return {"leak": 0.05, "leak_lower": 0.04, "floor_high": 0.0}
+        return {"leak": -0.002, "leak_lower": -0.004, "floor_high": 0.0}
+
+    monkeypatch.setattr(closure, "_scored", scored)
+    monkeypatch.setattr(closure, "_opens", lambda reading: True)
+    rng = np.random.default_rng(0)
+    now, env, nxt, outside = rng.normal(size=(40, 3)), rng.normal(size=(40, 1)), rng.normal(size=(40, 3)), rng.normal(size=(40, 2))
+    result = closure._resolution(now, env, nxt, outside, seed=0, draws=1)
+    assert result["smallest_leak_resolved"] is None
+    assert result["detected"] is False
+
+
 def test_a_leak_inside_its_own_shuffled_floor_is_not_open() -> None:
     report = _report(periphery_width=12, leak=0.01, shuffled_leak=0.02, floor_high=0.04,
                      leak_lower=-0.01, leak_upper=0.03)

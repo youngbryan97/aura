@@ -176,3 +176,21 @@ def test_the_record_of_what_wrote_her_reaches_the_lineage(tool: Any, tmp_path: P
     connection.close()
     line = lineage_from_state_log(tool.state_rows(path)).development()
     assert line["steps"] == 2 and line["steps_since_the_record"] == 2 and line["developing"] == 2
+
+
+def test_the_battery_is_read_under_v6_when_it_was_scored_under_v6(tool: Any, monkeypatch) -> None:
+    """v6 replaces v5's synergy line; read under v5 the total could disagree with the scorer's 24."""
+    from types import SimpleNamespace
+
+    import core.subject.battery as battery
+
+    line = lambda key, passed: SimpleNamespace(key=key, passed=passed)  # noqa: E731
+    verdict = SimpleNamespace(
+        v6_criteria=[line("synergy", True)],
+        v5_criteria=[line("synergy", False)],
+        v3_criteria=[], v2_criteria=[], criteria=[],
+        v6_lines=lambda: [line("reentry", True), line("synergy", True)],
+        v5_lines=lambda: [line("reentry", True), line("synergy", False)],
+    )
+    monkeypatch.setattr(battery, "assemble", lambda report: verdict)
+    assert tool.battery_lines({"any": "report"}) == {"reentry": True, "synergy": True}

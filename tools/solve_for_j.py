@@ -177,7 +177,11 @@ def battery_lines(report: dict[str, Any] | None) -> dict[str, bool] | None:
     from core.subject.battery import assemble
 
     verdict = assemble(report)
-    if verdict.v5_criteria:
+    # v6 replaces v5's synergy line with the interventional one; reading v5 here
+    # gave a total that could disagree with the 24 the scorer reports.
+    if verdict.v6_criteria:
+        lines = verdict.v6_lines()
+    elif verdict.v5_criteria:
         lines = verdict.v5_lines()
     elif verdict.v3_criteria:
         lines = verdict.v3_lines()
