@@ -1388,8 +1388,16 @@ def _restore_singletons(saved: Mapping[str, dict[str, Any]]) -> None:
 #: still running, rewinding lockdep would forget lock orders it has already
 #: proven, and an instrument that rewinds its own bookkeeping cannot report on
 #: the run it is keeping.
+#:
+#: The governance context is the eighth. A restore put back an older copy of its
+#: lease registry, so a scope open on another thread at that moment lost its
+#: lease, and her clock, which a restore moves by hours, timed its tokens' thirty
+#: seconds. Either way a governed write read as ungoverned: seed 73's campaign
+#: lost its model-lane heartbeat that way after seven hours of restores, and the
+#: shutdown that followed refused the run's last pin (27 October).
 _MACHINERY_PACKAGES: tuple[str, ...] = (
     "core.fsw",
+    "core.governance_context",
     "core.health",
     "core.observability",
     "core.persistence",
