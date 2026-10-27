@@ -19,13 +19,17 @@ phase and nothing moves. The discourse tracker deepens its reading on every sixt
 message, and seed 23's donors sat 48 turns away, six messages, in phase every
 time: it never moved K there, and it moved K at half the anchors of seven fresh
 seeds whose donors sat 64 turns away (26 October). Anchors 13 turns apart and
-donors one anchor and half the bank away leave only a period of 13 hidden.
+donors one anchor and half the bank away left a period of 13 hidden, and every
+period 13 divides: the external audit of 27 October named it. Anchors now sit
+13 and 14 turns apart in turn, so the one-anchor donors are 13 or 14 turns away
+and the half-bank donors 54, and no period above one is in phase with all of
+them (`periods_hidden`).
 
 CLOSED: no swap moves K or any comparable K* reading at any anchor whose
 untouched twins agree, with no residue. OPEN names what moves it and, for a
 whole unit, which of its attributes. UNRESOLVED: residue, or no anchor decided.
 
-    python tools/run_interventional_closure.py --anchors 8 --spacing 13 --seed 61 --out runs/interventional
+    python tools/run_interventional_closure.py --anchors 8 --spacing 13,14 --seed 61 --out runs/interventional
 """
 from __future__ import annotations
 
@@ -87,6 +91,31 @@ def periods_in_phase(offsets: list[int], spacing: int, longest: int) -> list[int
     return [p for p in range(2, longest + 1) if all((o * spacing) % p == 0 for o in offsets)]
 
 
+def spacing_pattern(text: str | int) -> list[int]:
+    """Turns between anchors, repeating: "13,14" from text, or one spacing."""
+    return [max(1, int(part)) for part in str(text).split(",") if part.strip()]
+
+
+def anchor_turns(pattern: list[int], anchors: int) -> list[int]:
+    """The turn each anchor is taken at under a repeating spacing pattern."""
+    out, at = [], 0
+    for index in range(anchors):
+        at += pattern[index % len(pattern)]
+        out.append(at)
+    return out
+
+
+def donor_distances(turns: list[int], offsets: list[int]) -> list[int]:
+    """Every distance in turns between an anchor and its donors, as the swaps use them."""
+    n = len(turns)
+    return sorted({abs(turns[(i + o) % n] - turns[i]) for i in range(n) for o in offsets} - {0})
+
+
+def periods_hidden(distances: list[int], longest: int) -> list[int]:
+    """The cycles, in turns, that every donor distance is a whole number of."""
+    return [p for p in range(2, longest + 1) if distances and all(d % p == 0 for d in distances)]
+
+
 def verdict_of(moved: list[str], residue: list[dict[str, Any]], decided: bool) -> str:
     """OPEN when something moved K*, UNRESOLVED on residue or with no anchor decided, CLOSED otherwise."""
     if moved:
@@ -99,7 +128,10 @@ def verdict_of(moved: list[str], residue: list[dict[str, Any]], decided: bool) -
 async def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--anchors", type=int, default=8)
-    parser.add_argument("--spacing", type=int, default=13)
+    parser.add_argument(
+        "--spacing", default="13,14",
+        help="turns between anchors, a repeating comma-separated pattern",
+    )
     parser.add_argument(
         "--shard", default="0/1",
         help="k/n: swap only every n-th unit from the k-th, so one seed's test can run in n processes",
@@ -140,11 +172,15 @@ async def main(argv: list[str] | None = None) -> int:
     runtime.forked_services = None
     runtime.forked_phases = None
     runtime.forked_modules = None
-    rounds = max(1, (args.anchors * args.spacing) // len(CONDITIONS))
-    bank = await collect_anchor_bank(runtime, CONDITIONS, rounds=rounds, history_turns=8, every=args.spacing)
+    pattern = spacing_pattern(args.spacing)
+    turns_at = anchor_turns(pattern, args.anchors)
+    rounds = max(1, -(-turns_at[-1] // len(CONDITIONS)))
+    bank = await collect_anchor_bank(runtime, CONDITIONS, rounds=rounds, history_turns=8, spacings=pattern)
     snaps = [anchor.snapshot for anchor in list(bank)[: args.anchors]]
     offsets = donor_offsets(args.donors, len(snaps))
-    print(f"donors at {offsets} anchors, {[o * args.spacing for o in offsets]} turns away", flush=True)
+    distances = donor_distances(turns_at[: len(snaps)], offsets)
+    hidden = periods_hidden(distances, max(distances, default=0))
+    print(f"donors at {offsets} anchors, {distances} turns away; periods in phase with every donor: {hidden}", flush=True)
     held_units = {entry.unit for entry in HELD}
 
     async def roll(snapshot: Any, index: int) -> tuple[Any, dict[str, float]]:
@@ -343,7 +379,7 @@ async def main(argv: list[str] | None = None) -> int:
 
     verdict = verdict_of(moved, residue, any(b is not None for b in base))
     print(f"\ninterventional closure of K*: {verdict}; {len(results)} swaps; moved by: {moved}", flush=True)
-    write({"seed": args.seed, "anchors": len(snaps), "spacing": args.spacing, "donor_offsets": offsets, "shard": args.shard,
+    write({"seed": args.seed, "anchors": len(snaps), "spacing": pattern, "donor_offsets": offsets, "donor_distances": distances, "periods_hidden": hidden, "shard": args.shard,
            "verdict": verdict, "results": results, "moves_k_star": moved,
            "residue": residue, "one_offs": one_offs, "culprit_attributes": culprits})
     return 0
