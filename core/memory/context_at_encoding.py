@@ -25,6 +25,7 @@ what every competing memory shares is taken out, which needs no scale of its own
 from __future__ import annotations
 
 import base64
+import functools
 import logging
 from collections.abc import Mapping
 from typing import Any
@@ -64,15 +65,27 @@ def encode(state: np.ndarray) -> str:
 
 
 def decode(text: Any) -> np.ndarray | None:
-    """The state back out of a stamp; anything unreadable reads as no context."""
+    """The state back out of a stamp; anything unreadable reads as no context.
+
+    The array is shared between callers and cannot be written. A search reads
+    every stamped memory on every recall, so each stamp is decoded once.
+    """
     if not isinstance(text, str) or not text:
         return None
+    return _decoded(text)
+
+
+@functools.lru_cache(maxsize=8192)
+def _decoded(text: str) -> np.ndarray | None:
     try:
         state = np.frombuffer(base64.b64decode(text.encode("ascii"), validate=True), dtype=np.float16)
     except (ValueError, TypeError):
         return None
     state = state.astype(np.float64)
-    return state if state.size and np.all(np.isfinite(state)) else None
+    if not state.size or not np.all(np.isfinite(state)):
+        return None
+    state.setflags(write=False)
+    return state
 
 
 def stamp(metadata: dict[str, Any], state: np.ndarray | None = None) -> dict[str, Any]:

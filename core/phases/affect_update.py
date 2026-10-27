@@ -260,6 +260,41 @@ def _addressed(state: Any) -> bool:
     return read_safety([], list(getattr(state.cognition, "working_memory", []) or [])).presence > 0.0
 
 
+#: What a reassuring percept relieves, down to each feeling's baseline.
+_RELIEVED_BY_REASSURANCE: tuple[str, ...] = ("fear", "sadness", "upset", "frustration", "loneliness", "longing")
+
+
+def feel_percept(emotions: dict, baselines: dict, percept: Any) -> float:
+    """What one arriving percept does to her feelings, in place; returns the intensity it was felt at.
+
+    The base impact of its kind at `PERCEPT_GAIN` on each feeling's headroom,
+    and a reassuring percept's relief. One rule for the two readers that need
+    it: the affect phase feels the percept for real, and recall, which runs
+    before it in a turn, feels it on a copy so that what she remembers on
+    meeting something is cued by what meeting it makes her feel
+    (core/phases/memory_retrieval.py, `as_she_meets_it`).
+    """
+    if not isinstance(percept, dict):
+        return 0.0
+    event_type = percept.get("type", "none")
+    intensity = float(percept.get("intensity", 0.5) or 0.0)
+    if event_type == "neural_decode":
+        intensity = min(intensity, 0.25)
+    for emotion in PERCEPT_EMOTIONS.get(event_type, []):
+        bump_emotion(emotions, emotion, intensity * PERCEPT_GAIN)
+    if event_type in _REASSURANCE_PERCEPTS:
+        relief = min(0.35, intensity * 0.25)
+        for emotion in _RELIEVED_BY_REASSURANCE:
+            baseline = baselines.get(emotion, 0.0)
+            current = emotions.get(emotion, 0.0)
+            try:
+                emotions[emotion] = max(0.0, min(1.0, float(max(baseline, current - relief))))
+            # not a failure: a value that is not a number is not one this can read.
+            except (TypeError, ValueError):
+                emotions[emotion] = 0.0
+    return intensity
+
+
 def bump_emotion(emotions: dict, name: str, delta: float) -> None:
     """Move a feeling by a share of the room it has left, in place.
 
@@ -1306,8 +1341,6 @@ class AffectUpdatePhase(Phase):
 
     def _process_percepts(self, affect: AffectVector, percepts: list[dict]):
         """Maps recent world events to emotional triggers."""
-        emotion_map = PERCEPT_EMOTIONS
-        
         # Specific command mappings for cognitive neural decodes. Neural input is
         # advisory sensory context only; it must never become a hard dependency
         # for autonomous RSI/self-improvement loops.
@@ -1320,27 +1353,18 @@ class AffectUpdatePhase(Phase):
         
         for p in percepts:
             event_type = p.get("type", "none")
-            intensity = p.get("intensity", 0.5)
             if event_type == "neural_decode":
-                raw_intensity = intensity
-                intensity = min(float(intensity), 0.25)
+                raw_intensity = p.get("intensity", 0.5)
                 affect.markers["neural_decode_autonomy_cap"] = {
                     "raw_intensity": float(raw_intensity),
-                    "applied_intensity": float(intensity),
+                    "applied_intensity": float(min(float(raw_intensity), 0.25)),
                     "reason": "advisory_bci_not_autonomy_dependency",
                 }
-            
-            # 1. Base Type Impacts
-            for emotion in emotion_map.get(event_type, []):
-                self._bump_emotion(affect, emotion, float(intensity) * PERCEPT_GAIN)
 
-            if event_type in _REASSURANCE_PERCEPTS:
-                for emotion in ("fear", "sadness", "upset", "frustration", "loneliness", "longing"):
-                    baseline = affect.mood_baselines.get(emotion, 0.0)
-                    current = affect.emotions.get(emotion, 0.0)
-                    relief = min(0.35, float(intensity) * 0.25)
-                    self._set_emotion(affect, emotion, max(baseline, current - relief))
-                
+            # 1. Base Type Impacts, and a reassuring percept's relief: the rule
+            # recall also feels on a copy before this phase runs (`feel_percept`).
+            intensity = feel_percept(affect.emotions, affect.mood_baselines, p)
+
             # 2. Command-Specific Impacts (BCI Bridge)
             if event_type == "neural_decode":
                 cmd = p.get("command")

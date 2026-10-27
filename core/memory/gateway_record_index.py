@@ -329,6 +329,22 @@ class GatewayRecordIndex:
             score += 0.25
         return min(1.0, score)
 
+    def stamped(self, key: str) -> list[GatewayRecordEntry]:
+        """Every record whose metadata carries `key`, from the in-memory view.
+
+        What recall by feeling and by her inner state ranks
+        (MemoryFacade.search_by_feeling, search_by_context). Like `search` it
+        never blocks on a refresh: a cold index serves nothing and warms.
+        """
+        if not self.root.exists():
+            return []
+        if not self._built:
+            self._kick_refresh()
+            return []
+        if self._stale() or self._write_hint_due():
+            self._kick_refresh()
+        return [entry for entry in list(self._entries.values()) if entry.metadata.get(key)]
+
     def search(self, query: str, limit: int = 5) -> list[tuple[float, GatewayRecordEntry]]:
         """Score records against the query; returns (score, entry) best-first.
 

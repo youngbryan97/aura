@@ -305,6 +305,41 @@ def _cued_by_the_percept(
     return reread
 
 
+def as_she_meets_it(state: Any) -> Any:
+    """Her affect with what has just arrived already felt, for recall to be cued by.
+
+    Inside a turn recall runs before the affect phase, so what she felt on
+    meeting a percept reached her memory a turn late: recall was cued by how
+    she felt before it arrived. What comes to mind on meeting something is
+    cued by what meeting it makes you feel. Here the percepts the affect phase
+    has not yet taken are felt on a copy of her feelings, by the rule that
+    phase applies (`affect_update.feel_percept`), and the phase still feels them
+    for real afterwards, once. Her baselines and valence are hers as they stand.
+    """
+    affect = getattr(state, "affect", None)
+    emotions = getattr(affect, "emotions", None)
+    if not isinstance(emotions, dict):
+        return affect
+    from core.phases.affect_update import feel_percept
+    from core.state.percepts import fresh_for
+
+    percepts = fresh_for(getattr(getattr(state, "world", None), "recent_percepts", None), "affect")
+    if not percepts:
+        return affect
+    baselines = dict(getattr(affect, "mood_baselines", {}) or {})
+    felt = dict(emotions)
+    for percept in percepts:
+        feel_percept(felt, baselines, percept)
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        emotions=felt,
+        mood_baselines=baselines,
+        valence=getattr(affect, "valence", 0.0),
+        markers=getattr(affect, "markers", {}),
+    )
+
+
 def _cued_by_what_she_feels(
     memory_candidates: list[tuple[float, str]],
     felt_by_text: dict[str, Any],
@@ -981,7 +1016,7 @@ class MemoryRetrievalPhase(BasePhase):
                     return None
                 from core.memory.felt_at_encoding import felt_now
 
-                now = felt_now(getattr(state, "affect", None))
+                now = felt_now(as_she_meets_it(state))
                 if not now:
                     return None
                 async with asyncio.timeout(15.0):
@@ -1218,7 +1253,7 @@ class MemoryRetrievalPhase(BasePhase):
             getattr(state, "affect", None),
         )
         memory_candidates = _cued_by_what_she_feels(
-            memory_candidates, felt_by_text, getattr(state, "affect", None), effective_memory_salience
+            memory_candidates, felt_by_text, as_she_meets_it(state), effective_memory_salience
         )
         memory_candidates = _cued_by_where_she_stands(memory_candidates, context_by_text, effective_memory_salience)
 

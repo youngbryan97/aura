@@ -98,3 +98,60 @@ def test_the_facade_searches_by_context() -> None:
     facade._vector = SimpleNamespace(_collection=SimpleNamespace(get=lambda include=None: rows))
     found = facade.search_by_context(here, limit=2)
     assert [item.get("content") or item.get("text") for item in found][:1] == ["made here"]
+
+
+def test_the_searches_read_what_she_wrote_through_the_gateway(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """In a subject run the vault was empty and everything she had was in the gateway's records."""
+    import core.memory.gateway_record_index as index_module
+    import core.memory.memory_write_gateway as gateway_module
+    from core.memory.felt_at_encoding import encode as encode_felt
+    from core.memory.memory_facade import MemoryFacade
+
+    here, elsewhere = np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0])
+    entries = [
+        SimpleNamespace(content="made here", memory_id="a", metadata={"context": context.encode(here), "felt": encode_felt({"joy": 0.5})}),
+        SimpleNamespace(content="made elsewhere", memory_id="b", metadata={"context": context.encode(elsewhere), "felt": encode_felt({"fear": 0.5})}),
+    ]
+    monkeypatch.setattr(gateway_module, "get_memory_write_gateway", lambda: SimpleNamespace(root=str(tmp_path)))
+    monkeypatch.setattr(index_module, "get_gateway_record_index",
+                        lambda root: SimpleNamespace(stamped=lambda key: [e for e in entries if e.metadata.get(key)]))
+    facade = MemoryFacade.__new__(MemoryFacade)
+    facade._vector = None
+    monkeypatch.setattr("core.container.ServiceContainer.get", lambda *a, **k: None)
+    by_context = facade.search_by_context(here, limit=1)
+    by_feeling = facade.search_by_feeling({"joy": 0.4}, limit=1)
+    assert [item.get("content") or item.get("text") for item in by_context] == ["made here"]
+    assert [item.get("content") or item.get("text") for item in by_feeling] == ["made here"]
+
+
+def test_recall_is_cued_by_what_the_arriving_percept_makes_her_feel() -> None:
+    """Recall runs before the affect phase; it now feels the percept first, on a copy."""
+    from core.phases.affect_update import PERCEPT_GAIN, feel_percept
+    from core.state.percepts import PERCEPT_EMOTIONS
+
+    kind = next(k for k, names in PERCEPT_EMOTIONS.items() if names)
+    named = list(PERCEPT_EMOTIONS[kind])
+    emotions = {name: 0.1 for name in named}
+    baselines = {name: 0.1 for name in named}
+    state = SimpleNamespace(
+        affect=SimpleNamespace(emotions=emotions, mood_baselines=baselines, valence=0.0, markers={}),
+        world=SimpleNamespace(recent_percepts=[{"type": kind, "intensity": 1.0}]),
+    )
+    met = recall.as_she_meets_it(state)
+    assert all(met.emotions[name] > emotions[name] for name in named)
+    assert emotions == {name: 0.1 for name in named}, "her real feelings are left for the affect phase"
+    # The same rule the affect phase applies.
+    real = dict(emotions)
+    feel_percept(real, baselines, {"type": kind, "intensity": 1.0})
+    assert real == met.emotions
+    assert PERCEPT_GAIN > 0.0
+
+
+def test_a_percept_the_affect_phase_has_taken_is_not_felt_again() -> None:
+    from core.state.percepts import CONSUMED_KEY, PERCEPT_EMOTIONS
+
+    kind = next(k for k, names in PERCEPT_EMOTIONS.items() if names)
+    emotions = {name: 0.1 for name in PERCEPT_EMOTIONS[kind]}
+    affect = SimpleNamespace(emotions=emotions, mood_baselines={}, valence=0.0, markers={})
+    state = SimpleNamespace(affect=affect, world=SimpleNamespace(recent_percepts=[{"type": kind, "intensity": 1.0, CONSUMED_KEY: ["affect"]}]))
+    assert recall.as_she_meets_it(state) is affect

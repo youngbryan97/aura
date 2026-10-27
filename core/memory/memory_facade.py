@@ -862,6 +862,42 @@ class MemoryFacade(_NormalisesWhatItReturns):
         
         return results[:limit]
 
+    def _stamped_memories(self, key: str) -> list[tuple[str, dict[str, Any], str]]:
+        """Every memory carrying a stamp under `key`, from the vault and the gateway's records.
+
+        In the strict runtime the facade writes through the memory write
+        gateway, which the vault does not mirror, so a search that read only
+        the vault never saw what she had written that way. In a subject run the
+        vault was empty and every memory she had was in the gateway's records,
+        so recall by feeling and by her inner state found nothing at all
+        (26 October). As (content, metadata, id), each content once.
+        """
+        found: dict[str, tuple[str, dict[str, Any], str]] = {}
+        vector = self.vector if self.vector is not None else ServiceContainer.get("vector_memory", default=None)
+        if vector is not None and hasattr(vector, "_collection"):
+            try:
+                rows = vector._collection.get(include=["documents", "metadatas"])
+            except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+                record_degradation('memory_facade', e)
+                rows = {}
+            docs = list((rows or {}).get("documents", []) or [])
+            metas = list((rows or {}).get("metadatas", []) or [])
+            ids = list((rows or {}).get("ids", []) or [])
+            for index, metadata in enumerate(metas):
+                if isinstance(metadata, dict) and metadata.get(key) and index < len(docs):
+                    found.setdefault(str(docs[index]), (str(docs[index]), metadata, str(ids[index]) if index < len(ids) else ""))
+        try:
+            from core.memory.gateway_record_index import get_gateway_record_index
+            from core.memory.memory_write_gateway import get_memory_write_gateway
+
+            root = Path(get_memory_write_gateway().root)
+            if root.exists():
+                for entry in get_gateway_record_index(root).stamped(key):
+                    found.setdefault(entry.content, (entry.content, self._safe_metadata(entry.metadata), entry.memory_id))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as e:
+            record_degradation('memory_facade', e)
+        return list(found.values())
+
     def search_by_context(self, now: Any, limit: int = 5) -> list[dict[str, Any]]:
         """The memories made where her field stands now, nearest first.
 
@@ -872,30 +908,17 @@ class MemoryFacade(_NormalisesWhatItReturns):
         """
         from core.memory.context_at_encoding import CONTEXT_KEY, distinctive, near
 
-        if now is None or self.vector is None or not hasattr(self.vector, "_collection"):
+        if now is None:
             return []
-        try:
-            collection = self.vector._collection.get(include=["documents", "metadatas"])
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('memory_facade', e)
-            return []
-        docs = list(collection.get("documents", []) or [])
-        metas = list(collection.get("metadatas", []) or [])
-        ids = list(collection.get("ids", []) or [])
-        stamped = {
-            index: metadata[CONTEXT_KEY]
-            for index, metadata in enumerate(metas)
-            if isinstance(metadata, dict) and metadata.get(CONTEXT_KEY) and index < len(docs)
-        }
-        contexts, centre = distinctive(stamped)
+        memories = self._stamped_memories(CONTEXT_KEY)
+        contexts, centre = distinctive({index: metadata[CONTEXT_KEY] for index, (_, metadata, _) in enumerate(memories)})
         scored = sorted(
             ((closeness, index) for index, then in contexts.items() if (closeness := near(now, then, centre)) > 0.0),
             reverse=True,
         )
         return [
             self._normalize_memory_result(
-                content=docs[index], metadata=metas[index],
-                memory_id=ids[index] if index < len(ids) else "", score=closeness,
+                content=memories[index][0], metadata=memories[index][1], memory_id=memories[index][2], score=closeness,
             )
             for closeness, index in scored[: max(0, int(limit))]
         ]
@@ -915,28 +938,16 @@ class MemoryFacade(_NormalisesWhatItReturns):
         """
         from core.memory.felt_at_encoding import FELT_KEY, held_now
 
-        if not now or self.vector is None or not hasattr(self.vector, "_collection"):
+        if not now:
             return []
-        try:
-            collection = self.vector._collection.get(include=["documents", "metadatas"])
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('memory_facade', e)
-            return []
-        docs = list(collection.get("documents", []) or [])
-        metas = list(collection.get("metadatas", []) or [])
-        ids = list(collection.get("ids", []) or [])
-        scored = []
-        for index, metadata in enumerate(metas):
-            if not isinstance(metadata, dict) or not metadata.get(FELT_KEY) or index >= len(docs):
-                continue
-            held = held_now(now, metadata.get(FELT_KEY))
-            if held > 0.0:
-                scored.append((held, index))
-        scored.sort(reverse=True)
+        memories = self._stamped_memories(FELT_KEY)
+        scored = sorted(
+            ((held, index) for index, (_, metadata, _) in enumerate(memories) if (held := held_now(now, metadata.get(FELT_KEY))) > 0.0),
+            reverse=True,
+        )
         return [
             self._normalize_memory_result(
-                content=docs[index], metadata=metas[index],
-                memory_id=ids[index] if index < len(ids) else "", score=held,
+                content=memories[index][0], metadata=memories[index][1], memory_id=memories[index][2], score=held,
             )
             for held, index in scored[: max(0, int(limit))]
         ]
