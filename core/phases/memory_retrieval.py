@@ -402,6 +402,14 @@ def settle_on_what_she_feels(state: Any) -> bool:
     words and the percept gave them, by what sets her feeling apart now against
     what set each memory's apart then, at the gain recall ran at, and she holds
     as many of the best as she held before. The pool is used once.
+
+    And what she then holds brings its feeling back (`_reinstate`), at the same
+    gain: feeling cued recall, and recall moves feeling. Settling alone left the
+    two moving against each other on the seed 31 and 73 practice runs at
+    000cb4a8a (affect against memory -0.53 and -0.62, affect tracking recall
+    -0.05); in a model with the content test's structure, recall that brings its
+    feeling back moved with the inner state at 0.63 at the median and 0.41 at
+    the worst of sixteen seeds, where recall that does not read 0.40 and 0.21.
     Returns whether what she holds changed.
     """
     cognition = getattr(state, "cognition", None)
@@ -416,27 +424,62 @@ def settle_on_what_she_feels(state: Any) -> bool:
         return False
     from core.memory.felt_at_encoding import felt_now, resonance, usual
 
-    now = felt_now(getattr(state, "affect", None))
     stamps = {_unlabelled(str(entry["text"])): entry.get("felt") for entry in candidates if entry.get("felt")}
-    if not now or not stamps:
+    if not stamps:
         return False
-    centre = usual(stamps)
     from core.consciousness.substrate_gates import get_substrate_gates
 
     gain = min(1.0, salience * get_substrate_gates().multiplier("recall"))
-    reread: list[tuple[float, str]] = []
-    for entry in candidates:
-        text = str(entry["text"])
-        bounded = max(0.0, min(1.0, float(entry["score"])))
-        updated = bounded + (1.0 - bounded) * resonance(now, stamps.get(_unlabelled(text)), centre) * gain
-        reread.append((updated, _rescored(text, bounded, updated)))
-    reread.sort(key=lambda item: item[0], reverse=True)
-    kept = reread[: len(held)]
-    settled = [text for _, text in kept]
-    changed = [_unlabelled(text) for text in settled] != [_unlabelled(str(text)) for text in held]
-    cognition.long_term_memory = settled
-    cognition.memory_scores = [round(float(score), 4) for score, _ in kept]
+    affect = getattr(state, "affect", None)
+    now = felt_now(affect)
+    changed = False
+    settled = held
+    if now:
+        centre = usual(stamps)
+        reread: list[tuple[float, str]] = []
+        for entry in candidates:
+            text = str(entry["text"])
+            bounded = max(0.0, min(1.0, float(entry["score"])))
+            updated = bounded + (1.0 - bounded) * resonance(now, stamps.get(_unlabelled(text)), centre) * gain
+            reread.append((updated, _rescored(text, bounded, updated)))
+        reread.sort(key=lambda item: item[0], reverse=True)
+        kept = reread[: len(held)]
+        settled = [text for _, text in kept]
+        changed = [_unlabelled(text) for text in settled] != [_unlabelled(str(text)) for text in held]
+        cognition.long_term_memory = settled
+        cognition.memory_scores = [round(float(score), 4) for score, _ in kept]
+    _reinstate(affect, [stamps[key] for key in (_unlabelled(str(text)) for text in settled) if key in stamps], gain)
     return changed
+
+
+def _reinstate(affect: Any, felts: list[Any], gain: float) -> None:
+    """Move what she feels toward the feeling the memories she holds were made in.
+
+    A recollection brings back the feeling it was laid down with: emotional
+    memories re-evoke their affect when they are retrieved, which is part of
+    why mood and memory move together in people rather than apart. Each
+    emotion goes `gain` of the way from where it stands to her baseline plus
+    what the held memories carried above theirs, on average; an emotion none of
+    them carried goes toward her baseline. Bounded to [0, 1].
+    """
+    emotions = getattr(affect, "emotions", None)
+    if not isinstance(emotions, dict) or not felts or gain <= 0.0:
+        return
+    from core.memory.felt_at_encoding import decode
+
+    carried = [decode(felt) for felt in felts]
+    carried = [felt for felt in carried if felt]
+    if not carried:
+        return
+    baselines = dict(getattr(affect, "mood_baselines", {}) or {})
+    names = {name for felt in carried for name in felt} | {
+        name for name, value in emotions.items() if float(value or 0.0) > float(baselines.get(name, 0.0) or 0.0)
+    }
+    for name in names:
+        base = float(baselines.get(name, 0.0) or 0.0)
+        target = min(1.0, max(0.0, base + sum(felt.get(name, 0.0) for felt in carried) / len(carried)))
+        current = float(emotions.get(name, base) or 0.0)
+        emotions[name] = min(1.0, max(0.0, current + gain * (target - current)))
 
 
 def _cued_by_where_she_stands(

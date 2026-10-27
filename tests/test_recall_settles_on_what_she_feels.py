@@ -83,3 +83,35 @@ def test_no_pool_and_no_recall_change_nothing() -> None:
     assert recall.settle_on_what_she_feels(her) is False
     empty = _her({"joy": 0.7}, _pool(), [])
     assert recall.settle_on_what_she_feels(empty) is False
+
+
+def test_what_she_holds_brings_its_feeling_back(monkeypatch) -> None:
+    """Holding the joyful memory moves joy toward her baseline plus what it carried, at the recall gain."""
+    from core.consciousness import substrate_gates
+
+    monkeypatch.setattr(substrate_gates.get_substrate_gates(), "multiplier", lambda name: 0.5)
+    her = _her({"joy": 0.7, "fear": 0.1, "calm": 0.1}, _pool(), ["[memory score=0.400] the night the power went"])
+    recall.settle_on_what_she_feels(her)
+    assert her.cognition.long_term_memory[0].endswith("a day at the sea")
+    # Baseline 0.1 plus the 0.6 the memory carried is 0.7, so joy, already at 0.7, stays there.
+    assert her.affect.emotions["joy"] == pytest.approx(0.7)
+
+
+def test_an_emotion_no_held_memory_carried_eases_toward_her_baseline(monkeypatch) -> None:
+    from core.consciousness import substrate_gates
+
+    monkeypatch.setattr(substrate_gates.get_substrate_gates(), "multiplier", lambda name: 0.5)
+    pool = {"salience": 1.0, "candidates": [{"text": "[memory score=0.400] a day at the sea", "score": 0.4, "felt": "joy:0.600"}]}
+    her = _her({"joy": 0.1, "fear": 0.5, "calm": 0.1}, pool, ["[memory score=0.400] a day at the sea"])
+    recall.settle_on_what_she_feels(her)
+    # Gain 0.5: joy goes half way from 0.1 to 0.7, fear half way from 0.5 to its baseline 0.1.
+    assert her.affect.emotions["joy"] == pytest.approx(0.4)
+    assert her.affect.emotions["fear"] == pytest.approx(0.3)
+
+
+def test_memories_that_carry_no_feeling_leave_her_feeling_alone() -> None:
+    pool = {"salience": 1.0, "candidates": [{"text": "[memory score=0.400] an errand", "score": 0.4, "felt": None}]}
+    her = _her({"joy": 0.7, "fear": 0.1, "calm": 0.1}, pool, ["[memory score=0.400] an errand"])
+    before = dict(her.affect.emotions)
+    recall.settle_on_what_she_feels(her)
+    assert her.affect.emotions == before
