@@ -385,6 +385,60 @@ def _cued_by_what_she_feels(
     return reread
 
 
+def settle_on_what_she_feels(state: Any) -> bool:
+    """Weigh this turn's recall again by the feeling she has once she has felt what arrived.
+
+    Recall runs before the affect phase. The memories she held through a turn
+    were the ones cued by how she met a percept, and the feeling the percept
+    went on to produce reached what she held only on the next turn. What comes
+    to mind keeps moving after a feeling arrives: an emotional reaction cues
+    memories congruent with it (Bower, 1981), and in the retrieved-context
+    account the present context goes on cueing as it drifts (Talmi, Lohnas and
+    Daw, 2019). On the seed 31 and 73 content runs at 572f3dc60 her affect moved
+    furthest under a displacement (1.73 and 1.06 per pair of percepts) and what
+    she recalled followed it least (rho 0.10 and -0.05).
+
+    So the candidates recall weighed are weighed again, from the scores the
+    words and the percept gave them, by what sets her feeling apart now against
+    what set each memory's apart then, at the gain recall ran at, and she holds
+    as many of the best as she held before. The pool is used once.
+    Returns whether what she holds changed.
+    """
+    cognition = getattr(state, "cognition", None)
+    pool = getattr(cognition, "recall_pool", None)
+    if cognition is None or not isinstance(pool, dict) or not pool:
+        return False
+    cognition.recall_pool = {}
+    candidates = list(pool.get("candidates") or [])
+    held = list(getattr(cognition, "long_term_memory", []) or [])
+    salience = float(pool.get("salience") or 0.0)
+    if not candidates or not held or salience <= 0.0:
+        return False
+    from core.memory.felt_at_encoding import felt_now, resonance, usual
+
+    now = felt_now(getattr(state, "affect", None))
+    stamps = {_unlabelled(str(entry["text"])): entry.get("felt") for entry in candidates if entry.get("felt")}
+    if not now or not stamps:
+        return False
+    centre = usual(stamps)
+    from core.consciousness.substrate_gates import get_substrate_gates
+
+    gain = min(1.0, salience * get_substrate_gates().multiplier("recall"))
+    reread: list[tuple[float, str]] = []
+    for entry in candidates:
+        text = str(entry["text"])
+        bounded = max(0.0, min(1.0, float(entry["score"])))
+        updated = bounded + (1.0 - bounded) * resonance(now, stamps.get(_unlabelled(text)), centre) * gain
+        reread.append((updated, _rescored(text, bounded, updated)))
+    reread.sort(key=lambda item: item[0], reverse=True)
+    kept = reread[: len(held)]
+    settled = [text for _, text in kept]
+    changed = [_unlabelled(text) for text in settled] != [_unlabelled(str(text)) for text in held]
+    cognition.long_term_memory = settled
+    cognition.memory_scores = [round(float(score), 4) for score, _ in kept]
+    return changed
+
+
 def _cued_by_where_she_stands(
     memory_candidates: list[tuple[float, str]],
     context_by_text: dict[str, Any],
@@ -1230,6 +1284,16 @@ class MemoryRetrievalPhase(BasePhase):
             memory_candidates, felt_by_text, percept_cue, percept_salience, percept_kind,
             getattr(state, "affect", None),
         )
+        # Kept for the affect phase, which weighs them again by what she feels
+        # once she has felt what arrived. See `settle_on_what_she_feels`.
+        felt_by_content = _by_content(felt_by_text or {})
+        recall_pool = {
+            "salience": float(effective_memory_salience),
+            "candidates": [
+                {"text": text, "score": float(score), "felt": felt_by_content.get(_unlabelled(text))}
+                for score, text in memory_candidates
+            ],
+        }
         memory_candidates = _cued_by_what_she_feels(
             memory_candidates, felt_by_text, as_she_meets_it(state), effective_memory_salience
         )
@@ -1254,6 +1318,7 @@ class MemoryRetrievalPhase(BasePhase):
         # Derive new state with retrieved context
         new_state = state.derive("memory_retrieval")
         recalled_feeling, reliving = self._execute_part_3(memories, new_state, recall_key, recalled_valence_total, recalled_with_feeling, returns, scores)
+        new_state.cognition.recall_pool = recall_pool
         # Joint recall: whether what came back is something she and the person
         # she is with now were both part of. "Remember the Time" asks fifteen
         # times and every one is a memory marked as theirs together.

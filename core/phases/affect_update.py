@@ -606,6 +606,12 @@ class AffectUpdatePhase(Phase):
         # 7. Despair Spiral check (Injection)
         self._check_resilience_surges(affect)
         
+        # 8. And what she holds in mind settles on what she now feels. See
+        # memory_retrieval.settle_on_what_she_feels.
+        from core.phases.memory_retrieval import settle_on_what_she_feels
+
+        settle_on_what_she_feels(state)
+
         logger.debug("Affect Phase complete: mood=%s, valence=%.2f", affect.dominant_emotion, affect.valence)
         return state
 

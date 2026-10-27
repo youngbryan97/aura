@@ -659,6 +659,12 @@ class CognitiveContext:
     # that answered the question from one that barely matched, and the
     # workspace had to bid every memory at the same flat priority.
     memory_scores: list[float] = field(default_factory=list)
+    # What recall weighed before it kept its best: each candidate with the
+    # score the words and the percept gave it and the feeling it was made in,
+    # and the salience recall ran at. The affect phase settles the recalled set
+    # on it once it has felt what arrived, and empties it
+    # (`memory_retrieval.settle_on_what_she_feels`).
+    recall_pool: dict[str, Any] = field(default_factory=dict)
     # What the recalled set above was recalled for: the question and the limits
     # it was asked at. Asking the same question twice at the same depth is the
     # cost retrieval was avoiding when it only ran on new user input, and it is

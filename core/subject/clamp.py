@@ -183,6 +183,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # remembered and not how much it counted — and the memory displacement
         # writes exactly this.
         "cognition.memory_scores",
+        # What recall weighed this turn, which the affect phase settles the
+        # recalled set on. See memory_retrieval.settle_on_what_she_feels.
+        "cognition.recall_pool",
         # What recall brought back and how often it has been asked for.
         # See core/memory/reliving.py.
         "cognition.relived",
