@@ -775,3 +775,22 @@ withheld reports run would hold the machine for up to sixteen hours on a known f
 (`tests/test_a_restore_keeps_the_governance_it_found.py`).
 
 Unchanged: seed 73 as the confirmatory seed for 24/24, the margin (0.0196), the two-test rule, every v6 line and bar.
+
+## Result, 27 October 2026, afternoon: seed 73 reads 23 of 24
+
+Recorded as read. The second campaign (`9163eff8f`, resumed through its own `--resume` path from its interventions
+checkpoint after the machine stopped at 09:11) wrote its report at 14:01 and was scored with the carrier at
+`f448fb254` and the interventional test at `572f3dc60`, as the addendum of 27 October, past midnight set out.
+
+ISC-v6 on seed 73: 23 of 24. Line 3, causal closure of the core, fails: the interventional test read CLOSED, and the
+observational test read UNRESOLVED, every fold's wider model doing worse than the model it contains (pooled leak
+-0.085, upper bound -0.040), so the estimator failed rather than finding the core open or closed. Every other line
+passes, among them lines 11 and 18 (all 511 cuts decided at both horizons, playback decided at no cut, no null passing),
+the four v6 synergy triples, agency and ownership on both seeds, and lesion and rescue.
+
+Read beside it, and deciding nothing about seed 73: the carrier's verdict is INTRINSIC_CARRIER_UNRESOLVED, closed,
+recurrent and with every cut decided, because one authority blocker was recorded (her clock's stall valve opened while
+the machine was overloaded); the content run read AGREES_BUT_DOES_NOT_TRACK (0.092), so J* and the bridge were not
+solved on this seed. A fresh recording of seed 73's campaign, taken afterwards to study the closure estimator, read the
+observational gate OPEN at a pooled leak of 0.012 carried by bookkeeping her services keep about her state, which the
+interventional test had shown move nothing in K*. Seed 73 is not re-scored with anything changed after this reading.
