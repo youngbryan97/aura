@@ -289,7 +289,10 @@ def _authority(evidence: dict[str, Any]) -> dict[str, Any]:
     geometries has not compared them, and saying so is the whole point of
     having the gate.
     """
-    blockers: list[str] = []
+    blockers: list[str] = list(evidence.get("worker_blockers") or [])
+    failures = {key: count for key, count in (evidence.get("runtime_failures") or {}).items() if count}
+    if failures:
+        blockers.append(f"phases failed while measuring: {failures}")
     agreement = evidence.get("agreement", {})
     moves = evidence.get("moves_together", {})
     coverage = evidence.get("behavioural_coverage", {})
@@ -372,19 +375,16 @@ def _verdict(evidence: dict[str, Any]) -> str:
 def _relations_kept(before: dict, after: dict) -> dict:
     """Rank correlation of her recall geometry before and after the displacement, over the pairs in both."""
     import numpy as np
+    from scipy.stats import rankdata
 
     keys = sorted(set(before) & set(after))
     if len(keys) < 3:
         return {"measured": False, "pairs": len(keys)}
 
-    def ranks(values: list[float]) -> np.ndarray:
-        order = np.argsort(values, kind="mergesort")
-        out = np.empty(len(values))
-        out[order] = np.arange(len(values), dtype=float)
-        return out
-
-    a = ranks([float(before[k]) for k in keys])
-    b = ranks([float(after[k]) for k in keys])
+    a = rankdata([float(before[k]) for k in keys], method="average")
+    b = rankdata([float(after[k]) for k in keys], method="average")
+    if not np.isfinite(a).all() or not np.isfinite(b).all():
+        return {"measured": False, "pairs": len(keys)}
     if a.std() == 0.0 or b.std() == 0.0:
         return {"measured": False, "pairs": len(keys)}
     return {"measured": True, "pairs": len(keys), "rank_correlation": round(float(np.corrcoef(a, b)[0, 1]), 6)}
@@ -599,12 +599,18 @@ async def main() -> int:
         _log(f"merged {workers} workers' samples over {evidence['anchors_taken']} anchors")
         _analyse(evidence, classes, stages, args.seed)
         evidence["samples_file"] = str(await asyncio.to_thread(_save_class_samples, run_dir, classes, stages))
-        _close(evidence)
         evidence["workers_seconds"] = evidence.get("workers_seconds", {})
+        notes = []
         for k in range(workers):
             note = shares / f"worker_{k}.json"
             if note.exists():
-                evidence["workers_seconds"][str(k)] = json.loads(note.read_text()).get("seconds")
+                worker = json.loads(note.read_text())
+                notes.append(worker)
+                evidence["workers_seconds"][str(k)] = worker.get("seconds")
+            else:
+                notes.append(None)
+        evidence["worker_blockers"] = _worker_blockers(evidence, notes)
+        _close(evidence)
         return _write_report(run_dir, evidence, started, manifest)
 
     if args.role == "worker":
@@ -618,6 +624,8 @@ async def main() -> int:
         _cut_feeling_from_recall()
     if args.control == "shuffled-stamps":
         _scramble_stamps(args.seed)
+    from core.subject.provenance import evidence_source
+    source = evidence_source(args.seed)
     runtime = build_runtime(run_dir, seed=args.seed)
     if state_leaks():
         raise SystemExit(
@@ -639,9 +647,10 @@ async def main() -> int:
 
     try:
         if args.role == "worker":
-            return await _work(args, runtime, run_dir, shares, conditions, classes, sample_classes, quiesce_organism)
+            return await _work(args, runtime, run_dir, shares, conditions, classes, sample_classes, quiesce_organism, source)
 
         evidence: dict[str, Any] = {
+            "evidence_source": source,
             "control": args.control,
             "environment": environment(),
             "clock": clock,
@@ -728,6 +737,7 @@ async def main() -> int:
             )
             evidence["anchors_taken"] = len(anchors)
             evidence["workers"] = max(1, int(args.workers))
+            evidence["runtime_failures"] = dict(getattr(runtime, "failures", {}) or {})
             (shares / COORDINATOR_EVIDENCE).write_text(json.dumps(evidence, indent=2, default=str) + "\n")
             _log(f"wrote {len(anchors)} anchors ({written} bytes) for the workers")
             return 0
@@ -749,6 +759,7 @@ async def main() -> int:
         # move under the displacement is a question these arrays answer and the
         # geometries do not.
         evidence["samples_file"] = str(await asyncio.to_thread(_save_class_samples, run_dir, classes, stages))
+        evidence["runtime_failures"] = dict(getattr(runtime, "failures", {}) or {})
         _close(evidence)
     finally:
         await quiesce_organism(runtime)
@@ -769,9 +780,25 @@ def _hold_the_host(runtime: Any) -> dict[str, float] | None:
     }
 
 
+def _worker_blockers(evidence: dict[str, Any], notes: Sequence[dict[str, Any] | None]) -> list[str]:
+    """Every worker that supplied samples also supplies its health and source."""
+    blockers = []
+    for index, note in enumerate(notes):
+        if note is None:
+            blockers.append(f"worker {index}: no completion receipt")
+            continue
+        failures = {key: count for key, count in (note.get("failures") or {}).items() if count}
+        if failures:
+            blockers.append(f"worker {index}: phases failed while measuring: {failures}")
+        if not evidence.get("evidence_source") or note.get("evidence_source") != evidence["evidence_source"]:
+            blockers.append(f"worker {index}: source and boundary do not match the coordinator")
+    return blockers
+
+
 async def _work(
     args: argparse.Namespace, runtime: Any, run_dir: Path, shares: Path,
     conditions: Sequence[Any], classes: Sequence[Any], sample_classes: Any, quiesce_organism: Any,
+    source: dict[str, Any],
 ) -> int:
     """One worker: the coordinator's anchors, this worker's share of them, all three passes."""
     from core.subject.anchor_bank import AnchorBank
@@ -801,7 +828,9 @@ async def _work(
               {"base": base, "moved": moved, "sham": sham}.items()}
     k, n = args.shard.split("/", 1)
     await asyncio.to_thread(_save_class_samples, shares, classes, stages, f"samples_{k}_of_{n}.npz")
-    (shares / f"worker_{k}.json").write_text(json.dumps({
+    from core.runtime.atomic_writer import async_atomic_write_text
+    await async_atomic_write_text(shares / f"worker_{k}.json", json.dumps({
+        "evidence_source": source,
         "shard": args.shard, "anchors": indices, "seconds": round(time.monotonic() - started, 1),
         "failures": dict(getattr(runtime, "failures", {}) or {}),
     }) + "\n")
@@ -810,6 +839,15 @@ async def _work(
 
 
 def _write_report(run_dir: Path, evidence: dict[str, Any], started: float, manifest: Any) -> int:
+    from core.subject.provenance import evidence_source
+    pin = evidence.get("evidence_source") or {}
+    if type(pin.get("seed")) is int:
+        evidence["analysis_source"] = evidence_source(pin["seed"])
+        if evidence["analysis_source"] != pin:
+            evidence.setdefault("worker_blockers", []).append(
+                "the source or boundary changed between sample collection and analysis"
+            )
+            _close(evidence)
     evidence["seconds"] = round(time.monotonic() - started, 1)
     evidence["manifest"] = manifest(run_dir)
     out = run_dir / "subject_core_content_report.json"

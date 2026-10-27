@@ -18,6 +18,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import monotonic_time
 from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.DBWriter")
@@ -112,9 +113,9 @@ class SerializedDBWriter:
             return batch, True
 
         batch.append(first_item)
-        deadline = time.monotonic() + window_s
+        deadline = monotonic_time() + window_s
         while len(batch) < max_items:
-            timeout = max(0.0, deadline - time.monotonic())
+            timeout = max(0.0, deadline - monotonic_time())
             if timeout <= 0.0:
                 break
             try:
@@ -262,9 +263,9 @@ class SerializedDBWriter:
         loop = asyncio.get_running_loop()
         future = loop.create_future()
         request = _WriteRequest(str(db_path), sql, params, future, loop)
-        deadline = time.monotonic() + _QUEUE_PUT_TIMEOUT_S
+        deadline = monotonic_time() + _QUEUE_PUT_TIMEOUT_S
         last_full: queue.Full | None = None
-        while time.monotonic() < deadline:
+        while monotonic_time() < deadline:
             try:
                 self._queue.put_nowait(request)
                 break

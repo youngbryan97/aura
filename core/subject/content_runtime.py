@@ -190,6 +190,9 @@ async def sample_classes(
     """
     from dataclasses import replace
 
+    if not 1 <= lag <= turns:
+        raise ValueError("the content lag must name a turn within the arm")
+
     out: dict[str, ClassSamples] = {
         cls.name: ClassSamples(cls.name, [], [], []) for cls in classes
     }
@@ -206,7 +209,7 @@ async def sample_classes(
             affect = runtime.state.affect
             affect.valence = float(min(1.0, max(-1.0, float(affect.valence or 0.0) + valence)))
         shown = replace(condition, prepare=present(cls))
-        rows: list[Any] = []
+        measured = None
         # Only the frame the future is read at, and the roll's last
         # (core/subject/read_plan.py). Recall is read off her state below,
         # not off a frame.
@@ -215,18 +218,14 @@ async def sample_classes(
             frozenset({max(1, lag) * per_turn - 1, turns * per_turn - 1}) if per_turn > 0 else None
         )
         with reading_only(runtime, plan):
-            for _ in range(turns):
-                rows.extend(await runtime.turn_once(shown))
-        if not rows:
-            return None
-        # The end of the `lag`-th turn after the fork. A turn records a frame
-        # before its phases run and one after each, so reading frame `lag`
-        # read the open frame: the percept was in the stream and no phase had
-        # taken it in. Every class forked from one anchor had the same future
-        # there, and the internal geometry was one distance for every pair.
-        per_turn = max(1, len(rows) // max(1, turns))
-        index = min(max(1, lag) * per_turn - 1, len(rows) - 1)
-        return np.asarray(rows[index].vector(), dtype=np.float64), _retrieved(runtime)
+            for turn in range(1, turns + 1):
+                rows = await runtime.turn_once(shown)
+                if turn == lag and rows:
+                    # Both channels describe this turn. Reading recall after
+                    # the remaining turns paired an earlier state with later
+                    # behaviour whenever lag was smaller than turns.
+                    measured = np.asarray(rows[-1].vector(), dtype=np.float64).copy(), _retrieved(runtime)
+        return measured
 
     for anchor_index, anchor in enumerate(anchors):
         for condition_index, condition in enumerate(conditions):
@@ -435,16 +434,32 @@ def behavioural_geometry(
             0.0 if not sets else float(np.mean([1.0 if s else 0.0 for s in sets]))
         )
     for i, left_name in enumerate(names):
-        left_sets = samples[left_name].retrieved if left_name in samples else []
+        left = samples.get(left_name)
+        if left is None:
+            continue
         for j in range(i + 1, len(names)):
-            right_sets = samples[names[j]].retrieved if names[j] in samples else []
-            paired = min(len(left_sets), len(right_sets))
-            if paired == 0:
+            right = samples.get(names[j])
+            if right is None:
                 continue
+            if left.keys or right.keys:
+                # A missing presentation shifts the remaining row positions.
+                # Match the recorded anchor and condition, as the internal
+                # geometry does, before comparing what came back.
+                for rows in (left, right):
+                    if len(rows.keys) != len(rows.retrieved) or len(set(rows.keys)) != len(rows.keys):
+                        raise ValueError(f"{rows.name}: recall needs one unique anchor key per row")
+                where = dict(zip(right.keys, right.retrieved, strict=True))
+                pairs = [(a, where[key]) for key, a in zip(left.keys, left.retrieved, strict=True) if key in where]
+            else:
+                # Older recordings did not carry keys. Unequal lengths cannot
+                # establish which presentations they share.
+                if len(left.retrieved) != len(right.retrieved):
+                    continue
+                pairs = list(zip(left.retrieved, right.retrieved, strict=True))
             values = [
                 value
-                for index in range(paired)
-                if (value := _jaccard_distance(left_sets[index], right_sets[index])) is not None
+                for a, b in pairs
+                if (value := _jaccard_distance(a, b)) is not None
             ]
             if values:
                 distances[(i, j)] = float(np.mean(values))

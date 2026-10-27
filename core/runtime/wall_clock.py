@@ -17,9 +17,28 @@ from __future__ import annotations
 
 import time
 
-__all__ = ["wall_time"]
+__all__ = ["wall_time", "monotonic_time", "host_deadline_clock_holds"]
 
 
 def wall_time() -> float:
     """Seconds since the epoch on the machine's clock, whatever `time.time` has been replaced with."""
     return time.clock_gettime(time.CLOCK_REALTIME)
+
+
+def monotonic_time() -> float:
+    """Elapsed host seconds for waits, leases and resource deadlines.
+
+    Keep this wrapper in runtime machinery. Experiment clocks replace bare
+    monotonic references in organism modules; they leave this function's
+    module alone. A queue or encoder deadline must expire while a subject
+    frame is frozen, without advancing the subject's state clock.
+    """
+    return time.monotonic()
+
+
+def host_deadline_clock_holds() -> bool:
+    """The deadline wrapper agrees with a bracketed read of the host clock."""
+    before = time.monotonic()
+    read = monotonic_time()
+    after = time.monotonic()
+    return before <= read <= after

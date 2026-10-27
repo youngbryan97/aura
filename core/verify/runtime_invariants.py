@@ -19,6 +19,23 @@ _OWNER = "core/verify/runtime_invariants.py"
 
 
 @invariant(
+    "runtime.resource_deadlines_use_host_time",
+    scope="runtime",
+    owner="core/runtime/wall_clock.py",
+    description="the resource deadline wrapper agrees with the host monotonic clock",
+)
+def _resource_deadline_clock() -> Iterator[Violation]:
+    from core.runtime.wall_clock import host_deadline_clock_holds
+
+    if not host_deadline_clock_holds():
+        yield Violation(
+            subject="resource deadline clock",
+            message="the deadline wrapper is outside its bracketed host-time reading",
+            remedy="restore the host clock for resource waits",
+        )
+
+
+@invariant(
     "knowledge.revision_support_is_consistent",
     scope="knowledge",
     owner="core/knowledge/revision_validation.py",

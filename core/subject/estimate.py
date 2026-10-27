@@ -243,6 +243,8 @@ def fit_predict(
     validate: slice,
     test: slice,
     own_width: int | None = None,
+    penalty_grid: list[tuple[float, float, np.ndarray]] | None = None,
+    paired_selection: bool = False,
 ) -> Fit:
     """Ridge from features to targets, alpha picked on validate, scored on test.
 
@@ -284,22 +286,47 @@ def fit_predict(
     # `own_width` counts columns of the caller's block; standardising may have
     # dropped some, so it is remapped through the same mask.
     kept_own = int(keep_x[:own_width].sum()) if own_width is not None else None
-    grid = _penalties(x_all.shape[1], kept_own)
+    # Prospective estimators may supply a declared grid. The default remains
+    # the preregistered path; remap an explicit grid through the same mask.
+    grid = (
+        [(own, extra, vector[keep_x]) for own, extra, vector in penalty_grid]
+        if penalty_grid is not None else _penalties(x_all.shape[1], kept_own)
+    )
+    if not grid or any(vector.shape != (x_all.shape[1],) for _, _, vector in grid):
+        raise ValueError("each penalty vector must match the feature width")
     scores = np.full((len(grid), width_out), np.inf)
     spread = np.zeros((len(grid), width_out))
     rows = int(x_validate.shape[0])
+    validation_errors = []
     for index, (_own, _extra, penalty) in enumerate(grid):
         weights = _ridge(x_train, y_train, penalty)
         if x_validate.size:
             errors = (x_validate @ weights - y_validate) ** 2
+            if paired_selection:
+                validation_errors.append(errors)
             scores[index] = errors.mean(axis=0)
             if rows > 1:
                 spread[index] = errors.std(axis=0, ddof=1) / math.sqrt(rows)
-    chosen = (
-        _within_one_standard_error(scores, spread, grid)
-        if x_validate.size
-        else np.zeros(width_out, dtype=int)
-    )
+    if paired_selection and validation_errors and rows > 1:
+        # Candidate-only option: models err on the same validation rows.
+        # Compare their paired loss differences, rather than using the much
+        # larger spread of one model's absolute error as the comparison's SE.
+        errors = np.asarray(validation_errors)
+        best = np.argmin(scores, axis=0)
+        reference_errors = errors[best, :, np.arange(width_out)].T
+        spread = (errors - reference_errors[None, :, :]).std(axis=1, ddof=1) / math.sqrt(rows)
+        shrinkage = np.asarray([(extra, own) for own, extra, _ in grid])
+        order = np.lexsort((-shrinkage[:, 1], -shrinkage[:, 0]))
+        chosen = np.asarray([
+            next(i for i in order if scores[i, c] - scores[best[c], c] <= spread[i, c] + 1e-15)
+            for c in range(width_out)
+        ])
+    else:
+        chosen = (
+            _within_one_standard_error(scores, spread, grid)
+            if x_validate.size
+            else np.zeros(width_out, dtype=int)
+        )
 
     # Refit on train + validate once the alphas are chosen: the validation rows
     # are data, and holding them out of the final fit throws away a fifth of

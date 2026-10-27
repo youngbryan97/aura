@@ -43,10 +43,32 @@ __all__ = [
     "run_fingerprint",
     "manifest",
     "mind_identity",
+    "evidence_source",
     "next_run_directory",
 ]
 
 REPO = Path(__file__).resolve().parents[2]
+
+
+def evidence_source(seed: int) -> dict[str, Any]:
+    """Bind complementary experiments to the source and carrier they measured."""
+    from core.subject.carrier_reads import HELD, ORGANS_WHOLE
+    from core.subject.state import feature_names
+
+    boundary = {
+        "held": sorted((entry.unit, entry.attribute, entry.domain) for entry in HELD),
+        "organs_whole": ORGANS_WHOLE,
+        "features": feature_names(),
+    }
+    status = _run_git("status", "--porcelain", "--untracked-files=all", "--", "core", "tools")
+    return {
+        "seed": seed,
+        "commit": _git("rev-parse", "HEAD"),
+        "dirty": None if status is None else bool(str(status).strip()),
+        "boundary_sha256": hashlib.sha256(
+            json.dumps(boundary, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    }
 
 
 def _run_git(*args: str, text: bool = True, timeout: float = 30.0) -> Any | None:
@@ -285,6 +307,7 @@ def campaign(
     }
     return {
         "frozen": frozen,
+        "evidence_source": evidence_source(seed),
         "fingerprint": fingerprint(frozen),
         "run_fingerprint": run_fingerprint(frozen),
         "commit": _git("rev-parse", "HEAD"),
@@ -394,6 +417,7 @@ def campaign_v25(
     }
     return {
         "frozen": frozen,
+        "evidence_source": evidence_source(seed),
         "fingerprint": fingerprint(frozen),
         "run_fingerprint": run_fingerprint(frozen),
         "commit": _git("rev-parse", "HEAD"),

@@ -1,0 +1,60 @@
+{
+  "completion": {
+    "complete": false,
+    "goals": {
+      "isc_v6_24_of_24": false,
+      "j_star": false,
+      "bridge_at_parity": false
+    },
+    "scope": "substrate_only",
+    "passed": 23,
+    "total": 24,
+    "failing_criteria": [
+      "causal_closure_of_the_core"
+    ],
+    "evidence_blockers": [
+      "campaign: source revision or carrier boundary was not pinned",
+      "campaign: source was dirty or cleanliness was not recorded",
+      "carrier: source revision or carrier boundary was not pinned",
+      "carrier: source was dirty or cleanliness was not recorded",
+      "content: source revision or carrier boundary was not pinned",
+      "content: source was dirty or cleanliness was not recorded",
+      "interventional: source revision or carrier boundary was not pinned",
+      "interventional: source was dirty or cleanliness was not recorded",
+      "reports: source revision or carrier boundary was not pinned",
+      "reports: source was dirty or cleanliness was not recorded",
+      "campaign, carrier, content and closure need the same recorded seed"
+    ],
+    "interpretation": "J* and parity are conditional on P1-P6; this is not a proof of those postulates."
+  },
+  "j_status": "UNRESOLVED",
+  "bridge_status": "BELOW_PARITY",
+  "sources": {
+    "campaign": {
+      "path": "/Users/bryan/subject-core-runs/decisive-kstar4-572f3dc60/campaign-9163eff8f/run_001/subject_core_report.json",
+      "sha256": "f4d13c08f1b2103cc94430fb669695ce1a9d08f141b9ad35de2f05871e2cc794"
+    },
+    "carrier": {
+      "path": "/Users/bryan/subject-core-runs/decisive-kstar4-572f3dc60/carrier/launch_20261026_143823/coordinator/run_001/subject_core_v25_report.json",
+      "sha256": "8d397e9fd4cf8638362187183ba5f77314b8a8894bc1a4fac3b01d1d0ed91c1f"
+    },
+    "content": {
+      "path": "/Users/bryan/subject-core-runs/decisive-kstar4-572f3dc60/content/run_001/subject_core_content_report.json",
+      "sha256": "55d602d5fce28dbe94985d4e2531d371ef950ce7fd2064d013244866f4511749"
+    },
+    "interventional": {
+      "path": "/Users/bryan/subject-core-runs/decisive-kstar4-572f3dc60/interventional/interventional_closure.json",
+      "sha256": "cfc127e85a5f41ca5bbc1eb2c2355b0233408fe340c80ddb5c25203bc805bba2"
+    },
+    "reports": {
+      "path": "/Users/bryan/subject-core-runs/decisive-s23-8f548ed79/reports/run_001/report_grounding.json",
+      "sha256": "e85ab45674292fae87cafd0827948ebed91a4fce319315119e4a765fbe8d5ee4"
+    },
+    "state_log": {
+      "path": "/Users/bryan/.aura/live-source/data/aura_state.db",
+      "rows": 7855,
+      "person_rows_sha256": "75f7cc1b49dd263ea37c73bc4311d1cba8dcfb50df2a43c0ac55e464a4a21e7b"
+    }
+  },
+  "note": "Historical diagnostic join, including an older reports run; not a new qualification or regrading."
+}
