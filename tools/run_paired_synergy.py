@@ -98,6 +98,9 @@ async def main() -> int:
     }
     evidence["line"] = line(evidence["triples"])
     out = run_dir / "paired_synergy.json"
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched("the paired synergy reading")
     out.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
     # Every snapshot's vectors and the target columns they are in, so a triple
     # that fails can be read column by column.

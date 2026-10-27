@@ -54,7 +54,9 @@ RESUMABLE: tuple[str, ...] = ("record", "interventions", "interventional_synergy
 def _checkpoint(args: Any, stage: str, evidence: dict[str, Any]) -> None:
     """Everything measured so far, named by the last stage that finished."""
     from core.subject.archive import write_json
+    from core.subject.latch import refuse_if_latched
 
+    refuse_if_latched(f"the {stage} stage")
     write_json(args.out, "checkpoint.json", {"stage": stage, "evidence": evidence})
 
 
@@ -1071,6 +1073,9 @@ async def main() -> int:
     else:
         evidence["nulls"] = {"phi_beats_all": False, "all_nulls_fail": False, "note": "skipped"}
 
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched("the nulls, the lesion and the campaign")
     if not args.skip_nulls:
         write_json(args.out, "nulls.json", evidence["nulls"])
     write_json(args.out, "lesion.json", evidence["lesion"])

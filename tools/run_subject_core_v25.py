@@ -123,6 +123,9 @@ class _RecalledPeriphery:
 
 def _checkpoint_v25(run_dir: Path, stage: str, evidence: dict[str, Any]) -> None:
     """Everything measured so far, named by the last stage that finished."""
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched(f"the {stage} stage")
     (run_dir / "checkpoint.json").write_text(
         json.dumps({"stage": stage, "evidence": evidence}, indent=2, default=str) + "\n",
         encoding="utf-8",
@@ -507,6 +510,9 @@ def _claim_grain_row(directory: Path, index: int) -> bool:
 def _write_grain_row(directory: Path, index: int, train: np.ndarray, heldout: np.ndarray,
                      anchor_state: np.ndarray, doses: dict[str, float]) -> None:
     """One anchor's two signature rows, moved into place whole."""
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched(f"anchor {index}'s grain rows")
     final = directory / f"row_{index:05d}.npz"
     partial = directory / f"row_{index:05d}.partial.npz"
     np.savez(partial, train=train, heldout=heldout, anchor=np.asarray(anchor_state, dtype=np.float64),
@@ -784,6 +790,9 @@ async def _read_the_late_forks(
 
 def _save_cut_samples(target: Path, kept: dict[str, dict[int, dict[str, np.ndarray]]]) -> Path:
     """Each scored cut's context, intact, cut and sham rows at each horizon, in one file."""
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched("the scored cuts' samples")
     arrays = {
         f"{name}__lag{lag}__{key}": value
         for name, by_lag in kept.items()
@@ -824,6 +833,9 @@ def _shard_files(directory: Path) -> tuple[int, set[int], list[dict[str, Any]] |
 
 def _write_shard(directory: Path, shard: tuple[int, int], payload: dict[str, Any]) -> Path:
     """A shard file, written under another name and moved into place so the coordinator never reads half of one."""
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched(f"shard {shard[0]} of {shard[1]}")
     directory.mkdir(parents=True, exist_ok=True)
     final = directory / f"shard_{shard[0]}_of_{shard[1]}.json"
     partial = final.with_suffix(".partial")
@@ -1767,6 +1779,9 @@ async def main() -> int:
     evidence["campaign"]["seconds"] = round(time.monotonic() - started, 1)
     evidence["manifest"] = manifest(run_dir)
     out = run_dir / "subject_core_v25_report.json"
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched("the carrier's report")
     out.write_text(json.dumps(evidence, indent=2, default=str) + "\n", encoding="utf-8")
 
     _log("")

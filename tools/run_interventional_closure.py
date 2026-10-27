@@ -273,6 +273,9 @@ async def main(argv: list[str] | None = None) -> int:
         return apart > 0.0 or bool(changed), apart, changed, drift
 
     def write(payload: dict[str, Any]) -> None:
+        from core.subject.latch import refuse_if_latched
+
+        refuse_if_latched("the interventional closure results")
         (out / "interventional_closure.json").write_text(json.dumps(payload, indent=1))
 
     results: dict[str, dict[str, Any]] = {}

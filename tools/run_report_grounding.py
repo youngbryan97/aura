@@ -93,6 +93,9 @@ def _carried_forward(resume: Path | None) -> list[dict[str, Any]]:
 
 def _note_anchor(out: Path, item: dict[str, Any]) -> None:
     """Append one finished anchor, flushed, so a kill -9 keeps what came before."""
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched(f"anchor {item.get('anchor', '?')}")
     with (out / ANCHOR_FILE).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(item, default=str) + "\n")
         handle.flush()
@@ -474,6 +477,9 @@ async def main(argv: list[str] | None = None) -> int:
 
     evidence["seconds"] = round(time.monotonic() - started, 1)
     out = run_dir / REPORT_FILE
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched("the reports run's report")
     atomic_write_text(out, json.dumps(evidence, indent=2, default=str) + "\n")
     _log(f"measured {evidence.get('measured')}, holds {evidence.get('holds')}: {evidence.get('why')}")
     _log(f"wrote {out} in {evidence['seconds']}s")

@@ -119,6 +119,9 @@ def _save_class_samples(run_dir: Path, classes: Sequence[Any], stages: dict[str,
             )
     arrays["class_names"] = np.asarray([cls.name for cls in classes], dtype=object)
     target = run_dir / "class_samples.npz"
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched("the content samples")
     np.savez_compressed(target, **arrays)
     return target
 
@@ -524,6 +527,9 @@ async def main() -> int:
     evidence["seconds"] = round(time.monotonic() - started, 1)
     evidence["manifest"] = manifest(run_dir)
     out = run_dir / "subject_core_content_report.json"
+    from core.subject.latch import refuse_if_latched
+
+    refuse_if_latched("the content report")
     out.write_text(json.dumps(evidence, indent=2, default=str) + "\n", encoding="utf-8")
     _log("")
     _log(f"verdict: {evidence['verdict']}")
