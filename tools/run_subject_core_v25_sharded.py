@@ -116,7 +116,11 @@ def commands(args: argparse.Namespace, base: Path) -> list[tuple[str, list[str]]
         if getattr(args, flag, False):
             shared.append(f"--{flag.replace('_', '-')}")
     runner = [sys.executable, str(REPO / "tools" / "run_subject_core_v25.py")]
-    shard_dir = base / "shards"
+    # The bank is gigabytes and written once; the run directories churn her
+    # stores for hours. A separate place keeps the first on disk and lets the
+    # second go on a RAM disk (27 October: two subject processes wrote 37 to 47
+    # MB/s to the SSD).
+    shard_dir = Path(args.shard_dir) / base.name if getattr(args, "shard_dir", None) else base / "shards"
     plan = [
         (
             f"worker_{index}",
@@ -186,6 +190,10 @@ def main() -> int:
                         help="the bound on every process, and on the coordinator's wait for shards")
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_v25_sharded")
     parser.add_argument("--wait", action="store_true", help="stay until every process exits")
+    parser.add_argument(
+        "--shard-dir", type=Path, default=None,
+        help="where the anchor bank, grain rows and shard files go, apart from the run directories",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan and start nothing")
     args = parser.parse_args()
     if args.workers < 1:

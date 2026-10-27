@@ -48,3 +48,19 @@ def test_the_runner_takes_the_helper_flag():
     source = (REPO / "tools" / "run_subject_core_v25.py").read_text(encoding="utf-8")
     assert '"--grain-helper"' in source
     assert "if shard is not None and not args.grain_helper:" in source
+
+
+def test_the_bank_can_live_apart_from_the_run_directories():
+    """The bank on disk, the churning run directories somewhere else, such as a RAM disk."""
+    launcher = _tool("run_subject_core_v25_sharded")
+    args = argparse.Namespace(workers=2, hours=1.0, grain_claims=True, share_anchors=True, grain_helpers=1,
+                              shard_dir=Path("/disk/shards"))
+    plan = dict(launcher.commands(args, Path("/ram/launch_x")))
+    for name in ("worker_0", "worker_1", "helper_0"):
+        argv = plan[name]
+        assert argv[argv.index("--shard-dir") + 1] == "/disk/shards/launch_x"
+        assert argv[argv.index("--out") + 1].startswith("/ram/launch_x/")
+    coordinator = plan["coordinator"]
+    assert coordinator[coordinator.index("--from-shards") + 1] == "/disk/shards/launch_x"
+    unset = dict(launcher.commands(argparse.Namespace(workers=1, hours=1.0, share_anchors=True), Path("/ram/launch_y")))
+    assert unset["worker_0"][unset["worker_0"].index("--shard-dir") + 1] == "/ram/launch_y/shards"
