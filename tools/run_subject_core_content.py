@@ -224,7 +224,8 @@ def _analyse(
 ) -> None:
     """Both geometries, their agreement and whether they move together, from the samples alone."""
     from core.subject.content import agreement, design_recovery, moves_together
-    from core.subject.content_runtime import behavioural_floor, behavioural_geometry, internal_geometry
+    from core.subject.content_runtime import behavioural_floor, behavioural_geometry
+    from core.subject.content_runtime import repeated_internal_geometry as internal_geometry
 
     base, moved, sham = stages["base"], stages["moved"], stages["sham"]
     internal, floor = internal_geometry(base, classes, seed=seed, paired=PAIRED)
@@ -433,6 +434,40 @@ def _scramble_stamps(seed: int) -> None:
     _log(f"control: memories stamped with a scrambled feeling and inner state (seed {seed})")
 
 
+def _cut_feeling_from_recall() -> None:
+    """Recall by words and percept alone: no route from what she feels to what she recalls, or back.
+
+    The control the structure ground needs once recall and feeling are coupled.
+    Scrambling the stamps renames feelings and keeps the coupling, so tracking
+    survived it (0.343 on seed 31 at 24d1a0191, averaged over twelve fold
+    assignments); in a model with the test's structure, a recall moved by
+    nothing her inner state carries read -0.11. Here the search by feeling
+    finds nothing, the feeling cue and the percept cue's reading of her mood
+    are skipped, and the settle step neither re-weighs nor brings feeling back.
+    Process-wide and deterministic, so every arm of a fork runs the same
+    recall.
+    """
+    import core.phases.memory_retrieval as recall
+    from core.memory.memory_facade import MemoryFacade
+
+    original_percept_cue = recall._cued_by_the_percept
+
+    def percept_cue_without_mood(candidates, felt_by_text, cue, salience, kind, affect=None):
+        return original_percept_cue(candidates, {}, cue, salience, kind, None)
+
+    def settle_nothing(state):
+        cognition = getattr(state, "cognition", None)
+        if cognition is not None:
+            cognition.recall_pool = {}
+        return False
+
+    recall._cued_by_the_percept = percept_cue_without_mood
+    recall._cued_by_what_she_feels = lambda candidates, felt_by_text, affect, salience: candidates
+    recall.settle_on_what_she_feels = settle_nothing
+    MemoryFacade.search_by_feeling = lambda self, now, limit=5: []
+    _log("control: recall by words and percept alone, with no route from her feeling to what she recalls")
+
+
 #: Where a coordinator leaves what its workers read, inside its run directory.
 SHARES = "shards"
 #: The coordinator's anchors, doses and held host, in the bank format the carrier uses.
@@ -504,7 +539,7 @@ async def main() -> int:
     parser.add_argument("--conditions", type=int, default=0)
     parser.add_argument("--classes", type=int, default=0, help="use only the first N classes")
     parser.add_argument(
-        "--control", choices=("shuffled-stamps",), default=None,
+        "--control", choices=("shuffled-stamps", "no-feeling-in-recall"), default=None,
         help="break the link between each memory and the state it was made in (see _scramble_stamps)",
     )
     parser.add_argument(
@@ -578,6 +613,8 @@ async def main() -> int:
     isolate_state(run_dir)
     _log(f"content run {run_dir.name} ({args.role}): {len(classes)} classes over {len(conditions)} conditions")
 
+    if args.control == "no-feeling-in-recall":
+        _cut_feeling_from_recall()
     if args.control == "shuffled-stamps":
         _scramble_stamps(args.seed)
     runtime = build_runtime(run_dir, seed=args.seed)

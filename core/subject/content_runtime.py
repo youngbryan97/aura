@@ -375,6 +375,46 @@ def behavioural_floor(
     return out
 
 
+#: How many fold assignments the internal geometry is averaged over. One
+#: assignment made a run's "moves together" a draw: on the seed 31 control at
+#: 24d1a0191 twelve fold seeds read 0.151 to 0.491, and on seed 73 0.110 to
+#: 0.348; averaged over twelve they read 0.343 and 0.215 (27 October). Sixteen
+#: is the next power of two above the twelve that settled them.
+CROSS_FITS: int = 16
+
+
+def repeated_internal_geometry(
+    samples: dict[str, ClassSamples],
+    classes: Sequence[PerceptClass],
+    *,
+    seed: int,
+    paired: bool = False,
+    with_context: bool = True,
+    repeats: int = CROSS_FITS,
+) -> tuple[dict[tuple[int, int], float], dict[tuple[int, int], float]]:
+    """The internal geometry and its floor, each distance averaged over `repeats` fold assignments.
+
+    Repeated cross-fitting: what is estimated is unchanged, and the share of a
+    distance that came from which rows happened to share a fold is averaged
+    away. Every stage of one run uses the same assignments, so a change between
+    stages is never a change of folds.
+    """
+    totals: dict[tuple[int, int], list[float]] = {}
+    floors: dict[tuple[int, int], list[float]] = {}
+    for repeat in range(max(1, int(repeats))):
+        distances, floor = internal_geometry(
+            samples, classes, seed=seed * 1000 + repeat, paired=paired, with_context=with_context
+        )
+        for key, value in distances.items():
+            totals.setdefault(key, []).append(float(value))
+        for key, value in floor.items():
+            floors.setdefault(key, []).append(float(value))
+    return (
+        {key: float(np.mean(values)) for key, values in totals.items()},
+        {key: float(np.mean(values)) for key, values in floors.items()},
+    )
+
+
 def behavioural_geometry(
     samples: dict[str, ClassSamples],
     classes: Sequence[PerceptClass],
