@@ -390,7 +390,13 @@ def _cued_by_where_she_stands(
     context_by_text: dict[str, Any],
     memory_salience: float,
 ) -> list[tuple[float, str]]:
-    """And where her whole inner state stands now.
+    """And where her whole inner state stands now. Not applied by recall.
+
+    Applied, it held what she recalled to her unified field, which a nudge to
+    her mood leaves almost where it was (3.5e-5 at recall, 26 October): her
+    recall mirrored her at rest more closely and followed her mood less, and
+    "moves together" fell on seed 31 from 0.343 to 0.084 and on seed 23 from
+    0.284 to 0.196. Kept, with the stamps, for an inner context that does move.
 
     A recollection closes the gap to full relevance by how near her unified
     field stands now to where it stood when the memory was made, measured from
@@ -1030,26 +1036,6 @@ class MemoryRetrievalPhase(BasePhase):
                 )
                 return None
 
-        async def _get_context():
-            # Where her whole inner state stands is a cue as well
-            # (MemoryFacade.search_by_context, core/memory/context_at_encoding.py).
-            try:
-                memory = self.container.get("memory_facade", default=None)
-                if memory is None or not hasattr(memory, "search_by_context"):
-                    return None
-                from core.memory.context_at_encoding import context_now
-
-                now = context_now()
-                if now is None:
-                    return None
-                async with asyncio.timeout(15.0):
-                    return await asyncio.to_thread(memory.search_by_context, now, _candidate_pool(retrieval_limit))
-            except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                _record_memory_degradation(
-                    exc, action="recalled without her inner context this turn", stage="recall_by_context",
-                )
-                return None
-
         # Each source timed, so a slow phase says which part of it was slow.
         # The kernel measured this phase at five to nine seconds a background
         # tick (live, 2026-09-18) and could only name the phase.
@@ -1063,14 +1049,13 @@ class MemoryRetrievalPhase(BasePhase):
                 took[name] = time.monotonic() - began
 
         gathered_from = time.monotonic()
-        dual_res, kg_res, facade_res, episodic_res, intentional_res, felt_res, context_res = await asyncio.gather(
+        dual_res, kg_res, facade_res, episodic_res, intentional_res, felt_res = await asyncio.gather(
             _timed("dual memory", _get_dual()),
             _timed("knowledge graph", _get_kg()),
             _timed("memory facade", _get_facade()),
             _timed("episodic", _get_episodic()),
             _timed("intentional", _get_intentional()),
             _timed("feeling", _get_felt()),
-            _timed("context", _get_context()),
         )
         if time.monotonic() - gathered_from > _SLOW_ENOUGH_TO_SAY_S and took:
             slowest = max(took, key=took.get)
@@ -1158,16 +1143,6 @@ class MemoryRetrievalPhase(BasePhase):
                         found.add(content)
                         self._execute_metadata(affect_sources, content, effective_memory_salience, item,
                                                memory_candidates, partner_id, shared_texts, state, felt_by_text, context_by_text=context_by_text)
-        if context_res:
-            found = {text.split("] ", 1)[-1] for _, text in memory_candidates}
-            for item in _iter_retrieval_items(context_res):
-                if isinstance(item, dict):
-                    content = _safe_text(item.get("content") or item.get("text"), max_chars=2_000)
-                    if content and content not in found:
-                        found.add(content)
-                        self._execute_metadata(affect_sources, content, effective_memory_salience, item,
-                                               memory_candidates, partner_id, shared_texts, state, felt_by_text,
-                                               context_by_text=context_by_text)
         if episodic_res:
             for ep in _iter_retrieval_items(episodic_res):
                 desc = _safe_text(
@@ -1258,7 +1233,6 @@ class MemoryRetrievalPhase(BasePhase):
         memory_candidates = _cued_by_what_she_feels(
             memory_candidates, felt_by_text, as_she_meets_it(state), effective_memory_salience
         )
-        memory_candidates = _cued_by_where_she_stands(memory_candidates, context_by_text, effective_memory_salience)
 
         scores: list[float] = []
         # The feeling stored with what came back, and how many carried one.
