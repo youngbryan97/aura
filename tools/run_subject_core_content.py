@@ -108,6 +108,12 @@ def _save_class_samples(run_dir: Path, classes: Sequence[Any], stages: dict[str,
                 arrays[f"{tag}__futures_b"] = np.vstack(rows.futures_b)
             if rows.keys:
                 arrays[f"{tag}__keys"] = np.asarray(rows.keys, dtype=np.int64)
+            # The anchor each row forked from, which the internal geometry is
+            # read with: without it a reading made from these arrays later
+            # could not reproduce the run's own (seed 23 read 0.356 without it
+            # and 0.284 with it, 26 October).
+            if rows.context:
+                arrays[f"{tag}__context"] = np.vstack(rows.context)
             arrays[f"{tag}__retrieved"] = np.asarray(
                 [json.dumps(sorted(recalled)) for recalled in rows.retrieved], dtype=object
             )
