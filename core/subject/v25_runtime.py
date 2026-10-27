@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 
 from core.subject.clamp import clamped, compose
+from core.subject.read_plan import lag_frames, reading_only
 from core.subject.state import DOMAINS
 
 
@@ -55,6 +56,12 @@ def bipartitions(domains: Sequence[str] = DOMAINS) -> tuple[tuple[tuple[str, ...
         right = tuple(x for x in items if x not in left_set)
         out.append((left, right))
     return tuple(out)
+
+
+def _plan_for(runtime: Any, lags: Sequence[int], turns: int) -> frozenset[int] | None:
+    """The frames a roll at these lags reads, or None while a turn's length is not yet known."""
+    per_turn = int(getattr(runtime, "frames_per_turn", 0) or 0)
+    return lag_frames(lags, per_turn, turns) if per_turn > 0 else None
 
 
 async def _run_turns(runtime: Any, condition: Any, turns: int) -> list[Any]:
@@ -149,6 +156,8 @@ async def collect_partition_samples(
     }
     condition_names = [getattr(c, "name", str(i)) for i, c in enumerate(conditions)]
     name_to_index = {name: i for i, name in enumerate(condition_names)}
+    # Only the frames the horizons read (core/subject/read_plan.py).
+    plan = _plan_for(runtime, lags, turns)
 
     # Anchor/condition PAIRS, not their cross product. Every cut needs matched
     # contexts and it needs them across conditions, and taking the product
@@ -166,21 +175,23 @@ async def collect_partition_samples(
         if untouched is not None and key in untouched and all(int(lag) in untouched[key][0] for lag in lags):
             intact_a, intact_b, untouched_length = untouched[key]
         else:
-            runtime.restore(anchor.snapshot)
-            arm_a = await _run_turns(runtime, condition, turns)
-            runtime.restore(anchor.snapshot)
-            arm_b = await _run_turns(runtime, condition, turns)
+            with reading_only(runtime, plan):
+                runtime.restore(anchor.snapshot)
+                arm_a = await _run_turns(runtime, condition, turns)
+                runtime.restore(anchor.snapshot)
+                arm_b = await _run_turns(runtime, condition, turns)
             intact_a = {int(lag): lag_vector(arm_a, int(lag)) for lag in lags}
             intact_b = {int(lag): lag_vector(arm_b, int(lag)) for lag in lags}
             untouched_length = min(len(arm_a), len(arm_b))
             if untouched is not None:
                 untouched[key] = (intact_a, intact_b, untouched_length)
-        runtime.restore(anchor.snapshot)
-        with clamped(runtime, right):
-            left_free = await _run_turns(runtime, condition, turns)
-        runtime.restore(anchor.snapshot)
-        with clamped(runtime, left):
-            right_free = await _run_turns(runtime, condition, turns)
+        with reading_only(runtime, plan):
+            runtime.restore(anchor.snapshot)
+            with clamped(runtime, right):
+                left_free = await _run_turns(runtime, condition, turns)
+            runtime.restore(anchor.snapshot)
+            with clamped(runtime, left):
+                right_free = await _run_turns(runtime, condition, turns)
         cut = compose(left_free, right_free, left)
         one_hot = np.zeros(len(conditions), dtype=np.float64)
         one_hot[name_to_index[condition_name]] = 1.0
@@ -230,8 +241,9 @@ async def collect_late_forks(
         if cached is None or int(lag) not in cached[0]:
             continue
         intact_a, intact_b, length = cached
-        runtime.restore(anchor.snapshot)
-        late = await _run_turns(runtime, condition, turns)
+        with reading_only(runtime, _plan_for(runtime, [lag], turns)):
+            runtime.restore(anchor.snapshot)
+            late = await _run_turns(runtime, condition, turns)
         one_hot = np.zeros(len(conditions), dtype=np.float64)
         one_hot[position % len(conditions)] = 1.0
         rows["context"].append(np.concatenate([anchor.current, one_hot]))

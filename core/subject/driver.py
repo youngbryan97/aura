@@ -50,6 +50,7 @@ from core.subject.state import (
     FAST_DOMAINS,
     CoreState,
     Organs,
+    UnreadFrame,
     read_core_state,
 )
 from core.subject.monotonic_instants import rebased, tag_snapshot
@@ -364,6 +365,12 @@ class SubjectRuntime(_HeldHost):
     #: second arm of a trial starts sixty-six frames further on and steps a
     #: different set of layers from the first.
     frame_index: int = 0
+    #: Which frames since the last restore are read, or None for all of them
+    #: (core/subject/read_plan.py). The rest are stepped exactly as before and
+    #: held as `UnreadFrame`.
+    read_plan: frozenset[int] | None = None
+    #: The frame index the last restore set, which a read plan counts from.
+    fork_frame: int = 0
     #: The live intention loop, so the probe's action takes the path a real one
     #: takes rather than writing the outcome straight into the state.
     _intentions: Any = None
@@ -643,6 +650,7 @@ class SubjectRuntime(_HeldHost):
         _restore_layers(self.organism, snapshot.layers)
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index
+        self.fork_frame = snapshot.frame_index
         self.spoken = snapshot.spoken
         _restore_world(getattr(self, "_scratch", None), snapshot.world)
         _restore_stores(snapshot.stores)
@@ -872,6 +880,7 @@ class SubjectRuntime(_HeldHost):
         frames: list[CoreState] = []
 
         async def capture(tag: str) -> None:
+            since_fork = self.frame_index - self.fork_frame
             if self.clock is not None:
                 opened = self.clock.valve_openings
                 self.clock.advance()
@@ -902,7 +911,10 @@ class SubjectRuntime(_HeldHost):
             # the held side before it was read.
             if self.after_phase is not None:
                 self.after_phase()
-            reading = self.read(condition.name, tag, env)
+            if self.read_plan is not None and since_fork not in self.read_plan:
+                reading = UnreadFrame(condition=condition.name, tag=tag, index=since_fork)
+            else:
+                reading = self.read(condition.name, tag, env)
             frames.append(reading)
             if on_frame is not None:
                 on_frame(reading)

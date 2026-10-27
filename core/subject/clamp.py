@@ -491,9 +491,15 @@ def compose(left_rows: Sequence[Any], right_rows: Sequence[Any], left: Sequence[
     """
     import dataclasses
 
+    from core.subject.state import UnreadFrame
+
     side = set(left)
     out: list[Any] = []
     for a, b in zip(left_rows, right_rows, strict=False):
+        # A frame a read plan left out on either side is left out of the cut.
+        if isinstance(a, UnreadFrame) or isinstance(b, UnreadFrame):
+            out.append(a if isinstance(a, UnreadFrame) else b)
+            continue
         values = {
             key: (a.values[key] if key in side else b.values[key]) for key in DOMAINS
         }

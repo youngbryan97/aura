@@ -12,7 +12,8 @@ import numpy as np
 from core.subject.causal import SUSTAINED
 from core.subject.intrinsic_v25 import characteristic_signature
 from core.subject.perturbation import perturb, perturb_organs
-from core.subject.v25_runtime import Anchor, lag_vector
+from core.subject.read_plan import reading_only
+from core.subject.v25_runtime import Anchor, _plan_for, lag_vector
 
 
 @dataclass(frozen=True)
@@ -147,13 +148,15 @@ async def signature_matrix(
         freq_sets: list[np.ndarray] = []
         for condition in conditions:
             for action in actions:
-                trajectory = await _run_probe(
-                    runtime,
-                    anchor.snapshot,
-                    condition,
-                    action=action,
-                    turns=turns,
-                )
+                # Only the frames the lags read (core/subject/read_plan.py).
+                with reading_only(runtime, _plan_for(runtime, lags, turns)):
+                    trajectory = await _run_probe(
+                        runtime,
+                        anchor.snapshot,
+                        condition,
+                        action=action,
+                        turns=turns,
+                    )
                 for lag in lags:
                     future = lag_vector(trajectory, int(lag))[live_mask]
                     standardized = (future - mean) / scale

@@ -38,6 +38,7 @@ from core.state.percepts import PERCEPT_EMOTIONS, emit_percept
 from core.subject.content import PerceptClass
 from core.subject.intrinsic_v25 import crossfit_fisher_rao
 from core.subject.perturbation import shift_reference
+from core.subject.read_plan import reading_only
 from core.subject.perturbation import perturb, perturb_organs
 
 __all__ = [
@@ -206,8 +207,16 @@ async def sample_classes(
             affect.valence = float(min(1.0, max(-1.0, float(affect.valence or 0.0) + valence)))
         shown = replace(condition, prepare=present(cls))
         rows: list[Any] = []
-        for _ in range(turns):
-            rows.extend(await runtime.turn_once(shown))
+        # Only the frame the future is read at, and the roll's last
+        # (core/subject/read_plan.py). Recall is read off her state below,
+        # not off a frame.
+        per_turn = int(getattr(runtime, "frames_per_turn", 0) or 0)
+        plan = (
+            frozenset({max(1, lag) * per_turn - 1, turns * per_turn - 1}) if per_turn > 0 else None
+        )
+        with reading_only(runtime, plan):
+            for _ in range(turns):
+                rows.extend(await runtime.turn_once(shown))
         if not rows:
             return None
         # The end of the `lag`-th turn after the fork. A turn records a frame

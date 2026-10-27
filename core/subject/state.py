@@ -1610,6 +1610,38 @@ class CoreState:
     def domain(self, key: str) -> np.ndarray:
         return self.values[key]
 
+
+@dataclass(frozen=True, slots=True)
+class UnreadFrame:
+    """A frame a run's read plan did not read, held in its place.
+
+    Reading K is passive and costs about two fifths of a turn, and a carrier
+    roll or a content presentation uses one or two of its frames. A plan says
+    which (`core.subject.read_plan.reading_only`); the rest are this, which
+    keeps every list the same length and refuses to be read, so a plan that
+    left out a frame something needs stops the run instead of handing it a
+    default.
+    """
+
+    condition: str = ""
+    tag: str = ""
+    index: int = -1
+
+    def _refuse(self) -> LookupError:
+        return LookupError(
+            f"frame {self.index} ({self.tag}) was not read: the run's read plan left it out"
+        )
+
+    @property
+    def values(self) -> dict[str, np.ndarray]:
+        raise self._refuse()
+
+    def vector(self) -> np.ndarray:
+        raise self._refuse()
+
+    def domain(self, key: str) -> np.ndarray:
+        raise self._refuse()
+
     def env_vector(self) -> np.ndarray:
         keys = sorted(self.env)
         return np.array([self.env[key] for key in keys], dtype=np.float64)
