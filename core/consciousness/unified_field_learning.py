@@ -48,15 +48,31 @@ class _HowTheFieldLearns:
         dw = self.cfg.hebbian_rate * np.outer(self.F, self.F)
         self.W_field += dw.astype(np.float32)
 
-        # What each connection did this step, for the turn's worth to judge:
-        # a recurrent weight by the unit it feeds after the unit it reads, an
-        # input weight by the unit it drives times the input it carried.
+        # What each recurrent connection did this step, for the turn's worth to
+        # judge: the unit it feeds after the unit it reads. The input weights
+        # keep their trace on every tick (`_note_what_the_inputs_did`).
         pre = self._prev_F if self._prev_F is not None else self.F
         self._eligible_field += np.outer(self.F, pre).astype(np.float32)
-        self._eligible_input += np.outer(self.F, self._last_input).astype(np.float32)
         self._eligible_steps += 1
 
         self._settle_field_weights_locked()
+
+    def _note_what_the_inputs_did(self, input_vec: object) -> None:
+        """Keep each input weight's trace for this tick: the unit it drives times the input it carried.
+
+        On every tick, at a tenth of a plasticity step's weight each. The
+        field takes input on every other tick, since the bridge feeds it at
+        half its rate, and kept only on its plasticity ticks the trace saw
+        input or never did by the parity of its tick count: a run forked from
+        an anchor on an odd count taught its input weights nothing.
+        """
+        from .unified_field import (
+            np,
+        )
+
+        share = 1.0 / float(max(1, self.cfg.plasticity_interval))
+        with self._lock:
+            self._eligible_input += (share * np.outer(self.F, input_vec)).astype(np.float32)
 
     def _settle_field_weights_locked(self) -> None:
         """Bound the recurrent weights after they change, and resync the sparse copy."""

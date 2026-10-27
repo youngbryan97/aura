@@ -744,6 +744,7 @@ class UnifiedField(_HowTheFieldLearns, _PredictsTheNextField):
         self._update_coherence()
 
         # ── Plasticity ───────────────────────────────────────────────
+        self._note_what_the_inputs_did(input_vec)
         if self._tick_count % cfg.plasticity_interval == 0:
             self._apply_plasticity()
 
