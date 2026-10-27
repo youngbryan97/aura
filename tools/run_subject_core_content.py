@@ -225,6 +225,50 @@ def _relations_kept(before: dict, after: dict) -> dict:
     return {"measured": True, "pairs": len(keys), "rank_correlation": round(float(np.corrcoef(a, b)[0, 1]), 6)}
 
 
+def _scramble_stamps(seed: int) -> None:
+    """Stamp every memory with a feeling and an inner state that are not the ones it was made in.
+
+    The control for the structure ground once her recall follows her state: if
+    what she recalls moves with her internal geometry because memories are
+    cued by the state they were made in, scrambling that state must take the
+    tracking away. Each stamp keeps its shape and spread (the emotions she felt
+    are renamed by one fixed permutation, the field's coordinates reordered by
+    another), so the stamps are as varied as before and say nothing true about
+    when each memory was made. Deterministic, so two arms of a fork scramble
+    alike.
+    """
+    import numpy as np
+
+    from core.memory import context_at_encoding, felt_at_encoding
+    from core.state.aura_state import AffectVector
+
+    names = sorted(AffectVector().emotions)
+    renamed = dict(zip(names, [names[i] for i in np.random.RandomState(seed).permutation(len(names))], strict=True))
+    orders: dict[int, np.ndarray] = {}
+    real_context_stamp = context_at_encoding.stamp
+
+    def felt_stamp(metadata, affect):
+        if not isinstance(metadata, dict) or metadata.get(felt_at_encoding.FELT_KEY):
+            return metadata
+        felt = felt_at_encoding.felt_now(affect)
+        if felt:
+            metadata[felt_at_encoding.FELT_KEY] = felt_at_encoding.encode(
+                {renamed.get(name, name): value for name, value in felt.items()}
+            )
+        return metadata
+
+    def context_stamp(metadata, state=None):
+        state = context_at_encoding.context_now() if state is None else state
+        if state is None:
+            return real_context_stamp(metadata, None)
+        order = orders.setdefault(state.size, np.random.RandomState(seed + 1).permutation(state.size))
+        return real_context_stamp(metadata, np.asarray(state)[order])
+
+    felt_at_encoding.stamp = felt_stamp
+    context_at_encoding.stamp = context_stamp
+    _log(f"control: memories stamped with a scrambled feeling and inner state (seed {seed})")
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_content")
@@ -243,6 +287,10 @@ async def main() -> int:
     )
     parser.add_argument("--conditions", type=int, default=0)
     parser.add_argument("--classes", type=int, default=0, help="use only the first N classes")
+    parser.add_argument(
+        "--control", choices=("shuffled-stamps",), default=None,
+        help="break the link between each memory and the state it was made in (see _scramble_stamps)",
+    )
     args = parser.parse_args()
 
     if args.quick:
@@ -285,6 +333,8 @@ async def main() -> int:
     started = time.monotonic()
     _log(f"content run {run_dir.name}: {len(classes)} classes over {len(conditions)} conditions")
 
+    if args.control == "shuffled-stamps":
+        _scramble_stamps(args.seed)
     runtime = build_runtime(run_dir, seed=args.seed)
     if state_leaks():
         raise SystemExit(
@@ -299,6 +349,7 @@ async def main() -> int:
         axes_note = await calibration_pass(runtime, conditions)
 
     evidence: dict[str, Any] = {
+        "control": args.control,
         "environment": environment(),
         "clock": clock,
         "calibrated_axes": axes_note,

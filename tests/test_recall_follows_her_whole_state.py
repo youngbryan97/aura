@@ -155,3 +155,31 @@ def test_a_percept_the_affect_phase_has_taken_is_not_felt_again() -> None:
     affect = SimpleNamespace(emotions=emotions, mood_baselines={}, valence=0.0, markers={})
     state = SimpleNamespace(affect=affect, world=SimpleNamespace(recent_percepts=[{"type": kind, "intensity": 1.0, CONSUMED_KEY: ["affect"]}]))
     assert recall.as_she_meets_it(state) is affect
+
+
+def test_the_control_stamps_memories_with_a_state_they_were_not_made_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The structure ground's control: scrambled stamps keep their spread and lose their truth."""
+    import importlib.util
+    from pathlib import Path
+
+    from core.memory import felt_at_encoding
+
+    monkeypatch.setattr(felt_at_encoding, "stamp", felt_at_encoding.stamp)
+    monkeypatch.setattr(context, "stamp", context.stamp)
+    path = Path(__file__).resolve().parents[1] / "tools" / "run_subject_core_content.py"
+    spec = importlib.util.spec_from_file_location("content_tool_under_test", path)
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    tool._scramble_stamps(7)
+
+    affect = SimpleNamespace(emotions={"joy": 0.6, "fear": 0.1}, mood_baselines={"joy": 0.1, "fear": 0.1})
+    first = felt_at_encoding.stamp({}, affect)[felt_at_encoding.FELT_KEY]
+    again = felt_at_encoding.stamp({}, affect)[felt_at_encoding.FELT_KEY]
+    assert first == again, "deterministic, so two arms scramble alike"
+    scrambled = felt_at_encoding.decode(first)
+    assert sorted(scrambled.values()) == [0.5] and "joy" not in scrambled
+
+    state = np.arange(1.0, 9.0)
+    stamped = context.decode(context.stamp({}, state)[context.CONTEXT_KEY])
+    assert sorted(stamped.tolist()) == sorted(state.tolist())
+    assert not np.array_equal(stamped, state)
