@@ -733,3 +733,45 @@ through a turn and forks again. At `572f3dc60` it stops with the workers' error;
 addendum it passes.
 
 Unchanged: seed 73 as the confirmatory seed, the margin (0.0196), the two-test rule, every v6 line and bar.
+
+## Addendum, 27 October 2026, past midnight: seed 73's campaign is measured again at `9163eff8f`, and the governance context is machinery
+
+Written before seed 73's carrier was read and before its campaign was scored. The content run had been read
+(agreement 0.448, moves together 0.092, p 0.187: AGREES_BUT_DOES_NOT_TRACK), and so had parts of the first campaign's
+log: the four v6 synergy lines and ownership on two seeds.
+
+**What happened.** The campaign measured every stage at `572f3dc60` and wrote its nulls, lesion and campaign files at
+00:14. Its last step pins what is serving, which asks git for the commit, and that was refused. At about 17:00, during
+the interventional synergy stage (15:26 to 17:29), the model lane's heartbeat had written its lease inside a governed
+scope and the write had read as ungoverned. The lane lost its lease and requested shutdown. The shutdown latch refuses
+new subprocesses, which is what stopped the last step.
+
+**Why the write read as ungoverned.** Two routes, each reproduced in one process at `572f3dc60`. The snapshot carried
+the governance context's lease registry as her state, so a restore on the main thread put back an older copy and a
+scope open on the heartbeat's thread lost its lease. And her clock, which a restore moves by hours, timed the token's
+thirty seconds. Either one voids an open scope.
+
+**The latch changes her.** In one process at `572f3dc60` (seed 79), four moments were rolled two turns from their own
+snapshots twice with no latch, bit-identical both times, then twice with the latch set. Two of the four moved, by 0.0543
+and 0.0087, the same on both passes. So the stages measured after the latch ran on a different organism: the last
+trials of interventional synergy, perturbational complexity, agency and ownership, and the lesion and rescue. The
+recording, the observational measures, the interventions and the nulls came before it. The first campaign is not
+scored. It is finished through its own `--resume` path and kept as a record, with the first process's nulls, lesion and
+campaign files beside it (`campaign/first-process-0014/`).
+
+**The second campaign.** Seed 73's campaign runs again from the start, in one fresh process, at `9163eff8f`: `f448fb254`
+(the carrier's commit) with the governance context named as machinery and nothing else (tree `e7261f254378`). Both
+changes since `572f3dc60` were proved no-ops in one process: the embedding lease on seed 71 (8 of 8 rolls bit-identical,
+addendum of 26 October, afternoon) and the governance context on seed 79 (8 of 8, old and new regimes, the old snapshot
+carrying the three governance holdings and the new none). The command is the chain's, with `--out
+campaign-9163eff8f`. 24/24 on seed 73 is scored from this campaign, the carrier at `f448fb254` and the interventional
+test at `572f3dc60`, whatever it reads. If the carrier fails line 11 or line 18, seed 73 fails 24/24 and the second
+campaign is stopped.
+
+**The reports step is cut.** Structure read 0.092 on this seed, so J* and the bridge cannot pass on it, and the
+withheld reports run would hold the machine for up to sixteen hours on a known failure.
+
+**For later runs.** The governance change lands on main with three tests that fail on the old code and pass on the new
+(`tests/test_a_restore_keeps_the_governance_it_found.py`).
+
+Unchanged: seed 73 as the confirmatory seed for 24/24, the margin (0.0196), the two-test rule, every v6 line and bar.
