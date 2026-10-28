@@ -1,0 +1,15 @@
+{
+  "base_commit": "876322f20",
+  "source_sha256": {
+    "tools/run_interventional_closure.py": "05c548c22568a3dad0f50d624b37069e553f2355724e29353eedf7dced9b9cee",
+    "tests/test_complete_arrays_distinguish_causes_from_copies.py": "83696b7999ff8021db8e1ab86155d70892bca83f985b1c720e7aeb042fb9460b"
+  },
+  "validation": {
+    "focused": "35 passed in 8.14s",
+    "smoke": "164 passed, 1 skipped in 75.26s",
+    "lint": "passed",
+    "compile": "passed",
+    "layering": "passed, 36 grandfathered"
+  },
+  "scope": "Known finite worlds through the production paired-roll comparison and a fake-runtime CLI integration; no real runtime or model started."
+}

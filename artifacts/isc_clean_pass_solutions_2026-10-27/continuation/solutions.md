@@ -143,3 +143,11 @@ The committed checkpoint passed 41 closure/J* integration checks and 20 anchor i
 Governance lint was rerun and still fails with 171 regressions and one stale bucket. None of its reported regression paths is changed by this continuation; its baseline was not relaxed. The full suite and aggregate quality gate have not passed in this work. Passing focused tests and smoke must not be reported as all repository gates passing.
 
 The implemented fixes, saved-Aura error reduction, explicit coverage calculation, read-basis proof and recorder adapter are actual delivered results. A complete source-backed read inventory, fully qualified closure instrument, successful fresh content evidence and the joint confirmation are still required before all three goals can honestly be called solved.
+
+## Paired causal comparisons and a declared horizon
+
+The production paired-roll comparison is now independently testable. Thirty-five focused checks passed, including an AND cause detected only by the joint swap, a passive copy that never moves the held state, and restore residue in a declared array that the core summary misses. Every untouched declared-array control must match the anchor baseline, including after earlier interventions; initial twins alone were insufficient. The one-off handling remains unchanged for ordinary numeric readings.
+
+The CLI also accepts `--turns N`, records `turns_per_roll`, and rejects nonpositive horizons. Its historical default remains two. A fake-runtime integration test passes a delayed joint cause through the real CLI, with the effect appearing at three turns, and obtains OPEN. This proves the implemented comparison and horizon routing on that known world; it is not evidence that a delayed cause exists in Aura. A horizon must be selected prospectively, rather than enlarged after a confirmation result.
+
+This extension passed smoke (164 passed, one skipped, 75.26 seconds), lint, compile and layering. See `causal-comparison-validation.json` and its two text receipts.

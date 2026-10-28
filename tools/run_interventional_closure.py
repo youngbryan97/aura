@@ -196,9 +196,48 @@ def joint_snapshot(receiver: Any, donor: Any, units: list[tuple[str, str | None]
     return hybrid if changed else None
 
 
+async def compare_swap(
+    roll: Any, receiver: Any, swapped: Any, index: int, baseline: Any,
+    comparable: set[str], *, label: str, one_offs: list[dict[str, Any]],
+    observations: Any = None,
+) -> tuple[bool, float, list[str], float]:
+    """Compare paired rolls and repeat a movement, with optional full-array custody.
+
+    Every untouched array control must match the anchor's baseline, including
+    controls after previous interventions. Initial twins alone do not rule out
+    later restore residue hidden by the core's numeric sketch.
+    """
+    import numpy as np
+
+    control_x, control_h = await roll(receiver, index)
+    if observations is not None:
+        observations.require_repeatable_digests(baseline[1], control_h)
+    drift = float(np.max(np.abs(control_x - baseline[0])))
+    x, h = await roll(swapped, index)
+    apart = float(np.max(np.abs(x - control_x)))
+    changed = sorted(k for k in comparable if h.get(k) != control_h.get(k))
+    if apart > 0.0 or changed or drift > 0.0:
+        again_x, again_h = await roll(receiver, index)
+        if observations is not None:
+            observations.require_repeatable_digests(baseline[1], again_h)
+        redrift = float(np.max(np.abs(again_x - baseline[0])))
+        y, g = await roll(swapped, index)
+        reapart = float(np.max(np.abs(y - again_x)))
+        rechanged = sorted(k for k in comparable if g.get(k) != again_h.get(k))
+        if (apart > 0.0 or changed) and not (reapart > 0.0 or rechanged):
+            one_offs.append({"swap": label, "anchor": index, "apart": apart, "kind": "a swap that did not come back"})
+            apart, changed = 0.0, []
+        if drift > 0.0 and redrift == 0.0:
+            one_offs.append({"swap": label, "anchor": index, "drift": drift, "kind": "an untouched roll that did not come back"})
+            drift = 0.0
+    return apart > 0.0 or bool(changed), apart, changed, drift
+
+
 async def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--anchors", type=int, default=8)
+    parser.add_argument("--turns", type=int, default=TURNS,
+                        help="prospectively declared turns per roll; the historical horizon is two")
     parser.add_argument(
         "--observation-plan", type=Path,
         help="prospective exact-array JSON plan; also compare complete held-array content digests",
@@ -224,6 +263,8 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.turns < 1:
+        parser.error("turns must be positive")
     positions = anchor_schedule(args.anchor_turns, args.anchors, args.spacing)
 
     import numpy as np
@@ -279,7 +320,7 @@ async def main(argv: list[str] | None = None) -> int:
 
     async def roll(snapshot: Any, index: int) -> tuple[Any, dict[str, Any]]:
         runtime.restore(snapshot)
-        frames = await _run_turns(runtime, CONDITIONS[index % len(CONDITIONS)], TURNS)
+        frames = await _run_turns(runtime, CONDITIONS[index % len(CONDITIONS)], args.turns)
         held_readings: dict[str, Any] = read_held(runtime.kernel, organs=runtime.organs)
         if observations is not None:
             held_readings.update(observations.digests(runtime.kernel, runtime.organs))
@@ -347,29 +388,10 @@ async def main(argv: list[str] | None = None) -> int:
     one_offs: list[dict[str, Any]] = []
 
     async def moves(swapped: Any, a: int, label: str = "") -> tuple[bool, float, list[str], float]:
-        control_x, control_h = await roll(snaps[a], a)
-        drift = float(np.max(np.abs(control_x - base[a][0])))
-        x, h = await roll(swapped, a)
-        apart = float(np.max(np.abs(x - control_x)))
-        changed = sorted(k for k in comparable[a] if h.get(k) != control_h.get(k))
-        if apart > 0.0 or changed or drift > 0.0:
-            # What a swap does comes back when the pair is rolled again, and so
-            # does anything a restore left behind. One untouched roll in a
-            # process that differs once and never again is neither; it is kept
-            # in the record rather than counted as a cause (26 October: one such
-            # roll per process, at one anchor, 0.0018, on every fresh seed).
-            again_x, again_h = await roll(snaps[a], a)
-            redrift = float(np.max(np.abs(again_x - base[a][0])))
-            y, g = await roll(swapped, a)
-            reapart = float(np.max(np.abs(y - again_x)))
-            rechanged = sorted(k for k in comparable[a] if g.get(k) != again_h.get(k))
-            if (apart > 0.0 or changed) and not (reapart > 0.0 or rechanged):
-                one_offs.append({"swap": label, "anchor": a, "apart": apart, "kind": "a swap that did not come back"})
-                apart, changed = 0.0, []
-            if drift > 0.0 and redrift == 0.0:
-                one_offs.append({"swap": label, "anchor": a, "drift": drift, "kind": "an untouched roll that did not come back"})
-                drift = 0.0
-        return apart > 0.0 or bool(changed), apart, changed, drift
+        return await compare_swap(
+            roll, snaps[a], swapped, a, base[a], comparable[a],
+            label=label, one_offs=one_offs, observations=observations,
+        )
 
     async def write(payload: dict[str, Any]) -> None:
         from core.subject.latch import refuse_if_latched
@@ -378,6 +400,7 @@ async def main(argv: list[str] | None = None) -> int:
         refuse_if_latched("the interventional closure results")
         await async_atomic_write_text(out / "interventional_closure.json", json.dumps(
             {**payload, "evidence_source": source, "joint_periphery": args.joint_periphery,
+             "turns_per_roll": args.turns,
              "anchor_turns": positions, "donor_turn_distances": distances,
              "declared_array_plan": observation_declaration,
              "declared_array_observations": observations.description() if observations else None}, indent=1))
