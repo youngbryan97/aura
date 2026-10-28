@@ -60,32 +60,34 @@ def test_a_frame_moves_it_by_one_step_and_a_restore_rewinds_it_exactly(modules, 
     assert hers.time.monotonic() == before
 
 
-def test_a_frame_that_stalls_opens_the_valve_and_it_never_runs_back(modules, clock):
+def test_a_frame_that_stalls_is_recorded_and_her_clock_stays_where_the_frame_put_it(modules, clock):
+    """Until 27 October her clock followed the real one past the budget; every such opening on seed 83 was a reading."""
     hers, _ = modules
     clock.stall_after = 0.02
     start = hers.time.monotonic()
     time.sleep(0.05)
     late = hers.time.monotonic()
-    assert clock.valve_openings == 1 and late > start
+    assert late == start, "her time does not follow the machine's"
+    assert clock.slow_frames == 1 and clock.valve_openings == 0
+    hers.time.monotonic()
+    assert clock.slow_frames == 1, "a slow frame is counted once"
     clock.advance()
-    assert hers.time.monotonic() >= late, "what the valve added is kept"
-    clock.set(clock.now(), slack=0.0)
+    assert hers.time.monotonic() == pytest.approx(start + clock.step)
     assert clock.slack == 0.0
 
 
-def test_an_open_valve_says_where_she_was_waiting(modules, clock):
-    """A run where the valve opened could not say why (seed 73's carrier, 26 October); now it names the wait."""
+def test_a_slow_frame_says_where_her_code_read_the_clock(modules, clock):
     hers, _ = modules
     clock.stall_after = 0.02
 
-    def waiting_for_a_deadline():
+    def stamping_a_resync():
         time.sleep(0.05)
         return hers.time.monotonic()
 
-    waiting_for_a_deadline()
-    [event] = clock.valve_events
+    stamping_a_resync()
+    [event] = clock.slow_events
     assert event["frame_seconds"] >= 0.05
-    assert any("waiting_for_a_deadline" in line for line in event["waiting_in"])
+    assert any("stamping_a_resync" in line for line in event["read_from"])
 
 
 def test_a_module_imported_after_the_install_is_given_it_at_the_next_frame(clock, monkeypatch):

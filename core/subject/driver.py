@@ -882,25 +882,20 @@ class SubjectRuntime(_HeldHost):
         async def capture(tag: str) -> None:
             since_fork = self.frame_index - self.fork_frame
             if self.clock is not None:
-                opened = self.clock.valve_openings
+                slow = self.clock.slow_frames
                 self.clock.advance()
-                if opened:
-                    # A frame of hers ran past the phase budget and her monotonic
-                    # followed the real clock: this arm left the run's one
-                    # timeline, and the report has to say so.
-                    self.failures["clock.valve"] = opened
-                    events = getattr(self.clock, "valve_events", None) or []
+                # A frame that ran past the phase budget, said once each, with
+                # where her code read the clock. Her time did not move, so it is
+                # a diagnostic beside the run and not a failure of it.
+                if slow > getattr(self, "_slow_said", 0):
+                    self._slow_said = slow
+                    events = getattr(self.clock, "slow_events", None) or []
+                    where = ""
                     if events:
                         last = events[-1]
-                        self.failure_notes["clock.valve"] = (
-                            f"frame ran {last['frame_seconds']} s; waiting in: " + " | ".join(last["waiting_in"][-4:])
-                        )[:600]
-                    # Said once per opening, as it happens, so a run that has
-                    # lost its authority can be stopped then rather than read
-                    # hours later in its report.
-                    if opened > getattr(self, "_valve_said", 0):
-                        self._valve_said = opened
-                        logger.warning("CLOCK VALVE OPENED (%d): %s", opened, self.failure_notes.get("clock.valve", ""))
+                        where = f"frame ran {last['frame_seconds']} s; read from: " + " | ".join(last["read_from"][-4:])
+                    self.slow_frames = {"count": slow, "last": where[:600]}
+                    logger.warning("SLOW FRAME (%d): %s", slow, where[:600])
             # The free-running layers, advanced by the harness's own count
             # rather than by the machine's schedule. Both arms of a trial run
             # them the same number of times, which is the only way a layer that

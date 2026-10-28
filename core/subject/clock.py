@@ -111,12 +111,15 @@ class ExperimentClock:
         #: machine's: the time a phase is given before the harness abandons it.
         #: None keeps the valve shut.
         self.stall_after: float | None = None
-        #: How many frames the valve opened in. A run where it opened was not on
-        #: one timeline in every arm, and its report says so.
+        #: Frames her clock was let follow the real one in. Always zero since 27
+        #: October (`monotonic`); kept so reports and readers that count it read on.
         self.valve_openings = 0
-        #: Where her code was waiting each time the valve opened: the frame's
-        #: real age and the stack that read the clock, the first few kept.
-        self.valve_events: list[dict[str, Any]] = []
+        #: Frames that ran past `stall_after` real seconds while her code read
+        #: the clock, and where the first few were read from: the frame's real
+        #: age and the stack. A diagnostic: her time did not move.
+        self.slow_frames = 0
+        self.slow_events: list[dict[str, Any]] = []
+        self._said_slow = False
         self._frame_began = real_monotonic()
         self._open = False
         self._given: list[tuple[Any, str, Any]] = []
@@ -148,27 +151,31 @@ class ExperimentClock:
         lived; re-aging the readings on restore then made short time-to-lives
         depend on how fast the machine ran a turn (26 October).
 
-        A frame that runs past `stall_after` real seconds is one where something
-        of hers is waiting on a deadline this clock, frozen within a frame, would
-        never reach. From then on the reading follows the real clock, so the wait
-        ends, and the frame is counted in `valve_openings`.
+        A frame that runs past `stall_after` real seconds is recorded once, with
+        the stack that read the clock, and her reading stays where the frame
+        put it. Until 27 October it followed the real clock from then on, so a
+        wait on a deadline this clock would never reach could end; every
+        opening on seed 83's reading was a reading and not a wait (her
+        continuous substrate's loop, the memory index stamping a resync of 28
+        s, the lock watchdog stamping an acquisition), and each made her time
+        depend on how fast the machine ran. A deadline she waits on reads the
+        host clock (core/runtime/wall_clock.py), and a phase that overruns its
+        budget is abandoned on the real clock and recorded as a failure.
         """
         value = self._now + self.offset + self.slack
         limit = self.stall_after
-        if limit is not None:
+        if limit is not None and not self._said_slow:
             overdue = real_monotonic() - self._frame_began - limit
             if overdue > 0.0:
-                if not self._open:
-                    self._open = True
-                    self.valve_openings += 1
-                    if len(self.valve_events) < 8:
-                        import traceback
+                self._said_slow = True
+                self.slow_frames += 1
+                if len(self.slow_events) < 8:
+                    import traceback
 
-                        self.valve_events.append({
-                            "frame_seconds": round(limit + overdue, 3),
-                            "waiting_in": [line.strip() for line in traceback.format_stack(limit=10)[:-1]],
-                        })
-                value += overdue
+                    self.slow_events.append({
+                        "frame_seconds": round(limit + overdue, 3),
+                        "read_from": [line.strip() for line in traceback.format_stack(limit=10)[:-1]],
+                    })
         return value
 
     # ── driving ──────────────────────────────────────────────────────────
@@ -190,13 +197,13 @@ class ExperimentClock:
             if offset is not None:
                 self.offset = float(offset)
             self._open = False
+            self._said_slow = False
             self._frame_began = real_monotonic()
 
     def _close_valve(self) -> None:
-        """Keep what an open valve added, so her monotonic does not run back."""
-        if self._open and self.stall_after is not None:
-            self.slack += max(0.0, real_monotonic() - self._frame_began - self.stall_after)
+        """Start the next frame's real age. Nothing is added to her time (see `monotonic`)."""
         self._open = False
+        self._said_slow = False
         self._frame_began = real_monotonic()
 
     # ── her modules ──────────────────────────────────────────────────────
