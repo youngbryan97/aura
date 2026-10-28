@@ -898,3 +898,51 @@ and 83 are discovery seeds and confirm nothing.
 **Seed 89.** Never run at any commit. Confirmatory for 24/24 under v6 and v7 reported apart, for J* and for the bridge,
 at the commit that carries this addendum, by `decisive_v8.sh` as the addendum of 27 October, evening, set out, with the
 same stopping rule. Unchanged: every line and bar.
+
+## Addendum, 28 October 2026, evening: the reference is built wider, and seed 97
+
+Written before seed 97 was run at any commit, while seed 89's carrier and reports runs were still running.
+
+**Seed 89's campaign** (exit 0, 14:56) passed 21 of the 22 lines it decides alone, under v7 and under v6, its
+observational closure reading closed (leak 0.0004). The 22nd, `beats_every_null`, failed with no null passing: the
+recurrent reference read a normalised effective dimension of 0.4002 against the differentiation line's bar below 0.40,
+so it failed the conjunction it exists to pass. ISC-v2 records a reference that fails as the instrument failing, not as
+a result about Aura, and the line stays failed in seed 89's verdict.
+
+**What the reference did on other seeds.** Its row reads no recording of hers and depends on the seed alone
+(`core/subject/null_table.py`). Over seeds 1 to 200 it read 0.388 on average (spread 0.024, highest 0.445) and failed
+the line on 62. Run c1b7b1843 (seed 31, 0.4187) failed the line the same way.
+
+**What changes.** The reference's domains are six columns wide where every null's are four (`REFERENCE_WIDTH`,
+core/subject/nulls.py), each still driven by one shock. The nulls keep four, and the reference is outside the
+comparison set they are judged against, so no null's reading moves. Every line and bar is unchanged.
+
+The width is the smallest at which the highest of seeds 1 to 200 clears the 0.40 bar by twice that width's own spread
+across seeds. Measured before seed 97 was named:
+
+| width | seeds 1-200: mean | spread | highest | seeds 201-400: highest | irreducibility, weakest of seeds 3, 7, 11, 17 |
+|---|---|---|---|---|---|
+| 4 | 0.388 | 0.024 | 0.445 | - | 0.101 |
+| 5 | 0.336 | 0.017 | 0.376 | 0.371 | 0.210 |
+| 6 | 0.294 | 0.015 | 0.328 | 0.328 | 0.188 |
+
+At six, no seed of the 400 fails the line, the largest component never holds more than 0.17 of the variance, and the
+irreducibility test's 0.10 margin (`test_the_reference_clears_its_own_line_on_every_seed`) holds at 0.188. The
+reference's full null row passes on seeds 1, 2, 5, 31, 89 and 178: irreducibility 0.274 to 0.293 at its 95th
+percentile and no draw under 0.203, vertex connectivity 3, reentry, closure, all four synergy triples, effective
+dimension 0.289 to 0.311.
+
+Two changes at four columns were measured and refused. Rewiring each domain toward one quantity cleared the bar but
+cost connectivity, reentry or synergy triples on some seeds, and no blend of it cleared both the bar and the top-share
+line on 200 seeds. Recording each domain through views that share its leading quantity kept every other line but
+irreducibility, which fell from about 0.11 to between 0.02 and 0.045.
+
+**Which runs it applies to.** As the reference's own preregistration of 16 September set out: a run whose null table is
+computed at or after this commit, and the recomputed architecture rows of an earlier run. A run's verdict under the
+wider reference is reported beside the verdict it recorded, never in place of it. Seed 89's is reported that way and
+confirms nothing.
+
+**Seed 97.** The next prime no run has used, never run at any commit. Its reference reads 0.2852 at six columns,
+stated here because the row depends on the seed alone. Confirmatory for 24/24 under v6 and v7 reported apart, for J*
+and for the bridge, at the commit that carries this addendum, by `decisive_v8.sh` with the same stopping rule,
+launched once seed 89's reports run has ended. Unchanged: every line and bar.

@@ -127,3 +127,12 @@ recorded them.
 
 A run's verdict under the amended reference is reported beside the verdict it
 recorded, never in place of it.
+
+## Amendment, 28 October 2026: six columns a domain
+
+Seed 89's campaign failed `beats_every_null` on this reference, which read 0.4002 against the differentiation line's
+bar below 0.40 with no null passing; over seeds 1 to 200 it failed that line on 62. Its domains are now six columns
+wide where the nulls' are four, still driven by one shock each, and nothing else about it changes. The measurements,
+the rule that chose six and the two changes refused are in the addendum of the same evening in
+`docs/ISC_V6_PREREGISTRATION.md`. A run's verdict under the wider reference is reported beside the verdict it recorded,
+never in place of it.

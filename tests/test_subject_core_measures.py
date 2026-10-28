@@ -281,15 +281,22 @@ def test_differentiation_and_irreducibility_move_together_inside_one_system():
     thing that changes, and every step of it that buys irreducibility is paid
     for in effective dimension.
 
-    That is why no threshold set high on both can be met, and why the earlier
-    form of this test -- the reference sitting under the 0.4 bar -- held only
-    while the reference was too weakly wired to clear the irreducibility bar
-    it exists to demonstrate. It read 0.0453 against a line of 0.05.
+    That is why no threshold set high on both can be met at four columns a
+    domain, and why the earlier form of this test -- the reference sitting
+    under the 0.4 bar -- held only while the reference was too weakly wired to
+    clear the irreducibility bar it exists to demonstrate. It read 0.0453
+    against a line of 0.05.
+
+    Measured at four columns, the width the argument was made at and the null
+    family's. At six (`REFERENCE_WIDTH`, 28 October) the reference is off this
+    trade: on seed 3 it reads 0.25 at a radius of a half and 0.22 at seven
+    tenths, and clears both lines.
     """
     weak, strong = 0.5, nulls.REFERENCE_RADIUS
     assert strong > weak
-    before = nulls.REFERENCE_RADIUS
+    before, width = nulls.REFERENCE_RADIUS, nulls.REFERENCE_WIDTH
     try:
+        nulls.REFERENCE_WIDTH = 4
         nulls.REFERENCE_RADIUS = weak
         loose_phi = phi_do(_reference(3, steps=1200)).phi
         loose_dimension = effective_dimension(_reference(3, steps=1200)).normalised
@@ -297,7 +304,7 @@ def test_differentiation_and_irreducibility_move_together_inside_one_system():
         tight_phi = phi_do(_reference(3, steps=1200)).phi
         tight_dimension = effective_dimension(_reference(3, steps=1200)).normalised
     finally:
-        nulls.REFERENCE_RADIUS = before
+        nulls.REFERENCE_RADIUS, nulls.REFERENCE_WIDTH = before, width
     assert tight_phi > loose_phi, (loose_phi, tight_phi)
     assert tight_dimension > loose_dimension, (loose_dimension, tight_dimension)
 

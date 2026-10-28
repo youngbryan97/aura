@@ -219,7 +219,8 @@ def _rank_one(rng: np.random.Generator, rows: int, cols: int, strength: float) -
 #: The same table is the evidence for the differentiation argument, measured
 #: inside one system rather than across the null family: every radius that
 #: lifts irreducibility lifts effective dimension with it, so no setting of
-#: this satisfies a threshold set high on both at once.
+#: this satisfies a threshold set high on both at once. That table is four
+#: columns a domain; at the six of REFERENCE_WIDTH the reference clears both.
 REFERENCE_RADIUS: float = 0.7
 
 #: How hard each triple's product drives its target. A product of two
@@ -250,6 +251,35 @@ REFERENCE_ROUNDS: int = 12
 #: than there are columns, here as in her: this shares nothing between
 #: domains, which is what the common-driver null is for.
 REFERENCE_CHANNELS: int = 1
+
+#: How many columns a reference domain has, where every null's has four. At
+#: four, one shock a domain still left the reference sitting on the
+#: differentiation line: the domain's own decay and its neighbours' coupling
+#: blocks spread the shock over all four columns again. Over seeds 1 to 200 it
+#: read 0.388 of its width (spread 0.024, highest 0.445) and failed the line on
+#: 62, and seed 89's campaign of 28 October failed beats_every_null on it at
+#: 0.4002 with no null passing. More columns viewing the same one shock:
+#:
+#:      width   seeds 1-200: mean  spread  highest   201-400: highest   irreducibility, weakest of 3 7 11 17
+#:        4                 0.388   0.024   0.445             -                    0.101
+#:        5                 0.336   0.017   0.376           0.371                  0.210
+#:        6                 0.294   0.015   0.328           0.328                  0.188
+#:
+#: The width is the smallest at which the highest of seeds 1 to 200 clears the
+#: 0.40 bar by twice that width's own spread across seeds; five clears it by
+#: 0.024 against 0.034. At six the largest component never holds more than 0.17
+#: of the variance, and the reference's whole row passes on seeds 1, 2, 5, 31,
+#: 89 and 178. The nulls keep four, and the reference is outside the
+#: comparison set they are judged against, so no null's reading moves.
+#:
+#: Two changes at four columns were measured and refused. Rewiring each domain
+#: toward one quantity cleared the bar but cost connectivity, reentry or
+#: synergy triples on some seeds. Recording each domain through views sharing
+#: its leading quantity kept every other line but irreducibility, which fell
+#: from 0.11 to between 0.02 and 0.045: what makes a domain's columns move
+#: together also makes the cheapest cut cheaper, where more columns of one
+#: domain do not.
+REFERENCE_WIDTH: int = 6
 
 #: Which neighbours a reference domain reads, by their distance around the
 #: declared order. Irreducibility asks what the cheapest cut costs, and the
@@ -558,6 +588,8 @@ def architecture(
 ) -> ToySystem:
     """One of the wirings, with matched widths, decay and noise."""
     rng = np.random.default_rng(seed)
+    if name == "recurrent" and widths is None:
+        widths = {key: REFERENCE_WIDTH for key in DOMAINS}
     widths = widths or {key: 4 for key in DOMAINS}
     decay = {key: rng.uniform(0.3, 0.7, size=width) for key, width in widths.items()}
     coupling: dict[str, dict[str, np.ndarray]] = {key: {} for key in widths}
