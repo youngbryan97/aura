@@ -105,6 +105,10 @@ def main(argv: list[str] | None = None) -> int:
     for line in verdict["v6_criteria"]:
         print(f"{'PASS' if line['passed'] else 'FAIL'}  v6 {line['criterion']:<25} {json.dumps(line['value'], default=str)}")
     print(f"ISC-v6 on this seed: {verdict['isc_v6_on_this_seed']}   {verdict['v6_passed']}/24 criteria")
+    for line in verdict["v7_criteria"]:
+        print(f"{'PASS' if line['passed'] else 'FAIL'}  v7 {line['criterion']:<25} {json.dumps(line['value'], default=str)}")
+    if verdict["v7_criteria"]:
+        print(f"ISC-v7 on this seed: {verdict['isc_v7_on_this_seed']}   {verdict['v7_passed']}/24 criteria")
     print(f"wrote {out}")
     return 0
 

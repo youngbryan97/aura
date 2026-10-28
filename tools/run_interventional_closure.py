@@ -40,6 +40,7 @@ import json
 import math
 import os
 import random
+import re
 import sys
 import time
 from pathlib import Path
@@ -260,6 +261,14 @@ async def main(argv: list[str] | None = None) -> int:
         "--joint-periphery", action="store_true",
         help="also swap every outside unit together; record this prospective diagnostic in the result",
     )
+    parser.add_argument(
+        "--units", default="",
+        help="swap alone only the units whose name matches this pattern (validation runs); the joint row is whole",
+    )
+    parser.add_argument(
+        "--planted", default="",
+        help="validation only: plant these known-answer units outside K* (cause,gate,record; core/subject/planted.py)",
+    )
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -294,6 +303,11 @@ async def main(argv: list[str] | None = None) -> int:
         observations.digest_budget()
     runtime = build_runtime(out, seed=args.seed)
     await start_organism(runtime)
+    if args.planted:
+        from core.subject.planted import install
+
+        install(tuple(kind.strip() for kind in args.planted.split(",") if kind.strip()))
+        print(f"planted outside K*: {args.planted}", flush=True)
     await quiesce_organism(runtime)
     await calibrate_clock(runtime, CONDITIONS)
     for _ in range(WARM_ROUNDS):
@@ -417,6 +431,8 @@ async def main(argv: list[str] | None = None) -> int:
         if not in_shard(index, args.shard):
             continue
         label = name if key is None else f"{name}.{key}"
+        if args.units and name != "joint-periphery" and not re.search(args.units, label):
+            continue
         if key is None and name != "joint-periphery":
             whole.add(label)
         row: dict[str, Any] = {"tested": 0, "moved_k": 0, "moved_held": 0, "max_k": 0.0, "held_keys": []}
@@ -472,9 +488,15 @@ async def main(argv: list[str] | None = None) -> int:
 
     verdict = verdict_of(moved, residue, any(b is not None for b in base))
     print(f"\ninterventional closure of K*: {verdict}; {len(results)} swaps; moved by: {moved}", flush=True)
+    # A unit that is the same in every anchor and its donors is never varied by
+    # a swap, so the test says nothing about it (167 of 960 varied on seed 73).
+    singles = {label: row for label, row in results.items() if label != "joint-periphery"}
+    coverage = {"enumerated": len(singles), "varied": sum(1 for row in singles.values() if row["tested"])}
+    print(f"coverage: {coverage['varied']} of {coverage['enumerated']} units outside K* differed between an anchor "
+          "and a donor", flush=True)
     await write({"seed": args.seed, "anchors": len(snaps), "spacing": pattern, "donor_offsets": offsets, "donor_distances": distances, "periods_hidden": hidden, "shard": args.shard,
            "verdict": verdict, "results": results, "moves_k_star": moved,
-           "residue": residue, "one_offs": one_offs, "culprit_attributes": culprits})
+           "residue": residue, "one_offs": one_offs, "culprit_attributes": culprits, "coverage": coverage})
     return 0
 
 

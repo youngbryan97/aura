@@ -114,6 +114,9 @@ class ExperimentClock:
         #: How many frames the valve opened in. A run where it opened was not on
         #: one timeline in every arm, and its report says so.
         self.valve_openings = 0
+        #: Where her code was waiting each time the valve opened: the frame's
+        #: real age and the stack that read the clock, the first few kept.
+        self.valve_events: list[dict[str, Any]] = []
         self._frame_began = real_monotonic()
         self._open = False
         self._given: list[tuple[Any, str, Any]] = []
@@ -158,6 +161,13 @@ class ExperimentClock:
                 if not self._open:
                     self._open = True
                     self.valve_openings += 1
+                    if len(self.valve_events) < 8:
+                        import traceback
+
+                        self.valve_events.append({
+                            "frame_seconds": round(limit + overdue, 3),
+                            "waiting_in": [line.strip() for line in traceback.format_stack(limit=10)[:-1]],
+                        })
                 value += overdue
         return value
 

@@ -179,7 +179,9 @@ def battery_lines(report: dict[str, Any] | None) -> dict[str, bool] | None:
     verdict = assemble(report)
     # v6 replaces v5's synergy line with the interventional one; reading v5 here
     # gave a total that could disagree with the 24 the scorer reports.
-    if verdict.v6_criteria:
+    if verdict.v7_criteria:
+        lines = verdict.v7_lines()
+    elif verdict.v6_criteria:
         lines = verdict.v6_lines()
     elif verdict.v5_criteria:
         lines = verdict.v5_lines()
@@ -208,6 +210,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--interventional-closure", type=Path, default=None,
         help="the interventional closure of K* on the carrier's seed: a found carrier needs it CLOSED",
+    )
+    parser.add_argument(
+        "--closure-by-intervention", action="store_true",
+        help="ISC-v7: the whole core's closure is what intervention shows, alone and all at once",
     )
     parser.add_argument("--out-root", type=Path, default=REPO / "artifacts" / "subject_core_bridge")
     args = parser.parse_args(argv)
@@ -264,6 +270,7 @@ def main(argv: list[str] | None = None) -> int:
         battery=battery_lines(campaign),
         reports=reports,
         interventional=interventional,
+        closure_by_intervention=args.closure_by_intervention,
     )
     report = j.as_dict()
     report["unread_sources"] = unread

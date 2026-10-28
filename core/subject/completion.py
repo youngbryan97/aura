@@ -1,4 +1,4 @@
-"""The conjunction Bryan asked to finish: ISC-v6, J*, and bridge parity."""
+"""The conjunction Bryan asked to finish: ISC-v6 (or v7, reported apart), J*, and bridge parity."""
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -33,16 +33,25 @@ def compatibility(reports: Mapping[str, Mapping[str, Any]]) -> list[str]:
     return blockers
 
 
-def completion(verdict: Verdict, j: JStar, *, blockers: list[str], scope: str) -> dict[str, Any]:
-    """Keep each goal visible; completion requires every goal and compatible evidence."""
-    lines = verdict.v6_lines()
+def completion(verdict: Verdict, j: JStar, *, blockers: list[str], scope: str, version: str = "v6") -> dict[str, Any]:
+    """Keep each goal visible; completion requires every goal and compatible evidence.
+
+    `version` is the battery the goal is read under: v6, or v7, whose closure
+    line is decided by intervention (addendum of 27 October, evening). Under
+    v7 the v6 reading is reported beside it and never combined with it.
+    """
+    if version not in ("v6", "v7"):
+        raise ValueError(f"no battery version {version!r}")
+    lines = verdict.v7_lines() if version == "v7" else verdict.v6_lines()
     keys = [line.key for line in lines]
-    battery = (
-        len(lines) == 24 and len(set(keys)) == 24
-        and verdict.isc_v6_on_this_seed
-    )
+    on_this_seed = verdict.isc_v7_on_this_seed if version == "v7" else verdict.isc_v6_on_this_seed
+    battery = len(lines) == 24 and len(set(keys)) == 24 and on_this_seed
+    beside = {}
+    if version == "v7":
+        v6 = verdict.v6_lines()
+        beside = {"isc_v6_on_this_seed": verdict.isc_v6_on_this_seed, "v6_passed": sum(line.passed for line in v6)}
     goals = {
-        "isc_v6_24_of_24": battery,
+        f"isc_{version}_24_of_24": battery,
         "j_star": j.status in {"DETERMINED_UP_TO_GAUGE", "DETERMINED_UP_TO_SYMMETRY"},
         "bridge_at_parity": j.bridge == "AT_PARITY",
     }
@@ -54,5 +63,7 @@ def completion(verdict: Verdict, j: JStar, *, blockers: list[str], scope: str) -
         "total": len(lines),
         "failing_criteria": [line.key for line in lines if not line.passed],
         "evidence_blockers": list(blockers),
+        "battery_version": version,
+        **beside,
         "interpretation": "J* and parity are conditional on P1-P6; this is not a proof of those postulates.",
     }

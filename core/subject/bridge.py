@@ -201,7 +201,10 @@ class CarrierTerm:
 
 
 def carrier_term(
-    report: Mapping[str, Any] | None, interventional: Mapping[str, Any] | None = None
+    report: Mapping[str, Any] | None,
+    interventional: Mapping[str, Any] | None = None,
+    *,
+    closure_by_intervention: bool = False,
 ) -> CarrierTerm:
     """The first term, read off a v25 report.
 
@@ -210,7 +213,15 @@ def carrier_term(
     also shown under intervention (ISC-v6 addendum, 25 October, night): found
     with something outside K* that moves it is not found, and found with the
     intervention unread is unresolved.
+
+    `closure_by_intervention` reads it under ISC-v7 (addendum of 27 October,
+    evening): the whole core's closure is what intervention shows, alone and
+    all at once (`battery.closed_by_intervention`), whatever the observational
+    gate read. A whole core that is one recurrent component, irreducible
+    somewhere and closed under intervention is found.
     """
+    if closure_by_intervention:
+        return _carrier_term_v7(report, interventional)
     if not report:
         return CarrierTerm("UNRESOLVED", blockers=("no carrier run was read",))
     authority = report.get("authority") or {}
@@ -252,6 +263,39 @@ def carrier_term(
         level=level,
         blockers=(f"the exclusion step reported {status or 'nothing'}",),
     )
+
+
+def _carrier_term_v7(report: Mapping[str, Any] | None, interventional: Mapping[str, Any] | None) -> CarrierTerm:
+    """The carrier term with the whole core's closure decided by intervention (ISC-v7)."""
+    from core.subject.battery import closed_by_intervention
+
+    if not report:
+        return CarrierTerm("UNRESOLVED", blockers=("no carrier run was read",))
+    authority = report.get("authority") or {}
+    level = (report.get("placement") or {}).get("level")
+    if not authority.get("authoritative") or authority.get("blockers") or authority.get("allowed_degraded"):
+        blockers = tuple(str(b) for b in authority.get("blockers") or ()) or (
+            "the carrier run has no clean authority without a degradation override",
+        )
+        return CarrierTerm("UNRESOLVED", level=level, blockers=blockers)
+    closed, why = closed_by_intervention(dict(interventional or {}))
+    if (interventional or {}).get("verdict") == "OPEN":
+        moved = ", ".join(str(m) for m in list((interventional or {}).get("moves_k_star") or [])[:6])
+        return CarrierTerm("NOT_FOUND", level=level, blockers=(f"under intervention, state outside K* moves it: {moved}",))
+    if not closed:
+        return CarrierTerm("UNRESOLVED", level=level, blockers=(why,))
+    exclusion = report.get("exclusion") or {}
+    components = [str(c) for c in exclusion.get("components") or ()]
+    if not exclusion.get("whole_core_is_one_component") or len(components) != 1:
+        return CarrierTerm("UNRESOLVED", level=level,
+                           blockers=(f"the core is not one recurrent component: {components}",))
+    whole = components[0]
+    candidate = next((c for c in exclusion.get("candidates") or () if str(c.get("support")) == whole), None)
+    if candidate is None or not candidate.get("recurrent"):
+        return CarrierTerm("UNRESOLVED", level=level, blockers=("the whole core was not read as recurrent",))
+    if not float(candidate.get("peak_rate") or 0.0) > 0.0:
+        return CarrierTerm("NOT_FOUND", level=level, blockers=("no cut of the whole core changes what it does",))
+    return CarrierTerm("FOUND", carriers=(whole,), level=level)
 
 
 # ── the quality structure ─────────────────────────────────────────────────
@@ -649,10 +693,11 @@ def solve(
     battery: Mapping[str, bool] | None = None,
     reports: Mapping[str, Any] | None = None,
     interventional: Mapping[str, Any] | None = None,
+    closure_by_intervention: bool = False,
 ) -> JStar:
     """J*(U_t) from the three runs that bear on it, and the bridge from those plus two more."""
     return JStar(
-        carrier=carrier_term(carrier_report, interventional),
+        carrier=carrier_term(carrier_report, interventional, closure_by_intervention=closure_by_intervention),
         structure=structure_term(content_report),
         lineage=lineage_term(lineage),
         battery=dict(battery) if battery is not None else None,

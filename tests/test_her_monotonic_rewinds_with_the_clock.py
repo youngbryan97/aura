@@ -73,6 +73,21 @@ def test_a_frame_that_stalls_opens_the_valve_and_it_never_runs_back(modules, clo
     assert clock.slack == 0.0
 
 
+def test_an_open_valve_says_where_she_was_waiting(modules, clock):
+    """A run where the valve opened could not say why (seed 73's carrier, 26 October); now it names the wait."""
+    hers, _ = modules
+    clock.stall_after = 0.02
+
+    def waiting_for_a_deadline():
+        time.sleep(0.05)
+        return hers.time.monotonic()
+
+    waiting_for_a_deadline()
+    [event] = clock.valve_events
+    assert event["frame_seconds"] >= 0.05
+    assert any("waiting_for_a_deadline" in line for line in event["waiting_in"])
+
+
 def test_a_module_imported_after_the_install_is_given_it_at_the_next_frame(clock, monkeypatch):
     late = types.ModuleType("core._her_clock_probe_late")
     late.time = time
