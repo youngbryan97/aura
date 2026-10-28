@@ -895,6 +895,12 @@ class SubjectRuntime(_HeldHost):
                         self.failure_notes["clock.valve"] = (
                             f"frame ran {last['frame_seconds']} s; waiting in: " + " | ".join(last["waiting_in"][-4:])
                         )[:600]
+                    # Said once per opening, as it happens, so a run that has
+                    # lost its authority can be stopped then rather than read
+                    # hours later in its report.
+                    if opened > getattr(self, "_valve_said", 0):
+                        self._valve_said = opened
+                        logger.warning("CLOCK VALVE OPENED (%d): %s", opened, self.failure_notes.get("clock.valve", ""))
             # The free-running layers, advanced by the harness's own count
             # rather than by the machine's schedule. Both arms of a trial run
             # them the same number of times, which is the only way a layer that
