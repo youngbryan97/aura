@@ -1,0 +1,139 @@
+{
+  "constructed_worlds": true,
+  "actual_aura_transition_witness": false,
+  "verified": true,
+  "four_bit_truth_tables": {
+    "baseline_anchors": [
+      "0000",
+      "1111"
+    ],
+    "single_and_whole_states": [
+      0,
+      1,
+      2,
+      4,
+      7,
+      8,
+      11,
+      13,
+      14,
+      15
+    ],
+    "missed_states": [
+      3,
+      5,
+      6,
+      9,
+      10,
+      12
+    ],
+    "undetected_nonconstant_functions": 63,
+    "detected_with_complete_subsets": 63,
+    "null_function_stays_zero": true,
+    "plan": {
+      "units": [
+        [
+          "0",
+          null
+        ],
+        [
+          "1",
+          null
+        ],
+        [
+          "2",
+          null
+        ],
+        [
+          "3",
+          null
+        ]
+      ],
+      "subsets": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          0,
+          1,
+          2
+        ],
+        [
+          0,
+          1,
+          3
+        ],
+        [
+          0,
+          2,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "seed": 97,
+      "requested": 10,
+      "selected": 10,
+      "possible": "10",
+      "complete_on_declared_units": true,
+      "scope": "Proper subsets of these units, on the collected donors and declared horizon only."
+    }
+  },
+  "ninety_six_unit_masked_cause": {
+    "effect": "a*b*(1-c)*(1-d); the other 92 units are irrelevant",
+    "seed": 97,
+    "draws": 128,
+    "detecting_masks": [
+      35,
+      40,
+      46,
+      50,
+      51,
+      63,
+      80,
+      93,
+      103,
+      105,
+      115
+    ]
+  },
+  "conditional_sampling_math": {
+    "assumptions": "A deterministic effect for at least one assignment of r relevant unit masks, every other mask irrelevant, and every single and whole swap already inert. Donor changes must implement those assignments and the chosen horizon and observations must reveal the effect.",
+    "per_draw_probability_lower_bound": "2**(-r)",
+    "miss_probability_upper_bound": "(1 - 2**(-r))**draws",
+    "r": 4,
+    "draws_for_miss_below_one_percent": 72,
+    "miss_bound_at_that_count": 0.00959250205220089,
+    "sampling": "Uniform proper nonsingle subsets without replacement; removal of already inert masks cannot reduce the effect fraction, and sampling without replacement cannot increase this miss bound."
+  },
+  "limits": "This finite proof is about specified Boolean mechanisms and donors. It is not universal closure, proof of an Aura defect, or power calibration for arbitrary interactions. Complete subset enumeration is exponential; 96 units are sampled, not exhausted.",
+  "source_sha256": {
+    "core/subject/coalitions.py": "0f74b92f5920a3753767f4657e20542cea7081c6b1359cef5fafadc8397d0a3b",
+    "tools/run_interventional_closure.py": "47033175db726ef5b622d0f2799ca9dde254c875e3717703b68350c4617b31d3",
+    "tools/prove_intervention_subset_coverage.py": "43fb6b883d8d8095217886e0bb697702eebde6a0648939d2851b144ae5a3875f"
+  }
+}

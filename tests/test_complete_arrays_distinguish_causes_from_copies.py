@@ -107,7 +107,8 @@ def test_a_one_off_effect_stays_a_one_off_in_the_existing_comparison():
     assert len(one_offs) == 1
 
 
-def test_the_interventional_entrypoint_records_a_joint_array_cause_and_its_horizon(tmp_path, monkeypatch):
+@pytest.mark.parametrize("subset_only", [False, True])
+def test_the_interventional_entrypoint_records_an_array_cause_and_its_horizon(tmp_path, monkeypatch, subset_only):
     import json
 
     import core.subject.carrier_reads as carrier
@@ -121,6 +122,9 @@ def test_the_interventional_entrypoint_records_a_joint_array_cause_and_its_horiz
 
     receiver = Snapshot({"a": {"value": 0}, "b": {"value": 0}})
     donor = Snapshot({"a": {"value": 1}, "b": {"value": 1}})
+    if subset_only:
+        receiver.services.update({"c": {"value": 0}, "d": {"value": 0}})
+        donor.services.update({"c": {"value": 1}, "d": {"value": 1}})
     substrate = SimpleNamespace(x=np.zeros(16))
     runtime = SimpleNamespace(kernel=SimpleNamespace(_phases=[]), organs=Organs(substrate=substrate),
                               freeze_host=lambda: None)
@@ -135,7 +139,10 @@ def test_the_interventional_entrypoint_records_a_joint_array_cause_and_its_horiz
         horizons.append(horizon)
         s = runtime.snapshot_used.services
         # A delayed AND cause, invisible to the historical two-turn horizon.
-        substrate.x = np.full(16, float(s["a"]["value"] * s["b"]["value"]) if horizon >= 3 else 0.)
+        effect = float(s["a"]["value"] * s["b"]["value"])
+        if subset_only:
+            effect *= (1 - s["c"]["value"]) * (1 - s["d"]["value"])
+        substrate.x = np.full(16, effect if horizon >= 3 else 0.)
         return [object()]
 
     monkeypatch.setattr(tool, "WARM_ROUNDS", 0)
@@ -157,10 +164,17 @@ def test_the_interventional_entrypoint_records_a_joint_array_cause_and_its_horiz
     output = tmp_path / "result"
     assert asyncio.run(tool.main(["--seed", "73", "--anchors", "2", "--turns", "3",
                                   "--joint-periphery", "--observation-plan", str(plan),
+                                  "--coalition-swaps", "10" if subset_only else "0",
                                   "--out", str(output)])) == 0
     result = json.loads((output / "interventional_closure.json").read_text())
     assert result["verdict"] == "OPEN"
-    assert "joint-periphery" in result["moves_k_star"]
+    if subset_only:
+        assert all(label.startswith("coalition:") for label in result["moves_k_star"])
+        assert result["coalition_plan"]["complete_on_declared_units"]
+        assert result["coalition_plan"]["selected"] == 10
+        assert result["coverage"] == {"enumerated": 4, "varied": 4}
+    else:
+        assert "joint-periphery" in result["moves_k_star"]
     assert result["turns_per_roll"] == 3 and set(horizons) == {3}
     assert result["declared_array_observations"]["width"] == 16
     assert not result["residue"]

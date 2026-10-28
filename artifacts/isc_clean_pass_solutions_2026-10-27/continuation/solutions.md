@@ -151,3 +151,27 @@ The production paired-roll comparison is now independently testable. Thirty-five
 The CLI also accepts `--turns N`, records `turns_per_roll`, and rejects nonpositive horizons. Its historical default remains two. A fake-runtime integration test passes a delayed joint cause through the real CLI, with the effect appearing at three turns, and obtains OPEN. This proves the implemented comparison and horizon routing on that known world; it is not evidence that a delayed cause exists in Aura. A horizon must be selected prospectively, rather than enlarged after a confirmation result.
 
 This extension passed smoke (164 passed, one skipped, 75.26 seconds), lint, compile and layering. See `causal-comparison-validation.json` and its two text receipts.
+
+## Subsets expose causes a whole swap can mask
+
+Opus's ISC-v7 implementation (`b1605a0d4`, merged with the earlier fixes) replaces the observational closure line with single-unit and whole-periphery interventions. The completion checker now accepts `--isc v6` or `--isc v7` and reports v6 beside v7. These are different claims. A new v7 pass would not repair or replace historical seed 73's v6 result. No confirmation has been run by this continuation.
+
+A whole swap has a further limit. Consider an outside effect
+
+    f(a,b,c,d) = a b (1-c) (1-d).
+
+At anchors 0000 and 1111, f is zero. Every single swap from either anchor also gives zero, as does swapping everything. Swapping only a and b into 0000 gives one. The all-at-once arm resolves an AND-only example, but cannot rule out every interacting or opposing influence.
+
+**The implemented remedy is a prospective subset plan.** `core/subject/coalitions.py` fixes the selected combinations before their outcomes are read. `run_interventional_closure.py --coalition-swaps N` executes them through the same restored snapshots, paired controls, repeat checks and complete-array observations. It records the exact unit inventory and masks. The default is zero; existing declared runs are unchanged. Budgets are limited to 1,024 added arms. Small plans enumerate every proper nonsingle subset; larger plans sample uniformly without replacement with a fixed seed. A detected subset effect makes the result OPEN.
+
+For four binary units, singles and whole swaps at both opposite anchors visit 10 of 16 states and miss six. There are 2^6 - 1 = **63** nonconstant Boolean effects supported only on those six states. The exhaustive offline proof finds all 63 with the added subsets; all 63 evade the original arms. The real CLI integration also returns OPEN for the explicit product above, with only subset rows moving the complete held array. The passive-copy control remains inert. These are known worlds, not a claim that this cause has been found in Aura.
+
+The same sampler found the four-unit cause among 96 units (92 irrelevant) in 11 of 128 selected masks at seed 97. Under the explicit assumption that an effect occurs for at least one assignment of r relevant masks and all remaining masks are irrelevant, a fair mask finds it with probability at least 2^-r. Removing already inert single/whole arms cannot reduce that probability; sampling without replacement cannot increase the independent-draw miss bound:
+
+    P(miss all N) <= (1 - 2^-r)^N.
+
+For r=4, N=72 puts the bound below .01 (about .0096). This is a conditional design bound, not a power guarantee for unknown Aura interactions. Donors must actually change the relevant values, the horizon must include the effect, and the observation must retain it. Larger r requires more masks; complete enumeration is exponential.
+
+With eight anchors, two donors per anchor and a two-turn horizon, 72 added masks cost 4,608 additional turns if no effect needs a repeat. Repeated effects can double that. This work launched none of those runtime turns while the existing content campaigns were active. The executable proof is `tools/prove_intervention_subset_coverage.py`, with its receipt in `subset-coverage-proof.json`.
+
+After merging Opus's v7 changes, 85 integrated checks passed in 19.70 seconds. Smoke passed 164 tests with one skip in 73.88 seconds; lint, compile, layering and writing passed. `coalition-validation.json` binds the source hashes and receipts. The prior governance and full-suite limitations remain.

@@ -239,6 +239,8 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--anchors", type=int, default=8)
     parser.add_argument("--turns", type=int, default=TURNS,
                         help="prospectively declared turns per roll; the historical horizon is two")
+    parser.add_argument("--coalition-swaps", type=int, default=0,
+                        help="prospective additional subset swaps (0 to 1024); recorded separately from single and whole swaps")
     parser.add_argument(
         "--observation-plan", type=Path,
         help="prospective exact-array JSON plan; also compare complete held-array content digests",
@@ -274,6 +276,8 @@ async def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.turns < 1:
         parser.error("turns must be positive")
+    if not 0 <= args.coalition_swaps <= 1024:
+        parser.error("coalition swaps must be between 0 and 1024")
     positions = anchor_schedule(args.anchor_turns, args.anchors, args.spacing)
 
     import numpy as np
@@ -397,6 +401,8 @@ async def main(argv: list[str] | None = None) -> int:
     def hybrid(a: int, b: int, name: str, key: str | None) -> Any:
         if name == "joint-periphery":
             return joint_snapshot(snaps[a], snaps[b], units)
+        if name in coalition_units:
+            return joint_snapshot(snaps[a], snaps[b], coalition_units[name])
         return hybrid_snapshot(snaps[a], snaps[b], name, key)
 
     one_offs: list[dict[str, Any]] = []
@@ -415,6 +421,7 @@ async def main(argv: list[str] | None = None) -> int:
         await async_atomic_write_text(out / "interventional_closure.json", json.dumps(
             {**payload, "evidence_source": source, "joint_periphery": args.joint_periphery,
              "turns_per_roll": args.turns,
+             "coalition_plan": coalition_plan.description(),
              "anchor_turns": positions, "donor_turn_distances": distances,
              "declared_array_plan": observation_declaration,
              "declared_array_observations": observations.description() if observations else None}, indent=1))
@@ -426,14 +433,20 @@ async def main(argv: list[str] | None = None) -> int:
     started = time.monotonic()
     whole: set[str] = set()
     units = list(swaps())
-    measured_units = units + ([("joint-periphery", None)] if args.joint_periphery else [])
+    from core.subject.coalitions import plan_coalitions
+
+    coalition_plan = plan_coalitions(units, budget=args.coalition_swaps, seed=args.seed)
+    coalition_units = {f"coalition:{i:04d}": [units[j] for j in indices]
+                       for i, indices in enumerate(coalition_plan.subsets)}
+    measured_units = (units + ([("joint-periphery", None)] if args.joint_periphery else [])
+                      + [(label, None) for label in coalition_units])
     for index, (name, key) in enumerate(measured_units):
         if not in_shard(index, args.shard):
             continue
         label = name if key is None else f"{name}.{key}"
-        if args.units and name != "joint-periphery" and not re.search(args.units, label):
+        if args.units and name != "joint-periphery" and name not in coalition_units and not re.search(args.units, label):
             continue
-        if key is None and name != "joint-periphery":
+        if key is None and name != "joint-periphery" and name not in coalition_units:
             whole.add(label)
         row: dict[str, Any] = {"tested": 0, "moved_k": 0, "moved_held": 0, "max_k": 0.0, "held_keys": []}
         for a in range(len(snaps)):
@@ -490,7 +503,8 @@ async def main(argv: list[str] | None = None) -> int:
     print(f"\ninterventional closure of K*: {verdict}; {len(results)} swaps; moved by: {moved}", flush=True)
     # A unit that is the same in every anchor and its donors is never varied by
     # a swap, so the test says nothing about it (167 of 960 varied on seed 73).
-    singles = {label: row for label, row in results.items() if label != "joint-periphery"}
+    singles = {label: row for label, row in results.items()
+               if label != "joint-periphery" and label not in coalition_units}
     coverage = {"enumerated": len(singles), "varied": sum(1 for row in singles.values() if row["tested"])}
     print(f"coverage: {coverage['varied']} of {coverage['enumerated']} units outside K* differed between an anchor "
           "and a donor", flush=True)
