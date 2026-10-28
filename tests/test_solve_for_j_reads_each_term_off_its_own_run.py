@@ -186,6 +186,7 @@ def test_the_battery_is_read_under_v6_when_it_was_scored_under_v6(tool: Any, mon
 
     line = lambda key, passed: SimpleNamespace(key=key, passed=passed)  # noqa: E731
     verdict = SimpleNamespace(
+        v7_criteria=[],
         v6_criteria=[line("synergy", True)],
         v5_criteria=[line("synergy", False)],
         v3_criteria=[], v2_criteria=[], criteria=[],
@@ -194,3 +195,20 @@ def test_the_battery_is_read_under_v6_when_it_was_scored_under_v6(tool: Any, mon
     )
     monkeypatch.setattr(battery, "assemble", lambda report: verdict)
     assert tool.battery_lines({"any": "report"}) == {"reentry": True, "synergy": True}
+
+
+def test_the_battery_is_read_under_v7_when_it_was_scored_under_v7(tool: Any, monkeypatch) -> None:
+    """v7 decides line 3 by intervention; v6's reading of the same line is kept apart and not used here."""
+    from types import SimpleNamespace
+
+    import core.subject.battery as battery
+
+    line = lambda key, passed: SimpleNamespace(key=key, passed=passed)  # noqa: E731
+    verdict = SimpleNamespace(
+        v7_criteria=[line("causal_closure_of_the_core", True)],
+        v6_criteria=[line("synergy", True)], v5_criteria=[], v3_criteria=[], v2_criteria=[], criteria=[],
+        v7_lines=lambda: [line("synergy", True), line("causal_closure_of_the_core", True)],
+        v6_lines=lambda: [line("synergy", True), line("causal_closure_of_the_core", False)],
+    )
+    monkeypatch.setattr(battery, "assemble", lambda report: verdict)
+    assert tool.battery_lines({"any": "report"}) == {"synergy": True, "causal_closure_of_the_core": True}

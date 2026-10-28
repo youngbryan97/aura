@@ -889,6 +889,12 @@ class SubjectRuntime(_HeldHost):
                     # followed the real clock: this arm left the run's one
                     # timeline, and the report has to say so.
                     self.failures["clock.valve"] = opened
+                    events = getattr(self.clock, "valve_events", None) or []
+                    if events:
+                        last = events[-1]
+                        self.failure_notes["clock.valve"] = (
+                            f"frame ran {last['frame_seconds']} s; waiting in: " + " | ".join(last["waiting_in"][-4:])
+                        )[:600]
             # The free-running layers, advanced by the harness's own count
             # rather than by the machine's schedule. Both arms of a trial run
             # them the same number of times, which is the only way a layer that

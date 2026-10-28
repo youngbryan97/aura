@@ -161,6 +161,11 @@ class Verdict:
     #: and together, rather than by watching. Reported beside v5, changing it
     #: not at all. See docs/ISC_V6_PREREGISTRATION.md.
     v6_criteria: list[Criterion] = field(default_factory=list)
+    #: ISC-v7's one line: causal closure of the core decided by intervention,
+    #: the observational reading reported beside it. Reported beside v6,
+    #: changing it not at all. See the ISC-v6 preregistration's addendum of 27
+    #: October, evening.
+    v7_criteria: list[Criterion] = field(default_factory=list)
 
     @property
     def isc(self) -> bool:
@@ -243,6 +248,17 @@ class Verdict:
         lines = self.v6_lines()
         return bool(self.v5_criteria) and bool(self.v6_criteria) and all(item.passed for item in lines)
 
+    def v7_lines(self) -> list[Criterion]:
+        """ISC-v6's conjunction with closure of the core decided by intervention."""
+        replaced = {item.key for item in self.v7_criteria}
+        return [item for item in self.v6_lines() if item.key not in replaced] + list(self.v7_criteria)
+
+    @property
+    def isc_v7_on_this_seed(self) -> bool:
+        """Every line under ISC-v7: v6's, with closure of the core decided by intervention."""
+        lines = self.v7_lines()
+        return bool(self.v6_criteria) and bool(self.v7_criteria) and all(item.passed for item in lines)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "isc": self.isc,
@@ -259,6 +275,9 @@ class Verdict:
             "isc_v6_on_this_seed": self.isc_v6_on_this_seed,
             "v6_passed": sum(1 for item in self.v6_lines() if item.passed) if self.v6_criteria else None,
             "v6_criteria": [item.as_dict() for item in self.v6_criteria],
+            "isc_v7_on_this_seed": self.isc_v7_on_this_seed,
+            "v7_passed": sum(1 for item in self.v7_lines() if item.passed) if self.v7_criteria else None,
+            "v7_criteria": [item.as_dict() for item in self.v7_criteria],
             "contested_criteria": sorted(_CONTESTED),
             "passed": self.passed,
             "total": len(self.criteria),
@@ -495,6 +514,52 @@ def _assemble_v6(out: Verdict, evidence: dict[str, Any]) -> None:
         "above a four-fork sham of the same form, one direction with whole vectors flipped in its "
         "null, and a tenth of the larger main effect, each at 0.01, registers out of the target",
         triples=sorted(triples),
+    ))
+
+
+def closed_by_intervention(interventional: dict[str, Any] | None) -> tuple[bool, str]:
+    """Whether intervention shows the core closed under ISC-v7, and why not when it does not.
+
+    Each unit outside K* swapped alone from donors at distances that share no
+    period moves nothing, and every unit outside K* swapped at once moves
+    nothing either, so a cause that acts only through two outside units
+    together cannot hide. An observational test cannot settle this: a unit
+    outside that records an unrecorded part of K and a unit outside that
+    causes K can leave identical recordings, and on worlds with known answers
+    the gate read a record of K's past open seven times in seven and a cause
+    acting through two outside signs together closed twice in three.
+    """
+    reading = interventional or {}
+    if reading.get("verdict") != "CLOSED":
+        return False, f"intervention read {reading.get('verdict') or 'nothing'}"
+    joint = reading.get("joint_swap") or {}
+    if not joint.get("tested"):
+        return False, "everything outside K* was never swapped at once"
+    if joint.get("could_not_run"):
+        return False, f"the joint swap could not run at {joint['could_not_run']} anchor-donor pairs"
+    if joint.get("moved_k") or joint.get("moved_held"):
+        return False, f"swapping everything outside K* at once moved it (K {joint.get('moved_k')}, K* {joint.get('moved_held')})"
+    return True, ""
+
+
+def _assemble_v7(out: Verdict, evidence: dict[str, Any]) -> None:
+    """ISC-v7's closure line, from the interventional test and its joint swap."""
+    interventional = evidence.get("interventional_closure") or {}
+    closure = evidence.get("closure") or {}
+    closed, why = closed_by_intervention(interventional)
+    joint = interventional.get("joint_swap") or {}
+    out.v7_criteria.append(_c(
+        "causal_closure_of_the_core", "3",
+        "nothing outside K* moves K*, under intervention: alone and all at once (ISC-v7)",
+        closed,
+        interventional.get("verdict", "NOT_MEASURED"),
+        "every unit outside K* swapped alone, and all of them swapped at once, from donors at distances "
+        "sharing no period, changes neither K nor K* within two turns",
+        why_not=why,
+        joint_swap={key: joint.get(key) for key in ("tested", "moved_k", "moved_held", "could_not_run")},
+        moved_by=list(interventional.get("moves_k_star") or [])[:12],
+        observational=closure.get("verdict", "NOT_MEASURED"),
+        observational_leak=closure.get("leak"),
     ))
 
 
@@ -759,6 +824,8 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
     _assemble_v3(out, evidence)
     _assemble_v5(out, evidence)
     _assemble_v6(out, evidence)
+    if evidence.get("interventional_closure"):
+        _assemble_v7(out, evidence)
     del directed
     _invalidate_on_missing_readings(out, evidence)
     return out

@@ -39,6 +39,7 @@ import dataclasses
 import json
 import os
 import random
+import re
 import sys
 import time
 from pathlib import Path
@@ -140,6 +141,14 @@ async def main(argv: list[str] | None = None) -> int:
         "--donors", default="1,half",
         help="donor distances in anchors, comma-separated; 'half' is half the bank",
     )
+    parser.add_argument(
+        "--units", default="",
+        help="swap alone only the units whose name matches this pattern (validation runs); the joint swap is whole",
+    )
+    parser.add_argument(
+        "--planted", default="",
+        help="validation only: plant these known-answer units outside K* (cause,gate,record; core/subject/planted.py)",
+    )
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -162,6 +171,11 @@ async def main(argv: list[str] | None = None) -> int:
     isolate_state(out)
     runtime = build_runtime(out, seed=args.seed)
     await start_organism(runtime)
+    if args.planted:
+        from core.subject.planted import install
+
+        install(tuple(kind.strip() for kind in args.planted.split(",") if kind.strip()))
+        print(f"planted outside K*: {args.planted}", flush=True)
     await quiesce_organism(runtime)
     await calibrate_clock(runtime, CONDITIONS)
     for _ in range(WARM_ROUNDS):
@@ -240,10 +254,13 @@ async def main(argv: list[str] | None = None) -> int:
                 if key not in held_attributes_of(name):
                     yield name, key
 
-    def hybrid(a: int, b: int, name: str, key: str | None) -> Any:
+    def hybrid(a: int, b: int, name: str, key: str | None, onto: Any = None) -> Any:
+        # `onto` is the snapshot the swap lands in: the anchor's own unless
+        # swaps are being composed into one joint swap.
+        here = snaps[a] if onto is None else onto
         if name.startswith("module:"):
             held_key = name.split(":", 1)[1]
-            mine = (snaps[a].module_state or {}).get(held_key)
+            mine = (here.module_state or {}).get(held_key)
             donor = (snaps[b].module_state or {}).get(held_key)
             if not (isinstance(mine, tuple) and isinstance(donor, tuple) and len(mine) == len(donor) == 2):
                 return None
@@ -255,31 +272,31 @@ async def main(argv: list[str] | None = None) -> int:
                 return None
             if identical(given, mine[1]):
                 return None
-            return dataclasses.replace(snaps[a], module_state={**snaps[a].module_state, held_key: (mine[0], given)})
+            return dataclasses.replace(here, module_state={**here.module_state, held_key: (mine[0], given)})
         if name.startswith("organ:"):
             organ = name.split(":", 1)[1]
-            mine, donor = snaps[a].organs.get(organ), snaps[b].organs.get(organ)
+            mine, donor = here.organs.get(organ), snaps[b].organs.get(organ)
             if not isinstance(mine, dict) or not isinstance(donor, dict) or key not in mine or key not in donor:
                 return None
             given = aligned(donor[key], mine[key], key or "")
             if identical(given, mine[key]):
                 return None
-            return dataclasses.replace(snaps[a], organs={**snaps[a].organs, organ: {**mine, key: given}})
-        field = "services" if name in snaps[a].services else "phases"
-        mine, donor = getattr(snaps[a], field).get(name), getattr(snaps[b], field).get(name)
+            return dataclasses.replace(here, organs={**here.organs, organ: {**mine, key: given}})
+        field = "services" if name in here.services else "phases"
+        mine, donor = getattr(here, field).get(name), getattr(snaps[b], field).get(name)
         if mine is None or donor is None:
             return None
         if key is None:
             given = aligned(donor, mine)
             if identical(given, mine):
                 return None
-            return dataclasses.replace(snaps[a], **{field: {**getattr(snaps[a], field), name: given}})
+            return dataclasses.replace(here, **{field: {**getattr(here, field), name: given}})
         if not isinstance(mine, dict) or not isinstance(donor, dict) or key not in mine or key not in donor:
             return None
         given = aligned(donor[key], mine[key], key)
         if identical(given, mine[key]):
             return None
-        return dataclasses.replace(snaps[a], **{field: {**getattr(snaps[a], field), name: {**mine, key: given}}})
+        return dataclasses.replace(here, **{field: {**getattr(here, field), name: {**mine, key: given}}})
 
     one_offs: list[dict[str, Any]] = []
 
@@ -314,6 +331,49 @@ async def main(argv: list[str] | None = None) -> int:
         refuse_if_latched("the interventional closure results")
         (out / "interventional_closure.json").write_text(json.dumps(payload, indent=1))
 
+    async def swap_everything_outside() -> dict[str, Any]:
+        """Every unit outside K* at once from each donor: a diagnostic beside the verdict, which it does not change.
+
+        One swap at a time cannot show a cause that acts only when two outside
+        units change together, as an AND of two flags does; a core that is
+        closed holds still when they all change (the external audit of 27
+        October). Composed from the same per-unit swaps the verdict reads.
+        """
+        units = list(swaps())
+        row: dict[str, Any] = {"tested": 0, "moved_k": 0, "moved_held": 0, "max_k": 0.0, "held_keys": [],
+                               "drift": 0, "could_not_run": 0}
+        for a in range(len(snaps)):
+            if base[a] is None:
+                continue
+            for offset in offsets:
+                b = (a + offset) % len(snaps)
+                current = snaps[a]
+                for name, key in units:
+                    replaced = hybrid(a, b, name, key, onto=current)
+                    if replaced is not None:
+                        current = replaced
+                if current is snaps[a]:
+                    continue
+                row["tested"] += 1
+                try:
+                    _hit, apart, changed, drift = await moves(current, a, "everything outside K*")
+                # a transplant that cannot run is a reading, kept and counted
+                except Exception as exc:  # noqa: BLE001
+                    row["could_not_run"] += 1
+                    print(f"  joint swap at anchor {a} from {b} could not run: {type(exc).__name__}: {exc}"[:240], flush=True)
+                    continue
+                row["drift"] += int(drift > 0.0)
+                if apart > 0.0:
+                    row["moved_k"] += 1
+                    row["max_k"] = max(row["max_k"], apart)
+                if changed:
+                    row["moved_held"] += 1
+                    row["held_keys"] = sorted(set(row["held_keys"]) | set(changed[:5]))
+        print(f"joint swap of everything outside K*: K {row['moved_k']}/{row['tested']} (max {row['max_k']:.3g}), "
+              f"held {row['moved_held']}/{row['tested']}, untouched drift {row['drift']}, could not run {row['could_not_run']}",
+              flush=True)
+        return row
+
     results: dict[str, dict[str, Any]] = {}
     moved: list[str] = []
     residue: list[dict[str, Any]] = []
@@ -324,6 +384,8 @@ async def main(argv: list[str] | None = None) -> int:
         if not in_shard(index, args.shard):
             continue
         label = name if key is None else f"{name}.{key}"
+        if args.units and not re.search(args.units, label):
+            continue
         if key is None:
             whole.add(label)
         row: dict[str, Any] = {"tested": 0, "moved_k": 0, "moved_held": 0, "max_k": 0.0, "held_keys": []}
@@ -379,9 +441,15 @@ async def main(argv: list[str] | None = None) -> int:
 
     verdict = verdict_of(moved, residue, any(b is not None for b in base))
     print(f"\ninterventional closure of K*: {verdict}; {len(results)} swaps; moved by: {moved}", flush=True)
+    # A unit that is the same in every anchor and its donors is never varied by
+    # a swap, so the test says nothing about it (167 of 960 varied on seed 73).
+    coverage = {"enumerated": len(results), "varied": sum(1 for row in results.values() if row["tested"])}
+    print(f"coverage: {coverage['varied']} of {coverage['enumerated']} units outside K* differed between an anchor "
+          "and a donor", flush=True)
+    joint = await swap_everything_outside() if str(args.shard).partition("/")[0] in ("", "0") else None
     write({"seed": args.seed, "anchors": len(snaps), "spacing": pattern, "donor_offsets": offsets, "donor_distances": distances, "periods_hidden": hidden, "shard": args.shard,
            "verdict": verdict, "results": results, "moves_k_star": moved,
-           "residue": residue, "one_offs": one_offs, "culprit_attributes": culprits})
+           "residue": residue, "one_offs": one_offs, "culprit_attributes": culprits, "joint_swap": joint, "coverage": coverage})
     return 0
 
 
