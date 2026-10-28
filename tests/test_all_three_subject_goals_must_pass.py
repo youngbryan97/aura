@@ -94,3 +94,21 @@ def test_a_successful_control_cannot_substitute_for_intact_content():
         "control": "no-feeling-in-recall",
     })
     assert result.status == "NOT_MEASURED"
+
+
+def test_under_v7_the_closure_line_is_v7s_and_v6_is_reported_beside_it():
+    verdict, j = case()
+    closure_v6 = Criterion("line_0", "3", "", False, 0, 0)
+    closure_v7 = Criterion("line_0", "3", "", True, 1, 1)
+    verdict = replace(verdict, v6_criteria=[*verdict.v6_criteria, closure_v6], v7_criteria=[closure_v7])
+    under_v6 = completion(verdict, j, blockers=[], scope="substrate_only")
+    under_v7 = completion(verdict, j, blockers=[], scope="substrate_only", version="v7")
+    assert not under_v6["complete"] and "line_0" in under_v6["failing_criteria"]
+    assert under_v7["complete"] and under_v7["goals"]["isc_v7_24_of_24"]
+    assert under_v7["isc_v6_on_this_seed"] is False and under_v7["battery_version"] == "v7"
+
+
+def test_there_is_no_other_version():
+    verdict, j = case()
+    with pytest.raises(ValueError):
+        completion(verdict, j, blockers=[], scope="substrate_only", version="v8")

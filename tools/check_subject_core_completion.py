@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read explicit evidence files and require ISC-v6, J*, and parity together.
+"""Read explicit evidence files and require ISC-v6 (or v7), J*, and parity together.
 
 This is an offline reader. It starts no runtime and loads no model. Exit 0
 means all three goals passed on compatible evidence; exit 1 leaves work open.
@@ -23,6 +23,10 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("campaign", "carrier", "content", "interventional", "reports", "state-log", "out"):
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--null-sweep", action="append", default=[], help="NAME=JSON")
+    parser.add_argument(
+        "--isc", choices=("v6", "v7"), default="v6",
+        help="the battery the goal is read under; v7 decides closure of the core by intervention",
+    )
     args = parser.parse_args(argv)
     if args.out.exists():
         parser.error("the output already exists; choose a new path to preserve the evidence record")
@@ -84,12 +88,14 @@ def main(argv: list[str] | None = None) -> int:
         ).encode()).hexdigest(),
     }
     lineage = lineage_from_state_log(rows, record_begins_at=HER_RECORD_BEGINS_AT)
+    lines = verdict.v7_lines() if args.isc == "v7" else verdict.v6_lines()
     j = solve(
         carrier, reports["content"], lineage,
-        battery={line.key: line.passed for line in verdict.v6_lines()},
+        battery={line.key: line.passed for line in lines},
         reports=reports["reports"], interventional=reports["interventional"],
+        closure_by_intervention=args.isc == "v7",
     )
-    result = completion(verdict, j, blockers=blockers, scope=scope)
+    result = completion(verdict, j, blockers=blockers, scope=scope, version=args.isc)
     output = {
         "completion": result, "verdict": verdict.as_dict(), "j_star": j.as_dict(),
         "sources": sources,
