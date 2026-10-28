@@ -200,6 +200,10 @@ async def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--anchors", type=int, default=8)
     parser.add_argument(
+        "--observation-plan", type=Path,
+        help="prospective exact-array JSON plan; also compare complete held-array content digests",
+    )
+    parser.add_argument(
         "--spacing", default="13,14",
         help="turns between anchors, a repeating comma-separated pattern",
     )
@@ -239,6 +243,14 @@ async def main(argv: list[str] | None = None) -> int:
     isolate_state(out)
     from core.subject.provenance import evidence_source
     source = evidence_source(args.seed)
+    observations = None
+    observation_declaration = None
+    if args.observation_plan:
+        from core.subject.declared_observations import ObservationPlan
+
+        observation_declaration = json.loads(args.observation_plan.read_text())
+        observations = ObservationPlan(observation_declaration)
+        observations.digest_budget()
     runtime = build_runtime(out, seed=args.seed)
     await start_organism(runtime)
     await quiesce_organism(runtime)
@@ -265,16 +277,21 @@ async def main(argv: list[str] | None = None) -> int:
     print(f"donors at {offsets} anchors, {distances} turns away; periods in phase with every donor: {hidden}", flush=True)
     held_units = {entry.unit for entry in HELD}
 
-    async def roll(snapshot: Any, index: int) -> tuple[Any, dict[str, float]]:
+    async def roll(snapshot: Any, index: int) -> tuple[Any, dict[str, Any]]:
         runtime.restore(snapshot)
         frames = await _run_turns(runtime, CONDITIONS[index % len(CONDITIONS)], TURNS)
-        return build_recording(frames).x, read_held(runtime.kernel, organs=runtime.organs)
+        held_readings: dict[str, Any] = read_held(runtime.kernel, organs=runtime.organs)
+        if observations is not None:
+            held_readings.update(observations.digests(runtime.kernel, runtime.organs))
+        return build_recording(frames).x, held_readings
 
     base: list[Any] = []
     comparable: list[set[str]] = []
     for a, snap in enumerate(snaps):
         x1, h1 = await roll(snap, a)
         x2, h2 = await roll(snap, a)
+        if observations is not None:
+            observations.require_repeatable_digests(h1, h2)
         if float(np.max(np.abs(x1 - x2))) > 0.0:
             print(f"anchor {a}: untouched twins differ in K; it decides nothing", flush=True)
             base.append(None)
@@ -361,7 +378,9 @@ async def main(argv: list[str] | None = None) -> int:
         refuse_if_latched("the interventional closure results")
         await async_atomic_write_text(out / "interventional_closure.json", json.dumps(
             {**payload, "evidence_source": source, "joint_periphery": args.joint_periphery,
-             "anchor_turns": positions, "donor_turn_distances": distances}, indent=1))
+             "anchor_turns": positions, "donor_turn_distances": distances,
+             "declared_array_plan": observation_declaration,
+             "declared_array_observations": observations.description() if observations else None}, indent=1))
 
     results: dict[str, dict[str, Any]] = {}
     moved: list[str] = []

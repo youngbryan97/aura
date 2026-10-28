@@ -131,6 +131,10 @@ class ObservationPlan:
             raise ObservationError(f"declared observations need {reserved} reserved bytes, budget is {self.max_bytes}")
 
     def read(self, kernel: Any, organs: Any) -> dict[str, float]:
+        return self.read_units(self._runtime_units(kernel, organs))
+
+    @staticmethod
+    def _runtime_units(kernel: Any, organs: Any) -> dict[str, Any]:
         from core.subject.carrier_reads import _units, organs_of
         from core.subject.snapshot import _built_services, _module_holdings
 
@@ -141,7 +145,42 @@ class ObservationPlan:
         units.update({f"other-service:{name}": value for name, value in _built_services().items()})
         units.update({f"other-module:{name}": value for name, value in _module_holdings().items()})
         units.update({f"other-phase:{index}": value for index, value in enumerate(getattr(kernel, "_phases", ()))})
-        return self.read_units(units)
+        return units
+
+    def digest_budget(self) -> int:
+        """Reserve working copies of the largest exact array, not a trajectory."""
+        if any(entry.mode != "exact" for entry in self.arrays):
+            raise ObservationError("whole-array digest comparison requires exact-mode entries")
+        reserved = max(4 * 8 * entry.width for entry in self.arrays)
+        if reserved > self.max_bytes:
+            raise ObservationError(f"array digests need {reserved} reserved bytes, budget is {self.max_bytes}")
+        return reserved
+
+    def digests(self, kernel: Any, organs: Any) -> dict[str, str]:
+        return self.digest_units(self._runtime_units(kernel, organs))
+
+    def digest_units(self, units: Mapping[str, Any]) -> dict[str, str]:
+        """Content hashes of complete declared arrays, with an explicit byte budget.
+
+        SHA-256 equality is collision-resistant evidence, not a mathematical
+        injectivity claim. Unlike the eight-number sketch it does not discard
+        arbitrary directions before comparing. Canonical float64 bytes match
+        the numeric precision of the declared observation path.
+        """
+        self.digest_budget()
+        out = {}
+        for index, entry in enumerate(self.arrays):
+            values = entry.read(units)
+            out[f"held.array_sha256_{self.digest[:16]}.{index}"] = hashlib.sha256(values.tobytes()).hexdigest()
+        return out
+
+    def require_repeatable_digests(self, before: Mapping[str, Any], after: Mapping[str, Any]) -> None:
+        """A missing or changing untouched array cannot disappear from comparison."""
+        keys = [f"held.array_sha256_{self.digest[:16]}.{index}" for index in range(len(self.arrays))]
+        missing = [key for key in keys if key not in before or key not in after]
+        changed = [key for key in keys if key in before and key in after and before[key] != after[key]]
+        if missing or changed:
+            raise ObservationError(f"untouched declared arrays are not comparable: missing={missing}, changed={changed}")
 
     def read_units(self, units: Mapping[str, Any]) -> dict[str, float]:
         self.check_budget(self.rows + 1)

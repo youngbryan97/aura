@@ -84,6 +84,19 @@ python tools/run_subject_core.py --one-clock --rounds 1500 --seed DISCOVERY_SEED
 
 There are eight conditions, hence 12,000 turns. That command has **not** been launched here. `recording-budget-check.json` is the completed offline preflight, not a runtime receipt. The ordinary recorder and official estimator remain unchanged when these options are absent. No runtime read set has been declared complete by this work.
 
+**Complete-array intervention comparisons are also wired.** `tools/run_interventional_closure.py --observation-plan PLAN.json` accepts exact-mode declarations and adds SHA-256 digests of those full arrays to its held-state comparisons at each roll endpoint. The original numeric observations remain present. Digest equality is collision-resistant evidence, not a mathematical injectivity theorem. The constructed sketch collision produces different digests, so it no longer disappears from this comparison.
+
+The tool requires repeated untouched rolls to agree on every declared array digest. Missing or changing untouched arrays raise an explicit measurement failure; they cannot silently disappear from the set of comparable held readings. The plan, digest and shapes remain in the report. This extends the endpoint observation for the existing declared intervention horizon; it does not prove every intermediate microstate was equal.
+
+`intervention-observation-plan.example.json` covers substrate x and W, and field F and W_field. The largest array needs an 8.4 MB working reservation for hashing; there is no 12,000-row matrix trajectory to retain. `intervention-digest-proof.json` tests the actual reader on synthetic arrays with those source-observed dimensions and verifies that a single-coordinate change changes its digest. The proof does not claim these synthetic arrays were a live Aura state.
+
+```sh
+python tools/run_interventional_closure.py --seed DISCOVERY_SEED --anchors 8 \
+  --spacing 13,14 --joint-periphery --observation-plan PLAN.json --out NEW_INTERVENTION_DIRECTORY
+```
+
+This prospective command also remains unlaunched while the existing campaigns occupy the host. These four arrays are a useful explicit starting inventory, not an assertion that no other held array matters.
+
 ## 3. Solve missing training coverage before spending another confirmation seed
 
 The fitter drops target columns that are flat during training. In this recording, several begin changing only later. Naming them explicitly is now part of the saved-data diagnostic.
@@ -125,7 +138,7 @@ Use the shared Python 3.12 environment, isolated logs/state, one numerical threa
 
 ## Validation and boundaries of the result
 
-The committed checkpoint passed 41 closure/J* integration checks and 20 anchor integration checks after merging Opus's changes. The final combined focused run, including the recorder adapter and strengthened coverage check, passed **123 tests in 30.72 seconds**. Smoke passed **164 tests with one skip in 95.03 seconds**; lint, compile and layering also passed. Receipts accompany this continuation; overlapping runs are not added into a single larger test count.
+The committed checkpoint passed 41 closure/J* integration checks and 20 anchor integration checks after merging Opus's changes. The final combined focused run, including the recorder adapter and strengthened coverage check, passed **123 tests in 30.72 seconds**. Smoke passed **164 tests with one skip in 95.03 seconds**; lint, compile and layering also passed. The later complete-array digest extension passed 37 focused checks and a fresh smoke/lint/compile/layering run; see `array-digest-tests.txt` and `array-digest-gates.txt`. Receipts accompany this continuation; overlapping runs are not added into a single larger test count.
 
 Governance lint was rerun and still fails with 171 regressions and one stale bucket. None of its reported regression paths is changed by this continuation; its baseline was not relaxed. The full suite and aggregate quality gate have not passed in this work. Passing focused tests and smoke must not be reported as all repository gates passing.
 

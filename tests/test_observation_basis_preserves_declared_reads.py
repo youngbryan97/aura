@@ -91,3 +91,17 @@ def test_the_registered_invariant_detects_a_broken_read_canary(monkeypatch):
     assert not list(_declared_linear_reads())
     monkeypatch.setattr(observation_basis, "declared_read_canary", lambda: False)
     assert len(list(_declared_linear_reads())) == 1
+
+
+def test_full_array_digests_distinguish_the_production_sketch_collision():
+    from types import SimpleNamespace
+
+    from core.subject.declared_observations import ObservationPlan
+
+    left, right = collision()
+    plan = ObservationPlan({"version": 1, "max_bytes": 10000, "arrays": [
+        {"unit": "organ:substrate", "path": ["x"], "shape": [16], "mode": "exact"},
+    ]})
+    a = plan.digest_units({"organ:substrate": SimpleNamespace(x=left)})
+    b = plan.digest_units({"organ:substrate": SimpleNamespace(x=right)})
+    assert a.keys() == b.keys() and a != b

@@ -124,3 +124,42 @@ def test_an_integer_array_that_float64_cannot_preserve_is_refused():
     value = np.full((2, 3), 2**53 + 1, dtype=np.int64)
     with pytest.raises(ObservationError, match="numeric precision"):
         plan.read_units({"organ:substrate": SimpleNamespace(weights=value)})
+
+
+def test_digest_comparison_can_afford_one_matrix_when_trajectory_storage_cannot():
+    spec = declaration()
+    spec["max_bytes"] = 4 * 8 * 6
+    plan = ObservationPlan(spec)
+    with pytest.raises(ObservationError, match="budget"):
+        plan.check_budget(12000)
+    unit = SimpleNamespace(weights=np.arange(6.).reshape(2, 3))
+    before = plan.digest_units({"organ:substrate": unit})
+    assert plan.digest_units({"organ:substrate": unit}) == before
+    unit.weights[1, 1] += .001
+    assert plan.digest_units({"organ:substrate": unit}) != before
+    assert plan.rows == 0
+
+
+def test_projection_hashes_cannot_substitute_for_whole_array_comparison():
+    plan = ObservationPlan(declaration("read_basis"))
+    with pytest.raises(ObservationError, match="exact-mode"):
+        plan.digest_units({})
+
+
+def test_a_digest_cannot_exceed_its_own_working_budget():
+    spec = declaration()
+    spec["max_bytes"] = 1
+    with pytest.raises(ObservationError, match="budget"):
+        ObservationPlan(spec).digest_units({})
+
+
+def test_unrepeatable_untouched_arrays_cannot_be_dropped_from_the_comparison():
+    plan = ObservationPlan(declaration())
+    unit = SimpleNamespace(weights=np.zeros((2, 3)))
+    first = plan.digest_units({"organ:substrate": unit})
+    plan.require_repeatable_digests(first, first)
+    with pytest.raises(ObservationError, match="not comparable"):
+        plan.require_repeatable_digests(first, {})
+    unit.weights[0, 0] = .01
+    with pytest.raises(ObservationError, match="not comparable"):
+        plan.require_repeatable_digests(first, plan.digest_units({"organ:substrate": unit}))
