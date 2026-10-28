@@ -1,0 +1,14 @@
+{
+  "diagnostic_only": true,
+  "observed_transitions": 2959,
+  "live_state_columns": 362,
+  "varying_increment_targets": 360,
+  "first_prefix_training_all_observed_varying_targets": 2240,
+  "first_fold_training_fraction": 0.2,
+  "minimum_total_transitions_for_that_prefix_at_same_split": 11200,
+  "constant_increment_targets": [
+    "C.substrate_weight_mean",
+    "C.been_here_min"
+  ],
+  "limits": "This lower bound covers activation seen in this discovery recording only. Future activations, power and drift can require more. It does not certify 12000 rows."
+}

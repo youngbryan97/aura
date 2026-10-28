@@ -3020,8 +3020,12 @@ def _install_repair_executor_claims(suite):
     from core.reasoning.arithmetic_on_the_floor import arithmetic_canary
     from core.agency.when_motion_breaks_a_rule import _open_edges_are_not_faults
     from core.runtime.wall_clock import host_deadline_clock_holds
+    from core.subject.observation_basis import declared_read_canary
 
     for name, probe, owner, statement, tests in (
+        ("declared_transition_read_canary", declared_read_canary, "core/subject/observation_basis.py",
+         "The observation-basis canary preserves its declared linear reads; runtime read completeness is not claimed.",
+         "tests/test_observation_basis_preserves_declared_reads.py"),
         ("host_resource_deadline_clock", host_deadline_clock_holds, "core/runtime/wall_clock.py",
          "The resource deadline clock agrees with a bracketed read of the host monotonic clock.",
          "tests/test_resource_deadlines_keep_host_time.py"),

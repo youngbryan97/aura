@@ -6,12 +6,14 @@ the liquid substrate's activations and the mesh's column activations are not
 things the core may describe with different numbers from the ones the test uses
 to ask whether it described them fully.
 
-Four moments and four projections. The projections are a seeded Gaussian, which
-preserves distances in expectation, so two states that differ differ in the
-sketch; the moments are there because a projection of a constant array is a
-constant and the moments say it was one. The width is fixed, so a reservoir of
-a thousand units and a vector of three cost the same, and the seed is frozen,
-so two runs sketch the same directions.
+Four moments and four projections. With the scaling below, expected projected
+squared distance is SKETCH_WIDTH / array_size times the original squared
+distance. Fixed axes do not make the sketch injective. Distinct arrays can agree on all eight fields while giving
+different transition reads (test_observation_basis_preserves_declared_reads).
+The moments describe the array's overall spread and extrema. The width is fixed,
+so a reservoir of a thousand units and a vector of three cost the same, and the
+seed is frozen, so two runs sketch the same directions. Transition sufficiency
+requires a separate witness; it does not follow from matching sketch schemas.
 """
 
 from __future__ import annotations

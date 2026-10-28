@@ -1,0 +1,86 @@
+[
+  {
+    "name": "I.mycelium_density",
+    "first_transition_over_1e-9": 1629,
+    "training_std": [
+      0.0,
+      0.0,
+      0.00020644183131411745
+    ],
+    "test_std": [
+      0.0003572656699187381,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "name": "G.modifier_urgency",
+    "first_transition_over_1e-9": 1629,
+    "training_std": [
+      0.0,
+      0.0,
+      0.09192598559716571
+    ],
+    "test_std": [
+      0.15916967197842988,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "name": "W.partner_wants_a_witness",
+    "first_transition_over_1e-9": 1231,
+    "training_std": [
+      0.0,
+      0.0,
+      0.05814018997338111
+    ],
+    "test_std": [
+      0.10067340828210365,
+      0.0,
+      0.3389171947022825
+    ]
+  },
+  {
+    "name": "D.witnessing",
+    "first_transition_over_1e-9": 1231,
+    "training_std": [
+      0.0,
+      0.0,
+      0.05814018997338111
+    ],
+    "test_std": [
+      0.10067340828210365,
+      0.0,
+      0.3389171947022825
+    ]
+  },
+  {
+    "name": "C.mesh_weight_max",
+    "first_transition_over_1e-9": 1821,
+    "training_std": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "test_std": [
+      0.0,
+      3.443387624371001e-05,
+      9.612782907049475e-06
+    ]
+  },
+  {
+    "name": "S.met_as_a_type",
+    "first_transition_over_1e-9": 2239,
+    "training_std": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "test_std": [
+      0.0,
+      0.0008875781062915413,
+      0.0008875781062915412
+    ]
+  }
+]

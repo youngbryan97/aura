@@ -19,6 +19,23 @@ _OWNER = "core/verify/runtime_invariants.py"
 
 
 @invariant(
+    "subject.declared_linear_reads_are_preserved",
+    scope="measurement",
+    owner="core/subject/observation_basis.py",
+    description="the observation-basis canary reconstructs its declared transition reads",
+)
+def _declared_linear_reads() -> Iterator[Violation]:
+    from core.subject.observation_basis import declared_read_canary
+
+    if not declared_read_canary():
+        yield Violation(
+            subject="declared observation basis",
+            message="the synthetic read certificate failed to reconstruct its declared reads",
+            remedy="repair the observation basis before using it in a new recording",
+        )
+
+
+@invariant(
     "runtime.resource_deadlines_use_host_time",
     scope="runtime",
     owner="core/runtime/wall_clock.py",

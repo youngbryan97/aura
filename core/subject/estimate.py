@@ -41,9 +41,8 @@ a shuffled split lets the model see the answer sitting beside the question.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -245,6 +244,7 @@ def fit_predict(
     own_width: int | None = None,
     penalty_grid: list[tuple[float, float, np.ndarray]] | None = None,
     paired_selection: bool = False,
+    feature_limit: float | None = None,
 ) -> Fit:
     """Ridge from features to targets, alpha picked on validate, scored on test.
 
@@ -257,11 +257,18 @@ def fit_predict(
     another, both searched, so the wide model can shrink its additions away and
     reproduce the narrow model rather than being beaten by it.
     """
+    if feature_limit is not None and (not math.isfinite(feature_limit) or feature_limit <= 0.0):
+        raise ValueError("feature_limit must be finite and positive")
     reference = features[train]
     if reference.shape[0] < 4 or targets[train].shape[0] < 4:
         return Fit(1.0, 0.0, reference.shape[0], targets[test].shape[0], 0, targets.shape[1], True)
 
     x_all, keep_x = _standardise(features, reference)
+    if feature_limit is not None:
+        # Candidate-only bounded extrapolation, in training standard deviations.
+        # Apply the same declared transform to all splits. Neither test labels
+        # nor a test-derived scale may determine the limit.
+        x_all = np.clip(x_all, -feature_limit, feature_limit)
     y_reference = targets[train]
     y_centre = y_reference.mean(axis=0)
     y_spread = y_reference.std(axis=0)

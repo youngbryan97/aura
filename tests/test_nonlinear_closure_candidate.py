@@ -68,3 +68,32 @@ def test_no_added_basis_is_exactly_the_narrow_predictor_for_multiple_targets():
     result = score(own, np.zeros((800, 1)), target)
     assert result.gain == pytest.approx(0., abs=1e-12)
     np.testing.assert_allclose(result.narrow.row_sse, result.wide.row_sse, atol=1e-12)
+
+
+def test_declared_feature_bounds_stop_extrapolation_on_a_saturating_transition():
+    rng = np.random.default_rng(808)
+    own = rng.normal(size=(1000, 1))
+    own[800:] *= 1000
+    target = np.clip(own, -2, 2)
+    train, validate, test = split_rows(len(own))
+    unbounded = fit_predict(own, target, train=train, validate=validate, test=test)
+    bounded = fit_predict(own, target, train=train, validate=validate, test=test, feature_limit=2.)
+    assert unbounded.loss > 1000.
+    assert bounded.loss < .02
+
+
+@pytest.mark.parametrize("limit", [0., -1., float("nan"), float("inf")])
+def test_a_feature_bound_must_be_a_finite_positive_declaration(limit):
+    own = np.arange(20.)[:, None]
+    train, validate, test = split_rows(len(own))
+    with pytest.raises(ValueError, match="finite and positive"):
+        fit_predict(own, own, train=train, validate=validate, test=test, feature_limit=limit)
+
+
+def test_bounding_an_empty_addition_keeps_the_same_predictor():
+    rng = np.random.default_rng(909)
+    own = rng.normal(size=(600, 2))
+    target = own**2 + rng.normal(0, .1, own.shape)
+    train, validate, test = split_rows(len(own))
+    result = compare(own, np.zeros((600, 1)), target, train=train, validate=validate, test=test, feature_limit=8.)
+    assert result.gain == pytest.approx(0., abs=1e-12)

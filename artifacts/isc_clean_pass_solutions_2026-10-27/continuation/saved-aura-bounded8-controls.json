@@ -1,0 +1,80 @@
+{
+  "candidate_only": true,
+  "official_verdict": null,
+  "run": "/Volumes/AuraRuns/closure-repro-s73/run_001",
+  "seed": 73,
+  "feature_limit": 8.0,
+  "surrogates_requested": 3,
+  "folds_requested": [
+    1
+  ],
+  "input_sha256": {
+    "closure_inputs.npz": "c036e2a872da30b95b5ed1e8da36d11b87b7fab5aa3c00a70ab36381760a6ae8",
+    "core_state.npz": "b88888f91d409594d1912b5e8bd394df6daf8b41ec94d0e733e1753a242eb91c",
+    "core_state_manifest.json": "5f5e110af15a0973b24da02ed89c274fd0dec5309a7e6d92e01e7918e22ec6bb"
+  },
+  "source_sha256": {
+    "core/subject/estimate.py": "c03e262451ae44bf21bca159b94d68af8273c844c0927c164ff2971987bfd0b7",
+    "core/subject/closure_candidate.py": "052f31fab24880bfa2f596a436619cc75b163b451a01ed26f35ec9ef628bc7ba",
+    "core/subject/closure.py": "346c72f69069bd30e5fde3c791c1e71040d35707d00f0f76b7b22f4ee20dd4c2",
+    "core/subject/recording.py": "f402efdce3b0e244fb267cb7d997226ca3fe0d4abd33cd663bccf81c55547fb1",
+    "tools/diagnose_closure_candidate.py": "f0b69fec8d319fcb2dd3414260cbb8240d0b11ac423c3da1c1481e7ece5e7d58"
+  },
+  "limits": "Diagnostic only. Few surrogates give a coarse floor. No planted resolution or distributional calibration was run; gain alone cannot certify closure, and unscored moving targets leave coverage incomplete.",
+  "complete": true,
+  "folds": [
+    {
+      "fold": 1,
+      "test": [
+        1775,
+        2367
+      ],
+      "gain": 0.03627608663253987,
+      "lower": 0.033105969498650606,
+      "upper": 0.039673548465743204,
+      "narrow": {
+        "loss": 0.395844,
+        "alpha": 10000.0,
+        "n_train": 1775,
+        "n_test": 592,
+        "width_in": 5654,
+        "width_out": 354,
+        "degenerate": false
+      },
+      "wide": {
+        "loss": 0.381484,
+        "alpha": 10000.0,
+        "n_train": 1775,
+        "n_test": 592,
+        "width_in": 5845,
+        "width_out": 354,
+        "degenerate": false
+      },
+      "own_basis_width": 5654,
+      "added_basis_width": 191,
+      "unscored_targets": [
+        "I.mycelium_density",
+        "G.modifier_urgency",
+        "C.substrate_weight_mean",
+        "C.mesh_weight_max",
+        "C.been_here_min",
+        "S.met_as_a_type",
+        "W.partner_wants_a_witness",
+        "D.witnessing"
+      ],
+      "unscored_but_moving_in_test": [
+        "C.mesh_weight_max",
+        "S.met_as_a_type"
+      ],
+      "target_coverage_complete": false,
+      "surrogate_gains": [
+        0.0,
+        0.004466602446039094,
+        0.006023533264546277
+      ],
+      "surrogate_floor_measured": true,
+      "surrogate_q95": 0.005867840182695559,
+      "surrogate_tail_fraction": 0.25
+    }
+  ]
+}

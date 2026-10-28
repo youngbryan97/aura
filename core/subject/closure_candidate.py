@@ -72,10 +72,14 @@ def feature_blocks(
 def compare(
     own: np.ndarray, outside: np.ndarray, target: np.ndarray, *,
     train: slice, validate: slice, test: slice, seed: int = 0,
+    feature_limit: float | None = None,
 ) -> Comparison:
     """Fit the two declared bases on identical rows without marginal screening."""
     baseline, added = feature_blocks(own, outside, train=train, seed=seed)
-    narrow = fit_predict(baseline, target, train=train, validate=validate, test=test, paired_selection=True)
+    narrow = fit_predict(
+        baseline, target, train=train, validate=validate, test=test,
+        paired_selection=True, feature_limit=feature_limit,
+    )
     # Screen the expanded basis, so a product can enter even when neither
     # factor has marginal correlation. Screening raw P would miss that cause.
     from core.subject.closure import _added_variable_scores
@@ -102,6 +106,7 @@ def compare(
         own_width=baseline.shape[1],
         penalty_grid=grid,
         paired_selection=True,
+        feature_limit=feature_limit,
     )
     return Comparison(narrow, wide, baseline.shape[1], added.shape[1])
 

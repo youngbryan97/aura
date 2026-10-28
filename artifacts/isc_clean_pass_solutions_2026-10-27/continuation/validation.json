@@ -1,0 +1,61 @@
+{
+  "base_commit": "a1b4141feb7b5a292e5159997fa7be40344faa17",
+  "changes_uncommitted_at_measurement": true,
+  "source_sha256": {
+    "core/organism/DEPS": "d19ec17cd790c75313f79e9149199f16e907f877dac162fdf82187c4a296bb16",
+    "core/organism/model_validation.py": "5c3783fa7914a15f652a424369ce2dc965ca17e81a3c6621cee874171d42402e",
+    "core/subject/closure_candidate.py": "052f31fab24880bfa2f596a436619cc75b163b451a01ed26f35ec9ef628bc7ba",
+    "core/subject/declared_observations.py": "f8abb39c5c1828912bdaa8d7c194bfca7a27e70945c30ec2201f484809711ef6",
+    "core/subject/estimate.py": "c03e262451ae44bf21bca159b94d68af8273c844c0927c164ff2971987bfd0b7",
+    "core/subject/observation_basis.py": "4101d5a447316c65dfced1a36c4a799dcebfc1ba05ae9d9c5e8bd5efa963f547",
+    "core/subject/sketch.py": "79b286679eae6084f02acb225b56722ce9994e8ef63a172f02b8c1644e80f6d4",
+    "core/verify/runtime_invariants.py": "0e2c8d040bd7a7285199bdf143645b4a4a7c8aac05223973fbb64b9a38929528",
+    "tools/diagnose_closure_candidate.py": "ed86a3500c1544c6c368b0b4ba4b099ffd6f504738854167e5d36dbc55c1bdc3",
+    "tools/prove_subject_observation_basis.py": "69b6fc56f1a0613a82137774e378f65438bb927f1551c865b27a36138e64d2ea",
+    "tools/run_subject_core.py": "73d9866978d78b279945f5977a90612f5243349dbea77e45687787c8cd2bb631"
+  },
+  "evidence_sha256": {
+    "governance.txt": "6ac63997cc4a69c98f090e8af408fdd6422d5c15fd69b17913e9dad83bba567f",
+    "gates.txt": "59c257fc1424d6d4b8f777117ef46ad15d94d002ef5dbfd988011a328559f2f7",
+    "target-drift.json": "e0fd333a3f099615c1ebda03847e293446608ea132873f2ce4b264ca46aec375",
+    "saved-aura-bounded8.json": "46b269c7e34702fdf14aa92428b1c20f16cdc8606291f051e1552ed68e879138",
+    "saved-aura-bounded8-controls.json": "ce257623729f227d8f83e7a924140fdfc235ae54c47c0d5335d65e553891a281",
+    "observation-basis-proof-with-canary.json": "8bc43d3e86c61a8b2b4550d97d0f4c9cfb046c0ec4e2012599edcc93dbe91787",
+    "saved-aura-fold0.json": "1f235410bda6b99a655ee9baefba46b0924dd05cc38aef935b5f4fc401e7f65e",
+    "recorder-governance.txt": "6ac63997cc4a69c98f090e8af408fdd6422d5c15fd69b17913e9dad83bba567f",
+    "saved-aura-fold12.json": "e774015c3124688df307c5103d40f039ea4d6ea8b4954fdf7dc163acb08d538c",
+    "focused.txt": "2a5bd6502d61cff230b5a732bf5ebfb488132c085de75395015b683b1005a7c4",
+    "observation-basis-proof-final.json": "5e7a9e6096e18f6c735d4cc84215aa81e3a27184a775bfba3096b1c3f30d1639",
+    "observation-basis-proof.json": "67c9a98e0ca1dd5084fc1b4108baebf286c3786658b0e704ee75ac60e54b0575",
+    "activation-checks.txt": "3b6aa6828f87dee3a66584c78dd3eb3e497c9050be9a4b0a205abe1c77e829db",
+    "recorder-focused.txt": "a46b1cf91636778bf7ebed428ffc555ae82b8be3ded81499737a6362b1866de3",
+    "activation-observation-plan.example.json": "173d50cf0c3e59804889556299b4d6883cb5934984fc14cd4d39f769b8a83b4e",
+    "coverage-design.json": "307037fa3d5a588218f609e23a4a495fce9106ed67af341bd394e71dd6f0ae9d",
+    "recording-budget-check.json": "4dc3499fbabaa521b08dd5cf3020379d579c43b5ff8370d6076379b91ee1f83e",
+    "recorder-integration.txt": "9dadc7756def7aa828e68ddb1b73ad52111a821df658c8fa7750188734e38050",
+    "constant-shift-coverage.json": "ecb108600be81955d65a1be6c8772e8a436d5bd0fdef5ded70b472b1d0febb2d",
+    "activation-coverage.json": "6bdc26d6710e4dc46a10c44271470d10f0b940de3cd10dabb46d819f3bdcf0fd",
+    "recorder-gates.txt": "3de74cb421786ae01849d4b217af7632504545f3d9d0caa4646aa2c6e05c8601"
+  },
+  "validation": {
+    "focused": "123 passed in 30.72s",
+    "smoke": "164 passed, 1 skipped in 94.99s (0:01:34)",
+    "lint": "passed",
+    "compile": "passed",
+    "layering": "passed; one narrow pure observation-basis canary edge added, 36 grandfathered",
+    "governance": "171 regressions and 1 stale bucket, baseline unchanged",
+    "full_suite": "not run",
+    "governance_regressions_on_changed_paths": []
+  },
+  "scope": "Offline discovery and constructed proofs. No official qualification, runtime restart, model load, or active campaign modification.",
+  "prior_validation": {
+    "focused": "97 passed in 22.36s",
+    "smoke": "164 passed, 1 skipped in 85.30s; an additional final documentation smoke is pending",
+    "lint": "passed",
+    "compile": "passed",
+    "layering": "passed, 36 grandfathered",
+    "governance": "171 regressions, 1 stale bucket; baseline unchanged",
+    "governance_regressions_on_changed_paths": [],
+    "full_suite": "not run"
+  }
+}

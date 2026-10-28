@@ -161,6 +161,7 @@ async def _record(
     *,
     strict: bool = True,
     orders: Any = None,
+    observations: Any = None,
 ) -> tuple[list[Any], tuple[np.ndarray, tuple[str, ...]]]:
     """Live the rounds, keeping each frame's core state and periphery reading.
 
@@ -178,13 +179,18 @@ async def _record(
 
     frames: list[Any] = []
     periphery = PeripheryAccumulator()
+    if observations is not None:
+        observations.check_budget(rounds * len(conditions))
 
     def beside(reading: Any) -> None:
         # The periphery at the frame that closes each turn, as that frame is
         # read: closure compares the turn series (`periphery_by_turn`), and a
         # walk at every frame kept thirty-two rows a turn that nothing used.
         if getattr(reading, "tag", None) == TURN_CLOSES:
-            periphery.note(read_periphery(runtime.kernel, runtime.organs))
+            row = read_periphery(runtime.kernel, runtime.organs)
+            if observations is not None:
+                row.update(observations.read(runtime.kernel, runtime.organs))
+            periphery.note(row)
         # And the readings Bryan's answers name, beside the recording
         # rather than in it. See core/subject/named_readings.py.
         if named is not None:
@@ -237,6 +243,10 @@ def _scales(recording: Any) -> dict[str, np.ndarray]:
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rounds", type=int, default=120, help="baseline turns per condition")
+    parser.add_argument(
+        "--observation-plan", type=Path,
+        help="prospective declared-array JSON plan; record its exact/read-basis inputs and stop without scoring",
+    )
     parser.add_argument(
         "--calibrated-axes",
         action="store_true",
@@ -356,6 +366,14 @@ async def main() -> int:
         ),
     )
     args = parser.parse_args()
+    observations = None
+    observation_declaration = None
+    if args.observation_plan:
+        if args.resume or args.whole:
+            parser.error("declared-array discovery recording requires a new offline substrate run")
+        if not args.one_clock:
+            parser.error("declared-array recording requires --one-clock so background loops cannot race the reads")
+        observation_declaration = json.loads(args.observation_plan.read_text())
 
     if args.quick:
         args.rounds, args.trials, args.turns = 6, 2, 1
@@ -425,6 +443,12 @@ async def main() -> int:
     from core.subject.state import DOMAINS, FAST_DOMAINS, SLOW_DOMAINS
     from core.subject.synergy import synergy_suite
 
+    if observation_declaration is not None:
+        from core.subject.declared_observations import ObservationPlan
+
+        observations = ObservationPlan(observation_declaration)
+        observations.check_budget(args.rounds * len(CONDITIONS))
+
     started = time.monotonic()
     evidence: dict[str, Any] = {
         "notes": {},
@@ -444,6 +468,13 @@ async def main() -> int:
         # agree is the question a second machine is run to answer.
         "environment": environment(),
     }
+    if observations is not None:
+        from core.subject.provenance import fingerprint, run_fingerprint
+
+        frozen = evidence["campaign"]["frozen"]
+        frozen["declared_observations"] = observations.description()
+        evidence["campaign"]["fingerprint"] = fingerprint(frozen)
+        evidence["campaign"]["run_fingerprint"] = run_fingerprint(frozen)
     _log(
         f"run {args.out.name} on {evidence['campaign']['commit'][:12]}"
         f"{' (dirty tree)' if evidence['campaign']['dirty'] else ''}, "
@@ -611,7 +642,8 @@ async def main() -> int:
 
             orders = round_orders(CONDITIONS, args.rounds, seed=args.seed)
         frames, periphery_read = await _record(
-            runtime, CONDITIONS, args.rounds, named, strict=not args.allow_degraded, orders=orders
+            runtime, CONDITIONS, args.rounds, named, strict=not args.allow_degraded, orders=orders,
+            observations=observations,
         )
         recording = build_recording(
             frames,
@@ -622,6 +654,22 @@ async def main() -> int:
             },
         )
         recording.save(args.out)
+        if observations is not None:
+            from core.subject.closure import periphery_by_turn
+
+            matrix, names = periphery_read
+            np.savez_compressed(args.out / "closure_inputs.npz",
+                                periphery=periphery_by_turn(matrix, recording), names=np.asarray(names, dtype=str))
+            write_json(args.out, "declared_observation_plan.json", observation_declaration)
+            write_json(args.out, "declared_observation_recording.json", {
+                "diagnostic_only": True, "official_verdict": None,
+                "campaign": evidence["campaign"], "environment": evidence["environment"],
+                "observations": observations.description(), "recording": recording.summary(),
+                "phase_failures": dict(runtime.failures),
+            })
+            await quiesce_organism(runtime)
+            _log("declared-array discovery recording complete; no battery verdict was produced")
+            return 0
         _named_rows, _named_columns = named.matrix()
         np.savez_compressed(
             args.out / "named_readings.npz", rows=_named_rows, names=np.asarray(_named_columns, dtype=object)

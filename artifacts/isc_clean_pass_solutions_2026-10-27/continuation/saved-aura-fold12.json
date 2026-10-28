@@ -1,0 +1,70 @@
+{
+  "candidate_only": true,
+  "official_verdict": null,
+  "run": "/Volumes/AuraRuns/closure-repro-s73/run_001",
+  "seed": 73,
+  "folds": [
+    {
+      "fold": 1,
+      "test": [
+        1775,
+        2367
+      ],
+      "gain": -1.2983450210638128,
+      "lower": -1.7137296501188057,
+      "upper": -0.6506847460692801,
+      "narrow": {
+        "loss": 1.396618,
+        "alpha": 1000000.0,
+        "n_train": 1775,
+        "n_test": 592,
+        "width_in": 5654,
+        "width_out": 354,
+        "degenerate": false
+      },
+      "wide": {
+        "loss": 3.209911,
+        "alpha": 1000000.0,
+        "n_train": 1775,
+        "n_test": 592,
+        "width_in": 5901,
+        "width_out": 354,
+        "degenerate": false
+      },
+      "own_basis_width": 5654,
+      "added_basis_width": 247
+    },
+    {
+      "fold": 2,
+      "test": [
+        2367,
+        2959
+      ],
+      "gain": -1.1973164071783562,
+      "lower": -1.2039248013839599,
+      "upper": -1.1870993795154223,
+      "narrow": {
+        "loss": 200.419277,
+        "alpha": 100000.0,
+        "n_train": 2367,
+        "n_test": 592,
+        "width_in": 5790,
+        "width_out": 358,
+        "degenerate": false
+      },
+      "wide": {
+        "loss": 440.384566,
+        "alpha": 100000.0,
+        "n_train": 2367,
+        "n_test": 592,
+        "width_in": 6004,
+        "width_out": 358,
+        "degenerate": false
+      },
+      "own_basis_width": 5790,
+      "added_basis_width": 214
+    }
+  ],
+  "closure_inputs_sha256": "c036e2a872da30b95b5ed1e8da36d11b87b7fab5aa3c00a70ab36381760a6ae8",
+  "limits": "No surrogate floor, planted resolution or full distributional calibration was run here; a small gain alone cannot certify closure."
+}

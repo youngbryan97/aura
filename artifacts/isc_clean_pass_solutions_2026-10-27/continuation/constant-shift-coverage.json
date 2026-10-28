@@ -1,0 +1,27 @@
+[
+  {
+    "fold": 0,
+    "unscored_test_shift": {
+      "I.mycelium_density": 0.008700000000000041,
+      "G.modifier_urgency": 1.0,
+      "W.partner_wants_a_witness": 1.0,
+      "D.witnessing": 1.0
+    }
+  },
+  {
+    "fold": 1,
+    "unscored_test_shift": {
+      "C.substrate_weight_mean": 1.271121507874237e-09,
+      "C.mesh_weight_max": 0.00014585256576538086,
+      "S.met_as_a_type": 0.0125
+    }
+  },
+  {
+    "fold": 2,
+    "unscored_test_shift": {
+      "C.substrate_weight_mean": 1.1857907655445124e-09,
+      "C.mesh_weight_max": 9.72747802734375e-05,
+      "S.met_as_a_type": 0.0125
+    }
+  }
+]

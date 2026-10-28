@@ -1,0 +1,41 @@
+{
+  "activation_plan": {
+    "sha256": "2748e9651be65a67099ca0f4a722a2ec5605ad1ecbf16ebc8652efb376ca7988",
+    "width": 768,
+    "rows": 0,
+    "max_bytes": 536870912,
+    "diagnostic_only": true,
+    "arrays": [
+      {
+        "unit": "organ:substrate",
+        "path": [
+          "x"
+        ],
+        "shape": [
+          512
+        ],
+        "mode": "exact",
+        "width": 512,
+        "read_reconstruction_error": null
+      },
+      {
+        "unit": "organ:field",
+        "path": [
+          "F"
+        ],
+        "shape": [
+          256
+        ],
+        "mode": "exact",
+        "width": 256,
+        "read_reconstruction_error": null
+      }
+    ],
+    "limits": "The byte reservation covers additional observation columns, not the existing runtime/recording. Exact mode covers each declared array; read_basis covers the supplied reads. Neither certifies a complete runtime read inventory or a complete causal boundary."
+  },
+  "validated_rows": 12000,
+  "estimated_added_matrix_bytes": 73728000,
+  "declared_reservation_bytes": 301989888,
+  "actual_runtime_recording_performed": false,
+  "full_matrix_plan_refused": "declared observations need 103079215104 reserved bytes, budget is 536870912"
+}
