@@ -794,3 +794,81 @@ the machine was overloaded); the content run read AGREES_BUT_DOES_NOT_TRACK (0.0
 solved on this seed. A fresh recording of seed 73's campaign, taken afterwards to study the closure estimator, read the
 observational gate OPEN at a pooled leak of 0.012 carried by bookkeeping her services keep about her state, which the
 interventional test had shown move nothing in K*. Seed 73 is not re-scored with anything changed after this reading.
+
+## Addendum, 27 October 2026, evening: ISC-v7 decides closure of the core by intervention, and seed 83
+
+Written before seed 83 was run at any commit. Seed 73 stays scored as recorded: 23 of 24 under ISC-v6. Nothing here
+re-scores it, and no total combines v6 and v7.
+
+**Why the observational test cannot decide closure.** A unit outside K* that causes K and a unit outside K* that
+records a part of K the recording does not capture can leave identical recordings; only changing the unit tells them
+apart. On worlds with known answers (`scratch/closure_history_world.py`, the developing world of 25 October with three
+additions), the gate read:
+
+| World | Answer | Read |
+|---|---|---|
+| drifting columns K never reads | closed | closed 7 of 7 |
+| a hidden outside driver of every domain | open | open 7 of 7 |
+| a record of K's previous values, read by nothing | closed | open 7 of 7 |
+| a record of a thresholded readout K itself reads | closed | open 2 of 3 |
+| an outside cause acting through two outside signs together | open | closed 2 of 3, unresolved 1 |
+
+On seed 73 itself, a fresh recording read open at 0.012 through her services' records of her own state (her will's
+audit trail, her minimal self's history), which predict the change of dread, fatigue and capacity; swapped, none of them
+moved K. Two estimator variants (the wide model as the frozen narrow one plus a residual correction; hinges of K in the
+baseline) fixed neither failure.
+
+**ISC-v7.** One line differs from v6. Causal closure of the core (section 3) passes when every unit outside K*, swapped
+alone from donors at distances that share no period (anchors 13 and 14 turns apart in turn), changes neither K nor
+K* within two turns, and every unit outside K* swapped at once from the same donors changes neither either. The
+observational reading is reported beside the line with its leak, its folds and the table above, and decides nothing.
+The carrier term under v7 takes the whole core's closure from the same test: a whole core that is one recurrent
+component, irreducible somewhere, from an authoritative run, closed under intervention alone and all at once, is
+found. With more than one component it is unresolved. Smaller supports are not candidates when the core is one
+component, under v6 or v7.
+
+**Subsets.** One swap at a time and one swap of everything can both miss a cause that needs some outside units
+changed and others not, `a b (1-c) (1-d)` from anchors `0000` and `1111`. The test also swaps 72 subsets of the
+outside units, fixed before any is read (`--coalition-swaps 72`, `core/subject/coalitions.py`); under the stated
+assumption, a cause through four units is missed with probability at most 0.0096. A subset that moves K* reads open.
+
+**What v7 gives up and what it adds.** v6 required both tests, so it could never pass a core that intervention alone
+fails, and it failed closed cores whose services keep records of them. v7 gives up whatever cause the observational
+test could see and a swap cannot reach: a unit that never differs between donors is never tested. It adds causes that
+act only through several outside units together. Coverage is reported: units swapped against units enumerated.
+
+**Validation, before any seed.** Known-answer units planted outside K* in a live organism (`core/subject/planted.py`,
+seeds 101 and 103, never confirmatory): the interventional test (`tools/run_interventional_closure.py --planted ...`) read
+the planted cause as moving K at 12 of 12 anchor-donor pairs, swapped alone and all at once; the planted AND gate at 6
+of 12 swapped one flag at a time and 12 of 12 swapped all at once; and the planted record at none, alone or all at once.
+With only the record planted, every unit outside K* swapped at once moved neither K nor K* at 12 of 12 pairs, with no
+drift in the untouched rolls and no transplant that failed to run. Donors sat 13, 14, 40, 41 and 68 turns away, and no
+period above one is in phase with all of them.
+
+**Changes since `572f3dc60`, all on main before seed 83 is run.** Her memories carry the feeling they were made in and the
+worth of her last turn, and what she holds settles on both once the turn has been felt and read (`aef910479`,
+`000cb4a8a`, `b47702f06`; reinstatement, `b2188d64d`, was taken out in `a3e090587`); her field's input weights learn
+from every turn whatever its tick count (`a3e090587`); a restore leaves open governance scopes governed and a run that
+has asked to shut down records nothing more (`7e61a472f`, `d2b0a5787`); a roll reads only the frames its measurement
+uses, and content and carrier runs can be split across processes (`24d1a0191`, `26f9ce53f`, `9699fe4f2`); the content
+geometry is averaged over sixteen fold assignments and its control cuts feeling and worth out of recall (`525e04540`);
+a closure resolution at or below zero certifies nothing (`2883883e8`); anchors sit 13 and 14 turns apart (`681d591d2`);
+a measured turn of neutral worth still stamps and settles recall (`be06dd547`); subset swaps (`ac82ea571`); ISC-v7, the joint swap, its coverage count, and the clock valve's record of where her code waited, said as it happens (`b1605a0d4`, `ddcfcf44f`).
+
+**Stopping.** The reading stops at the first result that keeps 24/24, J* or the bridge from passing: the v6 synergy
+probe or the travel preflight failing, the interventional test not CLOSED, content not one structure with clean
+authority, her clock's valve opening in any run, or a stage ending in an error. A fix made after a stop is followed by
+a new addendum naming a fresh seed, and the reading starts again at the fixed commit; the stopped seed is not used for
+confirmation. A stage finished before the stop is kept only when the fix is shown in one process to leave her rolls
+bit-identical.
+
+**Where structure stands, read before seed 83 is run.** Practice content runs, averaged over sixteen fold assignments:
+seed 23 with the field's input weights learning on every run and recall settling on feeling, 0.309 (p 0.009),
+ONE_STRUCTURE; with recall also settling on worth, seed 73 0.316 (p 0.001, ONE_STRUCTURE; 0.215 without it), seed 31
+0.062 and seed 23 0.140 (AGREES_BUT_DOES_NOT_TRACK). Structure is not expected to hold with margin on seed 83. The
+reading goes ahead so that the interventional test, with the joint and subset swaps, is read at this commit; if
+content does not read one structure, the reading stops there.
+
+**Seed 83.** Never run at any commit. Confirmatory for 24/24 under v6 and under v7, reported separately, for J* and for
+the bridge, at the commit that carries this addendum. Unchanged: every other line and bar, the margin (0.0196) for the observational
+reading, the structure bar (0.30 at p < 0.01 above the sham floor), and any authority blocker fails the carrier.
