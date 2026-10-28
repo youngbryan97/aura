@@ -19,6 +19,23 @@ _OWNER = "core/verify/runtime_invariants.py"
 
 
 @invariant(
+    "memory.neutral_worth_remains_measured",
+    scope="memory",
+    owner="core/memory/worth_at_encoding.py",
+    description="a measured zero prediction error remains available to memory",
+)
+def _neutral_worth() -> Iterator[Violation]:
+    from core.memory.worth_at_encoding import neutral_worth_canary
+
+    if not neutral_worth_canary():
+        yield Violation(
+            subject="neutral worth",
+            message="the private ledger's neutral reading was lost or changed",
+            remedy="preserve measured zero errors when stamping and settling memory",
+        )
+
+
+@invariant(
     "subject.declared_linear_reads_are_preserved",
     scope="measurement",
     owner="core/subject/observation_basis.py",

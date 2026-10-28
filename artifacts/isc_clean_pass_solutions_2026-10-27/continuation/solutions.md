@@ -175,3 +175,36 @@ For r=4, N=72 puts the bound below .01 (about .0096). This is a conditional desi
 With eight anchors, two donors per anchor and a two-turn horizon, 72 added masks cost 4,608 additional turns if no effect needs a repeat. Repeated effects can double that. This work launched none of those runtime turns while the existing content campaigns were active. The executable proof is `tools/prove_intervention_subset_coverage.py`, with its receipt in `subset-coverage-proof.json`.
 
 After merging Opus's v7 changes, 85 integrated checks passed in 19.70 seconds. Smoke passed 164 tests with one skip in 73.88 seconds; lint, compile, layering and writing passed. `coalition-validation.json` binds the source hashes and receipts. The prior governance and full-suite limitations remain.
+
+## Neutral turns now remain available to memory
+
+A separate defect was found in the new worth-at-encoding mechanism. `WorthLedger` distinguishes an unmeasured turn from a measured prediction error of zero. Its adapter discarded both: `worth_now()` returned None whenever all nine errors were zero. Consequently a turn that met its expectation could neither stamp neutral worth onto a memory nor settle recall on neutral worth. This is a loss of measured state, independent of the tracking threshold.
+
+**That path is repaired.** The adapter now preserves a measured all-zero vector. An unmeasured reading, a reading with no known channel, or a nonfinite vector remains absent. A private-ledger canary is registered as a runtime invariant and a measured synthetic claim. It does not change the live ledger.
+
+The saved before/after proof executes both the old adapter at `b47702f06` and the repaired adapter, then calls the production recall-settling function on a constructed two-memory pool. Four identical payoff observations bring the private ledger to measured zero error. Before the repair, the adapter returns None, writes no worth stamp, and leaves the held memory unchanged. Afterward, it records nine zeros and selects the memory made at neutral worth.
+
+The scores follow directly from the production rule. With base relevance s=.4 and gain g=1, the updated score is
+
+    s' = s + (1-s) g exp(-||w-w_i||^2 / (2d)).
+
+A matching neutral memory has nearness one and score one. A memory two units away on all nine channels has nearness exp(-2) and score .48120117. The known causal result is that the formerly skipped update now runs and selects the matching memory. It is not a proof that Aura's content experiment reaches rho >= .3. The source, ledger reading, stamps and selected memories are in `neutral-worth-proof.json`.
+
+Thirty-one focused checks passed in 8.98 seconds, including the existing worth/feeling-settle checks and content pairing/lag checks. Smoke passed 164 tests with one skip in 83.75 seconds; lint, compile, layering and writing passed. See `neutral-worth-validation.json`. The running content jobs remain on their frozen source. Their results cannot be cited as validation of this repair.
+
+## The bridge's remaining concrete dependency
+
+The completed older withheld-report evidence already demonstrates a viable reporting path: `/Users/bryan/subject-core-runs/decisive-s23-8f548ed79/reports/run_001/report_grounding.json` has 29 fully readable anchors of 80, report tracking rho .612475 and p .00009999. Its measured raised-minus-lowered valence gap is .216366; the gap at the steering channel is .113288, exceeding that run's .05 check. Those values were re-read from the stored report during this continuation. The model was withheld its state numbers.
+
+That report uses the experimental layer-43 basis and has no new-format source pin. It supports the feasibility of the reporting mechanism; it cannot complete the current conjunction or certify a live installation. The fresh report experiment must preserve its prospectively specified basis, operating scale, actual channel liveness, raw public replies and parsing rule, and must run with the carrier/content revision it will be joined to. A valid failed report experiment remains a failure. No new report/model experiment was launched here.
+
+For a compatible fresh bundle, the implemented final reader is:
+
+```sh
+python tools/check_subject_core_completion.py --isc v7 \
+  --campaign CAMPAIGN.json --carrier CARRIER.json --content CONTENT.json \
+  --interventional INTERVENTIONS.json --reports REPORTS.json \
+  --state-log /Users/bryan/.aura/live-source/data/aura_state.db --out NEW_COMPLETION.json
+```
+
+Use `--isc v6` in a separate output when testing the original conjunction. Exit zero requires every named goal and clean compatible evidence; a v7 completion also prints the v6 reading beside it. The solutions delivered here improve observation, intervention coverage, resource deadlines, memory coupling and evidence joins. They do not supply the still-unmeasured fresh all-three outcome.
