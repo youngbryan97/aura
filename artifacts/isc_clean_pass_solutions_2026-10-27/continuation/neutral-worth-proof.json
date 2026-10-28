@@ -1,0 +1,89 @@
+{
+  "scope": "Private production WorthLedger and production recall; constructed memories. No live runtime, stored personal memories or content-campaign score used.",
+  "ledger_reading": {
+    "payoff": {
+      "satisfaction": 1.0,
+      "accomplishment": 1.0,
+      "warmth": 1.0,
+      "excitement": 1.0,
+      "peace": 1.0,
+      "ease": 1.0,
+      "spirit": 1.0,
+      "wonder": 1.0,
+      "integrity": 1.0
+    },
+    "expected": {
+      "satisfaction": 1.0,
+      "accomplishment": 1.0,
+      "warmth": 1.0,
+      "excitement": 1.0,
+      "peace": 1.0,
+      "ease": 1.0,
+      "spirit": 1.0,
+      "wonder": 1.0,
+      "integrity": 1.0
+    },
+    "error": {
+      "satisfaction": 0.0,
+      "accomplishment": 0.0,
+      "warmth": 0.0,
+      "excitement": 0.0,
+      "peace": 0.0,
+      "ease": 0.0,
+      "spirit": 0.0,
+      "wonder": 0.0,
+      "integrity": 0.0
+    },
+    "worth": 0.0,
+    "size": 0.0,
+    "turns": 4,
+    "measured": true,
+    "why": "no different than she had come to expect across 9 channels, larger than 0% of her recent turns",
+    "arrived_with": 0.0
+  },
+  "old_commit": "b47702f06",
+  "old_source_sha256": "cee4aef7a6aecc958654f8721023789ceca410d64ec0b3951cb3664d0f0f2bb7",
+  "source_sha256": {
+    "core/memory/worth_at_encoding.py": "2a1627f36f4d94c5f418949a7ed2614cf845766feac7b7fd868117909cdf1c2c",
+    "core/phases/memory_retrieval.py": "122cd52e88dc17319abd4f276fb80150f103579f0b2d08a730dc0de7b16f2491",
+    "core/affect/what_it_was_worth.py": "9be067ebda833cae9ae4cbb0da43be0dd482c0a119559fdcc30f78d83b8ba27d"
+  },
+  "results": {
+    "before": {
+      "vector": null,
+      "stamp": {},
+      "selection_changed": false,
+      "held": [
+        "[memory score=0.400] unexpected gain"
+      ],
+      "scores": [
+        0.4
+      ]
+    },
+    "after": {
+      "vector": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "stamp": {
+        "worth": "0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000"
+      },
+      "selection_changed": true,
+      "held": [
+        "[memory score=1.000] ordinary afternoon"
+      ],
+      "scores": [
+        1.0
+      ]
+    }
+  },
+  "neutral_canary": true,
+  "mathematics": "For equal base scores .4 and gain 1, matching neutral worth has nearness 1 and score 1. Nine channels each two units away have nearness exp(-2), giving score .4 + .6 exp(-2) = .48120117. Zero is an observed prediction error, not an absent observation."
+}

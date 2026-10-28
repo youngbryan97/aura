@@ -1,0 +1,18 @@
+{
+  "base_commit": "ac82ea571",
+  "source_sha256": {
+    "core/memory/worth_at_encoding.py": "2a1627f36f4d94c5f418949a7ed2614cf845766feac7b7fd868117909cdf1c2c",
+    "core/organism/model_validation.py": "a2cc545b590da4890453f4fd8180612ca4c7402f00795dc0aa7245dfb7a9a961",
+    "core/verify/runtime_invariants.py": "7bbcadd90160966b069e42905bc0d8512ad69751f0b56ad9c45286305ed464cb",
+    "tests/test_neutral_worth_can_still_cue_memory.py": "30fe67c521da808d7a6ce1d98c5d868b18ac88600bb30975f81685a342c4edf0"
+  },
+  "validation": {
+    "focused": "31 passed in 8.98s",
+    "smoke": "164 passed, 1 skipped in 83.75s",
+    "lint": "passed",
+    "compile": "passed",
+    "layering": "passed, 36 grandfathered",
+    "writing": "passed, existing baselines unchanged"
+  },
+  "scope": "Private production ledger and constructed recall pool. No running campaign, live state or memory store changed."
+}

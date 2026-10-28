@@ -522,8 +522,10 @@ def closed_by_intervention(interventional: dict[str, Any] | None) -> tuple[bool,
 
     Each unit outside K* swapped alone from donors at distances that share no
     period moves nothing, and every unit outside K* swapped at once moves
-    nothing either, so a cause that acts only through two outside units
-    together cannot hide. An observational test cannot settle this: a unit
+    nothing either. This covers the measured donor combinations, not every
+    possible interaction: a*b*(1-c)*(1-d) can remain zero under all of those
+    swaps and move under a subset swap (core/subject/coalitions.py).
+    An observational test cannot settle this: a unit
     outside that records an unrecorded part of K and a unit outside that
     causes K can leave identical recordings, and on worlds with known answers
     the gate read a record of K's past open seven times in seven and a cause

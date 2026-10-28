@@ -3021,8 +3021,12 @@ def _install_repair_executor_claims(suite):
     from core.agency.when_motion_breaks_a_rule import _open_edges_are_not_faults
     from core.runtime.wall_clock import host_deadline_clock_holds
     from core.subject.observation_basis import declared_read_canary
+    from core.memory.worth_at_encoding import neutral_worth_canary
 
     for name, probe, owner, statement, tests in (
+        ("neutral_worth_remains_measured", neutral_worth_canary, "core/memory/worth_at_encoding.py",
+         "The private-ledger canary retains measured neutral worth for memory; content tracking is not claimed.",
+         "tests/test_neutral_worth_can_still_cue_memory.py"),
         ("declared_transition_read_canary", declared_read_canary, "core/subject/observation_basis.py",
          "The observation-basis canary preserves its declared linear reads; runtime read completeness is not claimed.",
          "tests/test_observation_basis_preserves_declared_reads.py"),

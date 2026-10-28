@@ -143,3 +143,68 @@ The committed checkpoint passed 41 closure/J* integration checks and 20 anchor i
 Governance lint was rerun and still fails with 171 regressions and one stale bucket. None of its reported regression paths is changed by this continuation; its baseline was not relaxed. The full suite and aggregate quality gate have not passed in this work. Passing focused tests and smoke must not be reported as all repository gates passing.
 
 The implemented fixes, saved-Aura error reduction, explicit coverage calculation, read-basis proof and recorder adapter are actual delivered results. A complete source-backed read inventory, fully qualified closure instrument, successful fresh content evidence and the joint confirmation are still required before all three goals can honestly be called solved.
+
+## Paired causal comparisons and a declared horizon
+
+The production paired-roll comparison is now independently testable. Thirty-five focused checks passed, including an AND cause detected only by the joint swap, a passive copy that never moves the held state, and restore residue in a declared array that the core summary misses. Every untouched declared-array control must match the anchor baseline, including after earlier interventions; initial twins alone were insufficient. The one-off handling remains unchanged for ordinary numeric readings.
+
+The CLI also accepts `--turns N`, records `turns_per_roll`, and rejects nonpositive horizons. Its historical default remains two. A fake-runtime integration test passes a delayed joint cause through the real CLI, with the effect appearing at three turns, and obtains OPEN. This proves the implemented comparison and horizon routing on that known world; it is not evidence that a delayed cause exists in Aura. A horizon must be selected prospectively, rather than enlarged after a confirmation result.
+
+This extension passed smoke (164 passed, one skipped, 75.26 seconds), lint, compile and layering. See `causal-comparison-validation.json` and its two text receipts.
+
+## Subsets expose causes a whole swap can mask
+
+Opus's ISC-v7 implementation (`b1605a0d4`, merged with the earlier fixes) replaces the observational closure line with single-unit and whole-periphery interventions. The completion checker now accepts `--isc v6` or `--isc v7` and reports v6 beside v7. These are different claims. A new v7 pass would not repair or replace historical seed 73's v6 result. No confirmation has been run by this continuation.
+
+A whole swap has a further limit. Consider an outside effect
+
+    f(a,b,c,d) = a b (1-c) (1-d).
+
+At anchors 0000 and 1111, f is zero. Every single swap from either anchor also gives zero, as does swapping everything. Swapping only a and b into 0000 gives one. The all-at-once arm resolves an AND-only example, but cannot rule out every interacting or opposing influence.
+
+**The implemented remedy is a prospective subset plan.** `core/subject/coalitions.py` fixes the selected combinations before their outcomes are read. `run_interventional_closure.py --coalition-swaps N` executes them through the same restored snapshots, paired controls, repeat checks and complete-array observations. It records the exact unit inventory and masks. The default is zero; existing declared runs are unchanged. Budgets are limited to 1,024 added arms. Small plans enumerate every proper nonsingle subset; larger plans sample uniformly without replacement with a fixed seed. A detected subset effect makes the result OPEN.
+
+For four binary units, singles and whole swaps at both opposite anchors visit 10 of 16 states and miss six. There are 2^6 - 1 = **63** nonconstant Boolean effects supported only on those six states. The exhaustive offline proof finds all 63 with the added subsets; all 63 evade the original arms. The real CLI integration also returns OPEN for the explicit product above, with only subset rows moving the complete held array. The passive-copy control remains inert. These are known worlds, not a claim that this cause has been found in Aura.
+
+The same sampler found the four-unit cause among 96 units (92 irrelevant) in 11 of 128 selected masks at seed 97. Under the explicit assumption that an effect occurs for at least one assignment of r relevant masks and all remaining masks are irrelevant, a fair mask finds it with probability at least 2^-r. Removing already inert single/whole arms cannot reduce that probability; sampling without replacement cannot increase the independent-draw miss bound:
+
+    P(miss all N) <= (1 - 2^-r)^N.
+
+For r=4, N=72 puts the bound below .01 (about .0096). This is a conditional design bound, not a power guarantee for unknown Aura interactions. Donors must actually change the relevant values, the horizon must include the effect, and the observation must retain it. Larger r requires more masks; complete enumeration is exponential.
+
+With eight anchors, two donors per anchor and a two-turn horizon, 72 added masks cost 4,608 additional turns if no effect needs a repeat. Repeated effects can double that. This work launched none of those runtime turns while the existing content campaigns were active. The executable proof is `tools/prove_intervention_subset_coverage.py`, with its receipt in `subset-coverage-proof.json`.
+
+After merging Opus's v7 changes, 85 integrated checks passed in 19.70 seconds. Smoke passed 164 tests with one skip in 73.88 seconds; lint, compile, layering and writing passed. `coalition-validation.json` binds the source hashes and receipts. The prior governance and full-suite limitations remain.
+
+## Neutral turns now remain available to memory
+
+A separate defect was found in the new worth-at-encoding mechanism. `WorthLedger` distinguishes an unmeasured turn from a measured prediction error of zero. Its adapter discarded both: `worth_now()` returned None whenever all nine errors were zero. Consequently a turn that met its expectation could neither stamp neutral worth onto a memory nor settle recall on neutral worth. This is a loss of measured state, independent of the tracking threshold.
+
+**That path is repaired.** The adapter now preserves a measured all-zero vector. An unmeasured reading, a reading with no known channel, or a nonfinite vector remains absent. A private-ledger canary is registered as a runtime invariant and a measured synthetic claim. It does not change the live ledger.
+
+The saved before/after proof executes both the old adapter at `b47702f06` and the repaired adapter, then calls the production recall-settling function on a constructed two-memory pool. Four identical payoff observations bring the private ledger to measured zero error. Before the repair, the adapter returns None, writes no worth stamp, and leaves the held memory unchanged. Afterward, it records nine zeros and selects the memory made at neutral worth.
+
+The scores follow directly from the production rule. With base relevance s=.4 and gain g=1, the updated score is
+
+    s' = s + (1-s) g exp(-||w-w_i||^2 / (2d)).
+
+A matching neutral memory has nearness one and score one. A memory two units away on all nine channels has nearness exp(-2) and score .48120117. The known causal result is that the formerly skipped update now runs and selects the matching memory. It is not a proof that Aura's content experiment reaches rho >= .3. The source, ledger reading, stamps and selected memories are in `neutral-worth-proof.json`.
+
+Thirty-one focused checks passed in 8.98 seconds, including the existing worth/feeling-settle checks and content pairing/lag checks. Smoke passed 164 tests with one skip in 83.75 seconds; lint, compile, layering and writing passed. See `neutral-worth-validation.json`. The running content jobs remain on their frozen source. Their results cannot be cited as validation of this repair.
+
+## The bridge's remaining concrete dependency
+
+The completed older withheld-report evidence already demonstrates a viable reporting path: `/Users/bryan/subject-core-runs/decisive-s23-8f548ed79/reports/run_001/report_grounding.json` has 29 fully readable anchors of 80, report tracking rho .612475 and p .00009999. Its measured raised-minus-lowered valence gap is .216366; the gap at the steering channel is .113288, exceeding that run's .05 check. Those values were re-read from the stored report during this continuation. The model was withheld its state numbers.
+
+That report uses the experimental layer-43 basis and has no new-format source pin. It supports the feasibility of the reporting mechanism; it cannot complete the current conjunction or certify a live installation. The fresh report experiment must preserve its prospectively specified basis, operating scale, actual channel liveness, raw public replies and parsing rule, and must run with the carrier/content revision it will be joined to. A valid failed report experiment remains a failure. No new report/model experiment was launched here.
+
+For a compatible fresh bundle, the implemented final reader is:
+
+```sh
+python tools/check_subject_core_completion.py --isc v7 \
+  --campaign CAMPAIGN.json --carrier CARRIER.json --content CONTENT.json \
+  --interventional INTERVENTIONS.json --reports REPORTS.json \
+  --state-log /Users/bryan/.aura/live-source/data/aura_state.db --out NEW_COMPLETION.json
+```
+
+Use `--isc v6` in a separate output when testing the original conjunction. Exit zero requires every named goal and clean compatible evidence; a v7 completion also prints the v6 reading beside it. The solutions delivered here improve observation, intervention coverage, resource deadlines, memory coupling and evidence joins. They do not supply the still-unmeasured fresh all-three outcome.

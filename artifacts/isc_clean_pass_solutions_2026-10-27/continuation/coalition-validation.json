@@ -1,0 +1,20 @@
+{
+  "base_commit": "da274aa3c",
+  "source_sha256": {
+    "core/subject/coalitions.py": "0f74b92f5920a3753767f4657e20542cea7081c6b1359cef5fafadc8397d0a3b",
+    "core/subject/battery.py": "9e2f7367ef7fd6732fc6a8396a39fde1ea965e31774e2f69650d1163b3ba7a8b",
+    "tools/run_interventional_closure.py": "47033175db726ef5b622d0f2799ca9dde254c875e3717703b68350c4617b31d3",
+    "tools/prove_intervention_subset_coverage.py": "43fb6b883d8d8095217886e0bb697702eebde6a0648939d2851b144ae5a3875f",
+    "tests/test_subset_swaps_find_masked_interactions.py": "358a50e5f31c08e2762f618c96ef057f12e1730ff7aca7abb6d3f6756920f865",
+    "tests/test_complete_arrays_distinguish_causes_from_copies.py": "a1becd40e1cb9b33f1e86bee787720b4d337596d9633ca1ad65667fef143170c"
+  },
+  "validation": {
+    "integrated": "85 passed in 19.70s",
+    "smoke": "164 passed, 1 skipped in 73.88s",
+    "lint": "passed",
+    "compile": "passed",
+    "layering": "passed, 36 grandfathered",
+    "writing": "passed, existing baselines unchanged"
+  },
+  "scope": "Constructed finite worlds and fake-runtime CLI integration. No real Aura execution or fresh confirmation."
+}

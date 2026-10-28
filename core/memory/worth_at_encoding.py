@@ -32,7 +32,7 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["WORTH_KEY", "decode", "encode", "near", "stamp", "worth_now"]
+__all__ = ["WORTH_KEY", "decode", "encode", "near", "neutral_worth_canary", "stamp", "worth_now"]
 
 #: The metadata key a memory's worth travels under.
 WORTH_KEY: str = "worth"
@@ -49,13 +49,34 @@ def worth_now() -> np.ndarray | None:
 
         record_degradation("memory_worth", exc, action="read no worth for this memory or recall")
         return None
+    return _measured_vector(reading, CHANNELS)
+
+
+def _measured_vector(reading: Any, channels: tuple[str, ...]) -> np.ndarray | None:
+    """Keep a measured neutral reading; zero error means the turn met its expectation."""
     if not getattr(reading, "measured", False):
         return None
     errors = getattr(reading, "error", None) or {}
-    vector = np.asarray([float(errors.get(name, 0.0) or 0.0) for name in CHANNELS], dtype=np.float64)
-    if not np.all(np.isfinite(vector)) or not np.any(vector):
+    if not any(name in errors for name in channels):
+        return None
+    vector = np.asarray([float(errors.get(name, 0.0) or 0.0) for name in channels], dtype=np.float64)
+    if not np.all(np.isfinite(vector)):
         return None
     return vector
+
+
+def neutral_worth_canary() -> bool:
+    """A private ledger reaches neutral worth without losing its measured reading."""
+    from core.affect.what_it_was_worth import CHANNELS, WorthLedger
+
+    ledger = WorthLedger()
+    if _measured_vector(ledger.read(), CHANNELS) is not None:
+        return False
+    for _ in range(4):
+        ledger.note({name: 1.0 for name in CHANNELS})
+    vector = _measured_vector(ledger.read(), CHANNELS)
+    return bool(vector is not None and np.all(vector == 0.0)
+                and np.array_equal(decode(encode(vector)), vector) and near(vector, vector) == 1.0)
 
 
 def encode(vector: np.ndarray) -> str:
