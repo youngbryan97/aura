@@ -1,0 +1,84 @@
+{
+  "synthetic_arrays_only": true,
+  "actual_aura_run": false,
+  "plan": {
+    "sha256": "6d3b3042da685e6262b5a817331bce9468cabd80983b5f4805c10ebdc789c567",
+    "width": 328448,
+    "rows": 0,
+    "max_bytes": 536870912,
+    "diagnostic_only": true,
+    "arrays": [
+      {
+        "unit": "organ:substrate",
+        "path": [
+          "x"
+        ],
+        "shape": [
+          512
+        ],
+        "mode": "exact",
+        "width": 512,
+        "read_reconstruction_error": null
+      },
+      {
+        "unit": "organ:substrate",
+        "path": [
+          "W"
+        ],
+        "shape": [
+          512,
+          512
+        ],
+        "mode": "exact",
+        "width": 262144,
+        "read_reconstruction_error": null
+      },
+      {
+        "unit": "organ:field",
+        "path": [
+          "F"
+        ],
+        "shape": [
+          256
+        ],
+        "mode": "exact",
+        "width": 256,
+        "read_reconstruction_error": null
+      },
+      {
+        "unit": "organ:field",
+        "path": [
+          "W_field"
+        ],
+        "shape": [
+          256,
+          256
+        ],
+        "mode": "exact",
+        "width": 65536,
+        "read_reconstruction_error": null
+      }
+    ],
+    "limits": "The byte reservation covers additional observation columns, not the existing runtime/recording. Exact mode covers each declared array; read_basis covers the supplied reads. Neither certifies a complete runtime read inventory or a complete causal boundary."
+  },
+  "digest_working_reservation_bytes": 8388608,
+  "changing_one_matrix_coordinate_changes_digest": true,
+  "digests": {
+    "before": {
+      "held.array_sha256_6d3b3042da685e62.0": "ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7",
+      "held.array_sha256_6d3b3042da685e62.1": "5647f05ec18958947d32874eeb788fa396a05d0bab7c1b71f112ceb7e9b31eee",
+      "held.array_sha256_6d3b3042da685e62.2": "e5a00aa9991ac8a5ee3109844d84a55583bd20572ad3ffcd42792f3c36b183ad",
+      "held.array_sha256_6d3b3042da685e62.3": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    },
+    "after": {
+      "held.array_sha256_6d3b3042da685e62.0": "ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7",
+      "held.array_sha256_6d3b3042da685e62.1": "13770fcfa86eaefc1493c254e538b4da7883da1817982ea1f39486f9b32e0c7b",
+      "held.array_sha256_6d3b3042da685e62.2": "e5a00aa9991ac8a5ee3109844d84a55583bd20572ad3ffcd42792f3c36b183ad",
+      "held.array_sha256_6d3b3042da685e62.3": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    }
+  },
+  "source_sha256": {
+    "core/subject/declared_observations.py": "a8164b0ac244fc8f849d579ddecc7af212482f53c7fce75af352d85ccb8944f5",
+    "tools/run_interventional_closure.py": "1cac585d8d87e0abb9adee436994937d0753076f5877d885877ddb7c3f21a30b"
+  }
+}

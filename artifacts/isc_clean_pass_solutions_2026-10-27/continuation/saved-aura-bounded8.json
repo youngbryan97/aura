@@ -1,0 +1,151 @@
+{
+  "candidate_only": true,
+  "official_verdict": null,
+  "run": "/Volumes/AuraRuns/closure-repro-s73/run_001",
+  "seed": 73,
+  "folds": [
+    {
+      "fold": 0,
+      "test": [
+        1183,
+        1775
+      ],
+      "gain": 0.06463965806108621,
+      "lower": 0.037415281989712265,
+      "upper": 0.09399218698353548,
+      "narrow": {
+        "loss": 0.701766,
+        "alpha": 10000.0,
+        "n_train": 1183,
+        "n_test": 592,
+        "width_in": 5492,
+        "width_out": 352,
+        "degenerate": false
+      },
+      "wide": {
+        "loss": 0.656404,
+        "alpha": 10000.0,
+        "n_train": 1183,
+        "n_test": 592,
+        "width_in": 5735,
+        "width_out": 352,
+        "degenerate": false
+      },
+      "own_basis_width": 5492,
+      "added_basis_width": 243,
+      "unscored_targets": [
+        "I.mycelium_density",
+        "G.modifier_urgency",
+        "G.earned_sources",
+        "C.substrate_weight_mean",
+        "C.mesh_weight_max",
+        "C.been_here_min",
+        "S.met_as_a_type",
+        "W.partner_wants_a_witness",
+        "D.witnessing",
+        "D.force_warmth_return"
+      ],
+      "unscored_but_moving_in_test": [
+        "I.mycelium_density",
+        "G.modifier_urgency",
+        "W.partner_wants_a_witness",
+        "D.witnessing"
+      ],
+      "target_coverage_complete": false
+    },
+    {
+      "fold": 1,
+      "test": [
+        1775,
+        2367
+      ],
+      "gain": 0.03627608663253987,
+      "lower": 0.033105969498650606,
+      "upper": 0.039673548465743204,
+      "narrow": {
+        "loss": 0.395844,
+        "alpha": 10000.0,
+        "n_train": 1775,
+        "n_test": 592,
+        "width_in": 5654,
+        "width_out": 354,
+        "degenerate": false
+      },
+      "wide": {
+        "loss": 0.381484,
+        "alpha": 10000.0,
+        "n_train": 1775,
+        "n_test": 592,
+        "width_in": 5845,
+        "width_out": 354,
+        "degenerate": false
+      },
+      "own_basis_width": 5654,
+      "added_basis_width": 191,
+      "unscored_targets": [
+        "I.mycelium_density",
+        "G.modifier_urgency",
+        "C.substrate_weight_mean",
+        "C.mesh_weight_max",
+        "C.been_here_min",
+        "S.met_as_a_type",
+        "W.partner_wants_a_witness",
+        "D.witnessing"
+      ],
+      "unscored_but_moving_in_test": [
+        "C.mesh_weight_max",
+        "S.met_as_a_type"
+      ],
+      "target_coverage_complete": false
+    },
+    {
+      "fold": 2,
+      "test": [
+        2367,
+        2959
+      ],
+      "gain": 0.0013410686125013688,
+      "lower": -0.00015490976232459047,
+      "upper": 0.0033079799384827936,
+      "narrow": {
+        "loss": 0.638596,
+        "alpha": 10000.0,
+        "n_train": 2367,
+        "n_test": 592,
+        "width_in": 5790,
+        "width_out": 358,
+        "degenerate": false
+      },
+      "wide": {
+        "loss": 0.63774,
+        "alpha": 10000.0,
+        "n_train": 2367,
+        "n_test": 592,
+        "width_in": 5992,
+        "width_out": 358,
+        "degenerate": false
+      },
+      "own_basis_width": 5790,
+      "added_basis_width": 202,
+      "unscored_targets": [
+        "C.substrate_weight_mean",
+        "C.mesh_weight_max",
+        "C.been_here_min",
+        "S.met_as_a_type"
+      ],
+      "unscored_but_moving_in_test": [
+        "C.mesh_weight_max",
+        "S.met_as_a_type"
+      ],
+      "target_coverage_complete": false
+    }
+  ],
+  "feature_limit": 8.0,
+  "closure_inputs_sha256": "c036e2a872da30b95b5ed1e8da36d11b87b7fab5aa3c00a70ab36381760a6ae8",
+  "source_sha256": {
+    "core/subject/estimate.py": "c03e262451ae44bf21bca159b94d68af8273c844c0927c164ff2971987bfd0b7",
+    "core/subject/closure_candidate.py": "052f31fab24880bfa2f596a436619cc75b163b451a01ed26f35ec9ef628bc7ba",
+    "tools/diagnose_closure_candidate.py": "460ff84d97eacd071ab39bd9e01e61ef7873dafa7d54bcb952c9a3ca3394afac"
+  },
+  "limits": "No surrogate floor, planted resolution or full distributional calibration was run here; a small gain alone cannot certify closure."
+}

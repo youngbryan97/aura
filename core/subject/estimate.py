@@ -41,9 +41,8 @@ a shuffled split lets the model see the answer sitting beside the question.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -243,6 +242,9 @@ def fit_predict(
     validate: slice,
     test: slice,
     own_width: int | None = None,
+    penalty_grid: list[tuple[float, float, np.ndarray]] | None = None,
+    paired_selection: bool = False,
+    feature_limit: float | None = None,
 ) -> Fit:
     """Ridge from features to targets, alpha picked on validate, scored on test.
 
@@ -255,11 +257,18 @@ def fit_predict(
     another, both searched, so the wide model can shrink its additions away and
     reproduce the narrow model rather than being beaten by it.
     """
+    if feature_limit is not None and (not math.isfinite(feature_limit) or feature_limit <= 0.0):
+        raise ValueError("feature_limit must be finite and positive")
     reference = features[train]
     if reference.shape[0] < 4 or targets[train].shape[0] < 4:
         return Fit(1.0, 0.0, reference.shape[0], targets[test].shape[0], 0, targets.shape[1], True)
 
     x_all, keep_x = _standardise(features, reference)
+    if feature_limit is not None:
+        # Candidate-only bounded extrapolation, in training standard deviations.
+        # Apply the same declared transform to all splits. Neither test labels
+        # nor a test-derived scale may determine the limit.
+        x_all = np.clip(x_all, -feature_limit, feature_limit)
     y_reference = targets[train]
     y_centre = y_reference.mean(axis=0)
     y_spread = y_reference.std(axis=0)
@@ -284,22 +293,47 @@ def fit_predict(
     # `own_width` counts columns of the caller's block; standardising may have
     # dropped some, so it is remapped through the same mask.
     kept_own = int(keep_x[:own_width].sum()) if own_width is not None else None
-    grid = _penalties(x_all.shape[1], kept_own)
+    # Prospective estimators may supply a declared grid. The default remains
+    # the preregistered path; remap an explicit grid through the same mask.
+    grid = (
+        [(own, extra, vector[keep_x]) for own, extra, vector in penalty_grid]
+        if penalty_grid is not None else _penalties(x_all.shape[1], kept_own)
+    )
+    if not grid or any(vector.shape != (x_all.shape[1],) for _, _, vector in grid):
+        raise ValueError("each penalty vector must match the feature width")
     scores = np.full((len(grid), width_out), np.inf)
     spread = np.zeros((len(grid), width_out))
     rows = int(x_validate.shape[0])
+    validation_errors = []
     for index, (_own, _extra, penalty) in enumerate(grid):
         weights = _ridge(x_train, y_train, penalty)
         if x_validate.size:
             errors = (x_validate @ weights - y_validate) ** 2
+            if paired_selection:
+                validation_errors.append(errors)
             scores[index] = errors.mean(axis=0)
             if rows > 1:
                 spread[index] = errors.std(axis=0, ddof=1) / math.sqrt(rows)
-    chosen = (
-        _within_one_standard_error(scores, spread, grid)
-        if x_validate.size
-        else np.zeros(width_out, dtype=int)
-    )
+    if paired_selection and validation_errors and rows > 1:
+        # Candidate-only option: models err on the same validation rows.
+        # Compare their paired loss differences, rather than using the much
+        # larger spread of one model's absolute error as the comparison's SE.
+        errors = np.asarray(validation_errors)
+        best = np.argmin(scores, axis=0)
+        reference_errors = errors[best, :, np.arange(width_out)].T
+        spread = (errors - reference_errors[None, :, :]).std(axis=1, ddof=1) / math.sqrt(rows)
+        shrinkage = np.asarray([(extra, own) for own, extra, _ in grid])
+        order = np.lexsort((-shrinkage[:, 1], -shrinkage[:, 0]))
+        chosen = np.asarray([
+            next(i for i in order if scores[i, c] - scores[best[c], c] <= spread[i, c] + 1e-15)
+            for c in range(width_out)
+        ])
+    else:
+        chosen = (
+            _within_one_standard_error(scores, spread, grid)
+            if x_validate.size
+            else np.zeros(width_out, dtype=int)
+        )
 
     # Refit on train + validate once the alphas are chosen: the validation rows
     # are data, and holding them out of the final fit throws away a fifth of

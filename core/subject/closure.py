@@ -601,9 +601,9 @@ class ClosureReport:
     def estimator_failed(self) -> tuple[int, ...]:
         """Folds where the wider model did measurably worse than the one it contains.
 
-        A model offered more information cannot do worse than one offered less,
-        so a fold whose leak has its upper bound below zero is a fold where the
-        estimator failed, and a bound read from it is not a claim of closure.
+        Nested function classes order their optimal population risks, not the
+        test errors of fitted predictors. A negative held-out gain can result
+        from estimation error or drift. Such a fold cannot certify closure.
         MEASURED 25 October on worlds that develop from inside, as she does: the
         earlier estimator failed a fold in every one, and three real brokers
         read closed through those folds.
@@ -672,6 +672,10 @@ class ClosureReport:
                 if self.verdict != UNRESOLVED
                 else "the wider model did measurably worse than the narrower on a fold, so the estimator failed there"
                 if self.estimator_failed
+                else "the planted resolution is not a finite positive effect size"
+                if self.smallest_leak_resolved is not None and (
+                    not math.isfinite(self.smallest_leak_resolved) or self.smallest_leak_resolved <= 0.0
+                )
                 else "no margin is named, so closure cannot be claimed"
                 if self.margin is None
                 else "the leak's upper bound or the gate's resolution is not below the margin"
@@ -1171,7 +1175,8 @@ def _resolution(
         # leak: one fold can open while the pooled leak is below zero, and a
         # resolution below zero passed `<= margin` whatever the gate could find
         # (the carrier of 26 October recorded -0.0014).
-        if found and scored["leak"] > 0.0 and (resolved is None or scored["leak"] < resolved):
+        usable = math.isfinite(scored["leak"]) and scored["leak"] > 0.0
+        if found and usable and (resolved is None or scored["leak"] < resolved):
             resolved = scored["leak"]
         return found
 

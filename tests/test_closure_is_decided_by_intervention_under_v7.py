@@ -22,10 +22,14 @@ CLEAN = {"tested": 16, "moved_k": 0, "moved_held": 0, "could_not_run": 0}
 
 
 def _intervention(verdict: str = "CLOSED", joint: dict | None = CLEAN) -> dict:
-    out = {"verdict": verdict, "moves_k_star": [] if verdict != "OPEN" else ["service.x"]}
+    out = {"verdict": verdict, "moves_k_star": [] if verdict != "OPEN" else ["service.x"], "results": {}}
     if joint is not None:
-        out["joint_swap"] = dict(joint)
+        out["results"]["joint-periphery"] = dict(joint)
     return out
+
+
+def test_the_validation_runs_form_of_the_joint_swap_is_read_too() -> None:
+    assert closed_by_intervention({"verdict": "CLOSED", "joint_swap": dict(CLEAN)}) == (True, "")
 
 
 def test_closed_alone_and_all_at_once_is_closed() -> None:

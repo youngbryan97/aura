@@ -1,0 +1,40 @@
+{
+  "candidate_only": true,
+  "official_verdict": null,
+  "run": "/Volumes/AuraRuns/closure-repro-s73/run_001",
+  "seed": 73,
+  "folds": [
+    {
+      "fold": 0,
+      "test": [
+        1183,
+        1775
+      ],
+      "gain": 0.09140110762624289,
+      "lower": 0.08552808446817572,
+      "upper": 0.09613705049535237,
+      "narrow": {
+        "loss": 60.964974,
+        "alpha": 100000.0,
+        "n_train": 1183,
+        "n_test": 592,
+        "width_in": 5492,
+        "width_out": 352,
+        "degenerate": false
+      },
+      "wide": {
+        "loss": 55.392708,
+        "alpha": 1000000.0,
+        "n_train": 1183,
+        "n_test": 592,
+        "width_in": 5753,
+        "width_out": 352,
+        "degenerate": false
+      },
+      "own_basis_width": 5492,
+      "added_basis_width": 261
+    }
+  ],
+  "closure_inputs_sha256": "c036e2a872da30b95b5ed1e8da36d11b87b7fab5aa3c00a70ab36381760a6ae8",
+  "limits": "No surrogate floor, planted resolution or full distributional calibration was run here; a small gain alone cannot certify closure."
+}

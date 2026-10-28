@@ -10,9 +10,10 @@
 # Everything else below is the closed-world list the generator wrote: what
 # this package imports today, and nothing else.
 
-description = "core.organism: measured claims may exercise named observation custody, bounded meter discovery, local-material exploration costs, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses, finite visual-frame boundaries and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome and spatial-relation canaries; other imports remain closed."
+description = "core.organism: measured claims may exercise named observation custody, bounded meter discovery, local-material exploration costs, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses, finite visual-frame boundaries and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome, spatial-relation and declared linear-read reconstruction canaries; other imports remain closed."
 
 include_rules = [
+    "+core.subject.observation_basis", # Pure finite reconstruction canary; no subject runtime, recorder or experiment execution.
     "+core.perception.patch_searches_from_neighbours_that_were_seen", # Pure bounded motion-proposal canary; no input or model.
     "+core.perception.a_whole_origin_carried_by_measured_material", # Pure unavailable-motion canary; no provider or input.
     "+core.perception.patches_compared_on_a_common_grid", # Pure bounded sampling/repetition canary; no model or input.

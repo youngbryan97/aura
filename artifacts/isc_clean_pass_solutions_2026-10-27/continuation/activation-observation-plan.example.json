@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "max_bytes": 536870912,
+  "arrays": [
+    {"unit": "organ:substrate", "path": ["x"], "shape": [512], "mode": "exact"},
+    {"unit": "organ:field", "path": ["F"], "shape": [256], "mode": "exact"}
+  ]
+}

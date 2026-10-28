@@ -532,7 +532,10 @@ def closed_by_intervention(interventional: dict[str, Any] | None) -> tuple[bool,
     reading = interventional or {}
     if reading.get("verdict") != "CLOSED":
         return False, f"intervention read {reading.get('verdict') or 'nothing'}"
-    joint = reading.get("joint_swap") or {}
+    # The joint swap is the `joint-periphery` row of the swaps (run with
+    # --joint-periphery); `joint_swap` is the form the validation runs of 27
+    # October wrote.
+    joint = (reading.get("results") or {}).get("joint-periphery") or reading.get("joint_swap") or {}
     if not joint.get("tested"):
         return False, "everything outside K* was never swapped at once"
     if joint.get("could_not_run"):
@@ -547,7 +550,7 @@ def _assemble_v7(out: Verdict, evidence: dict[str, Any]) -> None:
     interventional = evidence.get("interventional_closure") or {}
     closure = evidence.get("closure") or {}
     closed, why = closed_by_intervention(interventional)
-    joint = interventional.get("joint_swap") or {}
+    joint = (interventional.get("results") or {}).get("joint-periphery") or interventional.get("joint_swap") or {}
     out.v7_criteria.append(_c(
         "causal_closure_of_the_core", "3",
         "nothing outside K* moves K*, under intervention: alone and all at once (ISC-v7)",

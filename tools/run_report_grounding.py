@@ -323,6 +323,8 @@ async def main(argv: list[str] | None = None) -> int:
     started = time.monotonic()
     _log(f"report grounding {run_dir.name}: {'her own language organ' if args.whole else 'the stand-in organ, wiring only'}")
 
+    from core.subject.provenance import evidence_source
+    source = evidence_source(args.seed)
     runtime = build_runtime(run_dir, seed=args.seed, whole=args.whole)
     if state_leaks():
         raise SystemExit(f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}")
@@ -335,6 +337,7 @@ async def main(argv: list[str] | None = None) -> int:
         )
     clock = await calibrate_clock(runtime, CONDITIONS)
     evidence: dict[str, Any] = {
+        "evidence_source": source,
         "environment": environment(),
         "clock": clock,
         "whole": bool(args.whole),

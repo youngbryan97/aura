@@ -288,15 +288,16 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
         do, and the wait is bounded by half the lane's own eviction deadline.
         """
         from core.runtime.model_lane_control import _EVICTION_TIMEOUT_FLAG
+        from core.runtime.wall_clock import monotonic_time
 
         bound = max(0.1, float(_EVICTION_TIMEOUT_FLAG.value()) / 2.0)
 
         def _drain_and_close() -> bool:
-            deadline = time.monotonic() + bound
+            deadline = monotonic_time() + bound
             self._draining = True
             try:
                 while True:
-                    remaining = deadline - time.monotonic()
+                    remaining = deadline - monotonic_time()
                     if remaining <= 0.0:
                         break
                     if self._lifecycle_lock.acquire(timeout=remaining):
@@ -308,7 +309,7 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
                                 )
                         finally:
                             self._lifecycle_lock.release()
-                    time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+                    time.sleep(min(0.05, max(0.0, deadline - monotonic_time())))
                 oldest = self._oldest_checkout
                 logger.warning(
                     "🧠 EmbeddingEngine: refused to yield its lane for %s: %d encode(s) still in flight "

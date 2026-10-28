@@ -81,3 +81,21 @@ def test_lag_counts_turns_and_reads_the_end_of_that_turn() -> None:
     second = _futures(turns=2, lag=2)
     assert all(future[1] == pytest.approx(1.0) for future in first.values())
     assert all(future[1] == pytest.approx(2.0) for future in second.values())
+
+
+def test_recall_is_read_at_the_same_lag_as_the_internal_state():
+    class Recalling(_Runtime):
+        async def turn_once(self, condition):
+            frames = await super().turn_once(condition)
+            self.state.cognition.long_term_memory = [f"memory from turn {self.turn}"]
+            return frames
+
+    runtime = Recalling()
+    cls = grid()[0]
+    samples = asyncio.run(sample_classes(
+        runtime, [SimpleNamespace(snapshot=None, current=np.zeros(2))],
+        [Condition("idle", "", origin="system")], [cls], turns=3, lag=2,
+    ))
+    row = samples[cls.name]
+    assert row.futures[0][1] == 2
+    assert row.retrieved[0] == frozenset({"memory from turn 2"})

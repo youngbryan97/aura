@@ -1,0 +1,12 @@
+🔍 Compiling all Python files...
+✅ All files compile
+🧹 Running ruff — three passes, widest first...
+   1. syntax errors, everywhere
+All checks passed!
+   2. undefined and unreachable names, all production code
+All checks passed!
+   3. the whole configured rule set, on the files that pass it
+All checks passed!
+✅ Ruff passed
+🏛  Checking architectural layering (DEPS include rules)...
+✅ layering clean (36 grandfathered)

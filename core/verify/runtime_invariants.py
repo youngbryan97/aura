@@ -19,6 +19,40 @@ _OWNER = "core/verify/runtime_invariants.py"
 
 
 @invariant(
+    "subject.declared_linear_reads_are_preserved",
+    scope="measurement",
+    owner="core/subject/observation_basis.py",
+    description="the observation-basis canary reconstructs its declared transition reads",
+)
+def _declared_linear_reads() -> Iterator[Violation]:
+    from core.subject.observation_basis import declared_read_canary
+
+    if not declared_read_canary():
+        yield Violation(
+            subject="declared observation basis",
+            message="the synthetic read certificate failed to reconstruct its declared reads",
+            remedy="repair the observation basis before using it in a new recording",
+        )
+
+
+@invariant(
+    "runtime.resource_deadlines_use_host_time",
+    scope="runtime",
+    owner="core/runtime/wall_clock.py",
+    description="the resource deadline wrapper agrees with the host monotonic clock",
+)
+def _resource_deadline_clock() -> Iterator[Violation]:
+    from core.runtime.wall_clock import host_deadline_clock_holds
+
+    if not host_deadline_clock_holds():
+        yield Violation(
+            subject="resource deadline clock",
+            message="the deadline wrapper is outside its bracketed host-time reading",
+            remedy="restore the host clock for resource waits",
+        )
+
+
+@invariant(
     "knowledge.revision_support_is_consistent",
     scope="knowledge",
     owner="core/knowledge/revision_validation.py",

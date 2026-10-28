@@ -1,0 +1,232 @@
+{
+  "diagnostic_only": true,
+  "folds": [
+    {
+      "fold": 0,
+      "train_rows": 591,
+      "validate_rows": 592,
+      "test_rows": 592,
+      "input_live_targets": 362,
+      "scored_targets": 352,
+      "training_flat_test_moving": [
+        "I.mycelium_density",
+        "G.modifier_urgency",
+        "W.partner_wants_a_witness",
+        "D.witnessing"
+      ],
+      "top12_share_of_standardized_target_energy": 0.5482843110109311,
+      "targets": [
+        {
+          "name": "C.field_weight_sd",
+          "share": 0.27099193805641625,
+          "test_rms_in_train_units": 13.274747812716107
+        },
+        {
+          "name": "A.moment_meets",
+          "share": 0.056805860378453435,
+          "test_rms_in_train_units": 6.077775650276135
+        },
+        {
+          "name": "I.fatigue",
+          "share": 0.05597616600703272,
+          "test_rms_in_train_units": 6.033227032739516
+        },
+        {
+          "name": "A.mood_baseline_spread",
+          "share": 0.03958607450903832,
+          "test_rms_in_train_units": 5.073636075984351
+        },
+        {
+          "name": "C.field_weight_mean",
+          "share": 0.038762275093934144,
+          "test_rms_in_train_units": 5.020566495930363
+        },
+        {
+          "name": "W.model_hidden_norm",
+          "share": 0.015696163004331045,
+          "test_rms_in_train_units": 3.1948085936142108
+        },
+        {
+          "name": "A.mood_baseline",
+          "share": 0.014957799897982649,
+          "test_rms_in_train_units": 3.1187599847913625
+        },
+        {
+          "name": "W.model_train_steps",
+          "share": 0.014613397454781544,
+          "test_rms_in_train_units": 3.082646264598887
+        },
+        {
+          "name": "C.field_weight_max",
+          "share": 0.011713294401820952,
+          "test_rms_in_train_units": 2.7598636303127573
+        },
+        {
+          "name": "C.field_weight_min",
+          "share": 0.011389001817904441,
+          "test_rms_in_train_units": 2.721390879749067
+        },
+        {
+          "name": "C.field_weight_p0",
+          "share": 0.010883866822665436,
+          "test_rms_in_train_units": 2.6603556753571853
+        },
+        {
+          "name": "C.substrate_focus",
+          "share": 0.006908473566570158,
+          "test_rms_in_train_units": 2.119527930613005
+        }
+      ]
+    },
+    {
+      "fold": 1,
+      "train_rows": 1183,
+      "validate_rows": 592,
+      "test_rows": 592,
+      "input_live_targets": 362,
+      "scored_targets": 354,
+      "training_flat_test_moving": [
+        "C.mesh_weight_max",
+        "S.met_as_a_type"
+      ],
+      "top12_share_of_standardized_target_energy": 0.1884478867906943,
+      "targets": [
+        {
+          "name": "C.field_weight_mean",
+          "share": 0.06843545379752881,
+          "test_rms_in_train_units": 4.683313415520031
+        },
+        {
+          "name": "C.field_weight_sd",
+          "share": 0.017794756289619778,
+          "test_rms_in_train_units": 2.3881338750668046
+        },
+        {
+          "name": "A.mood_baseline_spread",
+          "share": 0.014123039649427797,
+          "test_rms_in_train_units": 2.127535110689604
+        },
+        {
+          "name": "S.least_predictable_affect_valence",
+          "share": 0.012470036939934091,
+          "test_rms_in_train_units": 1.999155226995048
+        },
+        {
+          "name": "S.least_predictable_attentional_focus",
+          "share": 0.012470036939934091,
+          "test_rms_in_train_units": 1.999155226995048
+        },
+        {
+          "name": "C.substrate_focus",
+          "share": 0.01247003693993409,
+          "test_rms_in_train_units": 1.9991552269950479
+        },
+        {
+          "name": "W.model_train_steps",
+          "share": 0.010764311064083366,
+          "test_rms_in_train_units": 1.857401391145333
+        },
+        {
+          "name": "A.mood_baseline",
+          "share": 0.008725763710691076,
+          "test_rms_in_train_units": 1.672300697701916
+        },
+        {
+          "name": "A.moment_meets",
+          "share": 0.008541812515433442,
+          "test_rms_in_train_units": 1.6545795953809384
+        },
+        {
+          "name": "A.dread",
+          "share": 0.008413317598216227,
+          "test_rms_in_train_units": 1.6420874752377406
+        },
+        {
+          "name": "I.fatigue",
+          "share": 0.007338705534030058,
+          "test_rms_in_train_units": 1.5336362942051902
+        },
+        {
+          "name": "C.substrate_state_max",
+          "share": 0.006900615811861498,
+          "test_rms_in_train_units": 1.4871561494606695
+        }
+      ]
+    },
+    {
+      "fold": 2,
+      "train_rows": 1775,
+      "validate_rows": 592,
+      "test_rows": 592,
+      "input_live_targets": 362,
+      "scored_targets": 358,
+      "training_flat_test_moving": [
+        "C.mesh_weight_max",
+        "S.met_as_a_type"
+      ],
+      "top12_share_of_standardized_target_energy": 0.4535036245762194,
+      "targets": [
+        {
+          "name": "D.force_warmth_return",
+          "share": 0.11633628461594295,
+          "test_rms_in_train_units": 7.914314096531249
+        },
+        {
+          "name": "A.worth_error_warmth",
+          "share": 0.09515728570223113,
+          "test_rms_in_train_units": 7.157753039703163
+        },
+        {
+          "name": "D.witnessing",
+          "share": 0.06311359787679031,
+          "test_rms_in_train_units": 5.829310066882346
+        },
+        {
+          "name": "W.partner_wants_a_witness",
+          "share": 0.06311359787679031,
+          "test_rms_in_train_units": 5.829310066882346
+        },
+        {
+          "name": "S.least_predictable_affect_valence",
+          "share": 0.038981928100370475,
+          "test_rms_in_train_units": 4.581285373743452
+        },
+        {
+          "name": "S.least_predictable_attentional_focus",
+          "share": 0.038981928100370475,
+          "test_rms_in_train_units": 4.581285373743452
+        },
+        {
+          "name": "C.field_weight_mean",
+          "share": 0.008554045596981528,
+          "test_rms_in_train_units": 2.146058062154118
+        },
+        {
+          "name": "C.mesh_weight_p3",
+          "share": 0.0069363624094494645,
+          "test_rms_in_train_units": 1.9325092229162075
+        },
+        {
+          "name": "C.mesh_weight_mean",
+          "share": 0.0066622030473786125,
+          "test_rms_in_train_units": 1.8939330365490938
+        },
+        {
+          "name": "A.emotion_anger",
+          "share": 0.005307468543910199,
+          "test_rms_in_train_units": 1.6904386029235416
+        },
+        {
+          "name": "A.emotion_trust",
+          "share": 0.00522148470783405,
+          "test_rms_in_train_units": 1.6766896847263482
+        },
+        {
+          "name": "A.worth",
+          "share": 0.005137437998169745,
+          "test_rms_in_train_units": 1.6631406709977992
+        }
+      ]
+    }
+  ]
+}

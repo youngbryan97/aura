@@ -1,0 +1,34 @@
+{
+  "python": "3.12.13 (main, Mar  3 2026, 12:39:30) [Clang 17.0.0 (clang-1700.6.3.2)]",
+  "numpy": "2.4.4",
+  "scipy": "1.17.1",
+  "base_commit": "b47702f062021e9e81b18d2c61060c1b76e3e65a",
+  "source_state": "uncommitted implementation, exact source hashes below",
+  "candidate_sources": {
+    "core/subject/closure_candidate.py": "bb6e59ac337ea92a5bdbffe529275d52b251443f0c1c7ab76946ba33a239ae35",
+    "core/subject/estimate.py": "44451f674ca07c5d6d3e2e0229faf90a5dd5eba561fec136e6b3064e5ee88734",
+    "tools/validate_closure_candidate.py": "ca4cda599eb339f2153a1cf339fa3a27281387804bf1b241827aa753e479ca61"
+  },
+  "receipts": {
+    "focused": {
+      "file": "focused.txt",
+      "sha256": "e610aed2f8484dbaac70ceed8dda63a81fab216da2da24ed447342f65300ed7d"
+    },
+    "smoke": {
+      "file": "smoke.txt",
+      "sha256": "e1f9f88640284ab2b1a4788e64063f7fd8c46a1e7e9ed0bf1e08328fdd3e4b3b"
+    },
+    "compile_lint_layering": {
+      "file": "compile_lint_layering.txt",
+      "sha256": "8d74f7ae264dbd6f906b1c13d149867e9851bc3f5d93e277d5b26727a41cfb8d"
+    }
+  },
+  "governance_lint": {
+    "passed": false,
+    "regressions": 171,
+    "stale_buckets": 1,
+    "reported_regression_paths_touched_by_this_change": [],
+    "new_effect_calls_in_modified_core_excluding_line_shifts": []
+  },
+  "scope": "Offline tests and finite simulation. No Aura runtime boot, model load, or live restart."
+}

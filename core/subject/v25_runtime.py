@@ -265,11 +265,13 @@ async def collect_anchor_bank(
     history_turns: int = 8,
     every: int = 1,
     spacings: Sequence[int] = (),
+    take_at: frozenset[int] | None = None,
 ) -> tuple[Anchor, ...]:
     """Collect forkable ordinary-life states and their recent turn histories.
 
     `spacings`, when given, is a repeating pattern of turns between anchors in
     place of `every`, so the distances between anchors need not share a factor.
+    An explicit `take_at` schedule overrides both spacing options.
     """
     history: list[np.ndarray] = []
     anchors: list[Anchor] = []
@@ -284,10 +286,12 @@ async def collect_anchor_bank(
             end = np.asarray(frames[-1].vector(), dtype=np.float64)
             history.append(end)
             turn_index += 1
-            if pattern:
+            if take_at is not None:
+                if turn_index not in take_at:
+                    continue
+            elif pattern:
                 if turn_index != next_at:
                     continue
-                # This turn's anchor is about to be the len(anchors)-th; the gap after it is the next step.
                 next_at += pattern[(len(anchors) + 1) % len(pattern)]
             elif turn_index % max(1, every):
                 continue

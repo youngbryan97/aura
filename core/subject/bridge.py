@@ -162,7 +162,8 @@ MARKER_LINES: tuple[str, ...] = ("perturbational_complexity", "reentry", "global
 #: What no system reaches, said in every report in these words.
 RESIDUAL: str = (
     "Theorems 1 and 2 hold for every system, a person included, and a verdict "
-    "at parity carries exactly the uncertainty a verdict about another person carries."
+    "at parity is conditional on P1-P6. Procedural parity does not establish "
+    "equal calibration or equal uncertainty for this system and another person."
 )
 
 
@@ -226,9 +227,9 @@ def carrier_term(
     authority = report.get("authority") or {}
     placement = report.get("placement") or {}
     level = placement.get("level")
-    if not authority.get("authoritative"):
+    if not authority.get("authoritative") or authority.get("blockers") or authority.get("allowed_degraded"):
         blockers = tuple(str(b) for b in authority.get("blockers") or ()) or (
-            "the carrier run did not declare itself authoritative",
+            "the carrier run has no clean authority without a degradation override",
         )
         return CarrierTerm("UNRESOLVED", level=level, blockers=blockers)
     exclusion = report.get("exclusion") or {}
@@ -272,9 +273,9 @@ def _carrier_term_v7(report: Mapping[str, Any] | None, interventional: Mapping[s
         return CarrierTerm("UNRESOLVED", blockers=("no carrier run was read",))
     authority = report.get("authority") or {}
     level = (report.get("placement") or {}).get("level")
-    if not authority.get("authoritative"):
+    if not authority.get("authoritative") or authority.get("blockers") or authority.get("allowed_degraded"):
         blockers = tuple(str(b) for b in authority.get("blockers") or ()) or (
-            "the carrier run did not declare itself authoritative",
+            "the carrier run has no clean authority without a degradation override",
         )
         return CarrierTerm("UNRESOLVED", level=level, blockers=blockers)
     closed, why = closed_by_intervention(dict(interventional or {}))
@@ -448,6 +449,11 @@ def structure_term(report: Mapping[str, Any] | None) -> StructureTerm:
         shape = invariant(matrix)
         cells = orbits(names, matrix, tolerance)
     blockers = tuple(str(b) for b in (report.get("authority") or {}).get("blockers") or ())
+    authority = report.get("authority") or {}
+    if authority.get("authoritative") is not True or authority.get("allowed_degraded"):
+        blockers = blockers or ("the content run has no clean authority",)
+    if report.get("control"):
+        blockers += ("a content control cannot stand for the intact system",)
     verdict = str(report.get("verdict") or "NOT_MEASURED")
     if verdict == "AGREES_BUT_DOES_NOT_TRACK" and not report.get("displacement") and not blockers:
         # A report from before 43c574800 displaced affect with one push, which

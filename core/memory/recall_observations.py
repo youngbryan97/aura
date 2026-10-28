@@ -210,9 +210,11 @@ class RecallObservationRing:
         if not self._background_persistence:
             return self._flush_worker()
 
-        deadline = time.monotonic() + 10.0
+        from core.runtime.wall_clock import monotonic_time
+
+        deadline = monotonic_time() + 10.0
         self._schedule_flush()
-        while time.monotonic() < deadline:
+        while monotonic_time() < deadline:
             with self._lock:
                 current = self._flush_future
                 pending = bool(self._pending)
@@ -225,7 +227,7 @@ class RecallObservationRing:
                 time.sleep(0.005)
                 continue
             try:
-                current.result(timeout=max(0.01, deadline - time.monotonic()))
+                current.result(timeout=max(0.01, deadline - monotonic_time()))
             except concurrent.futures.TimeoutError:
                 break
             except concurrent.futures.CancelledError:
