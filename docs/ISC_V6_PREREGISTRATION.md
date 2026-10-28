@@ -872,3 +872,29 @@ content does not read one structure, the reading stops there.
 **Seed 83.** Never run at any commit. Confirmatory for 24/24 under v6 and under v7, reported separately, for J* and for
 the bridge, at the commit that carries this addendum. Unchanged: every other line and bar, the margin (0.0196) for the observational
 reading, the structure bar (0.30 at p < 0.01 above the sham floor), and any authority blocker fails the carrier.
+
+## Addendum, 28 October 2026, early morning: seed 83 does not count, her clock stays on the experiment's, worth is added to recall, and seed 89
+
+Written before seed 89 was run at any commit.
+
+**Seed 83 does not count.** Her clock's valve opened once in the content run and once in the campaign, so neither had
+clean authority; the campaign was stopped by hand and the reading not completed. Each opening was a reading and not a
+wait: her continuous substrate's loop in a 12 s frame, the memory index stamping the end of a 28 s resync, the lock
+watchdog stamping an acquisition in a 20 s frame. Read for what they show and deciding nothing: the interventional test
+read CLOSED (961 units swapped alone, 169 of them varied; every outside unit at once at 16 of 16 pairs; 72 subsets;
+nothing moved), and content read 0.239, below the bar, at agreement 0.876.
+
+**Her clock** (`cb8d24e47`) no longer follows the machine's inside a frame. A deadline she waits on reads the host
+clock, and a phase that overruns its budget is abandoned on the real clock and recorded as a failure. A frame that runs
+past the budget is recorded beside the run with the stack that read the clock and is not an authority blocker.
+
+**Recall** (this addendum's parent commit). On seeds 83, 31 and 73 her inner state under the nudge was the worth gap
+between percepts closing (rho -0.89 to -0.98), and what she recalled ignored it (-0.06 to -0.19). The content runs keep
+what recall weighed (`7eef01e9e`), and on seeds 31, 23 and 83 at `cb8d24e47` the recorded pools were replayed, the
+replay reproducing each run's reading: worth added to what she holds at the recall gain read 0.510, 0.634 and 0.444
+where the run read 0.154, 0.367 and 0.295, agreement 0.96, recall with no settle 0.104, 0.254 and 0.174. Seeds 31, 23
+and 83 are discovery seeds and confirm nothing.
+
+**Seed 89.** Never run at any commit. Confirmatory for 24/24 under v6 and v7 reported apart, for J* and for the bridge,
+at the commit that carries this addendum, by `decisive_v8.sh` as the addendum of 27 October, evening, set out, with the
+same stopping rule. Unchanged: every line and bar.
