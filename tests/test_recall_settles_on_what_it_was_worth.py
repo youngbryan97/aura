@@ -167,3 +167,19 @@ def test_the_control_cuts_the_worth_settle_too(monkeypatch) -> None:
     her = _her(_pool(("the prize", GOOD), ("the loss", BAD)), held)
     assert recall.settle_on_what_it_was_worth(her) is False
     assert her.cognition.long_term_memory == held
+
+
+def test_worth_is_added_so_a_high_scoring_memory_can_still_be_passed(monkeypatch) -> None:
+    """Closing the gap, a candidate at 0.95 and one at 0.6 could barely trade places; added, worth decides."""
+    _now(monkeypatch, 2.0)
+    pool = {
+        "salience": 1.0,
+        "candidates": [
+            {"text": "[memory score=0.950] the loss", "score": 0.95, "felt": None, "worth": BAD},
+            {"text": "[memory score=0.600] the prize", "score": 0.6, "felt": None, "worth": GOOD},
+        ],
+    }
+    her = _her(pool, ["[memory score=0.950] the loss"])
+    assert recall.settle_on_what_it_was_worth(her) is True
+    assert her.cognition.long_term_memory[0].endswith("the prize")
+    assert all(0.0 <= score <= 1.0 for score in her.cognition.memory_scores)

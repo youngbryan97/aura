@@ -439,11 +439,20 @@ def settle_on_what_it_was_worth(state: Any) -> bool:
     """Weigh this turn's recall again by what the turn turned out to be worth.
 
     Her worth is read when the turn ends, after recall and after the affect
-    phase have both settled what she holds. Each candidate is weighed from the
-    score it settled at by how near this turn's worth lies to the worth its
-    memory was made at, at the gain recall ran at, and she holds as many of the
-    best as she held before. See core/memory/worth_at_encoding.py. The pool is
-    used once. Returns whether what she holds changed.
+    phase have both settled what she holds. Each candidate's nearness to this
+    turn's worth, at the gain recall ran at, is added to the score it settled
+    at, and she holds as many of the best as she held before. See
+    core/memory/worth_at_encoding.py. The pool is used once. Returns whether
+    what she holds changed.
+
+    Added, not closing the gap to full relevance as the feeling settle does.
+    The feeling settle had already lifted the leading candidates near the top,
+    so a gap-closing worth term could barely reorder them: replayed on the
+    recorded pools of seeds 31, 23 and 83 (cb8d24e47), what she recalled
+    followed the worth her percepts were met with at 0.154, 0.367 and 0.295 by
+    "moves together", and with nearness added at the recall gain at 0.510,
+    0.634 and 0.444. Read with the range of worth widened before nearness, it
+    fell (0.290, 0.570, 0.352 at twice the width), so the range is not widened.
     """
     cognition = getattr(state, "cognition", None)
     pool = getattr(cognition, "recall_pool", None)
@@ -465,7 +474,9 @@ def settle_on_what_it_was_worth(state: Any) -> bool:
     }
     if now is None or not stamps:
         return False
-    return _settle(cognition, candidates, held, salience, lambda text: near(now, stamps.get(_unlabelled(text))))
+    return _settle(
+        cognition, candidates, held, salience, lambda text: near(now, stamps.get(_unlabelled(text))), added=True,
+    )
 
 
 def _settle(
@@ -476,10 +487,13 @@ def _settle(
     nearness: Any,
     *,
     keep_pool: dict[str, Any] | None = None,
+    added: bool = False,
 ) -> bool:
     """Close each candidate's gap to full relevance by its nearness at the recall gain, and hold the best.
 
-    With `keep_pool`, the candidates are left on her at the scores they
+    `added` adds the nearness at the gain to the score instead, scaled by one
+    plus the gain so a score stays between zero and one; the order is the
+    sum's. With `keep_pool`, the candidates are left on her at the scores they
     settled at, for the next weighing.
     """
     from core.consciousness.substrate_gates import get_substrate_gates
@@ -489,7 +503,10 @@ def _settle(
     for entry in candidates:
         text = str(entry["text"])
         bounded = max(0.0, min(1.0, float(entry["score"])))
-        updated = bounded + (1.0 - bounded) * float(nearness(text)) * gain
+        if added:
+            updated = (bounded + float(nearness(text)) * gain) / (1.0 + gain)
+        else:
+            updated = bounded + (1.0 - bounded) * float(nearness(text)) * gain
         rescored = _rescored(text, bounded, updated)
         reread.append((updated, rescored, {**entry, "text": rescored, "score": updated}))
     reread.sort(key=lambda item: item[0], reverse=True)

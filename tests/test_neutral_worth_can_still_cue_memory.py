@@ -48,7 +48,7 @@ def test_neutral_worth_can_change_actual_recall_selection(ledger, monkeypatch):
     ))
     assert settle_on_what_it_was_worth(state)
     assert state.cognition.long_term_memory[0].endswith("ordinary afternoon")
-    assert state.cognition.memory_scores == [1.0]
+    assert state.cognition.memory_scores == [0.7]  # (0.4 + nearness 1 at gain 1) / (1 + gain)
     assert state.cognition.recall_pool == {}
 
 
