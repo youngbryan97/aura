@@ -124,6 +124,10 @@ def _save_class_samples(
             arrays[f"{tag}__retrieved_b"] = np.asarray(
                 [json.dumps(sorted(recalled)) for recalled in rows.retrieved_b], dtype=object
             )
+            # What recall weighed in each first-arm row's measured turn, for
+            # replaying a recall rule offline on the same states.
+            if rows.pools:
+                arrays[f"{tag}__pools"] = np.asarray(list(rows.pools), dtype=object)
     arrays["class_names"] = np.asarray([cls.name for cls in classes], dtype=object)
     target = run_dir / name
     from core.subject.latch import refuse_if_latched
@@ -158,6 +162,7 @@ def _load_class_samples(path: Path, classes: Sequence[Any]) -> dict[str, dict[st
                 name=cls.name, futures=rows("futures"), retrieved=recalled("retrieved"),
                 context=rows("context"), futures_b=rows("futures_b"), retrieved_b=recalled("retrieved_b"),
                 keys=[tuple(int(v) for v in key) for key in data[f"{tag}__keys"]],
+                pools=[str(item) for item in rows("pools")],
             )
         stages[stage] = out
     return stages
@@ -200,6 +205,7 @@ def _merge_samples(parts: Sequence[dict[str, Any]], anchors: int) -> dict[str, A
         merged[name] = ClassSamples(
             name=name, futures=pick("futures"), retrieved=pick("retrieved"), context=pick("context"),
             futures_b=pick("futures_b"), retrieved_b=pick("retrieved_b"), keys=[row[0] for row in rows],
+            pools=pick("pools"),
         )
     return merged
 

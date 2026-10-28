@@ -27,6 +27,7 @@ share the percepts and share nothing else.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -142,6 +143,11 @@ class ClassSamples:
     context: list[np.ndarray]
     futures_b: list[np.ndarray] = field(default_factory=list)
     retrieved_b: list[frozenset[str]] = field(default_factory=list)
+    #: What recall weighed in the measured turn of each first-arm row, as JSON
+    #: (`_watch_the_settles`): the pool, its stamps, and what she felt and what
+    #: the turn was worth at each settle, so a recall rule can be replayed on
+    #: the same states offline.
+    pools: list[str] = field(default_factory=list)
     #: (anchor, condition) of each row, so two classes are compared on the
     #: presentations both of them have and cross-fitted by anchor.
     keys: list[tuple[int, int]] = field(default_factory=list)
@@ -152,6 +158,66 @@ class ClassSamples:
 #: behavioural geometry is about which memories came back, so the score is taken
 #: off before two recalls are compared; the store's own label stays.
 _SCORE_MARK = re.compile(r"^\[memory score=[-0-9.]+\]\s*")
+
+
+#: Each settle step's reading in the turn being watched (`_watch_the_settles`).
+_SETTLES: list[dict[str, Any]] = []
+
+
+def memory_id(text: Any) -> str:
+    """A short id for a recollection, the same for its pool entry and its recalled form."""
+    import hashlib
+
+    return hashlib.sha1(_SCORE_MARK.sub("[memory] ", str(text)).encode("utf-8")).hexdigest()[:12]
+
+
+def _settle_reading(kind: str, state: Any) -> dict[str, Any]:
+    cognition = getattr(state, "cognition", None)
+    pool = dict(getattr(cognition, "recall_pool", {}) or {})
+    reading: dict[str, Any] = {
+        "kind": kind,
+        "salience": pool.get("salience"),
+        "candidates": [
+            {"id": memory_id(entry.get("text")), "score": entry.get("score"), "felt": entry.get("felt"),
+             "worth": entry.get("worth")}
+            for entry in pool.get("candidates") or ()
+        ],
+        "held": [memory_id(text) for text in getattr(cognition, "long_term_memory", []) or []],
+    }
+    if kind == "felt":
+        affect = getattr(state, "affect", None)
+        reading["emotions"] = {k: float(v) for k, v in (getattr(affect, "emotions", {}) or {}).items()}
+        reading["baselines"] = {k: float(v) for k, v in (getattr(affect, "mood_baselines", {}) or {}).items()}
+    else:
+        from core.memory.worth_at_encoding import worth_now
+
+        now = worth_now()
+        reading["worth_now"] = None if now is None else [float(v) for v in now]
+    from core.consciousness.substrate_gates import get_substrate_gates
+
+    reading["recall_multiplier"] = float(get_substrate_gates().multiplier("recall"))
+    return reading
+
+
+def _watch_the_settles() -> None:
+    """Record each settle step's inputs as it is called, and pass every call through unchanged. Harness only."""
+    import core.phases.memory_retrieval as recall
+
+    if getattr(recall.settle_on_what_she_feels, "_watched", False):
+        return
+    felt, worth = recall.settle_on_what_she_feels, recall.settle_on_what_it_was_worth
+
+    def watched_felt(state: Any) -> bool:
+        _SETTLES.append(_settle_reading("felt", state))
+        return felt(state)
+
+    def watched_worth(state: Any) -> bool:
+        _SETTLES.append(_settle_reading("worth", state))
+        return worth(state)
+
+    watched_felt._watched = watched_worth._watched = True  # type: ignore[attr-defined]
+    recall.settle_on_what_she_feels = watched_felt
+    recall.settle_on_what_it_was_worth = watched_worth
 
 
 def _retrieved(runtime: Any) -> frozenset[str]:
@@ -193,6 +259,7 @@ async def sample_classes(
     if not 1 <= lag <= turns:
         raise ValueError("the content lag must name a turn within the arm")
 
+    _watch_the_settles()
     out: dict[str, ClassSamples] = {
         cls.name: ClassSamples(cls.name, [], [], []) for cls in classes
     }
@@ -219,12 +286,18 @@ async def sample_classes(
         )
         with reading_only(runtime, plan):
             for turn in range(1, turns + 1):
+                if turn == lag:
+                    _SETTLES.clear()
                 rows = await runtime.turn_once(shown)
                 if turn == lag and rows:
                     # Both channels describe this turn. Reading recall after
                     # the remaining turns paired an earlier state with later
                     # behaviour whenever lag was smaller than turns.
-                    measured = np.asarray(rows[-1].vector(), dtype=np.float64).copy(), _retrieved(runtime)
+                    measured = (
+                        np.asarray(rows[-1].vector(), dtype=np.float64).copy(),
+                        _retrieved(runtime),
+                        json.dumps(list(_SETTLES), default=str),
+                    )
         return measured
 
     for anchor_index, anchor in enumerate(anchors):
@@ -237,6 +310,7 @@ async def sample_classes(
                 slot = out[cls.name]
                 slot.futures.append(first[0])
                 slot.retrieved.append(first[1])
+                slot.pools.append(first[2])
                 slot.futures_b.append(second[0])
                 slot.retrieved_b.append(second[1])
                 slot.context.append(np.asarray(anchor.current, dtype=np.float64))
