@@ -59,3 +59,22 @@ def test_the_run_records_it_beside_the_ground() -> None:
     assert '"reached_her_cortex"' in source
     assert "_steered_valence()" in source
     assert '"steered_valence"' in source
+
+
+def test_an_arm_keeps_which_phase_gave_up() -> None:
+    """Seed 89's run, 28 October: five arms ended with an answer held and
+    unserved, and no file said which phase had given up."""
+    from types import SimpleNamespace
+
+    from tools.run_report_grounding import _phases_that_failed
+
+    runtime = SimpleNamespace(
+        failures={"UnitaryResponsePhase": 2, "AffectPhase": 1},
+        failure_notes={
+            "UnitaryResponsePhase": "TimeoutError: Foreground conversation lane produced only unsafe drafts",
+            "AffectPhase": "RuntimeError: earlier",
+        },
+    )
+    failed = _phases_that_failed(runtime, {"UnitaryResponsePhase": 1, "AffectPhase": 1})
+    assert failed == {"UnitaryResponsePhase": "TimeoutError: Foreground conversation lane produced only unsafe drafts"}
+    assert _phases_that_failed(SimpleNamespace(), {}) == {}

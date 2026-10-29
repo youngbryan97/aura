@@ -184,6 +184,19 @@ def _cortex_answered(answers: list[dict[str, Any]], reply: str, state: Any) -> b
     return bool(replies) and all(answer.get("endpoint") == PRIMARY_ENDPOINT for answer in replies)
 
 
+def _phases_that_failed(runtime: Any, counted: dict[str, int]) -> dict[str, str]:
+    """The phases that failed during this arm, and what each one raised.
+
+    The driver counts a failed phase and keeps its last note. Nothing here kept
+    either, so an arm with no reply had no record of why: five arms of seed 89's
+    run (28 October) ended answer_available_but_never_served and no file said
+    which phase had given up.
+    """
+    failures = dict(getattr(runtime, "failures", {}) or {})
+    notes = dict(getattr(runtime, "failure_notes", {}) or {})
+    return {name: str(notes.get(name, "")) for name, count in failures.items() if count > counted.get(name, 0)}
+
+
 def _steered_valence() -> float | None:
     """The valence activation the steering hooks read, on the scale they read it.
 
@@ -409,6 +422,7 @@ async def main(argv: list[str] | None = None) -> int:
             item: dict[str, tuple[str, float, bool]] = {}
             served_by: dict[str, list[dict[str, Any]]] = {}
             steered: dict[str, float | None] = {}
+            failed: dict[str, dict[str, str]] = {}
             for arm, (towards, domain) in plan.items():
                 runtime.restore(anchor.snapshot)
                 held: dict[str, float] = {}
@@ -426,7 +440,9 @@ async def main(argv: list[str] | None = None) -> int:
 
                 answers = record_answers()
                 before = _what_she_had_said(runtime.state)
+                counted = dict(getattr(runtime, "failures", {}) or {})
                 await runtime.turn_once(asked, perturb_at=0, perturb=displace, sustain=_hold(held))
+                failed[arm] = _phases_that_failed(runtime, counted)
                 reply = _said_this_turn(runtime.state, before, answers)
                 valence = float(getattr(runtime.state.affect, "valence", 0.0) or 0.0)
                 item[arm] = (reply, valence, _cortex_answered(answers, reply, runtime.state) if args.whole else True)
@@ -439,7 +455,7 @@ async def main(argv: list[str] | None = None) -> int:
             # every anchor it finished.
             _note_anchor(
                 run_dir,
-                {"anchor": index, "arms": item, "answered": served_by, "steered": dict(steered)},
+                {"anchor": index, "arms": item, "answered": served_by, "steered": dict(steered), "phase_failures": failed},
             )
             _log(f"  anchor {index + 1}/{len(anchors)}")
 

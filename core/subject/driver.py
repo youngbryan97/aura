@@ -852,7 +852,10 @@ class SubjectRuntime(_HeldHost):
             except BaseException as exc:  # noqa: BLE001 - a phase that dies is a reading
                 self.failures[name] = self.failures.get(name, 0) + 1
                 self.failure_notes[name] = f"{type(exc).__name__}: {exc}"[:200]
-                logger.debug("phase %s failed: %s", name, exc)
+                # At warning: at debug, five reports arms of seed 89 ended with
+                # an answer held and unserved and the stream never said a phase
+                # had given up. No campaign phase failed on that seed.
+                logger.warning("phase %s failed: %s", name, self.failure_notes[name])
             if self.frozen_host is not None:
                 self.state.soma.hardware.update(self.frozen_host)
                 if self.frozen_latency is not None:
