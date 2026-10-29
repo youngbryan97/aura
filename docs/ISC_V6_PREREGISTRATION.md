@@ -995,3 +995,21 @@ core-only model extrapolates held levels of the core outside their training rang
 23 of 24. That total is reported beside the v7 total, as the addendum of 27 October requires, and is never added to
 it. Nothing else changes: the lines and their bars, the seed and its commit, the reports verdict on the v3 reading,
 and the rule that no total combines v6 and v7.
+
+## Addendum, 29 October 2026, afternoon: seed 97's reports run resumes at 377a40b85
+
+Written at 16:12, before the resumed run has started. No seed 97 report reading has been graded or read for its
+direction. Anchor 0 is written; anchor 1 had not finished.
+
+At 15:51 the run's process-tree guard stopped her cortex in the middle of anchor 0's sham arm. The gate declined to
+reload it on a memory reading of 21.2 GB free. Under the experiment clock the gate's memory memo is timed by her
+monotonic, which a restore rewinds, so that one reading was served for every later admission while the machine had 32
+GB. Each later arm waited 900 s and ended in the failure floor: anchor 0's sham and control arms were not answered by
+her cortex, and anchor 1 had started the same way.
+
+The run is stopped and resumed from `run_001` with the reports tool's own `--resume`, which carries anchor 0 forward
+as written and measures anchors 1 to 79. The commit is 13cca3bf9 plus 377a40b85, which changes two things: the memo
+ages on `perf_counter`, and the driver asks the gate again when her cortex is stopped and nothing is reloading it.
+Nothing in her state, her organs, the steering, the anchors' seed or the grader changes. The chain is paused, not
+ended, so its own step 5 reads the resumed run and gives the official numbers. The same was done for seed 7's
+withheld reports run on 22 October.
