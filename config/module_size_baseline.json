@@ -3,7 +3,7 @@
   "description": "Modules already above the size thresholds, and the total oversize budget. Individual entries may move; the total may only shrink. A file that has shrunk must be re-recorded, because a stale entry is headroom nobody earned.",
   "max_new_module_lines": 2000,
   "max_new_class_methods": 30,
-  "oversize_budget_lines": 124304,
+  "oversize_budget_lines": 123749,
   "modules": {
     "core/adaptation/adaptive_immunity.py": {
       "lines": 3693,
@@ -153,10 +153,6 @@
       "lines": 1057,
       "max_class_methods": 32
     },
-    "core/consciousness/affective_steering.py": {
-      "lines": 2503,
-      "max_class_methods": 16
-    },
     "core/consciousness/liquid_substrate.py": {
       "lines": 1495,
       "max_class_methods": 34
@@ -166,7 +162,7 @@
       "max_class_methods": 32
     },
     "core/consciousness/phi_core.py": {
-      "lines": 2939,
+      "lines": 2871,
       "max_class_methods": 56
     },
     "core/container.py": {
@@ -243,7 +239,7 @@
     },
     "core/memory/memory_facade.py": {
       "lines": 1802,
-      "max_class_methods": 59
+      "max_class_methods": 57
     },
     "core/mycelium.py": {
       "lines": 4644,

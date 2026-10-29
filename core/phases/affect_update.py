@@ -11,6 +11,7 @@ from core.health.degraded_events import get_unified_failure_state
 from core.kernel.bridge import Phase
 from core.phases.affect_readings import AFFECT_UPDATE_ERRORS as _AFFECT_UPDATE_ERRORS
 from core.phases.affect_readings import AffectReadings
+from core.phases.affect_readings import _clip01
 from core.phases.affect_appraisal import TurnAppraisal
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.self.still_standing import note_turn
@@ -370,16 +371,8 @@ class AffectUpdatePhase(Phase):
         #: What the turn meant to her, and the feelings that makes.
         self.appraisal = TurnAppraisal(self._record_phase_degradation, gain=PERCEPT_GAIN, bump=bump_emotion)
 
-    @staticmethod
-    def _clip01(value: Any) -> float:
-        try:
-            return max(0.0, min(1.0, float(value)))
-        # not a failure: a value that is not a number is not one this can read.
-        except (TypeError, ValueError):
-            return 0.0
-
     def _set_emotion(self, affect: AffectVector, emotion: str, value: Any) -> None:
-        affect.emotions[emotion] = self._clip01(value)
+        affect.emotions[emotion] = _clip01(value)
 
     def _bump_emotion(self, affect: AffectVector, emotion: str, delta: float) -> None:
         """Raise a feeling by a share of the room it has left.
@@ -1629,15 +1622,15 @@ class AffectUpdatePhase(Phase):
 
         modifiers = dict(getattr(state.cognition, "modifiers", {}) or {})
         failure_state = dict(modifiers.get("system_failure_state", {}) or {})
-        failure_pressure = self._clip01(failure_state.get("pressure", 0.0))
+        failure_pressure = _clip01(failure_state.get("pressure", 0.0))
         continuity = dict(modifiers.get("continuity_obligations", {}) or {})
-        continuity_pressure = self._clip01(continuity.get("continuity_pressure", 0.0))
+        continuity_pressure = _clip01(continuity.get("continuity_pressure", 0.0))
         percept_types = {str(p.get("type", "")).strip().lower() for p in recent_percepts if isinstance(p, dict)}
         dialogue_validation = dict(getattr(state, "response_modifiers", {}) or {}).get("dialogue_validation", {}) or {}
         violations = set(dialogue_validation.get("violations", []) or [])
         signal_status = dict(getattr(state, "response_modifiers", {}) or {}).get("interaction_signals", {}) or {}
         fused = dict(signal_status.get("fused", {}) or {})
-        hesitation = self._clip01(fused.get("hesitation", 0.0))
+        hesitation = _clip01(fused.get("hesitation", 0.0))
 
         if (
             failure_pressure >= 0.15
@@ -1669,7 +1662,7 @@ class AffectUpdatePhase(Phase):
         relief = 0.24
         if percept_types.intersection(_REASSURANCE_PERCEPTS):
             relief = 0.34
-        conversation_energy = self._clip01(getattr(state.cognition, "conversation_energy", 0.5))
+        conversation_energy = _clip01(getattr(state.cognition, "conversation_energy", 0.5))
         if conversation_energy >= 0.65:
             relief = max(relief, 0.3)
 

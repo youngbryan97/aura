@@ -95,6 +95,7 @@ def evaluate(arguments) -> int:
     import numpy as np
 
     from core.consciousness.affective_steering import MEASUREMENT_BASIS_ENV, AffectiveSteeringEngine
+    from core.consciousness.steering_vectors import is_fitted_basis
     from core.consciousness.fusion_probe import (
         SETTLE_UPDATES,
         VOICE_PROMPT,
@@ -153,7 +154,7 @@ def evaluate(arguments) -> int:
             print(f"steering did not attach: {engine._model_info.get('attachment_error')}", file=sys.stderr)
             return 2
         hooks = list(engine._hooks)
-        if not hooks or not all(hook._is_fitted_basis() for hook in hooks):
+        if not hooks or not all(is_fitted_basis(hook._vectors.values()) for hook in hooks):
             print("the attached directions are not a fitted basis", file=sys.stderr)
             return 2
 

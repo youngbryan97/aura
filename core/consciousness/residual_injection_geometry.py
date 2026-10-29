@@ -161,3 +161,38 @@ __all__ = [
     "inject",
     "injection_mode",
 ]
+
+
+def position_norm_scale(h: Any) -> Any:
+    """Each position's own residual norm, the scale a fitted basis was fitted at.
+
+    Left on the GPU for the reason given under residual_reference_scale.
+    """
+    import mlx.core as mx
+
+    return mx.linalg.norm(h.astype(mx.float32), axis=-1, keepdims=True)
+
+
+def residual_reference_scale(h: Any) -> Any:
+    """Mean per-token norm of the residual stream this block is emitting.
+
+    The reference alpha is measured against. Computed from the activation
+    itself rather than from a table of model sizes, so a model this code
+    has never seen gets the right scale without anyone editing a constant.
+
+    Falls back to 1.0 — the previous absolute behaviour — if the norm
+    cannot be taken. That is the conservative direction: it under-steers
+    rather than injecting an unbounded multiple into the stream.
+
+    Left on the GPU as part of the forward pass. Read back with float() it
+    stopped the pass at every steered block, sixteen times a token:
+    MEASURED 20 October 2026 on her 27B, 17.4 tokens a second plainly and
+    14.1 with the hooks (tools/her_decode_with_each_channel.py).
+    """
+    try:
+        import mlx.core as mx
+
+        magnitude = mx.mean(mx.linalg.norm(h.astype(mx.float32), axis=-1))
+        return mx.where(mx.isfinite(magnitude) & (magnitude > 0.0), magnitude, 1.0)
+    except (AttributeError, ImportError, TypeError, ValueError, ZeroDivisionError):
+        return 1.0

@@ -25,7 +25,6 @@
       "core/brain/llm/mlx_warmup_and_adapters.py": 1,
       "core/brain/llm/mlx_worker_surface_repair.py": 1,
       "core/brain/semantic_memory.py": 1,
-      "core/consciousness/affective_steering.py": 3,
       "core/consciousness/crsm_loop_monitor.py": 1,
       "core/consciousness/hot_engine.py": 2,
       "core/consciousness/phi_core.py": 2,
@@ -50,7 +49,7 @@
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 58
+    "total": 55
   },
   "front": {
     "per_file": {
