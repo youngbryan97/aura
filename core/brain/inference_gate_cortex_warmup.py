@@ -177,7 +177,14 @@ class _WatchesTheCortexComeUp:
         if probe is _FACADE_VIRTUAL_MEMORY:
             probe = psutil.machine_virtual_memory
         probe_key = id(probe)
-        now = time.monotonic()
+        # The reading ages on the machine's clock too. Under a run's experiment
+        # clock this module's `time.monotonic` is hers: it moves a step a frame,
+        # stands still while a turn waits, and rewinds with every restore, and
+        # a rewind leaves `now` behind the stamp, where every age passes the
+        # TTL. Seed 97's report run on 29 October was refused her cortex arm
+        # after arm on one reading taken at 15:53 (21.2 GB free) while the
+        # machine had 32 GB. perf_counter is never given to her.
+        now = time.perf_counter()
         with InferenceGate._virtual_memory_memo_lock:
             memo = InferenceGate._virtual_memory_memo
             if (
