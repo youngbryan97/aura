@@ -25,6 +25,14 @@ logger = logging.getLogger("Consciousness.Homeostasis")
 class HomeostasisEngine(AuraBaseModule):
     # Drive names for iteration
     DRIVE_NAMES = ("integrity", "persistence", "curiosity", "metabolism", "sovereignty")
+    #: The setpoint each drive was designed for, and returns to when nothing drains it.
+    DESIGNED_SETPOINTS = {
+        "integrity": 0.90,
+        "persistence": 0.85,
+        "curiosity": 0.55,
+        "metabolism": 0.65,
+        "sovereignty": 0.95,
+    }
 
     def __init__(self):
         super().__init__("HomeostasisEngine")
@@ -44,13 +52,7 @@ class HomeostasisEngine(AuraBaseModule):
         # based on what the system can actually sustain — if integrity is
         # chronically low, the setpoint drifts down rather than forcing
         # a perpetual error signal.
-        self._setpoints: Dict[str, float] = {
-            "integrity": 0.90,
-            "persistence": 0.85,
-            "curiosity": 0.55,
-            "metabolism": 0.65,
-            "sovereignty": 0.95,
-        }
+        self._setpoints: Dict[str, float] = dict(self.DESIGNED_SETPOINTS)
         self._setpoint_adaptation_rate = 0.001  # Per-pulse drift toward achievable
         self._proportional_gain = 0.02          # 2% of error per pulse tick
 
@@ -206,11 +208,24 @@ class HomeostasisEngine(AuraBaseModule):
 
         # ── 3. Adaptive Setpoint Drift ────────────────────────────────────
         # If a drive is chronically unable to reach its setpoint, the
-        # setpoint drifts down. If it consistently exceeds, drifts up.
+        # setpoint drifts down; and it drifts back toward the level it was
+        # designed for, at the same rate, so it returns once the drain ends.
+        #
+        # It used to drift only toward the level reached. The pull above
+        # never lifts a drive past its setpoint, so the setpoint could only
+        # fall: any steady drain walked it to its floor and held the drive
+        # near the floor minus the drain. MEASURED (29 October) on the seed-89
+        # carrier's recording and seed 97's campaign: prospective dread, which
+        # reads these levels against a fixed threshold, rose from 0.40 to 0.97
+        # between turns 1400 and 2200 and stayed there for the last third of
+        # each run. No integrity breach was logged, and only a drive with a
+        # floor of zero can read 0.97. This drift fits it: a steady anxiety of 0.2 gives
+        # dread 0.99 within 5000 pulses, and 0.43 for good once it stops.
         for drive_name in self.DRIVE_NAMES:
             current = getattr(self, drive_name)
             setpoint = self._setpoints[drive_name]
-            drift = (current - setpoint) * self._setpoint_adaptation_rate
+            home = self.DESIGNED_SETPOINTS[drive_name]
+            drift = ((current - setpoint) + (home - setpoint)) * self._setpoint_adaptation_rate
             self._setpoints[drive_name] = max(0.2, min(0.98, setpoint + drift))
 
         # ── 4. Curiosity Natural Decay ────────────────────────────────────
