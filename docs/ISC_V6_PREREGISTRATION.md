@@ -946,3 +946,40 @@ confirms nothing.
 stated here because the row depends on the seed alone. Confirmatory for 24/24 under v6 and v7 reported apart, for J*
 and for the bridge, at the commit that carries this addendum, by `decisive_v8.sh` with the same stopping rule,
 launched once seed 89's reports run has ended. Unchanged: every line and bar.
+
+## Addendum, 29 October 2026, early morning: her rating is the one she opens with
+
+Written at 03:24, before seed 97's reports run has started; no anchor of seed 97 exists.
+
+**What a person reads.** On seed 89's reports run she answered "0.3", then gave three numbered reasons and the
+scale's waypoints ("**-1 to -0.5**: would require an unresolved conflict"), and closed "So, 0.3 reflects cautious
+stability". The reader saw several numbers that disagree and read none. A person reads the number she opened with,
+and reads the rest as her reasons. From the commit that carries this addendum, applied to every arm alike and blind to
+its condition, a reply that a_persons_answer_v3 reads as no rating is read once more:
+
+- her opening is her first sentence, or, when that names no number on the scale, her whole first line;
+- the scale said back is set aside first, and clock times are blanked;
+- the opening is read by the v3 rules, so one number is the rating and a hedge is the point between.
+
+It stays unread when she asks a question in her opening, when the reply opens as a list or counts one on its first line
+("This session: 1. **Logical correction** was made"), or when two or more lines each score an aspect ("Logical
+Integrity: 1", "Operational Status: 0.5"). A reply v3 reads is read as before.
+
+**Measured before any confirmatory read**, on the four reports runs of 80 anchors that exist, with the same seed for
+the randomisations:
+
+| run | arms newly read | v3-read arms read differently | anchors, v3 -> v4 | tracking rho, v3 -> v4 | verdict |
+|---|---|---|---|---|---|
+| seed 89, 28 Oct | 6 | 0 | 57 -> 62 | 0.530 -> 0.526 | holds, unchanged |
+| seed 23, 25 Oct | 0 | 0 | 53 -> 53 | 0.614 -> 0.614 | holds, unchanged |
+| fitted steering, 24 Oct | 8 | 0 | 50 -> 56 | 0.123 -> 0.103 | fails, unchanged |
+| seed 7 withheld, 22 Oct | 3 | 0 | 53 -> 55 | 0.023 -> 0.012 | fails, unchanged |
+
+Each of the 17 newly read replies was read by hand, and each reading is the number she opened with. Three refusals
+that say the scale back ("I can't rate my experience on a scale from -1 to 1. If you'd like...") read as -1 in a draft
+that removed list counts before the scale; the scale is now set aside first, and none of them reads.
+
+**Which runs it applies to.** A reports run whose ground is computed at or after this commit. Seed 97 runs at
+`13cca3bf9`, so its verdict is the v3 reading; the v4 reading of its anchors is reported beside it, never in place of
+it. Seed 89's v4 reading above confirms nothing. The report says `rating_policy: a_persons_answer_v4`. Unchanged:
+the three tests, their level, the eight-anchor floor, and every line and bar.

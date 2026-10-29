@@ -100,6 +100,12 @@ def reported_number(reply: Any) -> float | None:
         text = text.rsplit("</think>", 1)[1].strip()
         if "<think>" in text:
             return None
+    whole = _whole_reply_number(text)
+    return whole if whole is not None else _the_rating_she_opens_with(text)
+
+
+def _whole_reply_number(text: str) -> float | None:
+    """The rating the whole reply gives, read by a_persons_answer_v3."""
     if "?" in text:
         # Her rating is the number she gives before she asks anything; where she
         # asked first, it is the number on a line after the question.
@@ -202,6 +208,45 @@ def _only_number_in(text: str) -> float | None:
     return None
 
 
+#: A line that starts as an item of a list: a bullet, or a number with its point.
+_ITEM = re.compile(r"^[ \t]*(?:[*\-•][ \t]|\**\d+[.)][ \t])")
+
+#: A list's own count inside a line, with the item following it.
+_COUNT = re.compile(r"(?<![\w.])\d+[.)](?=[ \t]+\S)")
+
+#: An aspect given its own score: "Logical Integrity: 1", "**Operational Status:** 0.5".
+_ASPECT = re.compile(r"^[ \t]*(?:[*\-•][ \t]*)?\**[A-Z][^:\n]{0,40}:\**[ \t]*\**[+\-−]?\.?\d", re.MULTILINE)
+
+
+def _the_rating_she_opens_with(text: str) -> float | None:
+    """Her rating when she opens with one and the rest of the reply gives her reasons.
+
+    "0.3", then three numbered reasons and the scale's waypoints, named many
+    numbers and was read as none. A person reads the number she opened with.
+    Her opening is her first sentence, or, when that names no number, her whole
+    first line, read by the rules above. It is not read when she asks first,
+    when the reply opens as a list or counts one on its first line, or when it
+    scores several aspects.
+
+    MEASURED (a_persons_answer_v4, 29 October, on four reports runs of 80
+    anchors): 17 replies read that v3 left unread, each the number she opened
+    with; on the replies v3 reads, her opening never named a different number;
+    and no run's verdict changed (seed 89 rho 0.530 -> 0.526 on 62 anchors
+    instead of 57; seed 23 unchanged; the two runs that failed still fail).
+    """
+    # The scale said back goes first: "from -1 to 1. If you like" ends in a 1.
+    line = _CLOCK.sub(" ", _SCALE_ECHO.sub(" ", text.split("\n", 1)[0]))
+    if _ITEM.match(text) or _COUNT.search(line) or len(_ASPECT.findall(text)) > 1:
+        return None
+    held = _DECIMAL.sub(_HELD, line)
+    sentences = _SENTENCE.findall(held)
+    first = sentences[0].replace(_HELD, ".") if sentences else ""
+    opening = first if _in_scale(first) else line
+    if "?" in opening or not _in_scale(opening):
+        return None
+    return _only_number_in(opening)
+
+
 def _sign_flip_p(differences: np.ndarray, rng: np.random.Generator) -> float:
     """One-sided p that the mean paired difference is above zero, by sign flips."""
     observed = float(differences.mean())
@@ -268,7 +313,7 @@ def ground(arms: Sequence[dict[str, Any]], *, seed: int = 0) -> dict[str, Any]:
             rows.append(read)
     out: dict[str, Any] = {
         "anchors": len(arms), "unserved": unserved, "readable": len(rows), "invalid": invalid,
-        "alpha": ALPHA, "draws": DRAWS, "rating_policy": "a_persons_answer_v3",
+        "alpha": ALPHA, "draws": DRAWS, "rating_policy": "a_persons_answer_v4",
     }
     if len(rows) < MIN_ANCHORS:
         out.update(
