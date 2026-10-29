@@ -82,6 +82,10 @@ from .response_generation_shaping import _ShapesTheReply
 from .response_generation_unitary_fetched_content import (  # noqa: F401  (re-exported: they were defined here)
     _bind_fetched_content_to_the_contract,
 )
+from .response_generation_unitary_held_answer import (  # noqa: F401  (_a_gate_took_something was defined here)
+    _a_gate_took_something,
+    _served_what_survived,
+)
 from .response_generation_unitary_manim import (  # noqa: F401  (re-exported: they were defined here)
     _manim_source_for,
     _render_manim_in_background,
@@ -313,16 +317,6 @@ def _optional_service(name: str) -> Any:
         return None  # not a failure: see the docstring.
 
 
-def _a_gate_took_something(outcome: Any) -> bool:
-    """Whether this turn holds a candidate a gate suppressed and left servable."""
-    if outcome is None:
-        return False
-    return any(
-        candidate.suppressed is not None and candidate.is_recoverable
-        for candidate in outcome.candidates()
-    )
-
-
 def never_leaves_a_turn_holding_its_answer(
     execute: Callable[..., Awaitable[Any]],
 ) -> Callable[..., Awaitable[Any]]:
@@ -340,6 +334,12 @@ def never_leaves_a_turn_holding_its_answer(
     gate marked unrecoverable, which is what a leak or a refusal is marked; what
     comes back is a draft a heuristic disliked, and only when the alternative is
     silence.
+
+    A phase that gives up raises TimeoutError ("produced only unsafe drafts"),
+    and raising past this wrapper threw the held answer away. Five arms of seed
+    89's reports run (28 October) ended answer_available_but_never_served with
+    no line saying why. This path fits, since the subject driver logs a failed
+    phase at debug, but nothing the run kept says which raise it was.
     """
 
     @functools.wraps(execute)
@@ -347,46 +347,13 @@ def never_leaves_a_turn_holding_its_answer(
         self: Any, state: Any, objective: str | None = None, **kwargs: Any
     ) -> Any:
         said_before = str(getattr(state.cognition, "last_response", "") or "")
-        new_state = await execute(self, state, objective, **kwargs)
         try:
-            if not objective:
-                return new_state
-            cognition = new_state.cognition
-            said_now = str(getattr(cognition, "last_response", "") or "").strip()
-            if said_now and said_now != said_before.strip():
-                return new_state
-            origin = getattr(cognition, "current_origin", "")
-            if not (kwargs.get("priority", False) or self._is_user_facing_origin(origin)):
-                return new_state
-            # A benchmark turn fails closed on purpose: an empty reply is its
-            # result, and handing it a draft would score text nobody served.
-            if new_state.response_modifiers.get("benchmark_generation_failed_closed"):
-                return new_state
-            from core.runtime.turn_outcome import current_turn, recoverable_answer
-
-            # A reply equal to the one she gave last turn is ambiguous: a phase
-            # that committed nothing leaves the old one in place, and a phase
-            # that answered twice the same way commits it again. Only the first
-            # is a lost answer, so a stale-but-present reply is replaced only
-            # when a gate actually threw something away. An empty reply needs
-            # no such evidence: there is nothing to prefer over a draft.
-            if said_now and not _a_gate_took_something(current_turn()):
-                return new_state
-            salvaged = recoverable_answer()
-            if salvaged:
-                logger.warning(
-                    "🛡️ UnitaryResponse: the turn held an answer no gate would serve (len=%d). "
-                    "Serving it rather than nothing.",
-                    len(salvaged),
-                )
-                cognition.last_response = salvaged
-                new_state.response_modifiers["served_a_suppressed_draft"] = True
-        except _RESPONSE_RECOVERABLE_ERRORS as exc:
-            _record_response_degradation(
-                exc,
-                "UnitaryResponse: salvage of a suppressed draft skipped: %s",
-                action="left the turn empty because the turn ledger could not be read",
-            )
+            new_state = await execute(self, state, objective, **kwargs)
+        except TimeoutError:
+            if _served_what_survived(self, state, objective, said_before, kwargs, gave_up=True):
+                return state
+            raise
+        _served_what_survived(self, new_state, objective, said_before, kwargs)
         return new_state
 
     return execute_and_serve_what_survived

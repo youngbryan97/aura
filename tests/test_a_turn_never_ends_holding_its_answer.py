@@ -148,3 +148,49 @@ def test_an_empty_reply_still_takes_whatever_survived():
 
     served = asyncio.run(go())
     assert served.cognition.last_response == "A draft nobody rejected."
+
+
+class _GivesUp(_Phase):
+    """The phase when its retry and its floor both fail the reliability check."""
+
+    def __init__(self, raises: BaseException) -> None:
+        super().__init__("")
+        self.raises = raises
+
+    @never_leaves_a_turn_holding_its_answer
+    async def execute(self, state, objective=None, **kwargs):
+        raise self.raises
+
+
+_GAVE_UP = TimeoutError(
+    "Foreground conversation lane produced only unsafe drafts: "
+    "unsupported_self_condition_operational_claim"
+)
+
+
+def test_a_phase_that_gives_up_still_serves_what_the_turn_holds():
+    """LIVE 2026-10-28, seed 89's reports run: asked to rate how she felt from
+    -1 to +1, her cortex answered twice, the reliability gate suppressed both
+    drafts as recoverable, and the turn ended answer_available_but_never_served
+    with her last reply, from the anchor's snapshot, still in place. When the
+    retry and the floor both fail, this is how the phase ends."""
+    served = _ran(_GivesUp(_GAVE_UP), _state(said="earlier"))
+    assert served.cognition.last_response == "A draft a heuristic disliked, and an answer."
+    assert served.response_modifiers["served_a_suppressed_draft"] is True
+
+
+def test_a_phase_that_gives_up_holding_nothing_still_fails():
+    state = _state(said="earlier")
+
+    async def go():
+        with bind_turn(TurnOutcome(origin="user")):
+            return await _GivesUp(_GAVE_UP).execute(state, "how are you?")
+
+    with pytest.raises(TimeoutError, match="only unsafe drafts"):
+        asyncio.run(go())
+    assert state.cognition.last_response == "earlier"
+
+
+def test_a_stop_is_never_turned_into_an_answer():
+    with pytest.raises(asyncio.CancelledError):
+        _ran(_GivesUp(asyncio.CancelledError("user_requested_stop")), _state())
