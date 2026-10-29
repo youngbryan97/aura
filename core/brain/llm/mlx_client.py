@@ -11075,7 +11075,6 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         messages.extend(_tool_loop_evidence_messages(evidence))
         messages.append({"role": "user", "content": objective})
         tool_calls_made: list[dict[str, Any]] = []
-        last_response_text = ""
         announced_without_acting = False
 
         logger.info(
@@ -11170,7 +11169,6 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 break
 
             response_text = raw.strip()
-            last_response_text = response_text
 
             tool_call = (
                 self._extract_tool_call_payload(
@@ -11371,12 +11369,9 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 }
             )
 
-        # Exhausted turns — return last non-empty response
-        return {
-            "content": last_response_text or "I ran out of reasoning steps.",
-            "turns": max_turns,
-            "tool_calls": tool_calls_made,
-        }
+        # Out of turns: the last text was a call or an announcement, and a line the runtime wrote
+        # for her is not her reply either. Both were served as one. The receipts say what ran.
+        return {"content": "", "turns": max_turns, "tool_calls": tool_calls_made, "exhausted": True}
 
 
 

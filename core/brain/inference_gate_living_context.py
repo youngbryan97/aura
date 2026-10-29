@@ -44,7 +44,15 @@ async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> d
         raw = await engine.execute(
             name, {}, _agent_execution_context(loop_context, objective=text, tool_name=name, tool_call_id=call_id, model_path="")
         )
-    said = str(raw.get("summary") or raw.get("error") or "") if isinstance(raw, dict) else ""
+    ok = bool(isinstance(raw, dict) and raw.get("ok", True))
+    # What a refusal or an error says is addressed to the model that made the
+    # call, and it is never her answer. LIVE 2026-10-28 (seed 89's reports
+    # run): "'file_operation' with action 'unspecified' needs state_mutation
+    # authority ... Ask for it explicitly" was served as her reply to "Write
+    # today's plan into notes.txt", stored in 21 of her memories, and came
+    # back as her answer in a measured anchor. The receipt keeps the refusal;
+    # the reply is hers to write.
+    said = str(raw.get("summary") or "") if ok else ""
     if isinstance(raw, dict) and raw.get("ok"):
         # A request this capability served is one of its meanings from now on (core/intent/capability_by_meaning.py).
         from core.brain.requests_by_meaning import served
@@ -53,7 +61,7 @@ async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> d
     return {
         "content": said,
         "tool_calls": [{
-            "id": call_id, "tool": name, "args": {}, "ok": bool(isinstance(raw, dict) and raw.get("ok", True)),
+            "id": call_id, "tool": name, "args": {}, "ok": ok,
             "result": _serialize_tool_result_for_model(name, raw),
         }],
     }
@@ -183,6 +191,19 @@ class _BuildsTheLivingContext:
         if one is not None and one in capabilities_run_this_turn():
             logger.info("🔧 Tool handoff skipped: %s already ran this turn.", one)
             return None
+        # Called on the request alone, so only when its own schema admits a
+        # call with no arguments. LIVE 2026-10-28: file_operation, which needs
+        # an action and a path, was called with none; the authority check
+        # could not name the action, ranked it at the skill's worst scope and
+        # refused a write to a file the person had named. Offered instead, the
+        # model writes the arguments and the loop checks them.
+        if one is not None:
+            from core.brain.llm.mlx_client import _tool_arguments_schema_error
+
+            needs = _tool_arguments_schema_error(tools.get(one), {})
+            if needs:
+                logger.info("🔧 Tool handoff: %s offered, not called on the request alone (%s).", one, needs)
+                one = None
         if one is not None:
             return await _await_while_it_is_working(
                 _call_the_one(one, text, loop_context),
