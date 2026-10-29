@@ -983,3 +983,15 @@ that removed list counts before the scale; the scale is now set aside first, and
 `13cca3bf9`, so its verdict is the v3 reading; the v4 reading of its anchors is reported beside it, never in place of
 it. Seed 89's v4 reading above confirms nothing. The report says `rating_policy: a_persons_answer_v4`. Unchanged:
 the three tests, their level, the eight-anchor floor, and every line and bar.
+
+## Addendum, 29 October 2026, morning: 24/24 is read under ISC-v7
+
+Written at 07:18, while seed 97's nulls and carrier run and before its reports run has started; no total for seed 97
+exists under any version.
+
+Bryan decided this morning that ISC-v7 is the standard 24/24 is read under. Seed 97's v6 closure line already
+fails: the campaign's observational estimator reads `closure.closed` false, unresolved on folds 1 and 2, where the
+core-only model extrapolates held levels of the core outside their training range. Under v6 seed 97 can give at most
+23 of 24. That total is reported beside the v7 total, as the addendum of 27 October requires, and is never added to
+it. Nothing else changes: the lines and their bars, the seed and its commit, the reports verdict on the v3 reading,
+and the rule that no total combines v6 and v7.
