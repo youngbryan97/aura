@@ -117,6 +117,9 @@ from core.consciousness.caa import ProductionCAA
 from core.consciousness.mood_weight import (
     NEUTRAL_MOOD as _NEUTRAL_MOOD,  # noqa: F401 — read from here by its test
 )
+from core.consciousness.mood_weight import (
+    signed_weight as _signed_weight,  # noqa: F401 — read from here by its test
+)
 from core.consciousness.phi_residual_sampler import PHI_SAMPLE_EVERY, PhiResidualSampler
 from core.consciousness.residual_injection_geometry import TRANSLATE as _TRANSLATE
 from core.consciousness.residual_injection_geometry import inject as _inject
