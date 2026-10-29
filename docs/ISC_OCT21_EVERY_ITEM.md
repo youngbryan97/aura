@@ -1730,3 +1730,32 @@ verdict is unchanged and the content run reports `relations_kept` beside it. Sma
 in words; nothing changes. Her voice is hers.
 
 The decisive reading on seed 73 started at 10:31 at `6658b0403`; its v6 probe passed at 10:41.
+
+## Seed 89: J* determined and the bridge at parity (28 October, 04:26 to 21:22)
+
+The decisive reading on seed 89 ran at `150f2c5fa` under the addendum of 27 October. Interventional closure read
+`CLOSED` over 1,034 swaps, the joint swap of everything outside K* moving K on 0 of 16 rolls. Content read
+`ONE_STRUCTURE`, the two geometries moving together at rho 0.484 against a sham floor of 0. The campaign (exit 0,
+14:56) passed 21 of the 22 lines it decides alone. The carrier (exit 0, 18:25) was authoritative with no clock valve:
+511 of 511 cuts decided at both lags, playback decided at none, duplication no help and recoding invariant. The reports run
+(80 anchors, 57 readable, 10,346 s on her cortex) held at tracking rho 0.530.
+
+J* is `DETERMINED_UP_TO_GAUGE`: carrier ACDGIMNPSW, structure identified as 20 orbits over 20 classes, lineage
+recorded over 7,855 stages. The bridge reads `AT_PARITY`, all five grounds holding. No earlier run reached either.
+ISC-v6 and ISC-v7 each pass 23 of 24, as seed 73 did under ISC-v6, and ISC-v5 22. The miss under both is `beats_every_null`: the
+recurrent reference read a normalised effective dimension of 0.4002 against the bar below 0.40, no null passing. The
+reference addendum of 28 October widens it; under it seed 89 reads 24/24, reported beside the verdict and never in
+place of it.
+
+ISC-v6's J* reads `NO_CARRIER`, because it takes the carrier's own observational closure, and that read `OPEN` on one
+of three folds. The fold's core-only loss was 24.7, from one held projection of her belief list jumping 777 training
+standard deviations when the list grew from seven beliefs to eight; held columns enter that gate as levels. See
+[the status page](ISC_STATUS.md#seed-89-28-october).
+
+The chain's last step lost its PATH. Its loop over the four reports assigned `path`, which zsh ties to `PATH`, so the
+scorer received an empty campaign directory and every later log line lost its timestamp. J* and both completion
+checks were whole. The scoring step was rerun as written at `150f2c5fa` (`score_isc_v5.after-path-fix.log`), the loop
+variable renamed before seed 97 read the script, and the run's log carries a dated note.
+
+Seed 97 started at 21:35 at `13cca3bf9`. Its v6 probe passed at 21:47 and the travel preflight at 21:49, with no
+holes.

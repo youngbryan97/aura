@@ -1,0 +1,376 @@
+{
+  "schema": "aura.isc.documentation_snapshot.v1",
+  "captured_at_utc": "2026-10-29T05:17:06+00:00",
+  "documentation_source_commit": "11fa69ccbd525ac967daad24c29d9b61c45d0a3e",
+  "experiment_commit": "150f2c5fa",
+  "seed": 89,
+  "scope_note": "Selected fields from the seed-89 decisive reading, confirmatory under the ISC-v6 preregistration's addendum of 27 October, with source hashes. The verdict is the one the run recorded; the wider reference of 28 October is reported beside it, never in place. Not a raw-data replication package.",
+  "entries": {
+    "joined_battery": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/campaign/run_001/subject_core_v5_verdict.json",
+        "sha256": "c6e97f3d73e90588b6e7d81fe638d027e8da99ecab981618cdce1094cbbad453",
+        "bytes": 189055
+      },
+      "reading": {
+        "v5_passed": 22,
+        "v6_passed": 23,
+        "v7_passed": 23,
+        "total": 24,
+        "isc_v5_on_this_seed": false,
+        "isc_v6_on_this_seed": false,
+        "isc_v7_on_this_seed": false,
+        "base_lines_failed": [
+          "partition_irreducibility",
+          "partition_beats_nulls",
+          "synergy",
+          "beats_every_null"
+        ],
+        "v5_lines": [
+          {
+            "criterion": "partition_irreducibility",
+            "passed": true,
+            "value": {
+              "decided": 511,
+              "cuts": 511,
+              "in_full": 511
+            },
+            "bar": "every cut decided at the preregistered design"
+          },
+          {
+            "criterion": "partition_beats_nulls",
+            "passed": true,
+            "value": {
+              "playback_decided": 0,
+              "nulls_that_pass": [],
+              "decided_at_every_cut": [],
+              "unswept": [],
+              "not_run_to_the_design": []
+            },
+            "bar": "playback decided nowhere, no passing null decided everywhere"
+          },
+          {
+            "criterion": "synergy",
+            "passed": false,
+            "value": [
+              0.09469,
+              0.26082,
+              0.18932,
+              0.083
+            ],
+            "bar": ">= 0.1 on the change, above its shifted null, and above its bootstrap null's 99th percentile by that null's spread, with clocks out"
+          }
+        ],
+        "v6_lines": [
+          {
+            "criterion": "synergy",
+            "passed": true,
+            "value": {
+              "A,S->G": {
+                "interaction": 8.152373,
+                "sham": 0.0,
+                "fraction": 1.043749,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              },
+              "P,M->W": {
+                "interaction": 0.575941,
+                "sham": 0.0,
+                "fraction": 0.803965,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 0.0035
+              },
+              "W,A->D": {
+                "interaction": 51.133876,
+                "sham": 0.0,
+                "fraction": 22.009287,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              },
+              "S,D->C": {
+                "interaction": 1.806894,
+                "sham": 0.0,
+                "fraction": 0.897568,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              }
+            },
+            "bar": "above a four-fork sham of the same form, one direction with whole vectors flipped in its null, and a tenth of the larger main effect, each at 0.01, registers out of the target"
+          }
+        ],
+        "v7_lines": [
+          {
+            "criterion": "causal_closure_of_the_core",
+            "passed": true,
+            "value": "CLOSED",
+            "bar": "every unit outside K* swapped alone, and all of them swapped at once, from donors at distances sharing no period, changes neither K nor K* within two turns"
+          }
+        ],
+        "beats_every_null": {
+          "passed": false,
+          "value": {
+            "reference_recurrent": 0.13077,
+            "reference_passes_the_conjunction": false,
+            "nulls_that_pass": [],
+            "worst_null": 0.59214
+          },
+          "bar": "no null passes the conjunction",
+          "detail": {}
+        }
+      }
+    },
+    "completion_v6": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/completion-v6.json",
+        "sha256": "cc4a77cf35394f56c7a29729386c5441432fc7e2fd1e23763b5824fc09fdbe94",
+        "bytes": 3941590
+      },
+      "reading": {
+        "complete": false,
+        "goals": {
+          "isc_v6_24_of_24": false,
+          "j_star": false,
+          "bridge_at_parity": false
+        },
+        "scope": "substrate_only",
+        "passed": 23,
+        "total": 24,
+        "failing_criteria": [
+          "beats_every_null"
+        ],
+        "evidence_blockers": [],
+        "battery_version": "v6",
+        "interpretation": "J* and parity are conditional on P1-P6; this is not a proof of those postulates."
+      }
+    },
+    "completion_v7": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/completion-v7.json",
+        "sha256": "728cc3992ff01a453a05c48c4cc332047022256c0e19a3d1b24063331604039b",
+        "bytes": 3941649
+      },
+      "reading": {
+        "complete": false,
+        "goals": {
+          "isc_v7_24_of_24": false,
+          "j_star": true,
+          "bridge_at_parity": true
+        },
+        "scope": "substrate_only",
+        "passed": 23,
+        "total": 24,
+        "failing_criteria": [
+          "beats_every_null"
+        ],
+        "evidence_blockers": [],
+        "battery_version": "v7",
+        "isc_v6_on_this_seed": false,
+        "v6_passed": 23,
+        "interpretation": "J* and parity are conditional on P1-P6; this is not a proof of those postulates."
+      }
+    },
+    "content": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/content/run_001/subject_core_content_report.json",
+        "sha256": "888dea8980365175ea43040e4553a944ff5cc45578e85ab9cf7f67f97c594a2d",
+        "bytes": 353527
+      },
+      "reading": {
+        "verdict": "ONE_STRUCTURE",
+        "scope": "substrate_only",
+        "displaced_domain": "A",
+        "agreement_bar": 0.3,
+        "agreement": {
+          "rho": 0.966605,
+          "p_value": 0.001,
+          "pairs": 190,
+          "internal_spread": 0.91061,
+          "behavioural_spread": 0.212594,
+          "measured": true,
+          "why": "both geometries varied and were scored over the same pairs",
+          "bar": 0.3
+        },
+        "moves_together": {
+          "rho": 0.484192,
+          "p_value": 0.001,
+          "internal_shift": 0.957317,
+          "behavioural_shift": 0.323554,
+          "floor_rho": 0.0,
+          "measured": true,
+          "why": "the displacement moved both geometries and the movements were compared against a sham floor",
+          "sham_internal_shift": 0.0,
+          "sham_behavioural_shift": 0.0,
+          "moved_p_value": 0.0,
+          "bar": 0.3
+        },
+        "relations_kept": {
+          "measured": true,
+          "pairs": 190,
+          "rank_correlation": 0.514666
+        },
+        "anchors_taken": 24,
+        "paired": true
+      }
+    },
+    "interventional_closure": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/interventional/interventional_closure.json",
+        "sha256": "9ccbfda34279bb05876a57508434a94fb86b7b0c6b467a5f40a3437bdec9e0ae",
+        "bytes": 525495
+      },
+      "reading": {
+        "seed": 89,
+        "verdict": "CLOSED",
+        "anchors": 8,
+        "joint_periphery": true,
+        "moves_k_star": [],
+        "coverage": {
+          "enumerated": 961,
+          "varied": 170
+        }
+      }
+    },
+    "reports": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/reports/run_001/report_grounding.json",
+        "sha256": "9eb83b573b52ed53cf1fc80afa8e6594c6a49820e357d596971a5e8c812c8061",
+        "bytes": 118026
+      },
+      "reading": {
+        "measured": true,
+        "holds": true,
+        "why": "her report moved with her valence and followed it across all three displacements",
+        "anchors": 80,
+        "readable": 57,
+        "invalid": 23,
+        "tracking": {
+          "rho": 0.530282,
+          "p": 9.999000099990002e-05
+        },
+        "direction": {
+          "mean_report_difference": 0.572807,
+          "p": 9.999000099990002e-05
+        },
+        "manipulation": {
+          "mean_valence_difference": 0.195375,
+          "p": 9.999000099990002e-05
+        },
+        "displaced": "A",
+        "control": "W",
+        "reached_her_cortex": {
+          "measured": true,
+          "anchors": 80,
+          "mean_raised_minus_lowered": 0.09786,
+          "bar": 0.05,
+          "reached": true,
+          "why": "the arms differed by +0.0979 of valence activation where her cortex reads it"
+        },
+        "rating_policy": "a_persons_answer_v3"
+      }
+    },
+    "carrier": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/carrier/launch_20261028_065030/coordinator/run_001/subject_core_v25_report.json",
+        "sha256": "5a541c3d77475767484a85b572f8fb122c7324fcf214d1ff5f8ae7b73c0bca90",
+        "bytes": 1360738
+      },
+      "reading": {
+        "authoritative": true,
+        "own_observational_closure": {
+          "verdict": "OPEN",
+          "leak": 0.015448,
+          "leak_lower": 0.014984,
+          "leak_upper": 0.015848,
+          "margin": 0.0196078431372549,
+          "leaking_folds": 1,
+          "dropped_folds": [
+            1
+          ],
+          "folds": [
+            {
+              "scored_rows": "1183-1775",
+              "loss_core": 24.718952,
+              "leak": 0.01563,
+              "floor_high": 0.006582,
+              "open": true,
+              "dropped": null
+            },
+            {
+              "scored_rows": "1775-2367",
+              "loss_core": 0.731181,
+              "leak": -0.048539,
+              "floor_high": 0.068019,
+              "open": false,
+              "dropped": true
+            },
+            {
+              "scored_rows": "2367-2959",
+              "loss_core": 0.495633,
+              "leak": 0.001228,
+              "floor_high": 0.001259,
+              "open": false,
+              "dropped": null
+            }
+          ]
+        },
+        "v25_nulls": {
+          "playback_is_zero": true,
+          "duplication_did_not_help": true,
+          "recoding_is_invariant": true
+        }
+      }
+    },
+    "j_star": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/solve_for_j.log",
+        "sha256": "19550731a39e3964e6b168cdb26e5583d58099066516489e5351163984492866",
+        "bytes": 776
+      },
+      "reading": {
+        "status": "DETERMINED_UP_TO_GAUGE",
+        "carrier": "FOUND",
+        "carriers": [
+          "ACDGIMNPSW"
+        ],
+        "structure": "IDENTIFIED",
+        "lineage": "RECORDED",
+        "bridge": "AT_PARITY",
+        "grounds": [
+          {
+            "key": "carrier",
+            "status": "HOLDS",
+            "why": "carrier ['ACDGIMNPSW']"
+          },
+          {
+            "key": "markers",
+            "status": "HOLDS",
+            "why": "perturbational_complexity, reentry, global_access pass"
+          },
+          {
+            "key": "reports",
+            "status": "HOLDS",
+            "why": "her report moved with her valence and followed it across all three displacements"
+          },
+          {
+            "key": "structure",
+            "status": "HOLDS",
+            "why": "the content run reported one structure"
+          },
+          {
+            "key": "lineage",
+            "status": "HOLDS",
+            "why": "the signed lineage verifies and her line developed at every step"
+          }
+        ]
+      }
+    },
+    "scoring_log": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-150f2c5fa-s89/score_isc_v5.after-path-fix.log",
+        "sha256": "25802eaefe14d468143ac0cf40148163e8d9631ab74aa6023405657c83abb1e3",
+        "bytes": 1114
+      },
+      "note": "The chain's own scoring step, rerun as written at 150f2c5fa after its first call received an empty campaign directory (zsh `path` is PATH; see decisive.log, 21:22)."
+    }
+  }
+}

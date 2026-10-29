@@ -1,19 +1,63 @@
 # ISC: what the latest results show
 
-Status: Guide · Source reconciled 25 October 2026 · through 5bc357b8c
+Status: Guide · Source reconciled 28 October 2026 · through 11fa69ccb
 
-**The completed run recorded 22 of 24 checks passing under ISC-v6.** Its
-separate content and self-report outputs were positive. A later isolation
-series found shared consequence history, shared degradation history and methods
-bound to frozen copies,
-so these paired results need rechecking before being presented as clean causal
-confirmation. There is no full ISC pass or settled five-ground bridge result.
+**Seed 89 passed 23 of 24 checks under ISC-v6 and under ISC-v7. J\* came out
+determined up to gauge and the five-ground bridge reads `AT_PARITY`, both for
+the first time.** It was a confirmatory reading, named before it ran, on source
+that carries the isolation repairs described below. The one failed check is
+`beats_every_null`: the recurrent reference, a positive control that must pass,
+read a normalised effective dimension of 0.4002 against a bar below 0.40, and
+no null passed. So the full completion check, which needs 24/24, J\* and the
+bridge together, reads incomplete. Seed 97 is the next confirmatory reading,
+with the reference built wider before it ran.
 
 If you are new to Aura, start with [ISC explained](ISC_EXPLAINED.md). It
 introduces the project, translates the test names and includes a short
 explanation you can use aloud. The numbers and source records follow below.
 
-## A new isolation finding changes how to read the results
+## Seed 89, 28 October
+
+The reading ran at `150f2c5fa` from 04:26 to 21:21 under the stopping rule of the
+ISC-v6 preregistration's addendum of 27 October. The isolation repair below
+(`dcdcd637c`) is in that commit. The
+[seed-89 evidence snapshot](evidence/ISC_SEED89_2026-10-28.json) holds the
+fields quoted here with a hash of each source file.
+
+| Question | Seed 89 | What remains open |
+|---|---|---|
+| Does the full operational battery pass? | ISC-v5 22/24 (fails synergy and `beats_every_null`); ISC-v6 23/24; ISC-v7 23/24 (fails `beats_every_null`) | 24/24 on a confirmatory seed |
+| Is the proposed carrier established? | The carrier run is authoritative. 511 of 511 cuts were decided and the playback control was decided at none; the carrier is all ten domains, ACDGIMNPSW. Closure by intervention reads `CLOSED` | The carrier's own observational closure gate read `OPEN`; see below |
+| Do internal and recall differences change together? | `ONE_STRUCTURE`. Moved together at rho 0.484, p 0.001, against a sham floor of 0; the two geometries agree at rho 0.967 | Confirmation on a further seed |
+| Do self-reports follow changed internal valence? | `holds: true`. Tracking rho 0.530, p 0.0001; she rated herself 0.573 higher when her valence was raised than when it was lowered; 57 of 80 anchors were readable | Measured under the layer-43 felt steering basis, which stays part of the claim |
+| J\* | `DETERMINED_UP_TO_GAUGE`: carrier found, structure identified (20 orbits over 20 classes), lineage recorded | Conditional on postulates P1 to P6 |
+| Do all five bridge grounds hold? | `AT_PARITY`: carrier, markers, reports, structure and lineage hold | Conditional on P1 to P6; not a proof of them |
+
+**The failed check.** The reference row reads no recording of hers and depends
+on the seed alone. Over seeds 1 to 200 it failed the same line on 62. The ISC-v6
+preregistration's addendum of 28 October, written before seed 97 ran, builds
+the reference six columns a domain wide, where it fails on none of 400 seeds.
+Under that reference seed 89's battery reads 24/24 under ISC-v6 and ISC-v7.
+That result is reported
+beside the recorded verdict and never in place of it, because the change came
+after seed 89 ran. Seed 97 started at 21:35 at `13cca3bf9`, which carries the
+wider reference.
+
+**ISC-v6 and ISC-v7 give different J\* verdicts.** ISC-v7 decides the carrier's
+closure by intervention, as preregistered, and reads J\* as determined. ISC-v6's
+J\* reads the carrier's observational closure gate instead and reports
+`NO_CARRIER`. One of that gate's three folds read open: its core-only loss was
+24.7, against 0.73 and 0.50 on the other two. A diagnostic refit of that fold
+on the saved recordings traces the loss to K\*'s held columns. The gate enters
+them as levels, where it enters the periphery as increments. One of them is a
+fixed projection of the self-model's belief list. When the list grew from seven
+beliefs to eight it jumped from about 1.02 to -0.52, 777 standard deviations of
+its spread over the training turns, and the linear fit extrapolated it into
+every target. Entered as increments, the core-only loss
+on that fold falls to 0.99. The diagnosis changes no recorded verdict, and an
+estimator change needs its own qualification and preregistration first.
+
+## An isolation finding changed how to read seed 23's results
 
 The [25 October isolation update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json)
 records a defect found after the seed-23 outputs were read. Each experimental
@@ -32,7 +76,7 @@ cuts after the fix. That is evidence about the repair, not a replacement
 campaign. The scores below remain the outputs of the original experiment.
 The effect of clean isolation on each paired result still needs measurement.
 
-## What the completed files recorded
+## What seed 23's files recorded (25 October)
 
 The seed-23 experiments finished overnight. Two questions that had failed in
 previous runs now have positive results:
@@ -56,7 +100,7 @@ Those code changes do not retroactively turn the completed run into a pass.
 The shared-history finding above also limits the causal reading of its paired
 positive results.
 
-## Recorded results and current method
+## Seed 23's recorded results and the method after it
 
 | Question | Last completed result | What remains open |
 |---|---|---|

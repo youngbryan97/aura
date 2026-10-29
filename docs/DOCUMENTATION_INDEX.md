@@ -6,7 +6,7 @@ Start with [the plain-English tour](PLAIN_ENGLISH_GUIDE.md), [variables and exam
 
 This map includes the source repository's Markdown pages and the new reading guides. It is an inventory, not a claim that every old document is a current capability statement. Historical records and frozen protocols retain their original wording; generated pages and standards retain their own sources.
 
-**983 Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.
+**985 Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.
 
 Definitions, examples and reading notes come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.
 
@@ -262,7 +262,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 
 ## Historical or frozen record
 
-761 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
+763 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
 
 | Page | Plain-language context |
 |---|---|
@@ -330,6 +330,8 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [Failures that predate this work](../artifacts/endogenous/failures_that_predate_this_work.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [The full offline suite, after this work](../artifacts/endogenous/full_suite_verdict.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Domain-specialist proof bundle — 2026-07-08, `modular` on Qwen2.5-1.5B-4bit](../artifacts/expert_specialists/2026-07-08-modular-1p5b/README.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
+| [Solutions implemented, proofs obtained, and the work still required](../artifacts/isc_clean_pass_solutions_2026-10-27/continuation/solutions.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
+| [Implemented remedies and the remaining qualification](../artifacts/isc_clean_pass_solutions_2026-10-27/implementation.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [Compounding weight-learning proof bundle — 2026-07-07, Qwen2.5-1.5B-4bit, 2 cycles](../artifacts/learning_compounding/2026-07-07-1p5b-2cycle/README.md) | [Learning and kept procedures](PLAIN_ENGLISH_GUIDE.md#learning) |
 | [Aura Phenomenal Consciousness Test Battery — Protocol](../artifacts/phenomenal/AURA_PHENOMENAL_BATTERY_RUN_20260604_020848/01_PROTOCOL/protocol.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [First live activation-grounded, null-corrected Φ](../artifacts/phi/LIVE_NULL_CORRECTED_PHI_2026-08-04.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
