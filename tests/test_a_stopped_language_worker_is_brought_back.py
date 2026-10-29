@@ -73,6 +73,37 @@ def test_a_stopped_worker_is_started_once_and_watched_until_ready(gate) -> None:
     assert gate["inference_gate"].warmups == 0
 
 
+class _DecliningGate(_Gate):
+    """A gate whose recovery declines to load the first few times it is asked."""
+
+    def __init__(self, declines: int, recovering: bool = False) -> None:
+        super().__init__(alive=False)
+        self.declines = declines
+        self._cortex_recovery_in_progress = recovering
+
+    async def _respawn_cortex_if_needed(self) -> None:
+        self.respawns += 1
+        if self.respawns > self.declines:
+            self._mlx_client.alive = True
+
+
+def test_a_recovery_that_ends_with_no_worker_is_asked_again(gate) -> None:
+    # Seed 97's report run, 29 October: the gate declined while the stopped
+    # worker's memory was still coming back, and the turn waited out 900 s.
+    gate["inference_gate"] = _DecliningGate(declines=2)
+    out = asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=True)))
+    assert out["recovered"] is True
+    assert out["asked"] == gate["inference_gate"].respawns == 3
+
+
+def test_a_recovery_still_working_is_not_asked_again(gate, monkeypatch) -> None:
+    monkeypatch.setattr(language_organ, "FOREGROUND_READY_S", 0.05)
+    gate["inference_gate"] = _DecliningGate(declines=10, recovering=True)
+    out = asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=True)))
+    assert out["recovered"] is False
+    assert gate["inference_gate"].respawns == 1
+
+
 def test_a_run_on_the_stub_organ_is_not_checked(gate) -> None:
     gate["inference_gate"] = _Gate(alive=False)
     assert asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=False))) == {"checked": False}

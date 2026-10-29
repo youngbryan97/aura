@@ -213,11 +213,15 @@ async def keep_language_ready(runtime: Any) -> dict[str, Any]:
     that two arms see the same computation, and anything else that might have
     noticed is stopped with them.
 
-    Only a stopped worker is acted on. The gate's own recovery is asked once and
-    then watched, never asked again while it works: asking the gate to warm the
+    Only a stopped worker is acted on. The gate's own recovery is asked, then
+    watched, and never asked again while it works: asking the gate to warm the
     lane on every recheck kept its startup quiet window open, and inside that
-    window the warmup itself is refused. A worker that is alive and still coming
-    up is left to the turn's own path.
+    window the warmup itself is refused. A recovery that ends with no worker is
+    asked again. In seed 97's report run on 29 October the gate declined to load
+    her cortex while the stopped worker's memory was still being returned (21.2
+    GB free; it wants 26), and since nothing asked again the turn waited out all
+    900 s although the memory was back within three minutes. A worker that is
+    alive and still coming up is left to the turn's own path.
 
     Checked before a turn's first frame, under the experiment clock, so the
     wait moves nothing in her. A turn her cortex could not serve still counts as
@@ -236,14 +240,20 @@ async def keep_language_ready(runtime: Any) -> dict[str, Any]:
     started = time.monotonic()
     logger.warning("her language organ's worker has stopped; asking the gate to start it again")
     await respawn()
+    asked = 1
     while time.monotonic() - started < FOREGROUND_READY_S:
-        if alive() and gate.get_conversation_status().get("conversation_ready"):
+        status = gate.get_conversation_status()
+        if alive() and status.get("conversation_ready"):
             seconds = round(time.monotonic() - started, 1)
-            logger.warning("her language organ's worker was back in %.0fs", seconds)
-            return {"checked": True, "recovered": True, "seconds": seconds}
+            logger.warning("her language organ's worker was back in %.0fs (asked %d times)", seconds, asked)
+            return {"checked": True, "recovered": True, "seconds": seconds, "asked": asked}
+        working = getattr(gate, "_cortex_recovery_in_progress", False) or status.get("warmup_in_flight")
+        if not alive() and not working:
+            await respawn()
+            asked += 1
         await asyncio.sleep(_RECHECK_S)
     logger.error("her language organ's worker did not come back within %.0fs", FOREGROUND_READY_S)
-    return {"checked": True, "recovered": False, "seconds": round(time.monotonic() - started, 1)}
+    return {"checked": True, "recovered": False, "seconds": round(time.monotonic() - started, 1), "asked": asked}
 
 
 @contextlib.contextmanager
