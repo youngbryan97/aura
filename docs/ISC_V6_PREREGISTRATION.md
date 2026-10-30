@@ -1100,3 +1100,47 @@ does, and the untuned model then says whether the route it tracks by is the tuni
 
 Seed 101's chain runs control 4 at its own commit and reports what that commit's rule says. The paper reports that
 reading and, beside it, the corrected rule applied to the same control files, and says which differs if one does.
+
+## Addendum, 30 October 2026, afternoon: near misses, and an ordinary language-model agent
+
+Written while seed 101 runs and before any of the systems below has been read by a line. It adds an experiment
+beside the campaign and changes no stage, bar, prediction or control of seed 101, and no campaign's null table: the
+systems below are kept out of `ARCHITECTURES`, so no comparison set moves.
+
+**Why.** Read line by line on seed 97's recorded table, every architecture in the null library fails two lines or
+more. The library shows the integration lines are distinct (nine pass/fail patterns over twenty architectures, the
+pass/fail matrix of rank 6 of 7), and not that each is needed on its own.
+
+**The near misses** (`core/subject/near_miss.py`). Each is the reference with one property taken out by a stated rule
+and nothing else changed. None is fitted to what a line reads, and none will be refitted after this runs: a near miss
+that fails more than its own line is reported as a construction that leaked into a second property.
+
+| Near miss | What is taken out | Predicted to fail |
+|---|---|---|
+| `near_miss_no_synergy` | every triple's product (the couplings stay) | synergy, and nothing else |
+| `near_miss_driven` | closure: one variable outside the ten domains, remembering 0.95 of its past, pushes all of them at a quarter of the reference's coupling strength | closure, and nothing else |
+| `near_miss_one_cut_vertex` | I and N reach the rest only through A | vertex connectivity, and nothing else |
+| `near_miss_one_way` | the way back from W, D, C, G, N to P, M, A, S, I (every triple kept) | strong connectivity, vertex connectivity and re-entry, and nothing else |
+| `near_miss_one_shock` | every domain's shocks are one shared shock | differentiation, and nothing else |
+| `near_miss_weakly_coupled` | every coupling kept at 0.3 of its strength | irreducibility, and nothing else |
+
+Against the battery: a near miss that passes every line, because then the line its property belongs to did not see
+the property go. A near miss that fails its own line and others too is not against the battery; it says the property
+could not be taken out alone by that rule.
+
+**The agent** (`stateless_agent`): a language model with no state of its own (context and reply rebuilt on every
+call), a memory store it reads and appends to, a fixed persona it reads and never changes, and the other five domains
+holding still because the architecture has nothing for them to be. A toy of that architecture, as every null is a toy
+of its own. Predicted:
+- with no input, nothing in it moves (a fact of the architecture, stated rather than discovered);
+- it fails strong connectivity, vertex connectivity and re-entry, because nothing it does reaches its input or its
+  persona;
+- Bryan's prediction, written in his words before the run: it fails irreducibility, because "a chatbot and a memory
+  store are separate systems that don't produce anything specifically new together".
+
+The reference is read in the same run. A run in which the reference fails a line has measured the instrument, and is
+reported as that.
+
+**Runs.** A smoke run at low settings (2 draws, 2 trials) to check the tool, reported as a smoke run. Then the
+reading, at the campaign's settings (`--null-draws 8 --trials 6`, seed 7), after seed 101's chain has ended:
+`tools/run_near_miss_decoys.py`.
