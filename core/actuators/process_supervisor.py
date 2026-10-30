@@ -27,6 +27,7 @@ from core.actuators.actuator_registry import ActuatorResult, BaseActuator
 from core.actuators.authority import verify_actuator_authority
 from core.container import ServiceContainer
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.wall_clock import wall_time
 
 try:  # POSIX-only; guarded so the module imports on every platform.
     import resource as _resource
@@ -456,8 +457,8 @@ class ProcessSupervisorActuator(BaseActuator):
                     pass
 
         _signal(signal.SIGTERM)
-        deadline = time.time() + graceful_deadline_s
-        while time.time() < deadline:
+        deadline = wall_time() + graceful_deadline_s
+        while wall_time() < deadline:
             if proc.poll() is not None:
                 break
             time.sleep(0.1)

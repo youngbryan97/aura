@@ -14,6 +14,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.task_ownership import create_owned_asyncio_task
+from core.runtime.wall_clock import monotonic_time
 
 #: The router's logger, so the wait's lines read as they always have.
 logger = logging.getLogger("Brain.HealthRouter")
@@ -150,9 +151,9 @@ async def _await_while_it_is_working(
             )
         ceiling = max(0.0, limit - float(budget_s))
         overrun = ceiling if person_is_waiting else min(ceiling, max(0.0, float(budget_s) * 3.0))
-        ends_at = time.monotonic() + overrun
+        ends_at = monotonic_time() + overrun
         said_it_once = False
-        while time.monotonic() < ends_at:
+        while monotonic_time() < ends_at:
             if task.done():
                 return task.result()
             if not still_producing(within_s=quiet_for, progress=progress):
@@ -163,7 +164,7 @@ async def _await_while_it_is_working(
                     "Endpoint past its %.1fs estimate; owned work is still advancing.",
                     budget_s,
                 )
-            interval = min(2.0, max(0.0, ends_at - time.monotonic()))
+            interval = min(2.0, max(0.0, ends_at - monotonic_time()))
             done, _ = await asyncio.wait({task}, timeout=interval)
             if done:
                 return task.result()

@@ -32,6 +32,7 @@ import math
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.wall_clock import monotonic_time
 
 __all__ = ["Behaviour", "what_it_does"]
 
@@ -174,8 +175,8 @@ async def _try_keys(page: Any, clip: dict[str, float], watch: _Watch, keys: list
             for held, how_long in ((key, HOLD_S), ("", HOLD_S)):
                 if held:
                     await page.keyboard.down(_KEY.get(held, held))
-                began = time.monotonic()
-                while time.monotonic() - began < how_long:
+                began = monotonic_time()
+                while monotonic_time() - began < how_long:
                     await _see(page, clip, watch, held, trying=True)
                 if held:
                     await page.keyboard.up(_KEY.get(held, held))
@@ -240,9 +241,9 @@ async def _play(page: Any, clip: dict[str, float], watch: _Watch, keys: list[str
 
     meeting = WhatMeetingDoes()
     held = ""
-    began = time.monotonic()
+    began = monotonic_time()
     counted = found_again_at = 0.0
-    while time.monotonic() - began < seconds:
+    while monotonic_time() - began < seconds:
         happened = await _see(page, clip, watch, held, trying=False)
         at = time.monotonic()
         _note_contacts(watch, at)

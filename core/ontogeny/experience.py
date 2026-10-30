@@ -54,6 +54,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_condition, checked_lock
 from core.runtime.state_ownership import state_root
 from core.runtime.sqlite_support import connecting
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.Ontogeny.Experience")
 
@@ -635,10 +636,10 @@ class ExperienceSpine:
         both need to know the holder finished, and neither can ask the
         connection, which belongs to the holder's thread.
         """
-        deadline = time.monotonic() + max(0.0, timeout)
+        deadline = monotonic_time() + max(0.0, timeout)
         with self._handles_changed:
             while self._open_handles > 0:
-                remaining = deadline - time.monotonic()
+                remaining = deadline - monotonic_time()
                 if remaining <= 0:
                     return False
                 self._handles_changed.wait(remaining)

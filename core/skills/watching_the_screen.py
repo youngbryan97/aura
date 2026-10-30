@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from core.skills.their_player import press, read_their_player, within_the_window
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.WatchingTheScreen")
 
@@ -320,8 +321,8 @@ class OnTheirScreen:
                                                                 source="core.skills.watching_the_screen",
                                                                 accelerator_capability="none")
         await opened.wait()
-        deadline = time.monotonic() + WINDOW_WAITED_S
-        while time.monotonic() < deadline:
+        deadline = monotonic_time() + WINDOW_WAITED_S
+        while monotonic_time() < deadline:
             self.window = await asyncio.to_thread(_window_showing, self.owner, self.title)
             if self.window is not None:
                 try:

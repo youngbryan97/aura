@@ -31,6 +31,7 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import monotonic_time
 from core.utils.task_tracker import get_task_tracker
 from core.voice.duplex import protocol
 from core.voice.duplex.addressivity import AddressivityGate
@@ -1759,7 +1760,7 @@ class DuplexVoiceSession:
         total = track.sent_duration_s
         if total <= 0:
             return
-        deadline = time.monotonic() + total + 3.0
+        deadline = monotonic_time() + total + 3.0
         while not track.token.cancelled and self._speaking is track:
             if (
                 self._client_playback_utterance_id == track.utterance_id
@@ -1768,7 +1769,7 @@ class DuplexVoiceSession:
                 return
             if self._client_played_s >= total - 0.05:
                 return
-            if time.monotonic() >= deadline:
+            if monotonic_time() >= deadline:
                 logger.debug(
                     "Playback drain fell back to wall clock (played %.2fs of %.2fs)",
                     self._client_played_s,

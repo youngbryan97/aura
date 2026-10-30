@@ -39,6 +39,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.proof_policy import proof_run_active
 from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.wall_clock import wall_time
 from core.security.execution_authority import (
     KIND_SHELL,
     authorize_execution,
@@ -1699,8 +1700,8 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
             file_exists(path) — check if file exists
             window_title_contains(text) — check window title
         """
-        start = time.time()
-        while (time.time() - start) < timeout:
+        start = wall_time()
+        while (wall_time() - start) < timeout:
             try:
                 result = await self._check_predicate(predicate_name, predicate_args)
                 if result:
@@ -1708,8 +1709,8 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
                         action="wait_for_condition",
                         target=f"{predicate_name}({predicate_args})",
                         adapter="poll", success=True,
-                        result=f"Condition met after {(time.time()-start)*1000:.0f}ms",
-                        duration_ms=(time.time() - start) * 1000,
+                        result=f"Condition met after {(wall_time()-start)*1000:.0f}ms",
+                        duration_ms=(wall_time() - start) * 1000,
                     )
             except (OSError, RuntimeError) as e:
                 logger.debug("Predicate check failed: %s", e)
@@ -1720,7 +1721,7 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
             target=f"{predicate_name}({predicate_args})",
             adapter="poll", success=False,
             error=f"Condition not met within {timeout}s",
-            duration_ms=(time.time() - start) * 1000,
+            duration_ms=(wall_time() - start) * 1000,
         )
 
     async def _check_predicate(self, name: str, args: dict[str, Any]) -> bool:

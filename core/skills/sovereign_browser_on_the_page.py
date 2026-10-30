@@ -12,6 +12,7 @@ import re
 from collections.abc import Awaitable, Callable
 from functools import partial
 from typing import Any
+from core.runtime.wall_clock import monotonic_time
 
 from . import sovereign_browser_conversation as conversation
 from .watching_along import (
@@ -136,12 +137,11 @@ async def what_it_says_once_it_says_it(page: Any, *, within_s: float = STATES_IT
     A page handed over while it loads states neither its video's name nor its length, and its player holds the
     advert before it: LIVE 20 October 2026 on YouTube the watching took "YouTube" for the name and an advert's 0:13
     for the length, its clock stood at 0:13 for four minutes, and she said the video had ended while it played on."""
-    import time
 
-    deadline = time.monotonic() + within_s
+    deadline = monotonic_time() + within_s
     while True:
         said = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
-        if said.get("length") or time.monotonic() >= deadline:
+        if said.get("length") or monotonic_time() >= deadline:
             return said
         await asyncio.sleep(1.0)
 

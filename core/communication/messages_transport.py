@@ -55,6 +55,7 @@ from core.governance_context import governed_scope, require_governance
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_async_lock
 from core.runtime.subprocess_gateway import SubprocessGateway, get_subprocess_gateway
+from core.runtime.wall_clock import monotonic_time
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.MessagesTransport")
@@ -880,8 +881,8 @@ class MessagesTransport:
     ) -> int | None:
         if baseline_row_id is None:
             return None
-        deadline = time.monotonic() + 5.0
-        while time.monotonic() < deadline:
+        deadline = monotonic_time() + 5.0
+        while monotonic_time() < deadline:
             try:
                 rows = await self._history.messages_after(
                     contact.destination,

@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.agency.rules_of_a_board import KING, SPECIAL, Draughts, Move, Position
+from core.runtime.wall_clock import monotonic_time
 
 __all__ = ["Searched", "a_board_game", "a_move_told", "draughts_said", "is_draughts", "placing_said", "position_of", "search"]
 
@@ -238,7 +239,7 @@ async def play_a_board(look: Any, hands: Any, words: str, *, seconds: float, say
 
     from core.perception.a_board_seen import a_board_in
 
-    began = time.monotonic()
+    began = monotonic_time()
     tell = say or (lambda _line: None)
     seen = await look()
     if seen is not None:
@@ -258,7 +259,7 @@ async def play_a_board(look: Any, hands: Any, words: str, *, seconds: float, say
     won_seen = ""
     last_seen, still_since = "", time.monotonic()
     hidden_since: float | None = None
-    while time.monotonic() - began < seconds:
+    while monotonic_time() - began < seconds:
         seen = await look()
         if seen is None:
             return tally.came_of(made, "the picture could not be taken")
@@ -433,9 +434,9 @@ async def _shown(look: Any, sides: Any, expected: Position, mine: str, move: Mov
     # A swap leaves her pieces on the squares they were on: it shows by where her special piece stands (offline
     # 2026-10-11 a swap the game had not made was taken as made, and the same swap asked for again).
     special = {square for square in wanted if expected.at(square)[1:] == SPECIAL}
-    ends_at = time.monotonic() + MOVE_SHOWS_S
+    ends_at = monotonic_time() + MOVE_SHOWS_S
     latest = ends_at + HIDDEN_AT_MOST_S
-    while time.monotonic() < ends_at:
+    while monotonic_time() < ends_at:
         seen = await look()
         if seen is None:
             return False
@@ -458,7 +459,7 @@ async def _play_placing(look: Any, hands: Any, rules: Any, *, seconds: float, te
 
     from core.perception.a_board_seen import a_board_in
 
-    began = time.monotonic()
+    began = monotonic_time()
     tell(f"It's {rules.line} in a row" + (", dropped down the columns" if rules.falls else "") + ". I'll search my moves.")
     sides: dict[str, Any] | None = None
     mine, theirs, she_began = "", "", None
@@ -467,7 +468,7 @@ async def _play_placing(look: Any, hands: Any, rules: Any, *, seconds: float, te
     hidden_since: float | None = None
     known: Any = None
     last_seen, still_since = "", time.monotonic()
-    while time.monotonic() - began < seconds:
+    while monotonic_time() - began < seconds:
         seen = await look()
         if seen is None:
             return {"moves": made, "ended": "the picture could not be taken"}
@@ -538,9 +539,9 @@ async def _a_piece_comes(look: Any, sides: Any, square: tuple[int, int], mine: s
 
     from core.perception.a_board_seen import a_board_in
 
-    ends_at = time.monotonic() + MOVE_SHOWS_S
+    ends_at = monotonic_time() + MOVE_SHOWS_S
     latest = ends_at + HIDDEN_AT_MOST_S
-    while time.monotonic() < ends_at:
+    while monotonic_time() < ends_at:
         seen = await look()
         board = a_board_in(seen[0], sides, known) if seen is not None else None
         ends_at = _waited_longer_while_hidden(board, ends_at, latest)

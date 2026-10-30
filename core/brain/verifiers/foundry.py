@@ -46,6 +46,7 @@ from core.runtime.audit_chain import AuditChain
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
 from core.runtime.state_ownership import state_root
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.VerifierFoundry")
 
@@ -306,8 +307,8 @@ class VerifierFoundry:
                                        "admission fails closed until reconciled"))
 
     def flush_ledger(self, timeout: float = 5.0) -> bool:
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
+        deadline = monotonic_time() + timeout
+        while monotonic_time() < deadline:
             with self._pending_writes_lock:
                 if self._pending_writes <= 0:
                     return True
@@ -323,8 +324,8 @@ class VerifierFoundry:
         seconds — the failure mode that once froze this runtime for twenty
         minutes on an on-loop fsync. Async callers must use this.
         """
-        deadline = time.monotonic() + max(0.0, float(timeout))
-        while time.monotonic() < deadline:
+        deadline = monotonic_time() + max(0.0, float(timeout))
+        while monotonic_time() < deadline:
             with self._pending_writes_lock:
                 if self._pending_writes <= 0:
                     return True

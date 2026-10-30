@@ -20,13 +20,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import monotonic_time
 from core.runtime.watched_goal import named_url
 
 logger = logging.getLogger("Aura.ReachPlace")
@@ -148,7 +148,7 @@ async def _once_it_has_settled(browser: Any, going_to: str) -> dict[str, str]:
     """
     asked_host = host_of(going_to)
     page: dict[str, str] = {}
-    until = time.monotonic() + SETTLING_SECONDS
+    until = monotonic_time() + SETTLING_SECONDS
     while True:
         try:
             page = await browser.current_page()
@@ -158,7 +158,7 @@ async def _once_it_has_settled(browser: Any, going_to: str) -> dict[str, str]:
         arrived_here = landed == going_to or (bool(asked_host) and host_of(landed) == asked_host)
         if arrived_here and str(page.get("title") or "").strip():
             return page
-        if time.monotonic() >= until:
+        if monotonic_time() >= until:
             return page
         await asyncio.sleep(LOOK_EVERY_S)
 

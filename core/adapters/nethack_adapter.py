@@ -50,6 +50,7 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.lockdep import checked_lock
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.NetHackAdapter")
 
@@ -636,7 +637,7 @@ class NetHackAdapter:
     ) -> dict[str, Any]:
         disposition = "already_exited"
         if self._session_alive(session):
-            deadline = time.monotonic() + max(0.5, deadline_s)
+            deadline = monotonic_time() + max(0.5, deadline_s)
             if save:
                 # #quit, then confirm. NetHack writes the save on its way out;
                 # killing it here is what leaves a half-written file behind.
@@ -649,13 +650,13 @@ class NetHackAdapter:
                     if not self._session_alive(session):
                         disposition = "saved_and_exited"
                         break
-            if self._session_alive(session) and time.monotonic() < deadline:
+            if self._session_alive(session) and monotonic_time() < deadline:
                 try:
                     session.child.terminate(force=False)
                 except (OSError, ValueError) as exc:
                     logger.debug("SIGTERM to session %s failed: %s", session.session_id, exc)
                 disposition = "terminated"
-            while self._session_alive(session) and time.monotonic() < deadline:
+            while self._session_alive(session) and monotonic_time() < deadline:
                 time.sleep(0.05)
             if self._session_alive(session):
                 try:

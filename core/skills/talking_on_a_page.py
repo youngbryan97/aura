@@ -15,6 +15,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from core.perception.a_conversation_on_a_page import LOOK, Line, read_conversation
+from core.runtime.wall_clock import monotonic_time
 
 #: How often the page is looked at, and how long a conversation nobody has opened waits before she may open it.
 LOOK_EVERY_S = 0.5
@@ -88,8 +89,8 @@ async def _say(page: Any, words: str) -> bool:
     path = writing["path"]
     await page.fill(css_of(path), words)
     await page.press(css_of(path), "Enter")
-    gives_up_at = time.monotonic() + SENT_SHOWS_S
-    while time.monotonic() < gives_up_at:
+    gives_up_at = monotonic_time() + SENT_SHOWS_S
+    while monotonic_time() < gives_up_at:
         look = await page.evaluate(LOOK)
         if any(" ".join(b["text"].lower().split()) == " ".join(words.lower().split()) for b in look.get("blocks") or ()):
             return True

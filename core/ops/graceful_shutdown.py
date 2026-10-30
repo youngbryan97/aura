@@ -4,7 +4,6 @@ import asyncio
 import inspect
 import logging
 import signal
-import time
 from collections.abc import Awaitable, Callable
 from functools import partial
 from typing import Any, ClassVar, cast
@@ -17,6 +16,7 @@ from core.runtime.shutdown_coordinator import (
     request_shutdown,
 )
 from core.runtime.shutdown_execution import run_sync_shutdown_callable
+from core.runtime.wall_clock import monotonic_time
 from core.utils.task_tracker import (
     begin_shutdown_task_creation_scope,
     end_shutdown_task_creation_scope,
@@ -119,10 +119,10 @@ class GracefulShutdown:
         coordinator_report: ShutdownReport | dict[str, object] | None = None
         container_report: dict[str, object] | None = None
         try:
-            compatibility_deadline = time.monotonic() + 8.0
+            compatibility_deadline = monotonic_time() + 8.0
             while cls._hooks:
                 hook = cls._hooks.pop()
-                remaining = compatibility_deadline - time.monotonic()
+                remaining = compatibility_deadline - monotonic_time()
                 if remaining <= 0:
                     skipped = 1 + len(cls._hooks)
                     cls._hooks.clear()
@@ -142,7 +142,7 @@ class GracefulShutdown:
                             name=f"compatibility:{getattr(hook, '__name__', 'hook')}",
                         )
                     if inspect.isawaitable(result):
-                        remaining = max(0.05, compatibility_deadline - time.monotonic())
+                        remaining = max(0.05, compatibility_deadline - monotonic_time())
                         await asyncio.wait_for(result, timeout=min(8.0, remaining))
                     logger.info("Shutdown compatibility hook completed: %s", hook)
                 except Exception as exc:  # noqa: BLE001 - final teardown boundary

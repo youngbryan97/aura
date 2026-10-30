@@ -42,6 +42,7 @@ from core.runtime.subprocess_gateway import (
     PythonProcessSpec,
     get_subprocess_gateway,
 )
+from core.runtime.wall_clock import monotonic_time
 from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
@@ -286,8 +287,8 @@ class ManagedProcess:
                 )
                 return False
 
-            start_time = time.monotonic()
-            while time.monotonic() - start_time < self.config.startup_timeout:
+            start_time = monotonic_time()
+            while monotonic_time() - start_time < self.config.startup_timeout:
                 if is_shutdown_requested():
                     await self.stop_async(force=True, timeout_s=1.0)
                     return False
@@ -590,14 +591,14 @@ class ManagedProcess:
 
         # Backoff is interruptible so a stop request never waits behind a
         # restart timer and then resurrects the child.
-        backoff_deadline = time.monotonic() + backoff_s
-        while time.monotonic() < backoff_deadline:
+        backoff_deadline = monotonic_time() + backoff_s
+        while monotonic_time() < backoff_deadline:
             if is_shutdown_requested():
                 logger.info(
                     "Process %s restart cancelled during shutdown", self.config.name
                 )
                 return False
-            remaining_backoff = max(0.0, backoff_deadline - time.monotonic())
+            remaining_backoff = max(0.0, backoff_deadline - monotonic_time())
             if remaining_backoff:
                 await asyncio.sleep(min(0.25, remaining_backoff))
 

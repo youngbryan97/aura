@@ -33,6 +33,7 @@ from core.runtime.runtime_settings import get_runtime_setting
 from core.runtime.service_access import optional_service
 from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.wall_clock import monotonic_time, wall_time
 from core.voice.microphone_authority import record_sounddevice_array
 
 logger = logging.getLogger("Aura.SensoryIntegration")
@@ -57,7 +58,7 @@ def _capture_video_to_governed_file(
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     frames_written = 0
-    start = time.monotonic()
+    start = monotonic_time()
     next_frame_at = start
     gateway = get_file_write_gateway()
     with gateway.open_owned_binary_adapter(
@@ -70,7 +71,7 @@ def _capture_video_to_governed_file(
     ) as container:
         stream = None
         try:
-            while time.monotonic() - start < duration:
+            while monotonic_time() - start < duration:
                 frame = authority.read(lease)
                 if frame is None:
                     if frames_written == 0:
@@ -97,9 +98,9 @@ def _capture_video_to_governed_file(
     return {
         "type": "video",
         "path": path,
-        "duration": round(time.monotonic() - start, 3),
+        "duration": round(monotonic_time() - start, 3),
         "frames": frames_written,
-        "timestamp": time.time(),
+        "timestamp": wall_time(),
     }
 
 

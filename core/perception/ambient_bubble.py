@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import monotonic_time
 
 
 class _CarriesTheBubble:
@@ -130,8 +131,8 @@ class _CarriesTheBubble:
         # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return None
-        deadline = time.monotonic() + max(0.05, min(float(timeout_s), 10.0))
-        while time.monotonic() < deadline:
+        deadline = monotonic_time() + max(0.05, min(float(timeout_s), 10.0))
+        while monotonic_time() < deadline:
             with self._lock:
                 measured = self._bubble_move_acks.pop(expected, None)
                 if measured is not None:

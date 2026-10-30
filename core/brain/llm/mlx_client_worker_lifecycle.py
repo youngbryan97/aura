@@ -36,6 +36,7 @@ from core.runtime.subprocess_gateway import (
     AcceleratorCapability,
     PythonProcessSpec,
 )
+from core.runtime.wall_clock import monotonic_time
 
 from .mlx_worker import _mlx_worker_loop
 from .worker_progress import create_channel as create_worker_progress_channel
@@ -443,9 +444,9 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                 )
             except (TypeError, ValueError):
                 reclaim_wait_s = 15.0
-            reclaim_deadline = time.monotonic() + max(0.0, reclaim_wait_s)
+            reclaim_deadline = monotonic_time() + max(0.0, reclaim_wait_s)
             waited = False
-            while memory_block and time.monotonic() < reclaim_deadline:
+            while memory_block and monotonic_time() < reclaim_deadline:
                 if _shutdown_blocks_model_work(self.model_path, action="memory reclaim wait"):
                     raise RuntimeError("runtime_shutdown")
                 waited = True

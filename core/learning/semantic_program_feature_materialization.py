@@ -106,6 +106,7 @@ from core.learning.semantic_training_breadth_corpus import TRAINING_BREADTH_CORP
 from core.learning.semantic_g05_long_sequence_corpus import (  # noqa: E402
     G05_LONG_SEQUENCE_CORPUS_KIND,
 )
+from core.runtime.wall_clock import monotonic_time
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
@@ -1474,7 +1475,7 @@ async def materialize_semantic_program_features(
             raise SemanticFeatureMaterializationError("partial feature record identity differs")
         records[example.example_id] = loaded
 
-    idle_deadline = time.monotonic() + float(config.idle_wait_s)
+    idle_deadline = monotonic_time() + float(config.idle_wait_s)
     for example in selected:
         if example.example_id in records:
             continue
@@ -1492,7 +1493,7 @@ async def materialize_semantic_program_features(
             )
             if observation is not None:
                 break
-            if time.monotonic() >= idle_deadline:
+            if monotonic_time() >= idle_deadline:
                 status = _status_payload(
                     complete=False,
                     reason="resident_lane_busy",

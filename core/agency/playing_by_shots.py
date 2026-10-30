@@ -20,11 +20,11 @@ from __future__ import annotations
 import logging
 import math
 import re
-import time
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
 from core.agency.how_hard_and_which_way import HOLD, PULL, Setting, Shot, Shots, first_settings
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.PlayingByShots")
 
@@ -609,7 +609,7 @@ async def play_by_shots(
     from core.perception.what_moves_in_the_picture import WhatMoves
 
     keep = keep if keep is not None else {}
-    began = time.monotonic()
+    began = monotonic_time()
     counters = Readouts()
     shots_by_way: dict[str, Shots] = keep.setdefault("shots", {})
     said: set[str] = set()
@@ -634,7 +634,7 @@ async def play_by_shots(
     sent_nothing: list[tuple[float, float]] = []
     taken = gains = misses = sent = got_there = 0
     ended = "out of time"
-    while time.monotonic() - began < seconds:
+    while monotonic_time() - began < seconds:
         seen = await _a_look_with_the_first_over(look, moves)
         if seen is None:
             ended = "the picture could not be taken"

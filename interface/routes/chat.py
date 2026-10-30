@@ -93,6 +93,7 @@ from core.runtime.structured_input import (
     answer_surface_token_floor,
 )
 from core.runtime.version import version_string
+from core.runtime.wall_clock import monotonic_time
 from core.utils.completed_capability import make_completed_capability_evidence
 from core.utils.injected_blocks import is_stamped_runtime_payload, stamp_runtime_payload
 from core.utils.intent_normalization import normalize_memory_intent_text
@@ -1144,8 +1145,8 @@ _CHAT_TURN_MEMORY_LOG_STARTUP_POLL_S = 0.25
 async def _start_chat_turn_memory_log_when_ready() -> None:
     """Wait through normal service ordering, but never wait indefinitely."""
 
-    deadline = time.monotonic() + _CHAT_TURN_MEMORY_LOG_STARTUP_TIMEOUT_S
-    while time.monotonic() < deadline:
+    deadline = monotonic_time() + _CHAT_TURN_MEMORY_LOG_STARTUP_TIMEOUT_S
+    while monotonic_time() < deadline:
         if _memory_log_outbox_is_ready():
             if not _chat_preflight._schedule_chat_turn_memory_log(chat_origin="startup_recovery"):
                 raise RuntimeError("chat_memory_log_startup_schedule_failed")

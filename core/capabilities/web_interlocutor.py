@@ -39,6 +39,7 @@ from core.runtime.gateways import MemoryWriteRequest
 from core.runtime.lockdep import LockRank, checked_async_lock
 from core.runtime.network_gateway import get_network_gateway
 from core.runtime.task_ownership import create_tracked_task
+from core.runtime.wall_clock import monotonic_time, wall_time
 
 logger = logging.getLogger("Aura.WebInterlocutor")
 
@@ -1472,9 +1473,9 @@ class ChromeVisibleDialogueBrowser:
         return data if isinstance(data, dict) else {"ok": False, "error": "chatgpt_dom_input_not_dict"}
 
     async def _verify_chatgpt_sent_message(self, text: str, *, timeout_s: float = 8.0) -> dict[str, Any]:
-        deadline = time.monotonic() + max(0.5, float(timeout_s or 0.5))
+        deadline = monotonic_time() + max(0.5, float(timeout_s or 0.5))
         last: dict[str, Any] = {}
-        while time.monotonic() < deadline:
+        while monotonic_time() < deadline:
             last = await asyncio.to_thread(self._chatgpt_sent_message_visible, text)
             if last.get("ok"):
                 return last
@@ -2721,17 +2722,17 @@ class WebInterlocutorSession:
         timeout_s: float,
         progress_source: str = "web_interlocutor.wait_for_reply",
     ) -> tuple[BrowserPageSnapshot, ObservedReply]:
-        deadline = time.time() + timeout_s
+        deadline = wall_time() + timeout_s
         stable_count = 0
         last_hash = ""
         best = before
         best_delta = ObservedReply()
         snapshot_failures = 0
         sent_seen = False
-        while time.time() < deadline:
+        while wall_time() < deadline:
             _mark_web_interlocutor_progress(progress_source)
             await asyncio.sleep(1.0)
-            remaining = max(0.5, deadline - time.time())
+            remaining = max(0.5, deadline - wall_time())
             try:
                 snap = await asyncio.wait_for(
                     self.browser.snapshot(),

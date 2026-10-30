@@ -47,6 +47,7 @@ from core.perception.how_the_view_moves import (
     how_alike,
     how_it_moved,
 )
+from core.runtime.wall_clock import monotonic_time
 
 __all__ = ["ACameraWorld", "NotInFront", "Trip", "go_to", "learn_the_body", "live_camera_world"]
 
@@ -429,10 +430,10 @@ def live_camera_world(
         # window being typed in and every chunk was refused. She waits for a
         # pause as long as one of her looks, and gives up when the time she
         # was given for this is gone.
-        waited_until = time.monotonic() + max(1.0, float(wait_s))
+        waited_until = monotonic_time() + max(1.0, float(wait_s))
         pause = a_look_takes(ACameraWorld(look=look, play=played))
         while window_server.seconds_since_someone_touched_it() < pause:
-            if time.monotonic() > waited_until:
+            if monotonic_time() > waited_until:
                 return False
             await asyncio.sleep(pause)
         from core.capabilities.host_automation import get_host_automation

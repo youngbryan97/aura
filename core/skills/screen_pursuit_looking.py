@@ -19,6 +19,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import monotonic_time
 
 from .screen_pursuit_bearings import (
     _AS_IT_USUALLY_IS,  # noqa: F401
@@ -1392,7 +1393,7 @@ async def _settled_after(
         return places_and_text(observation), str(observation.get("text") or "")
 
     was = _reading(before)
-    started = time.monotonic()
+    started = monotonic_time()
     seen = before
     moved = False
     # Whether a look has found the world itself not yet at rest. A look that
@@ -1402,10 +1403,10 @@ async def _settled_after(
     early = False
     first_pause: float | None = None
     still_going = 0
-    while time.monotonic() - started < (patience or _how_long_to_wait()):
+    while monotonic_time() - started < (patience or _how_long_to_wait()):
         pause = 0.3 if before.get("settled") is None else _before_looking_again()
         await asyncio.sleep(pause)
-        looked_after = time.monotonic() - started
+        looked_after = monotonic_time() - started
         if first_pause is None:
             first_pause = looked_after
         try:
@@ -1425,7 +1426,7 @@ async def _settled_after(
         still_going = still_going + 1 if changing else 0
         if still_going >= GOING_ON_AFTER_LOOKS and response_state is None:
             if said != was and not moved:
-                _answering_took(time.monotonic() - started)
+                _answering_took(monotonic_time() - started)
             return now, said != was or moved
         measured = response_state(now) if response_state is not None else None
         if measured is PredicateState.UNKNOWN:
@@ -1443,7 +1444,7 @@ async def _settled_after(
             if not moved:
                 # When the change was first seen; a look that saw it moving
                 # has already said so.
-                _answering_took(time.monotonic() - started)
+                _answering_took(monotonic_time() - started)
             if early:
                 _it_was_ready(looked_after, False, now)
             else:
@@ -1453,7 +1454,7 @@ async def _settled_after(
         early = True
         if not moved and differs:
             moved = True
-            _answering_took(time.monotonic() - started)
+            _answering_took(monotonic_time() - started)
             # Where she foretold the result, recognising it is knowing it has
             # landed.
             #

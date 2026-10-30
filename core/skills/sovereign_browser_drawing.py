@@ -23,6 +23,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from core.verify import invariant
+from core.runtime.wall_clock import monotonic_time
 
 #: The selector the observer gives what a page draws. Not a CSS selector: a move
 #: on it is a hand-over, never a click.
@@ -215,7 +216,6 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
     before anything else; a key pressed at a still cover goes to the page.
     """
     import asyncio
-    import time
 
     from core.perception.what_her_page_shows import the_page_size
 
@@ -228,9 +228,9 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
         if press == 0:  # said once: pressing it again is the same act, not news
             _tell("The game has a button over it to start it; pressing that first.")
         await page.mouse.click(x, y)
-        began = time.monotonic()
+        began = monotonic_time()
         missed = False
-        while time.monotonic() - began < STARTS_WITHIN_S:
+        while monotonic_time() - began < STARTS_WITHIN_S:
             await asyncio.sleep(0.1)
             current, received = _cover_receipt(await page.evaluate(_COVER_PRESS % (x, y, 'false')))
             missed = received is False
@@ -309,12 +309,11 @@ async def _where_it_draws(page: Any) -> tuple[float, float, float, float] | None
     """Where the page draws, asked again while its player is still putting the drawing up: offline 2026-10-10 a game's
     page was asked before its player had made its drawing, and she gave it up as a page that no longer draws."""
     import asyncio
-    import time
 
-    gives_up_at = time.monotonic() + DRAWING_COMES_UP_S
+    gives_up_at = monotonic_time() + DRAWING_COMES_UP_S
     while True:
         band = _the_band(await page.evaluate(_WHERE_IT_DRAWS))
-        if band is not None or time.monotonic() >= gives_up_at:
+        if band is not None or monotonic_time() >= gives_up_at:
             return band
         await asyncio.sleep(ASKED_EVERY_S)
 
@@ -457,7 +456,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     result: dict[str, Any] = {}
     measure_mode = False
     while time.monotonic() < deadline and sum(bool(r.get("reached_end")) for r in runs) < limit:
-        started, steps_before = time.monotonic(), _steps_done(keep)
+        started, steps_before = monotonic_time(), _steps_done(keep)
         # Played to be won, a round is looked at every few minutes: still getting somewhere, it goes on.
         round_ends = min(deadline, started + ROUND_S) if until_won else deadline
         result, reflexes = await _one_run(page, band, goal, url, round_ends, keep)
@@ -469,7 +468,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         unobserved_ending = not attempt_activity_was_seen(reflexes) and run['ended'] in ('won', 'lost', 'drawn', 'finished')
         if not attempt_activity_was_seen(reflexes):
             run['ended'], run['reached_end'] = '', False
-        run["took_s"] = time.monotonic() - started
+        run["took_s"] = monotonic_time() - started
         run["gains"] = sum(int(stretch.get("gains") or 0) for stretch in reflexes.stretches)
         run["observations"] = [
             {key: stretch.get(key) for key in ("pictures", "pictures_a_second", "observations", "standing", "settled", "runtime_checks",
@@ -542,7 +541,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         # Looked at before a round with no end of its own is taken as the last: LIVE 2026-10-07 this came after that
         # break, could never be reached, and a game was left after four minutes with nothing said.
         if (until_won and run["ended"] != "won" and not reflexes.over_because
-                and time.monotonic() - started >= ROUND_S - 20.0 and time.monotonic() < deadline):
+                and monotonic_time() - started >= ROUND_S - 20.0 and monotonic_time() < deadline):
             # A game in turns that is taking hers is going on, whatever is gained in it: LIVE 2026-10-11 a draughts
             # game was begun again from the top in its fourth minute, she having made thirty moves in it.
             if (run["gains"] > 0 or reflexes.new_screens or _steps_done(keep) > steps_before

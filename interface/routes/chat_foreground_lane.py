@@ -21,6 +21,7 @@ from core.runtime.structured_input import (
     analyze_prompt_shape,
     answer_surface_token_floor,
 )
+from core.runtime.wall_clock import monotonic_time
 from core.utils.task_tracker import get_task_tracker
 from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
@@ -456,15 +457,15 @@ async def _answer_from_fallback_ladder(
             _FALLBACK_LADDER_TIMEOUT_S,
             float(budget_s) if budget_s is not None else 0.0,
         )
-        deadline = time.monotonic() + allowed
+        deadline = monotonic_time() + allowed
         # A model that is loading is a condition that passes. The chain came
         # back EMPTY — no endpoint considered at all — because the smaller
         # model was itself still coming up, and one pass over the endpoints
         # turned that into a refusal inside a turn that had three minutes left.
-        while not raw and time.monotonic() < deadline:
+        while not raw and monotonic_time() < deadline:
             considered = False
             for endpoint in (BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT):
-                remaining = deadline - time.monotonic()
+                remaining = deadline - monotonic_time()
                 if remaining <= 1.0:
                     break
                 generation_metadata: dict[str, Any] = {}
@@ -509,7 +510,7 @@ async def _answer_from_fallback_ladder(
                 # Something answered, or something was tried and declined. Only
                 # an empty chain means nothing was there to ask yet.
                 break
-            left = deadline - time.monotonic()
+            left = deadline - monotonic_time()
             if left <= 1.0:
                 break
             logger.info(
@@ -692,9 +693,9 @@ async def _await_foreground_gate(*, budget_s: float) -> Any:
     if not _boot_is_still_in_progress(phases):
         return gate
 
-    deadline = time.monotonic() + budget_s
+    deadline = monotonic_time() + budget_s
     announced = False
-    while time.monotonic() < deadline:
+    while monotonic_time() < deadline:
         if not _boot_is_still_in_progress(phases):
             break
         if not announced:
@@ -876,19 +877,19 @@ async def _admit_to_foreground_lane(
                 )
                 or str(admission_exc).strip() == "chat_dependencies_warming"
             ) and not _a_smaller_lane_already_fits():
-                retry_deadline = time.monotonic() + max(0.0, admission_budget - 2.0)
+                retry_deadline = monotonic_time() + max(0.0, admission_budget - 2.0)
                 logger.info(
                     "⏳ Foreground lane deferred (%s); waiting up to %.0fs "
                     "for it to clear rather than refusing the turn.",
                     str(admission_exc)[:120],
                     max(0.0, admission_budget - 2.0),
                 )
-                while time.monotonic() < retry_deadline:
+                while monotonic_time() < retry_deadline:
                     await asyncio.sleep(2.0)
                     try:
                         lane = dict(
                             await gate.ensure_foreground_ready(
-                                timeout=max(1.0, retry_deadline - time.monotonic())
+                                timeout=max(1.0, retry_deadline - monotonic_time())
                             )
                             or {}
                         )

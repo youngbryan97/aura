@@ -48,6 +48,7 @@ from core.config import config
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_condition
 from core.runtime.sqlite_support import connecting
+from core.runtime.wall_clock import monotonic_time
 from core.verify.invariants import invariant
 
 logger = logging.getLogger("Cognition.OutcomeLedger")
@@ -369,10 +370,10 @@ class OutcomeLedger:
             if self._writes_in_flight == 0:
                 return True
         self._ensure_writer()
-        deadline = time.monotonic() + timeout_s
+        deadline = monotonic_time() + timeout_s
         with self._writes_cv:
             while self._writes_in_flight > 0:
-                remaining = deadline - time.monotonic()
+                remaining = deadline - monotonic_time()
                 if remaining <= 0:
                     return False
                 self._writes_cv.wait(remaining)

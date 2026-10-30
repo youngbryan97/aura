@@ -28,6 +28,7 @@ from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.host_clock import read_host_clock_text
 from core.runtime.os_automation_effects import canonical_app_target
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.wall_clock import monotonic_time
 from core.skills._pyautogui_runtime import get_pyautogui
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
@@ -1366,10 +1367,10 @@ class ComputerUseSkill(_ReadsAndDrivesTheBrowser, _MakesFilesToShow, BaseSkill):
         # budget outright — "open_app failed: Operation took too long".
         # Polling is cheap and re-asking is expensive, so they get separate
         # budgets.
-        deadline = time.monotonic() + float(self._HOLD_FOCUS_BUDGET_S)
+        deadline = monotonic_time() + float(self._HOLD_FOCUS_BUDGET_S)
         last_activation = 0.0
         last_seen = ""
-        while time.monotonic() < deadline:
+        while monotonic_time() < deadline:
             last_seen = await asyncio.to_thread(self._frontmost_app_name)
             if self._frontmost_app_matches(last_seen, expected):
                 return True, last_seen
@@ -3640,8 +3641,8 @@ end tell
                 if not expected_browser:
                     # No registered default: give the browser a moment to
                     # arrive rather than reading the screen once and giving up.
-                    deadline = time.monotonic() + 6.0
-                    while time.monotonic() < deadline:
+                    deadline = monotonic_time() + 6.0
+                    while monotonic_time() < deadline:
                         observed_browser = await asyncio.to_thread(
                             self._frontmost_app_name
                         )
@@ -3712,8 +3713,8 @@ end tell
                     and self._is_web_editor_url(active_url or target_url)
                 ):
                     if expected_browser and self._is_web_editor_create_url(active_url):
-                        deadline = time.monotonic() + 12.0
-                        while time.monotonic() < deadline:
+                        deadline = monotonic_time() + 12.0
+                        while monotonic_time() < deadline:
                             await asyncio.sleep(0.75)
                             next_url, next_title = await asyncio.to_thread(
                                 self._active_browser_location,

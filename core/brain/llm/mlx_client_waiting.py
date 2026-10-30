@@ -10,6 +10,7 @@ import asyncio
 import os
 import time
 from typing import TYPE_CHECKING, Any
+from core.runtime.wall_clock import monotonic_time
 
 if TYPE_CHECKING:
     from .mlx_client import (
@@ -785,7 +786,7 @@ class _WaitsForTheResult:
         )
         first_token_sla = self._first_token_sla(foreground_request=foreground_request)
         token_stall_after = self._token_stall_after(foreground_request=foreground_request)
-        wait_started = time.monotonic()
+        wait_started = monotonic_time()
         self._said_it_is_taking_longer = False
         # Finite-bounded: a malformed value previously RAISED through the
         # generation wait path, and infinity disabled the hard cap entirely.
@@ -794,7 +795,7 @@ class _WaitsForTheResult:
             foreground_request=foreground_request,
         )
         progress_owned_completion = progress_owned_completion and foreground_request
-        while progress_owned_completion or (time.monotonic() - wait_started) <= hard_cap:
+        while progress_owned_completion or (monotonic_time() - wait_started) <= hard_cap:
             slice_timeout = self._wait_for_generation_result_remaining(deadline, foreground_request, hard_cap, progress_owned_completion, token_stall_after, wait_started)
             try:
                 return await _await_shared_future(future, timeout_s=slice_timeout)

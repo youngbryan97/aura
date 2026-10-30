@@ -34,6 +34,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
 from core.runtime.state_ownership import shared_asset_root, state_root
+from core.runtime.wall_clock import monotonic_time, wall_time
 
 from .mlx_worker_loop_steps import (  # noqa: F401  (re-exported: they were defined here)
     _add_the_bound_logits_processor,
@@ -4557,8 +4558,8 @@ def _shutdown_worker_runtime(
     for thread in (heartbeat, memory_sentinel, watchdog):
         _call(thread, "stop")
     local_queue = getattr(ipc_writer, "local_queue", None)
-    deadline = time.monotonic() + 0.5
-    while local_queue is not None and time.monotonic() < deadline:
+    deadline = monotonic_time() + 0.5
+    while local_queue is not None and monotonic_time() < deadline:
         try:
             if local_queue.empty():
                 break
@@ -7783,7 +7784,7 @@ def _mlx_worker_loop(
                                             previous_cache_rollback = None
 
                                         token_count += 1
-                                        progress_now = time.time()
+                                        progress_now = wall_time()
                                         if use_speculative and getattr(
                                             response, "from_draft", False
                                         ):

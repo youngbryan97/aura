@@ -39,6 +39,7 @@ from collections.abc import Callable
 from typing import Any
 
 from core.runtime.lockdep import LockRank, checked_lock
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.ImmuneStateWriter")
 
@@ -119,7 +120,7 @@ class SingleSlotStateWriter:
         callers flushing at once do not both report failure while the write
         one of them started is landing.
         """
-        deadline = time.monotonic() + max(0.0, float(timeout))
+        deadline = monotonic_time() + max(0.0, float(timeout))
         while True:
             inline: Any | None = None
             with self._slot_lock:
@@ -134,7 +135,7 @@ class SingleSlotStateWriter:
                 self._inline += 1
                 self._write_once(inline)
                 continue
-            remaining = deadline - time.monotonic()
+            remaining = deadline - monotonic_time()
             if remaining <= 0.0:
                 return False
             self._wakeup.set()

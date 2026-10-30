@@ -23,6 +23,7 @@ from core.cognition.what_is_still_open import what_is_still_open
 from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import monotonic_time
 from core.runtime.watched_goal import BROWSERS
 from core.verify import invariant
 
@@ -594,9 +595,9 @@ async def let_the_voice_catch_up(before: dict[str, int], *, patience: float = 4.
     and gives up after ``patience`` seconds so a surface nobody is reading
     cannot stall the run.
     """
-    started = time.monotonic()
+    started = monotonic_time()
     was = int(before.get("waiting", 0) or 0)
-    while time.monotonic() - started < patience:
+    while monotonic_time() - started < patience:
         await asyncio.sleep(0.25)
         now = int(narration_backlog().get("waiting", 0) or 0)
         if now < was:

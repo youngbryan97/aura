@@ -28,6 +28,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from core.runtime.wall_clock import monotonic_time, wall_time
 
 logger = logging.getLogger("Aura.WatchingAlong")
 
@@ -333,12 +334,12 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         await speak(f"before it plays. The page: {watching.title}. {str(page_says.get('words') or '')[:1200]} "
                     f"What the page shows: {first}", 0.0, "before")
     await player.start()
-    began = time.monotonic()
+    began = monotonic_time()
     spoke_after_looks, spoke_at_wall = 0, time.monotonic()
     speaking: asyncio.Task | None = None
     new = _WhatIsNew()
     in_adverts = 0.0
-    while at_most_s is None or time.monotonic() - began - in_adverts < at_most_s:
+    while at_most_s is None or monotonic_time() - began - in_adverts < at_most_s:
         plays = await player.state()
         if not plays:
             break
@@ -401,8 +402,8 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
 
 async def _the_floor_comes_free(may_speak: Callable[[float], bool], *, at_most_s: float = FLOOR_WAITED_S) -> None:
     """Until nobody has the floor, or ``at_most_s`` has passed: what she made of it is said once it is hers to say."""
-    deadline = time.monotonic() + at_most_s
-    while not may_speak(time.time()) and time.monotonic() < deadline:  # noqa: ASYNC110 - the floor is a reading, not an event
+    deadline = monotonic_time() + at_most_s
+    while not may_speak(wall_time()) and monotonic_time() < deadline:  # noqa: ASYNC110 - the floor is a reading, not an event
         await asyncio.sleep(1.0)
 
 

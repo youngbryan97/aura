@@ -26,6 +26,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.HerEar")
 
@@ -138,11 +139,11 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
             pending.append(samples)
 
     held = _capture(bundle, on_audio)
-    began = time.monotonic()
+    began = monotonic_time()
     written = 0
     print(json.dumps({"listening": bundle}), file=out, flush=True)
     with model.transcribe_stream(context_size=CONTEXT) as heard:
-        while at_most_s is None or time.monotonic() - began < at_most_s:
+        while at_most_s is None or monotonic_time() - began < at_most_s:
             time.sleep(STEP_S)
             if hold and os.path.exists(hold):
                 continue  # what is heard waits in `pending`, to be written down once her voice is done

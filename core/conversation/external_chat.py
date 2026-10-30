@@ -44,6 +44,7 @@ from core.conversation.session_scope import (
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.wall_clock import monotonic_time
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("ExternalChat")
@@ -239,8 +240,8 @@ end tell
         return script_path
 
     def _wait_for_launch_ack(self, *, timeout_s: float) -> bool:
-        deadline = time.monotonic() + max(0.1, timeout_s)
-        while time.monotonic() < deadline:
+        deadline = monotonic_time() + max(0.1, timeout_s)
+        while monotonic_time() < deadline:
             try:
                 if self._spool.client_ready():
                     return True

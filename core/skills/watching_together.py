@@ -29,6 +29,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.Together")
 
@@ -202,8 +203,8 @@ def _read_in_every_turn() -> None:
 
 async def _her_answer_settled(turn: Any, *, at_most_s: float) -> None:
     """Until the turn that asked for the watching has settled what it serves, or ``at_most_s`` has passed."""
-    deadline = time.monotonic() + at_most_s
-    while turn is not None and not getattr(turn, "finalized", True) and time.monotonic() < deadline:  # noqa: ASYNC110 - a turn has no event to wait on; its flag is all it says
+    deadline = monotonic_time() + at_most_s
+    while turn is not None and not getattr(turn, "finalized", True) and monotonic_time() < deadline:  # noqa: ASYNC110 - a turn has no event to wait on; its flag is all it says
         await asyncio.sleep(0.5)
 
 

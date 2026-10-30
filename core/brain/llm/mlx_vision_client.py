@@ -36,6 +36,7 @@ from core.runtime.subprocess_gateway import (
     PythonProcessSpec,
     get_subprocess_gateway,
 )
+from core.runtime.wall_clock import monotonic_time, wall_time
 
 from .mlx_vision_worker import _mlx_vision_worker_loop
 
@@ -216,9 +217,9 @@ class MLXVisionClient:
             self._listener_thread.start()
 
             # Wait for init
-            start_time = time.time()
+            start_time = wall_time()
             exit_seen_at = 0.0
-            while time.time() - start_time < 30.0:
+            while wall_time() - start_time < 30.0:
                 if is_shutdown_requested():
                     self.stop()
                     return False
@@ -605,9 +606,9 @@ class MLXVisionClient:
             raise RuntimeError("Vision worker request queue is full") from exc
 
         # Wait for response (structurally bounded by the deadline).
-        deadline = time.monotonic() + max(0.1, float(timeout_s))
+        deadline = monotonic_time() + max(0.1, float(timeout_s))
         response = None
-        while time.monotonic() < deadline:
+        while monotonic_time() < deadline:
             with self._pending_lock:
                 response = self._pending_requests.get(req_id)
             if response is not None:

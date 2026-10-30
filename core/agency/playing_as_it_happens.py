@@ -126,6 +126,7 @@ from core.perception.seeing_play_elsewhere import eyes_for_play, short_turns_whi
 from core.perception.what_changed_and_stayed import WhatChangedAndStayed
 from core.perception.what_moves_in_the_picture import TOLD_FROM_STANDING_PX, WhatMoves
 from core.perception.where_in_a_world import WhereInTheWorld
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.PlayingAsItHappens")
 
@@ -475,8 +476,8 @@ async def _burst(hands: Any, run: _Run, at: float, *, say: Any = None) -> None:
         await hands.up(run.held)
         run.held = ""
     _say(run, say, f"Pressing {' and '.join(run.burst_keys)} in turn, fast, as I read I should.", at, once="burst")
-    began, n = time.monotonic(), 0
-    while time.monotonic() - began < BURST_S:
+    began, n = monotonic_time(), 0
+    while monotonic_time() - began < BURST_S:
         await hands.tap(run.burst_keys[n % len(run.burst_keys)])
         n += 1
         await asyncio.sleep(BURST_TAP_S)
@@ -1103,7 +1104,7 @@ async def _play_as_it_happens(
     from core.runtime.what_stops_it import current
 
     context = current(whose="play_as_it_happens.frames")
-    began = time.monotonic()
+    began = monotonic_time()
     keep = keep if keep is not None else {}
     from core.agency.when_motion_breaks_a_rule import MotionChecks
 
@@ -1226,7 +1227,7 @@ async def _play_as_it_happens(
     try:
         while not ended:
             context.check()
-            if time.monotonic() - began >= seconds:
+            if monotonic_time() - began >= seconds:
                 ended = "out of time"
                 break
             seen = await look()

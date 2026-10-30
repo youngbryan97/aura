@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
+from core.runtime.wall_clock import monotonic_time
 
 if TYPE_CHECKING:
     from core.orchestrator.main import RobustOrchestrator
@@ -79,9 +80,9 @@ def _is_stop_requested(orch: RobustOrchestrator) -> bool:
 
 
 async def _sleep_or_stop(orch: RobustOrchestrator, seconds: float) -> None:
-    deadline = time.monotonic() + max(0.0, seconds)
+    deadline = monotonic_time() + max(0.0, seconds)
     while not _is_stop_requested(orch):
-        remaining = deadline - time.monotonic()
+        remaining = deadline - monotonic_time()
         if remaining <= 0:
             return
         await asyncio.sleep(min(remaining, 1.0))

@@ -53,6 +53,7 @@ from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.self_modification.mutation_tiers import MutationTier, classify_mutation_path
 from core.runtime.state_ownership import state_root
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.SelfModSafePipeline")
 
@@ -601,18 +602,18 @@ class SafePipeline:
             )
             guardian = None
 
-        deadline = time.monotonic() + max(0.0, float(self.POST_DEPLOY_MONITOR_S))
+        deadline = monotonic_time() + max(0.0, float(self.POST_DEPLOY_MONITOR_S))
         healthy_samples: list[dict[str, Any]] = []
         last_detail: dict[str, Any] = {}
         waitable_statuses = {"initializing", "no_stability_report"}
 
         first_sample = True
-        while first_sample or time.monotonic() <= deadline:
+        while first_sample or monotonic_time() <= deadline:
             first_sample = False
             healthy, detail = self._guardian_health_snapshot(guardian)
             last_detail = detail
             status = str(detail.get("status", "unknown"))
-            remaining_s = deadline - time.monotonic()
+            remaining_s = deadline - monotonic_time()
             if healthy:
                 healthy_samples.append(detail)
             elif status in waitable_statuses and remaining_s > 0.0:
@@ -628,7 +629,7 @@ class SafePipeline:
                 )
                 return
 
-            remaining_s = deadline - time.monotonic()
+            remaining_s = deadline - monotonic_time()
             if remaining_s <= 0.0:
                 _record(
                     proposal,

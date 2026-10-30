@@ -74,6 +74,7 @@ from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import (
     get_subprocess_gateway,
 )
+from core.runtime.wall_clock import monotonic_time
 from core.runtime.what_stops_it import interruptible_operation
 from core.utils.concurrency import run_io_bound
 from core.utils.deadlines import (  # noqa: F401  (read at call time by the lifted module)
@@ -2538,8 +2539,8 @@ def _acquire_spawn_file_lock(lock_file: Any, *, model_path: str) -> None:
         )
     except (TypeError, ValueError):
         timeout_s = 90.0
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+    deadline = monotonic_time() + timeout_s
+    while monotonic_time() < deadline:
         if _shutdown_blocks_model_work(model_path, action="spawn lock wait"):
             raise RuntimeError("runtime_shutdown")
         try:
@@ -6600,8 +6601,8 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         # The same slack this watchdog already allots itself for out-of-band
         # enforcement (`fire_after`), reused rather than a second number: it is
         # the overshoot this function has always treated as acceptable.
-        deadline = time.monotonic() + _WATCHDOG_ENFORCEMENT_SLACK_S
-        while time.monotonic() < deadline:
+        deadline = monotonic_time() + _WATCHDOG_ENFORCEMENT_SLACK_S
+        while monotonic_time() < deadline:
             process = self._process
             if process is None or not process.is_alive():
                 return False
@@ -8245,10 +8246,10 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # the strength of a cancel that never happened.
             return False
         span = min(120.0, max(0.5, timeout_s))
-        deadline = time.monotonic() + span
+        deadline = monotonic_time() + span
         # A hard ceiling, because a worker that heartbeats forever without
         # finishing its job is the livelock this wait exists to catch.
-        ceiling = time.monotonic() + min(120.0, max(span, span * 4.0))
+        ceiling = monotonic_time() + min(120.0, max(span, span * 4.0))
 
         def newest_progress() -> float:
             return max(
@@ -8271,7 +8272,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         # that advances buys the worker another span, up to the ceiling.
         seen = newest_progress()
         while True:
-            now = time.monotonic()
+            now = monotonic_time()
             if now >= deadline or now >= ceiling:
                 return False
             process = self._process

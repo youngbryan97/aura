@@ -26,6 +26,7 @@ from typing import Any
 from core import governance_context as _governance_context
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger(__name__)
 
@@ -369,9 +370,9 @@ def _invoke_resident_bridge(
         request_path.unlink(missing_ok=True)
         return None
 
-    deadline = time.monotonic() + max(0.05, float(timeout))
+    deadline = monotonic_time() + max(0.05, float(timeout))
     try:
-        while time.monotonic() < deadline:
+        while monotonic_time() < deadline:
             if response_path.is_file():
                 text = response_path.read_text(encoding="utf-8")
                 result = json.loads(text or "{}")

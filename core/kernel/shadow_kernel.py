@@ -21,6 +21,7 @@ from core.runtime.subprocess_gateway import (
     PythonProcessSpec,
     get_subprocess_gateway,
 )
+from core.runtime.wall_clock import monotonic_time
 from core.security.ast_guard import DEFAULT_SAFE_MODULES, ASTGuard, SecurityViolation
 from core.state.aura_state import AuraState
 
@@ -355,8 +356,8 @@ class ShadowExecutionPhase(Phase):  # type: ignore[misc]
             if is_shutdown_requested():
                 return False, "runtime_shutdown"
 
-            deadline = time.monotonic() + 10.0
-            while time.monotonic() < deadline:
+            deadline = monotonic_time() + 10.0
+            while monotonic_time() < deadline:
                 if is_shutdown_requested():
                     return False, "runtime_shutdown"
                 if not process.is_alive():
