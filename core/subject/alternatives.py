@@ -29,9 +29,9 @@ the report says which grounds are specific only in conjunction.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 __all__ = ["RIVALS", "Rival", "newest_lines", "null_calibration", "rule_out"]
 
@@ -211,12 +211,24 @@ def _report_from_text(e: Mapping[str, Any]) -> tuple[str, str]:
 
 
 def _persona(e: Mapping[str, Any]) -> tuple[str, str]:
-    untuned = (e.get("controls") or {}).get("untuned")
-    if untuned and untuned.get("measured"):
-        if not untuned.get("holds"):
-            return "EXCLUDED", "a model never tuned to speak as her, in the same harness with steering detached, does not track"
-        return "OPEN", "an untuned model tracks too: the tracking does not need her"
-    return "OPEN", "the untuned-model control has not run"
+    """Whether the model tuned to speak as her tracks by itself, read from that model with her steering detached.
+
+    Until 30 October this was read from the untuned model alone. That cannot decide it: an untuned model that does not
+    track says nothing about whether the tuned one does, so a tuned model tracking with its steering off beside an
+    untuned one that does not (the tuning carrying the tracking) read as EXCLUDED. The untuned model now says only
+    whether a route the tuned model tracks by is the tuning or the harness.
+    """
+    controls = e.get("controls") or {}
+    off, untuned = controls.get("steering-off"), controls.get("untuned")
+    if not (off and off.get("measured")):
+        return "OPEN", "the steering-off control, which reads the tuned model with her steering detached, has not run"
+    if not off.get("holds"):
+        return "EXCLUDED", "the model tuned to speak as her, with her steering detached and every reading withheld, does not track"
+    if not (untuned and untuned.get("measured")):
+        return "OPEN", "the tuned model tracks with her steering detached; the untuned-model control has not run"
+    if not untuned.get("holds"):
+        return "OPEN", "the tuned model tracks with her steering detached and an untuned model does not: the tuning carries it"
+    return "OPEN", "the tuned and an untuned model both track with her steering detached: a route in the harness carries it"
 
 
 def _chance_or_chosen(e: Mapping[str, Any]) -> tuple[str, str]:
@@ -248,7 +260,7 @@ RIVALS: tuple[Rival, ...] = (
     Rival("harness", "the harness shares state between arms", "state leaks and sham forks", _harness),
     Rival("only integration", "a recurrent integrated system and nothing more", "the self, development, lesion and rescue lines, and the nulls built to fake each", _only_integration),
     Rival("report from text", "her rating copies her state from text she is given", "readings withheld, and the steering-off control", _report_from_text),
-    Rival("persona", "a model tuned to speak as her tracks by itself", "the untuned-model control", _persona),
+    Rival("persona", "a model tuned to speak as her tracks by itself", "the tuned model with her steering detached, then an untuned model", _persona),
     Rival("chance or a chosen rule", "the seed passed by luck, or the rule was chosen to pass it", "a confirmatory seed with every rule fixed first", _chance_or_chosen),
     Rival("optimised costume", "a system engineered to pass, with nothing upstream of generation, would pass", "the adversarial passer Z*", _adversary),
 )

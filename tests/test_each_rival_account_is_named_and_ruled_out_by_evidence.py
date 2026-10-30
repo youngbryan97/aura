@@ -47,9 +47,18 @@ def test_the_text_route_is_excluded_only_when_steering_off_stops_the_tracking() 
     assert _status(still, "report from text") == "OPEN"
 
 
-def test_an_untuned_model_that_tracks_keeps_the_persona_rival_open() -> None:
-    assert _status({"controls": {"untuned": {"measured": True, "holds": True}}}, "persona") == "OPEN"
-    assert _status({"controls": {"untuned": {"measured": True, "holds": False}}}, "persona") == "EXCLUDED"
+def test_the_persona_is_excluded_only_when_the_tuned_model_stops_tracking_with_steering_off() -> None:
+    assert _status({"controls": {"untuned": {"measured": True, "holds": False}}}, "persona") == "OPEN"
+    stopped = {"controls": {"steering-off": {"measured": True, "holds": False}}}
+    assert _status(stopped, "persona") == "EXCLUDED"
+
+
+def test_a_tuned_model_that_tracks_without_steering_keeps_the_persona_open_whatever_an_untuned_one_does() -> None:
+    for untuned in (None, {"measured": True, "holds": False}, {"measured": True, "holds": True}):
+        controls = {"steering-off": {"measured": True, "holds": True}}
+        if untuned is not None:
+            controls["untuned"] = untuned
+        assert _status({"controls": controls}, "persona") == "OPEN"
 
 
 def test_her_domains_cut_apart_decide_the_fragmented_rival() -> None:

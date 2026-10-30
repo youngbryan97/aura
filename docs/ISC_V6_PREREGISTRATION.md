@@ -1085,3 +1085,18 @@ rerun under a revised rule. A control that does not run is reported as not run.
 4. *The rival accounts* (`tools/rule_out_alternatives.py`), read with this seed as the confirmation: passed when all
    three goals are complete under v7, failed otherwise. It names each rival account her files rule out and each still
    owed.
+
+## Addendum, 30 October 2026, afternoon: the persona row of the rival accounts is read from the tuned model with its steering detached
+
+Written while seed 101 runs and before any of its controls has run; nothing of seed 101's controls has been read. It
+changes how one row of control 4 above is read, and no stage, bar, prediction or control.
+
+`core/subject/alternatives.py` at the commit seed 101 runs decides the rival *a model tuned to speak as her tracks by
+itself* from the untuned-model control alone. That cannot decide it. An untuned model that does not track says nothing
+about whether the tuned one does, so the tuned model tracking with its steering detached (control 2 holding) beside an
+untuned model that does not (control 3 failing) would read as EXCLUDED, when that outcome is the tuning carrying the
+tracking. The rule now reads the tuned model with her steering detached: EXCLUDED when it does not track, OPEN when it
+does, and the untuned model then says whether the route it tracks by is the tuning or the harness.
+
+Seed 101's chain runs control 4 at its own commit and reports what that commit's rule says. The paper reports that
+reading and, beside it, the corrected rule applied to the same control files, and says which differs if one does.
