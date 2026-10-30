@@ -1182,3 +1182,38 @@ not refits; the two above stay in the experiment and are reported as they read.
 | `near_miss_loose_domain` | N, which is in no synergy triple, keeps a twentieth of its coupling in and out | irreducibility, and nothing else |
 
 Against the battery, as before: a near miss that passes every line.
+
+## Addendum, 30 October 2026, afternoon: self-prediction
+
+Written before the test has been run on her or on any model. It adds an experiment beside the battery and changes no
+stage, bar or prediction of seed 101.
+
+**What is asked** (`core/subject/self_prediction.py`, `tools/run_self_prediction.py`). From each of 8 saved moments
+she is forked once per question to answer it and once per question to predict her own answer, each fork restored from
+the same snapshot, through her whole runtime and her own cortex, with her readings of herself withheld from her model's
+text (`AURA_READINGS_OF_HERSELF=withheld`) and the steering basis the reports runs use. The 20 questions are fixed in
+the module: six choices between two things, two number picks, and four open questions, each read for three properties
+(the first word of her answer, whether it runs past 40 words, whether it uses "I"). Replies are read by fixed rules in
+the module, written and tested before any run.
+
+**What it is scored against.** Her prediction is right when it matches what the answering fork said. It is scored
+against two predictors with no inside view:
+- the mode: her most frequent answer to the same question from the other moments;
+- the cross-predictor (`tools/cross_predict_self_prediction.py`): the untuned base model, shown her answers to the same
+  question from the other moments and her words to the open questions from this moment (never the answer being
+  predicted), asked what she answered.
+
+The comparisons are paired per question, with a one-sided sign-flip test over questions at α = 0.05.
+
+**Predicted.** Her self-prediction beats the mode, and beats the cross-predictor. Beating the mode says her self-model
+tracks her moment to moment. Beating the cross-predictor says it carries something about her that her behaviour does
+not show, the comparison Binder et al. (2024) used for language models. **Against:** either one failing. Then the
+paper says her self-model's content was not shown to model her, and the self tier rests on its causal role and
+ownership.
+
+**The control.** The same run with the untuned model in her cortex's place (`--control untuned`, steering detached),
+read the same way. No prediction is made for it. It is reported beside hers, and says whether self-prediction at this
+level is something a model of this size does without being her.
+
+**When.** After her day run, with her app closed: her run, then the control, then the cross-predictor. Settings:
+`--whole --anchors 8 --rounds 4 --seed 101`.
