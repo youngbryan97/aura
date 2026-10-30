@@ -206,6 +206,11 @@ class ExperimentClock:
         self._said_slow = False
         self._frame_began = real_monotonic()
 
+    def forget_the_wait(self) -> None:
+        """A run parked between turns (core/subject/parking.py): the park is no frame's time."""
+        with self._lock:
+            self._close_valve()
+
     # ── her modules ──────────────────────────────────────────────────────
 
     def _give_to_new_modules(self) -> None:

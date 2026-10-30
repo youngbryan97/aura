@@ -54,6 +54,7 @@ from core.subject.state import (
     read_core_state,
 )
 from core.subject.monotonic_instants import rebased, tag_snapshot
+from core.subject.parking import note_turn, offer_to_park, park_if_asked
 from core.subject.steppable import Steps, step_once
 
 __all__ = [
@@ -711,7 +712,13 @@ class SubjectRuntime(_HeldHost):
 
         A stopped language worker is brought back first, and a person's turn in
         a whole run is opened around the phases (`opens_the_turn`).
+
+        A run asked to give the machine back for her app stops here, before
+        anything of the turn has happened (core/subject/parking.py).
         """
+        if park_if_asked() and self.clock is not None:
+            self.clock.forget_the_wait()
+        turn_began = time.monotonic()
         engine = self.kernel.organs.get("llm") if hasattr(self.kernel, "organs") else None
         mind = getattr(engine, "instance", None) if engine is not None else None
         if mind is not None and hasattr(mind, "moment"):
@@ -911,6 +918,7 @@ class SubjectRuntime(_HeldHost):
         if self.turn_hold:
             self.thaw_host()
             self.turn_hold = False
+        note_turn(time.monotonic() - turn_began)
         return frames
 
     # ── the real subsystems the conditions reach for ─────────────────────
@@ -1604,6 +1612,9 @@ def build_runtime(
     with local_internal_governed_scope("subject_core.driver"):
         get_file_write_gateway().ensure_directory(workdir, source="subject_core.driver")
     os.environ.setdefault("AURA_LOG_DIR", str(workdir / "logs"))
+    # A run started by runs.sh names a park directory, and can then be asked to
+    # give the machine back between turns. Without one nothing is installed.
+    offer_to_park()
 
     from core.kernel.aura_kernel import AuraKernel, KernelConfig
     from core.ontogeny.state import OntogeneticState
