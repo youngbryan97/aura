@@ -1759,3 +1759,26 @@ variable renamed before seed 97 read the script, and the run's log carries a dat
 
 Seed 97 started at 21:35 at `13cca3bf9`. Its v6 probe passed at 21:47 and the travel preflight at 21:49, with no
 holes.
+
+## Seed 97: 24/24 under ISC-v7, J* determined and the bridge at parity (28 October 21:35 to 29 October 18:55)
+
+The decisive reading on seed 97 ran at `13cca3bf9`. Interventional closure read `CLOSED`, 166 of 959 units varied
+alone and all at once. Content read `ONE_STRUCTURE`, the two geometries moving together at rho 0.617 against a sham
+floor of 0. The Mac's battery ran out at 08:08 and it hibernated until 12:46; every run resumed with it and her clock's
+valve never opened. The campaign (exit 0, 12:53) passed lesion and rescue and all 22 lines it decides alone under
+ISC-v7, the wider reference passing and no null passing. The carrier (exit 0, 14:45) was authoritative: 511 of 511 cuts
+decided, the weakest with a lower bound of 0.0292 at lag 66, playback decided at none, and its own observational closure
+gate `CLOSED_WITHIN_MARGIN`.
+
+ISC-v7 was fixed as the standard at 07:18 that morning, before seed 97 had a total under any version (addendum of 29
+October, morning). Seed 97 reads 24/24 under it, 23/24 under ISC-v6 and 22/24 under ISC-v5. J* is
+`DETERMINED_UP_TO_GAUGE` and the bridge `AT_PARITY` with all five grounds holding. No earlier seed met all three goals.
+
+The reports run started at 14:46. At 15:51 the process-tree guard stopped her cortex during anchor 0, and the gate
+refused every reload on one cached memory reading of 21.2 GB, the cache timed by her clock, which a restore rewinds.
+The run was stopped after one anchor and resumed from its anchors at `377a40b85` (two harness changes; addendum of 29
+October, afternoon, written first). A second stall of the same family, the reload's memory wait, cost one arm at 17:36
+and was cleared by stopping the fallback model's worker, as the guard itself does. The resumed run held: 80 anchors, 51
+readable, tracking rho 0.358, direction 0.317 and manipulation 0.119, each at p 0.0001. Because the reports came from
+another commit, the completion check reads `complete: false` on the one blocker "the evidence disagrees on commit".
+See [the status page](ISC_STATUS.md#seed-97-28-and-29-october).

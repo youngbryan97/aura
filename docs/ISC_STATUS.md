@@ -1,20 +1,61 @@
 # ISC: what the latest results show
 
-Status: Guide · Source reconciled 28 October 2026 · through 11fa69ccb
+Status: Guide · Source reconciled 29 October 2026 · through 93ef113ee
 
-**Seed 89 passed 23 of 24 checks under ISC-v6 and under ISC-v7. J\* came out
-determined up to gauge and the five-ground bridge reads `AT_PARITY`, both for
-the first time.** It was a confirmatory reading, named before it ran, on source
-that carries the isolation repairs described below. The one failed check is
-`beats_every_null`: the recurrent reference, a positive control that must pass,
-read a normalised effective dimension of 0.4002 against a bar below 0.40, and
-no null passed. So the full completion check, which needs 24/24, J\* and the
-bridge together, reads incomplete. Seed 97 is the next confirmatory reading,
-with the reference built wider before it ran.
+**Seed 97 passed all 24 checks under ISC-v7. J\* came out determined up to
+gauge and the five-ground bridge reads `AT_PARITY`. It is the first seed to meet
+all three goals.** It was a confirmatory reading, named before it ran, and ISC-v7
+was fixed as the standard that morning, before seed 97 had a total under any
+version. Under ISC-v6 the same seed reads 23 of 24; that total is reported beside
+the v7 total and never added to it. The completion check still reads incomplete,
+for one reason: the reports run was resumed at a different commit, so the
+evidence disagrees on commit. The section below says why it was resumed and
+what that commit changes.
 
 If you are new to Aura, start with [ISC explained](ISC_EXPLAINED.md). It
 introduces the project, translates the test names and includes a short
 explanation you can use aloud. The numbers and source records follow below.
+
+## Seed 97, 28 and 29 October
+
+The reading ran at `13cca3bf9` from 21:35 on 28 October to 18:55 on 29 October,
+under the stopping rule of the ISC-v6 preregistration's addendum of 27 October
+and the wider reference of its addendum of 28 October. The Mac hibernated from
+08:08 to 12:46 when its battery ran out; the runs resumed with it, and her
+clock's valve never opened. The
+[seed-97 evidence snapshot](evidence/ISC_SEED97_2026-10-29.json) holds the
+fields quoted here with a hash of each source file.
+
+| Question | Seed 97 | What remains open |
+|---|---|---|
+| Does the full operational battery pass? | ISC-v7 24/24. ISC-v6 23/24 (fails the observational closure line); ISC-v5 22/24 (also fails synergy) | A seed run whole at one commit, so the completion check can read it |
+| Is the proposed carrier established? | The carrier run is authoritative. 511 of 511 cuts were decided, the weakest with a lower bound of 0.0292 at a lag of two turns, and the playback control was decided at none; the carrier is all ten domains, ACDGIMNPSW. Closure by intervention reads `CLOSED` (166 of 959 units varied, alone and all at once); the carrier's own observational gate reads `CLOSED_WITHIN_MARGIN` | Confirmation on a further seed |
+| Does the reference pass and every null fail? | The wider recurrent reference passes and none of the nulls passes the rest of the conjunction | |
+| Do internal and recall differences change together? | `ONE_STRUCTURE`. Moved together at rho 0.617, p 0.001, against a sham floor of 0; the two geometries agree at rho 0.972 over 190 pairs | Confirmation on a further seed |
+| Do self-reports follow changed internal valence? | `holds: true`. Tracking rho 0.358; she rated herself 0.317 higher when her valence was raised than when it was lowered; the displacement moved her valence by 0.119. Each p is 0.0001, the floor of 10,000 draws. 51 of 80 anchors were readable | Measured under the layer-43 felt steering basis, which stays part of the claim |
+| J\* | `DETERMINED_UP_TO_GAUGE`: carrier found, structure identified (20 orbits over 20 classes), lineage recorded over 7,855 stages | Conditional on postulates P1 to P6 |
+| Do all five bridge grounds hold? | `AT_PARITY`: carrier, markers, reports, structure and lineage hold | Conditional on P1 to P6; not a proof of them |
+
+**Why the reports run was resumed.** At 15:51 the run's process-tree guard
+stopped her cortex in the middle of anchor 0. The gate declined to reload it on
+a reading of 21.2 GB free. The gate's memory reading is cached for half a
+second, and under the experiment clock that half second was timed by her clock,
+which a restore rewinds, so the one reading was served for every later reload
+while the machine had 32 GB. Each later arm waited 900 s and ended in the
+failure floor. The run was stopped and resumed from its written anchors at
+`377a40b85`, which is `13cca3bf9` plus two harness changes: the cached reading
+ages on the machine's clock, and the driver asks again when her cortex is
+stopped and nothing is reloading it. The addendum of 29 October, afternoon,
+records this before the resumed run started. Anchor 0 is carried forward with
+two of its four arms answered by her cortex; in the resumed run a second stall
+of the same family (the reload's memory wait, also timed by her clock) cost one
+more arm. Her cortex answered 237 of the 240 arms measured after the resume.
+
+**What the completion check reads.** All three goals are true under ISC-v7. The
+check also requires every piece of evidence to come from one commit, and the
+reports run came from `377a40b85` while the rest came from `13cca3bf9`. That
+rule predates the run and is not changed for it. A seed run whole at one commit
+is how the conjunction gets read without that qualification.
 
 ## Seed 89, 28 October
 

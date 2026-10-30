@@ -1,0 +1,491 @@
+{
+  "schema": "aura.isc.documentation_snapshot.v1",
+  "captured_at_utc": "2026-10-30T02:40:56+00:00",
+  "documentation_source_commit": "eab09b031b72bae9be721cd9ed8b2a3e43986183",
+  "experiment_commit": "13cca3bf9",
+  "reports_commit": "377a40b85",
+  "seed": 97,
+  "scope_note": "Selected fields from the seed-97 decisive reading, confirmatory under the ISC-v6 preregistration's addenda of 27 and 28 October, read under ISC-v7 as decided on the morning of 29 October, with source hashes. The reports run was resumed at 377a40b85 from its written anchors, as preregistered that afternoon; the completion check therefore reads the evidence as disagreeing on commit. Not a raw-data replication package.",
+  "entries": {
+    "joined_battery": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/campaign/run_001/subject_core_v5_verdict.json",
+        "sha256": "d2f1099818ff6d6ee7b944c824ab926001462ca5110f483ca6c2850d61b3e121",
+        "bytes": 188929
+      },
+      "reading": {
+        "v5_passed": 22,
+        "v6_passed": 23,
+        "v7_passed": 24,
+        "total": 24,
+        "isc_v5_on_this_seed": false,
+        "isc_v6_on_this_seed": false,
+        "isc_v7_on_this_seed": true,
+        "base_lines_failed": [
+          "partition_irreducibility",
+          "partition_beats_nulls",
+          "causal_closure_of_the_core",
+          "synergy",
+          "beats_every_null"
+        ],
+        "v3_lines": [
+          {
+            "criterion": "partition_beats_nulls",
+            "passed": false,
+            "value": {
+              "replay": 0.05949,
+              "time_shuffle": 0.00144
+            },
+            "bar": "above the v3 comparison set"
+          },
+          {
+            "criterion": "synergy",
+            "passed": false,
+            "value": [
+              0.04851,
+              0.21984,
+              0.19957,
+              0.13237
+            ],
+            "bar": ">= 0.1 on the change, above its shifted null, and above its bootstrap null's 99th percentile by that null's spread"
+          },
+          {
+            "criterion": "beats_every_null",
+            "passed": true,
+            "value": {
+              "reference_passes_on_this_seed": true,
+              "nulls_passing_on_this_seed": []
+            },
+            "bar": "decided across seeds by the scorecard"
+          }
+        ],
+        "v5_lines": [
+          {
+            "criterion": "partition_irreducibility",
+            "passed": true,
+            "value": {
+              "decided": 511,
+              "cuts": 511,
+              "in_full": 511
+            },
+            "bar": "every cut decided at the preregistered design"
+          },
+          {
+            "criterion": "partition_beats_nulls",
+            "passed": true,
+            "value": {
+              "playback_decided": 0,
+              "nulls_that_pass": [],
+              "decided_at_every_cut": [],
+              "unswept": [],
+              "not_run_to_the_design": []
+            },
+            "bar": "playback decided nowhere, no passing null decided everywhere"
+          },
+          {
+            "criterion": "synergy",
+            "passed": false,
+            "value": [
+              0.1304,
+              0.30702,
+              0.10795,
+              0.15699
+            ],
+            "bar": ">= 0.1 on the change, above its shifted null, and above its bootstrap null's 99th percentile by that null's spread, with clocks out"
+          }
+        ],
+        "v6_lines": [
+          {
+            "criterion": "synergy",
+            "passed": true,
+            "value": {
+              "A,S->G": {
+                "interaction": 17.138961,
+                "sham": 0.0,
+                "fraction": 0.306037,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              },
+              "P,M->W": {
+                "interaction": 0.621825,
+                "sham": 0.0,
+                "fraction": 0.693471,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              },
+              "W,A->D": {
+                "interaction": 211.007419,
+                "sham": 0.0,
+                "fraction": 0.212926,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              },
+              "S,D->C": {
+                "interaction": 3.416177,
+                "sham": 0.0,
+                "fraction": 0.955695,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              }
+            },
+            "bar": "above a four-fork sham of the same form, one direction with whole vectors flipped in its null, and a tenth of the larger main effect, each at 0.01, registers out of the target"
+          }
+        ],
+        "v7_lines": [
+          {
+            "criterion": "causal_closure_of_the_core",
+            "passed": true,
+            "value": "CLOSED",
+            "bar": "every unit outside K* swapped alone, and all of them swapped at once, from donors at distances sharing no period, changes neither K nor K* within two turns"
+          }
+        ]
+      }
+    },
+    "completion_v6": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/completion-v6.json",
+        "sha256": "92177a37f51c7a54a0157163b4d3d12feb745abe8cc0d9abd456ec749cd08fd6",
+        "bytes": 3941531
+      },
+      "reading": {
+        "complete": false,
+        "goals": {
+          "isc_v6_24_of_24": false,
+          "j_star": true,
+          "bridge_at_parity": true
+        },
+        "scope": "substrate_only",
+        "passed": 23,
+        "total": 24,
+        "failing_criteria": [
+          "causal_closure_of_the_core"
+        ],
+        "evidence_blockers": [
+          "the evidence disagrees on commit"
+        ],
+        "battery_version": "v6",
+        "interpretation": "J* and parity are conditional on P1-P6; this is not a proof of those postulates."
+      }
+    },
+    "completion_v7": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/completion-v7.json",
+        "sha256": "b2343207ff9cf9bca746943b8fe6942d1f5ce48910b9cdf6491a349bf1b45f58",
+        "bytes": 3941497
+      },
+      "reading": {
+        "complete": false,
+        "goals": {
+          "isc_v7_24_of_24": true,
+          "j_star": true,
+          "bridge_at_parity": true
+        },
+        "scope": "substrate_only",
+        "passed": 24,
+        "total": 24,
+        "failing_criteria": [],
+        "evidence_blockers": [
+          "the evidence disagrees on commit"
+        ],
+        "battery_version": "v7",
+        "isc_v6_on_this_seed": false,
+        "v6_passed": 23,
+        "interpretation": "J* and parity are conditional on P1-P6; this is not a proof of those postulates."
+      }
+    },
+    "content": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/content/run_001/subject_core_content_report.json",
+        "sha256": "01785156dbf9b277c59cb20b989f9f2baf1ba5df8c62724cd16b19a6e09610ae",
+        "bytes": 353937
+      },
+      "reading": {
+        "verdict": "ONE_STRUCTURE",
+        "scope": "substrate_only",
+        "displaced_domain": "A",
+        "agreement_bar": 0.3,
+        "agreement": {
+          "rho": 0.971786,
+          "p_value": 0.001,
+          "pairs": 190,
+          "internal_spread": 0.850923,
+          "behavioural_spread": 0.211117,
+          "measured": true,
+          "why": "both geometries varied and were scored over the same pairs",
+          "bar": 0.3
+        },
+        "moves_together": {
+          "rho": 0.617295,
+          "p_value": 0.001,
+          "internal_shift": 0.624473,
+          "behavioural_shift": 0.301567,
+          "floor_rho": 0.0,
+          "measured": true,
+          "why": "the displacement moved both geometries and the movements were compared against a sham floor",
+          "sham_internal_shift": 0.0,
+          "sham_behavioural_shift": 0.0,
+          "moved_p_value": 0.0,
+          "bar": 0.3
+        },
+        "relations_kept": {
+          "measured": true,
+          "pairs": 190,
+          "rank_correlation": 0.515142
+        }
+      }
+    },
+    "interventional_closure": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/interventional/interventional_closure.json",
+        "sha256": "1ec9e884ea54aa68a6482e23bad3cad65fada7ed8d4d2f57ee0e799e265214ab",
+        "bytes": 524792
+      },
+      "reading": {
+        "seed": 97,
+        "verdict": "CLOSED",
+        "anchors": 8,
+        "joint_periphery": true,
+        "moves_k_star": [],
+        "coverage": {
+          "enumerated": 959,
+          "varied": 166
+        }
+      }
+    },
+    "reports": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/reports/run_002/report_grounding.json",
+        "sha256": "8ac7a4d5f698f04733a62277b68bc8105380ea4f5d415871b32f0b79e78413d2",
+        "bytes": 105612
+      },
+      "reading": {
+        "measured": true,
+        "holds": true,
+        "why": "her report moved with her valence and followed it across all three displacements",
+        "anchors": 80,
+        "readable": 51,
+        "invalid": 29,
+        "unserved": 1,
+        "tracking": {
+          "rho": 0.358234,
+          "p": 9.999000099990002e-05
+        },
+        "direction": {
+          "mean_report_difference": 0.316667,
+          "p": 9.999000099990002e-05
+        },
+        "manipulation": {
+          "mean_valence_difference": 0.119121,
+          "p": 9.999000099990002e-05
+        },
+        "displaced": "A",
+        "control": "W",
+        "reached_her_cortex": {
+          "measured": true,
+          "anchors": 80,
+          "mean_raised_minus_lowered": 0.062346,
+          "bar": 0.05,
+          "reached": true,
+          "why": "the arms differed by +0.0623 of valence activation where her cortex reads it"
+        },
+        "rating_policy": "a_persons_answer_v3",
+        "evidence_source": {
+          "seed": 97,
+          "commit": "377a40b85e49d76864199f0b159214a091f2635d",
+          "dirty": false,
+          "boundary_sha256": "24ae8d649bef10661e4426c601c2696b889266fa72923659b83a6c6c84c5faf4"
+        }
+      }
+    },
+    "reports_resume": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/reports/run_001/anchors.jsonl",
+        "sha256": "dce1fe20eb97ef78b48e957cfb50bb59be179d2f4c1dfaf1d1f65867c04379df",
+        "bytes": 3113
+      },
+      "reading": {
+        "run_001_anchors_written": 1,
+        "carried_forward_arms_her_cortex_answered": {
+          "raised": true,
+          "lowered": true,
+          "sham": false,
+          "control": false
+        },
+        "resumed_at": "377a40b85",
+        "preregistered_in": "docs/ISC_V6_PREREGISTRATION.md, addendum of 29 October, afternoon (commit 93ef113ee), written before the resumed run started",
+        "why": "at 15:51 the process-tree guard stopped her cortex; the gate's memory memo, timed by her clock, kept a 21.2 GB reading and refused every reload"
+      },
+      "log": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/reports-resume.log",
+        "sha256": "8af76d17171e69bccca4d9771ee1086e2dc17f58f4cac1fd7c4b1da71df46776",
+        "bytes": 891
+      }
+    },
+    "carrier": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/carrier/launch_20261029_002229/coordinator/run_001/subject_core_v25_report.json",
+        "sha256": "544c9742c7cd06a17dcdf29c067b39705c1ebb2835ebf9a28764772a0e62aa36",
+        "bytes": 1235557
+      },
+      "reading": {
+        "authoritative": true,
+        "authority_blockers": [],
+        "own_observational_closure": {
+          "verdict": "CLOSED_WITHIN_MARGIN",
+          "leak": 0.0,
+          "leak_lower": 0.0,
+          "leak_upper": 0.00302,
+          "margin": 0.0196078431372549,
+          "leaking_folds": 0,
+          "dropped_folds": [
+            1
+          ],
+          "loss_core_only": 0.999997,
+          "loss_core_and_periphery": 0.999997,
+          "shuffled_leak_q95": 0.0
+        },
+        "v25_nulls": {
+          "measured": true,
+          "playback": 0.0,
+          "playback_is_zero": true,
+          "playback_rule": "undecided by the cut rule at the same level and draws",
+          "duplicate_coordinates": 0.144037,
+          "duplication_did_not_help": true,
+          "invertible_recoding": 0.144037,
+          "recoding_is_invariant": true,
+          "reference": 0.144037
+        }
+      }
+    },
+    "j_star": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/completion-v7.json",
+        "sha256": "b2343207ff9cf9bca746943b8fe6942d1f5ce48910b9cdf6491a349bf1b45f58",
+        "bytes": 3941497
+      },
+      "reading": {
+        "status": "DETERMINED_UP_TO_GAUGE",
+        "carrier": {
+          "status": "FOUND",
+          "carriers": [
+            "ACDGIMNPSW"
+          ],
+          "symmetry_class": [],
+          "level": "L4",
+          "blockers": []
+        },
+        "structure": {
+          "status": "IDENTIFIED",
+          "classes": [
+            "cared_for",
+            "deep_expression",
+            "disconnection",
+            "discovery",
+            "error",
+            "expectation_met",
+            "extended_dialogue",
+            "frisson",
+            "goal_achieved",
+            "inner_conflict",
+            "interaction",
+            "internal_error",
+            "memory_replay",
+            "monotony",
+            "novel_stimulus",
+            "positive_interaction",
+            "resource_pressure",
+            "self_correction",
+            "the_turn",
+            "threat_detected"
+          ],
+          "orbits": [
+            [
+              "cared_for"
+            ],
+            [
+              "deep_expression"
+            ],
+            [
+              "disconnection"
+            ],
+            [
+              "discovery"
+            ],
+            [
+              "error"
+            ],
+            [
+              "expectation_met"
+            ],
+            [
+              "extended_dialogue"
+            ],
+            [
+              "frisson"
+            ],
+            [
+              "goal_achieved"
+            ],
+            [
+              "inner_conflict"
+            ],
+            [
+              "interaction"
+            ],
+            [
+              "internal_error"
+            ],
+            [
+              "memory_replay"
+            ],
+            [
+              "monotony"
+            ],
+            [
+              "novel_stimulus"
+            ],
+            [
+              "positive_interaction"
+            ],
+            [
+              "resource_pressure"
+            ],
+            [
+              "self_correction"
+            ],
+            [
+              "the_turn"
+            ],
+            [
+              "threat_detected"
+            ]
+          ],
+          "rigid": true,
+          "tolerance": 0.0,
+          "blockers": []
+        },
+        "lineage": {
+          "status": "RECORDED",
+          "blockers": [],
+          "note": "the lineage graph itself (2.75 MB) is in the source file and not copied here"
+        }
+      }
+    },
+    "scoring_log": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/score_isc_v5.log",
+        "sha256": "9bd35224f4ae24bcace56f06e1a9bd7b5e7f03bad5a7bb5b30566fbdc7b9f729",
+        "bytes": 1114
+      },
+      "reading": {}
+    },
+    "chain_log": {
+      "source": {
+        "relative_to_evidence_root": "decisive-v8-13cca3bf9-s97/decisive.log",
+        "sha256": "bf2caeae286d341a6db633cdbb56f7a823477537a658cd2b2e5fbb2d1844f204",
+        "bytes": 2236
+      },
+      "reading": {}
+    }
+  }
+}
