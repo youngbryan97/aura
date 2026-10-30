@@ -1013,3 +1013,75 @@ ages on `perf_counter`, and the driver asks the gate again when her cortex is st
 Nothing in her state, her organs, the steering, the anchors' seed or the grader changes. The chain is paused, not
 ended, so its own step 5 reads the resumed run and gives the official numbers. The same was done for seed 7's
 withheld reports run on 22 October.
+
+## Addendum, 30 October 2026, early morning: seed 101 is the confirmatory reading, read whole at one commit, with its controls beside it
+
+Written at 02:12, before any stage of seed 101 has started. No reading of seed 101 exists at any commit.
+
+**What this reading is.** Seed 97 is an exploratory reading under ISC-v7. ISC-v7 was written on 27 October, and it was
+made the standard 24/24 is read under at 07:18 on 29 October, during seed 97's reading, when seed 97's v6 closure line
+was already known to fail and the interventional closure v7 decides by had read CLOSED at 00:22. No total existed;
+the deciding line's outcome under both versions did. Seed 97's completion check also reads incomplete, because its
+reports run resumed at 377a40b85 while everything else ran at 13cca3bf9, and `compatibility()` in
+`core/subject/completion.py` asks for one commit across the evidence. That rule was written before seed 97 and stays.
+Seed 101 is the confirmatory reading: every stage at the commit that carries this addendum, every rule below fixed
+before it starts. Seed 97's reading stands as recorded whatever seed 101 reads.
+
+**What decides, and what each outcome means.** Unchanged: ISC-v7's 24 lines and their bars, J\* determined, the bridge
+at parity, and the completion check reading complete under v7. The v6 total is reported beside the v7 total and never
+added to it. All three goals complete under v7 at one commit confirm seed 97's reading. Any line seed 97 passed that
+seed 101 fails is a failed confirmation and is reported as one. No rule changes for this seed. If a defect stops a
+stage, the reading stops under the chain's own rule, a fix is made, and a fresh seed is named in a new addendum; seed
+101 is not resumed at another commit.
+
+**What this commit carries that seed 97's did not.** Each was written after seed 97's stages had run, and none has been
+read on seed 101:
+
+- her homeostasis lets a setpoint worn down by a drain return when the drain ends (01d604f1f). This changes her: on
+  seed 97 her dread sat near 0.97 for the last third of the campaign.
+- the reports grader v4 (addendum of 29 October, early morning), which applies to any reports run at or after it.
+- a refusal written for the model is never served as her reply, a reply phase that gives up still serves the answer
+  its turn holds, and an arm keeps which phase gave up (21db404ad, e0d6e064f, 9da9824a3).
+- the gate's memory reading ages on the machine's clock, and the driver asks again when her cortex is stopped and
+  nothing is reloading it (eab09b031, 296ab7f25): the two fixes seed 97's reports run resumed with.
+- every wait in her modules reads the machine's clock (95fb0c7ff): 152 clock reads in 45 files, each in a loop that
+  sleeps or awaits until a deadline stamped in the same function. A loop that only computes stays on her clock.
+  `tests/test_a_wait_reads_the_machines_clock.py` holds the rule and names the two waits left on her clock.
+- a run can be held between turns and carry on unchanged (ca596646e): while a file named HOLD exists in the run's park
+  directory, each turn waits at its start. No signal is used, because zsh continues a stopped job's whole process
+  group, so a run that stopped itself under the chain's subshells parked for 0 s (found and fixed on 30 October).
+- the declared controls of the reports ground (d8811a1f6), her domains cut apart (3ea08fd53), and the rival accounts a
+  run's files rule out (2d24378f7). None of them runs inside her reading or is read by it.
+
+**What was checked before this was written.** On seed 71, inside one process: eight untouched anchors rolled, then
+rolled again with the machine's monotonic moved forward 600, 1,800, 3,600 and 7,200 s: every anchor bit-identical
+(largest difference 0.0). The same eight anchors rolled again after the process was held between turns for 30 s and
+for 300 s, at ca596646e, launched as the chain launches a stage: every anchor bit-identical, largest difference 0.0
+(`~/subject-core-runs/park-identity-ca596646e-s71.log`). At this commit the compile, lint, layering, writing,
+dependency and smoke gates pass, and the 33 test files that touch what changed pass (419 tests).
+
+**How it runs.** `runs.sh start <this commit> 101` runs `decisive_v10.sh`. Its steps 1 to 5 are the ninth form's,
+unchanged: the stages, bars and stopping rules of the eighth form, giving the machine to her whenever her app is open
+(every subject process waits at the start of its next turn; the reports run, which holds a copy of her cortex, is
+ended and resumed from its written anchors at the same commit once she is closed, as often as that happens; a stage's
+time bound counts only the time it ran; every hold is written to `yield.log`). The reports run is seed 97's design:
+the same question, arms, doses, the layer-43 felt measurement basis at α 0.5, and every reading of herself withheld.
+
+**The controls, after her verdict exists.** Steps 6 and 7 run after the completion checks and the score have been
+written, so none of them can change 24/24, J\* or the bridge. Each is read beside her run and never as it, and none is
+rerun under a revised rule. A control that does not run is reported as not run.
+
+1. *Her domains cut apart* (`tools/run_disconnected_aura.py`). From one saved moment each of her ten domains lives
+   alone with the other nine held, and the ten recordings are composed. Predicted: no integration above its own
+   standard error, no synergy triple passing, and no held column moving. Against her organisation being what the
+   estimators read: integration or synergy read on her cut apart. A held column that moves is a channel the cut did
+   not sever, and is reported by name.
+2. *The reports ground with her steering detached* (`--control steering-off`). Predicted: the push still moves her
+   valence, and her rating no longer follows it (the ground's `holds` false). Against the steering being the route:
+   her rating still following her state. Then a route other than the steering (the sampler, what she recalls, or text
+   that reaches her model) carries it, and the report says the text rival stays open.
+3. *An untuned model in her cortex's place, steering detached* (`--control untuned --model` the base Qwen3.8-27B,
+   4-bit). Predicted: no tracking. Against the tracking needing her: an untuned model tracking as well.
+4. *The rival accounts* (`tools/rule_out_alternatives.py`), read with this seed as the confirmation: passed when all
+   three goals are complete under v7, failed otherwise. It names each rival account her files rule out and each still
+   owed.
