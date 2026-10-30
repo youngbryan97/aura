@@ -135,3 +135,24 @@ def test_the_agents_model_keeps_nothing_and_its_persona_never_changes():
     np.testing.assert_array_equal(a["G"], b["G"])  # the context is rebuilt from input, store and persona
     np.testing.assert_array_equal(a["S"], state["S"])
     assert set(agent.frozen) == {"I", "A", "C", "W", "N", "S"}
+
+
+def test_the_slow_mode_is_one_collective_direction_at_the_radius_it_was_put(reference):
+    system = architecture("near_miss_slow_mode", seed=SEED)
+    eigenvalues = np.linalg.eigvals(system.linear_part())
+    magnitudes = np.sort(np.abs(eigenvalues))[::-1]
+    assert abs(magnitudes[0] - near_miss.SLOW_MODE_RADIUS) < 1e-6
+    assert magnitudes[1] < magnitudes[0] - 0.05, "one mode, not a family of them"
+    assert system.mode_gain > 0
+    assert _edges(system) == _edges(reference)
+    assert system.gains == reference.gains
+
+
+def test_the_loose_domain_keeps_a_twentieth_of_its_coupling_and_nothing_else_changes(reference):
+    system = architecture("near_miss_loose_domain", seed=SEED)
+    assert _edges(system) == _edges(reference)
+    for key, row in reference.coupling.items():
+        for other, matrix in row.items():
+            share = near_miss.LOOSE_SHARE if near_miss.LOOSE in (key, other) and key != other else 1.0
+            np.testing.assert_allclose(system.coupling[key][other], matrix * share)
+    assert not any(near_miss.LOOSE in triple for triple in TRIPLES)

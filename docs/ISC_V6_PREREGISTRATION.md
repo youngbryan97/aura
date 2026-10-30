@@ -1144,3 +1144,41 @@ reported as that.
 **Runs.** A smoke run at low settings (2 draws, 2 trials) to check the tool, reported as a smoke run. Then the
 reading, at the campaign's settings (`--null-draws 8 --trials 6`, seed 7), after seed 101's chain has ended:
 `tools/run_near_miss_decoys.py`.
+
+## Addendum, 30 October 2026, afternoon (later): what the smoke run read, and two second constructions
+
+The smoke run of the near misses at `49a8d9b0d` (2 draws, 2 trials, seed 7; `near-miss-smoke-49a8d9b0d`) is reported
+here whole, before anything below is read.
+
+- **The reference** failed nothing, so the run measured the near misses and not the instrument.
+- **`near_miss_no_synergy`** failed synergy and nothing else, as predicted.
+- **`near_miss_driven`** failed closure (leak 0.106) and nothing else, as predicted.
+- **`near_miss_one_way`** failed strong connectivity and vertex connectivity and passed re-entry. The prediction
+  included re-entry and was wrong: the line asks that every domain lie on some cycle, and every domain does, within
+  its own half. The line read what it defines.
+- **`near_miss_one_cut_vertex`** failed nothing; vertex connectivity read 3. **This is the line missing the property.**
+  The construction removed it (I and N reach the rest of the wiring only through A, and a test checks that). The line
+  reads vertex connectivity on the graph of who measurably moves whom within 66 frames, and influence that passes
+  through A registers as an edge from I and N to the domains beyond it. So the line reads robust *reach of
+  influence*, not the absence of a single point of failure in the wiring, and the paper must describe it that way.
+  An interventional version, which holds each domain in turn and asks whether the rest stays strongly connected,
+  would read the wiring. It is proposed for a later version of the battery and is not applied to seed 101.
+- **`near_miss_one_shock`** failed nothing. The construction did not take the property out. One shared shock,
+  filtered through each domain's own dynamics, left the largest component at 0.36 of the variance, below the line's
+  0.5.
+- **`near_miss_weakly_coupled`** failed nothing. The construction did not take the property out. Irreducibility read
+  0.25 against the reference's 0.29, because weakening every coupling alike leaves every part depending on every
+  other in the same proportion.
+- **The agent** failed six of seven lines and passed closure. It failed strong connectivity, vertex connectivity and
+  re-entry, as the architecture predicted. It failed irreducibility (0.000), as Bryan predicted. It also failed
+  differentiation and synergy. With no input it did not move at all.
+
+**Two second constructions**, written after that run and before either is read. They are new systems under new names,
+not refits; the two above stay in the experiment and are reported as they read.
+
+| Near miss | What is taken out | Predicted to fail |
+|---|---|---|
+| `near_miss_slow_mode` | a single collective direction, read from every domain and written along each one's leading direction, fed back until it is the slowest mode (eigenvalue 0.95 against the wiring's 0.7) | differentiation, and nothing else |
+| `near_miss_loose_domain` | N, which is in no synergy triple, keeps a twentieth of its coupling in and out | irreducibility, and nothing else |
+
+Against the battery, as before: a near miss that passes every line.

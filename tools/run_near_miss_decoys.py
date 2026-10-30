@@ -51,6 +51,8 @@ PREDICTED = {
     "near_miss_one_way": {"strong connectivity", "vertex connectivity", "re-entry"},
     "near_miss_one_shock": {"differentiation"},
     "near_miss_weakly_coupled": {"irreducibility"},
+    "near_miss_slow_mode": {"differentiation"},
+    "near_miss_loose_domain": {"irreducibility"},
 }
 
 

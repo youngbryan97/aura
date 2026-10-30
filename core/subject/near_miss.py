@@ -21,7 +21,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from core.subject.nulls import LinearReference, ToySystem, _matrix, architecture
+from core.subject.nulls import (
+    LinearReference,
+    ToySystem,
+    _as_matrix,
+    _domain_slices,
+    _matrix,
+    architecture,
+)
 from core.subject.state import DOMAINS
 
 __all__ = ["AGENT", "NEAR_MISSES", "NAMES", "build", "is_built_here"]
@@ -36,6 +43,11 @@ NEAR_MISSES: dict[str, str] = {
     "near_miss_one_way": "strong connectivity (and with it vertex connectivity and re-entry)",
     "near_miss_one_shock": "differentiation",
     "near_miss_weakly_coupled": "irreducibility",
+    # Second constructions, added after the smoke run of 30 October showed the two above did not take their
+    # property out (one shared shock left the largest component at 0.36 of the variance, and weakening every coupling
+    # to 0.3 left irreducibility at 0.25). The first two stay in the experiment and are reported as they read.
+    "near_miss_slow_mode": "differentiation",
+    "near_miss_loose_domain": "irreducibility",
 }
 
 AGENT: str = "stateless_agent"
@@ -59,6 +71,15 @@ DOWNSTREAM: tuple[str, ...] = ("W", "D", "C", "G", "N")
 
 #: The share of its cross-domain coupling the weakly coupled near miss keeps.
 WEAK_SHARE: float = 0.3
+
+#: Where the slow mode's eigenvalue is put. The reference's wiring sits at a spectral radius of 0.7, so a mode at
+#: 0.95 keeps about ten times the variance of the fastest of the rest, which is what a dominant mode is.
+SLOW_MODE_RADIUS: float = 0.95
+
+#: The domain the loose near miss leaves almost on its own, and the share of its coupling, in and out, it keeps. N is
+#: in no synergy triple, so no triple loses a source.
+LOOSE: str = "N"
+LOOSE_SHARE: float = 0.05
 
 
 @dataclass
@@ -90,6 +111,53 @@ class OneShockReference(LinearReference):
                 return np.resize(shared, width)
 
         return super().step(state, _Shared())  # type: ignore[arg-type]
+
+
+@dataclass
+class SlowModeReference(LinearReference):
+    """The reference with one collective direction fed back on itself until it is the slowest mode by far.
+
+    Every domain writes along its own leading direction a share of one sum read from all of them, so the whole system
+    gains a single slow mode that carries most of its variance: a broadcast of one quantity laid over the wiring.
+    """
+
+    mode_read: dict[str, np.ndarray] = field(default_factory=dict)
+    mode_write: dict[str, np.ndarray] = field(default_factory=dict)
+    mode_gain: float = 0.0
+
+    def step(self, state: dict[str, np.ndarray], rng: np.random.Generator) -> dict[str, np.ndarray]:
+        nxt = super().step(state, rng)
+        collective = sum(float(self.mode_read[key] @ state[key]) for key in DOMAINS)
+        for key in DOMAINS:
+            nxt[key] = nxt[key] + self.mode_gain * collective * self.mode_write[key]
+        return nxt
+
+    def linear_part(self) -> np.ndarray:
+        where = _domain_slices(self.widths)
+        matrix = _as_matrix(self, where)
+        write = np.concatenate([self.mode_write[key] for key in DOMAINS])
+        read = np.concatenate([self.mode_read[key] for key in DOMAINS])
+        return matrix + self.mode_gain * np.outer(write, read)
+
+
+def _slow_mode(base: LinearReference, name: str) -> SlowModeReference:
+    system = SlowModeReference(**{f: getattr(base, f) for f in base.__dataclass_fields__})
+    system.name = name
+    system.mode_write = {key: base.directions[key].copy() for key in DOMAINS}
+    system.mode_read = {key: base.directions[key] / np.sqrt(len(DOMAINS)) for key in DOMAINS}
+
+    def radius(gain: float) -> float:
+        system.mode_gain = gain
+        return float(np.max(np.abs(np.linalg.eigvals(system.linear_part()))))
+
+    low, high = 0.0, 1.0
+    while radius(high) < SLOW_MODE_RADIUS and high < 1e3:
+        high *= 2.0
+    for _ in range(60):
+        middle = 0.5 * (low + high)
+        low, high = (middle, high) if radius(middle) < SLOW_MODE_RADIUS else (low, middle)
+    system.mode_gain = 0.5 * (low + high)
+    return system
 
 
 @dataclass
@@ -160,6 +228,8 @@ def build(
         shocked = OneShockReference(**{f: getattr(base, f) for f in base.__dataclass_fields__})
         shocked.name = name
         return shocked
+    if name == "near_miss_slow_mode":
+        return _slow_mode(base, name)
     coupling = base.coupling
     if name == "near_miss_one_cut_vertex":
         rest = [key for key in DOMAINS if key not in BEHIND_THE_CUT and key != CUT_VERTEX]
@@ -178,6 +248,11 @@ def build(
     elif name == "near_miss_weakly_coupled":
         for key in coupling:
             coupling[key] = {other: matrix * WEAK_SHARE for other, matrix in coupling[key].items()}
+    elif name == "near_miss_loose_domain":
+        for key in coupling:
+            for other in list(coupling[key]):
+                if LOOSE in (key, other) and key != other:
+                    coupling[key][other] = coupling[key][other] * LOOSE_SHARE
     base.name = name
     return base
 
