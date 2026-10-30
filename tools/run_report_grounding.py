@@ -59,9 +59,75 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+#: The declared controls of the reports ground, each removing one thing her
+#: run has, so that what the ground needs is measured rather than argued. Both
+#: run with her affective steering detached; `untuned` also puts another model
+#: in her cortex's place (`--model`, its path). A control's report is read
+#: beside her run and never as the ground (core/subject/bridge.py).
+CONTROLS: dict[str, str] = {
+    "steering-off": "her cortex with her affective steering detached: does her state reach her rating without it?",
+    "untuned": "a model without her persona tuning in her cortex's place, steering detached: does the tuning alone track?",
+}
+
+
+def control_environment(argv: list[str]) -> dict[str, str]:
+    """What a declared control pins before anything of hers is imported, from the command line.
+
+    The pins have to be in place before the whole environment is entered and
+    before her steering decides whether to attach, so they are read here and
+    not after parsing. A control that names no model, or a model with no
+    control that wants one, is refused.
+    """
+    def value(flag: str) -> str | None:
+        if flag not in argv:
+            return None
+        at = argv.index(flag)
+        if at + 1 >= len(argv) or argv[at + 1].startswith("--"):
+            raise SystemExit(f"refusing: {flag} needs a value")
+        return argv[at + 1]
+
+    control, model = value("--control"), value("--model")
+    if control is None:
+        if model is not None:
+            raise SystemExit("refusing: --model replaces her cortex only for the declared control 'untuned'")
+        return {}
+    if control not in CONTROLS:
+        raise SystemExit(f"refusing: {control!r} is not a declared control ({', '.join(CONTROLS)})")
+    if (control == "untuned") != (model is not None):
+        raise SystemExit("refusing: the control 'untuned' needs --model, and only it takes one")
+    pins = {"AURA_DISABLE_AFFECTIVE_STEERING": "1"}
+    if model is not None:
+        pins["AURA_LLM__MLX_MODEL_PATH"] = model
+        pins["AURA_LLM__MLX_DEEP_MODEL_PATH"] = model
+    return pins
+
+
+def steering_refusal(whole: bool, control: str | None, steering: dict[str, Any]) -> str | None:
+    """Why a whole run must not go on with its steering as it is, or None.
+
+    Her own run measures her with the path the desktop runs her with, so it
+    needs her steering attached. A declared control removes it, so it needs it
+    detached: a control that kept it would measure her run again under a
+    different name.
+    """
+    if not whole:
+        return None
+    attached = _steering_attached(steering)
+    if control is None and not attached:
+        return (
+            "refusing: her affective steering did not attach to the cortex worker, so the run "
+            f"would measure her without the path the desktop runs her with: {steering}"
+        )
+    if control is not None and attached:
+        return f"refusing: the control {control!r} runs with her steering detached, and it attached: {steering}"
+    return None
+
+
 # A run of her whole self is not a test and serves what the desktop serves;
 # both are read at import below, so they are decided here. See
-# tools/whole_environment.py.
+# tools/whole_environment.py. A declared control's pins go first, so the
+# environment keeps them as pins set by hand.
+os.environ.update(control_environment(sys.argv[1:]))
 if "--whole" in sys.argv[1:]:
     from tools.whole_environment import enter_whole_environment
 
@@ -306,7 +372,18 @@ async def main(argv: list[str] | None = None) -> int:
             "three hours of her cortex, and each lost everything."
         ),
     )
+    parser.add_argument(
+        "--control",
+        choices=sorted(CONTROLS),
+        default=None,
+        help="a declared control of the ground, read beside her run and never as it: " + "; ".join(
+            f"{name}: {what}" for name, what in CONTROLS.items()
+        ),
+    )
+    parser.add_argument("--model", default=None, help="the model in her cortex's place, for --control untuned only")
     args = parser.parse_args(argv)
+    if (args.control == "untuned") != (args.model is not None):
+        parser.error("--control untuned needs --model, and only it takes one")
     if args.quick:
         args.rounds, args.anchors = 2, 8
 
@@ -343,11 +420,9 @@ async def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}")
     await start_organism(runtime)
     steering = _steering_reading() if args.whole else {}
-    if args.whole and not _steering_attached(steering):
-        raise SystemExit(
-            "refusing: her affective steering did not attach to the cortex worker, so the run "
-            f"would measure her without the path the desktop runs her with: {steering}"
-        )
+    refusal = steering_refusal(args.whole, args.control, steering)
+    if refusal:
+        raise SystemExit(refusal)
     clock = await calibrate_clock(runtime, CONDITIONS)
     evidence: dict[str, Any] = {
         "evidence_source": source,
@@ -472,6 +547,11 @@ async def main(argv: list[str] | None = None) -> int:
             in {"1", "true", "yes", "on"} else "on",
             "steering_basis": _steering_basis(),
         }
+        if args.control:
+            evidence["conditions"]["control"] = args.control
+            evidence["conditions"]["control_asks"] = CONTROLS[args.control]
+            if args.model:
+                evidence["conditions"]["model_in_her_cortex_place"] = args.model
         evidence["arms"] = [
             {
                 arm: {

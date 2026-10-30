@@ -606,7 +606,8 @@ class JStar:
             markers = ("HOLDS", f"{', '.join(MARKER_LINES)} pass")
         else:
             markers = ("FAILS", f"{[line for line in MARKER_LINES if not self.battery[line]]} fail")
-        printed = ((self.reports or {}).get("conditions") or {}).get("readings_of_herself") != "withheld"
+        conditions = (self.reports or {}).get("conditions") or {}
+        printed = conditions.get("readings_of_herself") != "withheld"
         if not self.reports or not self.reports.get("measured"):
             reports = (
                 "NOT_MEASURED",
@@ -619,6 +620,14 @@ class JStar:
                 "NOT_MEASURED",
                 "her model was shown her state's numbers in this run; the ground is read "
                 "only from a run with them withheld (AURA_READINGS_OF_HERSELF=withheld)",
+            )
+        elif conditions.get("control"):
+            # A declared control (her steering off, or another model in her
+            # cortex's place) asks whether the ground needs what it removed. It
+            # is read beside her run and is never her run.
+            reports = (
+                "NOT_MEASURED",
+                f"this run is the declared control {conditions['control']!r}; the ground is read only from her own run",
             )
         else:
             reports = ("HOLDS" if self.reports.get("holds") else "FAILS", str(self.reports.get("why") or ""))
