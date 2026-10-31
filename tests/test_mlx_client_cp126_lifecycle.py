@@ -18,6 +18,7 @@ from core.brain.llm.mlx_client import (
 )
 from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
 from core.utils.deadlines import get_deadline
+from core.runtime.wall_clock import monotonic_time
 from tests.clock_patch import patch_module_clock
 
 
@@ -1724,12 +1725,12 @@ class TestBackoffAndReadinessNeedCauses:
 
         monkeypatch.setattr(mod, "_probe_mlx_runtime", lambda force=False: (True, "ok"))
         monkeypatch.setattr(client, "_lane_runtime_failure", lambda: "")
-        client._spawn_backoff_until = time.time() + 120.0
+        client._spawn_backoff_until = monotonic_time() + 120.0
         client._spawn_backoff_cause = "spawn_failure"
         client._consecutive_spawn_failures = 3
 
         assert client.refresh_runtime_availability() is False
-        assert client._spawn_backoff_until > time.time(), "the crash backoff must stand"
+        assert client._spawn_backoff_until > monotonic_time(), "the crash backoff must stand"
         assert client._consecutive_spawn_failures == 3
 
     def test_a_runtime_probe_clears_a_runtime_backoff(self, client, monkeypatch):
@@ -1737,7 +1738,7 @@ class TestBackoffAndReadinessNeedCauses:
 
         monkeypatch.setattr(mod, "_probe_mlx_runtime", lambda force=False: (True, "ok"))
         monkeypatch.setattr(client, "_lane_runtime_failure", lambda: "")
-        client._spawn_backoff_until = time.time() + 120.0
+        client._spawn_backoff_until = monotonic_time() + 120.0
         client._spawn_backoff_cause = "runtime_unavailable"
         client._consecutive_spawn_failures = 3
 
