@@ -1033,7 +1033,9 @@ def test_optional_deep_solver_memory_refusal_stays_noncritical(monkeypatch):
     assert client._lane_state == "cold"
     assert client._init_future is None
     assert client._consecutive_spawn_failures == 0
-    assert client._spawn_backoff_until > time.time()
+    from core.runtime.wall_clock import monotonic_time
+
+    assert client._spawn_backoff_until > monotonic_time()
     assert events == [
         (
             "optional_deep_solver_memory_refusal",

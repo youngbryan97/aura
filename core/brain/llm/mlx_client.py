@@ -6164,7 +6164,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         self._consecutive_spawn_failures = 0
         # Short backoff prevents repeated oversized 72B attempts from flooding the
         # neural stream while keeping the optional lane available after pressure falls.
-        self._spawn_backoff_until = time.time() + 60.0
+        self._spawn_backoff_until = monotonic_time() + 60.0
         # Not a runtime failure: a runtime probe must not clear this one. It
         # expires on its own once pressure has had a chance to fall.
         self._spawn_backoff_cause = "memory_refusal"
@@ -7060,7 +7060,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         state or an exponential spawn backoff once the runtime is healthy again.
         """
         runtime_error = self._lane_runtime_failure()
-        if not runtime_error and time.time() >= float(
+        if not runtime_error and monotonic_time() >= float(
             getattr(self, "_spawn_backoff_until", 0.0) or 0.0
         ):
             return False
