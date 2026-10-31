@@ -1085,3 +1085,52 @@ rerun under a revised rule. A control that does not run is reported as not run.
 4. *The rival accounts* (`tools/rule_out_alternatives.py`), read with this seed as the confirmation: passed when all
    three goals are complete under v7, failed otherwise. It names each rival account her files rule out and each still
    owed.
+
+## Addendum, 30 October 2026, evening: seed 101's reports run is cleared at its own commit, not resumed at another
+
+Written from 19:00, while the run is under way, and finished at 19:40. No seed 101 report reading has been graded or
+read for its direction. Anchors 0 and 1 are written.
+
+**What happened.** At 17:55, in anchor 0's control arm, the run's memory guard ended her cortex in the middle of a
+generation (`memory_pressure_during_generation`), and the fallback model answered that arm. Every reload after it was
+refused. The run's declared host (`core/subject/declared_host.py`) answers each question about the host once and keeps
+the answer, so that two arms read one body, and the lane controller asked it whether her cortex's worker (pid 75676)
+was still running. It kept answering yes. At 18:10:50 the ledger marked the dead worker's heartbeat stale and the
+holder not evictable, and admission refused her cortex for it at 18:10, 18:25 and 18:40
+(`required_eviction_not_preemptible`). Each of anchor 1's four arms waited 900 s and ended in the failure floor: none of
+anchor 1 was answered by any model. Read from outside the run, the same ledger code at the same commit called the
+worker dead.
+
+**What was done, at aeefdca31, with no change of commit.** At 18:55:28 the ledger's own prune was run once, at the
+chain's commit, from a process that reads the real machine. It reaped the dead worker's holding and two helper workers
+that had also ended, and no holder that was running (the ledger's `owner_reaped` events). At 18:55:53 admission
+admitted her cortex. Its spawn was then refused by the run's process-tree guard (19.4 + 18.3 + 3.0 GB against a limit
+of 35.8 GB) because the fallback model's worker held 8.4 GB in the run's tree, and at 18:57:07 that worker was stopped,
+as on seed 97 (addendum of 29 October, afternoon) and as the run's own memory guard does. For the rest of the chain,
+`scratch/clear_dead_lane_holders_s101.py` repeats the prune whenever admission refuses her cortex for a holder the
+machine reads as dead, and nothing else. Every action is logged in the run's `lane-clearer.log`.
+
+**Then a third fault, and the resume.** Her cortex still did not come back. The refused spawn at 18:56 had set a
+ten-second spawn backoff, and the backoff is stamped and read with `time.time`, which in a run is her clock
+(`core/runtime/wall_clock.py`): every arm restores its anchor and rewinds that clock, so the ten seconds never passed
+and each later attempt logged that the backoff stood. At 19:34:28 the chain was paused, the stuck process was stopped,
+and the reports run was resumed at aeefdca31 from `run_001`'s two written anchors with the tool's own `--resume`, as
+`scratch/resume_reports_s101.sh` does. That is the resume the confirmatory addendum provides for, ended and resumed
+from its written anchors at the same commit, here used for a stopped cortex rather than an opened app. Anchors 0 and 1
+are carried forward as written, and both are unreadable under the grader's rule (an anchor counts only when her cortex
+answered every arm; 8 of 80 are needed). The chain is continued after the resumed run ends, so its own step 5 reads it.
+
+**What this changes, and what it does not.** No code, rule, bar, seed, arm, dose, steering or grader changes, nothing of
+hers is touched, and the run is neither restarted nor resumed: every stage of seed 101 stays at aeefdca31, so the
+one-commit rule of the confirmatory addendum holds. The arms her cortex did not answer (anchor 0's control and all of
+anchor 1, and any later arm the same fault reaches before the cleaner acts) are carried as written and counted as not
+answered by her cortex, as the reports tool counts them. The confirmatory addendum says a stage a defect stops ends
+the reading and a fresh seed is named. This stage did not end, and nothing in the code was changed. Reading the rule
+as covering only a stage that ends or a change of code is stated here, so that it can be disputed.
+
+**The defects, fixed for later seeds.** On the branch `fix/lane-holder-liveness-machine`, the lane asks the machine,
+not the held face, whether a holder is running (e4015378c) (`process_observer` in `core/runtime/model_lane_control.py`). Its test,
+`tests/test_a_dead_lane_holder_is_seen_dead_under_a_held_host.py`, fails at aeefdca31 and passes with the fix. The
+spawn backoff is stamped and read on the machine's clock (`monotonic_time` in `core/brain/llm/mlx_client.py` and
+`mlx_client_worker_lifecycle.py`; 192846468), held by `tests/test_a_spawn_backoff_ends_on_the_machines_clock.py`, which also fails
+at aeefdca31. Seed 101 uses neither. Any later seed runs at a commit that carries both.
