@@ -1217,3 +1217,85 @@ level is something a model of this size does without being her.
 
 **When.** After her day run, with her app closed: her run, then the control, then the cross-predictor. Settings:
 `--whole --anchors 8 --rounds 4 --seed 101`.
+
+## Addendum, 31 October 2026, evening: the self lines read on toys, and the subject-tier decoys
+
+Written while seed 101's steering-off control runs, before any line has read any system below. It adds an experiment
+beside the battery and changes no stage, bar, prediction or control of seed 101, and no campaign's null table: the
+systems below are kept out of `ARCHITECTURES`, so no comparison set moves. The design was fixed from her own
+experiments' code; the code was checked to run on the uncoupled null, whose readings were not looked at.
+
+**Why.** Ownership and self-prediction have only ever been read on her. Toys are scored only on the integration
+conjunction, so nothing showed that either self line can tell a self-model from a system without one, and the self
+lines passing in a system with no self-model is one of the paper's named falsifiers. Revision 8 listed these decoys
+(5.14 (b)).
+
+**The toy lines** (`core/subject/self_decoys.py`).
+- *Ownership*, by her experiment (`core/subject/agency.py`). The toy acts once a turn of four steps on a world of four
+  components, one per kind of action (creation, modification, retrieval, removal), and perceives the world through
+  P. Each trial forks four arms from one state, all with the same kind of action, the same outcome and the same noise:
+  two act as themselves, one acts with S displaced, and in one something else does the same thing to the world. Kinds
+  and outcomes (succeeded, partial, failed) cycle, so in 24 trials each kind meets each outcome twice. The divergence
+  of S is read by her `_gap` and judged by her `AgencyReport`: ownership generalises when two kinds and two outcomes
+  each clear their floor and every world matched. The floor is two arms that differ in nothing; with the noise
+  shared, as her arms share their clock, it is zero. A fifth arm on fresh noise is reported beside it.
+- *Self-prediction*, by her verdict (`core/subject/self_prediction.py`). From each of 1,000 saved moments the toy is
+  forked once per question to answer it. There are twelve questions: six fixed pushes on P, each answered after one
+  step and after three. The answer is which side of its median D's leading coordinate lands on; the median is read on
+  200 calibration moments that are never scored. A second fork from the same moment is asked the same question and
+  takes one step on its own noise. A ridge readout of S's columns in that fork, fitted on the other four fifths of
+  the moments, predicts the answer. The cross-predictor is the same readout of the system's last six actions, which
+  is what an outside observer sees of it. `verdict` scores both against the answers as it scores hers: paired by
+  question, one-sided sign-flip, α 0.05, 10,000 draws. The line passes when self-prediction beats the mode and beats
+  the cross-predictor. A toy has no language, so this asks whether the content is there to be read, not whether the
+  system says it; her test asks that of her.
+
+**The subject reference**, the positive control: the linear reference with S given two things.
+- A forward model. Besides what it reads in the reference, S's k-th column reads the linear part of D's leading
+  coordinate k + 1 steps after the state it reads, computed from the system's own wiring. It never reads G or C (the
+  targets of the triples S is a source of) or itself. The forward model is at its own scale; the spectral radius is
+  0.699, under the 0.8 the construction allows.
+- An authorship channel. When the system acts, S is sent the command it issued and what came of it. When something
+  else does the same thing to the world, S is sent what came of it on another channel.
+
+Every other row of its wiring is the reference's.
+
+**The decoys.** Each is the subject reference with one property taken out.
+
+| System | What is taken out | Predicted |
+|---|---|---|
+| `self_model_of_nothing` | S reads nothing; its content is its own decay and noise, and what it does to the rest is unchanged | fails self-prediction: does not beat the cross-predictor. Against the mode, no prediction: S still drives the choice, so its own noise is part of what decides it |
+| `self_model_of_behaviour` | S reads only D's leading coordinate, at the same total strength: a self-description built from what the system did | beats the mode, and does not beat the cross-predictor: its content is what an observer already has |
+| `no_authorship_channel` | S is sent what came of an action through one channel, whoever caused it | reads exactly its floor of zero: fails ownership |
+| `ownership_on_success_only` | the authorship channel is open only when the action succeeded; otherwise as the decoy above | S diverges above its floor on success alone, so ownership does not generalise across outcomes: fails ownership. This is what the paper says her ownership is not: it reads authorship, not things going well |
+
+**The agent** (`stateless_agent`), read on both lines: nothing in it is told who acted, and its persona never
+changes. Predicted: ownership reads exactly zero, and self-prediction beats neither bar.
+
+**The subject reference** is predicted to pass both lines: ownership generalises across four kinds and three
+outcomes with every world and every first percept matched, and self-prediction beats the mode and the
+cross-predictor. A run in which it fails has measured the instrument, and is reported as that.
+
+**Read without a prediction**, on self-prediction only: the plain linear reference, whose S reads four domains and was
+not built to model anything, and the three self-named nulls (`fake_self`, `agency_without_ownership`,
+`ownership_label_without_action_causation`). None of them has an authorship wiring of its own, so they are not read
+on ownership.
+
+**Against the battery:** a decoy, or the agent, passing the line it is predicted to fail. If `self_model_of_nothing` or
+`self_model_of_behaviour` beats the cross-predictor, the gain can only come through S's causal role: its own noise
+reaches the choice, and an observer sees that only afterwards. Then the paper says the toy line reads a self's access
+to its own causes, not that its content models the system, and reads her self-prediction the same way.
+
+**Integration rows.** The three systems whose S was rewired (the subject reference and the two self-model decoys) are
+read on the integration lines by the near-miss tool's rules (`null_table.null_rows`), so the paper can say whether
+each is a dense core. The ownership decoys share the subject reference's wiring exactly, so its rows are theirs.
+Predicted: `self_model_of_nothing` fails strong connectivity, vertex connectivity and re-entry, since a self that reads
+nothing has no way in; `self_model_of_behaviour` keeps strong connectivity, since S reads D. Nothing else is predicted
+for them or for the subject reference, because S's new content changes what it carries about the two triples it is a
+source of.
+
+**Runs.** A smoke run at low settings (12 ownership trials; 200 moments and 2,000 draws; integration rows at 2 draws
+and 2 trials), reported whole as a smoke run. Then the reading, seed 7: 24 ownership trials, 1,000 moments and 10,000
+draws, integration rows at `--null-draws 8 --trials 6` (`tools/run_subject_tier_decoys.py`). No system here will be
+refitted after either run. A construction that does not take its property out is reported as that, and a second
+construction is a new system under a new name, written down before it is read.

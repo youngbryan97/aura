@@ -587,10 +587,12 @@ def architecture(
     noise: float = 0.05,
 ) -> ToySystem:
     """One of the wirings, with matched widths, decay and noise."""
-    from core.subject import near_miss  # here, not at the top: near_miss builds on this module
+    from core.subject import near_miss, self_decoys  # here, not at the top: both build on this module
 
     if near_miss.is_built_here(name):
         return near_miss.build(name, widths=widths, seed=seed, strength=strength, noise=noise)
+    if self_decoys.is_built_here(name):
+        return self_decoys.build(name, widths=widths, seed=seed, strength=strength, noise=noise)
     rng = np.random.default_rng(seed)
     if name == "recurrent" and widths is None:
         widths = {key: REFERENCE_WIDTH for key in DOMAINS}
