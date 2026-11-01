@@ -26,6 +26,7 @@ for path in (REPO, REPO / "tools"):
 from run_near_miss_decoys import LINES  # noqa: E402
 
 from core.subject import self_decoys  # noqa: E402
+from core.subject.nulls import architecture  # noqa: E402
 from core.subject.null_table import null_rows  # noqa: E402
 from core.subject.state import DOMAINS  # noqa: E402
 
@@ -47,15 +48,27 @@ SELF_PREDICTION_PREDICTED: dict[str, dict[str, bool]] = {
     "stateless_agent": {"beats_mode": False, "beats_cross": False},
 }
 
+#: On the second instrument, written after the smoke run and before this instrument was read.
+SELF_PREDICTION_V2_PREDICTED: dict[str, dict[str, bool]] = {
+    "subject_reference_v2": {"beats_mode": True, "beats_cross": True},
+    "self_model_of_nothing": {"beats_cross": False},
+    "self_model_of_behaviour_v2": {"beats_mode": True, "beats_cross": False},
+    "stateless_agent": {"beats_mode": False},
+}
+
 READ_WITHOUT_PREDICTION: tuple[str, ...] = (
     "recurrent", "fake_self", "agency_without_ownership", "ownership_label_without_action_causation",
 )
 
-INTEGRATION: tuple[str, ...] = ("subject_reference", "self_model_of_nothing", "self_model_of_behaviour")
+INTEGRATION: tuple[str, ...] = (
+    "subject_reference", "self_model_of_nothing", "self_model_of_behaviour", "subject_reference_v2",
+    "self_model_of_behaviour_v2",
+)
 #: Lines each is predicted to fail at least, and lines it is predicted to pass. The rest are read and not predicted.
 INTEGRATION_PREDICTED: dict[str, dict[str, set[str]]] = {
     "self_model_of_nothing": {"fails": {"strong connectivity", "vertex connectivity", "re-entry"}, "passes": set()},
     "self_model_of_behaviour": {"fails": set(), "passes": {"strong connectivity"}},
+    "self_model_of_behaviour_v2": {"fails": set(), "passes": {"strong connectivity"}},
 }
 
 
@@ -91,20 +104,34 @@ def main() -> int:
         ownership[name] = {"report": read, **_judged(read, OWNERSHIP_PREDICTED[name], _ownership_reads)}
         print(f"ownership {name}: {ownership[name]['read']} as predicted {ownership[name]['as_predicted']}", flush=True)
 
-    prediction = {}
-    for name in (*self_decoys.SELF_PREDICTION_SYSTEMS, *READ_WITHOUT_PREDICTION):
-        read = self_decoys.toy_self_prediction(name, seed=args.seed, moments=args.moments, draws=args.draws)
-        entry: dict[str, Any] = {"verdict": read}
-        if name in SELF_PREDICTION_PREDICTED:
-            entry.update(_judged(read, SELF_PREDICTION_PREDICTED[name], lambda r, k: bool(r.get(k))))
-        prediction[name] = entry
-        print(
-            f"self-prediction {name}: self {read['self_accuracy']:.3f} mode {read['mode_accuracy']:.3f} "
-            f"cross {read.get('cross_accuracy', float('nan')):.3f} beats mode {read['beats_mode']} "
-            f"beats cross {read.get('beats_cross')}"
-            + (f" as predicted {entry['as_predicted']}" if "as_predicted" in entry else " (no prediction)"),
-            flush=True,
-        )
+    def self_prediction(names: tuple[str, ...], predicted: dict[str, dict[str, bool]], second: bool) -> dict:
+        table = {}
+        for name in names:
+            system = architecture(name, seed=args.seed)
+            along = self_decoys.decided_direction(system, seed=args.seed) if second else None
+            read = self_decoys.toy_self_prediction(
+                name, seed=args.seed, moments=args.moments, draws=args.draws, system=system, along=along,
+            )
+            entry: dict[str, Any] = {"verdict": read}
+            if name in predicted:
+                entry.update(_judged(read, predicted[name], lambda r, k: bool(r.get(k))))
+            table[name] = entry
+            print(
+                f"self-prediction ({'second' if second else 'first'} instrument) {name}: "
+                f"self {read['self_accuracy']:.3f} mode {read['mode_accuracy']:.3f} "
+                f"cross {read.get('cross_accuracy', float('nan')):.3f} beats mode {read['beats_mode']} "
+                f"beats cross {read.get('beats_cross')}"
+                + (f" as predicted {entry['as_predicted']}" if "as_predicted" in entry else " (no prediction)"),
+                flush=True,
+            )
+        return table
+
+    prediction = self_prediction(
+        (*self_decoys.SELF_PREDICTION_SYSTEMS, *READ_WITHOUT_PREDICTION), SELF_PREDICTION_PREDICTED, False
+    )
+    prediction_v2 = self_prediction(
+        (*self_decoys.SELF_PREDICTION_SYSTEMS_V2, *READ_WITHOUT_PREDICTION), SELF_PREDICTION_V2_PREDICTED, True
+    )
 
     integration: dict[str, Any] = {}
     if not args.no_integration:
@@ -122,22 +149,28 @@ def main() -> int:
             integration[name] = entry
             print(f"integration {name}: fails {sorted(failed) or 'nothing'}", flush=True)
 
-    reference_own = ownership["subject_reference"]["as_predicted"]
-    reference_pred = prediction["subject_reference"]["as_predicted"]
+    tables = {"ownership": ownership, "self_prediction": prediction, "self_prediction_second": prediction_v2}
     report = {
         "seed": args.seed,
         "settings": {
             "ownership_trials": args.ownership_trials, "moments": args.moments, "draws": args.draws,
             "null_draws": args.null_draws, "trials": args.trials, "integration": not args.no_integration,
         },
-        "instrument_ok": bool(reference_own and reference_pred),
-        # As predicted on every line it is read on.
+        # Whether the positive control read as predicted on each instrument. Where it did not, that instrument
+        # measured itself and its decoys' readings say nothing about them.
+        "instrument_ok": {
+            "ownership": ownership["subject_reference"]["as_predicted"],
+            "self_prediction": prediction["subject_reference"]["as_predicted"],
+            "self_prediction_second": prediction_v2["subject_reference_v2"]["as_predicted"],
+        },
+        # As predicted, per line it is read on.
         "decoys_caught": {
-            name: all(table[name]["as_predicted"] for table in (ownership, prediction) if "as_predicted" in table.get(name, {}))
+            name: {line: table[name]["as_predicted"] for line, table in tables.items() if "as_predicted" in table.get(name, {})}
             for name in (*self_decoys.DECOYS, "stateless_agent")
         },
         "ownership": ownership,
         "self_prediction": prediction,
+        "self_prediction_second": prediction_v2,
         "integration": integration,
         "seconds": round(time.monotonic() - started, 1),
     }

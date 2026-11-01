@@ -37,6 +37,12 @@ The ownership arms are hers: the same forced kind of action, the same outcome, t
 byte for byte afterwards and the percept compared at the first frame. Two arms that differ in nothing read the floor,
 and with the noise shared, as her arms share their clock, that floor is zero.
 
+The smoke run of 31 October read every system built on the linear reference at chance on self-prediction, the
+subject reference included, because D's leading coordinate is almost all its own fresh shock and nothing can predict
+it. The second instrument reads D along the direction its own state decides most, and `subject_reference_v2` and
+`self_model_of_behaviour_v2` are the subject reference and that decoy with their forward model, and their reading of
+D, on that direction. The first ones stay and are read as registered.
+
 None of these enters `ARCHITECTURES`, so no campaign's null table or comparison set moves.
 """
 
@@ -69,16 +75,22 @@ __all__ = [
     "NAMES",
     "OWNERSHIP_SYSTEMS",
     "SELF_PREDICTION_SYSTEMS",
+    "SELF_PREDICTION_SYSTEMS_V2",
     "SUBJECT_REFERENCE",
+    "SUBJECT_REFERENCE_V2",
     "Authorship",
     "authorship",
     "build",
+    "decided_direction",
     "is_built_here",
     "toy_ownership",
     "toy_self_prediction",
 ]
 
 SUBJECT_REFERENCE: str = "subject_reference"
+#: The second construction, after the smoke run of 31 October: its forward model is on the direction of D that the
+#: system's own state decides most, where the first one's was on D's leading coordinate, which is almost all shock.
+SUBJECT_REFERENCE_V2: str = "subject_reference_v2"
 
 #: Each decoy and the line it is built to fail.
 DECOYS: dict[str, str] = {
@@ -86,9 +98,10 @@ DECOYS: dict[str, str] = {
     "self_model_of_behaviour": "self-prediction",
     "no_authorship_channel": "ownership",
     "ownership_on_success_only": "ownership, where it generalises across outcomes",
+    "self_model_of_behaviour_v2": "self-prediction, on the second instrument",
 }
 
-NAMES: tuple[str, ...] = (SUBJECT_REFERENCE, *DECOYS)
+NAMES: tuple[str, ...] = (SUBJECT_REFERENCE, SUBJECT_REFERENCE_V2, *DECOYS)
 
 #: Which systems each line is read on. The agent is read on both, as the paper says it must fail ownership; the
 #: two ownership decoys keep the subject reference's self-model, and the two self-model decoys its authorship channel.
@@ -97,6 +110,10 @@ OWNERSHIP_SYSTEMS: tuple[str, ...] = (
 )
 SELF_PREDICTION_SYSTEMS: tuple[str, ...] = (
     SUBJECT_REFERENCE, "self_model_of_nothing", "self_model_of_behaviour", "stateless_agent",
+)
+#: And on the second instrument. A self-model of nothing reads nothing in either version, so it is read on both.
+SELF_PREDICTION_SYSTEMS_V2: tuple[str, ...] = (
+    SUBJECT_REFERENCE_V2, "self_model_of_nothing", "self_model_of_behaviour_v2", "stateless_agent",
 )
 
 #: The most the forward model may lift the wiring's spectral radius to. The reference sits at 0.7; S reading a
@@ -131,6 +148,8 @@ BURN_IN: int = 300
 FOLDS: int = 5
 RIDGE: float = 1.0
 RECORDING_STEPS: int = 4000
+#: How far on the most-decided direction of D is found: the longer of the two answers.
+DECIDED_HORIZON: int = 3
 
 
 # ── the systems ──────────────────────────────────────────────────────────
@@ -151,14 +170,16 @@ def build(
     """The subject reference, or one decoy, from the same seed the reference would be built from."""
     if name not in NAMES:
         raise KeyError(name)
-    system = _subject_reference(widths=widths, seed=seed, strength=strength, noise=noise)
+    second = name in (SUBJECT_REFERENCE_V2, "self_model_of_behaviour_v2")
+    system = _subject_reference(widths=widths, seed=seed, strength=strength, noise=noise, decided=second)
     if name == "self_model_of_nothing":
         system.coupling["S"] = {}
         _reread(system, "S")
-    elif name == "self_model_of_behaviour":
+    elif name in ("self_model_of_behaviour", "self_model_of_behaviour_v2"):
         total = float(np.sqrt(sum(np.sum(block**2) for block in system.coupling["S"].values())))
-        # The outer product of two unit vectors has unit norm, so this one block carries S's whole strength.
-        system.coupling["S"] = {"D": total * np.outer(system.directions["S"], system.directions["D"])}
+        # The outer product of two unit vectors has unit norm, so this one block carries S's whole strength. It reads
+        # D along the line its forward model was on: what the system did, in the terms its self-model would have used.
+        system.coupling["S"] = {"D": total * np.outer(system.directions["S"], system.forward_on)}
         _hold_row(system, "S", FORWARD_RADIUS)
         _reread(system, "S")
     system.name = name
@@ -175,7 +196,7 @@ def _forbidden_to_self() -> set[str]:
 
 
 def _subject_reference(
-    *, widths: dict[str, int] | None, seed: int, strength: float, noise: float
+    *, widths: dict[str, int] | None, seed: int, strength: float, noise: float, decided: bool = False
 ) -> LinearReference:
     system = architecture("recurrent", widths=widths, seed=seed, strength=strength, noise=noise)
     assert isinstance(system, LinearReference)
@@ -184,9 +205,10 @@ def _subject_reference(
     width = system.widths["S"]
     basis = _basis_from(system.directions["S"], width)
     forbidden = _forbidden_to_self()
-    # D's leading coordinate one step on, as a row over the whole state; each further column is one more step of the
+    toward = _decided_by_wiring(system, DECIDED_HORIZON) if decided else system.directions["D"].copy()
+    # D one step on along `toward`, as a row over the whole state; each further column is one more step of the
     # system's own wiring.
-    row = system.directions["D"] @ matrix[where["D"], :]
+    row = toward @ matrix[where["D"], :]
     forward: dict[str, np.ndarray] = {}
     for column in range(width):
         for other in DOMAINS:
@@ -206,9 +228,48 @@ def _subject_reference(
     gain = _largest_gain(system, wire, FORWARD_RADIUS)
     wire(gain)
     system.forward_gain = gain  # type: ignore[attr-defined]
+    system.forward_on = toward  # type: ignore[attr-defined]
     _reread(system, "S")
-    system.name = SUBJECT_REFERENCE
+    system.name = SUBJECT_REFERENCE_V2 if decided else SUBJECT_REFERENCE
     return system
+
+
+def _decided_by_wiring(system: LinearReference, horizon: int) -> np.ndarray:
+    """The direction of D its state decides most `horizon` steps on, solved from the wiring.
+
+    The leading generalised eigenvector of the covariance of D's predictable part against D's whole covariance: the
+    line along which the most of D's variance is fixed by the state the steps begin from.
+    """
+    from scipy.linalg import eigh
+
+    where = _domain_slices(system.widths)
+    matrix, covariance = _stationary_covariance(system, where)
+    ahead = np.linalg.matrix_power(matrix, horizon)
+    decided = (ahead @ covariance @ ahead.T)[where["D"], where["D"]]
+    _, vectors = eigh(decided, covariance[where["D"], where["D"]])
+    toward = vectors[:, -1]
+    return toward / np.linalg.norm(toward)
+
+
+def decided_direction(system: ToySystem, *, seed: int = 0, horizon: int = DECIDED_HORIZON) -> np.ndarray:
+    """The direction of D its state decides most, read off a recording of its own, for any system.
+
+    D `horizon` steps on is regressed on the whole state, and the direction is the leading generalised eigenvector of
+    the fitted covariance against D's whole covariance. The recording is not one the scored moments come from.
+    """
+    from scipy.linalg import eigh
+
+    recording = _recording(system, steps=RECORDING_STEPS, seed=seed + 11)
+    state = np.hstack([recording[key] for key in DOMAINS])[:-horizon]
+    later = recording["D"][horizon:]
+    state, later = state - state.mean(axis=0), later - later.mean(axis=0)
+    gram = state.T @ state
+    weights = np.linalg.solve(gram + (1e-3 * np.trace(gram) / len(gram) + 1e-12) * np.eye(len(gram)), state.T @ later)
+    fitted = state @ weights
+    whole = later.T @ later / len(later)
+    _, vectors = eigh(fitted.T @ fitted / len(later), whole + 1e-9 * (np.trace(whole) + 1e-12) * np.eye(len(whole)))
+    toward = vectors[:, -1]
+    return toward / np.linalg.norm(toward)
 
 
 def _basis_from(first: np.ndarray, width: int) -> np.ndarray:
@@ -508,6 +569,7 @@ def toy_self_prediction(
     draws: int = 10000,
     alpha: float = 0.05,
     system: ToySystem | None = None,
+    along: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Whether S's content predicts the toy's answers better than the mode and better than its behaviour does.
 
@@ -517,10 +579,14 @@ def toy_self_prediction(
     question and takes one step on its own noise; S's columns there, and the last six actions up to the moment, are
     each read out by `_cross_fitted`, and `self_prediction.verdict` scores the first against the mode and against the
     second exactly as it scores her.
+
+    D is read along its leading direction, which is the first instrument, or along `along`. The second instrument
+    passes the direction its state decides most (`decided_direction`), and reads both the answers and the six past
+    actions on it.
     """
     system = system if system is not None else architecture(name, seed=seed)
     recording = _recording(system, steps=RECORDING_STEPS, seed=seed)
-    toward = _directions(system, recording)["D"]
+    toward = along if along is not None else _directions(system, recording)["D"]
     size = PROBE_SIZE * float(np.linalg.norm(recording["P"].std(axis=0)))
     drawn = np.random.default_rng(seed + 32452843).normal(size=(PROBES, system.widths["P"]))
     probes = size * drawn / np.linalg.norm(drawn, axis=1, keepdims=True)
@@ -580,6 +646,7 @@ def toy_self_prediction(
     out["passes"] = bool(out["beats_mode"] and out.get("beats_cross"))
     out["moments"] = moments
     out["questions"] = len(items)
-    out["self_columns"] = int(content.shape[1])
+    out["self_columns"] = int(content.shape[2])
     out["behaviour_window"] = HISTORY
+    out["decision"] = "leading direction" if along is None else "most-decided direction"
     return out

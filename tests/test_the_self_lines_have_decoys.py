@@ -166,3 +166,38 @@ def test_a_readout_reads_back_what_its_inputs_carry_and_a_constant_says_only_wha
     assert np.array_equal(self_decoys._cross_fitted(per_question, answers), answers)
     constant = self_decoys._cross_fitted(np.ones((200, 5)), answers)
     assert all(len(set(constant[:, q])) == 1 for q in range(3))
+
+
+@pytest.fixture(scope="module")
+def subject_v2():
+    return architecture(self_decoys.SUBJECT_REFERENCE_V2, seed=SEED)
+
+
+def test_the_second_subject_reference_is_the_reference_with_its_forward_model_on_what_the_state_decides(
+    reference, subject_v2
+):
+    assert _same_rows(subject_v2, reference, but="S")
+    assert set(reference.coupling["S"]) <= set(subject_v2.coupling["S"])
+    assert not set(subject_v2.coupling["S"]) & {"S", "G", "C"}
+    assert self_decoys._radius(subject_v2) <= self_decoys.FORWARD_RADIUS + 1e-9
+    decided = self_decoys._decided_by_wiring(reference, self_decoys.DECIDED_HORIZON)
+    assert np.allclose(subject_v2.forward_on, decided)
+
+
+def test_each_behaviour_decoy_reads_d_along_its_own_reference_s_forward_line(subject, subject_v2):
+    for name, base in (("self_model_of_behaviour", subject), ("self_model_of_behaviour_v2", subject_v2)):
+        decoy = architecture(name, seed=SEED)
+        assert _same_rows(decoy, base, but="S")
+        block = decoy.coupling["S"]["D"]
+        assert np.linalg.matrix_rank(block) == 1
+        assert abs(np.linalg.svd(block)[2][0] @ base.forward_on) > 0.999
+
+
+def test_the_first_constructions_are_unchanged_by_the_second(reference, subject):
+    assert np.allclose(subject.forward_on, reference.directions["D"])
+
+
+def test_the_most_decided_direction_read_off_a_recording_is_the_one_the_wiring_gives(reference):
+    from_wiring = self_decoys._decided_by_wiring(reference, self_decoys.DECIDED_HORIZON)
+    from_recording = self_decoys.decided_direction(reference, seed=SEED)
+    assert abs(float(from_wiring @ from_recording)) > 0.9
