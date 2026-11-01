@@ -4377,9 +4377,9 @@ def _attach_affective_steering(
     engine = None
     try:
         from core.brain.llm.model_registry import resolve_cortex_bound_artifact
-        from core.consciousness.affective_steering import get_steering_engine
+        from core.consciousness.affective_steering import get_steering_engine, measured_or_cortex
 
-        cortex_resolution = resolve_cortex_bound_artifact(model_path)
+        cortex_resolution = measured_or_cortex(resolve_cortex_bound_artifact(model_path))
         if cortex_resolution.status == "non_cortex_model":
             if steering_active_flag is not None:
                 steering_active_flag.value = False

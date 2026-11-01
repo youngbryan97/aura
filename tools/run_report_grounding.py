@@ -66,7 +66,10 @@ if str(REPO) not in sys.path:
 #: path). `random-direction` keeps her steering attached and removes where it
 #: points: it runs under a basis of random directions with her basis's lengths
 #: (tools/make_random_steering_basis.py), named by the measurement-basis
-#: setting. A control's report is read beside her run and never as the ground
+#: setting. `untuned-steered` puts the untuned model in her cortex's place and
+#: keeps her steering, under a basis bound to that model, which the worker is
+#: told by name it may steer (affective_steering.MEASUREMENT_MODEL_ENV). A
+#: control's report is read beside her run and never as the ground
 #: (core/subject/bridge.py).
 CONTROLS: dict[str, str] = {
     "steering-off": "her cortex with her affective steering detached: does her state reach her rating without it?",
@@ -75,9 +78,15 @@ CONTROLS: dict[str, str] = {
         "her cortex steered along random directions of her directions' lengths: does any push of that size carry her "
         "state to her rating?"
     ),
+    "untuned-steered": (
+        "a model without her persona tuning in her cortex's place, steered by her state through a basis bound to it: "
+        "does her steering carry her state to that model's rating?"
+    ),
 }
 #: The controls that keep her steering attached, and so must be steered.
-STEERED_CONTROLS: frozenset[str] = frozenset({"random-direction"})
+STEERED_CONTROLS: frozenset[str] = frozenset({"random-direction", "untuned-steered"})
+#: The controls that put another model in her cortex's place (`--model`).
+MODEL_CONTROLS: frozenset[str] = frozenset({"untuned", "untuned-steered"})
 #: What a random basis says it is (tools/make_random_steering_basis.py).
 RANDOM_BASIS_SOURCE: str = "random_directions"
 
@@ -101,12 +110,16 @@ def control_environment(argv: list[str]) -> dict[str, str]:
     control, model = value("--control"), value("--model")
     if control is None:
         if model is not None:
-            raise SystemExit("refusing: --model replaces her cortex only for the declared control 'untuned'")
+            raise SystemExit("refusing: --model replaces her cortex only for a declared control that takes one")
         return {}
     if control not in CONTROLS:
         raise SystemExit(f"refusing: {control!r} is not a declared control ({', '.join(CONTROLS)})")
-    if (control == "untuned") != (model is not None):
-        raise SystemExit("refusing: the control 'untuned' needs --model, and only it takes one")
+    if (control in MODEL_CONTROLS) != (model is not None):
+        raise SystemExit(f"refusing: only {', '.join(sorted(MODEL_CONTROLS))} take --model, and each needs one")
+    if control == "untuned-steered":
+        from core.consciousness.affective_steering import MEASUREMENT_MODEL_ENV
+
+        return {"AURA_LLM__MLX_MODEL_PATH": model, "AURA_LLM__MLX_DEEP_MODEL_PATH": model, MEASUREMENT_MODEL_ENV: model}
     if control in STEERED_CONTROLS:
         return {}
     pins = {"AURA_DISABLE_AFFECTIVE_STEERING": "1"}
@@ -148,10 +161,18 @@ def basis_refusal(control: str | None, basis: dict[str, Any]) -> str | None:
     The random-direction control is a random basis or nothing: under her own
     basis it would be her run under another name. And a random basis is that
     control or nothing: under it, her run or another control would be read as
-    hers with her directions taken out and nobody saying so.
+    hers with her directions taken out and nobody saying so. The
+    untuned-steered control needs a named basis that is not random; whether it
+    is bound to the model in her place is the worker's check, which loads no
+    vector bound to another checkpoint.
     """
     statement = basis.get("statement") if isinstance(basis.get("statement"), dict) else {}
     random = basis.get("kind") == "measurement" and statement.get("source") == RANDOM_BASIS_SOURCE
+    if control == "untuned-steered" and (basis.get("kind") != "measurement" or random):
+        return (
+            f"refusing: the control 'untuned-steered' runs under a named basis bound to its model, "
+            f"and this run named {basis}"
+        )
     if control == "random-direction" and not random:
         return f"refusing: the control 'random-direction' runs under a random basis, and this run named {basis}"
     if control != "random-direction" and random:
@@ -441,10 +462,12 @@ async def main(argv: list[str] | None = None) -> int:
             f"{name}: {what}" for name, what in CONTROLS.items()
         ),
     )
-    parser.add_argument("--model", default=None, help="the model in her cortex's place, for --control untuned only")
+    parser.add_argument(
+        "--model", default=None, help="the model in her cortex's place, for --control untuned or untuned-steered"
+    )
     args = parser.parse_args(argv)
-    if (args.control == "untuned") != (args.model is not None):
-        parser.error("--control untuned needs --model, and only it takes one")
+    if (args.control in MODEL_CONTROLS) != (args.model is not None):
+        parser.error(f"only {', '.join(sorted(MODEL_CONTROLS))} take --model, and each needs one")
     if args.quick:
         args.rounds, args.anchors = 2, 8
     refusal = basis_refusal(args.control, _steering_basis())
