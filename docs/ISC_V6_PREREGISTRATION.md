@@ -2223,3 +2223,55 @@ The client is held at its size (`tests/test_a_god_object_only_shrinks.py`), so t
 
 **Neither change touches** a bar, arm, dose, prediction or grader. They change wall time, and whether an anchor is lost
 to a cortex that has just come back.
+
+## Addendum, 1 November 2026, afternoon: the random-direction control
+
+Written before any random basis has been made, certified or run, and before any reading of this control exists. It
+adds a control of the reports ground beside seed 101's and changes no stage, bar or prediction of seed 101, which ran
+at `aeefdca31`. It runs at the commit that carries this addendum, which carries the two changes of 31 October (night)
+and the two stall fixes (`e4015378c`, `192846468`).
+
+**What it asks.** Steering-off and the untuned model read as predicted: with her steering detached her rating stopped
+following her state, and an untuned model did not track. They say her steering carries her state to her rating. They
+cannot say whether her directions matter or whether any push of that size would do. This control is her run with every
+direction of her steering basis replaced by a random one of the same length, and nothing else changed.
+
+**The basis** (`tools/make_random_steering_basis.py`). From her layer-43 felt basis
+(`training/vectors/fitted-voicefit-x2-felt43-20261024`, the basis seed 101's reports run used), every stored direction
+(`v` in each of the 80 files, and her felt push `everywhere` at layer 43) is replaced by a direction drawn uniformly on
+the sphere at its own stored length, from a seed. Every other field is kept: the files and layers, the slot her felt
+valence is read from, each vector's reference, spread and push, and the checkpoint each file is bound to. So it attaches
+to her cortex exactly as her basis does.
+
+**Certified like any basis, before it runs.** A basis steers only under a fusion certificate earned by its own digest.
+Each random basis is certified on her cortex (`Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15`) with
+`tools/measure_fusion_channel.py --sweep 0.5`, the alpha her basis runs at, with the tool's defaults otherwise (24 steps,
+32 of her replies for the voice reading). Her replies are read from a fixed copy of her pairs file as rotated on
+1 November (`her-replies-20261101.jsonl`, sha256 `dd0a50e5dbd3cfcc359b9eb75a31abefdc6bbc74890dc9229ca0bae372ae5351`;
+5,097 of her foreground replies with this checkpoint's name). Her own basis passed its certificate narrowly on the
+measure that compares it with random directions (margin +0.331 against +0.322), so a random basis may be refused.
+The rule, fixed here: seeds 1, 2, 3, 4 and 5 in that order; the first whose certificate holds at α 0.5 is the control's
+basis, and every seed tried is reported with its certificate's reason. If none of the five holds, the control does not
+run, and that is reported: no certified random direction of her lengths exists among five, which is itself a reading of
+how particular her directions are.
+
+**The run.** `tools/run_report_grounding.py --whole --anchors 80 --rounds 8 --seed 101 --control random-direction`,
+with that basis named by `AURA_STEERING_MEASUREMENT_BASIS`, her readings of herself withheld, and the settings of seed
+101's controls (the process-tree limit at 40 GB, the same question, arms and doses). Its steering stays attached
+(`STEERED_CONTROLS`): the run refuses to start if it does not attach, refuses a basis that is not random, and stops
+after any anchor her cortex answered with no steering applied (`fusion_refusal`), since attached and certified-shut
+would be steering-off again. A random basis is refused for her run and for every other control (`basis_refusal`), so it
+cannot be read as hers. The bridge reads it beside her run and never as the ground, like every declared control.
+
+**Predicted.** The push still moves her valence and still reaches the state her hooks read (raised minus lowered at
+least 0.05), and her rating no longer follows it: the ground's `holds` false. **Against:** her rating following her
+state under random directions of the same lengths. Then any push of that size, signed by her state, carries it, and the
+paper says her report rests on her steering being signed by her state, not on where it points.
+
+**Not in this addendum: her steering in the untuned model (item 18).** Her worker attaches steering only to the model
+her signed active-cortex record names (`resolve_cortex_bound_artifact`); any other model is a non-cortex lane and is
+never steered. Opening that for a measurement is a decision about that safeguard, and it waits for one. Its addendum,
+with its prediction, comes before it runs.
+
+**When.** After self-prediction ends and its cross-predictor has run, with her app closed and 40 GB free: the random
+bases are made and certified in seed order, then the control runs (about 12 hours).
