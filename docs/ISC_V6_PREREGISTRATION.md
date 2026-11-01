@@ -2046,3 +2046,77 @@ and 2 trials), reported whole as a smoke run. Then the reading, seed 7: 24 owner
 draws, integration rows at `--null-draws 8 --trials 6` (`tools/run_subject_tier_decoys.py`). No system here will be
 refitted after either run. A construction that does not take its property out is reported as that, and a second
 construction is a new system under a new name, written down before it is read.
+
+## Addendum, 31 October 2026, evening (later): what the smoke run read, and a second self-prediction instrument
+
+The smoke run at `5034b4915` (seed 7: 12 ownership trials; 200 moments and 2,000 draws; integration rows at 2 draws
+and 2 trials; `subject-tier-smoke-5034b4915`, 147 seconds) is reported here whole, before anything below is built or
+read.
+
+**Ownership: everything read as predicted.**
+- `subject_reference`: divergence 1.93 over a floor of 0, on all four kinds and all three outcomes. Every world and
+  every first percept matched; ownership generalises. The fresh-noise arm read 0.96.
+- `no_authorship_channel`: 0 over a floor of 0. Fails.
+- `ownership_on_success_only`: 1.10 over a floor of 0, cleared on success alone. It does not generalise, so it fails.
+- `stateless_agent`: 0 over a floor of 0. Fails.
+
+**Integration rows: as predicted.**
+- The subject reference fails no integration line (irreducibility 0.288, vertex connectivity 3), so a self-model and
+  an authorship channel were added to a dense core without costing any integration line.
+- `self_model_of_nothing` fails strong connectivity, vertex connectivity and re-entry, as predicted, and nothing else.
+- `self_model_of_behaviour` fails nothing, and keeps strong connectivity as predicted.
+
+**Self-prediction: the instrument failed.**
+- The subject reference read at chance: self 0.552, mode 0.548, cross-predictor 0.545 (gain over the mode 0.004,
+  p = 0.42).
+- So did every system built on the linear reference: accuracies 0.53 to 0.55, none beating the mode.
+- So, as the addendum above says, this run measured the instrument.
+- The cause is the question asked, not the self-models. D's leading coordinate, the quantity every answer was read
+  on, is 99.7% its own fresh shock each step: in the linear reference every domain is driven by one shock, and the
+  leading direction of D is that shock's. Computed from the wiring, the whole state at a moment predicts that
+  coordinate with R² 0.095 one step on and 0.019 three steps on (0.088 and 0.014 in the subject reference). Nothing
+  can predict it, inside or out.
+- The direction of D that its state decides most (the leading generalised eigenvector of D's predictable covariance
+  three steps on, against its whole covariance) is nearly orthogonal to the leading one (cosine 0.009) and carries
+  none of the shock. It is predicted with R² 0.998 one step on and 0.38 three steps on.
+
+**Read on that failed instrument, reported as read:**
+- The agent beat the cross-predictor (0.534 against 0.506, p = 0.045) with a self-model that never changes. Its
+  readout of a constant says only which answer is usual, and that beat a cross-predictor fitted to noise. It did not
+  beat the mode, so it failed the line, but the prediction that it beats neither bar was wrong on one.
+- Off the linear family, where D is predictable, the three self-named nulls read: `fake_self` 0.720 against mode
+  0.496 (p = 0.001) and cross 0.795; `ownership_label_without_action_causation` 0.598 against 0.495 (p = 0.02) and
+  cross 0.634; `agency_without_ownership` 0.516 against 0.536 and cross 0.621. Two of them beat the mode and none beat
+  the cross-predictor.
+
+**The second instrument, written before it is built or read.** It asks about the part of a decision the system's own
+state decides.
+- For every system, D is read along its most-decided direction, found on a recording separate from the scored
+  moments: a ridge regression of D three steps on from the whole state, and the leading generalised eigenvector of
+  the fitted covariance against D's whole covariance.
+- Both the answers and the cross-predictor's six past actions are read along that direction. Everything else is as
+  the first instrument.
+- The first instrument is still read in the reading, as registered, and reported beside the second.
+
+**Two second constructions**, new systems under new names. The first ones stay in the experiment and are read as
+registered. These are needed because the subject reference's forward model was built on D's leading coordinate, the
+quantity found to be unpredictable:
+
+| System | What it is | Predicted on the second instrument |
+|---|---|---|
+| `subject_reference_v2` | the subject reference with its forward model on D's most-decided direction, found from the plain reference's own wiring as above | beats the mode and beats the cross-predictor |
+| `self_model_of_behaviour_v2` | `subject_reference_v2` with S reading only D along that direction, at the same total strength | does not beat the cross-predictor; beats the mode |
+
+Read on the second instrument as well:
+- `self_model_of_nothing`, unchanged: its S reads nothing in either version. Predicted: does not beat the
+  cross-predictor; against the mode, no prediction.
+- The agent. Predicted: does not beat the mode, so it fails the line. Against the cross-predictor, no prediction,
+  since the smoke run showed a constant readout can beat a cross-predictor fitted to what is barely predictable.
+- Read without a prediction, as before: the plain reference and the three self-named nulls.
+
+Integration rows are read for both new systems. Predicted: `self_model_of_behaviour_v2` keeps strong connectivity;
+nothing is predicted for `subject_reference_v2`.
+
+A run in which `subject_reference_v2` fails self-prediction on the second instrument has measured the instrument
+again. The paper then says the toy self-prediction line was not shown to work, and the subject-tier decoys rest on
+ownership alone.
