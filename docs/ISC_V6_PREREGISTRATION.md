@@ -1120,6 +1120,28 @@ from its written anchors at the same commit, here used for a stopped cortex rath
 are carried forward as written, and both are unreadable under the grader's rule (an anchor counts only when her cortex
 answered every arm; 8 of 80 are needed). The chain is continued after the resumed run ends, so its own step 5 reads it.
 
+**A second resume, at 21:13, with the memory guard's limit raised.** At 21:04, in anchor 2, the run's process-tree memory
+guard stopped her cortex again in the middle of a generation (36.1 GB against its limit of 35.8 GB; at 17:55 it had
+been 35.9). Its limit is a default, 0.56 of the machine's 64 GB, that an environment setting of the host machinery
+(`AURA_PROCESS_RSS_LIMIT_GB`) overrides. With the fallback model refused for the same reason, every arm while her
+cortex reloaded fell to the failure floor in seconds: anchor 2's control arm and anchors 3 to 9 were lost before the
+run was parked between turns at 21:05:12 with its own park file. At 21:13:14 the run was resumed at aeefdca31 from
+`run_002`'s ten written anchors, again with the tool's own `--resume`, and with `AURA_PROCESS_RSS_LIMIT_GB=40`; the
+machine had about 28 GB free with everything loaded. A guard parks the run within about two seconds if her cortex
+stops again. No code, rule, bar, seed, arm, dose, steering or grader changes, and nothing of hers is touched. The
+anchors lost are carried as written and are unreadable under the grader's rule; 70 of the 80 remain to be measured.
+
+**The two report controls at the same limit (31 October, 08:05).** The reports run finished at 08:00 under the 40 GB
+limit (holds, 59 of 80 readable), and the chain's step 5 read it. The chain would start the two report controls
+(steering off; the untuned model in her cortex's place) at the default 35.8 GB, the limit that stopped her cortex twice
+in the reports run. A control that loses anchors to a stopped cortex loses power, and that pushes it toward the "does
+not ground" its prediction names, so the controls run under the limit the run they control finished under. Decided
+before either control started: the moment the chain starts each one, the chain is paused, that run is stopped before it
+writes an anchor, and the same run (same commit, arguments, environment and output folder) is started with
+`AURA_PROCESS_RSS_LIMIT_GB=40` (`scratch/controls_at_40gb_s101.sh`); when it finishes the chain continues and reads it.
+The guard that parks a run when her cortex stops watches both. The controls' predictions, arms, doses, grader and
+withholding are unchanged, and neither can change seed 101's verdict, which was read first.
+
 **What this changes, and what it does not.** No code, rule, bar, seed, arm, dose, steering or grader changes, nothing of
 hers is touched, and the run is neither restarted nor resumed: every stage of seed 101 stays at aeefdca31, so the
 one-commit rule of the confirmatory addendum holds. The arms her cortex did not answer (anchor 0's control and all of
