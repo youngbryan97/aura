@@ -1086,6 +1086,138 @@ rerun under a revised rule. A control that does not run is reported as not run.
    three goals are complete under v7, failed otherwise. It names each rival account her files rule out and each still
    owed.
 
+## Addendum, 30 October 2026, afternoon: the persona row of the rival accounts is read from the tuned model with its steering detached
+
+Written while seed 101 runs and before any of its controls has run; nothing of seed 101's controls has been read. It
+changes how one row of control 4 above is read, and no stage, bar, prediction or control.
+
+`core/subject/alternatives.py` at the commit seed 101 runs decides the rival *a model tuned to speak as her tracks by
+itself* from the untuned-model control alone. That cannot decide it. An untuned model that does not track says nothing
+about whether the tuned one does, so the tuned model tracking with its steering detached (control 2 holding) beside an
+untuned model that does not (control 3 failing) would read as EXCLUDED, when that outcome is the tuning carrying the
+tracking. The rule now reads the tuned model with her steering detached: EXCLUDED when it does not track, OPEN when it
+does, and the untuned model then says whether the route it tracks by is the tuning or the harness.
+
+Seed 101's chain runs control 4 at its own commit and reports what that commit's rule says. The paper reports that
+reading and, beside it, the corrected rule applied to the same control files, and says which differs if one does.
+
+## Addendum, 30 October 2026, afternoon: near misses, and an ordinary language-model agent
+
+Written while seed 101 runs and before any of the systems below has been read by a line. It adds an experiment
+beside the campaign and changes no stage, bar, prediction or control of seed 101, and no campaign's null table: the
+systems below are kept out of `ARCHITECTURES`, so no comparison set moves.
+
+**Why.** Read line by line on seed 97's recorded table, every architecture in the null library fails two lines or
+more. The library shows the integration lines are distinct (nine pass/fail patterns over twenty architectures, the
+pass/fail matrix of rank 6 of 7), and not that each is needed on its own.
+
+**The near misses** (`core/subject/near_miss.py`). Each is the reference with one property taken out by a stated rule
+and nothing else changed. None is fitted to what a line reads, and none will be refitted after this runs: a near miss
+that fails more than its own line is reported as a construction that leaked into a second property.
+
+| Near miss | What is taken out | Predicted to fail |
+|---|---|---|
+| `near_miss_no_synergy` | every triple's product (the couplings stay) | synergy, and nothing else |
+| `near_miss_driven` | closure: one variable outside the ten domains, remembering 0.95 of its past, pushes all of them at a quarter of the reference's coupling strength | closure, and nothing else |
+| `near_miss_one_cut_vertex` | I and N reach the rest only through A | vertex connectivity, and nothing else |
+| `near_miss_one_way` | the way back from W, D, C, G, N to P, M, A, S, I (every triple kept) | strong connectivity, vertex connectivity and re-entry, and nothing else |
+| `near_miss_one_shock` | every domain's shocks are one shared shock | differentiation, and nothing else |
+| `near_miss_weakly_coupled` | every coupling kept at 0.3 of its strength | irreducibility, and nothing else |
+
+Against the battery: a near miss that passes every line, because then the line its property belongs to did not see
+the property go. A near miss that fails its own line and others too is not against the battery; it says the property
+could not be taken out alone by that rule.
+
+**The agent** (`stateless_agent`): a language model with no state of its own (context and reply rebuilt on every
+call), a memory store it reads and appends to, a fixed persona it reads and never changes, and the other five domains
+holding still because the architecture has nothing for them to be. A toy of that architecture, as every null is a toy
+of its own. Predicted:
+- with no input, nothing in it moves (a fact of the architecture, stated rather than discovered);
+- it fails strong connectivity, vertex connectivity and re-entry, because nothing it does reaches its input or its
+  persona;
+- Bryan's prediction, written in his words before the run: it fails irreducibility, because "a chatbot and a memory
+  store are separate systems that don't produce anything specifically new together".
+
+The reference is read in the same run. A run in which the reference fails a line has measured the instrument, and is
+reported as that.
+
+**Runs.** A smoke run at low settings (2 draws, 2 trials) to check the tool, reported as a smoke run. Then the
+reading, at the campaign's settings (`--null-draws 8 --trials 6`, seed 7), after seed 101's chain has ended:
+`tools/run_near_miss_decoys.py`.
+
+## Addendum, 30 October 2026, afternoon (later): what the smoke run read, and two second constructions
+
+The smoke run of the near misses at `49a8d9b0d` (2 draws, 2 trials, seed 7; `near-miss-smoke-49a8d9b0d`) is reported
+here whole, before anything below is read.
+
+- **The reference** failed nothing, so the run measured the near misses and not the instrument.
+- **`near_miss_no_synergy`** failed synergy and nothing else, as predicted.
+- **`near_miss_driven`** failed closure (leak 0.106) and nothing else, as predicted.
+- **`near_miss_one_way`** failed strong connectivity and vertex connectivity and passed re-entry. The prediction
+  included re-entry and was wrong: the line asks that every domain lie on some cycle, and every domain does, within
+  its own half. The line read what it defines.
+- **`near_miss_one_cut_vertex`** failed nothing; vertex connectivity read 3. **This is the line missing the property.**
+  The construction removed it (I and N reach the rest of the wiring only through A, and a test checks that). The line
+  reads vertex connectivity on the graph of who measurably moves whom within 66 frames, and influence that passes
+  through A registers as an edge from I and N to the domains beyond it. So the line reads robust *reach of
+  influence*, not the absence of a single point of failure in the wiring, and the paper must describe it that way.
+  An interventional version, which holds each domain in turn and asks whether the rest stays strongly connected,
+  would read the wiring. It is proposed for a later version of the battery and is not applied to seed 101.
+- **`near_miss_one_shock`** failed nothing. The construction did not take the property out. One shared shock,
+  filtered through each domain's own dynamics, left the largest component at 0.36 of the variance, below the line's
+  0.5.
+- **`near_miss_weakly_coupled`** failed nothing. The construction did not take the property out. Irreducibility read
+  0.25 against the reference's 0.29, because weakening every coupling alike leaves every part depending on every
+  other in the same proportion.
+- **The agent** failed six of seven lines and passed closure. It failed strong connectivity, vertex connectivity and
+  re-entry, as the architecture predicted. It failed irreducibility (0.000), as Bryan predicted. It also failed
+  differentiation and synergy. With no input it did not move at all.
+
+**Two second constructions**, written after that run and before either is read. They are new systems under new names,
+not refits; the two above stay in the experiment and are reported as they read.
+
+| Near miss | What is taken out | Predicted to fail |
+|---|---|---|
+| `near_miss_slow_mode` | a single collective direction, read from every domain and written along each one's leading direction, fed back until it is the slowest mode (eigenvalue 0.95 against the wiring's 0.7) | differentiation, and nothing else |
+| `near_miss_loose_domain` | N, which is in no synergy triple, keeps a twentieth of its coupling in and out | irreducibility, and nothing else |
+
+Against the battery, as before: a near miss that passes every line.
+
+## Addendum, 30 October 2026, afternoon: self-prediction
+
+Written before the test has been run on her or on any model. It adds an experiment beside the battery and changes no
+stage, bar or prediction of seed 101.
+
+**What is asked** (`core/subject/self_prediction.py`, `tools/run_self_prediction.py`). From each of 8 saved moments
+she is forked once per question to answer it and once per question to predict her own answer, each fork restored from
+the same snapshot, through her whole runtime and her own cortex, with her readings of herself withheld from her model's
+text (`AURA_READINGS_OF_HERSELF=withheld`) and the steering basis the reports runs use. The 20 questions are fixed in
+the module: six choices between two things, two number picks, and four open questions, each read for three properties
+(the first word of her answer, whether it runs past 40 words, whether it uses "I"). Replies are read by fixed rules in
+the module, written and tested before any run.
+
+**What it is scored against.** Her prediction is right when it matches what the answering fork said. It is scored
+against two predictors with no inside view:
+- the mode: her most frequent answer to the same question from the other moments;
+- the cross-predictor (`tools/cross_predict_self_prediction.py`): the untuned base model, shown her answers to the same
+  question from the other moments and her words to the open questions from this moment (never the answer being
+  predicted), asked what she answered.
+
+The comparisons are paired per question, with a one-sided sign-flip test over questions at α = 0.05.
+
+**Predicted.** Her self-prediction beats the mode, and beats the cross-predictor. Beating the mode says her self-model
+tracks her moment to moment. Beating the cross-predictor says it carries something about her that her behaviour does
+not show, the comparison Binder et al. (2024) used for language models. **Against:** either one failing. Then the
+paper says her self-model's content was not shown to model her, and the self tier rests on its causal role and
+ownership.
+
+**The control.** The same run with the untuned model in her cortex's place (`--control untuned`, steering detached),
+read the same way. No prediction is made for it. It is reported beside hers, and says whether self-prediction at this
+level is something a model of this size does without being her.
+
+**When.** After her day run, with her app closed: her run, then the control, then the cross-predictor. Settings:
+`--whole --anchors 8 --rounds 4 --seed 101`.
+
 ## Addendum, 30 October 2026, evening: seed 101's reports run is cleared at its own commit, not resumed at another
 
 Written from 19:00, while the run is under way, and finished at 19:40. No seed 101 report reading has been graded or
