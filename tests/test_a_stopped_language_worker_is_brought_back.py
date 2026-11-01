@@ -59,8 +59,74 @@ def gate(monkeypatch):
 def test_a_live_worker_is_left_alone(gate) -> None:
     gate["inference_gate"] = _Gate(alive=True)
     out = asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=True)))
-    assert out == {"checked": True, "recovered": False}
+    assert out == {"checked": True, "recovered": False, "router_waited_s": 0.0}
     assert gate["inference_gate"].respawns == 0
+
+
+class _Endpoint:
+    """The router's endpoint for her cortex, eligible again after `closed_after` looks."""
+
+    def __init__(self, closed_after: int) -> None:
+        self.looks = 0
+        self.closed_after = closed_after
+        self.state = SimpleNamespace(value="open")
+        self.last_failure_reason = "worker_not_alive,init_not_complete,lane_warming"
+
+    def probe_eligible(self) -> bool:
+        self.looks += 1
+        return self.looks > self.closed_after
+
+
+@pytest.fixture
+def router(gate, monkeypatch):
+    monkeypatch.setattr(language_organ, "_ROUTER_RECHECK_S", 0.0)
+
+    def install(endpoint: _Endpoint) -> _Endpoint:
+        gate["llm_router"] = SimpleNamespace(endpoints={"Cortex": endpoint})
+        return endpoint
+
+    return install
+
+
+def test_a_turn_waits_until_the_router_sends_her_reply_to_her_cortex_again(gate, router) -> None:
+    # Seed 101, 30 October, 21:04: the gate said her cortex was restored while
+    # the router's circuit for it was open, and every arm fell to the failure
+    # sentence within seconds.
+    gate["inference_gate"] = _Gate(alive=True)
+    endpoint = router(_Endpoint(closed_after=3))
+    out = asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=True)))
+    assert endpoint.looks == 4
+    assert "router_took_her" not in out
+
+
+def test_after_a_restart_the_turn_also_waits_for_the_router(gate, router) -> None:
+    gate["inference_gate"] = _Gate(alive=False, ready_after_checks=2)
+    endpoint = router(_Endpoint(closed_after=2))
+    out = asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=True)))
+    assert out["recovered"] is True
+    assert endpoint.looks == 3
+
+
+def test_a_router_that_never_takes_her_back_is_reported_not_waited_on_forever(gate, router, monkeypatch) -> None:
+    monkeypatch.setattr(language_organ, "FOREGROUND_READY_S", 0.05)
+    gate["inference_gate"] = _Gate(alive=True)
+    router(_Endpoint(closed_after=10**9))
+    out = asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=True)))
+    assert out["router_took_her"] is False
+
+
+def test_the_wait_reads_the_circuit_without_moving_it() -> None:
+    from core.brain.llm_health_router import CircuitState, EndpointHealth
+
+    endpoint = EndpointHealth(name="Cortex", url="", model="m", is_local=True)
+    endpoint.state = CircuitState.OPEN
+    endpoint.cooldown_until_monotonic = 0.0
+    assert endpoint.probe_eligible() is True
+    # An observer that flipped OPEN to HALF_OPEN would spend the probe the
+    # turn's own reply is meant to be.
+    assert endpoint.state is CircuitState.OPEN
+    source = inspect.getsource(language_organ._until_the_router_takes_her)
+    assert "probe_eligible" in source and "is_available" not in source
 
 
 def test_a_stopped_worker_is_started_once_and_watched_until_ready(gate) -> None:

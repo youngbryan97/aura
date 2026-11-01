@@ -2178,3 +2178,48 @@ found.
   in those terms, and the claim that her self-model "models her" rests on what her self-model reads, not on this line
   alone.
 - *The agent* fails both self lines.
+
+## Addendum, 31 October 2026, night: two changes that save time and change nothing she does, before the steering controls
+
+Written before any run at a commit carrying them. No reading of seed 101 is affected; it runs at `aeefdca31`.
+
+**Which commit the steering controls run at.** The random-direction control (4.5) and the steered base model (item 18)
+will run at a commit that carries:
+- these two changes;
+- the two stall fixes (`e4015378c`, `192846468`);
+- their own driver code.
+
+Their addenda name that commit.
+
+**What waits.** Three other fixes found in seed 101 change what she does, so they wait until after the core set, and the
+two controls stay comparable with seed 101's reports run:
+- keeping saved moments on disk. That would bring the 2-bit fallback under the memory limit, so her background phases,
+  which failed within the first minutes of every seed 101 run, would start working;
+- the routing of those phases;
+- keeping a second 27B out of measurement runs.
+
+**1. A turn waits until the router sends her reply to her cortex again** (`core/subject/language_organ.py`).
+- Before a turn's first frame, the driver already starts her cortex's worker again if it has stopped.
+- On 30 October at 21:04 the gate called her cortex restored ten seconds after it stopped, while the router's circuit
+  for it was still open. Every arm's reply was refused unsent, and anchors 3 to 9 fell to the failure sentence in forty
+  seconds.
+- Now the turn also waits until the router would send the reply to her cortex. It reads the circuit without moving it,
+  so the turn's own reply is the probe that closes it.
+- The wait is before the first frame, on the experiment clock. When nothing has failed, it waits for nothing.
+
+**2. A CPU lane declines at once a prompt as long as one it could not start** (`core/brain/llm/prefill_ceiling.py`,
+called from the client before a request is built).
+- In every seed 101 report run, when the 2-bit fallback could not run, the 1.5B emergency lane on the CPU was sent her
+  whole prompt, 25,000 to 43,000 characters. It never produced a first token within its ceiling, and returned no text
+  after about 64 seconds: 345 times in the steering-off control.
+- Now a CPU lane that failed to start a prompt declines any prompt at least as long, at once, with the same answer, no
+  text. Nothing is published as a deliberate cancel, so the router takes the path it took before.
+- A GPU lane never declines, and a new worker starts with no record.
+- A phase's budget already adds back the time it spent waiting on her language organ (`within_budget`), so a decline
+  that comes sooner leaves every phase the budget it had.
+
+The client is held at its size (`tests/test_a_god_object_only_shrinks.py`), so the prompt ceiling it already applied,
+`_prompt_within_prefill_ceiling`, moved unchanged into the same module, with the same logger and the same record.
+
+**Neither change touches** a bar, arm, dose, prediction or grader. They change wall time, and whether an anchor is lost
+to a cortex that has just come back.
