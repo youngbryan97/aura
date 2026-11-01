@@ -53,7 +53,7 @@ def test_a_control_that_is_not_declared_whole_is_refused(argv: list[str]) -> Non
 
 
 def test_every_declared_control_says_what_it_asks() -> None:
-    assert set(CONTROLS) == {"steering-off", "untuned", "random-direction"}
+    assert set(CONTROLS) == {"steering-off", "untuned", "random-direction", "untuned-steered"}
     assert all(question.endswith("?") for question in CONTROLS.values())
 
 

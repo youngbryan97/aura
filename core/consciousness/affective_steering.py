@@ -1191,6 +1191,56 @@ def measurement_basis() -> Path | None:
     return path.resolve()
 
 
+#: Names the one checkpoint a measurement run steers in her cortex's place.
+#: The desktop never sets it. Her worker steers only the model her signed
+#: active-cortex record names; the reports ground's declared control
+#: `untuned-steered` puts another model there with her steering kept, and
+#: names that model here. It opens nothing by itself: it applies only beside a
+#: named measurement basis, only to the lane loaded from exactly this path, and
+#: that model is then steered only by a basis bound to its own identity, under
+#: a fusion certificate earned by that basis's digest.
+MEASUREMENT_MODEL_ENV = "AURA_STEERING_MEASUREMENT_MODEL"
+
+
+def measurement_model() -> Path | None:
+    """The checkpoint a measurement run named for steering in her cortex's place, or None."""
+    named = os.environ.get(MEASUREMENT_MODEL_ENV, "").strip()
+    if not named:
+        return None
+    path = Path(named).expanduser()
+    if not path.is_dir():
+        raise ValueError(f"steering_measurement_model_missing:{path}")
+    return path.resolve()
+
+
+def measured_or_cortex(resolution: Any) -> Any:
+    """Her cortex's resolution, or a named measurement model's in place of a non-cortex lane.
+
+    Only a lane resolved as non-cortex is touched, and only when a run named
+    this exact checkpoint with a measurement basis beside it. Its identity is
+    built from its own bytes, the way the certificate tool builds a non-cortex
+    model's (tools/measure_fusion_channel.py), so the basis bound to it and the
+    certificate earned on it name the same model.
+    """
+    if getattr(resolution, "status", "") != "non_cortex_model":
+        return resolution
+    named, loaded = measurement_model(), getattr(resolution, "model_path", None)
+    if named is None or loaded is None or Path(loaded).expanduser().resolve() != named:
+        return resolution
+    if measurement_basis() is None:
+        raise ValueError("steering_measurement_model_without_basis")
+    from core.brain.llm.model_artifact_profile import build_model_artifact_descriptor
+    from core.brain.llm.model_shapes import CortexBoundArtifactResolution
+
+    logger.info("Affective steering attaches to %s, the model a measurement run named in her cortex's place.", named)
+    return CortexBoundArtifactResolution(
+        "measurement_model",
+        model_path=named,
+        descriptor=build_model_artifact_descriptor(named),
+        reason="declared_measurement_model",
+    )
+
+
 class AffectiveSteeringEngine(_FindsTheModelsGeometry):
     """
     Orchestrates activation steering for Aura's affective states.

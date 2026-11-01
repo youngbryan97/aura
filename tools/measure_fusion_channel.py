@@ -73,6 +73,14 @@ def main() -> int:
         help="her recorded replies with the steering state each was said in, for the voice reading",
     )
     parser.add_argument("--voice", type=int, default=32, help="how many of her replies the voice reading scores")
+    parser.add_argument(
+        "--voice-model",
+        default="",
+        help=(
+            "the checkpoint name her scored replies were said with; this checkpoint's by default. For a model she "
+            "never spoke through, her cortex's name, so her own words are read under the model being certified"
+        ),
+    )
     arguments = parser.parse_args()
 
     from core.brain.llm.model_artifact_profile import build_model_artifact_descriptor
@@ -167,7 +175,9 @@ def _measure(
         seed=arguments.seed,
         runner="tools/measure_fusion_channel.py",
         on_result=report,
-        replies=her_replies(Path(arguments.replies), checkpoint.name, arguments.voice, arguments.seed),
+        replies=her_replies(
+            Path(arguments.replies), arguments.voice_model or checkpoint.name, arguments.voice, arguments.seed
+        ),
     )
 
     holding = [certificate for certificate in certificates if certificate.holds]

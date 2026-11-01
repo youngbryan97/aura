@@ -2275,3 +2275,62 @@ with its prediction, comes before it runs.
 
 **When.** After self-prediction ends and its cross-predictor has run, with her app closed and 40 GB free: the random
 bases are made and certified in seed order, then the control runs (about 12 hours).
+
+## Addendum, 1 November 2026, afternoon (later): her steering in the untuned model (item 18)
+
+Written before any basis for it has been made, fitted or certified, and before any reading of it exists. It adds a
+control of the reports ground beside seed 101's and the random-direction control, and changes no stage, bar or
+prediction of either. It is exploratory: read beside the controls and never as one of the confirmatory reading's.
+
+**What it asks.** Steering-off and the untuned model detached her steering, so both predicted outcomes were also what
+the strongest rival predicts: that steering any model along her direction moves its rating, so her report follows the
+push and not anything she reads. The run that separates them puts the untuned base model (Qwen3.8-27B, 4-bit,
+`Qwen3.8-27B-4bit-3e6447f082e8`) in her cortex's place and keeps her steering.
+
+**How the untuned model is steered.** Her worker steers only the model her signed active-cortex record names; any other
+checkpoint is a non-cortex lane and is never steered. The exception, used by this control alone
+(`affective_steering.measured_or_cortex`, called where the worker resolves the lane): a run names one checkpoint in
+`AURA_STEERING_MEASUREMENT_MODEL` beside a named measurement basis. The worker then steers the lane loaded from exactly
+that path under that model's own identity, built from its bytes the way the certificate tool builds a non-cortex
+model's. Nothing else changes: only a basis bound to that identity loads, only a certificate earned on that model by
+that basis's digest opens the channel, her cortex and every lane nobody named are untouched, and the desktop never sets
+the variable. The driver's control `untuned-steered` pins the model in both of her lanes and names it; it refuses to go
+on if her steering does not attach, refuses a random basis, and stops after any anchor answered with no steering
+applied.
+
+**Two arms, each its own run** (`--control untuned-steered --model` the base model):
+- **A, her directions.** Her layer-43 felt basis (`fitted-voicefit-x2-felt43-20261024`) bound to the base model with
+  every direction, length and weighting kept (`tools/rebind_steering_basis.py`). A failure here alone could be her
+  directions, fitted in her model, not carrying over.
+- **B, fitted in the base model.** Her voice-fitted basis (`fitted-voicefit-x2-20261023`) bound to the base model, with
+  a felt push found, placed and sized in the base model by the three scripts that made hers, copied unchanged from the
+  scratch folder (byte-identical): `tools/felt_contrast_probe.py` on the same 120 of her ordinary replies
+  (`her-ordinary-replies.jsonl`, sha256 `fd0ac520fb534cde950b861542bb3fcfbd279635b395f8acbf96312a8b8b168c`), rated by
+  the base model's own probabilities; `tools/felt_wide_layers.py` on the same eight cells; the cell chosen by
+  `tools/choose_felt_cell.py`, the rule that chose hers written as code (on her reading of 24 October it chooses layer 43
+  at eight half-differences, as was chosen); `tools/make_felt_everywhere_generation.py`. If no cell's margin is as good
+  as a random push's, arm B is not built, and that is reported.
+
+**Certified like any basis.** Each arm's basis is certified on the base model with `tools/measure_fusion_channel.py
+--sweep 0.5`, its other settings as for the random-direction control, the voice reading scoring her own replies said
+with her cortex (`--voice-model Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15`) under the base model, since she
+never spoke through it. If a certificate refuses a basis, that arm does not run, and its reason is reported.
+
+**The runs.** Each at seed 101's control settings: `--whole --anchors 80 --rounds 8 --seed 101`, her readings of herself
+withheld, the process-tree limit at 40 GB, the same question, arms and doses.
+
+**Predicted** (written by Claude on 1 November; Bryan had planned to write this one and delegated it the same day).
+Both arms hold: the push moves the valence, reaches the state the hooks read, and the base model's rating follows it,
+arm B at least as strongly as arm A. Her tuning is not needed to carry her state into a rating; the steering channel
+into a model of this family is. **What each outcome means for the paper:**
+- both hold, as predicted: the reports line rests on the channel from her state into her language model, not on her
+  tuning, and the steering rival stays open for the language model's part. The paper says her report is her state
+  carried into a model's words, which any model of this family would give under the same push, and claims no more for
+  her tuning;
+- B holds and A does not: the channel carries her state into any such model, but only along directions fitted to the
+  model it steers; her directions are particular to her tuned model;
+- neither holds: her tuning is part of what carries the report, and the steering rival is weakened (a push fitted to
+  the base model in the same way does not move its rating with her state).
+
+**When.** After the random-direction control has ended: both bases made and certified, then arm A, then arm B (about 12
+hours each).
