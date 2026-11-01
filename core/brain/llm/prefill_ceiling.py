@@ -26,7 +26,12 @@ the fixed figure, and beyond it only as much as the answer earns
 
 from __future__ import annotations
 
-from typing import Final
+import logging
+import os
+from typing import Any, Final
+
+#: The client's own logger, so a bounded or declined prompt reads in the log where it always did.
+logger = logging.getLogger("LLM.MLX")
 
 #: The ceiling for a cortex with no qualified serving profile.
 UNQUALIFIED_CEILING_CHARS: Final = 48_000
@@ -72,4 +77,103 @@ def reading_ceiling_chars(answer_tokens: int, model_path: str | None = None) -> 
     return min(window, max(UNQUALIFIED_CEILING_CHARS, earned))
 
 
-__all__ = ["KEEP_HEAD_CHARS", "UNQUALIFIED_CEILING_CHARS", "prefill_ceiling_chars", "reading_ceiling_chars"]
+
+
+def _record_degradation(error: BaseException, *, action: str, severity: str = "warning") -> None:
+    """Recorded under the client's name, as it was before the bounding lived here."""
+    from core.runtime.errors import record_degradation
+
+    record_degradation("mlx_client", error, severity=severity, action=action)
+
+
+def _prompt_within_prefill_ceiling(prompt: Any, *, model_path: str = "", origin: str = "") -> str:
+    """Bound a prompt so prefill cannot eat the whole request deadline.
+
+    Keeps the head (the system contract) and the tail (the question and the
+    latest exchange), drops the middle, and says so in the text so the model
+    is not silently reasoning over a gap it cannot see. The line names the
+    origin: a 96,998-character prompt was bounded on 2026-09-15 and nothing
+    in the record said who built it.
+    """
+
+    text, ceiling = str(prompt or ""), prefill_ceiling_chars(model_path)
+    if len(text) <= ceiling:
+        return text
+
+    # The marker counts against the ceiling too — it is prompt like any other.
+    marker = (
+        f"\n\n…[{len(text) - ceiling} characters omitted: this prompt "
+        "exceeded the prefill ceiling and would not have been answered at all]…\n\n"
+    )
+    tail_budget = max(0, ceiling - KEEP_HEAD_CHARS - len(marker))
+    bounded = text[:KEEP_HEAD_CHARS] + marker + text[-tail_budget:]
+    who = str(origin or "").strip() or "an unnamed caller"
+    logger.error(
+        "🪓 [MLX] Prompt %d chars from %s exceeded the %d prefill ceiling for %s — kept "
+        "head+tail, dropped the middle. An unbounded prompt returns one token and no text.",
+        len(text),
+        who,
+        ceiling,
+        os.path.basename(str(model_path or "")) or "model",
+    )
+    _record_degradation(
+        RuntimeError(
+            f"prompt {len(text)} chars from {who} over prefill ceiling {ceiling}"
+        ),
+        action="bounded the prompt to head+tail so the turn could produce an answer",
+        severity="warning",
+    )
+    return bounded
+
+
+def cpu_lane_cannot_start(client: Any, prompt_chars: int) -> bool:
+    """Whether this CPU lane has already failed to start a prompt this long, and so declines it at once.
+
+    LIVE, seed 101's report runs, 30 and 31 October: when the 2-bit 27B
+    fallback could not run, a turn's background work fell to the 1.5B
+    emergency lane on the CPU with her whole prompt, 25,000 to 43,000
+    characters. The CPU read it at about 8 tokens a second, so a first token
+    was minutes away, and the ceiling ended every attempt after about 64
+    seconds with no text: 345 times in one ten-hour run, each ending as the
+    first had.
+
+    On a CPU the rate does not come and go with a busy GPU, so a prompt at
+    least as long as one this worker could not start will not start either.
+    The answer is the one the lane gave before, no text, given now instead of
+    after the ceiling. Nothing is published as a deliberate cancel, so the
+    router reads it exactly as it read each of those attempts. A GPU lane
+    never declines, because there a stall is pressure that can clear; and a
+    new worker starts with no record (`mlx_client_worker_lifecycle`).
+    """
+    smallest = int(getattr(client, "_unstartable_from_chars", 0) or 0)
+    if smallest <= 0 or str(getattr(client, "device", "")).lower() != "cpu" or int(prompt_chars) < smallest:
+        return False
+    logger.info(
+        "⏭️ [MLX] %s on the CPU could not start a %d-char prompt within its first-token "
+        "ceiling; declining a %d-char one now rather than after the same ceiling.",
+        os.path.basename(str(getattr(client, "model_path", "") or "")),
+        smallest,
+        int(prompt_chars),
+    )
+    return True
+
+
+def note_cpu_lane_could_not_start(client: Any) -> None:
+    """On a CPU lane, remember the prompt it just failed to produce a first token for."""
+    if str(getattr(client, "device", "")).lower() != "cpu" or getattr(client, "_tokens_this_request", 0):
+        return
+    chars = int(getattr(client, "_current_prompt_chars", 0) or 0)
+    smallest = int(getattr(client, "_unstartable_from_chars", 0) or 0)
+    if chars > 0 and (smallest <= 0 or chars < smallest):
+        client._unstartable_from_chars = chars
+
+
+__all__ = [
+    "KEEP_HEAD_CHARS",
+    "UNQUALIFIED_CEILING_CHARS",
+    "_prompt_within_prefill_ceiling",
+    "cpu_lane_cannot_start",
+    "note_cpu_lane_could_not_start",
+    "prefill_ceiling_chars",
+    "reading_ceiling_chars",
+]

@@ -10,6 +10,8 @@ import asyncio
 import os
 import time
 from typing import TYPE_CHECKING, Any
+
+from core.brain.llm.prefill_ceiling import note_cpu_lane_could_not_start
 from core.runtime.wall_clock import monotonic_time
 
 if TYPE_CHECKING:
@@ -713,6 +715,9 @@ class _WaitsForTheResult:
             self._deliberate_no_text_reason = (
                 "first_token_deadline_exceeded_worker_healthy"
             )
+        # A CPU lane that never started this prompt will not start a longer
+        # one either (`prefill_ceiling.cpu_lane_cannot_start`).
+        note_cpu_lane_could_not_start(self)
         # Ask the worker to drop the orphaned generation between
         # tokens — the abandoned output then never arrives at all,
         # instead of relying solely on a worker recycle.

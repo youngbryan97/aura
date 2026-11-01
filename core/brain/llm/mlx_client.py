@@ -2640,48 +2640,10 @@ def _bounded_max_tokens(requested: Any, bridged: Any, fallback: int) -> int:
     return max(1, min(max(1, requested_int), max(1, bridged_int)))
 
 
-from core.brain.llm.prefill_ceiling import KEEP_HEAD_CHARS, prefill_ceiling_chars  # noqa: E402
-
-
-def _prompt_within_prefill_ceiling(prompt: Any, *, model_path: str = "", origin: str = "") -> str:
-    """Bound a prompt so prefill cannot eat the whole request deadline.
-
-    Keeps the head (the system contract) and the tail (the question and the
-    latest exchange), drops the middle, and says so in the text so the model
-    is not silently reasoning over a gap it cannot see. The line names the
-    origin: a 96,998-character prompt was bounded on 2026-09-15 and nothing
-    in the record said who built it.
-    """
-
-    text, ceiling = str(prompt or ""), prefill_ceiling_chars(model_path)
-    if len(text) <= ceiling:
-        return text
-
-    # The marker counts against the ceiling too — it is prompt like any other.
-    marker = (
-        f"\n\n…[{len(text) - ceiling} characters omitted: this prompt "
-        "exceeded the prefill ceiling and would not have been answered at all]…\n\n"
-    )
-    tail_budget = max(0, ceiling - KEEP_HEAD_CHARS - len(marker))
-    bounded = text[:KEEP_HEAD_CHARS] + marker + text[-tail_budget:]
-    who = str(origin or "").strip() or "an unnamed caller"
-    logger.error(
-        "🪓 [MLX] Prompt %d chars from %s exceeded the %d prefill ceiling for %s — kept "
-        "head+tail, dropped the middle. An unbounded prompt returns one token and no text.",
-        len(text),
-        who,
-        ceiling,
-        os.path.basename(str(model_path or "")) or "model",
-    )
-    _record_mlx_degradation(
-        RuntimeError(
-            f"prompt {len(text)} chars from {who} over prefill ceiling {ceiling}"
-        ),
-        action="bounded the prompt to head+tail so the turn could produce an answer",
-        severity="warning",
-    )
-    return bounded
-
+from core.brain.llm.prefill_ceiling import (  # noqa: E402
+    _prompt_within_prefill_ceiling,
+    cpu_lane_cannot_start,
+)
 
 #: The largest budget a caller-supplied output contract may demand. Past this
 #: it is not a reply contract; it is an unbounded request wearing one.
@@ -10784,6 +10746,8 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
         prompt = _prompt_within_prefill_ceiling(prompt, model_path=self.model_path,
                                                 origin=str(kwargs.get("origin", "") or ""))
+        if cpu_lane_cannot_start(self, len(prompt)):
+            return None
 
         req_id = uuid.uuid4().hex
         self._job_seq_counter += 1

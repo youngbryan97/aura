@@ -200,6 +200,44 @@ async def bring_up_language(runtime: Any) -> dict[str, Any]:
     }
 
 
+#: How often a turn waiting on the router asks it again. The router's cooldown
+#: is tens of seconds, and the turn has not begun, so this measures nothing.
+_ROUTER_RECHECK_S: float = 1.0
+
+
+async def _until_the_router_takes_her() -> dict[str, Any]:
+    """Wait, before a turn, until the router would send her reply to her cortex again.
+
+    Reads the circuit without moving it (`probe_eligible`): a closed circuit
+    passes at once, and an open one passes when its cooldown has run, so the
+    turn's own reply is the probe that closes it. Waits no longer than her
+    cortex may take to come up.
+    """
+    from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+    from core.container import ServiceContainer
+
+    router = ServiceContainer.get("llm_router", default=None)
+    endpoints = getattr(router, "endpoints", None)
+    endpoint = endpoints.get(PRIMARY_ENDPOINT) if isinstance(endpoints, dict) else None
+    eligible = getattr(endpoint, "probe_eligible", None)
+    if not callable(eligible) or eligible():
+        return {"router_waited_s": 0.0}
+    started = time.monotonic()
+    logger.warning(
+        "the router is not sending replies to her cortex (circuit %s: %s); the turn waits for it",
+        getattr(getattr(endpoint, "state", None), "value", "?"),
+        getattr(endpoint, "last_failure_reason", "") or "no reason given",
+    )
+    while time.monotonic() - started < FOREGROUND_READY_S:
+        await asyncio.sleep(_ROUTER_RECHECK_S)
+        if eligible():
+            seconds = round(time.monotonic() - started, 1)
+            logger.warning("the router takes replies to her cortex again after %.0fs", seconds)
+            return {"router_waited_s": seconds}
+    logger.error("the router did not take replies to her cortex within %.0fs", FOREGROUND_READY_S)
+    return {"router_waited_s": round(time.monotonic() - started, 1), "router_took_her": False}
+
+
 async def keep_language_ready(runtime: Any) -> dict[str, Any]:
     """Start her language organ's worker again before a turn if it has stopped.
 
@@ -223,6 +261,14 @@ async def keep_language_ready(runtime: Any) -> dict[str, Any]:
     900 s although the memory was back within three minutes. A worker that is
     alive and still coming up is left to the turn's own path.
 
+    A worker that is back is not yet a reply that will be sent to it. On 30
+    October at 21:04, in seed 101's reports run, the gate reported her cortex
+    restored ten seconds after it stopped, but the router's circuit for it had
+    opened during the reload. Each arm's reply was refused unsent and fell to
+    the failure sentence within seconds, and anchors 3 to 9 were lost in forty
+    seconds. So the turn also waits until the router would send her reply to
+    her cortex again (`_until_the_router_takes_her`).
+
     Checked before a turn's first frame, under the experiment clock, so the
     wait moves nothing in her. A turn her cortex could not serve still counts as
     one her cortex did not answer; this only keeps one stop from ending the run.
@@ -236,7 +282,7 @@ async def keep_language_ready(runtime: Any) -> dict[str, Any]:
     alive = getattr(client, "is_alive", None)
     respawn = getattr(gate, "_respawn_cortex_if_needed", None)
     if not callable(alive) or not callable(respawn) or alive():
-        return {"checked": True, "recovered": False}
+        return {"checked": True, "recovered": False, **await _until_the_router_takes_her()}
     started = time.monotonic()
     logger.warning("her language organ's worker has stopped; asking the gate to start it again")
     await respawn()
@@ -246,7 +292,10 @@ async def keep_language_ready(runtime: Any) -> dict[str, Any]:
         if alive() and status.get("conversation_ready"):
             seconds = round(time.monotonic() - started, 1)
             logger.warning("her language organ's worker was back in %.0fs (asked %d times)", seconds, asked)
-            return {"checked": True, "recovered": True, "seconds": seconds, "asked": asked}
+            return {
+                "checked": True, "recovered": True, "seconds": seconds, "asked": asked,
+                **await _until_the_router_takes_her(),
+            }
         working = getattr(gate, "_cortex_recovery_in_progress", False) or status.get("warmup_in_flight")
         if not alive() and not working:
             await respawn()

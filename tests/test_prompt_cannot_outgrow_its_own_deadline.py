@@ -82,9 +82,12 @@ class TestItIsWiredAtTheLastBoundary:
         source = inspect.getsource(mlx_client)
         dispatch = source[source.index('"action": "generate",')]
         assert dispatch  # anchor exists
-        # The call must precede the request that carries the prompt.
-        cap_at = source.index("_prompt_within_prefill_ceiling(prompt")
-        req_at = source.index('"action": "generate",')
+        # The call must precede the request that carries the prompt. Read inside the
+        # dispatch itself: across the whole module the first match was the
+        # function's own definition, which said nothing about the order of the call.
+        inner = inspect.getsource(mlx_client.MLXLocalClient._generate_inner)
+        cap_at = inner.index("_prompt_within_prefill_ceiling(prompt")
+        req_at = inner.index("_build_the_generation_request(")
         assert cap_at < req_at, "the prompt must be bounded before it is dispatched"
 
 

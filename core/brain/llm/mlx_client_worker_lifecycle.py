@@ -1423,6 +1423,8 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                                 )
                         if target_path in (primary_path, deep_path):
                             _record_heavy_model_swap(target_path)
+                        # A new worker has started nothing yet, so nothing it could not start.
+                        self._unstartable_from_chars = 0
                         logger.info("✅ [MLX] Worker ready: %s", os.path.basename(self.model_path))
                         return True
                     else:
