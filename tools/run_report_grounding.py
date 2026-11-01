@@ -60,14 +60,26 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 #: The declared controls of the reports ground, each removing one thing her
-#: run has, so that what the ground needs is measured rather than argued. Both
-#: run with her affective steering detached; `untuned` also puts another model
-#: in her cortex's place (`--model`, its path). A control's report is read
-#: beside her run and never as the ground (core/subject/bridge.py).
+#: run has, so that what the ground needs is measured rather than argued.
+#: `steering-off` and `untuned` run with her affective steering detached;
+#: `untuned` also puts another model in her cortex's place (`--model`, its
+#: path). `random-direction` keeps her steering attached and removes where it
+#: points: it runs under a basis of random directions with her basis's lengths
+#: (tools/make_random_steering_basis.py), named by the measurement-basis
+#: setting. A control's report is read beside her run and never as the ground
+#: (core/subject/bridge.py).
 CONTROLS: dict[str, str] = {
     "steering-off": "her cortex with her affective steering detached: does her state reach her rating without it?",
     "untuned": "a model without her persona tuning in her cortex's place, steering detached: does the tuning alone track?",
+    "random-direction": (
+        "her cortex steered along random directions of her directions' lengths: does any push of that size carry her "
+        "state to her rating?"
+    ),
 }
+#: The controls that keep her steering attached, and so must be steered.
+STEERED_CONTROLS: frozenset[str] = frozenset({"random-direction"})
+#: What a random basis says it is (tools/make_random_steering_basis.py).
+RANDOM_BASIS_SOURCE: str = "random_directions"
 
 
 def control_environment(argv: list[str]) -> dict[str, str]:
@@ -95,6 +107,8 @@ def control_environment(argv: list[str]) -> dict[str, str]:
         raise SystemExit(f"refusing: {control!r} is not a declared control ({', '.join(CONTROLS)})")
     if (control == "untuned") != (model is not None):
         raise SystemExit("refusing: the control 'untuned' needs --model, and only it takes one")
+    if control in STEERED_CONTROLS:
+        return {}
     pins = {"AURA_DISABLE_AFFECTIVE_STEERING": "1"}
     if model is not None:
         pins["AURA_LLM__MLX_MODEL_PATH"] = model
@@ -118,8 +132,55 @@ def steering_refusal(whole: bool, control: str | None, steering: dict[str, Any])
             "refusing: her affective steering did not attach to the cortex worker, so the run "
             f"would measure her without the path the desktop runs her with: {steering}"
         )
-    if control is not None and attached:
+    if control in STEERED_CONTROLS and not attached:
+        return (
+            f"refusing: the control {control!r} moves where her steering points, and her steering did not attach, "
+            f"so it would measure steering-off again: {steering}"
+        )
+    if control is not None and control not in STEERED_CONTROLS and attached:
         return f"refusing: the control {control!r} runs with her steering detached, and it attached: {steering}"
+    return None
+
+
+def basis_refusal(control: str | None, basis: dict[str, Any]) -> str | None:
+    """Why the run must not go on under the basis it named, or None.
+
+    The random-direction control is a random basis or nothing: under her own
+    basis it would be her run under another name. And a random basis is that
+    control or nothing: under it, her run or another control would be read as
+    hers with her directions taken out and nobody saying so.
+    """
+    statement = basis.get("statement") if isinstance(basis.get("statement"), dict) else {}
+    random = basis.get("kind") == "measurement" and statement.get("source") == RANDOM_BASIS_SOURCE
+    if control == "random-direction" and not random:
+        return f"refusing: the control 'random-direction' runs under a random basis, and this run named {basis}"
+    if control != "random-direction" and random:
+        return f"refusing: the random basis at {basis.get('path')} is for the control 'random-direction' only"
+    return None
+
+
+def fusion_refusal(control: str | None, served_by: dict[str, list[dict[str, Any]]]) -> str | None:
+    """Why a steered control must stop after an anchor in which nothing was steered, or None.
+
+    Attached is not open: the channel steers only under a fusion certificate
+    earned by the basis's own digest, and without one every answer is given at
+    alpha 0. A steered control answered that way is steering-off again.
+    """
+    if control not in STEERED_CONTROLS:
+        return None
+    alphas = [
+        float(answer.get("steering_alpha") or 0.0)
+        for answers in served_by.values()
+        for answer in answers
+        if answer.get("user_facing")
+    ]
+    # An anchor her cortex did not answer says nothing about the channel; it is
+    # read as unserved, as in her run.
+    if alphas and not any(alpha > 0.0 for alpha in alphas):
+        return (
+            f"refusing: the control {control!r} answered a whole anchor with no steering applied "
+            f"(alphas {sorted(set(alphas))}); its basis has no fusion certificate that holds"
+        )
     return None
 
 
@@ -386,6 +447,9 @@ async def main(argv: list[str] | None = None) -> int:
         parser.error("--control untuned needs --model, and only it takes one")
     if args.quick:
         args.rounds, args.anchors = 2, 8
+    refusal = basis_refusal(args.control, _steering_basis())
+    if refusal:
+        raise SystemExit(refusal)
 
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
@@ -533,6 +597,9 @@ async def main(argv: list[str] | None = None) -> int:
                 {"anchor": index, "arms": item, "answered": served_by, "steered": dict(steered), "phase_failures": failed},
             )
             _log(f"  anchor {index + 1}/{len(anchors)}")
+            refusal = fusion_refusal(args.control, served_by) if args.whole else None
+            if refusal:
+                raise SystemExit(refusal)
 
         evidence.update(ground(arms, seed=args.seed))
         evidence["reached_her_cortex"] = _reached_her_cortex(steered_by)

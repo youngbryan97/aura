@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from core.subject.bridge import CarrierTerm, JStar, LineageTerm, StructureTerm
-from tools.run_report_grounding import CONTROLS, control_environment, steering_refusal
+from tools.run_report_grounding import CONTROLS, STEERED_CONTROLS, control_environment, steering_refusal
 
 pytestmark = pytest.mark.unit
 
@@ -53,7 +53,7 @@ def test_a_control_that_is_not_declared_whole_is_refused(argv: list[str]) -> Non
 
 
 def test_every_declared_control_says_what_it_asks() -> None:
-    assert set(CONTROLS) == {"steering-off", "untuned"}
+    assert set(CONTROLS) == {"steering-off", "untuned", "random-direction"}
     assert all(question.endswith("?") for question in CONTROLS.values())
 
 
@@ -63,8 +63,8 @@ def test_her_run_needs_her_steering_attached() -> None:
     assert steering_refusal(True, None, {"active": True}) is None
 
 
-def test_a_control_needs_her_steering_detached() -> None:
-    for control in CONTROLS:
+def test_a_control_that_removes_her_steering_needs_it_detached() -> None:
+    for control in set(CONTROLS) - STEERED_CONTROLS:
         assert steering_refusal(True, control, {"active": True})
         assert steering_refusal(True, control, {"active": None}) is None
         assert steering_refusal(True, control, {"active": False}) is None
