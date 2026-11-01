@@ -2120,3 +2120,61 @@ nothing is predicted for `subject_reference_v2`.
 A run in which `subject_reference_v2` fails self-prediction on the second instrument has measured the instrument
 again. The paper then says the toy self-prediction line was not shown to work, and the subject-tier decoys rest on
 ownership alone.
+
+## Result, 31 October 2026, evening: the subject-tier decoys
+
+The reading at `8fe6b4470` (seed 7: 24 ownership trials; 1,000 moments and 10,000 draws; integration rows at
+`--null-draws 8 --trials 6`; `subject-tier-8fe6b4470-s7`, 878 seconds), reported whole. Self-prediction is read on both
+instruments, as registered.
+
+**Ownership: every system read as predicted.**
+- `subject_reference`: 1.43 over a floor of 0, on all four kinds and all three outcomes. Every world and every first
+  percept matched. Ownership generalises. The fresh-noise arm read 0.96.
+- `no_authorship_channel`: 0 over a floor of 0. Fails.
+- `ownership_on_success_only`: 0.72 over a floor of 0, cleared on success alone. Fails generalisation.
+- `stateless_agent`: 0 over a floor of 0. Fails.
+
+**Self-prediction, the second instrument: every system with a prediction read as predicted.**
+
+| System | Self | Mode | Cross | Against the mode | Against the cross-predictor | Line |
+|---|---|---|---|---|---|---|
+| `subject_reference_v2` | 0.687 | 0.516 | 0.594 | +0.171, p = 0.0002 | +0.093, p = 0.0003 | passes, as predicted |
+| `self_model_of_nothing` | 0.534 | 0.526 | 0.573 | +0.008, p = 0.16 | −0.040, p = 0.99 | fails, as predicted |
+| `self_model_of_behaviour_v2` | 0.610 | 0.539 | 0.611 | +0.071, p = 0.0005 | −0.001, p = 0.62 | beats the mode only, as predicted |
+| `stateless_agent` | 0.517 | 0.522 | 0.521 | −0.005, p = 1.0 | −0.003, p = 0.71 | fails, as predicted |
+| `recurrent` (no prediction) | 0.694 | 0.532 | 0.599 | +0.162, p = 0.0002 | +0.095, p = 0.0003 | passes |
+| `fake_self` (no prediction) | 0.722 | 0.524 | 0.805 | +0.198, p = 0.0002 | −0.084, p = 1.0 | beats the mode only |
+| `agency_without_ownership` (no prediction) | 0.574 | 0.519 | 0.585 | +0.055, p = 0.0002 | −0.012, p = 0.99 | beats the mode only |
+| `ownership_label_without_action_causation` (no prediction) | 0.590 | 0.530 | 0.619 | +0.061, p = 0.0007 | −0.029, p = 1.0 | beats the mode only |
+
+**Self-prediction, the first instrument, as registered.** It has no power on the linear family, as the smoke run
+found.
+- `subject_reference` beat the mode (+0.022, p = 0.024) and not the cross-predictor (+0.001, p = 0.49). Not as
+  predicted.
+- `self_model_of_nothing` beat neither. As predicted.
+- `self_model_of_behaviour` beat the mode (+0.011, p = 0.025) and not the cross-predictor. As predicted.
+- `stateless_agent` did not beat the mode (gain 0) and beat the cross-predictor (+0.015, p = 0.0008). It fails the
+  line, but the prediction that it beats neither bar was wrong on one, as in the smoke run: a constant readout beat a
+  cross-predictor fitted to what is barely predictable.
+- Read without a prediction: the plain reference beat the mode (p = 0.021) and not the cross-predictor; `fake_self`
+  and `ownership_label_without_action_causation` beat the mode and not the cross-predictor;
+  `agency_without_ownership` beat neither.
+
+**Integration rows: as predicted.**
+- Both subject references fail no integration line (irreducibility 0.282 and 0.273).
+- `self_model_of_nothing` fails strong connectivity, vertex connectivity and re-entry, and nothing else.
+- Both behaviour decoys fail nothing, keeping strong connectivity.
+
+**What the reading shows, and what it does not.**
+- *Ownership.* In a dense core with no authorship channel, the line reads exactly its floor. A self told who acted
+  on success alone fails the generalisation rule, which is how the paper says her ownership reads authorship and not
+  things going well. Once a toy is given a channel, it passes by construction, so what these decoys test is the
+  instrument: density, shared noise and matched worlds produced no false positive.
+- *Self-prediction.* On the instrument that has power, the line fails a self that reads nothing and a self that
+  reads only what the system did, and passes the subject reference. **But the plain reference, whose S was never built
+  to model anything, passes as strongly**: its S reads D directly, in a dense core. So the line reads whether a self
+  carries what decides the system's choices beyond what its behaviour shows, which is privileged access to its own
+  causes, and not whether the self was built as a model of the system. The paper describes her self-prediction test
+  in those terms, and the claim that her self-model "models her" rests on what her self-model reads, not on this line
+  alone.
+- *The agent* fails both self lines.
