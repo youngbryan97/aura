@@ -52,6 +52,7 @@ from core.brain.llm.unified_recurrent_shadow_contract import (
 )
 from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 from core.utils.deadlines import get_deadline
+from core.runtime.wall_clock import monotonic_time
 from tests.clock_patch import patch_module_clock
 from tests.fixtures.rlc_runtime_integrity import complete_serving_stack
 
@@ -3111,7 +3112,7 @@ class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):
     async def test_runtime_probe_recovery_clears_failed_lane_and_backoff(self):
         client = MLXLocalClient(model_path=QWEN32_MODEL)
         client.note_lane_failed("mlx_runtime_unavailable:metal_device_enumeration_crash")
-        client._spawn_backoff_until = time.time() + 120.0
+        client._spawn_backoff_until = monotonic_time() + 120.0
         client._consecutive_spawn_failures = 3
 
         proc = ProcessProbe(alive=True)

@@ -1432,6 +1432,20 @@ def _report_the_lane_is_held(claim: LaneClaim, decision: LaneTransactionDecision
         logger.debug("model lane not reported to the claim register: %s", exc)
 
 
+def _the_machine(observer: ResourceObserver) -> ResourceObserver:
+    """The machine itself, for whether a process is running and which one it is.
+
+    An experiment run installs a held face over the observer (core/subject/declared_host.py) that answers each
+    question once and keeps the answer, so two arms read one body. Whether a lane's holder is still running is a
+    question about the machine, not about her: on seed 101's reports run, 30 October, the held face kept answering
+    that her cortex's worker was alive after memory pressure had ended it at 17:55, the ledger kept the dead worker
+    as a holder that could not be evicted, and every reload of her cortex was refused for it. Capacity and its
+    provenance are still read through the run's observer. A function, not a member, because the controller is held
+    at its size (tests/test_a_god_object_only_shrinks.py).
+    """
+    return getattr(observer, "machine", observer)
+
+
 class ModelLaneController:
     """Cross-process capacity ledger and model-lane transaction owner."""
 
@@ -1475,14 +1489,14 @@ class ModelLaneController:
         self._process_probe = process_alive or (
             lambda identity: _default_process_liveness(
                 identity,
-                observer=self.resource_observer,
+                observer=_the_machine(self.resource_observer),
             )
         )
         self._process_discovery: ProcessDiscoveryProbe | None
         if process_discovery is discover_external_model_processes:
             self._process_discovery = lambda known: discover_external_model_processes(
                 known,
-                observer=self.resource_observer,
+                observer=_the_machine(self.resource_observer),
             )
         else:
             self._process_discovery = process_discovery
@@ -1657,7 +1671,7 @@ class ModelLaneController:
                 root_started_at=identity.started_at,
                 session_id=int(metadata.get("process_session_id") or 0),
                 root_pid=identity.pid,
-                observer=self.resource_observer,
+                observer=_the_machine(self.resource_observer),
             )
             if group_liveness is ProcessLiveness.ALIVE:
                 return group_liveness
@@ -2312,7 +2326,7 @@ class ModelLaneController:
                         + max(5.0, float(_COMPENSATION_TIMEOUT_FLAG.value()))
                         + 30.0,
                         "claimant_process": ProcessIdentity.current(
-                            observer=self.resource_observer
+                            observer=_the_machine(self.resource_observer)
                         ).to_dict(),
                     }
                     self._append_event(
@@ -2715,7 +2729,7 @@ class ModelLaneController:
                     "compensation_pending_owner_ids": [],
                     "compensation_claims": {},
                     "controller_process": ProcessIdentity.current(
-                        observer=self.resource_observer
+                        observer=_the_machine(self.resource_observer)
                     ).to_dict(),
                     "created_at": now,
                     "expires_at": now + self._reservation_ttl(claim),
@@ -3690,7 +3704,7 @@ class ModelLaneController:
                 "issued_at": now,
                 "expires_at": now + max(5.0, float(ttl_s)),
                 "parent_process": ProcessIdentity.current(
-                    observer=self.resource_observer
+                    observer=_the_machine(self.resource_observer)
                 ).to_dict(),
                 "consumed_at": 0.0,
                 "consumed_process": ProcessIdentity(0, 0.0).to_dict(),
@@ -3748,7 +3762,7 @@ class ModelLaneController:
                 return False
             child_identity = process_identity_for_pid(
                 child_pid,
-                observer=self.resource_observer,
+                observer=_the_machine(self.resource_observer),
             )
             consumed_identity = self._identity_from_record(
                 delegation,
@@ -3767,7 +3781,7 @@ class ModelLaneController:
             if not self._process_alive(child_identity):
                 return False
             try:
-                child_process = self.resource_observer.process(int(child_pid))
+                child_process = _the_machine(self.resource_observer).process(int(child_pid))
                 if child_process is None:
                     return False
                 observed_parent_pid = int(child_process.ppid)
@@ -3933,7 +3947,7 @@ class ModelLaneController:
             existing_sublease = subleases.get(sublease_id)
             holder_identity = process_identity_for_pid(
                 child_pid,
-                observer=self.resource_observer,
+                observer=_the_machine(self.resource_observer),
             )
             if (
                 holder_identity.pid <= 0
@@ -4013,7 +4027,7 @@ class ModelLaneController:
             holder = self._identity_from_record(sublease, key="holder_process")
             current_holder = process_identity_for_pid(
                 child_pid,
-                observer=self.resource_observer,
+                observer=_the_machine(self.resource_observer),
             )
             if holder != current_holder:
                 return False

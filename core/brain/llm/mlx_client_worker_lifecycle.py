@@ -900,7 +900,9 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
 
         _sf = getattr(self, "_consecutive_spawn_failures", 0) + 1
         self._consecutive_spawn_failures = _sf
-        self._spawn_backoff_until = time.time() + min(
+        # A spawn backoff is a host deadline: stamped and read on the machine's clock. On her clock, which every
+        # restore rewinds, a ten-second backoff set at 18:56 on 30 October never ended (seed 101's reports run).
+        self._spawn_backoff_until = monotonic_time() + min(
             300.0, 10.0 * (2 ** min(_sf - 1, 5))
         )
         # CP126 ee4ccfcc: the backoff carried no cause, so the
@@ -952,7 +954,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         # [BUG FIX] Exponential backoff: 10s, 30s, 60s, 120s, 300s
         self._consecutive_spawn_failures = _spawn_fails + 1
         backoff = min(300.0, 10.0 * (2 ** min(_spawn_fails, 5)))
-        self._spawn_backoff_until = time.time() + backoff
+        self._spawn_backoff_until = monotonic_time() + backoff
         # See CP126 ee4ccfcc: a runtime probe may only clear the
         # backoffs a runtime failure caused.
         self._spawn_backoff_cause = (
@@ -1317,7 +1319,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                 # loop that leaks FDs and shared memory for hours.
                 _spawn_fails = getattr(self, "_consecutive_spawn_failures", 0)
                 _spawn_backoff_until = getattr(self, "_spawn_backoff_until", 0.0)
-                if time.time() < _spawn_backoff_until:
+                if monotonic_time() < _spawn_backoff_until:
                     if not await asyncio.to_thread(
                         self.refresh_runtime_availability, force_probe=True
                     ):
