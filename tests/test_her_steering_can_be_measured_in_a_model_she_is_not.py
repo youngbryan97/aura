@@ -191,3 +191,60 @@ def test_the_rule_chooses_her_cell_from_her_reading():
 
 def test_no_cell_no_push():
     assert choose(_reading({"59x4": (0.429, 5, -0.1469, 0.1531)})) is None
+
+
+# Her steering engine has a second gate, after the worker's: it attaches only where her signed generation resolves,
+# and any checkpoint but hers resolves as incompatible. Item 18's first certificates (1 November, 23:46) stopped
+# there, "steering did not attach; nothing to certify", before anything was measured. For the named model, the
+# named basis stands where the generation stood, and names the layers hooked.
+
+
+def _incompatible():
+    from core.brain.llm.model_bound_steering import CHECKPOINT_INCOMPATIBLE, SteeringGenerationResolution
+
+    return SteeringGenerationResolution(CHECKPOINT_INCOMPATIBLE, reason="active_cortex_descriptor_mismatch")
+
+
+def test_the_named_basis_stands_where_her_generation_stood_for_the_named_model(named):
+    from core.consciousness.steering_geometry import measured_generation
+
+    resolved = measured_generation(_incompatible(), named)
+    assert resolved.status == "measurement_model" and not resolved.expected_detachment
+    assert resolved.cache_dir == (named.parent / "basis").resolve()
+
+
+def test_any_other_resolution_or_checkpoint_is_left_as_it_was(named, tmp_path, monkeypatch):
+    from core.brain.llm.model_bound_steering import SteeringGenerationResolution
+    from core.consciousness.steering_geometry import measured_generation
+
+    hers = SteeringGenerationResolution("qualified", cache_dir=tmp_path)
+    assert measured_generation(hers, named) is hers
+    other = tmp_path / "other"
+    other.mkdir()
+    mismatch = _incompatible()
+    assert measured_generation(mismatch, other) is mismatch
+    monkeypatch.delenv(MEASUREMENT_MODEL_ENV)
+    assert measured_generation(mismatch, named) is mismatch
+
+
+def test_the_named_model_without_a_named_basis_refuses_at_the_engine(named, monkeypatch):
+    from core.consciousness.steering_geometry import measured_generation
+
+    monkeypatch.delenv(MEASUREMENT_BASIS_ENV)
+    with pytest.raises(ValueError, match="steering_measurement_model_without_basis"):
+        measured_generation(_incompatible(), named)
+
+
+def test_the_layers_hooked_on_the_named_model_are_the_basis_files_layers(named, monkeypatch):
+    import core.brain.llm.model_bound_steering as bound
+
+    basis = named.parent / "basis"
+    for layer in (3, 43, 63):
+        (basis / f"valence_layer{layer}.npz").write_bytes(b"")
+    monkeypatch.setattr(bound, "resolve_active_generation", lambda **_: _incompatible())
+    engine = affective_steering.AffectiveSteeringEngine.__new__(affective_steering.AffectiveSteeringEngine)
+    engine._model_info = {"model_descriptor_sha256": "b" * 64, "n_layers": 64, "d_model": 5120, "model_path": str(named)}
+    monkeypatch.setattr(type(engine), "_runtime_vector_cache_dir", staticmethod(lambda **_: named.parent / "cache"))
+    assert engine._qualified_target_layers(64) == [3, 43, 63]
+    engine._model_info["model_path"] = str(named.parent / "elsewhere")
+    assert engine._qualified_target_layers(64) == []
