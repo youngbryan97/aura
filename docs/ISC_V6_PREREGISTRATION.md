@@ -2334,3 +2334,29 @@ into a model of this family is. **What each outcome means for the paper:**
 
 **When.** After the random-direction control has ended: both bases made and certified, then arm A, then arm B (about 12
 hours each).
+
+## Addendum, 2 November 2026, 00:20: item 18's steering reaches her steering engine
+
+Written after item 18's bases were made and before any certificate of them holds or any run of it exists.
+
+**What stopped.** At 23:46 on 1 November both arms' certificates stopped before measuring anything: "steering did not
+attach; nothing to certify" (exit 2), so no arm ran. The commit of the addendum above opened her worker's gate for the
+named model. Her steering engine has a second gate: it attaches only where her signed generation resolves, and every
+checkpoint but hers resolves as incompatible, so it detached before reading the named basis.
+
+**The change** (`measured_generation`, `core/consciousness/steering_geometry.py`, called where the engine resolves
+her generation, and where it finds the layers to hook). For exactly the checkpoint a run names
+(`AURA_STEERING_MEASUREMENT_MODEL`), with a basis named beside it, the basis stands where the generation stood: its
+files name the layers hooked, as a generation's do. It still loads only if it is bound to that checkpoint's identity,
+and steers only under a fusion certificate earned by its own digest. Anything else resolves as before: her cortex,
+another checkpoint, and a run that names no model. Checked on the base model: 16 hooks at her 16 layers, 80
+vectors, α 2.3, as her basis attaches on her cortex.
+
+**What else changes.** The certificates are now made with the model named, as the run names it. The bases are those
+already made:
+- arm A, her felt basis bound to the base model at 22:28;
+- arm B, her voice-fitted basis bound to it, with the felt push the rule chose at 23:45 at layer 43, size 8.0: the
+  largest in-context swing (+0.863, 6 of 6 conversations) among cells whose margin is no worse than a random push of
+  the same norm (+0.262 against −0.080).
+
+No arm, prediction, bar or reading changes.

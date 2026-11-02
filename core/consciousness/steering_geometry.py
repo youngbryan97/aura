@@ -22,6 +22,33 @@ from core.runtime.state_ownership import state_root
 logger = logging.getLogger(__name__)
 
 
+def measured_generation(resolution: Any, loaded: str | Path) -> Any:
+    """The signed generation's resolution, or the named basis's for the model a run named in her cortex's place.
+
+    Her signed generation is bound to the checkpoint her active-cortex record
+    names, so any other checkpoint resolves as incompatible and steering stays
+    detached. The reports ground's declared control `untuned-steered` names
+    another checkpoint (AURA_STEERING_MEASUREMENT_MODEL) with a measurement
+    basis beside it. For exactly that path, the basis stands where the
+    generation stood: its files name the layers hooked, as a generation's do,
+    and it still loads only if bound to that checkpoint's identity and steers
+    only under a fusion certificate earned by its own digest.
+    """
+    from core.brain.llm.model_bound_steering import CHECKPOINT_INCOMPATIBLE, SteeringGenerationResolution
+
+    from .affective_steering import measurement_basis, measurement_model
+
+    named = measurement_model()
+    if getattr(resolution, "status", "") != CHECKPOINT_INCOMPATIBLE or named is None:
+        return resolution
+    if Path(loaded).expanduser().resolve() != named:
+        return resolution
+    basis = measurement_basis()
+    if basis is None:
+        raise ValueError("steering_measurement_model_without_basis")
+    return SteeringGenerationResolution("measurement_model", cache_dir=basis, reason="declared_measurement_model")
+
+
 class _FindsTheModelsGeometry:
     """Lifted whole from AffectiveSteeringEngine; see affective_steering.py."""
 
@@ -382,14 +409,14 @@ class _FindsTheModelsGeometry:
         try:
             from core.brain.llm.model_bound_steering import resolve_active_generation
 
-            resolution = resolve_active_generation(
+            resolution = measured_generation(resolve_active_generation(
                 descriptor_sha256=digest,
                 model_cache_root=self._runtime_vector_cache_dir(
                     n_layers=int((self._model_info or {}).get("n_layers") or 0),
                     d_model=int((self._model_info or {}).get("d_model") or 0),
                     model_identity={"descriptor_sha256": digest},
                 ),
-            )
+            ), str((self._model_info or {}).get("model_path") or ""))
         except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("no active steering generation resolved (%s: %s)", type(exc).__name__, exc)
             return None

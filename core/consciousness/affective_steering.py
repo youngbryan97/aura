@@ -133,7 +133,7 @@ from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.lockdep import checked_lock
 from core.runtime.observation_pass import in_observation_pass
 
-from .steering_geometry import _FindsTheModelsGeometry
+from .steering_geometry import _FindsTheModelsGeometry, measured_generation
 from .steering_vectors import (  # noqa: F401 — every name stays importable from here
     AFFECTIVE_DIMENSIONS,
     SteeringVector,
@@ -1437,10 +1437,10 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
                 resolve_active_generation,
             )
 
-            steering_resolution = resolve_active_generation(
+            steering_resolution = measured_generation(resolve_active_generation(
                 descriptor_sha256=incoming_digest,
                 model_cache_root=default_cache_dir,
-            )
+            ), incoming_path)
             steering_resolution_status = steering_resolution.status
             qualified_cache_dir = steering_resolution.cache_dir
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
