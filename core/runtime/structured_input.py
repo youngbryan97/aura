@@ -4,6 +4,9 @@ import logging
 import re
 from dataclasses import dataclass
 
+# Depends on nothing, so it can be imported here though core.conversation imports this module.
+from core.conversation.closed_answer import asks_for_a_closed_answer
+
 logger = logging.getLogger(__name__)
 
 _LEARNING_BUNDLE_INTRO_MARKERS = (
@@ -379,6 +382,10 @@ class PromptShape:
     #: checking needs to know WHAT was asked. Retained so
     #: validate_dialogue_response can hold the answer against the question.
     question_segments: tuple[str, ...] = ()
+    #: The message itself when it asks for a word, a number, or a yes or a no
+    #: and nothing else, otherwise empty (core/conversation/closed_answer.py).
+    #: Such an answer covers every part of it, because the rest only frames it.
+    closed_request: str = ""
 
     def to_dict(self) -> dict[str, int | bool | tuple[str, ...]]:
         return {
@@ -935,4 +942,5 @@ def analyze_prompt_shape(text: str) -> PromptShape:
         imperative_parts=imperative_parts,
         prefers_extended_answer=prefers_extended_answer,
         requires_single_reply_coverage=requires_single_reply_coverage,
+        closed_request=raw if asks_for_a_closed_answer(raw) else "",
     )

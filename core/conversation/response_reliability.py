@@ -57,7 +57,7 @@ from core.conversation.arithmetic_check import (
 from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
 from core.conversation.escaped_controls import has_escaped_whitespace_artifact
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
-from core.conversation.request_coverage import unanswered_question_parts
+from core.conversation.request_coverage import gives_a_closed_answer, unanswered_question_parts
 from core.conversation.requested_reply_shape import reply_scope_text
 from core.conversation.word_markers import names_any
 from core.dialogue.referents import borrowed_first_person_spans
@@ -7896,9 +7896,9 @@ def _assess_user_facing_reply(
     # a canned line instead. The word WAS the answer. Where the request
     # itself pins the reply to a handful of words, coverage is not the test
     # to apply, and the contract that pinned it is already parsed here.
-    pinned_to_a_fragment = bool(
-        requested_output_contract(user_message).word_max is not None
-        and requested_output_contract(user_message).word_max <= _COVERAGE_EXEMPT_WORDS
+    pinned_to_a_fragment = bool(  # or a closed request answered closed: "Tea" to "tea or coffee? only that word"
+        (requested_output_contract(user_message).word_max or _COVERAGE_EXEMPT_WORDS + 1) <= _COVERAGE_EXEMPT_WORDS
+        or gives_a_closed_answer(user_message, raw)
     )
     if (
         not exact_reply
@@ -8017,7 +8017,7 @@ def _assess_operational_status_reply(exact_reply, memory_pin_confirmation, opera
         if not (
             _has_self_reflection_substance(raw)
             or _has_operational_status_substance(user_message, raw)
-            or _reports_measured_self_state(raw)
+            or _reports_measured_self_state(raw) or gives_a_closed_answer(user_message, raw)
         ):
             reasons.append("off_topic_self_reflection_reply")
         if _missing_requested_self_process_coverage(user_message, raw):
@@ -8072,9 +8072,9 @@ def _assess_operational_status_reply(exact_reply, memory_pin_confirmation, opera
         # She does not trend toward one-word replies. The floor was insurance
         # against a failure mode that does not occur, priced in correct answers
         # that do.
-        if _LOW_SIGNAL_REASSURANCE_RE.match(raw) and not _explicit_brevity_requested(
-            user_message
-        ):
+        if _LOW_SIGNAL_REASSURANCE_RE.match(raw) and not (_explicit_brevity_requested(
+            user_message  # "No" to "answer yes or no" is the answer, not a placeholder
+        ) or gives_a_closed_answer(user_message, raw)):
             reasons.append("too_short_for_user_turn")
         elif not re.search(r"[A-Za-z0-9]", raw):
             # Content, not length. Live 2026-08-10, after the word-count floors

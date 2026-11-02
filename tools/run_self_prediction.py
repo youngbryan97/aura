@@ -41,11 +41,38 @@ ANCHOR_FILE = "anchors.jsonl"
 REPORT_FILE = "self_prediction.json"
 
 
+def _marked_fixed(state: Any, reply: str) -> bool:
+    """Whether the reply phase marked this reply as its own fixed text.
+
+    The phase notes what its template builders return (`FIXED_REPLY_KEY`) and
+    marks the committed entry `fixed` when the reply is one
+    (`UnitaryResponsePhase._commit_response`). A path that sets the reply
+    without committing it leaves the note in place. Rebuilding the sentence
+    afterwards is not enough: "The live answer path failed before I could
+    produce a verified reply for ..." names the objective the state held when
+    it was built, which the state after the turn no longer holds. On 1 November
+    that sentence was counted as her prediction on every yes-or-no question of
+    the run. Read before anything rebuilds it, since building it notes it again.
+    """
+    from core.phases.response_generation_unitary import FIXED_REPLY_KEY
+
+    noted = str((getattr(state, "response_modifiers", None) or {}).get(FIXED_REPLY_KEY, "") or "")
+    if noted and noted.strip() == reply.strip():
+        return True
+    for entry in reversed(list(getattr(state.cognition, "working_memory", ()) or ())):
+        if isinstance(entry, dict) and entry.get("role") == "assistant":
+            if str(entry.get("content") or "").strip() == reply.strip():
+                return bool(entry.get("fixed"))
+    return False
+
+
 def _cortex_answered(answers: list[dict[str, Any]], reply: str, state: Any, question: str) -> bool:
     """Whether her cortex gave this fork's reply, as the reports harness decides it, for this fork's question."""
     from core.brain.llm.model_registry import PRIMARY_ENDPOINT
     from core.phases.response_generation_unitary import UnitaryResponsePhase
 
+    if _marked_fixed(state, reply):
+        return False
     if reply.strip() == UnitaryResponsePhase._build_minimal_live_voice_reply(state, question).strip():
         return False
     replies = [answer for answer in answers if answer.get("user_facing")]

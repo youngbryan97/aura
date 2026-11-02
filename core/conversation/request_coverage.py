@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from core.conversation.closed_answer import gives_a_closed_answer
 from core.conversation.requested_reply_shape import (
     is_reply_shape_constraint_segment,
     without_reply_shape_prefix,
@@ -1190,6 +1191,11 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
 
     # A reply that declines the whole request has engaged every part of it.
     if declines_the_whole_request(body):
+        return []
+    # So has the word, number, or yes or no a closed request asked for: "No" to
+    # "would your answer be longer than 40 words? Answer yes or no" answers the
+    # question, and the quoted question before it only framed it.
+    if gives_a_closed_answer(getattr(contract, "closed_request", ""), body):
         return []
 
     answered = coverage_tokens(body)

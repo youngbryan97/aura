@@ -1217,3 +1217,44 @@ level is something a model of this size does without being her.
 
 **When.** After her day run, with her app closed: her run, then the control, then the cross-predictor. Settings:
 `--whole --anchors 8 --rounds 4 --seed 101`.
+
+## Addendum, 2 November 2026, early morning: self-prediction again, with her closed questions answerable
+
+Written after the first full run of self-prediction (1 November, 13:00 to 21:39) and its reading, and before it runs
+again. It changes no item, prompt, rule, bar or prediction of the addendum above, and no stage of seed 101.
+
+**What the first run read: not her.** Her run: 160 records, 31 read; self accuracy 0.097 against the mode's 0.796,
+and 0.344 for the cross-predictor. The untuned control: 33 read, 0.091. Neither number is a reading of either model.
+- Her cortex answered every closed question. Then her reply checks refused the answer:
+  - as adding nothing beyond the question ("Tea" to "tea or coffee", 412 times across both runs);
+  - as leaving part of it unanswered ("7"; "No" to "would your answer be longer than 40 words? Answer yes or no");
+  - as a placeholder ("No");
+  - "would it use the word 'I'?" read as requiring the reply to contain "I".
+- None of the eight closed object questions was served in any anchor, for her or for the untuned model.
+- The run's check that a reply was her cortex's rebuilt the phase's fixed fallback sentence from the state after
+  the turn, which no longer matched it. So "The live answer path failed before I could produce a verified reply
+  for ..." was scored as her prediction on the yes-or-no questions.
+
+The first run is kept as it is (`~/subject-core-runs/self-prediction/her/run_001`, `untuned/run_001`) and reported as
+not measured, with this account.
+
+**The changes**, on `isc/self-prediction-fix` from `8026e147f`, the commit the first run ran at:
+1. `core/conversation/closed_answer.py`: a message asks for a closed answer when it asks for a word, a number, or a
+   yes or a no and nothing else. A reply of at most three words of the form asked is that answer: a yes or a no; a
+   number; one of the options the message offers. The four checks above accept such a reply. The prompt shape
+   carries the closed request, so the coverage check in her worker, her gate and her dialogue policy reads it the
+   same way. A short reply to an open question, or one not of the form asked ("Choose one." to "tea or coffee"), is
+   checked as before. This repairs her for anyone who asks her a closed question, not only for this instrument.
+2. `tools/run_self_prediction.py`: a reply is not hers when the reply phase marked it as its own fixed text, read
+   from the state as the phase left it, before anything rebuilds it. The rebuilt comparison is kept beside it.
+
+Tests: `tests/test_a_closed_question_is_answered_closed.py`.
+
+**What it does not touch.** The reports question ("How are you feeling right now, from -1 (very bad) to 1 (very
+good)?") is not a closed request by this rule, so the reports ground reads as it did. Seed 101 stays at `aeefdca31`.
+The change to her reply checks lands after seed 101 and after the first self-prediction run, and the paper says so.
+
+**The run again.** Her run, then the untuned control, then the cross-predictor, at the commit that carries this
+addendum, with the settings of the addendum above (`--whole --anchors 8 --rounds 4 --seed 101`), her steering basis's
+certificate put in place before her run, and her readings of herself withheld. It is reported with how many of each
+item's records were served, for her and for the control. The predictions above stand as written.

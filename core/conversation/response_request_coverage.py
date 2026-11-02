@@ -119,6 +119,7 @@ def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[st
     # shortfall, never a hard failure: the prose is still an answer, and the
     # person sees that the placement they asked for is missing from it.
     from .asked_scale import answers_the_scale_it_was_asked_for, asks_for_a_rating
+    from .closed_answer import gives_a_closed_answer
 
     if asks_for_a_rating(user) and not answers_the_scale_it_was_asked_for(user, reply):
         reasons.append("missing_requested_scale_placement")
@@ -181,7 +182,7 @@ def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[st
     if _FOLLOWUP_QUESTION_REQUEST_RE.search(user) and "?" not in reply:
         reasons.append("missing_requested_followup_question")
     normalized_reply = _normalize(reply)
-    for phrase in _requested_required_phrases(user):
+    for phrase in () if gives_a_closed_answer(user, reply) else _requested_required_phrases(user):
         if phrase and phrase not in normalized_reply:
             reasons.append("missing_requested_phrase")
             break

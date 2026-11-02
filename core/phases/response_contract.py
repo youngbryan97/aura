@@ -502,6 +502,8 @@ class ResponseContract:
     #: The text of each question asked, so coverage can be CHECKED rather
     #: than only requested in the prompt. See validate_dialogue_response.
     question_segments: tuple[str, ...] = ()
+    #: The message, when it asks for a closed answer; see PromptShape.closed_request.
+    closed_request: str = ""
     max_tool_turns: int = 1
     max_tools: int = 4
     reason: str = ""
@@ -1745,6 +1747,7 @@ def build_response_contract(
         prefer_extended_answer=bool(prompt_shape.prefers_extended_answer),
         requires_single_reply_coverage=bool(prompt_shape.requires_single_reply_coverage),
         question_segments=tuple(getattr(prompt_shape, "question_segments", ()) or ()),
+        closed_request=str(getattr(prompt_shape, "closed_request", "") or ""),
         max_tool_turns=max_tool_turns,
         max_tools=max_tools,
         reason=", ".join(reasons) if reasons else "ordinary_dialogue",
