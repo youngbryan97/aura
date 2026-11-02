@@ -1085,3 +1085,55 @@ rerun under a revised rule. A control that does not run is reported as not run.
 4. *The rival accounts* (`tools/rule_out_alternatives.py`), read with this seed as the confirmation: passed when all
    three goals are complete under v7, failed otherwise. It names each rival account her files rule out and each still
    owed.
+
+## Addendum, 2 November 2026, afternoon: her certificate's random control, read against thirty directions
+
+Written before this reading runs. It changes no certificate, stage, bar or prediction of seed 101, and decides nothing
+for her steering channel. It is exploratory: read beside the controls and never as one of the confirmatory reading's.
+Seed 101's reading stands as recorded whatever this reads. This branch (`isc/certificate-null`) is cut from aeefdca31,
+so its copy of this file does not carry the addenda of 1 and 2 November on other branches.
+
+**Why.** Her certificate's "beats noise" check compares her change to the forced-choice margin with the median of three
+random directions of the same length. The three are drawn from the tool's fixed seed (20260908), so every certificate
+is compared with the same three. Her basis (cc3dd7…, on her cortex at alpha 0.5) passed by 0.009 nats: +0.3312 against
++0.3219. Her voice check passed by more: +0.2430 nats a token against +0.0019 for one random direction a reply. Five
+random bases certified on 1 November all read negative margins (−0.11 to −0.41) and negative voice readings, but they
+were built differently from the certificate's control, so they do not say what that control usually gives.
+
+**What runs.** `tools/certificate_null.py`, committed with this addendum. It loads her cortex and her basis as the
+certificate tool does, with the certificate's own functions. It reads her margin, shift and voice, then the same for
+30 random directions drawn from a new seed (20261102, direction k from `default_rng([20261102, k])`). Each is drawn the
+way the certificate draws its control: at each layer the length of her composite there, and her felt push replaced by
+one the length of hers. Each of her 32 replies is scored under all thirty directions. The 32 are drawn as the
+certificate draws them (seed 20260908) from the replies file the certificate tool read in seed 101's tree
+(`data/endogenous_language/pairs.jsonl`, sha256 002e0555081d70b2c1262bf7a116bb3cd56fa15e485806449cf40b7a08f0cc10).
+
+**How it is read** (`read` in the tool):
+0. it reproduces her certificate: the same model identity (52d313c2…) and basis (cc3dd7…), her margin within 0.005
+   nats of +0.3312, and her shift within 2% of 0.6546. If not, the null is reported and not read;
+1. her margin is above the median of the thirty;
+2. her voice reading is above the largest of the thirty.
+
+It holds if all three do. Each direction's margin, shift and voice are reported, with the share of the thirty whose
+margin is below hers.
+
+**Predicted** (written by Claude on 2 November; Bryan delegated the design and approved the run the same day). Rule 0
+holds. Rule 2 holds: no random direction keeps her replies as likely as her own direction does. Rule 1 holds narrowly:
+her margin sits above the null's median but inside its middle half. I hold rule 1 at about even odds, because her
+margin beat the three fixed directions by 0.009 nats.
+
+**What each outcome means for the paper:**
+- all three hold: her certificate's two comparisons with noise stand against thirty directions in place of three, and
+  the paper says so;
+- rule 1 fails and rule 2 holds: her direction costs the model's competence about as much as a typical random one of
+  its length, and the certificate's "beats noise" pass rested on the three fixed draws. The paper says her steering is
+  not shown to cost less than an arbitrary push of its size, and is shown to keep her voice where no arbitrary push
+  does. Seed 101's reports run stands as it ran, and the paper discloses that the check its certificate passed is not
+  robust. Certifying with a larger control set becomes a ratchet item for after submission;
+- rule 2 fails: some random direction keeps her voice as well as hers, so the voice check is not specific to her
+  direction, and the paper says so;
+- rule 0 fails: something differs from the certificate's measurement. The null is reported and not read, and the
+  difference is found before any reading of it.
+
+**When.** After the disconnected reading of this date ends, with her app closed and 40 GB of room. About an hour on
+her cortex, into `~/subject-core-runs/certificate-null/`.
