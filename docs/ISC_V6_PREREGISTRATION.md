@@ -2360,3 +2360,52 @@ already made:
   the same norm (+0.262 against −0.080).
 
 No arm, prediction, bar or reading changes.
+
+## Addendum, 2 November 2026: her domains cut apart, read with the power to tell her whole from her cut apart
+
+Written before this reading runs. It adds a control beside seed 101's and changes no stage, bar or prediction of
+seed 101. It is exploratory: read beside the controls and never as one of the confirmatory reading's. Seed 101's
+reading of 31 October stands as recorded whatever this reads. This branch (`isc/disconnected-powered`) is cut from
+aeefdca31, so its copy of this file does not carry the addenda of 1 and 2 November, which are on
+`isc/untuned-steered` and `isc/self-prediction-fix`.
+
+**Why.** On 31 October control 1 above read as predicted at six rounds: cut apart, phi_do −0.0057 (SE 0.0145), no
+synergy triple, no held column moved. But the intact life in the same run read no integration above its standard
+error either (+0.0104, SE 0.0184; the second intact life +0.0347, SE 0.0233). At six rounds the design cannot tell
+her whole from her cut apart. An outside review named it.
+
+**What changes.** Only the number of rounds: `--rounds 120` in place of 6, so each of the twelve lives runs 960
+turns. The tool (`tools/run_disconnected_aura.py`), the seed (101), the six rounds of warming, the eight conditions,
+and all of her code are aeefdca31's. This branch adds only this addendum, the reader below and its test; `git diff
+aeefdca31` shows nothing else.
+
+**How it is read.** The tool's report is read unchanged by `tools/read_disconnected_powered.py`, committed with this
+addendum, by three rules:
+1. as before: the tool's own verdict holds (cut apart, no integration above its standard error, no synergy triple,
+   no held column moved);
+2. the intact life reads integration: phi_do above twice its standard error;
+3. the whole differs from the cut apart: intact minus cut apart above twice the standard error of the difference
+   (the two standard errors combined in quadrature).
+
+It holds if all three do. The second intact life (the tool's drift life) is read on rules 2 and 3 too, and reported
+beside, deciding nothing.
+
+**Sizing.** If the standard errors fall as the square root of the turns, 120 rounds gives about 0.0041 for the
+intact life and 0.0032 for the cut apart, so rule 2 has about 70% power if her integration here is as small as 31
+October's first intact reading (0.0104), and nearly all if it is the mean of the two intact readings (0.0225). Rule
+3 has about 85% at the smaller reading. The 31 October run took 536 seconds for six rounds, so this takes about
+three hours. It loads no model.
+
+**Predicted** (written by Claude on 2 November; Bryan delegated the design and approved the run the same day). All
+three hold: cut apart, her domains read no integration, and whole they read integration that differs from it.
+**What each outcome means for the paper:**
+- all three hold: the irreducibility estimator tells her whole from her cut apart on her own dynamics, not only on the
+  toys, and the paper reports this beside 31 October's reading;
+- rule 1 holds and rule 2 or 3 does not: at 120 rounds this design still does not tell her whole from her cut apart.
+  Her irreducibility then rests on the campaign's reading alone (phi_do 0.041 at the cut of P against the rest), and
+  the paper says that this design, at this power, does not separate them;
+- rule 1 does not hold: the estimators read unity in her marginals alone, and every line built on them says so, as
+  the tool's own prediction states.
+
+**When.** After self-prediction again ends, with her app closed: on the evening of 2 November, about three hours,
+into `~/subject-core-runs/disconnected-powered/`.
