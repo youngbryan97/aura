@@ -1137,3 +1137,27 @@ margin beat the three fixed directions by 0.009 nats.
 
 **When.** After the disconnected reading of this date ends, with her app closed and 40 GB of room. About an hour on
 her cortex, into `~/subject-core-runs/certificate-null/`.
+
+## Addendum, 3 November 2026, morning: the null's replies file, corrected
+
+Written after the reading of the addendum above (3 November, 05:22) and before it runs again. It corrects one input
+the addendum named in error, and changes no rule, bar, prediction, seed, direction or other setting.
+
+**The error.** The addendum named "the replies file the certificate tool read in seed 101's tree
+(`data/endogenous_language/pairs.jsonl`, sha256 002e0555…)". Her certificate did not read that file:
+- it was measured on 24 October 2026 at 11:26 by `felt43_install_chain.sh`, with `--replies
+  /Users/bryan/.aura/live-source/training/vectors/fitted-voicefit-x2-felt43-20261024/held_out_replies.jsonl` (110 rows,
+  sha256 eac43cc19b3262a281ecb844f59a21287de1938921c08b5dcfc630d56b6b425f);
+- it was copied into seed 101's tree at 16:35 on 30 October;
+- the tree's pairs file was created at that minute, and filled with seed 101's own harness replies until 1 November.
+  Of the 32 replies the first reading scored, 14 were said in the steering-off control, with her steering detached,
+  and 18 in the reports run.
+
+**What the first reading read** (`~/subject-core-runs/certificate-null/`): rule 0 held; rule 1 held (her margin
++0.3312 above 26 of the 30 directions; the null's median −0.122); rule 2 failed (her voice −0.062 against the null's
+largest +0.0022). It is kept and reported with this account. Its rules 0 and 1 stand as read, since they do not use the
+replies.
+
+**The run again.** The same tool, commit, seeds, directions, alpha and rules, on her certificate's own replies file
+(sha256 above), into `~/subject-core-runs/certificate-null-2/`. All three rules are read on it as written. Rule 2 is
+decided by this reading. The prediction stands as written: rule 2 holds.
