@@ -2485,3 +2485,63 @@ replies.
 **The run again.** The same tool, commit, seeds, directions, alpha and rules, on her certificate's own replies file
 (sha256 above), into `~/subject-core-runs/certificate-null-2/`. All three rules are read on it as written. Rule 2 is
 decided by this reading. The prediction stands as written: rule 2 holds.
+
+## Addendum, 3 November 2026, afternoon: why her domains cut apart read as integrated
+
+Written after the reading of the addendum above (3 November, 03:18) and before this runs. It changes no stage, bar or
+prediction of seed 101, and none of that reading, which stands as read: all three of its rules failed. It is a
+diagnosis, not a repair to pass. The question whether her whole reads more integrated than her parts under the same
+inputs is not decided here (see "Power" below).
+
+**What the reading of 03:18 found.** At 120 rounds, cut apart read +0.0107 (SE 0.0036), about as much as intact
+(+0.0173, SE 0.0129), and one held column moved: `S.values_foretell_choice`, by 0.5, in the life where only D ran.
+Two candidate causes:
+- **The leak.** Her portrait (`core/agency/what_she_is_like.py`) recomputes its 23 S columns from the choice history
+  D writes. The clamp restored the portrait's own fields, which do not hold what it reads.
+- **A shared driver.** Every cut reads at least +0.0107, including cuts that keep D and S together, which the leak
+  cannot explain. Each domain lived alone through the same sequence of conditions from the same saved moment, so the
+  composed life shares a driver no crossing made.
+
+**The changes** (branch `isc/disconnected-diagnostic`, from 031b9b129; `git diff 031b9b129` shows these and this
+addendum):
+1. `core/subject/clamp.py`: `PINNED_READERS`. While a domain that reads a read-time organ is held, that organ's reading
+   is pinned to its value when the clamp was taken. The portrait is the one such organ found.
+2. `tools/run_disconnected_aura.py`, two options:
+   - `--also-shuffled` lives each domain alone a second time with its own order of the eight conditions every round
+     (`default_rng([seed, 1000 + index])`), composes them, and reads them beside;
+   - `--save-recordings` keeps every life's readings and condition orders.
+   The default behaviour is unchanged.
+3. `tools/read_disconnected_diagnostic.py` and `tests/test_her_domains_cut_apart_are_diagnosed.py`.
+
+**The run.** Seed 101, `--rounds 80 --warm 6 --also-shuffled --save-recordings`, with seed 101's chain environment,
+into `~/subject-core-runs/disconnected-diagnostic/`. About three and a half hours, no model.
+
+**How it is read** (`read` in the reader):
+0. the fix holds: no held column moves, in any life;
+1. in the shared order, cut apart still reads integration (phi_do above its standard error);
+2. each domain in its own order, cut apart reads none (phi_do not above its standard error);
+3. the shared order adds integration: shared minus own order above twice the standard error of the difference.
+
+Whole against cut apart in the shared order, for both intact lives, is reported beside, deciding nothing. So is the
+shared-order reading against the 120-round one, which says how much the leak contributed.
+
+**Predicted** (written by Claude on 3 November; Bryan delegated the design and approved the run the same day). All
+four hold. The clamp now holds her portrait. The shared order of conditions is what her cut-apart domains share, and
+the estimator reads it as integration.
+
+**What each outcome means for the paper:**
+- all four hold: why her cut apart read as integrated is explained. The irreducibility estimator reads shared input
+  as integration. The paper says the lines that use φ_do need an input-aware estimator, or a floor that shares the
+  input, before they say anything about her beyond it. Her integration beyond shared input is not yet shown;
+- rule 2 fails (each in its own order, cut apart still reads integration): the estimator reads unity in her
+  marginals alone, without shared input. The lines that use φ_do say nothing about her integration, and the paper
+  says so;
+- rule 1 fails (in the shared order, with the fix, cut apart reads none): the leak alone made the 120-round failure.
+  The paper reports that the clamp's defect explains it, and that rule 1 of that reading would have held with the
+  defect repaired;
+- rule 0 fails: the clamp still leaks. The column is named, and nothing else is read until it is fixed.
+
+**Power.** Whether her whole reads more than her parts under the same inputs, the 120-round reading's rule 3, needs
+far more data than one more run gives. The difference was +0.0066 with a standard error of 0.0134, and the intact life's
+standard error barely fell with the turns. The recordings kept here allow an input-aware estimate later, under its own
+addendum, written before it is read.

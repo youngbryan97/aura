@@ -99,6 +99,11 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--warm", type=int, default=6, help="rounds of ordinary life before the saved moment")
     parser.add_argument("--rounds", type=int, default=6, help="rounds of each life, eight conditions a round")
+    parser.add_argument(
+        "--also-shuffled", action="store_true",
+        help="also live each domain alone with its own order of conditions every round, composed and read beside",
+    )
+    parser.add_argument("--save-recordings", action="store_true", help="keep every life's readings in recordings.npz")
     args = parser.parse_args(argv)
 
     import numpy as np
@@ -132,11 +137,26 @@ async def main(argv: list[str] | None = None) -> int:
     await quiesce_organism(runtime)
     start = runtime.snapshot()
 
-    async def live() -> list[Any]:
+    orders: dict[str, list[str]] = {}
+
+    async def live(label: str = "", order_seed: tuple[int, ...] | None = None) -> list[Any]:
+        """One life of `rounds` rounds. With `order_seed`, the eight conditions come in their own order each round.
+
+        Every domain living alone through the same sequence from the same moment shares that sequence, so a composed
+        life carries a common driver no crossing made (3 November, 120 rounds). Each its own order removes it.
+        """
+        shuffle = np.random.default_rng(list(order_seed)) if order_seed is not None else None
         frames: list[Any] = []
+        sequence: list[str] = []
         for _ in range(rounds):
-            for condition in CONDITIONS:
+            conditions = list(CONDITIONS)
+            if shuffle is not None:
+                conditions = [conditions[i] for i in shuffle.permutation(len(conditions))]
+            for condition in conditions:
                 frames.extend(await runtime.turn_once(condition))
+                sequence.append(condition.name)
+        if label:
+            orders[label] = sequence
         return frames
 
     def read(label: str, frames: list[Any]) -> dict[str, Any]:
@@ -152,23 +172,50 @@ async def main(argv: list[str] | None = None) -> int:
             "synergy_passes": {_triple(s): bool(s.passes) for s in suite},
         }
 
+    recordings: dict[str, Any] = {}
+
+    def keep(label: str, frames: list[Any]) -> list[Any]:
+        if args.save_recordings:
+            from core.subject.state import UnreadFrame
+
+            recordings[label] = np.vstack([frame.vector() for frame in frames if not isinstance(frame, UnreadFrame)])
+        return frames
+
+    shuffled = None
+    shuffled_leaks: dict[str, dict[str, float]] = {}
     try:
-        intact = read("intact", await live())
+        intact = read("intact", keep("intact", await live("intact")))
         runtime.restore(start)
-        drift = read("drift", await live())
+        drift = read("drift", keep("drift", await live("drift")))
         alone: dict[str, list[Any]] = {}
         leaks: dict[str, dict[str, float]] = {}
         for domain in DOMAINS:
             runtime.restore(start)
             held = [other for other in DOMAINS if other != domain]
             with clamped(runtime, held):
-                frames = await live()
+                frames = await live(f"alone_{domain}")
             alone[domain] = frames
             leaks[domain] = still(frames, held)
             print(f"[disconnected] {domain} alone: {len(frames)} frames, held columns moved: {len(leaks[domain])}", flush=True)
-        cut = read("disconnected", compose_alone(alone, list(DOMAINS)))
+        cut = read("disconnected", keep("disconnected", compose_alone(alone, list(DOMAINS))))
+        if args.also_shuffled:
+            alone_shuffled: dict[str, list[Any]] = {}
+            for index, domain in enumerate(DOMAINS):
+                runtime.restore(start)
+                held = [other for other in DOMAINS if other != domain]
+                with clamped(runtime, held):
+                    frames = await live(f"shuffled_{domain}", order_seed=(args.seed, 1000 + index))
+                alone_shuffled[domain] = frames
+                shuffled_leaks[domain] = still(frames, held)
+                print(f"[disconnected] {domain} alone, own order: {len(frames)} frames, held columns moved: "
+                      f"{len(shuffled_leaks[domain])}", flush=True)
+            shuffled = read("disconnected_shuffled",
+                            keep("disconnected_shuffled", compose_alone(alone_shuffled, list(DOMAINS))))
     finally:
         await quiesce_organism(runtime)
+    if args.save_recordings:
+        np.savez_compressed(run_dir / "recordings.npz", **recordings,
+                            **{f"order_{label}": np.array(names) for label, names in orders.items()})
 
     evidence = {
         "evidence_source": source,
@@ -180,6 +227,8 @@ async def main(argv: list[str] | None = None) -> int:
         "disconnected": cut,
         "held_columns_that_moved": leaks,
         "verdict": verdict(intact, drift, cut, leaks),
+        "disconnected_shuffled": shuffled,
+        "held_columns_that_moved_shuffled": shuffled_leaks if shuffled is not None else None,
         "seconds": round(time.monotonic() - started, 1),
     }
     out = run_dir / REPORT_FILE

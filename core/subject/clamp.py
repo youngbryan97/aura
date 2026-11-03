@@ -34,6 +34,7 @@ from core.subject.state import _SCHEMAS, DOMAINS, domain_slices, feature_names
 __all__ = [
     "CLAMPED_FIELDS",
     "HELD_TOLERANCE",
+    "PINNED_READERS",
     "RESERVOIR_FIELDS",
     "Clamp",
     "clamped",
@@ -41,6 +42,15 @@ __all__ = [
     "organs_read_by",
     "still",
 ]
+
+#: Organs whose numbers are computed when they are read, from an object another
+#: domain owns. Her portrait (core/agency/what_she_is_like.py) recomputes its
+#: columns from the choice history her deliberation writes, so restoring the
+#: portrait's own fields does not hold what it reads: on 3 November, with S held
+#: and D free, `S.values_foretell_choice` moved by 0.5. While a domain that reads
+#: one of these is held, the organ's reading is pinned to its value when the
+#: clamp was taken. Name: the method the reader calls.
+PINNED_READERS: dict[str, str] = {"portrait": "columns"}
 
 #: How far a held column may move and still count as held: floats accumulated
 #: in a different order when a copy is written back. The fork test's bound, far
@@ -472,11 +482,29 @@ def clamped(runtime: Any, domains: Sequence[str]) -> Iterator[Clamp]:
     """
     clamp = Clamp(runtime, domains)
     previous = getattr(runtime, "after_phase", None)
+    pinned = _pin_readers(runtime, clamp.domains)
     runtime.after_phase = clamp.apply
     try:
         yield clamp
     finally:
         runtime.after_phase = previous
+        for organ, method in pinned:
+            vars(organ).pop(method, None)
+
+
+def _pin_readers(runtime: Any, domains: Sequence[str]) -> list[tuple[Any, str]]:
+    """Pin each read-time organ these domains read to what it reads now (`PINNED_READERS`)."""
+    kit = getattr(runtime, "organs", None)
+    pinned: list[tuple[Any, str]] = []
+    for name in organs_read_by(domains):
+        method = PINNED_READERS.get(name)
+        organ = getattr(kit, name, None)
+        if method is None or organ is None or not callable(getattr(organ, method, None)):
+            continue
+        value = copy.deepcopy(getattr(organ, method)())
+        setattr(organ, method, lambda value=value: copy.deepcopy(value))
+        pinned.append((organ, method))
+    return pinned
 
 
 def compose(left_rows: Sequence[Any], right_rows: Sequence[Any], left: Sequence[str]) -> list[Any]:
