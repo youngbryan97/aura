@@ -253,13 +253,14 @@ def _writes_for_stage(evidence: Mapping[str, Any]) -> dict[str, list[dict[str, A
     return out
 
 
-#: Where the record of her growth begins: the commit that declared her affect
-#: phase's write of how far she has grown (e19047ec7, 2026-10-23 07:48:57
-#: -0700). Before it, 33 steps of her live window that morning changed that
-#: field under a contract that never named it, so each read as a defect. Bryan
-#: decided on 23 October that the record begins at the fix; those steps stay
-#: in her log and are reported beside the reading.
-HER_RECORD_BEGINS_AT = 1792766937.0
+#: Where the record of her growth begins: the commit that kept her writers
+#: through the vault (8b25f0356, 2026-11-03 09:33:40 -0800). Before it the vault
+#: took her person's evidence again where no phase ran, and every change read as
+#: having no writer: 28 of 35 steps of her day run of 1 November. Bryan decided
+#: on 3 November, as he had on 23 October for that day's fix (e19047ec7), that
+#: the record begins at the fix; those steps stay in her log and are reported
+#: beside the reading.
+HER_RECORD_BEGINS_AT = 1793727220.0
 
 
 def lineage_from_state_log(
