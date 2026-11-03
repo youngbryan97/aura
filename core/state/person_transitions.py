@@ -27,6 +27,7 @@ __all__ = [
     "canonical",
     "canonical_digest",
     "person_paths",
+    "observe_person",
     "take_person_evidence",
 ]
 
@@ -162,6 +163,27 @@ class PersonWatch:
         self._digests = digests
         return out
 
+    def observe(self, state: Any) -> None:
+        """Take the person as she stands at a commit whose evidence another process took.
+
+        The process whose provenance ring saw the phases run takes the evidence
+        when it commits. The owner that writes the row keeps only its own view
+        of the person current, so a commit of its own later is compared with
+        what was committed. Taking the evidence again there, where no phase ran,
+        read every change as having no writer (3 November: every person path,
+        on every step of the day run of 1 November).
+        """
+        digests: dict[str, str] = {}
+        for path in person_paths():
+            try:
+                digests[path] = canonical_digest(_at(state, path))
+            except UnmeasurableError:
+                continue
+        self._state_id = str(getattr(state, "state_id", "") or "")
+        self._version = int(getattr(state, "version", 0) or 0)
+        self._at = time.time()
+        self._digests = digests
+
 
 def take_person_evidence(repository: Any, state: Any) -> None:
     """Carry onto the state what changed in the person since the last commit, and what wrote it.
@@ -184,6 +206,29 @@ def take_person_evidence(repository: Any, state: Any) -> None:
             "state_repository",
             exc,
             action="committed state without evidence of what changed the person",
+            severity="warning",
+        )
+
+
+def observe_person(repository: Any, state: Any) -> None:
+    """Keep the repository's view of the person current, leaving the state's evidence as it came.
+
+    For a commit proxied from the process that ran the phases, which took the
+    evidence before sending it (`StateRepository.commit(evidence_taken=True)`).
+    """
+    try:
+        watch = getattr(repository, "_person_watch", None)
+        if watch is None:
+            watch = PersonWatch()
+            repository._person_watch = watch
+        watch.observe(state)
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "state_repository",
+            exc,
+            action="committed a proxied state without updating this process's view of the person",
             severity="warning",
         )
 

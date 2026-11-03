@@ -940,6 +940,10 @@ class CognitiveContext:
         # multiplied by the measured reach and nothing new is chosen.
         # See core/self/scale.py.
         open_at_once = self._how_many_she_can_carry(10)
+        if len(self.pending_initiatives) > open_at_once:
+            from core.runtime.cognitive_provenance import note_maintenance
+
+            note_maintenance("cognition.pending_initiatives")
         while len(self.pending_initiatives) > open_at_once:
             self.pending_initiatives.pop(0)
         while len(self.active_goals) > 10:
