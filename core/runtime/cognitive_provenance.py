@@ -59,6 +59,7 @@ __all__ = [
     "current_graph",
     "last_writer_since",
     "note_branch",
+    "note_maintenance",
     "open_tick",
     "recent_graphs",
     "recording_tick",
@@ -321,6 +322,7 @@ class _Transformation:
         "_branch",
         "_contract",
         "_criteria",
+        "_maintained",
         "_name",
         "_started",
         "_state_before_hash",
@@ -337,6 +339,7 @@ class _Transformation:
         self._started = time.perf_counter()
         self._branch = ""
         self._criteria: dict[str, Any] = {}
+        self._maintained: set[str] = set()
         self._state_before_hash = state_fingerprint(state)
         # Digested for EVERY phase, contracted or not. An uncontracted phase
         # still reports which fields it moved, which is how the next contract
@@ -383,7 +386,7 @@ class _Transformation:
                 undeclared = tuple(
                     path
                     for path in observed
-                    if path not in declared_set and not _is_derived_field(path)
+                    if path not in declared_set and not _is_derived_field(path) and path not in self._maintained
                 )
         receipt = TransformationReceipt(
             transform=self._name,
@@ -424,6 +427,23 @@ def begin_transformation(phase_name: str, state: Any) -> _Transformation:
     transformation = _Transformation(phase_name, contract_for(phase_name), state)
     _ACTIVE.set(transformation)
     return transformation
+
+
+def note_maintenance(path: str) -> None:
+    """The state keeping one of its own limits, inside whichever phase set it off.
+
+    `health` is excused whole (`_DERIVED_STATE_PREFIXES`). This excuses one write:
+    her working-memory compaction trims her open initiatives to what she can
+    carry, and fires inside the phase that pushed memory over its bound, so the
+    trim read as that phase's undeclared write. On her day run of 1 November it
+    was ConsciousnessPhase, 20 of the 35 failures recorded, and the failure
+    pressure kept her depleted all morning. The trim is still observed; it is
+    not that phase's violation. A phase's own write to the same path, on a step
+    with no trim, is still checked against its contract.
+    """
+    active = _ACTIVE.get()
+    if active is not None:
+        active._maintained.add(str(path))
 
 
 def note_branch(branch: str, **criteria: Any) -> None:

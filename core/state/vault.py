@@ -226,7 +226,10 @@ class StateVaultActor:
             # Offload heavy serialization/deserialization to thread
             new_state = await self._deserialize_commit_state(new_state_data)
 
-            committed_state = await self.repo.commit(new_state, cause, trace_id)
+            # Proxied by the process that ran the phases, which took the person's
+            # evidence with the writers its provenance saw. This process saw no
+            # phase, so it keeps that evidence rather than taking it again.
+            committed_state = await self.repo.commit(new_state, cause, trace_id, evidence_taken=True)
 
             # Debounced SHM Update
             now = time.time()

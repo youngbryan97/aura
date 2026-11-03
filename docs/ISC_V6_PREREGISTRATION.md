@@ -698,3 +698,51 @@ then handed that organ a frozen copy of the clock. Her modules now hold a plain 
 copy keeps as itself and which reads the live clock. The chain's own preflight (seed 79, 24 warm rounds) writes and
 restores with no hole, and untouched rolls on seed 71 read 0 at 0, 3600 and 7200 s on two hash seeds. Round 7's
 closure ran with the defect, so the interventional discovery is repeated at the corrected commit before seed 73.
+
+## Addendum, 3 November 2026: her lineage's writers kept, and a second day of her life
+
+Written after the day run of 1 November was read (lineage DOES_NOT_DEVELOP: 28 of 35 steps changed
+`identity.evolution_score` with no recorded writer) and before the second day run starts. That reading stands as
+read and is reported.
+
+**What was wrong.** Two defects in what her record says about who did what, not in what she does:
+1. Her engine takes her person's evidence when it commits (`take_person_evidence`), with the writers its provenance
+   saw, and proxies the state to the vault. The vault called the same commit and took the evidence again, in a process
+   where no phase ran and its provenance held no records. That overwrote every writer with none. It hid the fix of 23
+   October (e19047ec7), which was right.
+2. Her working-memory compaction trims her open initiatives to what she can carry, inside whichever phase set it off.
+   On 1 November that was ConsciousnessPhase, so the trim read as that phase's undeclared write of
+   `cognition.pending_initiatives`: 20 of the day's 35 failures. The pressure kept her depleted, and her journal stopped
+   reaching her mind after about two hours.
+
+**The changes** (this commit, on `isc/lineage-record-fix` from 572f3dc60, the commit her app ran on 1 November):
+- `StateRepository.commit(..., evidence_taken=True)` observes the person (`observe_person`) and does not take the
+  evidence again. The vault passes it for every proxied commit.
+- `note_maintenance("cognition.pending_initiatives")` marks the trim as the state's own housekeeping, as `health` is
+  excused. A phase's own undeclared write of the same field is still charged.
+- Tests: `tests/test_her_writers_survive_the_vault.py` (one reproduces the 1 November overwrite) and
+  `tests/test_her_initiative_limit_is_not_a_phase_violation.py`. A regression of 73 test files reads the base commit's
+  own failures and no new one (3 failed and 1 error on both).
+
+**Where her record begins.** As decided on 23 October for that fix, and by Bryan again on 3 November: her record begins
+at this commit. The 28 failures of 1 November stay in her log and are reported beside the reading. The re-read uses
+seed 101's solver with only `HER_RECORD_BEGINS_AT` moved to this commit's time (branch `isc/lineage-reread` from
+aeefdca31).
+
+**The run.** As on 1 November:
+- `AURA_STATE_LOG_MAX_ROWS=100000`;
+- her app through its launcher, for 24 hours, with nothing else running on the machine;
+- then J* re-read, read-only, with seed 101's carrier and content reports.
+
+**Predicted** (written by Claude on 3 November; Bryan delegated the design and approved the fixes the same day):
+1. Every change to her person on the new record has a measured writer, and the evolution score's is AffectUpdatePhase
+   under its contract.
+2. Her lineage develops on the new record. Any step that fails, fails for a named reason other than a missing writer.
+3. No failure "ConsciousnessPhase wrote undeclared state fields: cognition.pending_initiatives".
+4. Her state log keeps writing through the 24 hours.
+
+**What each outcome means for the paper:**
+- **Lineage develops:** it holds on a day of her own running. The 1 November failure is reported as a record-keeping
+  defect, found, fixed and read again on a new registered run.
+- **It fails for another reason:** that reason is the finding, and the lineage ground fails on the newer record.
+- **Her log stops again:** her depletion has another cause, which the paper names.

@@ -25,7 +25,7 @@ from core.utils.task_tracker import get_task_tracker
 
 from ..bus.shared_mem_bus import SharedMemoryTransport
 from ..container import ServiceContainer
-from .person_transitions import take_person_evidence
+from .person_transitions import observe_person, take_person_evidence
 
 if TYPE_CHECKING:
     from .aura_state import (
@@ -531,11 +531,11 @@ class StateRepository:
         return self._current
 
     async def commit(
-        self, new_state: AuraState, cause: str, trace_id: str | None = None
+        self, new_state: AuraState, cause: str, trace_id: str | None = None, *, evidence_taken: bool = False
     ) -> AuraState:
-        """Queue a state transition for atomic owner-side processing."""
+        """Queue a state transition for atomic owner-side processing; a proxied one keeps its evidence (vault.py)."""
         trace_id = trace_id or f"trace_{int(time.time() * 1000)}"
-        take_person_evidence(self, new_state)
+        (observe_person if evidence_taken else take_person_evidence)(self, new_state)
         if self.is_vault_owner:
             await self._enqueue_owner_commit(
                 {
