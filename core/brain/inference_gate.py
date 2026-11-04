@@ -3601,21 +3601,13 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         self,
         text: str,
         prompt: str,
-        assessment: Any = None,
     ) -> str | None:
-        """Return text unchanged when downstream response repair should own it.
-
-        ``assessment`` is ``assess_user_facing_reply(prompt, text.strip())`` when
-        the caller already made it off the loop: it encodes, and under the
-        encode lock on the loop thread it held the loop 55 ms (lockdep, day
-        runs of 1 and 3 November, from ``_generate_with_metadata_sink``).
-        """
+        """Return text unchanged when downstream response repair should own it."""
         cleaned = str(text or "").strip()
         if not cleaned:
             return None
         try:
-            if assessment is None:
-                assessment = assess_user_facing_reply(prompt, cleaned)
+            assessment = assess_user_facing_reply(prompt, cleaned)
             if assessment.retryable and _should_pass_user_facing_draft_downstream(
                 cleaned,
                 set(assessment.reasons or ()),
@@ -10060,22 +10052,10 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                         time.monotonic() - primary_attempt_started,
                     )
                     if text:
-                        repairable_draft = None
-                        if _is_user_facing:
-                            draft_assessment = None
-                            if str(text or "").strip():
-                                try:
-                                    draft_assessment = await asyncio.to_thread(
-                                        assess_user_facing_reply, visible_user_prompt, str(text).strip()
-                                    )
-                                except _INFERENCE_RECOVERABLE_ERRORS as exc:
-                                    logger.debug("Repairable draft preservation check skipped: %s", exc)
-                            if draft_assessment is not None:
-                                repairable_draft = self._repairable_user_facing_draft_for_downstream(
-                                    text,
-                                    visible_user_prompt,
-                                    assessment=draft_assessment,
-                                )
+                        repairable_draft = self._repairable_user_facing_draft_for_downstream(
+                            text,
+                            visible_user_prompt,
+                        ) if _is_user_facing else None
                         _left_ = _generate_with_metadata_sink_part_2_2(self, _is_user_facing, repairable_draft, text, visible_user_prompt)
                         if _left_ is not _FALL_THROUGH:
                             return _left_
