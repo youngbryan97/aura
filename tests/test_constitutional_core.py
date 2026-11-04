@@ -35,6 +35,19 @@ class StateMutationGateFixture:
         return self.approved, self.reason
 
 
+@pytest.fixture(autouse=True)
+def _ontogeny_does_not_explore(monkeypatch):
+    """The executive's decisions here are the subject; her ontogeny's exploration is not.
+
+    One low-stakes admission in 24 takes a uniformly random safe action (core/ontogeny/reservation.py) from approved,
+    deferred and degraded, seeded by the intent's random id, so each approval asserted in this file failed on one
+    run in 36 with "approved|ontogeny:deferred". Nothing in this file tests ontogeny; the incumbent's choice stands.
+    """
+    import core.ontogeny.wiring as wiring
+
+    monkeypatch.setattr(wiring, "observe_admission", lambda *, incumbent_choice, **_: (incumbent_choice, None))
+
+
 def reset_constitutional_singletons():
     constitution_module._instance = None
     executive_core_module._instance = None
