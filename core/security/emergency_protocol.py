@@ -157,6 +157,8 @@ class EmergencyProtocol:
         self._threat_score: float = 0.0
         self._snapshot_taken: bool = False
         self._minimal_mode: bool = False
+        #: Whether the shutdown has been prepared for the threat now standing.
+        self._shutdown_prepared: bool = False
         self._vault_path: Path | None = None
         self._last_snapshot_at: float = 0.0
         self._last_snapshot_score: float = 0.0  # score at time of last snapshot
@@ -306,8 +308,15 @@ class EmergencyProtocol:
         if score >= MINIMAL_MODE_THRESHOLD and not self._minimal_mode:
             self._enter_minimal_mode()
 
-        if score >= SHUTDOWN_THRESHOLD:
+        # Prepared once per crossing, as minimal mode is entered once. Run on
+        # every evaluation, it logged "preparing graceful shutdown" at error
+        # and flushed her LoRA buffer 61 times on the full disk of 1 November,
+        # and shut nothing down.
+        if score >= SHUTDOWN_THRESHOLD and not self._shutdown_prepared:
+            self._shutdown_prepared = True
             self._graceful_shutdown()
+        elif score < SHUTDOWN_THRESHOLD:
+            self._shutdown_prepared = False
 
     def _recompute_threat_score(self):
         """
