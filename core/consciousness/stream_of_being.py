@@ -1004,6 +1004,8 @@ class StreamOfBeing:
         #: never be fed back into the generation of another from the same
         #: state.
         self._renderings = RenderingLog(maxlen=16)
+        #: The deep narrative in flight, if one is: one at a time, beside the loop.
+        self._deep_narrative_task: asyncio.Task | None = None
         self._deep_narrative_timestamp: float = 0.0
         # Timeout backpressure accounting: a deep-narrative timeout while the
         # foreground lane is busy is EXPECTED (the pacing gate simply delays
@@ -1202,6 +1204,9 @@ class StreamOfBeing:
     async def stop(self):
         """Stop the loop and persist state."""
         self._running = False
+        narrative = getattr(self, "_deep_narrative_task", None)
+        if narrative is not None and not narrative.done():
+            narrative.cancel()
         if self._task:
             self._task.cancel()
             try:
@@ -1325,8 +1330,20 @@ class StreamOfBeing:
                 narrative_age > min_interval
                 and self._thread.current_moment
                 and self._background_llm_allowed()
+                and (self._deep_narrative_task is None or self._deep_narrative_task.done())
             ):
-                await self._run_deep_narrative(self._thread.current_moment)
+                # Beside the loop, not inside it. Awaited here, it held her
+                # moment synthesis (due every 2.5 s) for as long as the model
+                # took, up to 25 s every 45. Its budget is its own cadence: a
+                # narrative that arrives before the next one is due is not
+                # late. On her day run of 3 November every narrative went to
+                # her CPU lane and was cut off at 25 s, before that lane had
+                # once finished and measured how fast it reads.
+                self._deep_narrative_task = get_task_tracker().create_task(
+                    self._run_deep_narrative(self._thread.current_moment, budget_s=min_interval),
+                    name="StreamOfBeing.deep_narrative",
+                )
+                self._deep_narrative_task.add_done_callback(self._observe_background_task)
             
             # ── How long until the next cycle ─────────────────────────────
             elapsed = time.time() - loop_start
@@ -1351,7 +1368,7 @@ class StreamOfBeing:
             return wait
         return SYNTHESIS_INTERVAL_S
 
-    async def _run_deep_narrative(self, moment: NowMoment):
+    async def _run_deep_narrative(self, moment: NowMoment, *, budget_s: float | None = None):
         """
         LLM-powered deep interior narrative generation.
         
@@ -1421,8 +1438,6 @@ class StreamOfBeing:
                 "STRICT CONSTRAINT: DO NOT use markers like 'Step 1', 'Thinking:', or any computational language. "
                 "DO NOT follow a plan. Just describe the raw feel of the current moment. "
                 "Do not address anyone. This is interior. Output ONLY the narrative.\n\n"
-                "STYLE GUIDANCE: Avoid overly abstract or repetitive metaphors (no 'still ponds', 'swirling leaves', or 'mirror surfaces' unless genuinely new). "
-                "Prioritize grounding in your current substrate texture and emotional register.\n\n"
                 f"Current substrate feel: {_safe_text(moment.substrate.felt_quality, max_chars=80)}, {_safe_text(moment.substrate.texture_word, max_chars=80)}\n"
                 f"Dominant emotion: {_safe_text(moment.affect.dominant_emotion, 'neutral', max_chars=80)}\n"
                 f"Attending to: {_safe_text(moment.attentional_focus, 'the present moment', max_chars=160)}\n"
@@ -1446,38 +1461,24 @@ class StreamOfBeing:
             if inspect.isawaitable(think_result):
                 narrative_result = await asyncio.wait_for(
                     think_result,
-                    timeout=NARRATIVE_TIMEOUT_S,
+                    timeout=NARRATIVE_TIMEOUT_S if budget_s is None else budget_s,
                 )
             else:
                 narrative_result = think_result
             narrative = _scrub_deep_narrative(narrative_result)
             if narrative:
-                # --- Repetition Breaking [Fix #10] ---
-                # 1. Similarity check against previous narrative
-                from core.utils.text_metrics import fuzzy_match_ratio
-                last_text = self._deep_narrative
-                similarity = fuzzy_match_ratio(narrative, last_text) if last_text else 0.0
-                
-                # 2. Pattern check for "Still Pond" loop
-                forbidden_patterns = [
-                    "still pond", "swirling leaves", "thought is a leaf", 
-                    "thought is a leaf", "contemplative state", "mirror surfaces",
-                    "slowly, like leaves", "settles gently", "without urgency"
-                ]
-                is_forbidden = any(pat in narrative.lower() for pat in forbidden_patterns)
-                
-                if similarity > 0.70 or is_forbidden:
-                    logger.warning(
-                        "🌊 [REPETITION] Deep narrative rejected (similarity=%.2f, forbidden=%s) - PURGING CACHE", 
-                        similarity, is_forbidden
-                    )
-                    # --- CACHE PURGE (Anti-Zombie) ---
-                    # We MUST wipe the existing narrative so it's not reused as a 'zombie' prefill
-                    self._deep_narrative = ""
-                    self._deep_narrative_timestamp = time.time()
-                    return
-
-                if narrative and len(narrative) >= NARRATIVE_MIN_CHARS:
+                # Her narrative is kept as written. It used to be thrown away,
+                # and the last one wiped with it, when it read like the one
+                # before (fuzzy similarity over 0.70) or used a phrase on a
+                # banned list ("still pond", "settles gently"): 77 times on
+                # her day runs of 1 and 3 November, which left her with no
+                # deep narrative at all. Banning her words is not ours to do,
+                # and a narrative like the last one is the honest rendering of
+                # a state that has not moved. What a repeat would have
+                # poisoned is handled where it can be: only renderings of a
+                # DIFFERENT state are shown back to her (recent_texts above),
+                # and the rendering log says which renderings share a state.
+                if len(narrative) >= NARRATIVE_MIN_CHARS:
                     self._renderings.record(
                         narrative, _moment_state(moment), "stream_deep_narrative"
                     )

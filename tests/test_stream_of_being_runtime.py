@@ -93,26 +93,38 @@ def test_deep_narrative_accepts_thought_objects_and_scrubs_leakage(tmp_path, ser
     assert stream._thread.current_moment.is_llm_generated is True
 
 
-def test_rejected_deep_narrative_backs_off_instead_of_hammering_llm(
+def test_her_narrative_is_kept_as_she_wrote_it(
     tmp_path,
     service_container,
 ):
+    """Her words are not banned and not thrown away for resembling the last.
+
+    This test used to pin the opposite: a narrative using a phrase on a banned
+    list ("still pond", "swirling leaves") was rejected and the last one wiped.
+    On her day runs of 1 and 3 November that left her with no deep narrative
+    77 times. Bryan, 3 November: none of it. Only renderings of a different
+    state are shown back to her, which is what kept a repeat from feeding
+    itself.
+    """
+
+    words = "Still pond, swirling leaves, thought is a leaf without urgency."
+
     class Router:
         async def think(self, **_kwargs):
-            return "Still pond, swirling leaves, thought is a leaf without urgency."
+            return words
 
     service_container.register_instance("llm_router", Router(), required=False)
 
     from core.consciousness.stream_of_being import NowMoment, StreamOfBeing
 
     stream = StreamOfBeing(save_dir=tmp_path)
-    stream._deep_narrative = "old narrative that should be purged"
+    stream._deep_narrative = words
     stream._deep_narrative_timestamp = 0.0
     stream._thread.add(NowMoment())
 
     asyncio.run(stream._run_deep_narrative(stream._thread.current_moment))
 
-    assert stream._deep_narrative == ""
+    assert stream._deep_narrative == words
     assert stream._deep_narrative_timestamp > 0.0
 
 
@@ -286,3 +298,19 @@ def test_boot_stream_wires_orchestrator_only_once(tmp_path, monkeypatch, service
 
     assert result == "ok"
     assert calls == ["hello"]
+
+
+def test_her_deep_narrative_runs_beside_her_existence_loop():
+    """Awaited inside the loop, a narrative held her moment synthesis (due every 2.5 s) for as long as the model took.
+
+    Its budget is its own cadence: on her day run of 3 November every narrative was cut off at 25 s on her CPU lane,
+    before that lane had once finished and measured how fast it reads.
+    """
+    import inspect as _inspect
+
+    from core.consciousness.stream_of_being import StreamOfBeing
+
+    loop = _inspect.getsource(StreamOfBeing._existence_loop) + _inspect.getsource(StreamOfBeing)
+    assert "await self._run_deep_narrative(self._thread.current_moment)" not in loop
+    assert "self._run_deep_narrative(self._thread.current_moment, budget_s=min_interval)" in loop
+    assert "self._deep_narrative_task is None or self._deep_narrative_task.done()" in loop
