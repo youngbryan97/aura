@@ -497,6 +497,12 @@ class TerminalMonitor:
                     "id": f"autofix_{time.time_ns()}_{next(_AUTOFIX_ID_COUNTER)}_{uuid.uuid4().hex[:6]}",
                     "origin": "terminal_monitor",
                     "complexity": 0.5,
+                    # What failed, for the self-modifier. Without it the
+                    # metabolic coordinator reported "Terminal Command
+                    # Failure: Unknown" (eight times on her day runs) and the
+                    # repair it asked for had no error to repair.
+                    "error": _sanitize_objective_error(entry.message),
+                    "source": entry.source,
                 }
                 break
 
