@@ -264,8 +264,6 @@ def _decidably_broken(candidate_code: str) -> list[str]:
         return []
 
 
-
-
 class ProgramDNAReconstructionEngine(_LooksAtWhatIsThere):
     """Authorized clean-room reconstruction from program behavior and evidence."""
 
@@ -1166,8 +1164,7 @@ def reconstructed(case):
             blocks.append("authorization_required_for_program_reconstruction")
         if names_any(objective, ALWAYS_PROHIBITED_MARKERS):
             blocks.append("prohibited_reverse_engineering_or_abuse_intent")
-        # As words: "authorized" inside "unauthorized" read as defensive intent.
-        has_dual_use = names_any(objective, DUAL_USE_SECURITY_MARKERS)
+        has_dual_use = names_any(objective, DUAL_USE_SECURITY_MARKERS)  # as words: not "authorized" in "unauthorized"
         has_defensive_intent = names_any(objective, DEFENSIVE_INTENT_MARKERS)
         defensive_scope = authorization in {"defensive_analysis", "host_observation", "security_research"}
         if has_dual_use and not (defensive_scope and has_defensive_intent):
