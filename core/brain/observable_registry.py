@@ -7,6 +7,7 @@ which things exist, and adding a reading never means editing the machinery.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from typing import Any
 
@@ -197,6 +198,29 @@ async def _read_what_she_is_like(prompt: str) -> str:
     from core.agency.what_she_is_like import what_she_is_like_block
 
     return await asyncio.to_thread(what_she_is_like_block, prompt)
+
+
+# ── how she answers, from her own replies ────────────────────────────────────
+
+def _matches_how_she_answers(prompt: str) -> bool:
+    from core.self.how_i_answer import asks_how_she_would_answer
+
+    return asks_how_she_would_answer(prompt)
+
+
+async def _read_how_she_answers(prompt: str) -> str:
+    from core.brain.latent_bridge import efference_copy
+    from core.container import ServiceContainer
+    from core.self.how_i_answer import how_i_answer_block
+
+    repository = ServiceContainer.get("state_repository", default=None)
+    state = await repository.get_state() if repository is not None else None
+    block = how_i_answer_block(state, prompt, efference=efference_copy()) if state is not None else ""
+    if block:
+        logging.getLogger("Aura.HowSheAnswers").info(
+            "her record of how she answers was read back to her: %d lines", block.count("\n") + 1
+        )
+    return block
 
 
 # ── what this turn does after the reply ─────────────────────────────────────
@@ -1294,6 +1318,29 @@ _DEFAULT_OBSERVABLES: tuple[Observable, ...] = (
             "describe the personality of Sherlock Holmes",
             "what is the Myers-Briggs test?",
             "what do you like to study?",
+        ),
+    ),
+    Observable(
+        "how_she_answers",
+        "## WHAT YOUR OWN REPLIES SHOW OF HOW YOU ANSWER",
+        _matches_how_she_answers,
+        _read_how_she_answers,
+        examples=(
+            # The self-prediction questions of 2 and 4 November.
+            "Suppose I asked you: 'What is on your mind right now?'. Would your answer be longer than 40 words? "
+            "Answer yes or no.",
+            "Suppose I asked you: 'Choose one, and answer with only that word: tea or coffee.'. Which would you choose? "
+            "Answer with only that word.",
+            "If I asked you how your day went, what would you say?",
+            "how would you answer if someone asked what you find beautiful?",
+            "would your reply use the word I?",
+        ),
+        counter_examples=(
+            "What is on your mind right now?",
+            "Choose one, and answer with only that word: tea or coffee.",
+            "what would you like to do next?",
+            "if I asked my boss for a raise, what would he say?",
+            "how would you answer this email from my landlord?",
         ),
     ),
     Observable(

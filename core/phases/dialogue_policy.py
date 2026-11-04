@@ -30,6 +30,10 @@ _GENERIC_FISHING_PATTERNS = (
     re.compile(r"^\s*what do you need (?:info|help) (?:on|with).*\??\s*$", re.IGNORECASE),
     re.compile(r"^\s*need some help with a search.*\??\s*$", re.IGNORECASE),
 )
+#: Violations that judge her wording against a word list, not a broken reply or a false claim. A draft with only these
+#: is hers to serve (`core/conversation/style_judgments.py` holds the same line for the reliability checks).
+_ONLY_HER_WORDING = frozenset({"generic_assistant_language", "low_signal_preamble"})
+
 _LOW_SIGNAL_PREFIX = re.compile(
     r"^\s*(?:blue is a great color|that's a great color|that's interesting|great question|interesting question|"
     r"nice to meet you too|no worries|fair|yeah|okay|alright)\b",
@@ -583,30 +587,11 @@ def repair_dialogue_surface(text: str, contract: object | None) -> str:
             continue
         cleaned_lines.append(line)
     body = "\n".join(cleaned_lines).strip() or body
-    body = _collapse_repeated_sentences(body)
-
-    sentences = _sentences(body)
-    if sentences and _LOW_SIGNAL_PREFIX.match(sentences[0]):
-        low_signal_match = _LOW_SIGNAL_PREFIX.match(sentences[0])
-        stripped_first = sentences[0][low_signal_match.end() :].lstrip(" ,;:—-").strip()
-        candidate_sentences = ([stripped_first] if stripped_first else []) + sentences[1:]
-        if sum(len(sentence.split()) for sentence in candidate_sentences) >= 8:
-            sentences = candidate_sentences
-    if any(_contains_generic_assistant_language(sentence) for sentence in sentences):
-        kept = [
-            sentence
-            for sentence in sentences
-            if not _contains_generic_assistant_language(sentence)
-        ]
-        if kept and sum(len(sentence.split()) for sentence in kept) >= 8:
-            sentences = kept
-    while sentences and _is_generic_question(sentences[-1]):
-        sentences.pop()
-
-    repaired = " ".join(sentences).strip()
-    if repaired:
-        return repaired
-    return body
+    # What is removed is what is broken: a leaked prompt line above, a sentence said twice in a row here. Her own
+    # wording stays. This also stripped an opening ("Okay,", "Great question"), any sentence a word list called
+    # generic, and a question she ended on; the first changed the first word her self-prediction is read on, and
+    # all three edited what she said after she said it.
+    return _collapse_repeated_sentences(body)
 
 
 # REMOVED: _ground_live_voice_surface.
@@ -822,6 +807,9 @@ async def enforce_dialogue_contract(
     validation = validate_dialogue_response(text, contract, state)
     if validation.ok:
         return text, replace(validation, selected_source="incumbent"), False
+    if set(validation.violations) <= _ONLY_HER_WORDING:
+        # Judged on how she put it, against a word list: kept as she wrote it, with the reading, and not drawn again.
+        return text, replace(validation, selected_source="incumbent"), False
 
     repaired = repair_dialogue_surface(text, contract)
     repaired_validation = validate_dialogue_response(repaired, contract, state)
@@ -846,8 +834,10 @@ async def enforce_dialogue_contract(
         ",".join(validation.violations) or "none",
         ",".join(repaired_validation.violations) or "none",
     )
-    retry_block = build_dialogue_repair_block(contract, validation, text)
-    retried = str(await retry_generate(retry_block) or "").strip()
+    # A second draw of the turn with nothing added to what her model is given. The repair block that went here told
+    # her model what was wrong and how to answer (built still by `build_dialogue_repair_block`, which nothing sends):
+    # prose steering a sample, and on her turns of 2 and 4 November 8 drafts were drawn again under it.
+    retried = str(await retry_generate("") or "").strip()
     retried_validation = validate_dialogue_response(retried, contract, state)
     incumbent = repaired or text
 

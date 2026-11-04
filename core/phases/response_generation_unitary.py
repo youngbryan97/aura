@@ -34,6 +34,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
+from core.brain.latent_bridge import efference_copy
 from core.brain.llm.context_assembler import ContextAssembler
 from core.brain.reasoning_amplifier_flags import (
     reasoning_amplifier_v2_enabled,  # noqa: F401  (read at call time by the lifted module)
@@ -67,6 +68,7 @@ from core.runtime.proof_policy import (
 )
 from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
 from core.runtime.structured_input import looks_like_learning_resource_bundle
+from core.self.how_i_answer import note_her_reply
 from core.self.inner_language import say_focus
 from core.social.witness import (
     is_witnessing,  # noqa: F401  (read at call time by the lifted module)
@@ -781,6 +783,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         repaired = str(text or "").strip()
         if len(repaired) < 80 or len(repaired.split()) < 12:
             return ""
+
+        # Her last finished sentence first; only where that leaves too little is the clipped one closed.
+        ends = list(re.finditer(r"[.!?…][\"'”’)\]*]*(?=\s|$)", repaired))
+        if ends:
+            finished = repaired[: ends[-1].end()].rstrip()
+            if finished != repaired and len(finished) >= 80 and len(finished.split()) >= 12:
+                return finished
 
         repaired = re.sub(r"[\s,;:—-]+$", "", repaired).rstrip()
         incomplete_tail_words = {
@@ -2314,6 +2323,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         entry = {"role": "assistant", "content": response_text, "timestamp": time.time()}
         if fixed or response_text == noted:
             entry["fixed"] = True
+        else:
+            note_her_reply(state, response_text, efference=efference_copy())
         wm = state.cognition.working_memory
         wm.append(entry)
         state.cognition.trim_working_memory()
@@ -3279,6 +3290,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         return ""
 
     @classmethod
+    @_builds_fixed_text
     def _build_live_self_reflection_repair_reply(
         cls,
         state: AuraState,
@@ -6003,11 +6015,11 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     )
                     return ""
                 retry_messages = [dict(msg) for msg in messages]
-                if retry_messages and retry_messages[0].get("role") == "system":
+                if repair_block and retry_messages and retry_messages[0].get("role") == "system":
                     retry_messages[0]["content"] = (
                         f"{repair_block}\n\n{retry_messages[0]['content']}"
                     )
-                else:
+                elif repair_block:
                     retry_messages.insert(0, {"role": "system", "content": repair_block})
 
                 retry_timeout = min(120.0, max(45.0, request_timeout * 0.75))
@@ -6026,11 +6038,6 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     "timeout": retry_timeout,
                     "disable_prompt_cache": True,
                     "clear_prompt_cache": True,
-                    "temperature": 0.2,
-                    "top_p": 0.85,
-                    "min_p": 0.02,
-                    "repetition_penalty": 1.12,
-                    "repetition_context_size": 96,
                     "skip_runtime_payload": True,
                     "cognitive_mode": str(
                         getattr(new_state.cognition.current_mode, "value", None)
@@ -6038,6 +6045,14 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         or ""
                     ).strip().lower(),
                 }
+                if repair_block:  # a plain re-draw (none) is sampled as her first draw was
+                    retry_kwargs.update({
+                        "temperature": 0.2,
+                        "top_p": 0.85,
+                        "min_p": 0.02,
+                        "repetition_penalty": 1.12,
+                        "repetition_context_size": 96,
+                    })
                 if operator_evidence_turn:
                     retry_kwargs.update(
                         {
@@ -6282,6 +6297,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         is_live_self_reflection_turn,
                         reliability_floor_for_user,
                     )
+                    from core.conversation.style_judgments import only_style_judgments
 
                     quality = assess_user_facing_reply(objective, response_text)
                     if quality.retryable:
@@ -6291,10 +6307,14 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             "status_page_self_reflection",
                         }
                         quality_reasons = set(quality.reasons or ())
+                        drafted = str(response_text or "").strip()
+                        # Word lists, not faults: on 2 and 4 November they put a fixed sentence in place
+                        # of 4 of her answers to "What is on your mind right now?". Only for a near-empty draft.
                         if (
                             is_live_self_reflection_turn(objective)
                             and quality_reasons
                             and quality_reasons.issubset(repairable_self_reflection_reasons)
+                            and not (len(drafted) >= 80 and len(drafted.split()) >= 12)
                         ):
                             repair = self._build_live_self_reflection_repair_reply(
                                 new_state,
@@ -6313,13 +6333,15 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 response_text = shaped_repair
                                 quality = repair_quality
                         response_text_s = str(response_text or "").strip()
-                        if quality.retryable and set(quality.reasons or ()) == {"truncated_tail"}:
+                        if quality.retryable and "truncated_tail" in set(quality.reasons or ()):
+                            # Clipped by the token ceiling: hers up to her last finished sentence (7 of the 11
+                            # drafts of hers thrown away on 2 and 4 November).
                             completed_response = self._complete_substantive_truncated_foreground_reply(
                                 response_text_s
                             )
                             if completed_response:
                                 completed_quality = assess_user_facing_reply(objective, completed_response)
-                                if not completed_quality.retryable:
+                                if "truncated_tail" not in set(completed_quality.reasons or ()):
                                     logger.warning(
                                         "🛡️ UnitaryResponse completed clipped foreground draft without another 32B retry (len=%d -> %d).",
                                         len(response_text_s),
@@ -6330,10 +6352,9 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                     quality = completed_quality
                         keep_substantive_soft_failure = bool(
                             quality.retryable
-                            and not quality.hard_failure
+                            and (not quality.hard_failure or only_style_judgments(quality.reasons))
                             and len(response_text_s) >= 80
                             and len(response_text_s.split()) >= 12
-                            and "off_topic_self_reflection_reply" not in quality.reasons
                         )
                         if keep_substantive_soft_failure:
                             logger.warning(
@@ -6348,14 +6369,10 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 retryable=False,
                             )
                         if quality.retryable:
-                            retry_block = (
-                                "The previous draft failed the user-facing reliability gate "
-                                f"({','.join(quality.reasons) or 'unsafe_draft'}). "
-                                "Regenerate once. Answer the current user message directly, in ordinary English, "
-                                "without occult accusations, invented danger, prompt artifacts, or filler."
-                            )
+                            # A second draw of the same turn, nothing added; it carried a paragraph of
+                            # instructions at 0.2, and that answer was served as hers.
                             retried_text = (
-                                await _retry_dialogue(retry_block)
+                                await _retry_dialogue("")
                                 if is_user_facing and not desktop_cognitive_engine_required
                                 else ""
                             )

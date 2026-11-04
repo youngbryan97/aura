@@ -237,10 +237,11 @@ async def test_dialogue_contract_repairs_low_signal_preamble_without_retry():
         retry_generate=record_retry,
     )
 
+    # Her opening is hers: kept as written, read as a note, and not drawn again.
     assert not retried
     assert not retry_called
-    assert validation.ok
-    assert repaired.startswith("I would treat")
+    assert repaired == draft
+    assert validation.violations == ["low_signal_preamble"]
 
 
 @pytest.mark.parametrize(

@@ -2590,10 +2590,11 @@ def test_dialogue_policy_repairs_generic_boilerplate_without_model_retry():
         enforce_dialogue_contract(draft, contract, retry_generate=retry_generate)
     )
 
+    # A judgment of her wording alone: kept as she wrote it, and not drawn again.
     assert called is False
     assert retried is False
-    assert validation.ok
-    assert "I can help with that" not in repaired
+    assert repaired == draft
+    assert "generic_assistant_language" in validation.violations
 
 
 def test_grounded_introspection_does_not_trigger_on_casual_checkins():
@@ -3143,7 +3144,8 @@ def test_dialogue_policy_regenerates_rather_than_prepending_a_provenance_claim()
     assert validate_dialogue_response(draft, contract).ok is False
 
     async def retry_generate(repair_block: str) -> str:
-        assert repair_block, "the retry must be told what was wrong"
+        # A second draw, told nothing: prose telling her model what was wrong is a prompt, and none is sent.
+        assert repair_block == ""
         return 'I stored the codeword "restart-87210" and I can recall it on request.'
 
     repaired, validation, retried = asyncio.run(

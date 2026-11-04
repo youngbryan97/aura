@@ -581,6 +581,20 @@ def current_inference_params(*, base_max_tokens: int = 1536, base_temperature: f
     return p.merge_with_origin({"max_tokens": base_max_tokens})
 
 
+def efference_copy() -> dict[str, float]:
+    """What her runtime would give a reply to a person now, before a token is drawn: its ceiling and temperature.
+
+    Her self-model reads it beside her state (core/self/how_i_answer.py), as a forward model reads the command before
+    the movement it predicts.
+    """
+    try:
+        params = compute_inference_params(foreground=True)
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("latent_bridge", exc, action="her self-model noted a reply without what her runtime gave it")
+        return {}
+    return {"max_tokens": float(params.max_tokens), "temperature": float(params.temperature)}
+
+
 def activation_offsets() -> dict[int, list[float]]:
     """Return the per-layer residual-stream offsets for activation steering.
     The MLX side reads this just before token generation.
@@ -592,5 +606,6 @@ __all__ = [
     "InferenceParams",
     "compute_inference_params",
     "current_inference_params",
+    "efference_copy",
     "activation_offsets",
 ]

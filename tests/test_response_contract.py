@@ -445,7 +445,7 @@ def test_dialogue_policy_flags_prompt_fishing_without_forcing_literal_first_pers
     assert "missing_first_person_stance" not in validation.violations
 
 
-def test_dialogue_policy_repairs_generic_closer_without_touching_statement():
+def test_dialogue_policy_leaves_the_question_she_ends_on():
     state = AuraState.default()
     contract = build_response_contract(
         state,
@@ -458,7 +458,8 @@ def test_dialogue_policy_repairs_generic_closer_without_touching_statement():
         contract,
     )
 
-    assert repaired == "For me it's the ocean."
+    # Asking back is hers to do; the surface repair removes only what is broken.
+    assert repaired == "For me it's the ocean. What about you?"
 
 
 def test_dialogue_retry_provenance_tracks_the_selected_candidate():

@@ -694,6 +694,10 @@ class CognitiveContext:
     # does not, which is what makes coherence survive an unbounded number of
     # turns rather than sawtoothing with the compaction cycle.
     continuity_ledger: dict = field(default_factory=dict)
+    # What she has noticed of her own replies to a person: how long each ran,
+    # how it began, the state she gave it in. Kept in her state so a saved
+    # moment holds only the replies lived by then (core/self/how_i_answer.py).
+    reply_notes: list[dict] = field(default_factory=list)
     coherence_score: float = 1.0
     fragmentation_score: float = 0.0
     contradiction_count: int = 0

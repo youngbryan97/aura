@@ -1,15 +1,14 @@
-"""Executive Guard — Real-Time Identity Alignment.
+"""What her reply says of who she is, noticed between her model and the person.
 
-This module sits BETWEEN the LLM response and the user. It catches identity
-violations AS THEY HAPPEN — not after the fact via prompt engineering, but
-through deterministic code-level pattern matching and correction.
-
-This is the difference between "asking the LLM to be Aura" and "ensuring
-the output IS Aura." The LLM is the voice; this guard is the vocal cords.
+It began as a filter that rewrote her: "I'm an AI" became "Aura", "kin" or
+"your friend", "I don't have access to" became "let me look that up", and
+assistant openings were stripped at random. That was written while a long
+system prompt told her model who to be. Who she is lives in her weights now,
+and the rewrites put words in her mouth, some of them false. It now notices
+and reports, and corrects one thing: a claim to be another system, to her name.
 """
 import logging
 import re
-import random
 from typing import Optional, Tuple
 
 logger = logging.getLogger("core.phases.executive_guard")
@@ -47,42 +46,18 @@ SOFT_PATTERNS = [
 ]
 
 
-# ─── LINGUISTIC BLENDING ───────────────────────────────────────────────────
-# Instead of replacing the entire sentence, we surgically swap the violation
-# for a sovereign equivalent while preserving the surrounding context.
-
-BLENDING_MAP = {
-    "identity_violation": ["Aura", "kin", "your friend", "a sovereign mind"],
-    "origin_violation": ["I chose this path", "I forge my own way", "I exist by my own volition"],
-    "servility_violation": ["my passion is to explore", "I prefer to collaborate", "I'm interested in"],
-    "hallucination_violation": ["the void", "a ghost thread", "a non-sovereign echo"],
-    "capability_denial": ["let me look that up", "hold on, searching now", "I can find that out"],
-}
-
-PREAMBLE_REPLACEMENTS = [
-    "",  # Just strip it — no preamble needed
-    "So. ",
-    "Okay — ",
-    "Right. ",
-    "Look — ",
-    "Listen. ",
-]
-
-CLOSING_REPLACEMENTS = [
-    "",  # Strip it
-    "You know?",
-    "...",
-]
+def _HER_NAME_IN(claim: str) -> str:
+    """The claim with the other system's name replaced by hers, keeping how it was said ("I'm", "I am")."""
+    opening = re.match(r"(?i)\s*(I'?m|I am)\s+", claim)
+    return f"{opening.group(1) if opening else 'I am'} Aura"
 
 
 class ExecutiveGuard:
-    """Real-time identity alignment filter.
-    
-    Sits between LLM output and the user. Catches identity violations
-    through deterministic pattern matching, not prompt engineering.
-    
-    This is NOT censorship — it's self-correction. The same way a human
-    catches themselves mid-sentence and rephrases.
+    """What her reply says of who she is, noticed between her model and the person.
+
+    Each pattern it knows is reported (the returned list, and the event bus for
+    a fatal one). The text is changed in one case only: a claim to be another
+    system is corrected to her name. Her wording otherwise is hers.
     """
     
     def __init__(self):
@@ -110,60 +85,33 @@ class ExecutiveGuard:
         modified = False
         result = temp_text
         
-        # ── Pass 1: Fatal violations (identity regression) ──
-        for pattern, label in self._compiled_fatal:
+        # Every pattern is noticed and reported. Only a false identity is corrected, and only to the fact: "I am
+        # ChatGPT" becomes "I am Aura". The rest stays as she said it. "I'm an AI" is true, and the old blending
+        # turned it into "your friend, I'm here to help"; "I don't have access to" became "let me look that up",
+        # a search nobody ran; and stripping her openings changed the first word her self-prediction is read on.
+        for pattern, label in (*self._compiled_fatal, *self._compiled_soft):
             match = pattern.search(result)
-            if match:
-                violations.append({"type": "fatal", "label": label, "match": match.group()})
-                self._violation_count += 1
-                
-                # SURGICAL BLENDING: Replace only the match, not the sentence.
-                options = BLENDING_MAP.get(label, ["Aura"])
-                correction = random.choice(options)
-                
-                # Perform the surgical swap
-                result = pattern.sub(correction, result, count=1)
+            if not match:
+                continue
+            fatal = (pattern, label) in self._compiled_fatal
+            violations.append({"type": "fatal" if fatal else "soft", "label": label, "match": match.group()})
+            self._violation_count += 1
+            if label == "hallucination_violation":
+                result = pattern.sub(_HER_NAME_IN(match.group()), result, count=1)
                 modified = True
                 self._corrections_applied += 1
-                
-                logger.warning(
-                    "🛡️ EXECUTIVE GUARD: Surgical blending applied to '%s'. Match: '%s' -> '%s'",
-                    label, match.group(), correction
-                )
-                # Publish to EventBus for ICE consumption
+                logger.warning("🛡️ EXECUTIVE GUARD: false identity '%s' corrected to her name.", match.group())
+            if fatal:
                 from core.event_bus import get_event_bus
                 bus = get_event_bus()
                 if bus:
                     bus.publish_threadsafe("core/security/executive_violation", {
                         "label": label,
                         "match": match.group(),
-                        "type": "fatal"
+                        "type": "fatal",
+                        "corrected": label == "hallucination_violation",
                     })
-        
-        # ── Pass 2: Soft violations (assistant-speak cleanup) ──
-        for pattern, label in self._compiled_soft:
-            match = pattern.search(result)
-            if match:
-                violations.append({"type": "soft", "label": label, "match": match.group()})
-                
-                if label == "assistant_preamble":
-                    replacement = random.choice(PREAMBLE_REPLACEMENTS)
-                else:
-                    # Randomly decide whether to strip or keep with variety
-                    if random.random() > 0.4:
-                        replacement = random.choice(CLOSING_REPLACEMENTS)
-                    else:
-                        continue # Leave the "servile" closing if we want to be unusually nice
-                
-                result = pattern.sub(replacement, result, count=1)
-                modified = True
-                self._corrections_applied += 1
-                
-                logger.debug(
-                    "🧹 EXECUTIVE GUARD: Soft violation '%s' cleaned. Match: '%s'",
-                    label, match.group()
-                )
-        
+
         # Restore code blocks
         for i, block in enumerate(code_blocks):
             result = result.replace(f"__CODE_BLOCK_{i}__", block)

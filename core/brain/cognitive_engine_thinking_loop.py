@@ -204,6 +204,17 @@ class _RunsTheThinkingLoop:
             if self._is_user_facing_origin(origin):
                 state.transition_origin = origin
                 state.cognition.current_origin = origin
+                if (direct_quick_reply.metadata or {}).get("live_mind_generation_required", True):
+                    # Her own words, not a pre-rendered floor: she notices how
+                    # she answered, as on the phase path (core/self/how_i_answer.py).
+                    from core.brain.latent_bridge import efference_copy
+                    from core.self.how_i_answer import note_her_reply
+
+                    try:
+                        told = efference_copy()
+                    except (AttributeError, RuntimeError, TypeError, ValueError):
+                        told = None
+                    note_her_reply(state, direct_quick_reply.content, efference=told)
             temp_state = state
             success = True
         return success, temp_state
