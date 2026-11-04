@@ -21,7 +21,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.runtime_settings import get_runtime_setting
 from core.runtime.state_ownership import state_root
@@ -390,8 +390,11 @@ Respond with JSON only:
         return None
 
     def _save(self):
+        # Behind the loop when on it: her reply's finalize reaches this through
+        # record_drift_score, and the fsync ran on the event loop on both day
+        # runs (response_processing._finalize_response).
         try:
-            atomic_write_text(self._state_path, json.dumps({
+            atomic_write_text_behind(self._state_path, json.dumps({
                 "current_level": int(self._current_level),
                 "level_start_times": self._level_start_times,
                 "drift_history": self._drift_history[-50:],

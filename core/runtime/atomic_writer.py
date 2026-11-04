@@ -470,26 +470,100 @@ def _drain_behind(key: str) -> None:
             )
 
 
+#: Text waiting to be appended behind, in the order it was asked for, by path.
+_APPEND_BEHIND: dict[str, list[tuple[str, str]]] = {}
+_APPEND_BEHIND_QUEUED: set[str] = set()
+
+
+def atomic_append_text_behind(path: PathLike, text: str, *, encoding: str = "utf-8") -> bool:
+    """Append now, or, on a thread that is running an event loop, soon and off it.
+
+    ``atomic_write_text_behind`` for append-only logs: off the loop it is
+    ``atomic_append_text``. On the loop each line is held in the order it was
+    asked for and one drain is queued on the blocking I/O lane, which appends
+    everything held for the path in that order. Unlike a whole-file save,
+    nothing is replaced: every line lands. Returns True when the text was on
+    disk before returning.
+
+    For the day runs of 1 and 3 November: her OOM shed log and her reasoning
+    memory each fsynced on the event loop from a coroutine, and every task
+    waited on the disk while they did.
+    """
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        atomic_append_text(path, text, encoding=encoding)
+        return True
+    key = str(Path(path))
+    with _BEHIND_LOCK:
+        _APPEND_BEHIND.setdefault(key, []).append((text, encoding))
+        if key in _APPEND_BEHIND_QUEUED:
+            return False
+        _APPEND_BEHIND_QUEUED.add(key)
+    from core.runtime.executors import submit_blocking_io
+
+    try:
+        submit_blocking_io(_drain_append_behind, key, label=f"append_behind:{Path(key).name}")
+    except RuntimeError:
+        # Shutting down, as for writes behind: a thread of its own, not a daemon.
+        threading.Thread(
+            target=_drain_append_behind, args=(key,), name=f"append_behind:{Path(key).name}:shutdown", daemon=False
+        ).start()
+    return False
+
+
+def _drain_append_behind(key: str) -> None:
+    while True:
+        with _BEHIND_LOCK:
+            held = _APPEND_BEHIND.pop(key, None)
+            if not held:
+                _APPEND_BEHIND_QUEUED.discard(key)
+                return
+        # Lines with one encoding go down in one append; the order is kept.
+        runs: list[tuple[str, list[str]]] = []
+        for text, encoding in held:
+            if runs and runs[-1][0] == encoding:
+                runs[-1][1].append(text)
+            else:
+                runs.append((encoding, [text]))
+        for encoding, texts in runs:
+            try:
+                atomic_append_text(key, "".join(texts), encoding=encoding)
+            except (OSError, AtomicWriteError, ValueError) as exc:
+                from core.runtime.errors import record_degradation
+
+                record_degradation(
+                    "atomic_writer", exc, action=f"{len(texts)} appends behind the loop to {Path(key).name} were lost"
+                )
+
+
 def flush_writes_behind(*, wait_s: float = 10.0) -> int:
     """Write everything still held, on this thread, and wait out writes in flight.
 
-    Returns how many were written here. A drain already running on the I/O
-    lane has taken its body out of the hold, so this waits, up to ``wait_s``,
-    until no path has a drain queued or running: after it returns, every
-    save that was asked for is on disk.
+    Returns how many paths were written here, whole-file saves and appends
+    alike. A drain already running on the I/O lane has taken its body out of
+    the hold, so this waits, up to ``wait_s``, until no path has a drain
+    queued or running: after it returns, every save that was asked for is on
+    disk.
     """
     with _BEHIND_LOCK:
         keys = list(_BEHIND)
         _BEHIND_QUEUED.update(keys)
+        append_keys = list(_APPEND_BEHIND)
+        _APPEND_BEHIND_QUEUED.update(append_keys)
     for key in keys:
         _drain_behind(key)
+    for key in append_keys:
+        _drain_append_behind(key)
     deadline = time.monotonic() + max(0.0, wait_s)
     while time.monotonic() < deadline:
         with _BEHIND_LOCK:
-            if not _BEHIND_QUEUED:
+            if not _BEHIND_QUEUED and not _APPEND_BEHIND_QUEUED:
                 break
         time.sleep(0.005)
-    return len(keys)
+    return len(keys) + len(append_keys)
 
 
 def atomic_hardlink_replace(

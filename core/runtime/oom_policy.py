@@ -379,7 +379,9 @@ def _append_shed_log(event: ShedEvent) -> None:
         path = config.paths.data_dir / "error_logs" / "memory" / "oom_shed_log.jsonl"
         line = json.dumps(event.to_dict(), separators=(",", ":")) + "\n"
         with local_internal_governed_scope("oom_policy.shed_log"):
-            get_file_write_gateway().append_text(path, line, source="oom_policy")
+            # Behind the loop: the metabolic coordinator's coroutine sheds,
+            # and the fsync ran on the event loop (day run, 3 November).
+            get_file_write_gateway().append_text_behind(path, line, source="oom_policy")
     except Exception:  # noqa: BLE001 — the log is evidence, not a dependency
         logger.debug("OOM shed log append failed", exc_info=True)
 

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_append_text
+from core.runtime.atomic_writer import atomic_append_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -136,7 +136,9 @@ class ReasoningMemory:
             verifier_issues=list(verifier_issues)[:6],
         )
         try:
-            atomic_append_text(self._path, json.dumps(reflection.to_dict(), ensure_ascii=False) + "\n")
+            # Behind the loop when on it: the amplifier's coroutine reaches
+            # this, and the fsync ran on the event loop (day run, 1 November).
+            atomic_append_text_behind(self._path, json.dumps(reflection.to_dict(), ensure_ascii=False) + "\n")
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("reasoning_memory_record", exc)
         if self._cache is not None:

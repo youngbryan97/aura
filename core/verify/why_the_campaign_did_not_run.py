@@ -180,7 +180,9 @@ def _write(body: str) -> None:
         # thing that never got written.
         with local_internal_governed_scope("influence_campaign", domain="state_mutation"):
             gateway.ensure_directory(path.parent, source="influence_campaign")
-            gateway.write_text(path, body, source="influence_campaign")
+            # Behind the loop: the conductor's coroutine reaches this, and the
+            # fsync ran on the event loop on both day runs.
+            gateway.write_text_behind(path, body, source="influence_campaign")
     except Exception as exc:  # noqa: BLE001 — recording must not stop the job
         logger.debug("campaign considerations not written down: %s", exc)
 

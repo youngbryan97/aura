@@ -327,16 +327,6 @@
       "_verify_signature"
     ],
     [
-      "core/self_modification/growth_ladder.py",
-      "evaluate_advancement",
-      "_save"
-    ],
-    [
-      "core/self_modification/growth_ladder.py",
-      "propose_modification",
-      "_save"
-    ],
-    [
       "core/self_modification/patch_library.py",
       "apply",
       "_write_repair_proposal"
