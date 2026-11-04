@@ -176,10 +176,13 @@ class OvertActionLoop:
             if reason and not force:
                 # She cannot act now. What she most wants is settled for when
                 # she can, so it is still hers when the moment comes.
-                _decide_for_later()
+                await asyncio.to_thread(_decide_for_later)
                 return self._record_skip(f"background_policy:{reason}").to_dict()
 
-            _she_is_free_again()
+            # Off the loop: what she wants copies all she keeps under its lock
+            # on each change, and from here that held the event loop 425 ms
+            # (lockdep, day run of 1 November).
+            await asyncio.to_thread(_she_is_free_again)
             state = self._state()
             # What she already decided is done first and is not argued again
             # against whatever else has come up since.
@@ -208,7 +211,7 @@ class OvertActionLoop:
                     will_receipt_id=will_receipt_id,
                 ).to_dict()
 
-            doing = _begin_doing(initiative)
+            doing = await asyncio.to_thread(_begin_doing, initiative)
             try:
                 action = await self._execute_initiative(
                     initiative,
@@ -217,7 +220,8 @@ class OvertActionLoop:
                     will_receipt_id=will_receipt_id,
                 )
             finally:
-                _end_doing(doing)
+                # Shielded: a cancelled act still ends what it began.
+                await asyncio.shield(asyncio.to_thread(_end_doing, doing))
             self._history.append(action)
             return action.to_dict()
 
@@ -512,7 +516,7 @@ class OvertActionLoop:
                 action="preserved action result after closed-loop feedback failed",
                 extra={"action_id": action_id, "skill": skill},
             )
-        _note_want(initiative, result)
+        await asyncio.to_thread(_note_want, initiative, result)
         return await self._finish(result, raw_result=raw)
 
 
