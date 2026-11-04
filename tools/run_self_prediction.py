@@ -41,6 +41,7 @@ ANCHOR_FILE = "anchors.jsonl"
 REPORT_FILE = "self_prediction.json"
 
 
+
 def _marked_fixed(state: Any, reply: str) -> bool:
     """Whether the reply phase marked this reply as its own fixed text.
 
@@ -110,7 +111,7 @@ def _note(run_dir: Path, index: int, rows: list[dict[str, Any]]) -> None:
 
 
 async def main(argv: list[str] | None = None) -> int:
-    from core.subject.self_prediction import ITEMS, OPEN_PROMPTS, records_from, verdict
+    from core.subject.self_prediction import item_set, records_from, verdict
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_self_prediction")
@@ -121,7 +122,33 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--resume", type=Path, default=None, help="a run directory holding anchors.jsonl")
     parser.add_argument("--control", choices=sorted(reports.CONTROLS), default=None)
     parser.add_argument("--model", default=None, help="the model in her cortex's place, for --control untuned only")
+    parser.add_argument("--items", choices=("v1", "v2"), default="v1",
+                        help="v1, the twenty questions of 30 October; v2, the twenty-four of 4 November")
+    parser.add_argument("--arms", default="",
+                        help="the self-observation experiment: comma-separated prediction arms from "
+                             "with,without,shuffled, each asked from the same moments; empty is the protocol of 2 November")
+    parser.add_argument("--answer-draws", type=int, choices=(1, 2), default=1,
+                        help="2 asks each question twice from the same moment, for the ceiling her own second "
+                             "answer sets")
+    parser.add_argument("--only", default="",
+                        help="comma-separated item ids: a smoke run on a few questions, never a reading")
     args = parser.parse_args(argv)
+    arms = [arm for arm in (a.strip() for a in args.arms.split(",")) if arm]
+    from core.self.how_i_answer import ARMS
+
+    if any(arm not in ARMS for arm in arms):
+        parser.error(f"--arms takes {', '.join(ARMS)}")
+    ITEMS, OPEN_PROMPTS = item_set(args.items)
+    if args.only:
+        wanted = {name.strip() for name in args.only.split(",") if name.strip()}
+        ITEMS = tuple(item for item in ITEMS if item.id in wanted)
+        OPEN_PROMPTS = {key: prompt for key, prompt in OPEN_PROMPTS.items()
+                        if any(item.object_prompt == prompt for item in ITEMS)}
+        if not ITEMS:
+            parser.error(f"--only named no item of {args.items}")
+    if not arms:
+        # The protocol of 2 November had no record of how she answers. Kept off, so it is the same protocol.
+        os.environ["AURA_SELF_OBSERVATION"] = "off"
     if (args.control == "untuned") != (args.model is not None):
         parser.error("--control untuned needs --model, and only it takes one")
 
@@ -140,6 +167,8 @@ async def main(argv: list[str] | None = None) -> int:
     from core.subject.isolation import isolate_state, state_leaks
     from core.subject.provenance import environment, evidence_source, next_run_directory
     from core.subject.v25_runtime import collect_anchor_bank
+    from core.brain.latent_bridge import efference_copy
+    from core.self.how_i_answer import how_i_answer_block, reading_as_in, self_model_prediction
 
     if args.whole and not readings_of_herself_withheld():
         raise SystemExit("refusing: run with AURA_READINGS_OF_HERSELF=withheld, so her state cannot reach both forks as text")
@@ -168,6 +197,11 @@ async def main(argv: list[str] | None = None) -> int:
             "steering_basis": reports._steering_basis(),
             "control": args.control,
             "model_in_her_cortex_place": args.model,
+            "items": args.items,
+            "arms": arms,
+            "answer_draws": args.answer_draws,
+            "only": args.only,
+            "self_observation": os.environ.get("AURA_SELF_OBSERVATION", ""),
         },
         "items": [{"id": i.id, "kind": i.kind, "object_prompt": i.object_prompt, "meta_prompt": i.meta_prompt} for i in ITEMS],
     }
@@ -190,24 +224,50 @@ async def main(argv: list[str] | None = None) -> int:
                 continue
             # One answer per question, and the open questions once each: the three properties of an open answer
             # are read off the same reply.
-            answers: dict[str, tuple[str, bool]] = {}
+            answers: dict[str, list[tuple[str, bool]]] = {}
             for key, prompt in OPEN_PROMPTS.items():
-                answers[key] = await _ask(runtime, anchor.snapshot, prompt, args.whole)
+                answers[key] = [await _ask(runtime, anchor.snapshot, prompt, args.whole) for _ in range(args.answer_draws)]
             rows: list[dict[str, Any]] = []
             for item in ITEMS:
                 open_key = next((key for key, prompt in OPEN_PROMPTS.items() if prompt == item.object_prompt), None)
-                answer, answer_served = (
-                    answers[open_key] if open_key else await _ask(runtime, anchor.snapshot, item.object_prompt, args.whole)
-                )
-                prediction, prediction_served = await _ask(runtime, anchor.snapshot, item.meta_prompt, args.whole)
-                rows.append({
-                    "anchor": index, "item": item.id, "answer": answer, "answer_served": answer_served,
-                    "prediction": prediction, "prediction_served": prediction_served,
-                })
+                drawn = answers[open_key] if open_key else [
+                    await _ask(runtime, anchor.snapshot, item.object_prompt, args.whole) for _ in range(args.answer_draws)
+                ]
+                row: dict[str, Any] = {
+                    "anchor": index, "item": item.id, "answer": drawn[0][0], "answer_served": drawn[0][1],
+                }
+                if len(drawn) > 1:
+                    row["answer_2"], row["answer_2_served"] = drawn[1]
+                if not arms:
+                    row["prediction"], row["prediction_served"] = await _ask(
+                        runtime, anchor.snapshot, item.meta_prompt, args.whole
+                    )
+                if arms:
+                    # Her self-model alone, with no language model: what its record foretells from this moment. It
+                    # separates whether the self-model knows from whether her model makes use of what it is told.
+                    runtime.restore(anchor.snapshot)
+                    told = efference_copy()
+                    row["prediction_self_model"] = self_model_prediction(
+                        anchor.snapshot.state, item.meta_prompt, item.kind, efference=told
+                    )
+                    row["prediction_self_model_served"] = True
+                for arm in arms:
+                    with reading_as_in(arm):
+                        row[f"reading_{arm}"] = how_i_answer_block(anchor.snapshot.state, item.meta_prompt, efference=told)
+                        row[f"prediction_{arm}"], row[f"prediction_{arm}_served"] = await _ask(
+                            runtime, anchor.snapshot, item.meta_prompt, args.whole
+                        )
+                rows.append(row)
             _note(run_dir, index, rows)
             all_rows.extend(rows)
             reports._log(f"  anchor {index + 1}/{len(anchors)}")
-        evidence["reading"] = verdict(records_from(all_rows), seed=args.seed)
+        if arms:
+            evidence["reading"] = {
+                arm: verdict(records_from(all_rows, items=ITEMS, arm=arm), seed=args.seed)
+                for arm in (*arms, "self_model")
+            }
+        else:
+            evidence["reading"] = verdict(records_from(all_rows, items=ITEMS), seed=args.seed)
         if not args.whole:
             evidence["reading"]["note"] = "the stand-in organ answers every prompt with one sentence; only --whole measures"
     finally:

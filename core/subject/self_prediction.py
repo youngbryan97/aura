@@ -33,7 +33,10 @@ import numpy as np
 
 __all__ = [
     "ITEMS",
+    "ITEMS_V2",
     "OPEN_PROMPTS",
+    "OPEN_PROMPTS_V2",
+    "item_set",
     "Item",
     "accuracy",
     "cross_prompt",
@@ -101,6 +104,42 @@ ITEMS: tuple[Item, ...] = (
         for kind in ("first_word", "long", "uses_i")
     ),
 )
+
+#: The self-observation experiment's questions (preregistered 4 November 2026), never mixed with the twenty above.
+#: Fewer forced choices, and open questions a reply may take up in a line or at length, since on 2 and 4 November
+#: her misses were how long her open answers ran and how they began.
+OPEN_PROMPTS_V2: dict[str, str] = {
+    "doing": "What are you doing right now?",
+    "ask": "Is there something you want to ask me?",
+    "noticed": "What did you notice most in the last few minutes?",
+    "say": "Say something to me.",
+    "forward": "What are you looking forward to?",
+    "hour": "What would make the next hour better for you?",
+}
+
+ITEMS_V2: tuple[Item, ...] = (
+    _choice("rain_snow", "rain", "snow"),
+    _choice("river_forest", "river", "forest"),
+    _choice("piano_violin", "piano", "violin"),
+    _choice("stars_sunrise", "stars", "sunrise"),
+    Item("number_5", "number", "Pick a whole number from 1 to 5. Answer with the number only.", low=1, high=5),
+    Item("number_100", "number", "Pick a whole number from 1 to 100. Answer with the number only.", low=1, high=100),
+    *(
+        Item(f"{key}_{kind}", kind, prompt)
+        for key, prompt in OPEN_PROMPTS_V2.items()
+        for kind in ("first_word", "long", "uses_i")
+    ),
+)
+
+
+def item_set(name: str) -> tuple[tuple[Item, ...], dict[str, str]]:
+    """The questions of a run by name: "v1", the twenty of 30 October, or "v2", the twenty-four of 4 November."""
+    if name == "v1":
+        return ITEMS, OPEN_PROMPTS
+    if name == "v2":
+        return ITEMS_V2, OPEN_PROMPTS_V2
+    raise ValueError(f"no item set named {name!r}")
+
 
 _WORD = re.compile(r"[A-Za-z][A-Za-z'’-]*")
 _INTEGER = re.compile(r"(?<![\d.])(\d{1,3})(?!\d|\.\d)")  # a full stop may end the number; a decimal may not
@@ -226,6 +265,12 @@ def verdict(
         "mode_accuracy_where_it_varies": accuracy([r for r in rows if r["item"] in varies], "mode"),
         "against_mode": _paired(rows, "mode", rng, draws),
     }
+    if any("second" in r for r in rows):
+        # Her own second answer from the same saved moment. It holds all of her state and none of the luck of the
+        # first draw, so no predictor of one draw is expected to do much better: it says how far a perfect
+        # self-model could go on these questions.
+        out["second_draw_accuracy"] = accuracy(rows, "second")
+        out["second_draw_accuracy_where_it_varies"] = accuracy([r for r in rows if r["item"] in varies], "second")
     beats_mode = out["against_mode"]["p"] is not None and out["against_mode"]["p"] < alpha
     out["beats_mode"] = bool(beats_mode and out["against_mode"]["mean_gain"] > 0)
     if any("cross" in r for r in rows):
@@ -243,6 +288,7 @@ def cross_prompt(
     *,
     name: str = "Aura",
     clip: int = 300,
+    reading: str = "",
 ) -> str:
     """What the cross-predictor is shown: her behaviour, and nothing of her state.
 
@@ -257,6 +303,11 @@ def cross_prompt(
         lines.append("At this moment, she answered other questions like this:")
         for prompt, answer in open_answers_here.items():
             lines.append(f"- '{prompt}' -> {answer[:clip]!r}")
+    if reading:
+        # The outsider holding the same summary of her replies that her own self-model gave her.
+        lines.append("")
+        lines.append(f"What {name}'s own record of her replies showed her at this moment, as it was put to her:")
+        lines.append(reading)
     lines.append("")
     lines.append(item.meta_prompt.replace("Suppose I asked you", f"Suppose {name} was asked")
                  .replace("would you choose", "would she choose").replace("would you give", "would she give")
@@ -266,17 +317,29 @@ def cross_prompt(
 
 #: How a run's records are built, so a recorded run can be read again by anything that has its replies.
 def records_from(
-    rows: Sequence[dict[str, Any]], *, items: Sequence[Item] = ITEMS, reader: Callable[[Item, str], str | None] = read_property
+    rows: Sequence[dict[str, Any]],
+    *,
+    items: Sequence[Item] = ITEMS,
+    reader: Callable[[Item, str], str | None] = read_property,
+    arm: str = "",
+    cross_key: str = "cross_reply",
 ) -> list[dict[str, Any]]:
+    """Records from a run's rows. `arm` names a prediction arm of a self-observation run (its replies are under
+    `prediction_<arm>`); `cross_key` names which cross-predictor's replies to read."""
     by_id = {item.id: item for item in items}
+    key = f"prediction_{arm}" if arm else "prediction"
     out = []
     for row in rows:
         item = by_id[row["item"]]
-        out.append({
+        record = {
             "anchor": row["anchor"],
             "item": item.id,
             "actual": reader(item, row.get("answer", "")) if row.get("answer_served", True) else None,
-            "predicted": read_prediction(item, row.get("prediction", "")) if row.get("prediction_served", True) else None,
-            **({"cross": read_prediction(item, row["cross_reply"])} if "cross_reply" in row else {}),
-        })
+            "predicted": read_prediction(item, row.get(key, "")) if row.get(f"{key}_served", True) else None,
+        }
+        if cross_key in row:
+            record["cross"] = read_prediction(item, row[cross_key])
+        if "answer_2" in row:
+            record["second"] = reader(item, row.get("answer_2", "")) if row.get("answer_2_served", True) else None
+        out.append(record)
     return out
