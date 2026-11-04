@@ -379,7 +379,10 @@ async def test_desktop_quick_reply_passes_live_mind_controls_to_router(monkeypat
     assert router_kwargs["clean_user_surface_recurrent_loops"] == 1
     assert router_kwargs["clean_user_surface_steering_alpha"] == 0.0
     assert router_kwargs["clean_user_surface_contract"] is True
-    assert router_kwargs["user_surface_completion_floor"] == 512
+    # The floor is the work the visible request needs, not the allocation: passing the 512-token allocation as the
+    # floor made a greeting open a private reasoning channel (70e8c68c5, 21 October).
+    assert router_kwargs["max_tokens"] == 512
+    assert router_kwargs["user_surface_completion_floor"] < router_kwargs["max_tokens"]
     assert router_kwargs["user_surface_validation_prompt"] == "What are you attending to?"
     assert router_kwargs["allow_mesh_cognition"] is False
     assert router_kwargs["live_mind_controls_bound"] is True

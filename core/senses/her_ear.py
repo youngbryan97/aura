@@ -221,7 +221,14 @@ class HerEar:
     async def _read(self) -> None:
         stream = getattr(self.process, "stdout", None)
         while stream is not None:
-            line = await stream.readline()
+            try:
+                # Timed, so a quiet ear wakes to see whether its process still lives; a read cut short keeps what
+                # it had buffered, so no line is lost.
+                line = await asyncio.wait_for(stream.readline(), timeout=STEP_S)
+            except TimeoutError:
+                if getattr(self.process, "returncode", None) is not None:
+                    break
+                continue
             if not line:
                 break
             try:

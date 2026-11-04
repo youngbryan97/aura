@@ -166,7 +166,17 @@ Aura works in discrete "ticks". A tick reads data, processes it, and saves a new
 tick(objective) → lock → [phase₁ → phase₂ → ... → phaseₙ] → commit → unlock
 ```
 
-**What is atomic:** The saved state is saved all at once. The tick process itself is not atomic (if one step fails, others still finish). External tool actions cannot be undone.
+**What is atomic, exactly.** The committed AuraState version is. Nothing larger is. The phrase "atomic unit of
+cognition", used here before, invites a reader to expect transaction semantics the runtime does not provide:
+
+| | |
+|---|---|
+| Atomic | The AuraState version. A commit is admitted whole or not at all: constitutional admission runs first, the version guard rejects a stale write, and one owner-side transaction publishes the new version. |
+| **Not** atomic | The tick. A failing phase does not roll back the phases before it: the pipeline logs the failure and goes on, so phases 1 and 2 reach the commit even when phase 3 fails. |
+| **Not** covered at all | Effects outside the state object: tool runs, files, queued tasks, memory stores, logs, anything a skill did. Those already happened, and have no undo. |
+
+So the guarantee is that `commit(Sᵥ → Sᵥ₊₁)` is all or nothing, not "the tick is a transaction". A tick is a pipeline
+that produces one candidate state, and the candidate is admitted whole.
 
 Two loops run:
 - **Foreground**: Quick user responses.
@@ -181,7 +191,7 @@ It uses locks to prevent conflicts during state updates, memory saving, and back
 a universal upper bound on a freeze or guarantee recovery.
 
 ### Invariants
-1. Ticks either save completely or not at all.
+1. A state version is saved completely or not at all. A tick is not: see "What is atomic, exactly" above.
 2. System prompts must not exceed 5000 tokens.
 3. Memory saving failures don't stop the system from responding.
 4. Raw numbers aren't shown in user chats.

@@ -118,8 +118,11 @@ def test_the_cognitive_engine_path_also_consults_it() -> None:
 
     chat = chat_lane_source()
     # Called where the engine path assesses its reply...
+    # ...within the same function: up to the next definition, not a neighbouring line that may move (the old end
+    # anchor, `_is_explicit_capability_inventory_request(visible)`, left this function in a refactor).
     block = chat[chat.index("            is_status_check_turn,") :]
-    block = block[: block.index("_is_explicit_capability_inventory_request(visible)")]
+    ends = [i for i in (block.find("\nasync def "), block.find("\ndef ")) if i >= 0]
+    block = block[: min(ends)] if ends else block
     assert "_chat_reply_checks.checked_reply(" in block, "the engine path must run the reply checks"
     # ...which apply the floor and replace the reply rather than serve it.
     import interface.routes.chat_reply_checks as checks

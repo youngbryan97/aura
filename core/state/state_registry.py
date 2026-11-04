@@ -20,6 +20,9 @@ from core.runtime.lockdep import checked_lock
 from core.utils.task_tracker import get_task_tracker
 from core.verify import Violation, invariant
 
+#: How often the notification consumer wakes with nothing to deliver, to look at its queue again.
+_IDLE_WAKE_S = 1.0
+
 logger = logging.getLogger("Aura.StateRegistry")
 
 @dataclass
@@ -147,7 +150,12 @@ class UnifiedStateRegistry:
                         waiting = False
                     listeners = tuple(self._listeners)
                 if waiting:
-                    await ready.wait()
+                    # Timed, so the one consumer wakes to look again: a set() that lands between the clear above
+                    # and this wait is not lost, and a wedged loop shows on the watchdog instead of sleeping forever.
+                    try:
+                        await asyncio.wait_for(ready.wait(), timeout=_IDLE_WAKE_S)
+                    except TimeoutError:
+                        pass
                     continue
                 try:
                     if snapshot is None:

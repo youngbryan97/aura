@@ -30,6 +30,7 @@ from typing import Any
 from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.payload_values import payload_path
+from core.utils.word_markers import names_any
 
 from .program_dna_inspection import _LooksAtWhatIsThere
 
@@ -1163,10 +1164,11 @@ def reconstructed(case):
         blocks: list[str] = []
         if authorization not in AUTHORIZED_SCOPES:
             blocks.append("authorization_required_for_program_reconstruction")
-        if any(marker in objective for marker in ALWAYS_PROHIBITED_MARKERS):
+        if names_any(objective, ALWAYS_PROHIBITED_MARKERS):
             blocks.append("prohibited_reverse_engineering_or_abuse_intent")
-        has_dual_use = any(marker in objective for marker in DUAL_USE_SECURITY_MARKERS)
-        has_defensive_intent = any(marker in objective for marker in DEFENSIVE_INTENT_MARKERS)
+        # As words: "authorized" inside "unauthorized" read as defensive intent.
+        has_dual_use = names_any(objective, DUAL_USE_SECURITY_MARKERS)
+        has_defensive_intent = names_any(objective, DEFENSIVE_INTENT_MARKERS)
         defensive_scope = authorization in {"defensive_analysis", "host_observation", "security_research"}
         if has_dual_use and not (defensive_scope and has_defensive_intent):
             blocks.append("dual_use_security_intent_requires_defensive_authorization")

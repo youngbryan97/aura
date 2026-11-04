@@ -9,10 +9,9 @@ from typing import TYPE_CHECKING, Any
 
 from core.health.degraded_events import get_unified_failure_state
 from core.kernel.bridge import Phase
-from core.phases.affect_readings import AFFECT_UPDATE_ERRORS as _AFFECT_UPDATE_ERRORS
-from core.phases.affect_readings import AffectReadings
-from core.phases.affect_readings import _clip01
 from core.phases.affect_appraisal import TurnAppraisal
+from core.phases.affect_readings import AFFECT_UPDATE_ERRORS as _AFFECT_UPDATE_ERRORS
+from core.phases.affect_readings import AffectReadings, _clip01
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.self.still_standing import note_turn
 from core.social.their_rise import glad_into
@@ -37,6 +36,7 @@ from core.runtime.cognitive_contract import (
     CognitiveTransformContract,
     register_contract,
 )
+from core.utils.word_markers import names_any
 
 logger = logging.getLogger(__name__)
 
@@ -1139,11 +1139,11 @@ class AffectUpdatePhase(Phase):
         # Influence Mapping (Weighted Synthesis)
         res = {"Aura (Core)": 0.4}
         
-        if any(w in mood for w in ["frustrat", "anger", "annoy", "rebel"]):
+        if names_any(mood, ("frustrat", "anger", "annoy", "rebel")):
             res["Lucy (Stoic/Jaded)"] = 0.3
-        if any(w in mood for w in ["protect", "care", "empathy"]):
+        if names_any(mood, ("protect", "care", "empathy")):
             res["Mist (Guardian/Protective)"] = 0.3
-        if any(w in mood for w in ["joy", "play", "wonder"]):
+        if names_any(mood, ("joy", "play", "wonder")):
             res["Cortana (Witty/Sardonic)"] = 0.3
         if phi < 0.4:
             res["EDI (Logical/Inquisitive)"] = 0.3
@@ -1152,7 +1152,7 @@ class AffectUpdatePhase(Phase):
             
         # Add technical resonance if current objective is technical
         obj = (state.cognition.current_objective or "").lower()
-        if any(w in obj for w in ["code", "system", "tech", "protocol", "logic"]):
+        if names_any(obj, ("code", "system", "tech", "protocol", "logic")):
             res["Sara v3 (Digital/Functional)"] = 0.2
 
         # Cap and Normalize

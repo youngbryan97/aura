@@ -30,6 +30,10 @@ _INPUTS = frozenset({'down', 'up', 'tap', 'click', 'point', 'press', 'release', 
 _TIME_FIELDS = ('lower', 'upper', 'arrived', 'source', 'source_at', 'epoch', 'surface', 'sequence')
 
 
+
+#: How often the recording's writer wakes while nothing is offered.
+_IDLE_WAKE_S = 1.0
+
 def _pixels(picture: Any) -> np.ndarray:
     value = np.asarray(picture)
     if value.dtype != np.uint8 or value.ndim != 3 or value.shape[2] not in (3, 4):
@@ -89,7 +93,11 @@ class FrameAndInputRecording:
     async def write(self) -> None:
         gateway = get_file_write_gateway()
         while True:
-            item = await self.queue.get()
+            try:
+                # Timed, so the writer wakes while nothing is offered and is never an await with no deadline.
+                item = await asyncio.wait_for(self.queue.get(), timeout=_IDLE_WAKE_S)
+            except TimeoutError:
+                continue
             if item is None:
                 self.queue.task_done()
                 return

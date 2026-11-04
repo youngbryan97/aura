@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import hashlib
 import logging
 import re
@@ -26,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from core.skills.their_player import press, read_their_player, within_the_window
+from core.runtime.errors import record_degradation
 from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.WatchingTheScreen")
@@ -38,6 +40,9 @@ LENGTH_SLACK_S = 3.0
 END_WITHIN_S = 1.0
 #: How long a window is waited for once the link is opened, and the room after its length that a watching gives.
 WINDOW_WAITED_S = 30.0
+#: How long one picture of the window may take. screencapture of one window returns in well under a second; past
+#: this it is not coming, and the look goes on without it.
+CAPTURE_WAITED_S = 10.0
 ADVERTS_ROOM_S = 120.0
 #: The longest side, in pixels, of the window's picture her eyes are given. LIVE 20 October 2026: the whole window at
 #: the screen's resolution was 6,869 image tokens, which her eyes were still reading (580-850 tokens a second) when a
@@ -320,7 +325,14 @@ class OnTheirScreen:
             opened = await get_subprocess_gateway().spawn_async(["/usr/bin/open", "-b", self.bundle, self.url],
                                                                 source="core.skills.watching_the_screen",
                                                                 accelerator_capability="none")
-        await opened.wait()
+        try:
+            await asyncio.wait_for(opened.wait(), timeout=WINDOW_WAITED_S)
+        except TimeoutError as exc:
+            with contextlib.suppress(ProcessLookupError):
+                opened.kill()
+            record_degradation("watching_the_screen", exc, action="the browser did not open the link in time; "
+                               "the video is not watched", severity="info")
+            return False
         deadline = monotonic_time() + WINDOW_WAITED_S
         while monotonic_time() < deadline:
             self.window = await asyncio.to_thread(_window_showing, self.owner, self.title)
@@ -441,7 +453,14 @@ class OnTheirScreen:
                     taken = await get_subprocess_gateway().spawn_async(
                         ["/usr/sbin/screencapture", "-x", "-o", "-t", "png", "-l", str(int(self.window["kCGWindowNumber"])), str(shot)],
                         source="core.skills.watching_the_screen", accelerator_capability="none")
-                await taken.wait()
+                try:
+                    await asyncio.wait_for(taken.wait(), timeout=CAPTURE_WAITED_S)
+                except TimeoutError as exc:
+                    with contextlib.suppress(ProcessLookupError):
+                        taken.kill()
+                    record_degradation("watching_the_screen", exc, action="a picture of the window was not taken "
+                                       "in time; this look sees nothing", severity="info")
+                    return ""
                 taken_bytes = await asyncio.to_thread(shot.read_bytes)
                 await asyncio.to_thread(shot.unlink, missing_ok=True)
                 self.pictures.append(hashlib.sha1(taken_bytes).hexdigest())

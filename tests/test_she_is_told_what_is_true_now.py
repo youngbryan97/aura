@@ -33,6 +33,16 @@ from core.brain.self_state_report import SELF_STATE_HEADER, runtime_self_report
 from core.runtime.self_state_intent import asks_about_own_runtime
 
 GATE = Path("core/brain/inference_gate.py")
+
+
+def _family(main: Path) -> str:
+    """A class's source with the modules its body was lifted into (``<name>_*.py``), read as one.
+
+    The God-object refactor moved clusters of InferenceGate and CognitiveEngine into sibling modules, token for
+    token; a source check of the main file alone then failed with the code still in place.
+    """
+    parts = [main, *sorted(main.parent.glob(f"{main.stem}_*.py"))]
+    return "\n".join(part.read_text(encoding="utf-8") for part in parts)
 CONTRACT = Path("core/phases/response_contract.py")
 
 
@@ -148,7 +158,7 @@ def test_an_ordinary_lookup_still_searches() -> None:
 # ── Both blocks reach the prompt, and survive it ───────────────────────────
 
 def test_the_gate_injects_both_blocks() -> None:
-    src = GATE.read_text(encoding="utf-8")
+    src = _family(GATE)
     assert "from core.brain.present_moment import present_moment_block" in src
     assert "from core.brain.self_state_report import runtime_self_report" in src
     # The gate narrowed this to asks_about_own_capabilities: this path only
@@ -222,7 +232,7 @@ def test_the_desktop_conversation_lane_is_grounded_too() -> None:
     own prompt and never saw it. That lane is the one every real conversation
     goes through.
     """
-    src = ENGINE.read_text(encoding="utf-8")
+    src = _family(ENGINE)
     assert "from core.brain.present_moment import present_moment_block" in src
     # asks_about_own_runtime -> asks_about_own_capabilities, deliberately: this
     # path only ADDS a reading, so a false positive costs a few prompt lines,
@@ -234,19 +244,25 @@ def test_the_desktop_conversation_lane_is_grounded_too() -> None:
 
 def test_grounding_is_added_before_the_style_contract() -> None:
     """Order matters only in that both must survive to the same prompt."""
-    src = ENGINE.read_text(encoding="utf-8")
     # The style contract is appended as a PERSONA CONTRACT block now; the
     # assertion pinned an exact f-string that no longer exists, so it failed on
     # a rename rather than on a regression. What matters is unchanged: the
-    # grounding is assembled before the contract is appended.
-    assert src.index("present_moment_block()") < src.index(
-        'system_prompt = f"{system_prompt}\\n[PERSONA CONTRACT]'
-    )
+    # grounding is assembled before the contract is appended. Both now live in
+    # the quick reply's module: the grounding through the authority head, which
+    # records the capability inventory miss and adds the present moment.
+    quick = Path("core/brain/cognitive_engine_quick_reply.py").read_text(encoding="utf-8")
+    head = quick.index("self._direct_desktop_quick_reply_authority_head_always(")
+    assert head < quick.index('system_prompt = f"{system_prompt}\\n[PERSONA CONTRACT]')
+    fitting = Path("core/brain/cognitive_engine_prompt_fitting.py").read_text(encoding="utf-8")
+    miss = fitting[fitting.index("def _record_the_capability_inventory_miss("):]
+    assert "present_moment_block()" in miss[:2000]
+    body = quick[quick.index("def _direct_desktop_quick_reply_authority_head_always("):]
+    assert "_record_the_capability_inventory_miss(" in body[:3000]
 
 
 def test_the_terse_inventory_contract_is_left_alone() -> None:
     """That contract requires exactly four sentences under 80 words."""
-    src = ENGINE.read_text(encoding="utf-8")
+    src = _family(ENGINE)
     block = src[src.index("if not capability_inventory_contract:") :]
     assert "present_moment_block" in block[:1200]
 

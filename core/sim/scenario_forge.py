@@ -23,8 +23,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.utils.engine_support import coerce_text, record_engine_degradation, resolve_brain
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
+from core.utils.engine_support import coerce_text, record_engine_degradation, resolve_brain
+from core.utils.word_markers import names_any
 
 logger = logging.getLogger("Aura.ScenarioForge")
 
@@ -107,7 +108,7 @@ class ScenarioForge:
     @staticmethod
     def _assess_real_need(theme: str, goal: str | None) -> tuple[bool, str]:
         blob = f"{theme} {goal or ''}".lower()
-        if any(m in blob for m in _REAL_NEED_MARKERS):
+        if names_any(blob, _REAL_NEED_MARKERS):
             return (
                 False,
                 "This looks like a real-world or emotional need. A generated scenario can "

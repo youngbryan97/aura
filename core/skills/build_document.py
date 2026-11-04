@@ -33,6 +33,12 @@ from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 logger = logging.getLogger(__name__)
 
 
+
+#: Where a document she builds is written, and the only place an out_dir may point. A test sets it to its own
+#: temporary folder: an out_dir outside it is refused and the document lands here instead, which is how a test that
+#: passed tmp_path still overwrote the tracked artifacts/live_documents/document.html.
+LIVE_DOCUMENTS = Path(__file__).resolve().parents[2] / "artifacts" / "live_documents"
+
 class BuildDocumentInput(BaseModel):
     title: str = Field("", description="Document title; empty takes one from the request.")
     subtitle: str = Field("", description="Optional line under the title.")
@@ -131,7 +137,7 @@ class BuildDocumentSkill(BaseSkill):
                     "summary": f"Could not build it: {'; '.join(report.problems)}.",
                 }
 
-        root = (Path(__file__).resolve().parents[2] / "artifacts" / "live_documents").resolve()
+        root = Path(LIVE_DOCUMENTS).resolve()
         out_dir = payload_path({"out_dir": params.out_dir}, "out_dir", root=root, default=root)
         target = Path(out_dir or root) / f"{_slug(document.title)}.html"
 

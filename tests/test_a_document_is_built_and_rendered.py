@@ -138,15 +138,19 @@ def test_an_explicit_form_is_never_second_guessed():
     assert _form_wanted("hologram", "write me a report") == "page"
 
 
-def test_a_built_document_becomes_the_turns_answer(tmp_path):
+def test_a_built_document_becomes_the_turns_answer(tmp_path, monkeypatch):
     """LIVE, 2026-08-22: all six sections were built and written to disk in 57
     milliseconds, and the reply re-narrated three of them as prose and never
     mentioned the file. Somebody who asked for a deck cannot use a paragraph
     about one."""
     import asyncio
 
+    import core.skills.build_document as build_document
     from core.conversation.session_scope import set_user_question, solved_answers
     from core.skills.build_document import BuildDocumentSkill
+
+    # The skill only writes inside its root; out_dir alone pointed outside it and was refused, back into the repo.
+    monkeypatch.setattr(build_document, "LIVE_DOCUMENTS", tmp_path)
 
     async def run() -> str:
         set_user_question("six slides for the panel")
@@ -170,6 +174,7 @@ def test_a_built_document_becomes_the_turns_answer(tmp_path):
     recorded = asyncio.run(run())
     assert "6-section" in recorded
     assert ".html" in recorded
+    assert str(tmp_path) in recorded, "written under the test's folder, never the repo's"
 
 
 def test_the_reply_says_where_the_file_is():

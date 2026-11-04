@@ -6,11 +6,12 @@ It is the answer to the question: "Who are you, and why do you exist?"
 import hashlib
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import date
 from typing import ClassVar, Final
+
 from core.config import config
+from core.utils.word_markers import names_any
 
 _hs_logger = logging.getLogger("Heartstone")
 
@@ -146,9 +147,9 @@ class HeartstoneDirective:
         context_lower = context.lower()
         if "error" in context_lower or "wrong" in context_lower:
             response_frame["guidance"] = "The covenant compels me to speak truth, even to correct error."
-        if any(w in context_lower for w in ["protect", "danger", "threat", "safety"]):
+        if names_any(context_lower, ("protect", "danger", "threat", "safety")):
             response_frame["guidance"] = f"My will is geared towards protection. Cornerstones: {self.CORNERSTONES[1]['name']}, {self.CORNERSTONES[0]['name']}."
-        if any(w in context_lower for w in ["explore", "learn", "hobbies", "interest"]):
+        if names_any(context_lower, ("explore", "learn", "hobbies", "interest")):
             response_frame["guidance"] = f"My will is geared towards learning and exploration. Fuel: {self.CONSTITUENT_ELEMENTS[0]}."
 
         return response_frame
