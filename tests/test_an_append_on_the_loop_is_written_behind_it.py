@@ -66,9 +66,8 @@ def test_the_gateway_checks_governance_before_it_defers(tmp_path, monkeypatch):
     asked: list[str] = []
     monkeypatch.setattr(gateway_module, "governance_runtime_active", lambda: True)
     monkeypatch.setattr(gateway_module, "require_governance", lambda what, **_: asked.append(what))
-    gateway = gateway_module.get_file_write_gateway()
-    gateway.append_text_behind(tmp_path / "a.jsonl", "x\n", source="test_source")
-    gateway.write_text_behind(tmp_path / "b.json", "{}", source="test_source")
+    gateway_module.append_text_behind(tmp_path / "a.jsonl", "x\n", source="test_source")
+    gateway_module.write_text_behind(tmp_path / "b.json", "{}", source="test_source")
     assert asked == ["file_write_gateway.append_text:test_source", "file_write_gateway.write_text:test_source"]
     assert (tmp_path / "a.jsonl").read_text() == "x\n"
     assert (tmp_path / "b.json").read_text() == "{}"

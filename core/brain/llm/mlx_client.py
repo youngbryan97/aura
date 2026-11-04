@@ -392,6 +392,11 @@ def _apply_unthrottled_fallback_ceiling(kwargs: dict[str, Any]) -> dict[str, Any
     return kwargs
 
 
+def _lane_runs_on_the_cpu(client: Any) -> bool:
+    """Whether a lane's worker computes on the CPU, not on Metal."""
+    return str(getattr(client, "device", "gpu") or "gpu").strip().lower() == "cpu"
+
+
 def _model_is_heavy_lane(model_path: str | None) -> bool:
     """True when a path names one of the big resident lanes.
 
@@ -5347,10 +5352,6 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             and self.is_alive()
         )
 
-    def _runs_on_the_cpu(self) -> bool:
-        """Whether this lane's worker computes on the CPU, not on Metal."""
-        return str(getattr(self, "device", "gpu") or "gpu").strip().lower() == "cpu"
-
     def _is_deep_solver_lane(self) -> bool:
         return self.runtime_assignment.role == "solver"
 
@@ -6302,15 +6303,12 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
         if self._is_deep_solver_lane():
             default = 165.0 if foreground_request else 120.0
-        elif _model_is_heavy_lane(self.model_path) or self._runs_on_the_cpu():
+        elif _model_is_heavy_lane(self.model_path) or _lane_runs_on_the_cpu(self):
             # A lane on the CPU reads slower than a heavy one on the GPU. Her
-            # emergency 1.5B tier runs there on purpose, registered with a
-            # 120 s timeout because "CPU is slow"; given the light lanes' 20 s,
-            # every request it got on her day run of 3 November (a 3,355-char
-            # narrative prompt) was killed at 20.0 s with no token, before the
-            # worker could measure its own rate, and the reflex circuit opened
-            # 16 times. Once one generation finishes, its measured rate sizes
-            # the floor and the cold allowance no longer applies.
+            # emergency 1.5B tier runs there, registered with 120 s because
+            # "CPU is slow"; at the light lanes' 20 s every request it got on
+            # 3 November was killed with no token before the worker could
+            # measure its rate, and the reflex circuit opened 16 times.
             default = 120.0 if foreground_request else 90.0
         else:
             default = 30.0 if foreground_request else 20.0

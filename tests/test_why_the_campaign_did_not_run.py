@@ -140,6 +140,14 @@ def test_the_record_is_written_inside_its_governed_scope(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "core.runtime.file_write_gateway.get_file_write_gateway", lambda: _Gateway()
     )
+
+    def _behind(path, body, *, source):
+        from core.governance_context import _active_receipt
+
+        seen.append(_active_receipt.get() is not None)
+
+    # The write itself goes behind the loop (core/runtime/file_write_gateway.write_text_behind).
+    monkeypatch.setattr("core.runtime.file_write_gateway.write_text_behind", _behind)
     monkeypatch.setattr(record, "where_it_is_kept", lambda: tmp_path / "considerations.json")
     record._write("{}")
     assert seen == [True, True]

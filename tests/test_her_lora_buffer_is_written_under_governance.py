@@ -39,6 +39,6 @@ def test_a_bare_write_is_still_refused(tmp_path, monkeypatch):
     monkeypatch.setattr(gateway_module, "governance_runtime_active", lambda: True)
     monkeypatch.setattr(governance, "governance_runtime_active", lambda: True)
     with pytest.raises(GovernanceViolationError):
-        gateway_module.get_file_write_gateway().write_text_behind(
+        gateway_module.write_text_behind(
             tmp_path / "x.jsonl", "", source="crsm_lora_bridge.persist_buffer"
         )

@@ -169,7 +169,7 @@ def _write(body: str) -> None:
     """Put it on disk, outside the lock, and never raise from doing so."""
     try:
         from core.governance_context import local_internal_governed_scope
-        from core.runtime.file_write_gateway import get_file_write_gateway
+        from core.runtime.file_write_gateway import get_file_write_gateway, write_text_behind
 
         gateway = get_file_write_gateway()
         path = where_it_is_kept()
@@ -182,7 +182,7 @@ def _write(body: str) -> None:
             gateway.ensure_directory(path.parent, source="influence_campaign")
             # Behind the loop: the conductor's coroutine reaches this, and the
             # fsync ran on the event loop on both day runs.
-            gateway.write_text_behind(path, body, source="influence_campaign")
+            write_text_behind(path, body, source="influence_campaign")
     except Exception as exc:  # noqa: BLE001 — recording must not stop the job
         logger.debug("campaign considerations not written down: %s", exc)
 

@@ -525,7 +525,7 @@ class CRSMLoraBridge:
                     })
                 )
             from core.governance_context import local_internal_governed_scope
-            from core.runtime.file_write_gateway import get_file_write_gateway
+            from core.runtime.file_write_gateway import write_text_behind
 
             # Inside the scope her own maintenance writes are governed by. Bare,
             # the live runtime refused it as a governance violation when her
@@ -534,7 +534,7 @@ class CRSMLoraBridge:
             # emergency protocol. Behind the loop, since a flush can come from
             # a coroutine.
             with local_internal_governed_scope("crsm_lora_bridge.persist_buffer"):
-                get_file_write_gateway().write_text_behind(
+                write_text_behind(
                     PERSIST_PATH,
                     "\n".join(lines) + ("\n" if lines else ""),
                     source="crsm_lora_bridge.persist_buffer",

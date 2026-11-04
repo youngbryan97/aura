@@ -14,9 +14,10 @@ from core.brain.llm.context_assembler import (
     _WORLD_MAX_ENTITIES,
     _WORLD_MAX_PREFERENCES,
     _WORLD_MAX_RELATIONSHIPS,
-    _WORLD_VALUE_MAX_CHARS,
     ContextAssembler,
 )
+# Moved with the prompt blocks when they were split out of the assembler.
+from core.brain.llm.context_assembler_blocks import _WORLD_VALUE_MAX_CHARS
 from core.state.aura_state import AuraState
 
 

@@ -675,56 +675,6 @@ class FileWriteGateway:
         with _not_on_the_loop(f"append_text:{source}"):
             atomic_append_text(target, text, encoding=encoding)
 
-    # ── Behind the loop, for synchronous callers ──────────────────────
-    # A synchronous save that a coroutine reaches through ordinary calls
-    # cannot await. Governance is checked here, in the caller's context and
-    # scope; off the loop the write is made before returning, and on it the
-    # disk write goes to the blocking I/O lane (core/runtime/atomic_writer.py,
-    # the `*_behind` writers). Both return True when the bytes were on disk
-    # before returning.
-
-    def write_text_behind(
-        self,
-        path: PathLike,
-        text: str,
-        *,
-        encoding: str = "utf-8",
-        source: str = "unknown",
-        durable: bool = True,
-    ) -> bool:
-        target = _coerce_target(path)
-        if not isinstance(text, str):
-            raise TypeError("text payload must be a string")
-        if not isinstance(encoding, str) or not encoding:
-            raise ValueError("encoding must be a non-empty string")
-        if governance_runtime_active():
-            require_governance(
-                f"file_write_gateway.write_text:{source}",
-                strict=True,
-                allowed_domains=self._allowed_domains,
-            )
-        from core.runtime.atomic_writer import atomic_write_text_behind
-
-        return atomic_write_text_behind(target, text, encoding=encoding, durable=durable)
-
-    def append_text_behind(
-        self, path: PathLike, text: str, *, encoding: str = "utf-8", source: str = "unknown"
-    ) -> bool:
-        target = _coerce_target(path)
-        if not isinstance(text, str):
-            raise TypeError("text payload must be a string")
-        if not isinstance(encoding, str) or not encoding:
-            raise ValueError("encoding must be a non-empty string")
-        if governance_runtime_active():
-            require_governance(
-                f"file_write_gateway.append_text:{source}",
-                strict=True,
-                allowed_domains=self._allowed_domains,
-            )
-        from core.runtime.atomic_writer import atomic_append_text_behind
-
-        return atomic_append_text_behind(target, text, encoding=encoding)
-
     # ── Event-loop-safe lane ─────────────────────────────────────────
     # Governance is checked inline (fail fast, caller's context); only the
     # blocking disk write is offloaded. Async callers must use these — an
@@ -1638,3 +1588,53 @@ __all__ = [
     "FileWriteTransactionError",
     "get_file_write_gateway",
 ]
+
+
+# ── Behind the loop, for synchronous callers ──────────────────────────────
+# A synchronous save that a coroutine reaches through ordinary calls cannot
+# await. Governance is checked here, in the caller's context and scope; off the
+# loop the write is made before returning, and on it the disk write goes to the
+# blocking I/O lane (core/runtime/atomic_writer.py, the `*_behind` writers). Both
+# return True when the bytes were on disk before returning. Module functions, not
+# gateway methods: the gateway class is at its method ceiling.
+
+
+def write_text_behind(
+    path: PathLike,
+    text: str,
+    *,
+    encoding: str = "utf-8",
+    source: str = "unknown",
+    durable: bool = True,
+) -> bool:
+    target = _coerce_target(path)
+    if not isinstance(text, str):
+        raise TypeError("text payload must be a string")
+    if not isinstance(encoding, str) or not encoding:
+        raise ValueError("encoding must be a non-empty string")
+    if governance_runtime_active():
+        require_governance(
+            f"file_write_gateway.write_text:{source}",
+            strict=True,
+            allowed_domains=get_file_write_gateway()._allowed_domains,
+        )
+    from core.runtime.atomic_writer import atomic_write_text_behind
+
+    return atomic_write_text_behind(target, text, encoding=encoding, durable=durable)
+
+
+def append_text_behind(path: PathLike, text: str, *, encoding: str = "utf-8", source: str = "unknown") -> bool:
+    target = _coerce_target(path)
+    if not isinstance(text, str):
+        raise TypeError("text payload must be a string")
+    if not isinstance(encoding, str) or not encoding:
+        raise ValueError("encoding must be a non-empty string")
+    if governance_runtime_active():
+        require_governance(
+            f"file_write_gateway.append_text:{source}",
+            strict=True,
+            allowed_domains=get_file_write_gateway()._allowed_domains,
+        )
+    from core.runtime.atomic_writer import atomic_append_text_behind
+
+    return atomic_append_text_behind(target, text, encoding=encoding)
