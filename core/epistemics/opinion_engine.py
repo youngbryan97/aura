@@ -49,6 +49,23 @@ class Opinion:
     tags: list[str] = field(default_factory=list)
 
 
+def _is_an_opinion(data: Any) -> bool:
+    """A parsed reply that states a position."""
+    return isinstance(data, dict) and bool(str(data.get("position") or "").strip())
+
+
+def _confidence_of(data: dict[str, Any]) -> float:
+    """The confidence a reply states, in [0, 1]; one half when it states none it can be read as."""
+    try:
+        value = float(data.get("confidence", 0.5))
+    # not a failure: a confidence written as a word is no stated number.
+    except (TypeError, ValueError):
+        return 0.5
+    if value != value:  # NaN
+        return 0.5
+    return max(0.0, min(1.0, value))
+
+
 class OpinionEngine:
     """
     Manages Aura's durable belief positions.
@@ -71,6 +88,8 @@ class OpinionEngine:
         self._db_path = db_path or state_root() / "opinions.json"
         self._opinions: dict[str, Opinion] = {}  # topic → Opinion
         self._max_opinions = max_opinions
+        #: Replies that could not be read as a position, counted for the health surface.
+        self.unreadable_replies = 0
         self._load()
 
     # ── Formation ─────────────────────────────────────────────────────────
@@ -118,25 +137,36 @@ Respond in JSON only:
                 logger.info("[Opinion] No answer on '%s' this tick; nothing formed.", topic)
                 return None
 
-            # Try to parse directly or via self-healing
-            try:
-                data = json.loads(response)
-            except (json.JSONDecodeError, TypeError, ValueError) as e:
-                record_degradation('opinion_engine', e)
-                logger.debug("Failed to form opinion on segment: %s", e)
-                from core.utils.json_utils import SelfHealingJSON
+            # Read here first, then with the model's help. A reply that cannot
+            # be read is no answer this tick, as an empty one is: a model
+            # writing prose, single quotes, or a reply cut off when its lane
+            # was cancelled is not this subsystem failing. Recorded as a
+            # degradation, each one became a critical incident of this
+            # fail-closed subsystem (six on her day runs of 1 and 3 November).
+            from core.utils.json_utils import SelfHealingJSON
+
+            data = SelfHealingJSON().parse_sync(response)
+            if not _is_an_opinion(data):
                 data = await SelfHealingJSON(brain=brain).parse(response)
+            if not _is_an_opinion(data):
+                self.unreadable_replies += 1
+                logger.info(
+                    "[Opinion] Reply on '%s' could not be read as a position (%d chars); nothing formed this tick.",
+                    topic,
+                    len(str(response)),
+                )
+                return None
 
             opinion = Opinion(
                 id=str(uuid.uuid4()),
                 topic=self._normalize(topic),
                 position=data.get("position", ""),
-                confidence=float(data.get("confidence", 0.5)),
+                confidence=_confidence_of(data),
                 reasoning=data.get("reasoning", ""),
                 formed_at=time.time(),
                 last_updated=time.time(),
                 update_count=(existing.update_count + 1) if existing else 0,
-                tags=data.get("tags", []),
+                tags=[str(tag) for tag in data.get("tags", []) if str(tag).strip()] if isinstance(data.get("tags"), list) else [],
             )
 
             self._opinions[opinion.topic] = opinion
@@ -358,6 +388,7 @@ Sound like yourself. Be direct. You can note if your thinking has evolved."""
             "total_opinions": len(self._opinions),
             "high_confidence": sum(1 for o in self._opinions.values() if o.confidence >= 0.7),
             "topics": list(self._opinions.keys())[:20],
+            "unreadable_replies": self.unreadable_replies,
         }
 
 

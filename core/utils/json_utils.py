@@ -168,7 +168,10 @@ class SelfHealingJSON:
             return {}
         try:
             parsed = ast.literal_eval(normalized)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        # literal_eval raises SyntaxError on text that is not a literal, such as
+        # a reply cut off inside a string. Uncaught, it escaped the parser and
+        # failed the opinion engine on her day run of 1 November.
+        except (SyntaxError, MemoryError, RecursionError, RuntimeError, AttributeError, TypeError, ValueError):
             return {}
         return parsed if isinstance(parsed, dict) else {}
 
