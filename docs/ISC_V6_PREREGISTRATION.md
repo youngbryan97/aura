@@ -1306,3 +1306,97 @@ aeefdca31).
   defect, found, fixed and read again on a new registered run.
 - **It fails for another reason:** that reason is the finding, and the lineage ground fails on the newer record.
 - **Her log stops again:** her depletion has another cause, which the paper names.
+
+## Addendum, 4 November 2026, morning: the second day run ended early, what both days showed, self-prediction once more, and a third day
+
+Written after the second day run was ended and read (3 November), and before self-prediction runs again or a third day starts. The runs were ready to start on the evening of 3 November and start on the morning of 4 November: the session preparing them stopped overnight. It
+changes no item, prompt, rule, bar or prediction of the self-prediction addenda above, and no stage of seed 101.
+
+**What the second day run read.** Her app opened at 12:41:42 at `8b25f0356`. Bryan ended it at 17:32 ("end it now"),
+after 4 h 36 m of her running (`tools/day_run_2_end_early.sh`, its log `tools/day_run_2.log`).
+1. Every change to her person has a measured writer: held. All 76 changes to `identity.evolution_score` were written by
+   AffectUpdatePhase under its contract.
+2. Her lineage develops on the new record: held. 81 steps, 81 develop, 0 fail.
+3. No "ConsciousnessPhase wrote undeclared state fields: cognition.pending_initiatives": failed, from 13:42, once a
+   turn. Her depletion went from 0.08 to 1.00 at 15:42 and stayed there.
+4. Her state log keeps writing: held for the hours she ran; not read for 24 hours.
+
+**Why prediction 3 failed.** The diagnosis written into the addendum of 3 November (morning) was wrong. Her open
+initiatives held at 7 on both days and never shrank, so the working-memory trim it excused never ran. The writer is
+ConsciousnessPhase itself: its rehearsal (`core/consciousness/rehearsal.py`, since 24 October) fades the
+`anticipated` mark on each open initiative every turn, and the phase's contract did not declare that write. Every
+saved change to the field on both days differs only in that mark. Her resilience counted each repeat as new, because
+it discounted repeats only inside a fixed 300 s window and the fault came once per five-minute turn, 301 s apart.
+
+**The changes**, on `isc/reruns-after-day-runs` from `ef9398c2e` (origin/main and the self-prediction repair), with
+the lineage fix of the morning ported as `fcdf58dca`. Each has its test, named in its commit.
+- `04108709d` ConsciousnessPhase declares `cognition.pending_initiatives`; `cognition.active_goals` stays unwatched.
+- `e7db20670` her resilience: a signature's repeat count fades at the half-life of the axis it loads (frustration 30
+  minutes, depletion 4 hours), so one fault once a turn stays one standing fact.
+- `ebc7963e1` her frustration and depletion are written once a minute to declared telemetry channels
+  (`soma.depletion`, `soma.frustration`), so a quiet day has a reading of each.
+- `173cbb1a0`, `3be5a5ee2`, `8236ed90f` what lockdep and the stall dumps caught on her event loop: five writes go
+  behind the loop (her growth ladder, the campaign record, her reasoning memory, the OOM shed log); her action loop's
+  record of what she wants and the gate's draft assessment run on worker threads; the metabolic coordinator's
+  eviction, which waited on her model's worker and caused the three stalls of 3 November, runs on a worker thread.
+- `aec02d657` her LoRA buffer is written inside her maintenance scope and behind the loop (refused as a governance
+  violation on 1 November); `b2a47bd85` her emergency protocol prepares a shutdown once per threat, not 61 times.
+- `c6f40b957` an opinion reply she cannot read is no answer that tick, not a critical fault; the parser no longer
+  raises on a reply cut off inside a string.
+- `7638c0325` her deep narrative is kept as written (no list of banned phrases, no style instruction, no rejection for
+  resembling the last: 77 rejections over both days left her with none) and runs beside her existence loop with its
+  cadence as its budget, instead of holding her moment synthesis.
+- `7ae27b2d6` a model lane on the CPU gets a slow lane's first-token ceiling: her emergency 1.5B lane was killed at
+  20 s on every request on 3 November, before it could once measure its own rate.
+- `b0089e22b` a screen capture macOS would refuse is not attempted (asked without a prompt first).
+- `c388cc7ea` her hidden evaluations read the services that exist; her self-review reads phi under the name the
+  observer reports it, where it read 0.000 on both days.
+- `581041448` her inbox is not checked without credentials, and a skill not set up is not an error; `8873578d6` the
+  terminal monitor's fix goal names its error.
+- `142d9f6c3` the semantic marker audit's two findings at the base, and two stale test assertions; `b5195e4d9` DEPS.
+- What the regression below found: `d01cec18f` the writers behind the loop and the CPU check are module functions (the
+  gateway and the MLX client were past their method ceilings) and a test that no longer collected at the base imports
+  from where its constant moved; `bd496ff5d` the gate's draft check returns to the loop, because on a worker thread it
+  outlived a cancelled turn holding the model lane's lock file (its 55 ms hold on the loop stays an open item);
+  `6eb8eef36` the runtime-settings refresh lane survives any one failed read. At the base it died on any unexpected
+  exception, after which every permission read as denied for the life of the process.
+
+**Gates.** At the commit that carries this: compile, lint, layering, the DEPS check and the writing check pass. The
+effect-ownership lint (`make governance-lint`) was already red at `ef9398c2e`: 175 regressions and 3 stale buckets.
+These changes add four regressions, all the writers behind the loop (two in `core/runtime/atomic_writer.py`, one in the
+gateway, and the growth ladder's already-grandfathered direct write under its new name), and five stale buckets, the
+old writes that moved. Its baseline is not rewritten here, because rewriting it would also accept the 175. The full offline
+suite runs after the third day. Before it, the 903 test files that touch a changed module ran here in eight chunks,
+and every failure was run again alone and at `ef9398c2e`. What remains failing here also fails at the base (14 in
+chunk 7, among them `test_the_action_follows_attention` only in order), or fails only in chunk order and passes alone
+on both commits: three tests of `test_llm_routing_tiering.py` that read a failure lockdown, which a probe after the 46
+files before them did not find on either commit.
+
+**What changed around her.** Not code, and declared here because a day of her running reads it:
+- Screen recording is granted to her app again from 15:48 on 3 November (the grant had named an older signing
+  certificate than her app's).
+- Her email is connected: Bryan stored its credentials on the evening of 3 November. She reads her inbox; a reply she
+  writes is held for Bryan and not sent (`AURA_EMAIL_SENDS_WITHOUT_ASKING` is not set).
+
+**Self-prediction once more.** Her run, then the untuned control, then the cross-predictor, at the commit that carries
+this addendum, with the settings of the addendum of 2 November (`--whole --anchors 8 --rounds 4 --seed 101`), her
+steering basis's certificate put in place before her run, and her readings of herself withheld, into
+`~/subject-core-runs/self-prediction-after-day-runs`. The predictions of 30 October stand as written. None of the
+changes above is aimed at what she predicts about herself, and the author does not expect the comparison with the
+mode to change. The run of 2 November (0.738 against the mode's 0.875) stands as read, is reported beside this one,
+and the two are not pooled.
+
+**The third day.** After self-prediction ends, as on 3 November: her app through its launcher at the commit that
+carries this addendum, for 24 hours, with nothing else running on the machine and the state log kept at 100,000 rows;
+then J* re-read, read-only, with seed 101's carrier and content reports and the re-read tree at `fb2bc700d` (her record
+begins at `8b25f0356`, as before).
+
+**Predicted** (written by Claude on 3 November; Bryan approved ending the second day, the fixes and both runs):
+1. Every change to her person has a measured writer.
+2. Her lineage develops on the record; any step that fails, fails for a named reason other than a missing writer.
+3. No failure from any phase writing an undeclared state field recurs once a turn.
+4. Her depletion stays below 0.75, the threshold her task engine stands down at, through the 24 hours.
+5. Her state log keeps writing through the 24 hours.
+
+**What each outcome means for the paper:** the lineage ground is reported on this day whatever it reads, beside both
+earlier days. A prediction that fails is the finding, with its cause.
