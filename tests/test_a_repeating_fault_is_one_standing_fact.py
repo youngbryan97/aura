@@ -102,3 +102,39 @@ def test_two_magnitudes_in_one_domain_are_two_facts() -> None:
     fresh = ResilienceEngine()
     fresh.record_failure("planning", 0.9, 1.0)
     assert second == pytest.approx(fresh.profile.frustration)
+
+
+def test_a_fault_once_a_turn_stays_one_fact(monkeypatch: pytest.MonkeyPatch, engine: ResilienceEngine) -> None:
+    """Her day runs of 1 and 3 November: one undeclared write, once per five-minute turn.
+
+    The old window was 300 s and the fault came 301 s apart, so every repeat landed in full and depletion read 1.00
+    within two hours. Each count now fades at its axis's half-life, so the same fault at that cadence stays one fact.
+    The decay loop is not running here, so this is the harder case: nothing takes depletion back down.
+    """
+    import core.soma.resilience_engine as module
+
+    clock = [1_000_000.0]
+    monkeypatch.setattr(module.time, "time", lambda: clock[0])
+    for _ in range(60):  # five hours
+        engine.record_failure(
+            "degradation:cognitive_contract",
+            0.55,
+            0.60,
+            signature="ConsciousnessPhase wrote undeclared state fields: cognition.pending_initiatives",
+        )
+        clock[0] += 301.0
+    assert engine.profile.depletion < ResilienceEngine.STRAIN_THRESHOLD
+    fresh = ResilienceEngine()
+    fresh.record_failure("degradation:cognitive_contract", 0.55, 0.60, signature="a new fault")
+    assert engine.profile.depletion < 60 * fresh.profile.depletion / 4
+
+
+def test_a_fault_both_axes_have_forgotten_lands_in_full(monkeypatch: pytest.MonkeyPatch, engine: ResilienceEngine) -> None:
+    import core.soma.resilience_engine as module
+
+    clock = [1_000_000.0]
+    monkeypatch.setattr(module.time, "time", lambda: clock[0])
+    engine.record_failure("d", 0.5, 0.5, signature="old")
+    clock[0] += 40 * ResilienceEngine.DEPLETION_HALF_LIFE
+    _, depletion_novelty = engine._novelty("old", clock[0])
+    assert depletion_novelty == pytest.approx(1.0, abs=1e-6)

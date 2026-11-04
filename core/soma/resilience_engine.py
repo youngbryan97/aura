@@ -93,11 +93,17 @@ class ResilienceEngine:
     # world. One morphogenesis fault repeating once a second drove frustration
     # and depletion to 1.00 in under a minute on the live runtime, so every
     # reply afterwards was written from saturation caused by an internal
-    # bookkeeping error nobody had told her about. The nth repeat inside the
-    # window lands at 1/n, so the same fact arriving forty times moves the
-    # state about as far as four distinct ones do, and a genuinely new failure
-    # still lands in full.
-    HABITUATION_WINDOW_S = 300.0
+    # bookkeeping error nobody had told her about. The nth repeat lands at 1/n,
+    # so the same fact arriving forty times moves the state about as far as
+    # four distinct ones do, and a genuinely new failure still lands in full.
+    #
+    # How long a repeat stays a repeat is each axis's own half-life, not a
+    # window. Until 3 November it was a fixed 300 s window, and a fault that
+    # recurs once per five-minute turn arrived 301 s after the last one: every
+    # repeat counted as new. On her day runs of 1 and 3 November one undeclared
+    # write, once a turn, took depletion from 0.08 to 1.00 in two hours. Now the
+    # count a signature carries fades at the rate the axis it loads fades, so a
+    # fact still held in depletion is still a repeat there, at any cadence.
     MAX_TRACKED_SIGNATURES = 512
     DEPLETION_THRESHOLD = 0.75
     STRAIN_THRESHOLD = 0.45
@@ -116,8 +122,10 @@ class ResilienceEngine:
         self._update_task: asyncio.Task | None = None
         self._snapshot_cache: dict[str, object] | None = None
         self._snapshot_cache_at = 0.0
-        # signature -> (repeats inside the window, when it was last seen)
-        self._repeats: dict[str, tuple[int, float]] = {}
+        # signature -> (repeats as frustration holds them, repeats as depletion
+        # holds them, when it was last seen). Each count fades at its axis's
+        # half-life.
+        self._repeats: dict[str, tuple[float, float, float]] = {}
         #: (taken_at, cpu, ram, thermal) as the proprioceptive loop last sensed
         #: the host, or None before the loop has run once.
         self._observed_host: tuple[float, float, float, float] | None = None
@@ -148,27 +156,36 @@ class ResilienceEngine:
 
     # ── Event Ingestion ───────────────────────────────────────────────────
 
-    def _novelty(self, signature: str, now: float) -> float:
-        """1.0 for a failure not seen lately, 1/n for the nth repeat of one."""
-        repeats, last_seen = self._repeats.get(signature, (0, 0.0))
-        if now - last_seen > self.HABITUATION_WINDOW_S:
-            repeats = 0
-        repeats += 1
-        if len(self._repeats) >= self.MAX_TRACKED_SIGNATURES:
-            stale = sorted(self._repeats.items(), key=lambda item: item[1][1])
+    def _held_repeats(self, signature: str, now: float) -> tuple[float, float]:
+        """How many times each axis still holds this failure, faded at its own half-life."""
+        frustration_count, depletion_count, last_seen = self._repeats.get(signature, (0.0, 0.0, now))
+        elapsed = max(0.0, now - last_seen)
+        return (
+            frustration_count * 0.5 ** (elapsed / self.FRUSTRATION_HALF_LIFE),
+            depletion_count * 0.5 ** (elapsed / self.DEPLETION_HALF_LIFE),
+        )
+
+    def _novelty(self, signature: str, now: float) -> tuple[float, float]:
+        """(frustration, depletion) novelty: 1.0 for a failure neither axis holds, 1/n for the nth repeat it holds."""
+        frustration_count, depletion_count = self._held_repeats(signature, now)
+        frustration_count += 1.0
+        depletion_count += 1.0
+        if signature not in self._repeats and len(self._repeats) >= self.MAX_TRACKED_SIGNATURES:
+            stale = sorted(self._repeats.items(), key=lambda item: item[1][2])
             for key, _ in stale[: len(stale) // 4 or 1]:
                 self._repeats.pop(key, None)
-        self._repeats[signature] = (repeats, now)
-        return 1.0 / repeats
+        self._repeats[signature] = (frustration_count, depletion_count, now)
+        return 1.0 / frustration_count, 1.0 / depletion_count
 
     def repetition_state(self) -> dict[str, int]:
-        """What is currently repeating, for the health surface to report."""
+        """What is currently repeating, as frustration still holds it, for the health surface to report."""
         now = time.time()
-        return {
-            signature: repeats
-            for signature, (repeats, seen) in self._repeats.items()
-            if repeats > 1 and now - seen <= self.HABITUATION_WINDOW_S
-        }
+        state: dict[str, int] = {}
+        for signature in list(self._repeats):
+            held = round(self._held_repeats(signature, now)[0])
+            if held > 1:
+                state[signature] = held
+        return state
 
     def record_failure(
         self,
@@ -189,7 +206,7 @@ class ResilienceEngine:
         now = time.time()
         severity = self._clamp01(severity)
         stakes = self._clamp01(stakes)
-        novelty = self._novelty(
+        frustration_novelty, depletion_novelty = self._novelty(
             signature or f"{domain}@{severity:.3f}/{stakes:.3f}", now
         )
 
@@ -205,10 +222,10 @@ class ResilienceEngine:
         if len(history) > 100:
             self.profile.failure_history = history[-100:]
 
-        frustration_delta = severity * stakes * self.FRUSTRATION_GAIN * novelty
+        frustration_delta = severity * stakes * self.FRUSTRATION_GAIN * frustration_novelty
         self.profile.frustration = min(1.0, self.profile.frustration + frustration_delta)
 
-        depletion_delta = severity * stakes * self.DEPLETION_GAIN * novelty
+        depletion_delta = severity * stakes * self.DEPLETION_GAIN * depletion_novelty
         self.profile.depletion = min(1.0, self.profile.depletion + depletion_delta)
 
         self._update_state()
@@ -216,12 +233,13 @@ class ResilienceEngine:
         self._invalidate_snapshot_cache()
 
         logger.info(
-            "💔 [Resilience] Failure recorded [%s] sev=%.2f stakes=%.2f novelty=%.2f → "
+            "💔 [Resilience] Failure recorded [%s] sev=%.2f stakes=%.2f novelty=%.2f/%.2f → "
             "frustration=%.2f depletion=%.2f state=%s",
             domain,
             severity,
             stakes,
-            novelty,
+            frustration_novelty,
+            depletion_novelty,
             self.profile.frustration,
             self.profile.depletion,
             self.profile.state.value,
