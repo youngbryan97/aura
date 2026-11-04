@@ -257,6 +257,14 @@ def _refresh_worker() -> None:
             _refresh_settings_from_disk()
         except (*_RECOVERABLE, ImportError, KeyError) as exc:
             logger.error("Runtime settings refresh lane failed: %s", exc)
+        # The lane outlives any one read. Every permission is read from the
+        # snapshot it keeps, and a snapshot nobody refreshes goes stale in
+        # five seconds and reads every permission as denied, for the life of
+        # the process. On 3 November one test that made Path.stat raise
+        # AssertionError killed this thread, and every later test in its
+        # process read screen and microphone as switched off.
+        except Exception as exc:  # noqa: BLE001 - see above
+            logger.error("Runtime settings refresh lane survived %s: %s", type(exc).__name__, exc)
         _refresh_wakeup.wait(_WATCH_INTERVAL_SECONDS)
         _refresh_wakeup.clear()
 
