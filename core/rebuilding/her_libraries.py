@@ -25,7 +25,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 __all__ = ["FunctionPlan", "KeptLibrary", "LibraryPlan", "LibraryTest", "RunOfATest", "found_for", "keep", "kept",
-           "run_tests", "stub_of", "the_tests_that_test"]
+           "run_tests", "giving_nothing", "the_tests_that_test"]
 
 #: How long one test call may run, in seconds.
 TEST_S = 5.0
@@ -94,7 +94,7 @@ _ONE_TEST = r"""([call, expect]) => {
 }"""
 
 
-def stub_of(plan: LibraryPlan) -> str:
+def giving_nothing(plan: LibraryPlan) -> str:
     """The library with every function giving nothing: what a test that tests something fails on."""
     return f"globalThis.{plan.name} = {{{', '.join(f'{f.name}: () => undefined' for f in plan.functions)}}};"
 
@@ -157,7 +157,7 @@ async def the_tests_that_test(plan: LibraryPlan, *, browser: Any = None) -> list
             continue
         if any(name in test.call for name in names):
             wellformed.append(test)
-    empty = await run_tests(stub_of(plan), wellformed, browser=browser)
+    empty = await run_tests(giving_nothing(plan), wellformed, browser=browser)
     return [run.test for run in empty if not run.held]
 
 

@@ -219,7 +219,6 @@ def _account_of_the_pursuit(
             "result_text": str((final or observation).get("text") or "")[:4000],
             "concluded": concluded,
         }
-        return _SEAM_FELL_THROUGH
 
     _seam_early_response = _block()
     return _seam_early_response

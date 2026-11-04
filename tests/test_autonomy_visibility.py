@@ -205,6 +205,10 @@ def test_motivation_growth_goals_rotate_and_stay_concrete():
 
 @pytest.mark.asyncio
 async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch, tmp_path):
+    from core.skills.email_adapter import EmailAdapterSkill
+
+    # Her inbox is checked only when she has credentials to check it with.
+    monkeypatch.setattr(EmailAdapterSkill, "configured", staticmethod(lambda: True))
     calls: list[tuple[str, dict, dict]] = []
 
     class CapabilityEngine:

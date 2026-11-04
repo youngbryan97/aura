@@ -96,7 +96,9 @@ def test_she_says_what_she_expects_before_the_first_answer(monkeypatch):
     skill, _asked, _held = _skill(monkeypatch, said)
     asyncio.run(skill._handle_pursue(_Instrument(), None, "take it", 3))
     assert said, "nothing was said at all"
-    assert said[0] == "I expect it to call me reflective."
+    # What the page is comes first now (tests/test_she_says_what_a_page_is_when_she_reaches_it.py); the
+    # forecast still comes before any answer, which is what this pins.
+    assert "I expect it to call me reflective." in said
     assert said.index("I expect it to call me reflective.") < said.index("Q1 -> a."), (
         "the forecast must come before the first answer, or it is a report"
     )
