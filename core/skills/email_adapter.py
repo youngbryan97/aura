@@ -181,6 +181,17 @@ class EmailAdapterSkill(BaseSkill):
     IMAP_HOST = "imap.gmail.com"
     IMAP_PORT = 993
 
+    @staticmethod
+    def configured() -> bool:
+        """Whether her email has credentials to use. Reads the Keychain; call it off the loop."""
+        try:
+            from core.security.zenith_secrets import get_credential
+
+            return bool(get_credential("email", "address")) and bool(get_credential("email", "password"))
+        # not a failure: a Keychain that cannot be read holds no credentials for her.
+        except (ImportError, OSError, RuntimeError, ValueError):
+            return False
+
     def _get_creds(self) -> tuple[str, str]:
         """Load email credentials from Keychain. Never logs them."""
         from core.security.zenith_secrets import get_credential

@@ -235,6 +235,14 @@ class _StartsSomethingSocial:
             logger,
         )
 
+        from core.skills.email_adapter import EmailAdapterSkill
+
+        # No credentials, no inbox to look at. Called anyway, every fifteen
+        # minutes on both day runs the skill ran under an executive token and
+        # came back "credentials not found" (34 warnings in two days).
+        if not await asyncio.to_thread(EmailAdapterSkill.configured):
+            logger.debug("📧 Email not configured; no inbox to check.")
+            return
         logger.info("📧 Checking email for autonomous initiatives...")
         try:
             cap_engine = optional_service("capability_engine", default=None)

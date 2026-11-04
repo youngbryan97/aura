@@ -28,6 +28,10 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Skills")
 
+#: Result statuses that say a skill has no means set up for what it was asked,
+#: such as an account with no credentials, rather than that it failed.
+_NOT_SET_UP = frozenset({"credentials_missing", "not_configured"})
+
 _SKILL_RECOVERABLE_ERRORS = (
     ImportError,
     AttributeError,
@@ -576,6 +580,14 @@ class BaseSkill(ABC):
             logger.info(
                 "✅ Skill '%s' completed in %.0fms",
                 self.name, duration_ms
+            )
+        elif str(normalized_result.get("status", "")) in _NOT_SET_UP:
+            # A skill nobody has set up has not failed: it was asked for
+            # something it has no means to do. Counted, said once at info.
+            self._total_failures += 1
+            logger.info(
+                "Skill '%s' is not set up (%s) in %.0fms",
+                self.name, normalized_result.get("status"), duration_ms,
             )
         else:
             self._total_failures += 1
