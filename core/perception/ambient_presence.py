@@ -745,6 +745,9 @@ class AmbientPresence(_CarriesTheBubble):
             return SkipReason.SESSION_LOCKED, detail
         if denial is ScreenCaptureDenial.RUNTIME_SETTING_DISABLED:
             return SkipReason.SCREEN_DISABLED, detail
+        if denial is ScreenCaptureDenial.NOT_GRANTED:
+            # Broken, and said once: she sees nothing until Bryan grants it.
+            return SkipReason.NO_PERMISSION, detail
         return None
 
     async def _current_context(self) -> ScreenContext | None:

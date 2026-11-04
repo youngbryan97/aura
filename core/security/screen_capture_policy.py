@@ -94,6 +94,7 @@ class ScreenCaptureDenial(StrEnum):
     BROWSER_TITLE_UNKNOWN = "browser_title_unknown"
     SESSION_LOCKED = "session_locked"
     POLICY_UNAVAILABLE = "policy_unavailable"
+    NOT_GRANTED = "not_granted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +117,8 @@ class ScreenCaptureAdmission:
             ScreenCaptureDenial.PRIVATE_VISIBLE,
         }:
             return "screen capture refused because private content is visible"
+        if self.reason is ScreenCaptureDenial.NOT_GRANTED:
+            return "screen recording is not granted to her app in Privacy & Security"
         if self.reason is ScreenCaptureDenial.SESSION_LOCKED:
             # Say what is true. "The interactive session is unavailable" is
             # accurate and tells the person nothing they can act on, and the
@@ -391,6 +394,22 @@ def _python_macos_capture_admission() -> ScreenCaptureAdmission | None:
     )
 
 
+def screen_recording_granted() -> bool | None:
+    """Whether macOS grants her app screen recording, asked without a prompt; None when it cannot be asked."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        import Quartz  # type: ignore
+
+        preflight = getattr(Quartz, "CGPreflightScreenCaptureAccess", None)
+        if not callable(preflight):
+            return None
+        return bool(preflight())
+    # not a failure: without pyobjc the grant cannot be asked, and capture policy decides as before.
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError, AttributeError):
+        return None
+
+
 def evaluate_screen_capture_admission(
     *,
     context: tuple[str, str] | None = None,
@@ -410,6 +429,19 @@ def evaluate_screen_capture_admission(
 
     if context is not None:
         return _admission_from_context(context, authority="provided_context")
+
+    # Asked without asking: CGPreflightScreenCaptureAccess answers for her app
+    # and never shows the system dialog. A capture attempted without the grant
+    # does show it. On 3 November her grant named an older signing certificate
+    # than her app's, every ambient tick spawned screencapture, and macOS asked
+    # Bryan 43 times in ten minutes. Now a capture that would be refused is not
+    # attempted.
+    if screen_recording_granted() is False:
+        return ScreenCaptureAdmission(
+            allowed=False,
+            reason=ScreenCaptureDenial.NOT_GRANTED,
+            authority="tcc_preflight",
+        )
 
     resident_admission = _resident_bridge_capture_admission()
     if resident_admission is not None:
