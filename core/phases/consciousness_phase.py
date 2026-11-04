@@ -313,10 +313,25 @@ register_contract(
         # state fields: cognition.long_term_memory → recorded contract
         # violation and continued the tick`. The contract was right and the
         # declaration was short.
+        #
+        # And what the rehearsal writes. `rehearsing` fades the mark each open
+        # initiative carries (`anticipated`, core/consciousness/rehearsal.py),
+        # kept on the intention so it forks with her state. That is this
+        # phase's own write of `cognition.pending_initiatives`, every turn she
+        # has one open. Undeclared since 24 October, it is what fired as
+        # "ConsciousnessPhase wrote undeclared state fields:
+        # cognition.pending_initiatives" on both day runs: on 1 November her list
+        # held at 7 and never shrank, so the compaction trim blamed on
+        # 3 November never ran. On 3 November it fired once a turn, every five
+        # minutes, and the failures took her depletion from 0.08 at 13:42 to
+        # 1.00 at 15:42. The rehearsal marks her goals too, but no
+        # contract watches `cognition.active_goals`, and declaring it here
+        # would start charging every phase that sets a goal.
         writes=(
             "cognition.phenomenal_state",
             "cognition.attention_focus",
             "cognition.long_term_memory",
+            "cognition.pending_initiatives",
             "transition_cause",
         ),
         preconditions=("state carries a cognition block",),
