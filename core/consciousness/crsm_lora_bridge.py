@@ -524,14 +524,22 @@ class CRSMLoraBridge:
                         "processing_context": m.processing_context,
                     })
                 )
+            from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            get_file_write_gateway().write_text(
-                PERSIST_PATH,
-                "\n".join(lines) + ("\n" if lines else ""),
-                source="crsm_lora_bridge.persist_buffer",
-            )
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            # Inside the scope her own maintenance writes are governed by. Bare,
+            # the live runtime refused it as a governance violation when her
+            # emergency protocol flushed the bridge on a full disk (day run,
+            # 1 November), and the refusal escalated as a critical fault of the
+            # emergency protocol. Behind the loop, since a flush can come from
+            # a coroutine.
+            with local_internal_governed_scope("crsm_lora_bridge.persist_buffer"):
+                get_file_write_gateway().write_text_behind(
+                    PERSIST_PATH,
+                    "\n".join(lines) + ("\n" if lines else ""),
+                    source="crsm_lora_bridge.persist_buffer",
+                )
+        except (json.JSONDecodeError, TypeError, ValueError, OSError) as e:
             record_degradation('crsm_lora_bridge', e)
             logger.debug("CRSMLoraBridge persist failed: %s", e)
 
