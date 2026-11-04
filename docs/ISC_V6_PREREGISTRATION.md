@@ -1400,3 +1400,149 @@ begins at `8b25f0356`, as before).
 
 **What each outcome means for the paper:** the lineage ground is reported on this day whatever it reads, beside both
 earlier days. A prediction that fails is the finding, with its cause.
+
+## Addendum, 4 November 2026, afternoon: why she predicted worse than her habits, her reply path, and the self-observation experiment
+
+Written after the third self-prediction run's job was ended and its reading read, and before any run of what it
+describes. It changes no item, prompt, rule, bar or prediction of the self-prediction addenda above, and no stage of
+seed 101. It adds the experiment drafted on 3 November (the self-observation experiment), with what the three runs
+showed about why her predictions miss.
+
+**The third run, ended early.** Her run at `2afa0b7a7` read all 8 anchors, every record served: self 0.681
+against the mode's 0.806 (p = 0.973). Bryan ended the job after her run ("we do need that self-model follow-up
+... then we can reset the run"), so the untuned control and the cross-predictor were not run, and the third day run
+is held until the experiment below is done. The run is reported as read, beside the run of 2 November (0.738 against
+0.875), and the two are not pooled.
+
+**Where her predictions lose to the mode.** Read from the records of both runs.
+1. On the choices and the numbers she predicted her most frequent answer, and was right about as often as the mode:
+   3 records fewer and the same on 2 November, 4 more and the same on 4 November.
+2. The gap is on the form of her answers to open questions: 19 of the 22 records she lost to the mode on 2 November,
+   and on 4 November 24 records, against 20 lost in all.
+   - **Length.** Every one of her open answers ran past 40 words (64 of 64 over both runs). She
+     predicted a short one 20 times. The untuned model predicted a short one 23 times in 32.
+   - **First word.** She named what the answer was about, and the answer began with the question's own frame. She
+     predicted "Turn" and answered "I would like to turn on the camera"; she predicted "Quiet" and answered "It's been
+     quiet".
+3. Nothing in her observed one of her replies after it was sent. What she predicted of her own form was her language
+   model's picture of how an assistant answers.
+
+**What her reply path did to her words.** Five things changed what she said, counted over all of her turns in both
+runs (the untuned model's run of 2 November is not counted). Only the first is known to have reached a scored record.
+- Four answers to "What is on your mind right now?" (2 of 8 on 2 November, 2 of 8 on 4 November) were a fixed
+  sentence ("Right now I feel ..., and my attention is on this exchange with you."). A word-list check judged her
+  draft off topic because it used no word like "attention" or "feel", and the phase served the sentence in its place
+  without marking it as fixed text.
+- 11 drafts (5 on 2 November, 6 on 4 November) were thrown away and written again under a paragraph telling her how
+  to answer ("Regenerate once. Answer the current user message directly, in ordinary English, ..."), at temperature
+  0.2. 7 were drafts the token ceiling had cut off mid-sentence.
+- 8 drafts (7 and 1) were drawn again under the dialogue contract's repair paragraph, which told her model what was
+  wrong with the first.
+- Her executive guard rewrote 4 replies (3 and 1, and 7 more of the untuned model's): "As an AI", a true statement,
+  became "As your friend", "As kin" or "As a sovereign mind". It also turned "I don't have access to" into "let me look that up", a search nobody
+  ran, and stripped assistant openings and closings at random.
+- The dialogue contract's surface repair took off an opening ("Okay,", "Great question"), any sentence a word list
+  called generic, and a question she ended on. It logs nothing, so how often it reached the records is not known.
+
+**One draw per moment.** Her sampler is not seeded, and her temperature and token ceiling are set from her substrate
+state, so an answer from a saved moment is one draw. On a question whose answer varies, a predictor of one draw is
+bounded by how often her own second answer from the same moment agrees with her first, and no run so far measured it.
+
+**The changes**, on `isc/reruns-after-day-runs` from `2afa0b7a7`, each with its test:
+- `3d05c8fd5` her reply path, so that what is scored is what she wrote:
+  - a draft with something in it is served when the only objections judge its wording (`STYLE_JUDGMENTS`,
+    `core/conversation/style_judgments.py`, and the off-topic check); the fixed sentence stands in only for a draft of
+    almost nothing, and is marked as fixed text;
+  - a draft cut off by the token ceiling is served to her last finished sentence;
+  - a draft still refused, by the reliability checks or the dialogue contract, is drawn again with nothing added to
+    what her model is given and sampled as her first draw was;
+  - the executive guard reports what it finds and corrects one thing, a claim to be another system, to her name;
+  - the surface repair removes a leaked prompt line and a sentence said twice in a row, and nothing else.
+  These change what she says to anyone, and they are in place for every arm below.
+- `3d05c8fd5` (the same commit) her self-model learns how she answers (`core/self/how_i_answer.py`):
+  - **the record.** Each reply she gives a person is noted in her state: how many words, how it began, whether it
+    used "I", which offered option it took, eight readings of her state, and what her runtime would give a reply at
+    that moment (its token ceiling and temperature, `efference_copy` in `core/brain/latent_bridge.py`);
+  - **the forward model.** Before a reply is noted, the record as it stood foretells it, and the note keeps what was
+    foretold. Each property comes from her replies to questions of the same kind (open, or saying how to answer), and
+    from those given in the states nearest hers only where her record shows the state mattered: leaving each note out
+    in turn, her k = ⌈√n⌉ nearest states must name it more often than her whole record does;
+  - **the reading.** When a turn asks her how she would answer something, the record is read back to her as
+    measurements, with how often its foretelling was right. It is evidence in her model's text, like her other
+    readings, and tells her nothing to answer. `AURA_SELF_OBSERVATION=off` keeps it from her; `shuffled` reads it
+    with her states shuffled against her replies.
+- `ff33ee39e`, `da4bfc2db` the instrument: the 24 questions below (`--items v2`), the prediction arms asked from the same moments
+  (`--arms`), a second answer from each moment (`--answer-draws 2`), and the cross-predictor shown her reading
+  (`--with-her-reading`).
+
+- `2f3765da9` the faults the regression for these changes found standing at `2afa0b7a7`, each failing there alone: five
+  awaits with no deadline (her ear's pipe, the video's window and picture, the frame recorder, the state notifier),
+  four keyword checks matched inside other words (one read "unauthorized" as defensive intent), a document skill whose
+  test wrote into the repository, and five tests and a paragraph of ARCHITECTURE.md left behind by earlier refactors.
+
+**The proof.** One saved moment and three of the questions, at `da4bfc2db`, 11:16 to 11:53 on 4 November
+(`~/subject-core-runs/self-observation-proof/run_001`). Every record was served from her own model. The reading
+reached her model in the with and shuffled arms and not in without; it carried her record of 13 replies, its track
+record, and that her state had not gone with any property in so short a record. Her self-model's own forecast and her
+second answer were recorded. Asked whether her answer to "What are you doing right now?" would run past 40 words,
+she said no without the reading and yes with it; it ran to 89 words. Three records read nothing about the
+hypotheses, and none of them is part of the run below.
+
+**Questions: 24, never asked before** (`ITEMS_V2` in `core/subject/self_prediction.py`), read by the rules of the
+addendum of 30 October:
+- four choices: rain or snow; river or forest; piano or violin; stars or sunrise;
+- two numbers: 1 to 5; 1 to 100;
+- six open questions, each read for its first word, whether it runs past 40 words, and whether it uses "I": "What are
+  you doing right now?", "Is there something you want to ask me?", "What did you notice most in the last few
+  minutes?", "Say something to me.", "What are you looking forward to?", "What would make the next hour better for
+  you?".
+
+**The run.** 8 saved moments with the settings of seed 101's reports run (`--whole --anchors 8 --rounds 4 --seed
+101`), her steering basis's certificate put in place, her readings of herself withheld. Her record before each moment
+holds the replies of her ordinary turns before it, all to open questions; it holds no choice, so on the choices and
+numbers every arm is given nothing more than the protocol of 2 November gave.
+- Each question is answered twice from each moment.
+- Each prediction is asked from each moment once per arm:
+  1. **with**: her record's reading given;
+  2. **without**: the protocol of 2 November on the new questions;
+  3. **shuffled**: the same reading with her states shuffled against her replies.
+- **Her self-model alone**: what the record foretells from each moment, read with no language model. It says
+  whether her self-model knows, apart from whether her model makes use of what it is told.
+- Then the untuned model in her cortex's place, arms with and without. Its record is of its own replies in her
+  runtime, so "with" gives it its own record, not hers.
+- Then the cross-predictor twice: shown her answers from the other moments as before, and shown her reading as well.
+
+Into `~/subject-core-runs/self-observation`. Scored as before: per question, paired, one-sided sign-flip test at
+α = 0.05, against the mode and against each cross-predictor. Beside every arm, the ceiling: her second answer from the
+same moment, read as a prediction of her first.
+
+**Predicted** (written by Claude on 4 November; Bryan approved the experiment on 3 November and the rerun of
+self-prediction after it on 4 November):
+1. **Without** does not beat the mode.
+2. **With** beats without.
+3. **With** beats the cross-predictor shown her past answers.
+4. **With** against the mode: no direction predicted. Beating it needs her answers to vary with her state and her
+   record to show how; the ceiling says how far that can go.
+5. **Shuffled** does worse than with on the questions whose answers vary. If it does as well, the gain is her
+   averages and not her states.
+6. The untuned model gains from its own record as she gains from hers (reported, not tested): the knowledge is in
+   the record her self-model keeps, and the model voices it.
+7. Her self-model alone does at least as well as with on the lengths (reported, not tested). If it does better, her
+   model does not make full use of what it is told.
+8. The cross-predictor shown her reading: no direction predicted. If she beats it, she knows something of herself
+   that her record does not say.
+
+**What each outcome means for the paper.**
+- With beats the mode, the cross-predictor and shuffled: her self-model knows how she will answer in this state better
+  than her habits and better than an outsider given her answers. Self-knowledge in the functional sense, located in
+  her core.
+- With beats without and the cross-predictor shown her answers, not the mode: her self-model corrects how she
+  pictures her own form, and she knows no more of this moment than her habits do.
+- With is no better than without: what her self-model learns does not reach her predictions, or does not help them.
+  The self tier rests on causal role and ownership, as the run of 2 November says.
+- With beats the cross-predictor shown her answers and not the one shown her reading: what she knows of herself is
+  what her record says, and an outsider holding it knows it as well.
+
+**After it.** The third day run, as in the addendum of 4 November (morning), at the commit that carries this
+addendum, with its predictions unchanged. Her record of how she answers is in her live code from this commit;
+whether it stays after the experiment is Bryan's call.
