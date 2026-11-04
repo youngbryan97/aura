@@ -134,10 +134,10 @@ async def main(argv: list[str] | None = None) -> int:
                         help="comma-separated item ids: a smoke run on a few questions, never a reading")
     args = parser.parse_args(argv)
     arms = [arm for arm in (a.strip() for a in args.arms.split(",")) if arm]
-    from core.self.how_i_answer import ARMS
-
-    if any(arm not in ARMS for arm in arms):
-        parser.error(f"--arms takes {', '.join(ARMS)}")
+    # The arms of core.self.how_i_answer.ARMS, named here because nothing of hers may be imported before her state
+    # is isolated: core.self imports core.self_model, which fixes its data path on import.
+    if any(arm not in ("with", "without", "shuffled") for arm in arms):
+        parser.error("--arms takes with, without, shuffled")
     ITEMS, OPEN_PROMPTS = item_set(args.items)
     if args.only:
         wanted = {name.strip() for name in args.only.split(",") if name.strip()}
@@ -167,8 +167,6 @@ async def main(argv: list[str] | None = None) -> int:
     from core.subject.isolation import isolate_state, state_leaks
     from core.subject.provenance import environment, evidence_source, next_run_directory
     from core.subject.v25_runtime import collect_anchor_bank
-    from core.brain.latent_bridge import efference_copy
-    from core.self.how_i_answer import how_i_answer_block, reading_as_in, self_model_prediction
 
     if args.whole and not readings_of_herself_withheld():
         raise SystemExit("refusing: run with AURA_READINGS_OF_HERSELF=withheld, so her state cannot reach both forks as text")
@@ -176,6 +174,8 @@ async def main(argv: list[str] | None = None) -> int:
     run_dir = next_run_directory(args.out)
     run_dir.mkdir(parents=True, exist_ok=True)
     isolate_state(run_dir)
+    from core.brain.latent_bridge import efference_copy
+    from core.self.how_i_answer import how_i_answer_block, reading_as_in, self_model_prediction
     started = time.monotonic()
     runtime = build_runtime(run_dir, seed=args.seed, whole=args.whole)
     if state_leaks():
