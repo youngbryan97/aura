@@ -26,6 +26,7 @@ import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from core.runtime.errors import record_degradation
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
@@ -70,6 +71,30 @@ class ResilienceProfile:
     failure_history: list[FailureEvent] = field(default_factory=list)
     last_rest: float = field(default_factory=lambda: time.time())
     last_update: float = field(default_factory=lambda: time.time())
+
+
+#: Telemetry ids are a contract (core/fsw/telemetry_dictionary.py); never reuse one.
+CHANNEL_DEPLETION = "soma.depletion"
+CHANNEL_FRUSTRATION = "soma.frustration"
+
+
+def _declare_telemetry() -> None:
+    """Declare her resilience channels. Idempotent."""
+    from core.fsw.telemetry_dictionary import ChannelType, channel, still_declared
+
+    if still_declared((CHANNEL_DEPLETION, CHANNEL_FRUSTRATION)):
+        return
+    channel(
+        0x0901, CHANNEL_DEPLETION, type=ChannelType.FLOAT, unit="ratio",
+        description="accumulated exhaustion; her task engine stands down at 0.75",
+        owner="core/soma/resilience_engine.py", group="soma", stale_after_s=180.0,
+        yellow_high=ResilienceEngine.STRAIN_THRESHOLD, red_high=ResilienceEngine.DEPLETION_THRESHOLD,
+    )
+    channel(
+        0x0902, CHANNEL_FRUSTRATION, type=ChannelType.FLOAT, unit="ratio",
+        description="recent failure pressure",
+        owner="core/soma/resilience_engine.py", group="soma", stale_after_s=180.0,
+    )
 
 
 class ResilienceEngine:
@@ -471,8 +496,27 @@ class ResilienceEngine:
                 self._credit_quiet_interval_as_rest()
                 self._apply_decay()
                 self._check_subsystem_auto_recovery()
+                self._publish_telemetry()
         except asyncio.CancelledError as _e:
             logger.debug("Ignored asyncio.CancelledError in resilience_engine.py: %s", _e)
+
+    def _publish_telemetry(self) -> None:
+        """Her frustration and depletion, once a minute, on declared channels.
+
+        Until 3 November they reached her log only when a failure landed, so a
+        quiet day had no reading of either: her day runs could say when she hit
+        1.00 and not how she spent a day without failures.
+        """
+        try:
+            from core.fsw.telemetry_dictionary import write
+
+            _declare_telemetry()
+            write(CHANNEL_DEPLETION, float(self.profile.depletion))
+            write(CHANNEL_FRUSTRATION, float(self.profile.frustration))
+        except (ImportError, KeyError, TypeError, ValueError) as exc:
+            record_degradation(
+                "resilience_engine", exc, severity="debug", action="her resilience was not written to telemetry"
+            )
 
     def _credit_quiet_interval_as_rest(self) -> None:
         """An interval with no failure in it was rest, and should count as it.

@@ -17,6 +17,8 @@ include_rules = [
     "+core.config",
     "+core.continuity",
     "+core.event_bus",
+    # Her frustration and depletion, written to declared telemetry channels.
+    "+core.fsw",
     "+core.governance_context",
     "+core.resilience",
     "+core.runtime",

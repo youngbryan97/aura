@@ -138,3 +138,14 @@ def test_a_fault_both_axes_have_forgotten_lands_in_full(monkeypatch: pytest.Monk
     clock[0] += 40 * ResilienceEngine.DEPLETION_HALF_LIFE
     _, depletion_novelty = engine._novelty("old", clock[0])
     assert depletion_novelty == pytest.approx(1.0, abs=1e-6)
+
+
+def test_her_depletion_is_on_a_declared_channel_every_minute(engine: ResilienceEngine) -> None:
+    """A quiet day has a reading too: the decay loop writes both axes to telemetry."""
+    from core.fsw.telemetry_dictionary import channel_value
+    from core.soma.resilience_engine import CHANNEL_DEPLETION, CHANNEL_FRUSTRATION
+
+    engine.record_failure("d", 0.5, 0.5, signature="one")
+    engine._publish_telemetry()
+    assert channel_value(CHANNEL_DEPLETION).value == pytest.approx(engine.profile.depletion)
+    assert channel_value(CHANNEL_FRUSTRATION).value == pytest.approx(engine.profile.frustration)
