@@ -727,7 +727,13 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                     gov = get_resource_governor()
                     snap = gov.sample()
                     if snap.eviction_tier.value != "none":
-                        gov.execute_eviction(snap.eviction_tier)
+                        # Off the loop: shedding asks her model's worker to
+                        # clear its cache and waits up to ten seconds for the
+                        # answer. Made here on the loop thread, that wait was
+                        # the three event-loop stalls of her day run of
+                        # 3 November ("the loop thread accrued no CPU:
+                        # blocked", 5-6 s each, stall_1793746701.txt).
+                        await asyncio.to_thread(gov.execute_eviction, snap.eviction_tier)
                 except _METABOLIC_BOUNDARY_ERRORS as exc:
                     _record_metabolic_degradation(exc, action="resource-governor sample skipped")
                     logger.debug("Resource governor sample unavailable: %s", exc)
