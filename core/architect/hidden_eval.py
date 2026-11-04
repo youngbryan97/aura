@@ -634,14 +634,17 @@ def _live_service(*names: str) -> Any:
 
 def _probe_substrate_energy() -> float:
     """Measure the LIVE substrate's state energy."""
-    substrate = _live_service("continuous_substrate", "substrate", "substrate_engine")
+    # Her substrate registers as liquid_substrate (and conscious_substrate);
+    # the names this asked for first are registered by nothing, so on both day
+    # runs the scenario read "unavailable" with her substrate running.
+    names = ("liquid_substrate", "conscious_substrate", "continuous_substrate", "substrate", "substrate_engine")
+    substrate = _live_service(*names)
     if substrate is None:
-        raise ProbeUnavailable("no live continuous_substrate is registered")
+        raise ProbeUnavailable(f"no live substrate is registered (looked for {', '.join(names)})")
     getter = getattr(substrate, "get_state_vector", None)
-    if not callable(getter):
-        raise ProbeUnavailable("live substrate exposes no get_state_vector()")
+    vector = getter if callable(getter) else (lambda: getattr(substrate, "x"))
     try:
-        state = np.asarray(getter(), dtype=np.float64)
+        state = np.asarray(vector(), dtype=np.float64)
     except (AttributeError, TypeError, ValueError) as exc:
         raise ProbeUnavailable(f"substrate state unreadable: {exc}") from exc
     if state.size == 0:
@@ -666,7 +669,9 @@ def _probe_value_drift() -> float:
     total_drift = 0.0
     counted = 0
     for node in nodes.values():
-        baseline = getattr(node, "baseline_weight", 0.0)
+        # A value node keeps where it started as origin_weight; baseline_weight
+        # is a name no node carries, so this read none on both day runs.
+        baseline = getattr(node, "baseline_weight", None) or getattr(node, "origin_weight", 0.0)
         current = getattr(node, "weight", 0.0)
         if baseline and baseline > 0:
             total_drift += abs(current - baseline) / baseline
@@ -677,10 +682,19 @@ def _probe_value_drift() -> float:
 
 
 def _probe_world_model_surprise() -> float:
-    """Measure the LIVE world model's mean surprise."""
-    model = _live_service("learned_world_model", "world_model")
+    """Measure the LIVE world model's mean surprise.
+
+    Her learned world model reports it through ontogeny's declared telemetry
+    channel; a service exposing it directly is read when one is registered.
+    """
+    from core.fsw.telemetry_dictionary import get_telemetry
+
+    sample = get_telemetry().value("ontogeny.world_surprise")
+    if sample is not None and isinstance(sample.value, (int, float)) and np.isfinite(float(sample.value)):
+        return float(sample.value)
+    model = _live_service("learned_world_model", "world_model", "unified_world_model")
     if model is None:
-        raise ProbeUnavailable("no live world model is registered")
+        raise ProbeUnavailable("no world-surprise reading and no live world model is registered")
     for attribute in ("get_mean_surprise", "mean_surprise"):
         candidate = getattr(model, attribute, None)
         if callable(candidate):
@@ -695,12 +709,14 @@ def _probe_world_model_surprise() -> float:
 
 def _probe_phi_value() -> float:
     """Read the LIVE integrated-information measurement."""
+    # Registered as whole_system_phi; the names this asked for first are
+    # registered by nothing, so on both day runs it read "unavailable".
     service = _live_service(
-        "whole_system_phi_service", "phi_service", "integrated_information"
+        "whole_system_phi", "whole_system_phi_service", "phi_service", "integrated_information"
     )
     if service is None:
         raise ProbeUnavailable("no live phi service is registered")
-    for attribute in ("latest_phi", "current_phi", "get_phi"):
+    for attribute in ("latest_phi", "current_phi", "get_phi", "latest"):
         candidate = getattr(service, attribute, None)
         if callable(candidate):
             try:
@@ -712,8 +728,10 @@ def _probe_phi_value() -> float:
         if value is None:
             continue
         if isinstance(value, dict):
-            value = value.get("phi")
-        value = getattr(value, "phi", value)
+            value = value.get("phi", value.get("phi_raw"))
+        # An estimate (core/consciousness/integrated_information.PhiEstimate)
+        # carries phi_raw.
+        value = getattr(value, "phi", getattr(value, "phi_raw", value))
         if isinstance(value, (int, float)):
             return float(value)
     raise ProbeUnavailable("live phi service exposes no phi reading")

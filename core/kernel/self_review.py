@@ -55,8 +55,19 @@ class SelfReviewPhase(Phase):
             logger.warning("SelfReview: loop_state() raised: %s", e)
             return state
 
-        phi = loop_state.get("phi", 0.0)
-        entropy = loop_state.get("entropy", 0.0)
+        # The feedback observer reports phi as current_phi and carries no
+        # entropy (core/kernel/feedback_observer.py). Read as "phi" with a
+        # default of 0.0, every review flagged low phi on a number nothing had
+        # measured: "phi=0.000, entropy=0.000" on both day runs. A reading that
+        # is not there is not reviewed.
+        phi = loop_state.get("current_phi", loop_state.get("phi"))
+        entropy = loop_state.get("entropy")
+        if not isinstance(phi, (int, float)):
+            logger.debug("SelfReview: no phi reading yet (%s). Skipping.", loop_state.get("status", "no reading"))
+            self._last_review_ts = now
+            return state
+        phi = float(phi)
+        entropy = float(entropy) if isinstance(entropy, (int, float)) else 0.0
 
         # The finding is reported when it starts and when it ends. It used to
         # file an "architectural_review" intent as well, for a self-modification

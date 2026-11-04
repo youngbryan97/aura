@@ -17,6 +17,8 @@ include_rules = [
     "+core.adaptation",
     "+core.config",
     "+core.container",
+    # Her world model's surprise, read from its declared telemetry channel.
+    "+core.fsw",
     "+core.governance_context",
     "+core.runtime",
     "+core.self_modification",
