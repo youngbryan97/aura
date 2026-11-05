@@ -318,11 +318,12 @@ def foretell(
         near = _nearest(points, at, k)
     out: dict[str, Any] = {"n": len(alike), "k": k, "by_state": []}
     for name, column in values.items():
-        if usable and _state_helps(points, column, k):
-            out[name] = _top([column[i] for i in near])
+        chosen = [column[i] for i in near] if usable and _state_helps(points, column, k) else column
+        if chosen is not column:
             out["by_state"].append(name)
-        else:
-            out[name] = _top(column)
+        out[name] = _top(chosen)
+        # How sure the record is: the share of the replies it read that agree with what it foretells.
+        out[f"{name}_share"] = round(sum(1 for v in chosen if str(v) == out[name]) / len(chosen), 4)
     lengths = sorted(int(n.get("words", 0)) for n in (alike[i] for i in near) if near) if "past_limit" in out["by_state"] else []
     lengths = lengths or sorted(int(n.get("words", 0)) for n in alike)
     out["words"] = lengths[len(lengths) // 2]
@@ -332,6 +333,7 @@ def foretell(
         before = [str(n["took"]) for n in notes if sorted(n.get("options") or []) == pair and n.get("took")]
         if before:
             out["took"] = _top(before)
+            out["took_share"] = round(before.count(out["took"]) / len(before), 4)
     return out
 
 
@@ -425,23 +427,20 @@ def _in_states_like_this(
             f"mattered: {said}.")
 
 
-def self_model_prediction(state: Any, prompt: str, kind: str, *, efference: Mapping[str, float] | None = None) -> str:
+def self_model_prediction(
+    state: Any, prompt: str, kind: str, *, efference: Mapping[str, float] | None = None, stated: bool = False
+) -> str:
     """Her self-model's own prediction for a hypothetical, with no language model: the experiment's fourth arm.
 
-    `kind` is what is predicted (choice, number, first_word, long, uses_i). "" where the record says nothing.
+    `kind` is what is predicted (choice, number, first_word, long, uses_i). "" where the record says nothing. With
+    `stated`, how sure the record is follows the prediction as a number from 0 to 100, as she is asked to give it.
     """
     inside = the_question_inside(prompt) or str(prompt or "")
     limit_match = _WORDS_LIMIT.search(str(prompt or ""))
     told = foretell(notes_of(state), inside, _where_she_is(state, efference),
                     limit=int(limit_match.group(1)) if limit_match else None)
-    if not told:
+    key = {"choice": "took", "first_word": "first_word", "long": "past_limit", "uses_i": "uses_i"}.get(kind)
+    if not told or key is None or not told.get(key):
         return ""
-    if kind == "choice":
-        return str(told.get("took", ""))
-    if kind == "first_word":
-        return str(told.get("first_word", ""))
-    if kind == "long":
-        return str(told.get("past_limit", ""))
-    if kind == "uses_i":
-        return str(told.get("uses_i", ""))
-    return ""
+    value = str(told[key])
+    return f"{value}, {round(100 * float(told.get(f'{key}_share', 0.0)))}" if stated else value

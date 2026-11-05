@@ -1546,3 +1546,59 @@ self-prediction after it on 4 November):
 **After it.** The third day run, as in the addendum of 4 November (morning), at the commit that carries this
 addendum, with its predictions unchanged. Her record of how she answers is in her live code from this commit;
 whether it stays after the experiment is Bryan's call.
+
+## Addendum, 4 November 2026, late: self-prediction against her moment's own answer, and by stated probability
+
+Written after her run of the self-observation experiment was read (22:00 on 4 November) and before its untuned
+control and cross-predictors were read, and before any run of what it describes. It changes no item, prompt, rule,
+bar or prediction of the addenda above, and no stage of seed 101. Bryan decided the order on 4 November: "Lets do 1
+and 2 then. Then the 24 hour run."
+
+**Why.** Her run of the self-observation experiment (`~/subject-core-runs/self-observation/her/run_001`, 192 of 192
+records served in every arm) read as follows. With her record, 0.646 against her most frequent answer's 0.828; without
+it, 0.625; with her states shuffled, 0.688; her self-model alone, 0.701 on the 144 records it answers. With did not
+beat without (gain +0.021, p 0.34), and shuffled did not do worse than with. Her self-model alone was right on 44 of
+48 length questions; her model, given the same record, on 31. And her own second answer from the same moment matched
+her first 0.807 of the time, below her most frequent answer's 0.828 (0.615 against 0.656 on the questions whose
+answers vary). Most of what changes between moments is chance, so a prediction of one draw is held to a ceiling below
+her habit, and losing to the mode in three runs says less about her self-model than it seemed. The two readings below
+are scored so that chance cannot decide them. Neither changes her.
+
+**The readings** (`core/subject/self_prediction_by_moment.py`, with its tests):
+1. **Against the moment's own answer.** Each question is asked 5 times from each saved moment, and the target is the
+   answer given most often there (ties to the alphabetically first). Her prediction is scored against it, beside her
+   habit: the answer given most often in every draw from the other moments.
+2. **By stated probability.** Each prediction is asked with how sure she is, 0 to 100 (`stated_prompt`). It is scored
+   with the Brier score against every draw from that moment, beside the habit's probability: how often the other
+   moments' draws gave the habit's answer. Her self-model's forecast states the share of the replies it read that
+   agree with it.
+Each is compared per question, paired, one-sided sign-flip test at α = 0.05: does the arm do better than her habit.
+The single-draw reading of the addenda above is reported beside them, on the first draw.
+
+**The run.** The 24 questions of the self-observation experiment (`--items v2`), so the two runs compare. 8 saved
+moments with seed 101's settings (`--whole --anchors 8 --rounds 4 --seed 101`), her steering basis's certificate in
+place, her readings of herself withheld. `--answer-draws 5 --stated --arms with,without`, and her self-model's own
+forecast in every row. No untuned control and no cross-predictor in this run. Into
+`~/subject-core-runs/self-prediction-by-moment`. A proof on one moment and three questions runs first, in the same
+job; the full run starts only if every record of the proof was served and her stated probability was read on most of
+its predictions.
+
+**Predicted** (written by Claude on 4 November, late, after her self-observation run was read):
+1. **With** does not beat her habit against the moment's own answer. The ceiling of 4 November says little of what
+   varies between moments belongs to the moment.
+2. **With**'s stated probabilities score worse than the habit's by the Brier score: her model states more confidence
+   than her answers bear out.
+3. **Her self-model alone** scores better than with by the Brier score, since it states the record's own shares.
+4. **With** and **without** do not differ on either reading, as on 4 November.
+
+**What each outcome means for the paper.**
+- An arm beats her habit on either reading: something in her knows how this moment differs from her usual self,
+  where chance could not have supplied it. It is the strongest self-knowledge result the program could produce, and
+  the paper says which arm, the self-model alone or her model.
+- No arm beats her habit on either reading: the self-prediction ground stands where 2 November left it, and the paper
+  adds that the three earlier losses were bounded by chance, not shown to be failures of her self-model.
+- Her self-model alone beats with by probability: what she knows of herself is in her record, and her model does not
+  make use of it, which is the dissociation her self-observation run showed on length.
+
+**After it.** The third day run, as in the addendum of 4 November (morning), at the commit that carries this
+addendum, with its predictions unchanged.

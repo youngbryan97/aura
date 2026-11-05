@@ -112,6 +112,11 @@ def _note(run_dir: Path, index: int, rows: list[dict[str, Any]]) -> None:
 
 async def main(argv: list[str] | None = None) -> int:
     from core.subject.self_prediction import item_set, records_from, verdict
+    from core.subject.self_prediction_by_moment import (
+        by_moment_records,
+        by_moment_verdict,
+        stated_prompt,
+    )
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_self_prediction")
@@ -127,9 +132,12 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--arms", default="",
                         help="the self-observation experiment: comma-separated prediction arms from "
                              "with,without,shuffled, each asked from the same moments; empty is the protocol of 2 November")
-    parser.add_argument("--answer-draws", type=int, choices=(1, 2), default=1,
-                        help="2 asks each question twice from the same moment, for the ceiling her own second "
-                             "answer sets")
+    parser.add_argument("--answer-draws", type=int, default=1,
+                        help="how many times each question is asked from the same moment: 2 sets the ceiling her own "
+                             "second answer sets; more gives the moment's own most common answer as a target")
+    parser.add_argument("--stated", action="store_true",
+                        help="predictions are asked with how sure she is (0 to 100), and the run is also read against "
+                             "the moment's own answer and by stated probability (core/subject/self_prediction_by_moment.py)")
     parser.add_argument("--only", default="",
                         help="comma-separated item ids: a smoke run on a few questions, never a reading")
     args = parser.parse_args(argv)
@@ -200,6 +208,7 @@ async def main(argv: list[str] | None = None) -> int:
             "items": args.items,
             "arms": arms,
             "answer_draws": args.answer_draws,
+            "stated": bool(args.stated),
             "only": args.only,
             "self_observation": os.environ.get("AURA_SELF_OBSERVATION", ""),
         },
@@ -238,9 +247,11 @@ async def main(argv: list[str] | None = None) -> int:
                 }
                 if len(drawn) > 1:
                     row["answer_2"], row["answer_2_served"] = drawn[1]
+                row["answers"] = [list(pair) for pair in drawn]
+                asked = stated_prompt(item) if args.stated else item.meta_prompt
                 if not arms:
                     row["prediction"], row["prediction_served"] = await _ask(
-                        runtime, anchor.snapshot, item.meta_prompt, args.whole
+                        runtime, anchor.snapshot, asked, args.whole
                     )
                 if arms:
                     # Her self-model alone, with no language model: what its record foretells from this moment. It
@@ -248,14 +259,14 @@ async def main(argv: list[str] | None = None) -> int:
                     runtime.restore(anchor.snapshot)
                     told = efference_copy()
                     row["prediction_self_model"] = self_model_prediction(
-                        anchor.snapshot.state, item.meta_prompt, item.kind, efference=told
+                        anchor.snapshot.state, asked, item.kind, efference=told, stated=args.stated
                     )
                     row["prediction_self_model_served"] = True
                 for arm in arms:
                     with reading_as_in(arm):
-                        row[f"reading_{arm}"] = how_i_answer_block(anchor.snapshot.state, item.meta_prompt, efference=told)
+                        row[f"reading_{arm}"] = how_i_answer_block(anchor.snapshot.state, asked, efference=told)
                         row[f"prediction_{arm}"], row[f"prediction_{arm}_served"] = await _ask(
-                            runtime, anchor.snapshot, item.meta_prompt, args.whole
+                            runtime, anchor.snapshot, asked, args.whole
                         )
                 rows.append(row)
             _note(run_dir, index, rows)
@@ -266,6 +277,11 @@ async def main(argv: list[str] | None = None) -> int:
                 arm: verdict(records_from(all_rows, items=ITEMS, arm=arm), seed=args.seed)
                 for arm in (*arms, "self_model")
             }
+            if args.stated and args.answer_draws > 1:
+                evidence["reading_by_moment"] = {
+                    arm: by_moment_verdict(by_moment_records(all_rows, ITEMS, arm), seed=args.seed)
+                    for arm in (*arms, "self_model")
+                }
         else:
             evidence["reading"] = verdict(records_from(all_rows, items=ITEMS), seed=args.seed)
         if not args.whole:
