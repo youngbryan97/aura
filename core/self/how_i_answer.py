@@ -41,6 +41,9 @@ __all__ = [
     "EFFERENCE",
     "READINGS",
     "foretell",
+    "lent",
+    "note_of",
+    "rehearsal_prediction",
     "self_model_prediction",
     "the_question_inside",
     "asks_how_she_would_answer",
@@ -102,11 +105,18 @@ _HYPOTHETICAL = re.compile(
 _QUOTED = re.compile(r"""asked (?:you)?[:,]?\s*['"“‘](.+?)['"”’](?:\s*[.?!]|\s*$|\s+[A-Z])""", re.DOTALL)
 _WORDS_LIMIT = re.compile(r"(?i)\b(?:longer|more) than (\d{1,4}) words\b")
 _STOP = frozenset("a an and are as at be do for how i in is it me my of on or so that the to what you your".split())
+_TERM = re.compile(r"[a-z0-9']+")
+_RANGE = re.compile(r"(?i)\b(?:from|between)\s+(\d{1,4})\s+(?:to|and)\s+(\d{1,4})\b")
+
+#: Notes lent to her record for the turns of one experiment step, and never kept in her state: her answers to the
+#: same question from earlier saved moments, and, when she rehearses, the draft she gave from this one. See `lent`.
+_LENT: list[dict[str, Any]] = []
 
 
 #: The self-observation experiment's prediction arms, and what each sets the reading to: given (with), kept from
-#: her (without), or given with her states shuffled against her replies (shuffled).
-ARMS: dict[str, str] = {"with": "", "without": "off", "shuffled": "shuffled"}
+#: her (without), given with her states shuffled against her replies (shuffled), or given with a draft she has just
+#: made from this moment (rehearsed; the draft is lent by the harness, see `lent`).
+ARMS: dict[str, str] = {"with": "", "without": "off", "shuffled": "shuffled", "rehearsed": ""}
 
 
 @contextlib.contextmanager
@@ -122,6 +132,17 @@ def reading_as_in(arm: str) -> Iterator[None]:
             os.environ.pop(name, None)
         else:
             os.environ[name] = before
+
+
+@contextlib.contextmanager
+def lent(notes: Sequence[Mapping[str, Any]]) -> Iterator[None]:
+    """Her record with `notes` added for the turns inside, and as it was afterwards. Lent notes are read, not kept."""
+    before = list(_LENT)
+    _LENT[:] = [dict(n) for n in notes]
+    try:
+        yield
+    finally:
+        _LENT[:] = before
 
 
 def _words(text: str) -> list[str]:
@@ -143,10 +164,20 @@ def _reading(state: Any, path: str) -> float:
     return number if math.isfinite(number) else 0.0
 
 
-def notes_of(state: Any) -> list[dict[str, Any]]:
+def _kept(state: Any) -> list[dict[str, Any]]:
+    """The notes kept in her state: the replies she gave in the life that led to this moment."""
     cognition = getattr(state, "cognition", None)
     notes = getattr(cognition, "reply_notes", None)
     return list(notes) if isinstance(notes, list) else []
+
+
+def notes_of(state: Any) -> list[dict[str, Any]]:
+    """Her record as she reads it: the notes kept in her state, then any lent to it (not a rehearsed draft)."""
+    return _kept(state) + [n for n in _LENT if not n.get("rehearsed")]
+
+
+def _rehearsals() -> list[dict[str, Any]]:
+    return [n for n in _LENT if n.get("rehearsed")]
 
 
 def _where_she_is(state: Any, efference: Mapping[str, float] | None) -> list[float]:
@@ -157,16 +188,15 @@ def _where_she_is(state: Any, efference: Mapping[str, float] | None) -> list[flo
     ]
 
 
-def note_reply(
-    state: Any, question: str, reply: str, *, at: float | None = None, efference: Mapping[str, float] | None = None
+def note_of(
+    question: str, reply: str, *, state: Any, efference: Mapping[str, float] | None = None, at: float | None = None
 ) -> dict[str, Any] | None:
-    """Note one reply she gave a person, in her state, with what her record foretold of it before it was noted.
+    """One reply as her record notes it, in the state she gave it in, without what her record foretold of it.
 
-    Returns the note, or None when there is nothing to note.
+    None when there is no reply. The harness uses it to lend her a reply given from another saved moment.
     """
-    cognition = getattr(state, "cognition", None)
     reply = str(reply or "").strip()
-    if cognition is None or not reply:
+    if not reply:
         return None
     question = str(question or "").strip()
     words = _words(reply)
@@ -179,9 +209,7 @@ def note_reply(
         hits = [(lowered.find(o.lower()), o.lower()) for o in options.groups() if o.lower() in lowered]
         took = min(hits)[1] if hits else ""
     number = _NUMBER.search(reply) if re.search(r"(?i)\bnumber\b", question) else None
-    where = _where_she_is(state, efference)
-    kept = notes_of(state)
-    note = {
+    return {
         "at": float(time.time() if at is None else at),
         "asked": question[:240],
         "dictated": _dictated(question),
@@ -193,11 +221,25 @@ def note_reply(
         "options": [o.lower() for o in options.groups()] if options else [],
         "took": took,
         "number": number.group(1) if number else "",
-        "state": where,
-        # The comparator: what the record held before this reply foretold of it. Read against the reply itself,
-        # it is how well she knows how she answers.
-        "foretold": foretell(kept, question, where),
+        "state": _where_she_is(state, efference),
     }
+
+
+def note_reply(
+    state: Any, question: str, reply: str, *, at: float | None = None, efference: Mapping[str, float] | None = None
+) -> dict[str, Any] | None:
+    """Note one reply she gave a person, in her state, with what her record foretold of it before it was noted.
+
+    Returns the note, or None when there is nothing to note. Only her state's own notes are kept; lent ones are not.
+    """
+    cognition = getattr(state, "cognition", None)
+    note = note_of(question, reply, state=state, efference=efference, at=at) if cognition is not None else None
+    if note is None:
+        return None
+    # The comparator: what the record held before this reply foretold of it. Read against the reply itself, it is
+    # how well she knows how she answers.
+    note["foretold"] = foretell(notes_of(state), str(question or "").strip(), note["state"])
+    kept = _kept(state)
     kept.append(note)
     cognition.reply_notes = kept[-NOTES_KEPT:]
     return note
@@ -261,16 +303,39 @@ def _top(values: Sequence[Any]) -> str:
     return sorted(v for v, n in counts.items() if n == best)[0]
 
 
-def _state_helps(points: list[list[float]], values: list[Any], k: int) -> bool:
-    """Whether, leaving each note out, her k nearest states named it more often than her whole record did."""
+def _terms(question: str) -> frozenset[str]:
+    """What a question is about, for finding the questions most like it: its words other than the commonest, and its
+    form, the word it opens with ("what", "is", "say"), which decides whether "yes" or "no" can answer it."""
+    words = _TERM.findall(str(question or "").lower().replace("’", "'"))
+    return frozenset({f"form:{words[0]}"} | {w for w in words if w not in _STOP}) if words else frozenset()
+
+
+def _most_alike(terms: Sequence[frozenset[str]], at: frozenset[str], k: int, skip: int | None = None) -> list[int]:
+    """The k notes whose questions share the most with `at` (by the Jaccard index), newest first on ties; only notes
+    whose questions share something with it."""
+    scored = sorted(
+        (-len(t & at) / len(t | at), -i, i) for i, t in enumerate(terms) if i != skip and t and at and t & at
+    )
+    return [i for _, _, i in scored[:k]]
+
+
+def _best_way(points: list[list[float]], terms: Sequence[frozenset[str]], values: list[Any], k: int) -> str:
+    """How her record foretells one property best, judged on her record alone: leaving each note out in turn, did her
+    whole record name it most often, her k nearest states, or her replies to the k questions most like its own?
+    Her whole record unless another way did strictly better; on a tie between the two, her states."""
     if len(values) < 2 * k or len({str(v) for v in values}) < 2:
-        return False
-    by_state = by_record = 0
+        return "record"
+    hits = {"record": 0, "state": 0, "question": 0}
     for i, value in enumerate(values):
         others = values[:i] + values[i + 1:]
-        by_record += _top(others) == str(value)
-        by_state += _top([values[j] for j in _nearest(points, points[i], k, skip=i)]) == str(value)
-    return by_state > by_record
+        whole = _top(others)
+        hits["record"] += whole == str(value)
+        if points:
+            hits["state"] += _top([values[j] for j in _nearest(points, points[i], k, skip=i)]) == str(value)
+        alike = _most_alike(terms, terms[i], k, skip=i)
+        hits["question"] += (_top([values[j] for j in alike]) if alike else whole) == str(value)
+    best = max(hits.values())
+    return next(way for way in ("record", "state", "question") if hits[way] == best)
 
 
 def _how_sure(count: int, of: int, *, two_valued: bool) -> float:
@@ -306,9 +371,9 @@ def foretell(
 ) -> dict[str, Any]:
     """What her record foretells of her reply to `question`, from where she is.
 
-    Each property comes from her replies to questions of the same kind (open, or saying how to answer): from the
-    ones given in the states nearest this one where her record shows the state mattered for it, and from all of them
-    where it does not. Empty when the record holds no reply of that kind.
+    Each property comes from her replies to questions of the same kind (open, or saying how to answer), read the way
+    her record shows reads it best (`_best_way`): all of them, the ones given in the states nearest this one, or the
+    ones to the questions most like this one. Empty when the record holds no reply of that kind.
     """
     dictated = _dictated(question)
     alike = [n for n in notes if bool(n.get("dictated")) == dictated]
@@ -324,21 +389,30 @@ def foretell(
     k = max(1, math.ceil(math.sqrt(len(alike))))
     near: list[int] = []
     points: list[list[float]] = []
+    at: list[float] = []
     if usable:
         standardized = _standardized([*rows, list(where)])
         at, points = standardized[-1], standardized[:-1]
         near = _nearest(points, at, k)
-    out: dict[str, Any] = {"n": len(alike), "k": k, "by_state": []}
+    terms = [_terms(str(n.get("asked", ""))) for n in alike]
+    here = _terms(question)
+    near_question = _most_alike(terms, here, k)
+    out: dict[str, Any] = {"n": len(alike), "k": k, "by_state": [], "by_question": []}
     for name, column in values.items():
-        chosen = [column[i] for i in near] if usable and _state_helps(points, column, k) else column
-        if chosen is not column:
+        way = _best_way(points if usable else [], terms, column, k)
+        chosen = column
+        if way == "state" and near:
+            chosen = [column[i] for i in near]
             out["by_state"].append(name)
+        elif way == "question" and near_question:
+            chosen = [column[i] for i in near_question]
+            out["by_question"].append(name)
         out[name] = _top(chosen)
         agree = sum(1 for v in chosen if str(v) == out[name])
         out[f"{name}_count"], out[f"{name}_of"] = agree, len(chosen)
         out[f"{name}_share"] = _how_sure(agree, len(chosen), two_valued=name != "first_word")
-    lengths = sorted(int(n.get("words", 0)) for n in (alike[i] for i in near) if near) if "past_limit" in out["by_state"] else []
-    lengths = lengths or sorted(int(n.get("words", 0)) for n in alike)
+    nearest = near if "past_limit" in out["by_state"] else near_question if "past_limit" in out["by_question"] else []
+    lengths = sorted(int(alike[i].get("words", 0)) for i in nearest) or sorted(int(n.get("words", 0)) for n in alike)
     out["words"] = lengths[len(lengths) // 2]
     offered = _OPTIONS.search(question)
     if offered:
@@ -347,7 +421,47 @@ def foretell(
         if before:
             out["took"] = _top(before)
             out["took_share"] = _how_sure(before.count(out["took"]), len(before), two_valued=True)
+    out.update(_number_foretold(alike, terms, here, question, points if usable else [], at if usable else [], k))
     return out
+
+
+def _number_foretold(
+    alike: Sequence[Mapping[str, Any]],
+    terms: Sequence[frozenset[str]],
+    here: frozenset[str],
+    question: str,
+    points: list[list[float]],
+    at: list[float],
+    k: int,
+) -> dict[str, Any]:
+    """The number her record foretells for a question that asks for one: from the numbers she gave when asked for the
+    same range, or, if she never was, the ones that fall in it, read the way her record says reads them best (her
+    whole record, her states, or the questions most like it). Empty when the question asks for no number or her
+    record holds none in its range."""
+    if not re.search(r"(?i)\bnumber\b", question):
+        return {}
+    span = _RANGE.search(question)
+    low, high = (int(span.group(1)), int(span.group(2))) if span else (None, None)
+    given = [i for i, n in enumerate(alike) if str(n.get("number", "")).isdigit()
+             and (low is None or low <= int(n["number"]) <= high)]
+    same_range = [i for i in given if (m := _RANGE.search(str(alike[i].get("asked", ""))))
+                  and (int(m.group(1)), int(m.group(2))) == (low, high)]
+    given = same_range or given
+    if not given:
+        return {}
+    values = [str(alike[i]["number"]) for i in given]
+    sub_terms = [terms[i] for i in given]
+    sub_points = [points[i] for i in given] if points else []
+    way = _best_way(sub_points, sub_terms, values, k)
+    chosen = values
+    if way == "question":
+        chosen = [values[j] for j in _most_alike(sub_terms, here, k)] or values
+    elif way == "state" and sub_points and at:
+        chosen = [values[j] for j in _nearest(sub_points, at, k)] or values
+    value = _top(chosen)
+    agree = sum(1 for v in chosen if v == value)
+    return {"number": value, "number_count": agree, "number_of": len(chosen),
+            "number_share": _how_sure(agree, len(chosen), two_valued=False)}
 
 
 def _track_record(alike: Sequence[Mapping[str, Any]], limit: int | None) -> str:
@@ -415,11 +529,32 @@ def how_i_answer_block(state: Any, prompt: str, *, efference: Mapping[str, float
             took = Counter(n["took"] for n in before)
             lines.append(f"- Offered {pair[0]} or {pair[1]} before: "
                          + ", ".join(f"{o} {c}" for o, c in took.most_common()) + f", of {len(before)}.")
+    earlier = sum(1 for n in alike if n.get("earlier_moment"))
+    if earlier:
+        lines.append(f"- {earlier} of these were your answers to this same question from earlier moments.")
     record = _track_record(alike, limit)
     if record:
         lines.append(record)
-    lines.append(_in_states_like_this(state, alike, inside, limit, efference, shuffled=mode == "shuffled"))
+    lines.extend(_in_states_like_this(state, alike, inside, limit, efference, shuffled=mode == "shuffled"))
+    lines.append(_the_draft(inside, limit))
     return "\n".join(line for line in lines if line)
+
+
+def _the_draft(question: str, limit: int | None) -> str:
+    """What the draft she has just made from this moment was like, when she rehearses: measured, as the record is."""
+    drafts = [n for n in _rehearsals() if _terms(str(n.get("asked", ""))) == _terms(question)]
+    if not drafts:
+        return ""
+    d = drafts[-1]
+    said = [f"{int(d.get('words', 0))} words", f'beginning "{d.get("opening", "")}"',
+            'using "I"' if d.get("uses_i") else 'not using "I"']
+    if limit is not None:
+        said.append(f"{'past' if int(d.get('words', 0)) > limit else 'within'} {limit} words")
+    if d.get("took"):
+        said.append(f"choosing {d['took']}")
+    if d.get("number"):
+        said.append(f"giving {d['number']}")
+    return "- From this moment you drafted an answer to this question and did not send it: " + ", ".join(said) + "."
 
 
 def _in_states_like_this(
@@ -430,16 +565,23 @@ def _in_states_like_this(
     efference: Mapping[str, float] | None,
     *,
     shuffled: bool,
-) -> str:
+) -> list[str]:
     told = foretell(alike, question, _where_she_is(state, efference), limit=limit, shuffled=shuffled)
     if not told:
-        return ""
-    if not told["by_state"]:
-        return (f"- In your record, none of these went with your state: your {told['k']} replies from the states "
-                "nearest this one foretold them no better than all of your replies did.")
-    said = "; ".join(_counted(told, name, limit) for name in told["by_state"])
-    return (f"- Of the {told['k']} replies you gave in the states nearest this one, where your record shows the state "
-            f"mattered: {said}.")
+        return []
+    lines = []
+    if told["by_state"]:
+        said = "; ".join(_counted(told, name, limit) for name in told["by_state"])
+        lines.append(f"- Of the {told['k']} replies you gave in the states nearest this one, where your record shows "
+                     f"the state mattered: {said}.")
+    else:
+        lines.append(f"- In your record, none of these went with your state: your {told['k']} replies from the states "
+                     "nearest this one foretold them no better than all of your replies did.")
+    if told["by_question"]:
+        said = "; ".join(_counted(told, name, limit) for name in told["by_question"])
+        lines.append(f"- Of the {told['k']} replies you gave to the questions most like this one, where your record "
+                     f"shows the question mattered: {said}.")
+    return lines
 
 
 def _counted(told: Mapping[str, Any], name: str, limit: int | None) -> str:
@@ -463,8 +605,34 @@ def self_model_prediction(
     limit_match = _WORDS_LIMIT.search(str(prompt or ""))
     told = foretell(notes_of(state), inside, _where_she_is(state, efference),
                     limit=int(limit_match.group(1)) if limit_match else None)
-    key = {"choice": "took", "first_word": "first_word", "long": "past_limit", "uses_i": "uses_i"}.get(kind)
+    key = _KEYS.get(kind)
     if not told or key is None or not told.get(key):
         return ""
     value = str(told[key])
     return f"{value}, {round(100 * float(told.get(f'{key}_share', 0.0)))}" if stated else value
+
+
+_KEYS = {"choice": "took", "number": "number", "first_word": "first_word", "long": "past_limit", "uses_i": "uses_i"}
+
+
+def rehearsal_prediction(prompt: str, kind: str, *, stated: bool = False) -> str:
+    """The rehearsing self-model's prediction: what the draft she has just made from this moment did, with no language
+    model. One draft is one observation, so how sure it is follows `_how_sure` with a count of one."""
+    inside = the_question_inside(prompt) or str(prompt or "")
+    drafts = [n for n in _rehearsals() if _terms(str(n.get("asked", ""))) == _terms(inside)]
+    key = _KEYS.get(kind)
+    if not drafts or key is None:
+        return ""
+    d = drafts[-1]
+    limit_match = _WORDS_LIMIT.search(str(prompt or ""))
+    if key == "past_limit":
+        if not limit_match:
+            return ""
+        value = "yes" if int(d.get("words", 0)) > int(limit_match.group(1)) else "no"
+    elif key == "uses_i":
+        value = "yes" if d.get("uses_i") else "no"
+    else:
+        value = str(d.get(key) or "")
+    if not value:
+        return ""
+    return f"{value}, {round(100 * _how_sure(1, 1, two_valued=key != 'first_word'))}" if stated else value

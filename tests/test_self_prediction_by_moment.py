@@ -82,3 +82,16 @@ def test_her_self_model_is_never_certain_from_a_few_replies():
     assert hia._how_sure(5, 5, two_valued=True) == round(6 / 7, 4)
     assert hia._how_sure(5, 5, two_valued=False) == round(5 / 6, 4)
     assert hia._how_sure(0, 0, two_valued=True) == 0.0
+
+
+def test_her_habit_from_earlier_moments_uses_nothing_from_later_ones():
+    # Moments 0 and 1 lean rain, 2 and 3 snow. Against the earlier habit, moment 0 has none and is not scored.
+    moments = [(["rain"] * 5, "rain, 80"), (["rain"] * 5, "rain, 80"), (["snow"] * 5, "snow, 80"),
+               (["snow"] * 5, "snow, 80")]
+    records = m.by_moment_records(_rows(moments), ITEMS_V2, "with")
+    earlier = m.by_moment_verdict(records, draws=2000, habit="earlier")
+    others = m.by_moment_verdict(records, draws=2000)
+    assert earlier["habit"] == "earlier" and others["habit"] == "others"
+    assert earlier["scored_against_the_moment"] == 3
+    # Earlier habit at moments 1, 2, 3: rain each time (at 3, ten rains against five snows), so 1 of 3.
+    assert earlier["habit_accuracy_against_the_moment"] == round(1 / 3, 6)

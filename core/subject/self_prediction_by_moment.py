@@ -91,9 +91,12 @@ def by_moment_records(rows: Sequence[dict[str, Any]], items: Sequence[Item], arm
     return out
 
 
-def _habit(records: Sequence[dict[str, Any]], record: dict[str, Any]) -> tuple[str | None, float | None]:
-    """Her habit for this record: the most common answer from the other moments, and how often it was given."""
-    pool = [v for r in records if r["item"] == record["item"] and r["anchor"] != record["anchor"]
+def _habit(records: Sequence[dict[str, Any]], record: dict[str, Any], *,
+           earlier: bool = False) -> tuple[str | None, float | None]:
+    """Her habit for this record: the most common answer from the other moments, and how often it was given. With
+    `earlier`, from the moments before this one only, the same answers her record is lent with --earlier-answers."""
+    pool = [v for r in records if r["item"] == record["item"]
+            and (r["anchor"] < record["anchor"] if earlier else r["anchor"] != record["anchor"])
             for v in r["draws"] if v is not None]
     value = modal(pool)
     return value, (pool.count(value) / len(pool) if pool else None)
@@ -118,8 +121,11 @@ def _sign_flip(gaps: dict[str, list[float]], seed: int, draws: int) -> dict[str,
 
 
 def by_moment_verdict(records: Sequence[dict[str, Any]], *, alpha: float = 0.05, seed: int = 0,
-                      draws: int = 10000) -> dict[str, Any]:
-    """The reading of one arm: against the moment's own answer, and by stated probability, each beside her habit."""
+                      draws: int = 10000, habit: str = "others") -> dict[str, Any]:
+    """The reading of one arm: against the moment's own answer, and by stated probability, each beside her habit,
+    from the other moments ("others") or from the earlier ones only ("earlier")."""
+    if habit not in ("others", "earlier"):
+        raise ValueError(habit)
     hits: dict[str, list[float]] = {}
     briers: dict[str, list[float]] = {}
     acc_arm = acc_habit = scored = 0
@@ -128,13 +134,13 @@ def by_moment_verdict(records: Sequence[dict[str, Any]], *, alpha: float = 0.05,
     for r in records:
         if r["target"] is None:
             continue
-        habit, habit_p = _habit(records, r)
-        if r["predicted"] is not None and habit is not None:
+        usual, usual_p = _habit(records, r, earlier=habit == "earlier")
+        if r["predicted"] is not None and usual is not None:
             scored += 1
             acc_arm += r["predicted"] == r["target"]
-            acc_habit += habit == r["target"]
-            hits.setdefault(r["item"], []).append(float(r["predicted"] == r["target"]) - float(habit == r["target"]))
-        mine, theirs = _brier(r["predicted"], r["p"], r["draws"]), _brier(habit, habit_p, r["draws"])
+            acc_habit += usual == r["target"]
+            hits.setdefault(r["item"], []).append(float(r["predicted"] == r["target"]) - float(usual == r["target"]))
+        mine, theirs = _brier(r["predicted"], r["p"], r["draws"]), _brier(usual, usual_p, r["draws"])
         if mine is not None and theirs is not None:
             brier_arm.append(mine)
             brier_habit.append(theirs)
@@ -142,6 +148,7 @@ def by_moment_verdict(records: Sequence[dict[str, Any]], *, alpha: float = 0.05,
     moment = _sign_flip(hits, seed, draws)
     stated = _sign_flip(briers, seed, draws)
     return {
+        "habit": habit,
         "records": len(records),
         "scored_against_the_moment": scored,
         "accuracy_against_the_moment": round(acc_arm / scored, 6) if scored else None,

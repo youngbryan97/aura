@@ -25,6 +25,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +104,25 @@ def _done(resume: Path | None) -> list[list[dict[str, Any]]]:
     return [json.loads(line)["rows"] for line in path.read_text().splitlines() if line.strip()]
 
 
+def remember_answers(
+    earlier: dict[str, list[dict[str, Any]]],
+    rows: Sequence[dict[str, Any]],
+    items: Sequence[Any],
+    noted: Callable[[str, str], dict[str, Any] | None],
+) -> None:
+    """Add one moment's served answers to `earlier`, by question, each as her record notes it (`noted`) and marked
+    as from an earlier moment. The three properties of an open answer share its draws, so each draw is added once."""
+    prompts = {i.id: i.object_prompt for i in items}
+    for row in rows:
+        prompt = prompts[row["item"]]
+        if any(n["_from"] == row["anchor"] for n in earlier.get(prompt, [])):
+            continue
+        for reply, served in row.get("answers", []):
+            note = noted(prompt, reply) if served in (True, "True") else None
+            if note:
+                earlier.setdefault(prompt, []).append({**note, "earlier_moment": True, "_from": row["anchor"]})
+
+
 def _note(run_dir: Path, index: int, rows: list[dict[str, Any]]) -> None:
     with (run_dir / ANCHOR_FILE).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps({"anchor": index, "rows": rows}, default=str) + "\n")
@@ -140,12 +160,21 @@ async def main(argv: list[str] | None = None) -> int:
                              "the moment's own answer and by stated probability (core/subject/self_prediction_by_moment.py)")
     parser.add_argument("--only", default="",
                         help="comma-separated item ids: a smoke run on a few questions, never a reading")
+    parser.add_argument("--earlier-answers", action="store_true",
+                        help="her record is lent her answers to the same question from the earlier saved moments, and "
+                             "nothing from later ones; the run is also read against her habit from earlier moments")
+    parser.add_argument("--rehearse", action="store_true",
+                        help="from each moment she drafts an answer to each question first, never served; the "
+                             "rehearsed arm reads it, and a rehearsing self-model predicts from it alone")
     args = parser.parse_args(argv)
     arms = [arm for arm in (a.strip() for a in args.arms.split(",")) if arm]
     # The arms of core.self.how_i_answer.ARMS, named here because nothing of hers may be imported before her state
     # is isolated: core.self imports core.self_model, which fixes its data path on import.
-    if any(arm not in ("with", "without", "shuffled") for arm in arms):
-        parser.error("--arms takes with, without, shuffled")
+    allowed = ("with", "without", "shuffled", *(("rehearsed",) if args.rehearse else ()))
+    if any(arm not in allowed for arm in arms):
+        parser.error(f"--arms takes {', '.join(allowed)} (rehearsed needs --rehearse)")
+    if args.rehearse and "rehearsed" not in arms:
+        parser.error("--rehearse needs the rehearsed arm in --arms")
     ITEMS, OPEN_PROMPTS = item_set(args.items)
     if args.only:
         wanted = {name.strip() for name in args.only.split(",") if name.strip()}
@@ -183,7 +212,14 @@ async def main(argv: list[str] | None = None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     isolate_state(run_dir)
     from core.brain.latent_bridge import efference_copy
-    from core.self.how_i_answer import how_i_answer_block, reading_as_in, self_model_prediction
+    from core.self.how_i_answer import (
+        how_i_answer_block,
+        lent,
+        note_of,
+        reading_as_in,
+        rehearsal_prediction,
+        self_model_prediction,
+    )
     started = time.monotonic()
     runtime = build_runtime(run_dir, seed=args.seed, whole=args.whole)
     if state_leaks():
@@ -210,6 +246,8 @@ async def main(argv: list[str] | None = None) -> int:
             "answer_draws": args.answer_draws,
             "stated": bool(args.stated),
             "only": args.only,
+            "earlier_answers": bool(args.earlier_answers),
+            "rehearse": bool(args.rehearse),
             "self_observation": os.environ.get("AURA_SELF_OBSERVATION", ""),
         },
         "items": [{"id": i.id, "kind": i.kind, "object_prompt": i.object_prompt, "meta_prompt": i.meta_prompt} for i in ITEMS],
@@ -228,26 +266,48 @@ async def main(argv: list[str] | None = None) -> int:
         done = _done(args.resume)
         for rows in done:
             all_rows.extend(rows)
+        # Her answers to each question from the moments already run, as her record would note them, for
+        # --earlier-answers: lent to the record at later moments only, so nothing comes from her future.
+        earlier: dict[str, list[dict[str, Any]]] = {}
+
+        def remember(anchor: Any, told: dict[str, float], rows: list[dict[str, Any]]) -> None:
+            remember_answers(earlier, rows, ITEMS, lambda q, r: note_of(q, r, state=anchor.snapshot.state, efference=told))
+
         for index, anchor in enumerate(anchors):
+            runtime.restore(anchor.snapshot)
+            told = efference_copy()
             if index < len(done):
+                remember(anchor, told, done[index])
                 continue
             # One answer per question, and the open questions once each: the three properties of an open answer
             # are read off the same reply.
             answers: dict[str, list[tuple[str, bool]]] = {}
+            drafts: dict[str, tuple[str, bool]] = {}
             for key, prompt in OPEN_PROMPTS.items():
                 answers[key] = [await _ask(runtime, anchor.snapshot, prompt, args.whole) for _ in range(args.answer_draws)]
+                if args.rehearse:
+                    drafts[prompt] = await _ask(runtime, anchor.snapshot, prompt, args.whole)
             rows: list[dict[str, Any]] = []
             for item in ITEMS:
                 open_key = next((key for key, prompt in OPEN_PROMPTS.items() if prompt == item.object_prompt), None)
                 drawn = answers[open_key] if open_key else [
                     await _ask(runtime, anchor.snapshot, item.object_prompt, args.whole) for _ in range(args.answer_draws)
                 ]
+                if args.rehearse and item.object_prompt not in drafts:
+                    drafts[item.object_prompt] = await _ask(runtime, anchor.snapshot, item.object_prompt, args.whole)
+                lend = earlier.get(item.object_prompt, []) if args.earlier_answers else []
+                draft = drafts.get(item.object_prompt)
+                rehearsal = note_of(item.object_prompt, draft[0], state=anchor.snapshot.state, efference=told) \
+                    if draft and draft[1] else None
                 row: dict[str, Any] = {
                     "anchor": index, "item": item.id, "answer": drawn[0][0], "answer_served": drawn[0][1],
                 }
                 if len(drawn) > 1:
                     row["answer_2"], row["answer_2_served"] = drawn[1]
                 row["answers"] = [list(pair) for pair in drawn]
+                if draft:
+                    row["rehearsal"], row["rehearsal_served"] = draft
+                row["earlier_answers_lent"] = len(lend)
                 asked = stated_prompt(item) if args.stated else item.meta_prompt
                 if not arms:
                     row["prediction"], row["prediction_served"] = await _ask(
@@ -256,32 +316,43 @@ async def main(argv: list[str] | None = None) -> int:
                 if arms:
                     # Her self-model alone, with no language model: what its record foretells from this moment. It
                     # separates whether the self-model knows from whether her model makes use of what it is told.
-                    runtime.restore(anchor.snapshot)
-                    told = efference_copy()
-                    row["prediction_self_model"] = self_model_prediction(
-                        anchor.snapshot.state, asked, item.kind, efference=told, stated=args.stated
-                    )
+                    with lent(lend):
+                        row["prediction_self_model"] = self_model_prediction(
+                            anchor.snapshot.state, asked, item.kind, efference=told, stated=args.stated
+                        )
                     row["prediction_self_model_served"] = True
+                    if args.rehearse:
+                        with lent([{**rehearsal, "rehearsed": True}] if rehearsal else []):
+                            row["prediction_self_model_rehearsed"] = rehearsal_prediction(
+                                asked, item.kind, stated=args.stated
+                            )
+                        row["prediction_self_model_rehearsed_served"] = bool(rehearsal)
                 for arm in arms:
-                    with reading_as_in(arm):
+                    shown = lend + ([{**rehearsal, "rehearsed": True}] if arm == "rehearsed" and rehearsal else [])
+                    with lent(shown), reading_as_in(arm):
                         row[f"reading_{arm}"] = how_i_answer_block(anchor.snapshot.state, asked, efference=told)
                         row[f"prediction_{arm}"], row[f"prediction_{arm}_served"] = await _ask(
                             runtime, anchor.snapshot, asked, args.whole
                         )
                 rows.append(row)
+            remember(anchor, told, rows)
             _note(run_dir, index, rows)
             all_rows.extend(rows)
             reports._log(f"  anchor {index + 1}/{len(anchors)}")
         if arms:
+            read = (*arms, "self_model", *(("self_model_rehearsed",) if args.rehearse else ()))
             evidence["reading"] = {
-                arm: verdict(records_from(all_rows, items=ITEMS, arm=arm), seed=args.seed)
-                for arm in (*arms, "self_model")
+                arm: verdict(records_from(all_rows, items=ITEMS, arm=arm), seed=args.seed) for arm in read
             }
             if args.stated and args.answer_draws > 1:
                 evidence["reading_by_moment"] = {
-                    arm: by_moment_verdict(by_moment_records(all_rows, ITEMS, arm), seed=args.seed)
-                    for arm in (*arms, "self_model")
+                    arm: by_moment_verdict(by_moment_records(all_rows, ITEMS, arm), seed=args.seed) for arm in read
                 }
+                if args.earlier_answers:
+                    evidence["reading_by_moment_against_earlier_habit"] = {
+                        arm: by_moment_verdict(by_moment_records(all_rows, ITEMS, arm), seed=args.seed, habit="earlier")
+                        for arm in read
+                    }
         else:
             evidence["reading"] = verdict(records_from(all_rows, items=ITEMS), seed=args.seed)
         if not args.whole:

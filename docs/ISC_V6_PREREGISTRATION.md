@@ -1616,3 +1616,57 @@ five that agreed made it 100% sure, which the Brier score charges in full on a m
 for a property with two values, (count + 1) / (n + 2), and count / (n + 1) for a first word, which leaves room for a
 word not yet seen. Nothing else changes: the items, prompts, draws, arms, readings, bars and predictions above stand.
 The run and the third day run move to the commit that carries this amendment.
+
+## Addendum, 5 November 2026, 01:13: her self-model, second version
+
+Written before any run of what it describes. It changes nothing in the run of the addendum of 4 November (late) or
+in the third day run, which go first, at 0c8ba7b73. Bryan approved the four parts on 5 November ("you have my sign
+off for all 4").
+
+**Why.** Her self-observation run of 4 November showed four gaps in her self-model. It foretold the first word "i"
+for every one of the 48 first-word questions and was right 10 times, where her habit was right 26; her first words
+follow the question ("Right" to "What are you doing right now?", "Yes" to "Is there something you want to ask
+me?"). It foretold no number, and a choice only between two options she had been offered before, so it answered 18
+of the 24 questions. It never saw her answer the question it was asked about, while her habit, the baseline, is made
+of exactly those answers from other moments. And nothing in her could rehearse an answer before saying how she would
+answer, which is how people often predict themselves.
+
+**The second version** (`core/self/how_i_answer.py`, with `tests/test_her_self_model_reads_the_question_and_her_earlier_answers.py`):
+1. **The question.** Each property is foretold the way her record shows foretells it best, leaving each reply out in
+   turn: from her whole record, from her replies in the states nearest this one, or from her replies to the questions
+   most like this one (by the words they share and the word they open with). Her whole record unless another way did
+   strictly better.
+2. **Numbers.** A number is foretold from the numbers she gave when asked for the same range, or else the ones in it.
+3. **Her earlier answers.** With `--earlier-answers`, her answers to the same question from the earlier saved moments
+   are lent to her record, each with her state at that moment, and nothing from later moments. They are read, and
+   never kept in her state. Every reading is also made against her habit from the earlier moments only
+   (`by_moment_verdict(habit="earlier")`), which uses the same answers; the first moment has none and is not scored
+   there.
+4. **Rehearsal.** With `--rehearse`, from each moment she answers each question once more first, a draft that is
+   never served and is not in the target. The rehearsed arm is given her record with a measured line on the draft;
+   the rehearsing self-model predicts from the draft alone, with how sure one observation can make it.
+
+Replayed before any run on the answers of 4 November, with only her earlier answers lent and no states, the second
+version gave her earlier habit's answer on all of moments 2 to 8: 135 of 168 right, where the first version was right
+88 times. That checks the mechanism; it is not a result.
+
+**The run.** As the run of 4 November (late): the 24 questions of `--items v2`, 8 saved moments with seed 101's
+settings, her steering basis's certificate in place, her readings of herself withheld, `--answer-draws 5 --stated`.
+Arms with, without and rehearsed, with `--earlier-answers --rehearse`; her self-model and her rehearsing self-model
+are read in every row. A proof on one moment and three questions first, in the same job, as before. Into
+`~/subject-core-runs/self-model-v2`. It runs after the third day run.
+
+**Predicted** (written by Claude on 5 November, before any run):
+1. Her self-model alone ties her earlier habit against the moment's own answer: given the same answers, it gives what
+   the habit gives, as in the replay.
+2. **With** beats **without** on first words and on length, against the moment's own answer.
+3. Her rehearsing self-model does not beat her earlier habit on either reading: one draft carries the chance one
+   answer carries.
+4. The rehearsed arm's prediction agrees with its draft more often than with her record's forecast.
+5. If any arm beats her earlier habit on either reading, it is the rehearsed arm or the rehearsing self-model.
+
+**What each outcome means for the paper.** An arm that beats her earlier habit knows how this moment differs from her
+usual self, with the same answers to go on. If it is a rehearsing one, that knowledge comes from simulating herself,
+and the paper reports it apart from what her record knows. If the rehearsed arm follows its draft, her cortex uses a
+measurement of herself when it is that direct, and the gap of 4 November (44 of 48 against 31) was about how the
+record was given. If it does not, her cortex does not use what it is given about herself, whatever form it takes.

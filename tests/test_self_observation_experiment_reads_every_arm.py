@@ -50,7 +50,7 @@ def test_the_outsider_can_be_shown_the_summary_she_was_given():
 def test_an_arm_sets_her_record_s_reading_for_its_turn_and_puts_it_back(monkeypatch):
     from core.self.how_i_answer import ARMS, reading_as_in
 
-    assert ARMS == {"with": "", "without": "off", "shuffled": "shuffled"}
+    assert ARMS == {"with": "", "without": "off", "shuffled": "shuffled", "rehearsed": ""}
     monkeypatch.setenv("AURA_SELF_OBSERVATION", "before")
     for arm, value in ARMS.items():
         with reading_as_in(arm):
