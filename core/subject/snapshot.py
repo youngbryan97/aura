@@ -744,6 +744,7 @@ NOT_STORES: dict[str, str] = {
     "AURA_LIVE_STATE_ROOT": "the live instance's root, which a run never writes",
     "AURA_HOME": "the home an uninjected state root is derived from",
     "AURA_LOG_DIR": "logs are the instrument's record, and no arm reads them back",
+    "AURA_PARK_DIR": "the protocol a run parks by, shared with whoever holds the machine; rewound, an arm would forget a hold",
     "AURA_ASSET_ROOT": "shared assets nothing writes",
     "AURA_ARK_ROOT": "the existence witness, kept outside the state root so that losing the root does not lose it",
     "AURA_SHM_FALLBACK_DIR": "a transport shared with other processes, which a rewind would rewind for them too",
