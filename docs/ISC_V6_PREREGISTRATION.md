@@ -1690,3 +1690,45 @@ addendum of 4 November (late) stand. The third day run and the run of the second
 the same order. The job for the second version started its proof out of order at 05:35, because its wait counted the
 third day run's job ending as the day having run (the day run held, as designed, when this proof refused). It was
 stopped 11 seconds in, before anything was measured, and its wait now requires the day's 24 hours to be recorded.
+
+## Addendum, 5 November 2026, 07:57: J*'s exclusion rule on machines built to a known answer
+
+Written before any machine was judged. Bryan approved building it on 5 November ("build 1 and 3").
+
+**Why.** The exclusion rule (`core/subject/v25_exclusion.py`) decides how many subjects a machine holds: one
+carrier, a symmetry class, or two subjects. On her it has only been asked about a machine with one candidate, and the
+paper says it "has not yet been run on a machine built with two candidates."
+
+**The machines** (`core/subject/built_candidates.py`), each with its answer written in `EXPECTED`:
+- **two_apart**: two halves (P I A G C and S M W D N), each wired densely within itself and not at all to the other.
+  Two subjects, the two halves.
+- **one_whole**: all ten domains wired densely to one another. One subject, the whole.
+- **one_drives**: the halves of two_apart, and the first driving the second with nothing coming back. One subject,
+  the first half; the second is open to the first, so it is not a carrier.
+- **joined_weakly**: the halves joined both ways at half the strength of their own wiring. One subject, the whole.
+
+Each is measured as the toy nulls are and as her carrier is judged: its edges by the real run's rule (`toy_edges`);
+each strongly connected part's closure by the test her core gets (`closure_gain`, with the rest of the machine as
+the outside), and the whole's by `toy_closure`; each part's spectrum by the carrier sweep's estimator
+(`intrinsic_rate_from_samples`), the least over every bipartition of the part at each horizon, on forks that hold
+one side still while the other runs; and then `select_carriers`.
+
+**Settings, and the pilot behind them.** One column a domain, noise 0.02, spectral radius 0.95, horizons of 4, 8, 16
+and 33 steps, 512 anchors, 6 trials, and 2,500 recorded steps for closure. At the toy nulls' own settings (four
+columns, noise 0.05, radius 0.7) a densely wired half read raw and sham rates that matched at every horizon, so the
+estimator could not see any part as irreducible. The settings were chosen on the spectra of the two positive controls
+alone, two_apart's first half (seed 0) and one_whole (seeds 0 and 1). At them the half read irreducible at three of
+four horizons, and at 512 anchors the whole read irreducible at three or four. No machine's edges, closure or
+frontier had been read. The settings set how strongly a part is wired, the same for every machine; which parts there
+are and which are closed, what tells the four answers apart, they do not set.
+
+**The run.** Seeds 0 to 4, every machine built anew on each: 20 readings
+(`tools/run_exclusion_on_built_machines.py --seeds 0,1,2,3,4`), into `~/subject-core-runs/exclusion-built`.
+
+**Predicted** (written by Claude on 5 November, before any machine was judged): all 20 come out as written. Any reading
+that does not counts against the rule or the measurements feeding it, and the report names which of them gave the
+wrong answer: the edges, the closure or the spectrum.
+
+**What it shows, and what not.** A pass shows that the rule, fed by these measurements, can answer two, answer one, and
+leave out a part driven from outside it, on machines whose answer is known. It is the toy pipeline, not the carrier
+sweep on her runtime, and it says nothing about her.
