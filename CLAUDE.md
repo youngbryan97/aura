@@ -161,7 +161,7 @@ replies — is checked against [docs/WRITING_RULES.md](docs/WRITING_RULES.md).
 
 - Work in a worktree under `.claude/worktrees/`; push checkpoints with
   `git push origin HEAD:main` (no remote side branches).
-- A parallel agent (Zencoder, commits as "Zenflow") shares this checkout
+- A parallel agent (an OpenAI coding agent; "Zenflow" is its commit alias) shares this checkout
   and may modify files under you. `git log`/`git status` before resuming
   anything — your half-remembered work may already be committed.
 - Crash forensics when the runtime dies: `data/error_logs/crash/`
