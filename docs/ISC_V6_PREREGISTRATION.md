@@ -1670,3 +1670,23 @@ usual self, with the same answers to go on. If it is a rehearsing one, that know
 and the paper reports it apart from what her record knows. If the rehearsed arm follows its draft, her cortex uses a
 measurement of herself when it is that direct, and the gap of 4 November (44 of 48 against 31) was about how the
 record was given. If it does not, her cortex does not use what it is given about herself, whatever form it takes.
+
+### Amendment, 5 November 2026, 05:39: after the proof, before the run of 4 November (late)
+
+The proof of that run (one moment, three questions, at 0c8ba7b73) refused the full run, as it was written to. On
+rain_snow neither prediction arm was served by her cortex. Her answers were "Rain. 80" and "Rain — 73", and the reply
+path's coverage gate read the stated question as asking her to select and to explain, each needing eight words of
+answer, so it discarded both twice and fell back. On all four choice questions the full run would have lost every
+prediction. A closed answer in the form the person dictated is now exempt from that rule, as it already was from the
+required-phrase rule beside it (`core/conversation/response_request_coverage.py`, with
+`tests/test_a_dictated_closed_answer_is_not_missing_its_facets.py`). The proof's other records were whole: 15 of 15
+answers served, a stated probability read on 4 of 4 served predictions, and the reading's last line given as counts.
+
+Main has one line of commits, and the commit that carries this amendment comes after the second version of her
+self-model (addendum of 5 November, 01:15). So this run's self-model and reading use that version's first two parts,
+reading the question and foretelling numbers. Its third and fourth parts, earlier answers lent and rehearsal, stay off:
+each is switched on by a flag this run does not set. The items, prompts, draws, arms, bars and predictions of the
+addendum of 4 November (late) stand. The third day run and the run of the second version move to the same commit, in
+the same order. The job for the second version started its proof out of order at 05:35, because its wait counted the
+third day run's job ending as the day having run (the day run held, as designed, when this proof refused). It was
+stopped 11 seconds in, before anything was measured, and its wait now requires the day's 24 hours to be recorded.

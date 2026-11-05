@@ -182,14 +182,18 @@ def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[st
     if _FOLLOWUP_QUESTION_REQUEST_RE.search(user) and "?" not in reply:
         reasons.append("missing_requested_followup_question")
     normalized_reply = _normalize(reply)
-    for phrase in () if gives_a_closed_answer(user, reply) else _requested_required_phrases(user):
+    closed = gives_a_closed_answer(user, reply)
+    for phrase in () if closed else _requested_required_phrases(user):
         if phrase and phrase not in normalized_reply:
             reasons.append("missing_requested_phrase")
             break
     facet_evidence = evaluate_facet_coverage(reply, user)
     requested_facets = list(facet_evidence.get("requested") or [])
     satisfied_facets = set(facet_evidence.get("satisfied") or [])
-    if len(requested_facets) >= 2 and any(
+    # A closed answer in the form the person dictated is the whole of what they asked for. The facets are read off
+    # words like "choose" and "how", and each needs eight words of answer, so "Rain. 80" to "Which would you choose?
+    # Answer with that word, then how sure you are, as a number" was discarded as missing two (5 November).
+    if not closed and len(requested_facets) >= 2 and any(
         facet not in satisfied_facets for facet in requested_facets
     ):
         reasons.append("missing_requested_objective_facets")
