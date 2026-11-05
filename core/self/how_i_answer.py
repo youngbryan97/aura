@@ -273,6 +273,18 @@ def _state_helps(points: list[list[float]], values: list[Any], k: int) -> bool:
     return by_state > by_record
 
 
+def _how_sure(count: int, of: int, *, two_valued: bool) -> float:
+    """How sure the record is of what it foretells, when `count` of the `of` replies it read agree with it.
+
+    For a property with two values, the rule of succession, (count + 1) / (of + 2); for one whose values are open, a
+    first word, count / (of + 1), which leaves room for a word not yet seen. Five replies that all agree are not
+    certainty, and a forecast scored by the Brier score is charged in full for saying they are.
+    """
+    if of <= 0:
+        return 0.0
+    return round((count + 1) / (of + 2) if two_valued else count / (of + 1), 4)
+
+
 def _properties(notes: Sequence[Mapping[str, Any]], limit: int | None) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {
         "first_word": [str(n.get("first_word", "")) for n in notes],
@@ -322,8 +334,9 @@ def foretell(
         if chosen is not column:
             out["by_state"].append(name)
         out[name] = _top(chosen)
-        # How sure the record is: the share of the replies it read that agree with what it foretells.
-        out[f"{name}_share"] = round(sum(1 for v in chosen if str(v) == out[name]) / len(chosen), 4)
+        agree = sum(1 for v in chosen if str(v) == out[name])
+        out[f"{name}_count"], out[f"{name}_of"] = agree, len(chosen)
+        out[f"{name}_share"] = _how_sure(agree, len(chosen), two_valued=name != "first_word")
     lengths = sorted(int(n.get("words", 0)) for n in (alike[i] for i in near) if near) if "past_limit" in out["by_state"] else []
     lengths = lengths or sorted(int(n.get("words", 0)) for n in alike)
     out["words"] = lengths[len(lengths) // 2]
@@ -333,7 +346,7 @@ def foretell(
         before = [str(n["took"]) for n in notes if sorted(n.get("options") or []) == pair and n.get("took")]
         if before:
             out["took"] = _top(before)
-            out["took_share"] = round(before.count(out["took"]) / len(before), 4)
+            out["took_share"] = _how_sure(before.count(out["took"]), len(before), two_valued=True)
     return out
 
 
@@ -352,8 +365,10 @@ def _track_record(alike: Sequence[Mapping[str, Any]], limit: int | None) -> str:
     return f"- Before each of the last {len(judged)} of these replies, this record foretold " + ", ".join(parts) + f", of {len(judged)}."
 
 
+#: How the reading says what the replies nearest her state did: as a count of them, never as a bare yes or no, which
+#: beside a yes-or-no question reads as the answer. On 4 November it did: where the line ended 'began with a word from
+#: the question: "no"', she predicted a short answer 22 times in 54, and where it ended "yes", 4 in 24.
 _SAID = {
-    "first_word": "first word",
     "uses_i": 'used "I"',
     "from_the_question": "began with a word from the question",
     "past_limit": "ran past {limit} words",
@@ -422,9 +437,18 @@ def _in_states_like_this(
     if not told["by_state"]:
         return (f"- In your record, none of these went with your state: your {told['k']} replies from the states "
                 "nearest this one foretold them no better than all of your replies did.")
-    said = "; ".join(f'{_SAID[name].format(limit=limit)}: "{told[name]}"' for name in told["by_state"])
-    return (f"- From the {told['k']} replies you gave in the states nearest this one, where your record shows the state "
+    said = "; ".join(_counted(told, name, limit) for name in told["by_state"])
+    return (f"- Of the {told['k']} replies you gave in the states nearest this one, where your record shows the state "
             f"mattered: {said}.")
+
+
+def _counted(told: Mapping[str, Any], name: str, limit: int | None) -> str:
+    """What the replies nearest her state did on one property, as a count of them."""
+    count, of = int(told[f"{name}_count"]), int(told[f"{name}_of"])
+    if name == "first_word":
+        return f'the first word of {count} was "{told[name]}"'
+    said = count if told[name] == "yes" else of - count
+    return f"{said} {_SAID[name].format(limit=limit)}"
 
 
 def self_model_prediction(

@@ -141,7 +141,9 @@ def test_her_state_is_said_to_matter_only_where_her_record_shows_it(monkeypatch)
     now_high.affect.delivery_z = 1.0
     block = hia.how_i_answer_block(now_high, META_LONG)
     assert "the states nearest this one, where your record shows the state mattered" in block
-    assert 'ran past 40 words: "yes"' in block
+    assert "5 ran past 40 words" in block
+    # Never a bare yes or no beside a yes-or-no question: on 4 November it read as her answer.
+    assert '"yes"' not in block and '"no"' not in block
 
     monkeypatch.setenv("AURA_SELF_OBSERVATION", "shuffled")
     shuffled = hia.how_i_answer_block(now_high, META_LONG)

@@ -1602,3 +1602,17 @@ its predictions.
 
 **After it.** The third day run, as in the addendum of 4 November (morning), at the commit that carries this
 addendum, with its predictions unchanged.
+
+### Amendment, 5 November 2026, 00:59, before the run
+
+Written before the run of the addendum above began and before any of its data existed. Reading the self-observation
+run's records for what to build next showed a fault in her record's reading that touches this run's "with" arm. Where
+her record shows her state mattered, the last line of the reading gave each property as a bare word in quotes:
+'began with a word from the question: "no"'. Beside a yes-or-no question about her own length, that reads as an
+answer. Over the length questions, in the two arms given the reading, she predicted a short answer 22 times in 54
+where the line said "no", and 4 times in 24 where it said "yes". The line now gives counts ("1 began with a word from
+the question"), never a bare yes or no. Her self-model's stated sureness was the raw share of the replies it read, so
+five that agreed made it 100% sure, which the Brier score charges in full on a miss. It is now the rule of succession
+for a property with two values, (count + 1) / (n + 2), and count / (n + 1) for a first word, which leaves room for a
+word not yet seen. Nothing else changes: the items, prompts, draws, arms, readings, bars and predictions above stand.
+The run and the third day run move to the commit that carries this amendment.

@@ -71,5 +71,14 @@ def test_her_self_model_states_how_sure_its_record_is():
                        " ".join(["Today"] + ["word"] * (60 if i < 8 else 10)), at=float(i))
     prompt = m.stated_prompt(_item("say_long"))
     said = hia.self_model_prediction(state, prompt, "long", stated=True)
-    assert said == "yes, 80"
-    assert m.read_stated(_item("say_long"), said) == ("yes", 0.8)
+    # 8 of 10 replies ran long; the rule of succession makes that (8 + 1) / (10 + 2).
+    assert said == "yes, 75"
+    assert m.read_stated(_item("say_long"), said) == ("yes", 0.75)
+
+
+def test_her_self_model_is_never_certain_from_a_few_replies():
+    from core.self import how_i_answer as hia
+
+    assert hia._how_sure(5, 5, two_valued=True) == round(6 / 7, 4)
+    assert hia._how_sure(5, 5, two_valued=False) == round(5 / 6, 4)
+    assert hia._how_sure(0, 0, two_valued=True) == 0.0
