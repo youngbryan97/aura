@@ -1732,3 +1732,43 @@ wrong answer: the edges, the closure or the spectrum.
 **What it shows, and what not.** A pass shows that the rule, fed by these measurements, can answer two, answer one, and
 leave out a part driven from outside it, on machines whose answer is known. It is the toy pipeline, not the carrier
 sweep on her runtime, and it says nothing about her.
+
+## Addendum, 5 November 2026, 08:05: the regrouping screen
+
+Written before any run of it. Bryan approved building it on 5 November ("build 1 and 3").
+
+**Why.** Her irreducibility is read at the grain of her ten declared domains, and the paper names the objection that
+ten domains her builder chose make it easy and that it might hold only there. The paper lists the regrouping sweep as
+a control still to run.
+
+**What is cut** (`core/subject/regroup.py`). Holding a domain still is done by `core/subject/clamp.Clamp`, which
+captures the state fields the domain's readers read, the organs they read, what K* holds of the domain beyond its
+columns and, for development, the reservoir. Each of those pieces is a unit: 155 in all, 141 of them carrying columns,
+and every one of her 504 columns belongs to exactly one. A grouping is a partition of the units into named groups. A
+group is held through a `Clamp` of each domain it touches, with everything but its own units dropped, so the capture
+and the write-back are the clamp's own. A cut's rows are composed column by column, each from the run in which its
+unit's side was free. With these two in place of `clamped` and `compose`, the carrier sweep runs unchanged on a
+grouping's cuts.
+
+**The groupings.** The declared one, rebuilt from units, as the control. Two random ones (`random:10:1` and
+`random:10:2`), ten groups each of 15 or 16 units, every group mixing six to nine domains. A finer one (`fine`):
+each domain's units in two groups, 20 in all.
+
+**The screen.** Each group of each grouping is read against the rest of her: the singleton cuts, 10 + 10 + 10 + 20.
+Before any cut of a grouping, every group is held for one turn from the first anchor, and its columns are read for
+movement; a grouping with a held column that moved does not count. The cuts are read by the carrier sweep at seed
+101's settings (`tools/run_subject_core_v25.py --rounds 370 --anchors 128 --history-turns 8 --turns 2 --cut-rounds 2
+--seed 101 --v5 --calibrated-axes --skip-grain`, with `--regroup declared,random:10:1,random:10:2,fine`), and judged
+as ISC-v5 judges a sweep: every cut decided at the deciding horizon, 66 frames. It runs on the second machine, the
+16 GB MacBook, in one process, after a proof (`--quick`, declared and random:10:1) that must run through and hold
+every group still. Into `~/aura-replication-runs/regroup` there.
+
+**Predicted** (written by Claude on 5 November, before any run): in the control, every one of her ten domains is
+decided against the rest, as all 511 cuts were on seed 101; under each of the three other groupings, every group is
+decided against the rest, and every held group stays still.
+
+**What each outcome means.** A control that fails means the screen measured its own clamp, not her, and nothing else
+in it counts. With the control decided, a group left undecided under another grouping means her irreducibility is not
+shown at that grouping, which may be power, and the paper says so beside the declared result. Every group decided
+under every grouping answers the objection at the singleton cuts. It is a screen of singleton cuts and never an
+exhaustive sweep, so it can never read as irreducible on its own.

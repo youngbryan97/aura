@@ -639,6 +639,85 @@ def _ints(text: str) -> tuple[int, ...]:
     return tuple(int(item) for item in str(text or "").split(",") if item.strip())
 
 
+async def _regroup_screen(
+    runtime: Any,
+    anchors: Sequence[Any],
+    conditions: Sequence[Any],
+    *,
+    kinds: Sequence[str],
+    lags: Sequence[int],
+    frame_seconds: float,
+    args: Any,
+    design: dict[str, Any],
+) -> dict[str, Any]:
+    """Each group of each grouping against the rest of her, by the sweep the carrier is judged by.
+
+    Before any cut of a grouping, every group is held for one turn from the first anchor and its columns are read
+    for movement: a grouping with a held column that moved does not count. Then the singleton cuts, at the sweep's
+    own design, judged as ISC-v5 judges a sweep: every cut decided at the deciding horizon. See core/subject/regroup.py.
+    """
+    from core.subject import regroup, v25_runtime
+
+    every = regroup.units()
+    deciding = [int(lag) for lag in (design.get("deciding") or lags)]
+    out: dict[str, Any] = {
+        "screen": "singleton cuts of each grouping only; never authoritative",
+        "units": len(every),
+        "lags": list(lags),
+        "deciding": deciding,
+        "groupings": {},
+    }
+    for kind in kinds:
+        groups = regroup.grouping(kind, every)
+        names = tuple(groups)
+        _log(f"regrouping {kind}: {len(names)} groups of {', '.join(str(len(g)) for g in groups.values())} units")
+        moved: dict[str, dict[str, float]] = {}
+        with regroup.patched(groups):
+            for name in names:
+                runtime.restore(anchors[0].snapshot)
+                with v25_runtime.clamped(runtime, [name]):
+                    rows = await runtime.turn_once(conditions[0])
+                leak = regroup.unheld(rows, groups[name])
+                if leak:
+                    moved[name] = leak
+            _log(f"  held for a turn, every group still: {not moved}" + (f"; moved {sorted(moved)}" if moved else ""))
+            spectrum, detail = await _spectrum(
+                runtime, anchors, conditions,
+                lags=lags, frame_seconds=frame_seconds, turns=args.turns,
+                rounds=args.cut_rounds, seed=args.seed, domains=names,
+                design=design, only=names, whiten=bool(args.whiten), fail_fast=False,
+            )
+        judged = {}
+        for lag in deciding:
+            report = detail.get(f"lag_{lag}") or {}
+            judged[str(lag)] = {
+                "tested": int(report.get("cuts_tested") or 0),
+                "decided": int(report.get("cuts_decided") or 0),
+                "undecided": list(report.get("undecided") or []),
+                "weakest_cut": report.get("weakest_cut"),
+            }
+        decided = all(j["tested"] == len(names) and j["decided"] == j["tested"] and not j["undecided"]
+                      for j in judged.values())
+        out["groupings"][kind] = {
+            "groups": {name: [u.name for u in group] for name, group in groups.items()},
+            "held_columns_moved": moved,
+            "valid": not moved,
+            "every_group_decided": decided,
+            "judged_at": judged,
+            "spectrum": {str(round(k, 6)): round(v, 6) for k, v in sorted(spectrum.items())},
+            "cuts": detail,
+        }
+        _log(f"  {kind}: {'every group decided' if decided else 'not every group decided'} at {deciding}")
+    readings = out["groupings"]
+    out["all_valid"] = all(g["valid"] for g in readings.values())
+    out["all_as_predicted"] = bool(readings) and all(g["valid"] and g["every_group_decided"] for g in readings.values())
+    out["verdict"] = (
+        "every group of every grouping decided, every held group still" if out["all_as_predicted"]
+        else "not as predicted: see each grouping's judged_at and held_columns_moved"
+    )
+    return out
+
+
 async def _spectrum(
     runtime: Any,
     anchors: Sequence[Any],
@@ -1156,6 +1235,14 @@ async def main() -> int:
         ),
     )
     parser.add_argument(
+        "--regroup", type=str, default="",
+        help=(
+            "the regrouping screen (core/subject/regroup.py): after the anchors, read each group of these groupings "
+            "against the rest of her, by the same sweep, instead of the 511 cuts, and stop. Comma-separated: "
+            "declared, random:K:SEED, fine. A screen, never authoritative"
+        ),
+    )
+    parser.add_argument(
         "--v5", action="store_true",
         help="the ISC-v5 design in core/subject/isc_v5.py: its looks, draws, level, horizons and anchors",
     )
@@ -1554,6 +1641,20 @@ async def main() -> int:
                 )
                 _log(f"made {made} grain row(s) for the coordinator")
             return 0
+
+        # ── the regrouping screen, instead of everything after the anchors ─
+        if args.regroup:
+            lags = ladder if (args.lags or not args.quick) else (1, 8)
+            screen = await _regroup_screen(
+                runtime, anchors, conditions,
+                kinds=tuple(k.strip() for k in args.regroup.split(",") if k.strip()),
+                lags=lags, frame_seconds=frame_seconds, args=args, design=sweep_design,
+            )
+            screen["seconds"] = round(time.monotonic() - started, 1)
+            out = run_dir / "regroup_screen.json"
+            out.write_text(json.dumps(screen, indent=2, default=str) + "\n", encoding="utf-8")
+            _log(f"wrote {out}: {screen['verdict']}")
+            return 0 if screen["all_as_predicted"] else 1
 
         # ── the grain ──────────────────────────────────────────────────
         if "grain" not in done_v25:
