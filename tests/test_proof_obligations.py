@@ -307,9 +307,13 @@ class TestRuntimeIntegration(unittest.TestCase):
         retired in 053b0a8ab. The obligation passed for years against a file
         that could not register anything.
         """
+        # It then moved to core/orchestrator/initializers/cognitive_sensory.py,
+        # whose `init_cognitive_sensory_layer` nothing calls either: the same
+        # mistake one directory over. The registrar is the provider that
+        # `register_all_services` runs (November 2026).
         source = (
             Path(__file__).resolve().parents[1]
-            / "core" / "orchestrator" / "initializers" / "cognitive_sensory.py"
+            / "core" / "providers" / "self_maintenance_provider.py"
         )
         text = source.read_text()
         self.assertIn("metacognitive_monitor", text)
@@ -327,7 +331,7 @@ class TestRuntimeIntegration(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         tick = (root / "core" / "mind_tick.py").read_text()
         initializer = (
-            root / "core" / "orchestrator" / "initializers" / "cognitive_sensory.py"
+            root / "core" / "providers" / "self_maintenance_provider.py"
         ).read_text()
 
         read_names = set(

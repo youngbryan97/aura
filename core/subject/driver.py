@@ -872,6 +872,21 @@ class SubjectRuntime(_HeldHost):
                 self.after_phase()
             await capture(name)
 
+        # A phase may launch work beside the tick: the ALife step writes its
+        # coupling into her mesh when it finishes. Live, nothing waits for it.
+        # Here the turn ends at a fork, and a task still running at the restore
+        # would finish inside the next arm, so the turn waits for it.
+        for phase in self.kernel._phases:
+            settle = getattr(phase, "settle_background", None)
+            if not callable(settle):
+                continue
+            try:
+                await asyncio.wait_for(settle(), timeout=PHASE_TIMEOUT)
+            except (TimeoutError, RuntimeError) as exc:
+                name = phase.__class__.__name__
+                self.failure_notes[f"{name}.background"] = f"{type(exc).__name__}: {exc}"[:200]
+                logger.warning("phase %s background work did not settle: %s", name, exc)
+
         # The projection the real tick makes once the phases are done. The
         # kernel refreshes it at the end of `tick`, outside the phase loop, and
         # this driver runs the phases directly — so coherence, fragmentation,

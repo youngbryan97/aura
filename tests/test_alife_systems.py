@@ -216,15 +216,18 @@ class TestALifeIntegration:
         assert hasattr(phase, "_alife_extensions")
         assert hasattr(phase, "_endogenous_fitness")
 
-    def test_boot_initializer_includes_alife_services(self):
-        """The boot initializer should register ALife services."""
-        import importlib
-        mod = importlib.import_module("core.orchestrator.initializers.cognitive_sensory")
-        source = open(mod.__file__).read()
-        assert "criticality_regulator" in source
-        assert "alife_dynamics" in source
-        assert "alife_extensions" in source
-        assert "endogenous_fitness" in source
+    def test_boot_registers_alife_services(self):
+        """The registrar her app and the battery both call registers the ALife services.
+
+        This read the source of ``init_cognitive_sensory_layer`` and passed for
+        months while nothing called that function and none of these existed in
+        her runtime. It asks the registrar now.
+        """
+        from core.providers.self_maintenance_provider import SELF_MAINTENANCE_SERVICES
+
+        provided = {name for name, *_ in SELF_MAINTENANCE_SERVICES}
+        for name in ("criticality_regulator", "alife_dynamics", "alife_extensions", "endogenous_fitness"):
+            assert name in provided
 
     @pytest.mark.asyncio
     async def test_criticality_runner_uses_layered_neural_mesh_contract(self, monkeypatch):

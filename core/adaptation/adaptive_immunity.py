@@ -3369,15 +3369,19 @@ class AdaptiveImmuneSystem(ImmuneStatePersistence):
         alife_dynamics = self._get_service("alife_dynamics")
         if alife_dynamics is not None:
             try:
-                status = (
-                    alife_dynamics.get_status() if hasattr(alife_dynamics, "get_status") else {}
-                )
-                entropy_pressure = float(
-                    status.get("entropy_pressure")
-                    or status.get("pressure")
-                    or status.get("entropy", 0.0) / max(status.get("max_entropy", 100.0), 1.0)
-                )
-            except (OSError, ConnectionError, TimeoutError) as exc:
+                # The wrapper says it directly. Its status nests the entropy
+                # register as a dictionary, which this divided by a number: a
+                # TypeError on the first tick ALife ever ran in her (November
+                # 2026), because until then nothing had registered it.
+                if hasattr(alife_dynamics, "get_entropy_pressure"):
+                    entropy_pressure = float(alife_dynamics.get_entropy_pressure())
+                else:
+                    status = alife_dynamics.get_status() if hasattr(alife_dynamics, "get_status") else {}
+                    register = status.get("entropy")
+                    entropy_pressure = float(
+                        register.get("pressure", 0.0) if isinstance(register, dict) else 0.0
+                    )
+            except (OSError, ConnectionError, TimeoutError, AttributeError, TypeError, ValueError) as exc:
                 logger.debug("ALife status unreachable, reporting no entropy pressure: %s", exc)
                 entropy_pressure = 0.0
 

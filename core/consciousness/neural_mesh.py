@@ -1333,6 +1333,19 @@ class NeuralMesh(_SpikeClock, _CarriesModulation, MeshWiring):
         """Column → executive projection matrix."""
         return self._projection
 
+    @property
+    def column_projection_weights(self) -> np.ndarray:
+        """The projection summed over each column's neurons: (projection_dim, columns).
+
+        ``projection_weights`` is per neuron, (projection_dim, total_neurons),
+        with column i's neurons at the i-th block, the order ``full_state``
+        concatenates them in. The ALife credit allocator measures how strongly
+        each column drives the executive output and needs one entry per column;
+        handed the per-neuron matrix, it broadcast 4096 against 64 and raised.
+        """
+        magnitude = np.abs(np.nan_to_num(self._projection, nan=0.0, posinf=1.0, neginf=-1.0))
+        return magnitude.reshape(self.cfg.projection_dim, self.cfg.columns, -1).sum(axis=2)
+
     def alife_mesh_state(self) -> dict:
         """The mesh's real state in the shape the ALife extension layer reads.
 

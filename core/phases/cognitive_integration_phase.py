@@ -33,6 +33,7 @@ species within her cortical columns.
 """
 from __future__ import annotations
 
+import asyncio
 import copy
 import logging
 import time
@@ -181,29 +182,69 @@ class CognitiveIntegrationPhase(Phase):
         self._alife_extensions = None
         self._endogenous_fitness = None
         self._resolved = False
+        #: Services whose factory raised, by name, with what it raised.
+        self._failed_services: dict[str, str] = {}
         self._pending_deltas = []
+        #: The ALife tasks this phase launched that may still be running.
+        self._background: set[asyncio.Task[Any]] = set()
+
+    #: Each attribute this phase holds, and the container name it is read under.
+    #: The registrar for every name is core/providers/self_maintenance_provider.py.
+    SERVICES: tuple[tuple[str, str], ...] = (
+        ("_sentiment_tracker", "sentiment_tracker"),
+        ("_anomaly_detector", "anomaly_detector"),
+        ("_autonomous_resilience_mesh", "autonomous_resilience_mesh"),
+        ("_adaptive_immune_system", "adaptive_immune_system"),
+        ("_strange_loop", "strange_loop"),
+        ("_homeostatic_rl", "homeostatic_rl"),
+        ("_topology_evolution", "topology_evolution"),
+        ("_autopoiesis", "autopoiesis"),
+        ("_criticality_regulator", "criticality_regulator"),
+        ("_alife_dynamics", "alife_dynamics"),
+        ("_alife_extensions", "alife_extensions"),
+        ("_endogenous_fitness", "endogenous_fitness"),
+    )
 
     def _resolve_services(self) -> None:
-        """Lazy-load all cognitive services from the container."""
+        """Read from the container every service this phase does not hold yet.
+
+        It used to read them once and keep the answer. A name read before its
+        registrar had run came back None and stayed None for the life of the
+        process, so a service registered a second later was never seen. Now a
+        missing one is asked for again on the next tick, which costs a
+        dictionary lookup, and each is announced once when it arrives.
+        """
         if self._resolved:
             return
         resolved = False
         try:
             from core.container import ServiceContainer
-            self._sentiment_tracker = ServiceContainer.get("sentiment_tracker", default=None)
-            self._anomaly_detector = ServiceContainer.get("anomaly_detector", default=None)
-            self._autonomous_resilience_mesh = ServiceContainer.get("autonomous_resilience_mesh", default=None)
-            self._adaptive_immune_system = ServiceContainer.get("adaptive_immune_system", default=None)
-            self._strange_loop = ServiceContainer.get("strange_loop", default=None)
-            self._homeostatic_rl = ServiceContainer.get("homeostatic_rl", default=None)
-            self._topology_evolution = ServiceContainer.get("topology_evolution", default=None)
-            self._autopoiesis = ServiceContainer.get("autopoiesis", default=None)
-            # ALife systems
-            self._criticality_regulator = ServiceContainer.get("criticality_regulator", default=None)
-            self._alife_dynamics = ServiceContainer.get("alife_dynamics", default=None)
-            self._alife_extensions = ServiceContainer.get("alife_extensions", default=None)
-            self._endogenous_fitness = ServiceContainer.get("endogenous_fitness", default=None)
-            resolved = True
+            from core.exceptions import ContainerError
+
+            failed = self._failed_services
+            for attribute, name in self.SERVICES:
+                if getattr(self, attribute) is not None or name in failed:
+                    continue
+                try:
+                    service = ServiceContainer.get(name, default=None)
+                except (ContainerError, ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                    # A factory that raises is a defect in that organ, said once:
+                    # asking again every tick would only repeat it.
+                    failed[name] = f"{type(exc).__name__}: {exc}"
+                    _record_cognitive_degradation(
+                        exc,
+                        method="_resolve_services",
+                        action=f"left {name} out of every tick after its factory raised",
+                        severity="error",
+                    )
+                    continue
+                if service is not None:
+                    setattr(self, attribute, service)
+                    logger.info("CognitiveIntegration: %s is online.", name)
+            resolved = all(
+                getattr(self, attribute) is not None or name in failed
+                for attribute, name in self.SERVICES
+            )
         except (ImportError, AttributeError, RuntimeError) as exc:
             _record_cognitive_degradation(
                 exc,
@@ -236,41 +277,49 @@ class CognitiveIntegrationPhase(Phase):
         # ── 1. Sentiment Analysis ────────────────────────────────────────
         # Analyze the emotional content of the latest user message and feed
         # it into the affect system so Aura actually "reads the room."
-        await self._run_sentiment(new_state, user_text)
+        await self._organ(new_state, "_run_sentiment", self._run_sentiment(new_state, user_text))
 
         # ── 2. Anomaly Detection ─────────────────────────────────────────
         # Convert the current system state into a feature vector and check
         # whether anything looks abnormal compared to the learned baseline.
-        anomaly_score = await self._run_anomaly_detection(new_state, user_text)
+        anomaly_score = await self._organ(
+            new_state, "_run_anomaly_detection", self._run_anomaly_detection(new_state, user_text)
+        )
 
         # ── 3. Autonomous Resilience Mesh ────────────────────────────────
         # Audit runtime, service wiring, security signals, and static code
         # risks so the immune system has more truthful threat context.
-        resilience_report = await self._run_autonomous_resilience(new_state, user_text)
+        resilience_report = await self._organ(
+            new_state, "_run_autonomous_resilience", self._run_autonomous_resilience(new_state, user_text)
+        )
 
         # ── 4. Adaptive Immunity ─────────────────────────────────────────
         # Convert the current state into a richer antigen that the adaptive
         # immune population can learn against and emit bounded effectors for.
-        await self._run_adaptive_immunity(new_state, user_text, anomaly_score, resilience_report)
+        await self._organ(
+            new_state,
+            "_run_adaptive_immunity",
+            self._run_adaptive_immunity(new_state, user_text, anomaly_score, resilience_report),
+        )
 
         # ── 5. Strange Loop (Self-Prediction) ────────────────────────────
         # Update the recursive self-model: predict internal state, compare
         # with actual, and feed prediction error back as experience.
-        await self._run_strange_loop(new_state)
+        await self._organ(new_state, "_run_strange_loop", self._run_strange_loop(new_state))
 
         # ── 6. Homeostatic RL ────────────────────────────────────────────
         # Update the energy/drive system and compute action preferences.
-        await self._run_homeostatic_rl(new_state)
+        await self._organ(new_state, "_run_homeostatic_rl", self._run_homeostatic_rl(new_state))
 
         # ── 7. Topology Evolution ────────────────────────────────────────
         # Let the neural mesh grow new connections or prune dead ones based
         # on recent activity patterns.
-        await self._run_topology_evolution(new_state)
+        await self._organ(new_state, "_run_topology_evolution", self._run_topology_evolution(new_state))
 
         # ── 8. Autopoiesis ──────────────────────────────────────────────
         # Quick health check — detect degrading subsystems and schedule
         # repairs if needed.
-        await self._run_autopoiesis(new_state)
+        await self._organ(new_state, "_run_autopoiesis", self._run_autopoiesis(new_state))
         self._run_survival_watch(new_state)
 
         # ── 9. Criticality Regulation (Wolfram/CA research) ─────────────
@@ -309,25 +358,79 @@ class CognitiveIntegrationPhase(Phase):
                 )
                 logger.error("ALife background task failed: %s", e, exc_info=True)
 
-        get_task_tracker().create_task(_run_alife_background(self._run_criticality))
+        self._launch(_run_alife_background(self._run_criticality))
 
         # ── 10. ALife Dynamics (Lenia + Evochora + Avida) ───────────────
         # Lenia continuous convolution kernels for inter-column coupling,
         # entropy tracking (Evochora's dual thermodynamic constraint),
         # and differential CPU allocation (Avida's compute-as-reward).
-        get_task_tracker().create_task(_run_alife_background(self._run_alife_dynamics))
+        self._launch(_run_alife_background(self._run_alife_dynamics))
 
         # ── 11. ALife Extensions (pattern replication, speciation, etc.) ─
         # Autopoietic pattern replication (Avida), speciation-driven
         # column specialization (EcoSim), toroidal wrapping, thermodynamic
         # operation costs, and ownership-based access costs (Evochora).
-        get_task_tracker().create_task(_run_alife_background(self._run_alife_extensions))
+        self._launch(_run_alife_background(self._run_alife_extensions))
 
         elapsed_ms = (time.monotonic() - t0) * 1000
         if elapsed_ms > 50:
             logger.debug("CognitiveIntegration: tick completed in %.1fms", elapsed_ms)
 
         return new_state
+
+    #: What an organ's own defect can raise. Each runner catches what it expects;
+    #: this is for what it did not, so one organ cannot take the rest down.
+    _ORGAN_ERRORS: tuple[type[BaseException], ...] = (
+        ArithmeticError,
+        AttributeError,
+        ImportError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    )
+
+    async def _organ(self, state: AuraState, method: str, coroutine: Any) -> Any:
+        """Run one organ for this tick; if it raises, record it and go on to the next.
+
+        Most of these organs never ran in her runtime until November 2026,
+        because nothing registered them. The first tick with all of them present
+        found adaptive immunity dividing a dictionary by a number. A runner that
+        catches only the failures its author expected would have ended the whole
+        phase there, every tick, and taken the eleven organs after it down too.
+        """
+        try:
+            return await coroutine
+        except self._ORGAN_ERRORS as exc:
+            _record_cognitive_degradation(
+                exc,
+                method=method,
+                action=f"continued the tick without {method} after it raised",
+                severity="degraded",
+                state=state,
+            )
+            logger.error("CognitiveIntegration: %s raised: %s", method, exc, exc_info=True)
+            return None
+
+    def _launch(self, coroutine: Any) -> None:
+        task = get_task_tracker().create_task(coroutine)
+        if isinstance(task, asyncio.Task):
+            self._background.add(task)
+            task.add_done_callback(self._background.discard)
+
+    async def settle_background(self) -> int:
+        """Wait for the ALife tasks this phase launched. Returns how many it waited for.
+
+        They run beside the tick on purpose, so her live tick never waits for the
+        Lenia step. A run that forks her between turns has to: a task launched in
+        one arm and finished after the restore would write that arm's coupling
+        into the other.
+        """
+        pending = [task for task in self._background if not task.done()]
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        return len(pending)
 
     # ── Subsystem Runners ────────────────────────────────────────────────
 
@@ -543,13 +646,16 @@ class CognitiveIntegrationPhase(Phase):
             return
         try:
             current = {
-                "phi": getattr(state.consciousness, "phi", 0.0),
-                "free_energy": getattr(state.consciousness, "free_energy", 0.0),
+                # AuraState carries phi and free energy at the top level and
+                # coherence in its cognition block. It has no `consciousness`
+                # field: read there, the first live tick raised AttributeError.
+                "phi": float(getattr(state, "phi", 0.0) or 0.0),
+                "free_energy": float(getattr(state, "free_energy", 0.0) or 0.0),
                 "valence": getattr(state.affect, "valence", 0.0),
                 "arousal": getattr(state.affect, "arousal", 0.0),
                 "energy": state.response_modifiers.get("homeostatic_energy", 50.0),
                 "threat_level": state.response_modifiers.get("anomaly_threat_level", 0.0),
-                "coherence": getattr(state.consciousness, "coherence", 1.0),
+                "coherence": float(getattr(state.cognition, "coherence_score", 1.0)),
                 "social_hunger": getattr(state.affect, "social_hunger", 0.0),
                 "curiosity": getattr(state.affect, "curiosity", 0.5),
                 "error_rate": 0.0,
@@ -775,7 +881,11 @@ class CognitiveIntegrationPhase(Phase):
                 return
             activations = getattr(mesh, "column_activations", None)
             weights = getattr(mesh, "inter_column_weights", None)
-            projection = getattr(mesh, "projection_weights", None)
+            # Per column. `projection_weights` is per neuron (64 x 4096), and the
+            # credit allocator measures each column's pull on the executive.
+            projection = getattr(mesh, "column_projection_weights", None)
+            if projection is None:
+                projection = getattr(mesh, "projection_weights", None)
             if activations is None or weights is None:
                 return
 
@@ -806,10 +916,10 @@ class CognitiveIntegrationPhase(Phase):
                 state.response_modifiers["entropy"] = alife_state.entropy
                 state.response_modifiers["entropy_pressure"] = alife_state.entropy_pressure
             if hasattr(alife_state, "compute_credits"):
-                state.response_modifiers["compute_credits_gini"] = (
-                    self._alife_dynamics.get_status().get("gini_coefficient", 0.0)
-                    if hasattr(self._alife_dynamics, "get_status") else 0.0
-                )
+                # The status nests it under compute_credits. Read at the top
+                # level, as this used to, it was 0.0 on every tick.
+                credits = (self._alife_dynamics.get_status().get("compute_credits") or {})
+                state.response_modifiers["compute_credits_gini"] = float(credits.get("gini", 0.0))
             if getattr(alife_state, "growth_signal", None) is not None:
                 state.response_modifiers["lenia_mean_growth"] = float(
                     getattr(alife_state, "mean_growth", 0.0)

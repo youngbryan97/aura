@@ -98,6 +98,21 @@ class HomeostasisEngine(AuraBaseModule):
             "will_to_live": round(float(self.compute_vitality()), 3),
         }
 
+    @property
+    def vitality(self) -> float:
+        """``compute_vitality()`` for readers that ask for an attribute.
+
+        The latent bridge reads ``vitality`` off whatever it finds under
+        ``homeostasis_engine``. The engine was never registered under that name,
+        and had no such attribute, so the bridge reported its default (0.7) as
+        her vitality every time.
+        """
+        return float(self.compute_vitality())
+
+    def snapshot(self) -> dict[str, float]:
+        """The drive levels, under the name the IoT bridge asks for."""
+        return self.get_status()
+
     def compute_vitality(self) -> float:
         """Calculates a composite 'Will to Live' score.
         Now uses setpoint proximity: drives near their setpoint contribute

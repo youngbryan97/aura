@@ -438,7 +438,15 @@ async def _init_cognitive_sensory_first_wave(
 
 
 async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
-    """Initialize the higher-order cognitive and sensory services."""
+    """Initialize the higher-order cognitive and sensory services.
+
+    Nothing calls this. ``boot.py`` imported it in April 2026 without calling it,
+    and Checkpoint 55 removed the import. Most of what it registers has a live
+    registrar in the boot mixins; the learned, artificial-life and dream-research
+    organs did not, and now register in
+    ``core/providers/self_maintenance_provider.py``. A service registered only
+    here does not exist in her runtime.
+    """
     report = _boot_report(orchestrator)
 
     async def _identity_and_personality() -> None:

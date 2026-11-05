@@ -510,12 +510,21 @@ class IntegrationAuditor:
 
             return _runner
 
+        # Only names that say the repair keeps what the service holds. This is
+        # matched against every service in the container, by method name, so a
+        # generic name decides for services nobody looked at: `reset` on her
+        # memory or her self-model clears it, and `rollback`, `restore`,
+        # `disable` and `reinitialize` mean different things on different
+        # classes. Those were in this table while nothing registered the
+        # autopoiesis engine and the table never ran. A service whose repair
+        # does erase registers that handler itself, by name, where a reader can
+        # see what it does.
         for strategy_name, candidates in {
             "CLEAR_CACHE": ("clear_cache", "flush_cache"),
             "REDUCE_LOAD": ("reduce_load", "shed_load", "hibernate"),
-            "RESTART_COMPONENT": ("restart", "reload", "reconnect", "reinitialize", "reset"),
-            "RESTORE_CHECKPOINT": ("restore_checkpoint", "rollback", "restore"),
-            "ISOLATE": ("isolate", "quarantine", "disable"),
+            "RESTART_COMPONENT": ("restart", "reload", "reconnect"),
+            "RESTORE_CHECKPOINT": ("restore_checkpoint",),
+            "ISOLATE": ("isolate", "quarantine"),
         }.items():
             for candidate in candidates:
                 if hasattr(instance, candidate) and callable(getattr(instance, candidate)):

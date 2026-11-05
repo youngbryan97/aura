@@ -20,6 +20,7 @@ from .providers.cognitive_provider import register_cognitive_services
 from .providers.consciousness_provider import register_consciousness_services
 from .providers.memory_provider import register_memory_services
 from .providers.ops_provider import register_ops_services
+from .providers.self_maintenance_provider import register_self_maintenance_services
 from .providers.sensory_provider import register_sensory_services
 
 # Patch 28: Runtime & Control
@@ -165,6 +166,10 @@ def _register_all_services_body(container, is_proxy: bool):
     else:
         logger.info("📡 Proxy Mode: Skipping Memory, Sensory, and Consciousness providers.")
     register_ops_services(container, is_proxy=is_proxy)
+    if not is_proxy:
+        # Her self-maintenance and artificial-life organs. The kernel reads them by
+        # name every tick; see core/providers/self_maintenance_provider.py.
+        register_self_maintenance_services(container)
     # 1.5 Platform Root (Hardware Binding)
     if not container.has('platform_root'):
         def create_platform_root():
