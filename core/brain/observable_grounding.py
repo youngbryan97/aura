@@ -155,7 +155,10 @@ async def _read_one(observable: Observable, prompt: str) -> tuple[str, str]:
         body = await asyncio.wait_for(
             observable.read(prompt), timeout=max(0.1, float(observable.timeout_s))
         )
-    except (TimeoutError, asyncio.CancelledError):
+    except TimeoutError:
+        # A reading that took too long is no reading. A cancellation is the
+        # turn being stopped, and it goes on up: caught here beside the
+        # timeout, a stopped turn carried on as if the reading were empty.
         return observable.name, ""
     except Exception as exc:  # noqa: BLE001 - a failed reading is not a failed turn
         record_degradation(
