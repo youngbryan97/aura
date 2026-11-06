@@ -93,6 +93,41 @@ class ErrorEntry:
         cleaned = re.sub(r'0x[0-9a-f]+', 'ADDR', cleaned)
         self.fingerprint = f"{self.source}:{cleaned[:100]}"
 
+#: Her source tree: a traceback frame under it, outside a virtualenv or
+#: site-packages, is her code.
+_OWN_ROOT = str(Path(__file__).resolve().parents[1]) + "/"
+_FRAME = re.compile(r'^\s*File "([^"]+)", line (\d+)', re.M)
+#: How a traceback ends when what failed is the world or a model's reply, not
+#: her code: a bound that held, a connection that went, a cancellation, a reply
+#: that would not parse.
+_NOT_HER_CODE = re.compile(
+    r"^(?:[\w.]+\.)?(?:TimeoutError|CancelledError|ConnectionError|ConnectionRefusedError|"
+    r"ConnectionResetError|ConnectionAbortedError|BrokenPipeError|JSONDecodeError)\b"
+)
+#: A failure a person waited through: worth a look whatever its evidence.
+_A_PERSON_WAITED = re.compile(r"conversation lane (?:returned no text|timed out)", re.I)
+
+
+def _a_fault_in_her_code(message: str) -> str:
+    """"core/x.py:N" for the innermost frame of her own code in a traceback, or "" when there is none to repair."""
+    text = str(message or "")
+    if "Traceback (most recent call last)" not in text:
+        return ""
+    lines = text.splitlines()
+    last_frame = max((i for i, line in enumerate(lines) if _FRAME.match(line)), default=-1)
+    ending = next((line.strip() for line in lines[last_frame + 1:] if line and not line.startswith(" ")), "")
+    if _NOT_HER_CODE.match(ending):
+        return ""
+    own = [
+        (path, line) for path, line in _FRAME.findall(text)
+        if path.startswith(_OWN_ROOT) and "/.venv/" not in path and "site-packages" not in path
+    ]
+    if not own:
+        return ""
+    path, line = own[-1]
+    return f"{path[len(_OWN_ROOT):]}:{line}"
+
+
 class TerminalMonitor:
     """Watches the log stream for errors that Aura can fix autonomously.
     
@@ -540,11 +575,23 @@ class TerminalMonitor:
             and "_selectorsockettransport._read_ready" in lowered
         ):
             return None
+        # A repair turn is a self-modification, so it needs evidence of a fault
+        # her code can be changed to fix: a traceback through her own source
+        # that does not end in a bound that held, a lost connection or a model
+        # reply that would not parse; or a person who waited and got nothing.
+        # Of the 37 repair turns in her log by 6 November 2026, 27 were for
+        # model replies that were not valid JSON, 4 for tool and endpoint
+        # timeouts, 1 for a model that returned no valid Python, and one, an
+        # email read that met its bound, started the turn that stopped her
+        # state log on the third day run.
+        where = _a_fault_in_her_code(entry.message)
+        if not where and not _A_PERSON_WAITED.search(entry.message):
+            return None
         for pattern, action in self._actionable_patterns.items():
             if re.search(pattern, entry.message, re.IGNORECASE):
-                return action
-        if "Traceback" in entry.message:
-            return "Diagnose unmapped critical traceback"
+                return f"{action} at {where}" if where else action
+        if where:
+            return f"Diagnose a fault at {where}"
 
         # NOTE: deliberately no backtick-command extraction. Turning arbitrary
         # backticked log text into a "run this command" instruction was a
