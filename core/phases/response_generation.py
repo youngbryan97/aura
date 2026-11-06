@@ -1480,6 +1480,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         objective,
                         orchestrator=orchestrator,
                         include_synthetic_noise=True,
+                        origin=origin,
                     )
                     if reason:
                         logger.info(

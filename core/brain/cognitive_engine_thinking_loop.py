@@ -1212,7 +1212,11 @@ class _RunsTheThinkingLoop:
                 origin,
                 deferred,
             )
-            return self._empty_thought(mode, "background_deferred")
+            held = self._empty_thought(mode, "background_deferred")
+            # The reason travels with the empty thought, so a caller that only
+            # sees "no content" can say why (her journal could not).
+            held.metadata["deferred_reason"] = deferred
+            return held
         self._run_thinking_loop_record_pressure_read(context, objective)
 
         # ── ACTION IMPERATIVE FALLBACK ──

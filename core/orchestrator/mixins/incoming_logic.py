@@ -39,6 +39,19 @@ _PREFIX_ORIGIN_MAP = {
 THINKING_WATCHDOG_TIMEOUT_S = 300.0
 
 
+def turn_still_owns_context(current: Any, *, running: Any, own: Any) -> bool:
+    """Whether a turn that is ending may hand back the origin it took.
+
+    It may when the orchestrator's current thought task is still one of the
+    turn's own: the task running the handler, or the watchdog task the handler
+    made. A newer turn that has since put its own task there owns the context,
+    and the ending turn leaves it alone.
+    """
+    if current is None:
+        return True
+    return current is running or (own is not None and current is own)
+
+
 class IncomingLogicMixin:
     """Handles incoming message routing, pipeline dispatch, and the core logic handler."""
 
@@ -661,6 +674,12 @@ class IncomingLogicMixin:
         previous_origin = getattr(self, "_current_origin", "")
         previous_user_message = getattr(self, "_current_user_message", None)
         previous_task_is_autonomous = getattr(self, "_current_task_is_autonomous", False)
+        # The thinking task this turn creates. The turn hands the orchestrator's
+        # current origin back when it ends only if no newer turn has taken over,
+        # and "no newer turn" means the current thought task is still one of
+        # this turn's own: the task running this handler, or the watchdog task
+        # it made below.
+        own_thought_task = None
         # v47: Track user interaction time for dream cooldown
         if origin in ("user", "voice", "admin"):
             self._last_user_interaction_time = time.time()
@@ -1852,6 +1871,7 @@ class IncomingLogicMixin:
                 name="incoming_logic.thinking_watchdog",
             )
             self._current_thought_task = task
+            own_thought_task = task
 
             # Await inline — guard against cross-loop Future errors that can occur when
             # Starlette middleware or a background context holds a reference to this task.
@@ -1881,8 +1901,20 @@ class IncomingLogicMixin:
             self.status.is_processing = False
         finally:
             self.status.is_processing = False
-            current_task = asyncio.current_task()
-            if getattr(self, "_current_thought_task", None) is current_task:
+            # The restore used to require the current thought task to be the
+            # task running this handler. It never was: the turn replaces it with
+            # its own watchdog task above, so no turn ever handed its origin
+            # back. On the third day run (6 November 2026) the first turn of the
+            # day was her terminal monitor's silent self-repair, its origin
+            # "terminal_monitor" stayed the orchestrator's from 03:15:48, every
+            # later thought without an origin of its own inherited it, read as
+            # background, and was refused for want of a user anchor: her state
+            # log wrote nothing more.
+            if turn_still_owns_context(
+                getattr(self, "_current_thought_task", None),
+                running=asyncio.current_task(),
+                own=own_thought_task,
+            ):
                 self._current_origin = previous_origin
                 self._current_user_message = previous_user_message
                 self._current_task_is_autonomous = previous_task_is_autonomous

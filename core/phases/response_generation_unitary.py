@@ -4662,6 +4662,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     objective,
                     orchestrator=resolve_orchestrator(),
                     include_synthetic_noise=True,
+                    origin=routing_origin,
                 )
                 if background_reason:
                     logger.info(

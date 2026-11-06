@@ -61,11 +61,20 @@ def looks_like_background_noise(objective: Any) -> bool:
     return any(marker in normalized for marker in _SYNTHETIC_BACKGROUND_NOISE_MARKERS)
 
 
+# Origins whose answers are her own reflection on her own record, for no one:
+# they may be written before a person has spoken to her, as her dreaming and her
+# phenomenal experiencer already are. Every other admission check still holds.
+# Her journal was refused "no_user_anchor" on every attempt of the third day run
+# (66 times by 03:15, 6 November 2026) and wrote no entry all day.
+UNATTENDED_REFLECTION_ORIGINS = frozenset({"narrative_journal"})
+
+
 def background_response_suppression_reason(
     objective: Any,
     *,
     orchestrator: Any = None,
     include_synthetic_noise: bool = True,
+    origin: Any = None,
 ) -> str:
     if is_low_value_background_objective(objective):
         return "low_value_autonomous_objective"
@@ -76,6 +85,8 @@ def background_response_suppression_reason(
         background_policy.background_activity_reason(
             orchestrator,
             profile=background_policy.THOUGHT_BACKGROUND_POLICY,
+            allow_no_user_anchor=background_policy.normalize_origin(origin)
+            in UNATTENDED_REFLECTION_ORIGINS,
         )
         or ""
     )

@@ -1631,6 +1631,32 @@ def shape_for_response_format(requested: Any) -> str:
     return "json_array" if requested in ("json_array", list) else "json_object"
 
 
+# When each (origin, reason) refusal of a thought was last said at info.
+_REFUSALS_SAID: dict[tuple[str, str], float] = {}
+_REFUSAL_REPEAT_S = 600.0
+
+
+def _note_refused_thought(origin: str, reason: str) -> None:
+    """Say why a thought was refused: at info, once per origin and reason every ten minutes.
+
+    These refusals were logged at debug, which her log does not keep. On the third
+    day run (6 November 2026) every thought she began from 03:15 was refused here,
+    her state log wrote nothing for four hours, and her log had no line saying why.
+    """
+    key = (str(origin), str(reason))
+    now = time.monotonic()
+    last = _REFUSALS_SAID.get(key)
+    # A clock that went backwards (a restore rewinds hers) counts as time passed.
+    if last is not None and 0.0 <= now - last < _REFUSAL_REPEAT_S:
+        return
+    _REFUSALS_SAID[key] = now
+    logger.info(
+        "🛡️ CognitiveEngine: refused a background thought for origin=%s (%s); said once per ten minutes.",
+        origin,
+        reason,
+    )
+
+
 class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsItsAugmentors):
     """
     Cognitive Engine facade.
@@ -2332,20 +2358,13 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         if is_background:
             suppression_reason = self._background_suppression_reason()
             if suppression_reason:
-                logger.debug(
-                    "🛡️ CognitiveEngine: Suppressing background thought for origin=%s (%s).",
-                    origin,
-                    suppression_reason,
-                )
+                _note_refused_thought(origin, suppression_reason)
                 return self._empty_thought(
                     mode, f"background_thought_suppressed:{suppression_reason}"
                 )
 
         if self._should_suppress_background_reflection(mode, is_background):
-            logger.debug(
-                "🛡️ CognitiveEngine: Suppressing background %s thought during active service window.",
-                mode.name,
-            )
+            _note_refused_thought(origin, f"active_service_window:{mode.name}")
             return self._empty_thought(mode, "background_reflection_suppressed")
 
         # The first 50 characters of every objective went to the log sink as

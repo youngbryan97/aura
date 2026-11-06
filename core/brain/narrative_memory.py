@@ -100,6 +100,12 @@ _NARRATIVE_RECOVERABLE = (
 
 logger = logging.getLogger("Cognition.Narrative")
 
+# Her journal says where it comes from. It used to pass no origin and take the
+# orchestrator's last one, so what her journal was (background or not, admitted
+# or not) depended on whichever turn had run last: on the third day run that was
+# her terminal monitor's self-repair, and from 03:15 every journal was refused.
+JOURNAL_ORIGIN = "narrative_journal"
+
 class NarrativeEngine:
     """Consolidates episodic fragments into a continuous autobiographical narrative."""
     
@@ -140,6 +146,33 @@ class NarrativeEngine:
                 record_degradation('narrative_memory', e)
                 logger.error("Narrative loop error: %s", e)
                 await asyncio.sleep(60)
+
+    def _say_journal_held(self, thought) -> None:
+        """Say, once per reason an hour, that a journal came back empty and why.
+
+        An empty journal was silent: no entry, no warning, and the next try five
+        minutes later. On the third day run it came back empty 66 times by 03:15
+        and her log never said so.
+        """
+        metadata = getattr(thought, "metadata", None) or {}
+        reasoning = getattr(thought, "reasoning", None) or []
+        reason = str(
+            metadata.get("deferred_reason")
+            or (reasoning[0] if reasoning else "")
+            or ("no thought" if thought is None else "empty content")
+        )
+        said = getattr(self, "_held_said", None)
+        if said is None:
+            said = self._held_said = {}
+        now = time.monotonic()
+        last = said.get(reason)
+        if last is not None and 0.0 <= now - last < 3600.0:
+            return
+        said[reason] = now
+        logger.warning(
+            "📔 [NARRATIVE] Journal held back (%s): no entry written; it is tried again in five minutes.",
+            reason,
+        )
 
     def get_narrative_context(self) -> str:
         """Return a brief narrative context block for the current conversation.
@@ -225,8 +258,11 @@ class NarrativeEngine:
             journal_entry = await brain.think(
                 objective=prompt,
                 context={"mode": "introspection", "tier": "journal"},
-                mode=ThinkingMode.SLOW
+                mode=ThinkingMode.SLOW,
+                origin=JOURNAL_ORIGIN,
             )
+            if not (journal_entry and journal_entry.content):
+                self._say_journal_held(journal_entry)
 
             if journal_entry and journal_entry.content:
                 # Store Journal Entry.
@@ -334,7 +370,7 @@ class NarrativeEngine:
         )
         
         from core.brain.types import ThinkingMode
-        arc = await brain.think(objective=prompt, mode=ThinkingMode.SLOW)
+        arc = await brain.think(objective=prompt, mode=ThinkingMode.SLOW, origin=JOURNAL_ORIGIN)
         if arc and arc.content:
             await vector_mem.add_memory(
                 text=arc.content,
@@ -417,7 +453,8 @@ class NarrativeEngine:
             record = await brain.think(
                 objective=prompt,
                 context={"mode": "final_synthesis"},
-                mode=ThinkingMode.SLOW
+                mode=ThinkingMode.SLOW,
+                origin=JOURNAL_ORIGIN,
             )
 
             if record and record.content:

@@ -38,8 +38,9 @@ class _Brain:
         self._content = content
         self.prompts: list[str] = []
 
-    async def think(self, objective, context=None, mode=None):
+    async def think(self, objective, context=None, mode=None, origin=None):
         self.prompts.append(objective)
+        self.origins = [*getattr(self, "origins", []), origin]
         return SimpleNamespace(content=self._content)
 
 
