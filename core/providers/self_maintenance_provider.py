@@ -188,9 +188,14 @@ SELF_MAINTENANCE_SERVICES: tuple[tuple[str, Callable[[], Any], str, str], ...] =
 #: Names her code reads that mean a service registered under another name.
 #: ``homeostasis_engine`` is read by the latent bridge, the IoT bridge and the
 #: substrate voice; the engine has only ever been registered as ``homeostasis``.
+#: ``free_energy`` is read by the initiative arbiter for the measured urgency it
+#: adds to deliberation (4bca035669, 21 September). The engine is registered as
+#: ``free_energy_engine``, so that edge into deliberation never existed: the
+#: shift read 0.0 on every scoring pass, in her app and in the battery.
 ALIASES: tuple[tuple[str, str], ...] = (
     ("homeostasis_engine", "homeostasis"),
     ("homeostatic_engine", "homeostasis"),
+    ("free_energy", "free_energy_engine"),
 )
 
 

@@ -214,3 +214,14 @@ def test_a_failed_memory_commit_and_a_stall_receipt_land_in_one_queue(tmp_path):
     rows = queue.get_failed()
     assert {row["skill_name"] for row in rows} == {"memory_consolidation.commit_interaction", "orchestrator_stall"}
     assert any("what she said" in row["params"] for row in rows)
+
+
+def test_the_initiative_arbiter_reads_the_free_energy_engine(service_container):
+    """Its measured urgency into deliberation read a name nothing registered, so it was 0.0 for six weeks."""
+    from core.consciousness.free_energy import FreeEnergyEngine
+
+    engine = FreeEnergyEngine()
+    service_container.register_instance("free_energy_engine", engine, required=False)
+    register_self_maintenance_services(service_container)
+    assert service_container.get("free_energy") is engine
+    assert callable(getattr(service_container.get("free_energy"), "get_action_urgency", None))
