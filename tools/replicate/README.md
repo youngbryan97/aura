@@ -1,6 +1,6 @@
 # Replicate the substrate battery on your Mac
 
-This kit runs seed 101's substrate campaign on your machine and compares the result with two reference runs, line by
+This kit runs seed 101's substrate campaign on your machine and compares the result with three reference runs, line by
 line. The campaign decides 22 of the 24 lines of the battery. Her language model is stubbed in it, so no model weights
 are needed and 16 GB of memory is enough.
 
@@ -30,14 +30,14 @@ run and says which files to send.
 
 The same verdict, pass or fail, on each of the 22 lines. The numbers are not expected to match exactly: her runtime
 depends on timing, so the same seed gives a similar run on another machine, not an identical one. The report lists
-each line's verdict here, on the first machine, and on a 16 GB MacBook.
+each line's verdict here, on the first machine, and on two runs on a 16 GB MacBook.
 
 Two lines need a note, written before any outside run:
 
 - **synergy** is borderline. Its weakest triple (perception and memory onto the world model) passed its one-direction
-  test at p = 0.0052 on the first machine, against a bar of 0.01, and read p = 0.60 on the MacBook. A flip on this
-  line is the result already seen once. A flip on any other line is new.
-- **causal_closure_of_the_core** fails in the campaign on both reference runs. It is the campaign's observational
+  test at p = 0.0052 on the first machine, against a bar of 0.01. On a MacBook it read p = 0.60 on one run and
+  p = 0.0029 on the next. A flip on this line is the result already seen once. A flip on any other line is new.
+- **causal_closure_of_the_core** fails in the campaign on all three reference runs. It is the campaign's observational
   reading. The 24 of 24 decides closure by intervention, in the carrier sweep, which this kit does not run.
 
 ## What this kit does not test
@@ -54,5 +54,5 @@ digest is not the reference digest (`1e2046ea87a5...`), so you will know you hav
 
 ## The reference runs
 
-`reference/seed101.json` holds both reference runs' verdicts, environments and the tape's digest. To compare a run of
+`reference/seed101.json` holds the three reference runs' verdicts, environments and the tape's digest. To compare a run of
 your own by hand: `python3 tools/replicate/compare_with_reference.py <run directory>`

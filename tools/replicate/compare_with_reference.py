@@ -19,17 +19,18 @@ HERE = Path(__file__).resolve().parent
 REFERENCE = HERE / "reference" / "seed101.json"
 VERSIONS = ("criteria", "v2_criteria", "v3_criteria", "v5_criteria", "v6_criteria", "v7_criteria")
 
-#: Decided before any replication ran: the line that differed between the two reference runs, and why. A flip here
+#: Decided before any replication ran: the line that differed between the reference runs, and why. A flip here
 #: is the outcome the README says to expect; a flip elsewhere is news.
 BORDERLINE = {
     "synergy": "its weakest triple (perception and memory onto the world model) passed its one-direction test at "
-    "p = 0.0052 on the first machine against a bar of 0.01, and read p = 0.60 on the MacBook",
+    "p = 0.0052 on the first machine against a bar of 0.01, read p = 0.60 on the MacBook's first run and "
+    "p = 0.0029 on its second",
 }
 
 
 #: Lines whose reading here is not the one the 24 of 24 used.
 NOTES = {
-    "causal_closure_of_the_core": "the campaign's observational reading, which fails on both reference runs; the "
+    "causal_closure_of_the_core": "the campaign's observational reading, which fails on all three reference runs; the "
     "24 of 24 decides closure by intervention, in the carrier sweep, which this kit does not run",
 }
 
@@ -100,8 +101,8 @@ def markdown(result: dict) -> str:
         f"- Packages: {json.dumps(env.get('packages', {}))}.",
         f"- Started {_when(result['started_at'])}, finished {_when(result['finished_at'])}.",
         "",
-        "| Line | Here | First machine | MacBook run 1 | |",
-        "|---|---|---|---|---|",
+        "| Line | Here | First machine | MacBook run 1 | MacBook run 2 | |",
+        "|---|---|---|---|---|---|",
     ]
     for row in result["rows"]:
         note = "differs" if not row["same_as_first_machine"] else ""
@@ -110,7 +111,7 @@ def markdown(result: dict) -> str:
         if row["line"] in NOTES:
             note = (note + "; " if note else "") + "see the note below"
         lines.append(f"| {row['line']} | {mark(row['here'])} | {mark(row['first_machine'])} | "
-                     f"{mark(row.get('macbook_run_1'))} | {note} |")
+                     f"{mark(row.get('macbook_run_1'))} | {mark(row.get('macbook_run_2'))} | {note} |")
     lines += ["", "Known borderline before this run:"] + [f"- {name}: {why}." for name, why in BORDERLINE.items()]
     lines += ["", "Notes:"] + [f"- {name}: {why}." for name, why in NOTES.items()]
     return "\n".join(lines) + "\n"

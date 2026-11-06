@@ -266,6 +266,138 @@
      "value": "{'reference_passes_on_this_seed': True, 'nulls_passing_on_this_seed': []}"
     }
    }
+  },
+  "macbook_run_2": {
+   "environment": {
+    "os": "macOS-26.3.1-arm64-arm-64bit",
+    "python": "3.12.16",
+    "hardware": {
+     "cpus": 8,
+     "physical_cpus": 8,
+     "memory_gb": 17.2
+    },
+    "packages": {
+     "numpy": "2.4.4",
+     "scipy": "1.17.1",
+     "torch": "2.11.0",
+     "scikit-learn": "1.8.0"
+    },
+    "dependency_locks": [
+     "requirements.txt:27ed4713e23a28f9"
+    ]
+   },
+   "lines": {
+    "causal_closure_scc": {
+     "passed": true,
+     "version": "criteria",
+     "value": "[['A', 'C', 'D', 'G', 'I', 'M', 'N', 'P', 'S', 'W']]"
+    },
+    "robust_recurrence_kappa": {
+     "passed": true,
+     "version": "criteria",
+     "value": "3"
+    },
+    "cycles_per_domain": {
+     "passed": true,
+     "version": "criteria",
+     "value": "{'P': 560726, 'I': 528433, 'A': 560726, 'G': 540176, 'C': 560726, 'S': 560726, 'M': 560726, 'W': 526476, 'D': 560726, 'N': 540176}"
+    },
+    "reentry": {
+     "passed": true,
+     "version": "criteria",
+     "value": "{'P': 3, 'I': 3, 'A': 3, 'G': 3, 'C': 3, 'S': 3, 'M': 3, 'W': 3, 'D': 3, 'N': 3}"
+    },
+    "differentiation": {
+     "passed": true,
+     "version": "criteria",
+     "value": "{'d_eff': 10.577, 'ratio': 0.0275, 'top_share': 0.28}"
+    },
+    "differentiation_above_floor": {
+     "passed": true,
+     "version": "criteria",
+     "value": "{'d_eff': 10.5772, 'top_share': 0.28}"
+    },
+    "intrinsic_persistence": {
+     "passed": true,
+     "version": "v2_criteria",
+     "value": "{'gain_lower_bound': 0.607784, 'over_shuffle_lower_bound': 0.607457}"
+    },
+    "causal_closure_of_the_core": {
+     "passed": false,
+     "version": "criteria",
+     "value": "-0.0"
+    },
+    "perturbational_spread": {
+     "passed": true,
+     "version": "criteria",
+     "value": "0.9333"
+    },
+    "perturbational_complexity": {
+     "passed": true,
+     "version": "criteria",
+     "value": "0.1825"
+    },
+    "synergy": {
+     "passed": true,
+     "version": "v6_criteria",
+     "value": "{'A,S->G': {'interaction': 11.601335, 'sham': 0.0, 'fraction': 0.266485, 'p_above_sham': 5e-05, 'p_one_direction': 5e-05}, 'P,M->W': {'interaction': 0.498176, '"
+    },
+    "metastability": {
+     "passed": true,
+     "version": "criteria",
+     "value": "{'regimes': 2, 'entropy': 0.0113}"
+    },
+    "global_access": {
+     "passed": true,
+     "version": "criteria",
+     "value": "['A', 'C', 'D', 'M', 'N', 'P', 'S']"
+    },
+    "recurrent_global_access": {
+     "passed": true,
+     "version": "criteria",
+     "value": "['P->A->C->D->G->M->I', 'P->A->C->D->G->M->I->S->N', 'P->A->C->D->G->M->I->S', 'P->A->C->D->G->M->I->S->W->N', 'P->A->C->D->G->M->I->S->W', 'P->A->C->D->G->M->N"
+    },
+    "self_drives_action": {
+     "passed": true,
+     "version": "criteria",
+     "value": "0.9657"
+    },
+    "ownership": {
+     "passed": true,
+     "version": "criteria",
+     "value": "0.6133"
+    },
+    "fast_to_slow": {
+     "passed": true,
+     "version": "criteria",
+     "value": "['A->M', 'A->N', 'A->S', 'A->W', 'C->M', 'C->N', 'C->S', 'C->W', 'D->M', 'D->N', 'D->S', 'D->W', 'G->M', 'G->N', 'G->S', 'I->M', 'I->S', 'P->M', 'P->N', 'P->S',"
+    },
+    "slow_to_fast": {
+     "passed": true,
+     "version": "criteria",
+     "value": "['M->A', 'M->C', 'M->D', 'M->G', 'M->I', 'M->P', 'N->A', 'N->C', 'N->D', 'N->G', 'N->I', 'N->P', 'S->A', 'S->C', 'S->D', 'S->G', 'S->I', 'S->P', 'W->A', 'W->C',"
+    },
+    "natural_runtime_replication": {
+     "passed": true,
+     "version": "criteria",
+     "value": "{'conversation': {'edges': 79, 'one_component': True, 'vertex_connectivity': 3}, 'problem_solving': {'edges': 77, 'one_component': True, 'vertex_connectivity': "
+    },
+    "lesion_deficit": {
+     "passed": true,
+     "version": "criteria",
+     "value": "{'phi_do': 0.04493, 'spread': 0.24074, 'synergy': 0.0515}"
+    },
+    "rescue": {
+     "passed": true,
+     "version": "criteria",
+     "value": "{'phi_do': -0.05282, 'spread': 0.33333, 'synergy': 0.03026}"
+    },
+    "beats_every_null": {
+     "passed": true,
+     "version": "v3_criteria",
+     "value": "{'reference_passes_on_this_seed': True, 'nulls_passing_on_this_seed': []}"
+    }
+   }
   }
  },
  "tape_digest": "1e2046ea87a5e1a1bbe47d08f0ef94b6b62b3cf50118ff5435908ea3ecc998b9"
