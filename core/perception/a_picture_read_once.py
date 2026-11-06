@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import threading
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["KEPT", "how_often_again", "picture_key", "read_once"]
 
@@ -32,7 +32,7 @@ KEPT = 48
 
 _KEPT: dict[str, OrderedDict[str, Any]] = {}
 _AGAIN: dict[str, list[int]] = {}
-_LOCK = threading.Lock()
+_LOCK = checked_lock("a_picture_read_once.cache")
 
 
 def picture_key(picture: Any) -> str:

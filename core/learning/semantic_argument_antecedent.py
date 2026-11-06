@@ -84,7 +84,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
@@ -92,6 +91,7 @@ from typing import Any, Final
 import numpy as np
 
 from core.learning.semantic_program_ir import TokenSpan
+from core.runtime.lockdep import checked_lock
 
 ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v2"
 #: The schema of a readout that also reads recency, ungated (UNGATED_RECENCY_FEATURES;
@@ -241,7 +241,7 @@ class _Similarities:
 #: candidate chart over the same states, so they are computed once per request.
 #: The entry holds the states themselves, so their identity cannot be reused.
 _last_similarities: list[Any] = []
-_last_similarities_lock = threading.Lock()
+_last_similarities_lock = checked_lock("semantic_argument_antecedent.last_similarities")
 
 
 def _similarities_for(hidden: Any, channels: Sequence[str], widths: Sequence[int]) -> _Similarities:

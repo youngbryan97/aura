@@ -25,11 +25,11 @@ import json
 import logging
 import operator
 import re
-import threading
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Epistemics.Verified")
 
@@ -247,7 +247,7 @@ class VerifiedFacts:
 
             path = Path(config.paths.data_dir) / "epistemics" / "verified_facts.json"
         self.path = path
-        self._lock = threading.Lock()
+        self._lock = checked_lock("what_she_has_verified.facts")
         self._facts: dict[str, Fact] = {}
         self._load()
 

@@ -37,7 +37,6 @@ Pure and offline: no imports from the organs certified (see core/verify/DEPS).
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -45,6 +44,7 @@ from typing import Any
 import numpy as np
 
 from core.verify.invariants import Violation, invariant
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "SettlingCertificate",
@@ -139,7 +139,7 @@ def leaky_recurrent_certificate(
 
 
 _providers: dict[str, Callable[[], SettlingCertificate | None]] = {}
-_providers_lock = threading.Lock()
+_providers_lock = checked_lock("settling.providers")
 
 
 def register_settling(name: str, provider: Callable[[], SettlingCertificate | None]) -> None:

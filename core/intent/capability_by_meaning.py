@@ -25,12 +25,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-import threading
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.CapabilityByMeaning")
 
@@ -61,7 +61,7 @@ class Meanings:
         self._embed_query = embed_query
         self._store = store
         self._vectors: dict[str, np.ndarray] = {}
-        self._lock = threading.Lock()
+        self._lock = checked_lock("capability_by_meaning.meanings")
         self.served: dict[str, list[str]] = self._read()
 
     def _read(self) -> dict[str, list[str]]:

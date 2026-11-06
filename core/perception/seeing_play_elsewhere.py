@@ -29,7 +29,6 @@ import select
 import struct
 import subprocess
 import sys
-import threading
 import uuid
 import weakref
 from typing import Any
@@ -37,6 +36,7 @@ from typing import Any
 import numpy as np
 
 from core.runtime.flags import FlagKind, declare
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.SeeingPlayElsewhere")
 
@@ -66,7 +66,7 @@ _A_BACKDROP = np.zeros((1, 1, 3), np.uint8)
 #: How large the memory the other process writes its answers into is, in bytes; an answer larger comes down the pipe.
 ANSWERS_AT_MOST = 16 * 1024 * 1024
 _ANSWERS: Any = None
-_LOCK = threading.RLock()
+_LOCK = checked_lock("seeing_play_elsewhere.state", reentrant=True)
 _CHILD: Any = None
 #: Eyes no longer wanted here, told to the other process with the next thing asked of it: a likeness can be let go
 #: at any moment, even in the middle of a message, and nothing may be written into one.
@@ -392,7 +392,7 @@ def eyes_for_play(kinds: list[Any] | None = None) -> Any:
 #: How long one thread may hold the interpreter while another waits, in seconds, while she plays as it happens.
 TURN_WHILE_PLAYING_S = 0.001
 _TURNS: dict[str, Any] = {"playing": 0, "before": None}
-_TURNS_LOCK = threading.Lock()
+_TURNS_LOCK = checked_lock("seeing_play_elsewhere.turns")
 
 
 class short_turns_while_playing:  # noqa: N801 - read as what it does, in a with

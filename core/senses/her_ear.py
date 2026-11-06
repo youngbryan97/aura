@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from core.runtime.wall_clock import monotonic_time
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.HerEar")
 
@@ -132,7 +133,7 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
 
     model = from_pretrained(weights)
     pending: list[Any] = []
-    lock = threading.Lock()
+    lock = checked_lock("her_ear.pending")
 
     def on_audio(samples: Any) -> None:
         with lock:

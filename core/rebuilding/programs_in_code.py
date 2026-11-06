@@ -29,6 +29,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from core.rebuilding.what_a_program_does import Asker, Feature, Genome
+from core.runtime.lockdep import checked_semaphore
 
 logger = logging.getLogger("Rebuilding.Code")
 
@@ -130,7 +131,9 @@ async def run_calls(source: str, calls: list[CodeCall]) -> list[CodeRun]:
         held, why = _comes_back_right(call, outcome)
         return CodeRun(call, held, "" if held else why)
 
-    gate = asyncio.Semaphore(4)
+    # Bounded by the work it gates: each call has CALL_S, so a slot comes free
+    # within that once per round of four.
+    gate = checked_semaphore("programs_in_code.calls", 4, budget_s=-(-len(calls) // 4) * CALL_S + 30.0)
 
     async def bounded(call: CodeCall) -> CodeRun:
         async with gate:

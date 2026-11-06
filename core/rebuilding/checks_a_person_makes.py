@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+from core.runtime.lockdep import checked_semaphore
 
 logger = logging.getLogger("Rebuilding.Checks")
 
@@ -502,7 +503,13 @@ async def run_checks(path: str | Path, checks: list[Check], *, browser: Any = No
         browser = await owned.chromium.launch(headless=True)
     try:
         context = await browser.new_context(accept_downloads=True, viewport={"width": 1280, "height": 860})
-        gate = asyncio.Semaphore(SIDE_BY_SIDE)
+        # Bounded by the work it gates: every check has its own limit, so a
+        # slot comes free within that limit once per round of SIDE_BY_SIDE.
+        rounds = -(-len(checks) // SIDE_BY_SIDE)
+        gate = checked_semaphore(
+            "checks_a_person_makes.side_by_side", SIDE_BY_SIDE,
+            budget_s=rounds * max((_time_for(c) for c in checks), default=0.0) + 30.0,
+        )
 
         async def bounded(check: Check) -> CheckRun:
             async with gate:

@@ -23,10 +23,10 @@ untouched.
 from __future__ import annotations
 
 import logging
-import threading
 from typing import Any
 
 import numpy as np
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.RecallOnTheGpu")
 
@@ -34,7 +34,7 @@ __all__ = ["RecallOnTheGpu"]
 
 #: The GPU copies of what each principal may see, by store and principal, kept while the store's generation holds.
 _HELD: dict[tuple[int, str], tuple[int, dict[str, Any]]] = {}
-_HELD_LOCK = threading.Lock()
+_HELD_LOCK = checked_lock("recall_on_the_gpu.held")
 _DEGENERATE = 1e-6
 
 
