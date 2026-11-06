@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import logging
+import threading
 import time
 from typing import Any
 
@@ -97,10 +98,22 @@ class StatusManagerMixin:
 
     def get_status(self) -> dict[str, Any]:
         """Provides a comprehensive status report using cached data where possible."""
-        # [STABILITY] Recursion Guard
-        if getattr(self, "_in_status_call", False):
-            return {"status": "recursive_depth_guard", "healthy": False}
-        self._in_status_call = True
+        # [STABILITY] Recursion Guard: a call from inside a status call on the
+        # same thread. It was a flag on the instance, so a call from another
+        # thread that overlapped one (her Skynet probe runs on a worker) was
+        # taken for recursion and told she was unhealthy, with no reason: six
+        # times on the third day run (6 November 2026), each healthy again at
+        # the next probe. Neither recursion nor an overlap is evidence about her
+        # health, so either gets the last full report and the last verdict.
+        caller = threading.get_ident()
+        owner = getattr(self, "_status_call_thread", None)
+        if owner is not None:
+            report = dict(getattr(self, "_cached_status", None) or {})
+            report["healthy"] = bool(getattr(self, "_last_health_check_result", True))
+            report["health_reason"] = str(getattr(self, "_last_health_reason", "") or "")
+            report["status_call"] = "recursive_depth_guard" if owner == caller else "overlapping_call"
+            return report
+        self._status_call_thread = caller
 
         try:
             if not hasattr(self, "_cached_status") or self._cached_status is None:
@@ -249,7 +262,7 @@ class StatusManagerMixin:
             return status_report
 
         finally:
-            self._in_status_call = False
+            self._status_call_thread = None
 
     async def _warm_language_matchers(self) -> None:
         """Decide deferred phrasings only after the foreground is truly idle.
