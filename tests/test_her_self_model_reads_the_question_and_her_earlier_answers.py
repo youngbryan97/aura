@@ -131,3 +131,18 @@ def test_the_harness_refuses_a_rehearsed_arm_without_rehearsal():
         asyncio.run(runner.main(["--items", "v2", "--arms", "with,rehearsed"]))
     with pytest.raises(SystemExit):
         asyncio.run(runner.main(["--items", "v2", "--arms", "with", "--rehearse"]))
+
+
+def test_a_draft_is_shown_where_she_has_no_record_of_questions_like_it_yet():
+    """The proof of 6 November refused the full run: at the first moment her two dictated questions (rain or snow, a
+    number) had no replies of their kind in her record, the reading came back empty, and the rehearsed arm was shown
+    nothing, its draft included. The draft is not part of the record and does not wait for one."""
+    state = _record([("How do you feel?", "I feel steady.")] * 6)  # open questions only
+    rain_snow = "Choose one, and answer with only that word: rain or snow."
+    asked = _meta(rain_snow, "Which would you choose? Answer with only that word.")
+    assert hia.how_i_answer_block(state, asked) == ""  # the with arm: no record of questions like it, no reading
+    draft = dict(hia.note_of(rain_snow, "Rain.", state=state), rehearsed=True)
+    with hia.lent([draft]):
+        block = hia.how_i_answer_block(state, asked)
+    assert block.startswith("- From this moment you drafted an answer to this question and did not send it")
+    assert "From your last" not in block  # still no record

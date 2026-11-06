@@ -498,15 +498,20 @@ def how_i_answer_block(state: Any, prompt: str, *, efference: Mapping[str, float
     inside = the_question_inside(prompt) or str(prompt or "")
     dictated = _dictated(inside)
     alike = [n for n in notes if bool(n.get("dictated")) == dictated]
+    limit_match = _WORDS_LIMIT.search(str(prompt or ""))
+    limit = int(limit_match.group(1)) if limit_match else None
     if not alike:
-        return ""
+        # No replies of this kind to measure yet: no record. A draft she has
+        # just made from this moment is not part of the record and is shown
+        # all the same. The proof of 6 November refused the full run because,
+        # at the first moment, her two dictated questions had no record and the
+        # rehearsed arm was shown nothing, its draft included.
+        return _the_draft(inside, limit)
     kind = "questions that said how to answer them" if dictated else "questions that left the answer open"
     lengths = sorted(int(n.get("words", 0)) for n in alike)
     middle = len(lengths) // 2
     median = lengths[middle] if len(lengths) % 2 else (lengths[middle - 1] + lengths[middle]) / 2
     stamp = time.strftime("%H:%M", time.localtime(float(alike[0].get("at", 0.0))))
-    limit_match = _WORDS_LIMIT.search(str(prompt or ""))
-    limit = int(limit_match.group(1)) if limit_match else None
     lines = [
         f"From your last {len(alike)} replies to a person, to {kind} (the first at {stamp}):",
         f"- Length in words: median {median:g}, shortest {lengths[0]}, longest {lengths[-1]}.",
