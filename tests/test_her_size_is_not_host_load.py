@@ -25,7 +25,6 @@ def _host(monkeypatch, total_gb: float):
     from core.runtime import resource_psutil
 
     monkeypatch.setattr(module, "_load_line_mb", None)
-    monkeypatch.delenv("AURA_INTEGRITY_MEMORY_WARNING_MB", raising=False)
     monkeypatch.setattr(resource_psutil, "virtual_memory", lambda: SimpleNamespace(total=total_gb * 1024 ** 3))
 
 

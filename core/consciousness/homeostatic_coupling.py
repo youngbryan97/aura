@@ -34,7 +34,6 @@ Integration points:
 
 import asyncio
 import logging
-import os
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -115,9 +114,8 @@ class CognitiveModifiers:
 # ---------------------------------------------------------------------------
 
 #: Her process's memory, in MB, above which she reads the host as loaded: the
-#: integrity monitor's warning line (a fifth of the host's memory, its
-#: AURA_INTEGRITY_MEMORY_WARNING_MB when set), never below the 3500 MB this
-#: used to be. A flat 3500 MB was under her own size: on the third day run
+#: integrity monitor's warning fraction (a fifth of the host's memory), never
+#: below the 3500 MB this used to be. A flat 3500 MB was under her own size: on the third day run
 #: (6 November 2026) her process held about 4.3 GB on a 64 GB Mac at 10-18%
 #: CPU, and every report of it throttled her depth to 0.6 and her creativity to
 #: 0.8, "High host load", 122 times.
@@ -131,15 +129,11 @@ def memory_load_line_mb() -> float:
     if _load_line_mb is not None:
         return _load_line_mb
     line = _LOAD_MEMORY_FLOOR_MB
-    override = os.getenv("AURA_INTEGRITY_MEMORY_WARNING_MB")
     try:
-        if override:
-            line = max(1.0, float(override))
-        else:
-            from core.runtime import resource_psutil as psutil
+        from core.runtime import resource_psutil as psutil
 
-            total_mb = float(psutil.virtual_memory().total) / (1024 * 1024)
-            line = max(_LOAD_MEMORY_FLOOR_MB, total_mb * _LOAD_MEMORY_FRACTION)
+        total_mb = float(psutil.virtual_memory().total) / (1024 * 1024)
+        line = max(_LOAD_MEMORY_FLOOR_MB, total_mb * _LOAD_MEMORY_FRACTION)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
         record_degradation(
             "homeostatic_coupling", exc, severity="warning",
