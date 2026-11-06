@@ -69,6 +69,16 @@ DEFAULT_WINDOW_SIZE: int = 500
 # matrix invertible even when we have very few observations.
 COV_REGULARIZATION: float = 1e-5
 
+# The least spread a feature is read with: a standard deviation of 0.1, the
+# scale of her ratio and rate features. A feature that has not moved in the
+# window (her error rate, resource pressure and polarity sit at 0 for hours)
+# otherwise has only the regularization above for its variance, and any move
+# at all reads as a hundred sigma: on the third day run (6 November 2026) every
+# alarm read threat=1.0000 at distances of 77 to 651, so the score said nothing
+# about how far from usual an event was. Features that do vary keep their own
+# variance.
+FEATURE_VARIANCE_FLOOR: float = 0.1 ** 2
+
 # Sigmoid steepness and midpoint — controls how Mahalanobis distance maps
 # to threat probability.  A midpoint of 3.0 means a 3-sigma event gets
 # ~50% threat; steepness of 1.5 compresses the curve.
@@ -496,6 +506,10 @@ class _NormalityModel:
             weighted_centered = centered * weights[:, np.newaxis]  # broadcast
             cov = centered.T @ weighted_centered  # (dim, dim)
 
+            # A feature that has not moved is read at the floor's spread, not
+            # at the regularization's (see FEATURE_VARIANCE_FLOOR).
+            diagonal = np.diag_indices(self._dim)
+            cov[diagonal] = np.maximum(cov[diagonal], FEATURE_VARIANCE_FLOOR)
             # Regularize: add small identity to ensure invertibility.
             cov += np.eye(self._dim, dtype=np.float64) * COV_REGULARIZATION
 
