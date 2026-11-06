@@ -475,6 +475,45 @@ class DatabaseMaintenance:
             )
             result.errors.append(f"integrity_check: {exc}")
 
+    def _size_kept_by_retention(self, db_size_bytes: int) -> str:
+        """Why the database is over its limit, when the reason is the state log it keeps.
+
+        Over the limit only by the state log, with that log within its
+        retention: the rest of the database fits the limit. Returns the account,
+        or "" when the size is not explained that way and is worth a warning.
+        """
+        conn = self._get_connection()
+        if conn is None:
+            return ""
+        try:
+            if not self._table_exists(conn, "state_log"):
+                return ""
+            rows = int(conn.execute("SELECT count(*) FROM state_log").fetchone()[0] or 0)
+            if rows <= 0:
+                return ""
+            sample = conn.execute(
+                "SELECT avg(length(state_json)) FROM "
+                "(SELECT state_json FROM state_log ORDER BY rowid DESC LIMIT 50)"
+            ).fetchone()[0]
+        except sqlite3.Error as exc:
+            _record_db_degradation(exc, severity="debug", action="read the state log's share of the database")
+            return ""
+        finally:
+            conn.close()
+        from core.memory.retention_policy import state_log_retention_policy
+
+        retention = state_log_retention_policy()
+        log_bytes = float(sample or 0.0) * rows
+        rest = max(0.0, float(db_size_bytes) - log_bytes)
+        if rows > int(retention.max_items * 1.05) or rest > self._max_db_size_bytes:
+            return ""
+        mb = 1024 * 1024
+        return (
+            f"DB size {db_size_bytes / mb:.1f} MB is over its {self._max_db_size_bytes / mb:.1f} MB limit "
+            f"by the state log it keeps: {rows} rows of about {float(sample or 0) / 1024:.0f} KB, within "
+            f"their retention of {retention.max_items} ({retention.basis}); the rest is {rest / mb:.1f} MB"
+        )
+
     def check_size(self, result: MaintenanceResult) -> None:
         """Monitor database and WAL file sizes."""
         try:
@@ -486,8 +525,24 @@ class DatabaseMaintenance:
             if wal_path.exists():
                 result.wal_size_bytes = wal_path.stat().st_size
 
-            # Alert if DB is too large
-            if result.db_size_bytes > self._max_db_size_bytes:
+            # Alert if DB is too large, unless what makes it large is the state
+            # log her retention was told to keep. On the third day run
+            # (6 November 2026) the database was 1019 MB, nearly all of it 8090
+            # state-log rows of about 125 KB, kept at the run's 100,000-row
+            # retention (AURA_STATE_LOG_MAX_ROWS) so her lineage could be read;
+            # "exceeds limit 500.0 MB" was said 13 times and opened an incident
+            # for a database holding what it was asked to hold.
+            kept = (
+                self._size_kept_by_retention(result.db_size_bytes)
+                if result.db_size_bytes > self._max_db_size_bytes
+                else ""
+            )
+            if kept:
+                now = time.time()
+                if now - getattr(self, "_retention_size_said_at", 0.0) >= 6 * 3600:
+                    self._retention_size_said_at = now
+                    logger.info("Maintenance: %s", kept)
+            elif result.db_size_bytes > self._max_db_size_bytes:
                 logger.warning(
                     "Maintenance: DB size %.1f MB exceeds limit %.1f MB",
                     result.db_size_bytes / (1024 * 1024),
