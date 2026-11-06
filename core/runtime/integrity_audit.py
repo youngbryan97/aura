@@ -179,6 +179,27 @@ def _end_integrity_session() -> None:
         _SESSION_ACTIVE = False
 
 
+def _latest_degradation_of(tracker: Any, subsystem: str) -> str:
+    """The newest of a subsystem's degradations, for the line that raises a concern about them.
+
+    Most are recorded at debug, which her log does not keep, so the concern line
+    is the only place a reader can learn what they were. On the third day run
+    (6 November 2026) "intentional_retrieval: 10 degradations in the last 30m"
+    opened an incident twice and nothing said what had degraded.
+    """
+    try:
+        records = tracker.recent(subsystem=subsystem, limit=1)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return ""
+    if not records:
+        return ""
+    record = records[-1]
+    error = f"{getattr(record, 'error_type', '')}: {getattr(record, 'error_message', '')}".strip(": ")
+    action = str(getattr(record, "action", "") or "")
+    detail = "; ".join(part for part in (error[:160], action[:120]) if part)
+    return f" (latest: {detail})" if detail else ""
+
+
 def _epoch_scoped_degradation_counts(
     records: Iterable[Any],
     *,
@@ -269,6 +290,7 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
                 concerns.append(
                     f"{sub}: {total} degradations in the last "
                     f"{int(_DEGRADATION_CONCERN_WINDOW_S // 60)}m"
+                    + _latest_degradation_of(tracker, sub)
                 )
     except (ImportError, AttributeError, RuntimeError, TypeError):
         degradations = {}
