@@ -341,8 +341,13 @@ class HiddenEvalRunner:
         # that measured nothing is not a healthy suite.
         health = passed / max(1, total)
 
-        # Drift detection: compare health to rolling average
-        drift_detected = self._detect_drift(health)
+        # Drift detection: compare health to rolling average, over the
+        # scenarios that could be read. A probe that could not be read is not
+        # behaviour that drifted: on the third day run (6 November 2026) her
+        # whole-system phi had not estimated yet, the suite read 3/4 with one
+        # unavailable, and "DRIFT DETECTED" was logged for a reading that did
+        # not exist. It still counts against health.
+        drift_detected = self._detect_drift(_read_health(passed, total, unavailable))
 
         suite_result = EvalSuiteResult(
             total_scenarios=total,
@@ -479,7 +484,9 @@ class HiddenEvalRunner:
             return False
 
         recent = list(self._history)[-self._drift_window:]
-        historical_health = np.mean([r.overall_health for r in recent])
+        historical_health = np.mean(
+            [_read_health(r.passed, r.total_scenarios, r.unavailable) for r in recent]
+        )
 
         drift = abs(current_health - historical_health)
         return bool(drift > self._drift_threshold)
@@ -707,6 +714,11 @@ def _probe_world_model_surprise() -> float:
     raise ProbeUnavailable("live world model exposes no mean-surprise reading")
 
 
+def _read_health(passed: int, total: int, unavailable: int) -> float:
+    """Health over the scenarios that could be read; a tampered one still counts."""
+    return passed / max(1, total - unavailable)
+
+
 def _probe_phi_value() -> float:
     """Read the LIVE integrated-information measurement."""
     # Registered as whole_system_phi; the names this asked for first are
@@ -734,4 +746,16 @@ def _probe_phi_value() -> float:
         value = getattr(value, "phi", getattr(value, "phi_raw", value))
         if isinstance(value, (int, float)):
             return float(value)
+    status = getattr(service, "status", None)
+    try:
+        window = int((status() if callable(status) else {}).get("window", -1))
+    except (AttributeError, TypeError, ValueError):
+        window = -1
+    if window >= 0:
+        from core.consciousness.whole_system_phi_service import _MIN_SAMPLES_FLAG
+
+        raise ProbeUnavailable(
+            f"whole-system phi has not estimated yet: {window} of the "
+            f"{int(_MIN_SAMPLES_FLAG.value())} observations its first estimate needs"
+        )
     raise ProbeUnavailable("live phi service exposes no phi reading")
