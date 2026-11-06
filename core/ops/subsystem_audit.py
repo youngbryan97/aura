@@ -11,6 +11,35 @@ from core.runtime.shutdown_coordinator import is_shutdown_requested
 logger = logging.getLogger("Aura.SubsystemAudit")
 
 
+# Her thinking is stalled when at least this many thoughts have been refused, and
+# none committed her state, for this long. On the third day run (6 November 2026)
+# every thought from 03:15 was refused for four hours while this pulse read
+# "Runtime: HEALTHY": its cognitive_engine heartbeat says the engine exists.
+_COGNITION_STALL_S = 1800.0
+_COGNITION_STALL_REFUSALS = 3
+
+
+def _cognition_stall_line(now: float) -> str:
+    """Empty while her thoughts get through; otherwise a line saying how long they have not."""
+    import sys
+
+    engine = sys.modules.get("core.brain.cognitive_engine")
+    reader = getattr(engine, "cognition_liveness", None)
+    if reader is None:
+        return ""
+    ledger = reader()
+    refused = int(ledger.get("refused_since_commit") or 0)
+    since = float(ledger.get("first_refused_at") or 0.0)
+    if refused < _COGNITION_STALL_REFUSALS or not since or now - since < _COGNITION_STALL_S:
+        return ""
+    last = float(ledger.get("last_committed_at") or 0.0)
+    committed = f"{int((now - last) // 60)} min ago" if last else "not yet this run"
+    return (
+        f"  ❌ cognition: {refused} thoughts refused over {int((now - since) // 60)} min, none committed; "
+        f"last committed {committed}; last refusal: {ledger.get('last_refusal') or 'unknown'}"
+    )
+
+
 def _health_pulse_boot_grace_s() -> float:
     raw = os.getenv("AURA_HEALTH_PULSE_BOOT_GRACE_S") or os.getenv(
         "AURA_WATCHDOG_BOOT_GRACE_S", "120"
@@ -482,6 +511,9 @@ class SubsystemAudit:
         else:
             runtime_status = "DEGRADED"
             subsystem_status = "FAIL" if not subsystem_ok else "PASS"
+        cognition_stall = "" if shutdown_active or boot_warming else _cognition_stall_line(time.time())
+        if cognition_stall:
+            runtime_status = "DEGRADED"
         summary = (
             f"Runtime: {runtime_status} | Required probes: {probe_status} | "
             f"Subsystem audit: {subsystem_status} | Conversation: {conversation_status} | "
@@ -511,6 +543,9 @@ class SubsystemAudit:
             lines.append(
                 f"  ❌ conversation_lane: {conversation_state} ({reason})"
             )
+        if cognition_stall:
+            summary += " | Cognition: STALLED"
+            lines.append(cognition_stall)
         if stale_count:
             summary += f" | ⚠️ {stale_count} STALE"
         if degraded_count:

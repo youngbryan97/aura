@@ -1467,6 +1467,7 @@ async def _commit_the_thought_with_retries(
                     timeout=_commit_budget,
                 )
             commit_outcome = "committed"
+            note_thought_committed()
             break  # Success!
         except TimeoutError:
             commit_outcome = "commit_timeout"
@@ -1635,6 +1636,28 @@ def shape_for_response_format(requested: Any) -> str:
 _REFUSALS_SAID: dict[tuple[str, str], float] = {}
 _REFUSAL_REPEAT_S = 600.0
 
+# Whether her thoughts are getting through: when one last committed her state, and
+# how many have been refused since. Her health pulse reads it, because a heartbeat
+# says the engine exists, not that it thinks (6 November 2026: "Runtime: HEALTHY",
+# 11/11 heartbeats, while every thought for four hours was refused).
+_COGNITION_LEDGER: dict[str, Any] = {
+    "last_committed_at": 0.0,
+    "refused_since_commit": 0,
+    "first_refused_at": 0.0,
+    "last_refusal": "",
+}
+
+
+def note_thought_committed() -> None:
+    _COGNITION_LEDGER["last_committed_at"] = time.time()
+    _COGNITION_LEDGER["refused_since_commit"] = 0
+    _COGNITION_LEDGER["first_refused_at"] = 0.0
+
+
+def cognition_liveness() -> dict[str, Any]:
+    """When a thought last committed her state, and what has been refused since."""
+    return dict(_COGNITION_LEDGER)
+
 
 def _note_refused_thought(origin: str, reason: str) -> None:
     """Say why a thought was refused: at info, once per origin and reason every ten minutes.
@@ -1643,6 +1666,10 @@ def _note_refused_thought(origin: str, reason: str) -> None:
     day run (6 November 2026) every thought she began from 03:15 was refused here,
     her state log wrote nothing for four hours, and her log had no line saying why.
     """
+    if not _COGNITION_LEDGER["refused_since_commit"]:
+        _COGNITION_LEDGER["first_refused_at"] = time.time()
+    _COGNITION_LEDGER["refused_since_commit"] += 1
+    _COGNITION_LEDGER["last_refusal"] = f"{origin} ({reason})"
     key = (str(origin), str(reason))
     now = time.monotonic()
     last = _REFUSALS_SAID.get(key)

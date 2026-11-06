@@ -108,3 +108,26 @@ def test_a_refused_thought_is_said_at_info_once_per_reason(caplog):
     said = [r.getMessage() for r in caplog.records if "refused a background thought" in r.getMessage()]
     assert len(said) == 2
     assert "origin=terminal_monitor (no_user_anchor)" in said[0]
+
+
+def test_her_health_pulse_says_when_her_thoughts_stop_getting_through(monkeypatch):
+    import time as _time
+
+    from core.brain import cognitive_engine
+    from core.ops import subsystem_audit
+
+    cognitive_engine.note_thought_committed()
+    assert subsystem_audit._cognition_stall_line(_time.time()) == ""
+    for _ in range(5):
+        cognitive_engine._note_refused_thought("terminal_monitor", "no_user_anchor")
+    ledger = cognitive_engine.cognition_liveness()
+    assert ledger["refused_since_commit"] == 5
+    assert ledger["last_refusal"] == "terminal_monitor (no_user_anchor)"
+    # Refused for a minute: not yet a stall.
+    assert subsystem_audit._cognition_stall_line(_time.time() + 60) == ""
+    # Refused for four hours with nothing committed: the pulse says so.
+    line = subsystem_audit._cognition_stall_line(_time.time() + 4 * 3600)
+    assert "5 thoughts refused over 240 min" in line and "terminal_monitor (no_user_anchor)" in line
+    # One thought that commits clears it.
+    cognitive_engine.note_thought_committed()
+    assert subsystem_audit._cognition_stall_line(_time.time() + 4 * 3600) == ""
