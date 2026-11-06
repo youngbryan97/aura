@@ -10575,9 +10575,16 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 os.path.basename(self.model_path),
             )
         else:
+            # Who gave up on it, and for what. On the third day run (6 November
+            # 2026) this was said 11 times, each about 3 s into a 25-30 token
+            # request on a 3,500-character prompt (less than her model takes to
+            # read it), and nothing said which caller gave up.
             logger.warning(
-                "🛑 [MLX] Generation cancelled for %s. Preserving worker unless it is unhealthy.",
+                "🛑 [MLX] Generation cancelled for %s by its caller (origin=%s, purpose=%s). "
+                "Preserving worker unless it is unhealthy.",
                 os.path.basename(self.model_path),
+                origin_label or "unknown",
+                purpose_label or "unknown",
             )
         self._pending_generations.pop(req_id, None)
         if (
