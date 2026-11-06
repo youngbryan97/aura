@@ -66,7 +66,12 @@ class DreamCoordinator:
             )
 
             orchestrator = get_runtime_service("orchestrator", default=None)
-            allow_no_user_anchor = name in {"dlq_recovery"}
+            # Her own maintenance needs no person present. Her biological sleep
+            # (memory consolidation and experience distillation) was queued
+            # "until admission clears (no_user_anchor)" all of the third day
+            # run (6 November 2026) and never ran: an unattended organism never
+            # slept. Self-modification is not here, and stays anchored.
+            allow_no_user_anchor = name in {"dlq_recovery", "biological_sleep"}
 
             reason = background_activity_reason(
                 orchestrator,

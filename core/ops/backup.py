@@ -138,10 +138,16 @@ class BackupManager:
         try:
 
             orchestrator = resolve_orchestrator()
+            # Keeping her data safe needs no person present: an unattended day
+            # is when a backup costs her least. The user anchor held every
+            # backup back on her unattended days, and the newest state backup
+            # on 6 November 2026 was from 13 September. Every other admission
+            # check (idle, memory, failure pressure, foreground work) holds.
             return str(
                 background_policy.background_activity_reason(
                     orchestrator,
                     profile=background_policy.MAINTENANCE_BACKGROUND_POLICY,
+                    allow_no_user_anchor=True,
                 )
                 or ""
             )
