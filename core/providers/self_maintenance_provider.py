@@ -10,6 +10,8 @@ entropy never accumulated or dissipated, the homeostatic drives never moved, the
 autopoiesis engine never ran a repair cycle, adaptive immunity never saw an
 antigen, and dream-phase consolidation never ran. Her app logged "Activation
 audit passed: 100%" over all of it, because the audit's list did not name them.
+The dead-letter queue the memory phase hands a failed commit to was missing the
+same way, so a memory that failed to commit was kept only in the cold store.
 
 They are registered here because this is the one path her app and the subject
 battery both build her through (``register_all_services``), so the organism the
@@ -138,6 +140,12 @@ def _plasticity_governor() -> Any:
     return get_plasticity_governor()
 
 
+def _dead_letter_queue() -> Any:
+    from core.tasks.dead_letter_queue import get_dlq
+
+    return get_dlq()
+
+
 #: (name, factory, owner, what reads it). The phase that reads each name is the
 #: one the test pairs it with, so a reader added there without a row here fails.
 SELF_MAINTENANCE_SERVICES: tuple[tuple[str, Callable[[], Any], str, str], ...] = (
@@ -173,6 +181,8 @@ SELF_MAINTENANCE_SERVICES: tuple[tuple[str, Callable[[], Any], str, str], ...] =
      "MindTick dream phase: failures into reusable lessons"),
     ("plasticity_governor", _plasticity_governor, "core/adaptation/plasticity_governor.py",
      "MindTick dream phase: EWC consolidation of weights"),
+    ("dead_letter_queue", _dead_letter_queue, "core/tasks/dead_letter_queue.py",
+     "MemoryConsolidationPhase: a memory commit that failed, kept whole for retry; stall-recovery receipts"),
 )
 
 #: Names her code reads that mean a service registered under another name.

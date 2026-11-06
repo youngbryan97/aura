@@ -62,6 +62,27 @@ class DeadLetterQueue:
         )
         return entry_id
 
+    def capture_failure(
+        self,
+        message: Any,
+        context: dict[str, Any] | None,
+        error: BaseException,
+        source: str = "orchestrator",
+    ) -> str:
+        """Record a failed cognitive payload, in the same queue as a failed task.
+
+        Stall recovery and the memory phase call this name. It belonged to a
+        second queue class (core/resilience/dlq_service.py) that nothing
+        registered, so for as long as either caller existed the container held
+        no `dead_letter_queue` and their receipts went nowhere. One queue now
+        answers both names, and concurrency health counts both.
+        """
+        params = {
+            "message": message[:2_000] if isinstance(message, str) else repr(message)[:2_000],
+            "context": context or {},
+        }
+        return self.push(source, params, f"{type(error).__name__}: {error}"[:500])
+
     def get_failed(self, limit: int = 50) -> List[Dict]:
         """List failed tasks."""
         with connecting(self._connect()) as con:

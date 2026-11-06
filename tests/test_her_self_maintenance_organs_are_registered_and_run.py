@@ -201,3 +201,16 @@ def test_no_repair_that_could_erase_her_is_wired_by_method_name():
             return True
 
     assert set(IntegrationAuditor._repair_handlers_for(Cache())) == {"CLEAR_CACHE", "RESTART_COMPONENT"}
+
+
+def test_a_failed_memory_commit_and_a_stall_receipt_land_in_one_queue(tmp_path):
+    """The memory phase calls push, stall recovery calls capture_failure; one queue answers both."""
+    from core.tasks.dead_letter_queue import DeadLetterQueue
+
+    queue = DeadLetterQueue(db_path=str(tmp_path / "dlq.db"))
+    queue.push("memory_consolidation.commit_interaction", {"content": "what she said"}, "OSError: disk")
+    queue.capture_failure(message="the objective", context={"recovery_attempt": 1},
+                          error=RuntimeError("Cognitive Stall Detected"), source="orchestrator_stall")
+    rows = queue.get_failed()
+    assert {row["skill_name"] for row in rows} == {"memory_consolidation.commit_interaction", "orchestrator_stall"}
+    assert any("what she said" in row["params"] for row in rows)
