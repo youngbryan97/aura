@@ -159,18 +159,21 @@ class Hypervisor:
             "recovery_window_s": self._failure_recovery_window_s,
         }
 
-    def _note_starvation(self, lag: float, loop_share: float) -> None:
-        """Lag the host caused: counted, said once a minute, never a freeze."""
+    def _note_starvation(self, lag: float, loop_share: float, *, process_cores: float | None = None) -> None:
+        """Lag the loop did not cause: counted, said once a minute, never a freeze."""
         self._starved_samples += 1
         now = time.monotonic()
         if now - self._last_starvation_log_at >= 60.0:
             self._last_starvation_log_at = now
+            from core.utils.concurrency import _who_starved_the_loop
+
             logger.warning(
                 "Event loop starved, not frozen: %.2fs of lag on %.0f%% of a core "
-                "(%d such samples this run). The host is not scheduling it.",
+                "(%d such samples this run). %s",
                 lag,
                 100.0 * loop_share,
                 self._starved_samples,
+                _who_starved_the_loop(process_cores),
             )
 
     def _confirm_severe_lag_failure(self, lag: float, uptime: float) -> bool:
@@ -261,6 +264,7 @@ class Hypervisor:
             # normal resume into a false multi-minute event-loop stall.
             start = _monotonic_now()
             cpu_start = time.thread_time()
+            process_cpu_start = time.process_time()
             # Simple async sleep to measure lag
             await asyncio.sleep(1.0)
             actual_sleep = _monotonic_now() - start
@@ -280,7 +284,10 @@ class Hypervisor:
             lag_threshold, lag_context = self._lag_threshold_for_context()
             if lag > lag_threshold and starved:
                 self._severe_lag_streak = 0
-                self._note_starvation(lag, loop_share)
+                self._note_starvation(
+                    lag, loop_share,
+                    process_cores=(time.process_time() - process_cpu_start) / max(actual_sleep, 1e-9),
+                )
             elif lag > lag_threshold:
                 uptime = time.time() - getattr(self, "_start_time", time.time())
                 if announced_by_monitor:

@@ -2,6 +2,7 @@ import asyncio
 import logging
 import random
 import threading
+import os
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -85,6 +86,27 @@ async def run_io_bound(func, *args, **kwargs):
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
 
+
+
+def _who_starved_the_loop(process_cores: float | None) -> str:
+    """Say whether the loop waited on its own process or on the host."""
+    try:
+        load = os.getloadavg()[0] / max(1, os.cpu_count() or 1)
+    except (OSError, AttributeError):
+        load = None
+    parts = []
+    if process_cores is not None:
+        parts.append(f"the rest of this process used {process_cores:.2f} cores meanwhile")
+    if load is not None:
+        parts.append(f"host load {load:.2f} per core")
+    reading = "; ".join(parts)
+    if load is not None and load >= 0.9:
+        verdict = "The host is not scheduling it"
+    elif process_cores is not None and process_cores >= 0.5:
+        verdict = "Its own process held it (the GIL or threads it started), not the host"
+    else:
+        verdict = "Neither the host nor this process was busy: the loop thread was waiting on something outside Python"
+    return f"{verdict} ({reading})." if reading else f"{verdict}."
 
 class RobustLock:
     """
@@ -803,24 +825,34 @@ class EventLoopMonitor:
             "recovery_window_s": self.failure_recovery_window_s,
         }
 
-    def _note_starvation(self, lag: float, loop_share: float) -> None:
-        """Lag the host caused: counted, said once a minute, not a breach."""
+    def _note_starvation(self, lag: float, loop_share: float, *, process_cores: float | None = None) -> None:
+        """Lag the loop did not cause: counted, said once a minute, not a breach.
+
+        Who did is read rather than assumed. A loop thread that got a few
+        percent of a core while the rest of this process ran is waiting on its
+        own process (the GIL, or threads it started); while the host's run queue
+        is full, it is the host. It said "the host is not scheduling it" either
+        way: on the third day run (6 November 2026) 30 times, with the Mac 77%
+        idle and a load average under 3 on its cores.
+        """
         self._starved_samples += 1
         now = time.monotonic()
         if now - self._last_starvation_log_at >= 60.0:
             self._last_starvation_log_at = now
             logger.warning(
                 "Event loop starved, not blocked: %.2fs of lag on %.0f%% of a core "
-                "(%d such samples this run). The host is not scheduling it.",
+                "(%d such samples this run). %s",
                 lag,
                 100.0 * loop_share,
                 self._starved_samples,
+                _who_starved_the_loop(process_cores),
             )
 
     async def _run(self):
         while not self._stop_event.is_set():
             start_time = time.perf_counter()
             cpu_start = time.thread_time()
+            process_cpu_start = time.process_time()
             try:
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
@@ -851,7 +883,8 @@ class EventLoopMonitor:
             )
 
             if lag > threshold and not in_startup_grace and starved:
-                self._note_starvation(lag, loop_share)
+                process_cores = (time.process_time() - process_cpu_start) / max(actual_elapsed, 1e-9)
+                self._note_starvation(lag, loop_share, process_cores=process_cores)
             elif lag > threshold and not in_startup_grace:
                 self._last_breach_lag = max(0.0, lag)
                 self._last_breach_at = sampled_at
