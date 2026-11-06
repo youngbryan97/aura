@@ -287,7 +287,7 @@ class ConsciousnessPhase(BasePhase):
 register_contract(
     CognitiveTransformContract(
         name="ConsciousnessPhase",
-        version="1.0",
+        version="1.1",
         module=__name__,
         purpose=(
             "Assemble the phenomenal state for this tick — what it is like to "
@@ -332,6 +332,11 @@ register_contract(
             "cognition.attention_focus",
             "cognition.long_term_memory",
             "cognition.pending_initiatives",
+            # Self-focus under arousal: feed_workspace calls
+            # self_conscious.monitoring on her modifiers when her stability is in
+            # question. Undeclared; it fired once on the third day run
+            # (6 November 2026, 22:03).
+            "cognition.modifiers",
             "transition_cause",
         ),
         preconditions=("state carries a cognition block",),

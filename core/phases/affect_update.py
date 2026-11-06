@@ -1718,7 +1718,7 @@ class AffectUpdatePhase(Phase):
 register_contract(
     CognitiveTransformContract(
         name="AffectUpdatePhase",
-        version="1.2",
+        version="1.3",
         module=__name__,
         purpose=(
             "Advance the affect vector one tick from appraisal, decay and "
@@ -1753,6 +1753,18 @@ register_contract(
             # thirty-three of her forty-three steps since 21 October as changes
             # nothing measured accounted for (23 October). See core/self/growth.py.
             "identity.evolution_score",
+            # What she holds in mind, settled on the feeling a percept left her
+            # with: this phase calls memory_retrieval.settle_on_what_she_feels,
+            # which rewrites the held recall when her recall pool carries felt
+            # stamps (since 000cb4a8a). Read from the code, not measured: the
+            # observer's state has no felt pool, so the branch never ran there.
+            # On the third day run (6 November 2026) it fired 22 times, in the
+            # cycles after each hourly desktop probe, and each time her lineage
+            # refused the phase's receipt, its write of identity.evolution_score
+            # with it: every one of the day's 22 steps that did not develop.
+            # The settle also rewrites cognition.memory_scores and
+            # cognition.recall_pool, which no contract watches.
+            "cognition.long_term_memory",
         ),
         preconditions=("state carries an affect vector",),
         branches=(
