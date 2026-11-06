@@ -35,6 +35,13 @@ if str(REPO) not in sys.path:
 os.environ.setdefault("AURA_LOG_DIR", "/tmp/aura_fusion_probe_logs")
 
 
+def _aura_root() -> str:
+    """Where her data lives when it is not this checkout (AURA_ROOT, declared)."""
+    from core.runtime.flags import env_str
+
+    return env_str("AURA_ROOT", default="", owner=__name__, description="Her runtime root, when it is not this checkout")
+
+
 def _snapshot_dir(repository_id: str) -> Path:
     """The local checkpoint `load()` just read, so the identity is of real bytes."""
     from huggingface_hub import snapshot_download
@@ -62,7 +69,7 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=20260908)
     parser.add_argument(
         "--replies",
-        default=str(Path(os.environ.get("AURA_ROOT") or REPO) / "data" / "endogenous_language" / "pairs.jsonl"),
+        default=str(Path(_aura_root() or REPO) / "data" / "endogenous_language" / "pairs.jsonl"),
         help="her recorded replies with the steering state each was said in, for the voice reading",
     )
     parser.add_argument("--voice", type=int, default=32, help="how many of her replies the voice reading scores")

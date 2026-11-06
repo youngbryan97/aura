@@ -229,6 +229,8 @@ async def main(argv: list[str] | None = None) -> int:
     refusal = reports.steering_refusal(args.whole, args.control, steering)
     if refusal:
         raise SystemExit(refusal)
+    from core.runtime.flags import env_str
+
     evidence: dict[str, Any] = {
         "evidence_source": evidence_source(args.seed),
         "environment": environment(),
@@ -248,7 +250,8 @@ async def main(argv: list[str] | None = None) -> int:
             "only": args.only,
             "earlier_answers": bool(args.earlier_answers),
             "rehearse": bool(args.rehearse),
-            "self_observation": os.environ.get("AURA_SELF_OBSERVATION", ""),
+            "self_observation": env_str("AURA_SELF_OBSERVATION", default="", owner=__name__,
+                                        description="The self-observation condition this run was started under"),
         },
         "items": [{"id": i.id, "kind": i.kind, "object_prompt": i.object_prompt, "meta_prompt": i.meta_prompt} for i in ITEMS],
     }

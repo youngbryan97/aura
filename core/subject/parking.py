@@ -80,7 +80,12 @@ def _forget() -> None:
 
 def offer_to_park(directory: str | os.PathLike[str] | None = None) -> bool:
     """Let this process be held between turns, if a park directory is named. True when it can be."""
-    chosen = directory if directory is not None else os.environ.get("AURA_PARK_DIR", "")
+    if directory is None:
+        from core.runtime.flags import env_str
+
+        directory = env_str("AURA_PARK_DIR", default="", owner=__name__,
+                            description="The directory a run parks this process in between turns")
+    chosen = directory
     if not chosen or threading.current_thread() is not threading.main_thread():
         return False
     if _STATE["directory"] is not None:

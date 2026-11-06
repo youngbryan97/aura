@@ -422,6 +422,8 @@ def require_native_cortex_spec(authority_key_file=None):
 
     if authority_key_file is not None:
         path = str(Path(authority_key_file).expanduser().absolute())
+        # The environment itself, not a declared flag: this checks the key
+        # against the supervised environment, which is what it sets below.
         existing = os.environ.get("AURA_CORTEX_AUTHORITY_KEY_FILE", "").strip()
         if existing and Path(existing).expanduser().absolute() != Path(path):
             raise ValueError("native authority key differs from the supervised environment")

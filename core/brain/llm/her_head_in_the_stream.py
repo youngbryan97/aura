@@ -45,7 +45,11 @@ def _switched_on() -> bool:
     """AURA_HER_HEAD_DRAFTS, on unless set to 0. MEASURED 20 October 2026 on her 27B with every channel on
     (tools/her_decode_with_each_channel.py --with-her-head): 15.2 tokens a second without it, 21.5 with it, and her
     tokens the same up to the 59th, where her first and second choices stood 0.125 nats apart."""
-    return os.environ.get("AURA_HER_HEAD_DRAFTS", "1").strip().lower() not in {"0", "false", "no", "off"}
+    from core.runtime.flags import env_str
+
+    drafts = env_str("AURA_HER_HEAD_DRAFTS", default="1", owner=__name__,
+                     description="Her own head drafts tokens in the stream (0/false/no/off to turn it off)")
+    return drafts.strip().lower() not in {"0", "false", "no", "off"}
 
 
 def her_own_head(model: Any) -> Any:

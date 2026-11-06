@@ -333,7 +333,10 @@ class SteeringVectorLibrary(_ReadsACachedVector):
         allow_derivation: bool = True,
     ):
         discovered_source_dirs: list[Path] = []
-        env_dir = os.environ.get("AURA_STEERING_DIR")
+        from core.runtime.flags import env_str
+
+        env_dir = env_str("AURA_STEERING_DIR", default="", owner=__name__,
+                          description="A directory of steering vectors to read beside the discovered ones") or None
         if env_dir and Path(env_dir).exists():
             discovered_source_dirs.append(Path(env_dir))
 

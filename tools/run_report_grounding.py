@@ -541,10 +541,14 @@ async def main(argv: list[str] | None = None) -> int:
         # be copying it; the bridge reads only a run with them withheld.
         from core.brain.what_she_is_given import readings_of_herself_withheld
 
+        from core.runtime.flags import env_str
+
         evidence["conditions"] = {
             "readings_of_herself": "withheld" if readings_of_herself_withheld() else "printed",
-            "steering": "off" if os.environ.get("AURA_DISABLE_AFFECTIVE_STEERING", "").strip().lower()
-            in {"1", "true", "yes", "on"} else "on",
+            "steering": "off" if env_str(
+                "AURA_DISABLE_AFFECTIVE_STEERING", default="", owner=__name__,
+                description="Turns her affective steering off (1/true/yes/on)",
+            ).strip().lower() in {"1", "true", "yes", "on"} else "on",
             "steering_basis": _steering_basis(),
         }
         if args.control:

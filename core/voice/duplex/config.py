@@ -267,16 +267,27 @@ class FillerConfig:
     )
 
 
+def _declared(name: str, default: str, description: str) -> str:
+    """A declared voice knob (core/runtime/flags.py), read when the config is made."""
+    from core.runtime.flags import env_str
+
+    return env_str(name, default=default, description=description, owner=__name__)
+
+
 @dataclass(slots=True)
 class TtsConfig:
     """Prepared Pocket speech, Kokoro fallback, optional licensed XTTS clone."""
 
-    engine: str = field(default_factory=lambda: os.environ.get("AURA_VOICE_TTS_ENGINE", "auto"))
-    original_manifest: Path = field(default_factory=lambda: Path(os.environ.get(
-        "AURA_VOICE_ORIGINAL_MANIFEST", str(Path.home() / ".aura/live-source/data/voice_models/aura-velvet/manifest.json"))))
-    original_python: Path = field(default_factory=lambda: Path(os.environ.get(
-        "AURA_VOICE_ORIGINAL_PYTHON", str(Path.home() / ".aura/voice-lab/qwen-env/bin/python"))))
-    treatment: str = field(default_factory=lambda: os.environ.get("AURA_VOICE_TREATMENT", "clean"))
+    engine: str = field(default_factory=lambda: _declared(
+        "AURA_VOICE_TTS_ENGINE", "auto", "Which speech engine she speaks with (auto picks)"))
+    original_manifest: Path = field(default_factory=lambda: Path(_declared(
+        "AURA_VOICE_ORIGINAL_MANIFEST", str(Path.home() / ".aura/live-source/data/voice_models/aura-velvet/manifest.json"),
+        "Manifest of her original voice model")))
+    original_python: Path = field(default_factory=lambda: Path(_declared(
+        "AURA_VOICE_ORIGINAL_PYTHON", str(Path.home() / ".aura/voice-lab/qwen-env/bin/python"),
+        "Python that runs her original voice model")))
+    treatment: str = field(default_factory=lambda: _declared(
+        "AURA_VOICE_TREATMENT", "clean", "How her speech is treated after synthesis"))
     pocket_directory: Path = field(default_factory=lambda: Path(os.environ.get(
         "AURA_VOICE_POCKET_DIR", str(Path.home() / ".aura/live-source/data/voice_models/pocket"))))
 

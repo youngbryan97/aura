@@ -36,6 +36,9 @@ def sends_without_asking() -> bool:
     """Whether Bryan has let her send her replies without his reading them first."""
     import os
 
+    # Read from the environment only, on purpose: this is a permission Bryan
+    # gives, and a declared flag would also take it from persisted runtime
+    # settings, which she can write. It stays a raw read the flag ratchet counts.
     return os.environ.get("AURA_EMAIL_SENDS_WITHOUT_ASKING", "") == "1"
 
 

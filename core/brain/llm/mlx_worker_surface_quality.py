@@ -163,7 +163,10 @@ def _surface_control_alpha(
         # has one right answer.
         from core.brain.a_turn_with_one_right_answer import has_one_right_answer
 
-        configured = os.environ.get("AURA_USER_SURFACE_STEERING_ALPHA")
+        from core.runtime.flags import env_str
+
+        configured = env_str("AURA_USER_SURFACE_STEERING_ALPHA", default="", owner=__name__,
+                             description="Steering alpha on her user-facing surface; unset reads it from the turn") or None
         if configured is None:
             configured = 0.0 if has_one_right_answer(_surface_validation_prompt(job)) else ceiling
     requested = max(0.0, min(_safe_float(configured, 0.0), ceiling))
