@@ -262,6 +262,17 @@ class _HeldLock:
     #: own site names the line that takes it; a fix for a hold on the loop
     #: goes where the await is, which is usually several plain calls above.
     reached_from: str = ""
+    #: The plain calls between that coroutine and the line that takes the
+    #: lock, outermost first, as (file, line, function). Kept raw and named
+    #: only when a hold is reported. LIVE 2026-11-06: "vector_memory_engine.encode
+    #: ... reached from the coroutine inference_gate.py:10055" held the loop
+    #: 57ms with 38ms on CPU, and nothing said which of the calls under that
+    #: line encoded; it had happened before (387ms, 531ms, 20 September).
+    chain: tuple[tuple[str, int, str], ...] = ()
+
+
+#: How many plain calls a hold report names between its coroutine and its lock.
+_CHAIN_DEPTH = 8
 
 
 @dataclass(slots=True)
@@ -515,6 +526,7 @@ class LockdepValidator:
                     reached_from=(
                         _coroutine_above() if self.on_the_loop_thread() else ""
                     ),
+                    chain=_calls_below_the_coroutine() if self.on_the_loop_thread() else (),
                 )
             )
 
@@ -563,6 +575,11 @@ class LockdepValidator:
                         + (
                             f", reached from {entry.reached_from},"
                             if entry.reached_from
+                            else ""
+                        )
+                        + (
+                            f" through {_chain_names(entry.chain)},"
+                            if entry.chain and not starved
                             else ""
                         )
                         + f" was held "
@@ -1277,6 +1294,30 @@ _ASYNCIO_PLUMBING = (
     "asyncio/tasks.py",
     "threading.py",
 )
+
+
+def _calls_below_the_coroutine() -> tuple[tuple[str, int, str], ...]:
+    """The plain calls from the coroutine down to the lock's site, outermost first.
+
+    Raw tuples, not names: this runs on every acquisition on the loop thread,
+    and a name is only wanted when a hold is reported.
+    """
+    frame = sys._getframe(2)
+    while frame is not None and frame.f_code.co_filename.endswith(_PLUMBING):
+        frame = frame.f_back
+    calls: list[tuple[str, int, str]] = []
+    while frame is not None and not frame.f_code.co_flags & _CO_COROUTINE:
+        code = frame.f_code
+        calls.append((code.co_filename, frame.f_lineno, code.co_name))
+        frame = frame.f_back
+    if frame is None:
+        # No coroutine over it; _coroutine_above names the callback instead.
+        return ()
+    return tuple(reversed(calls[-_CHAIN_DEPTH:])) if len(calls) > 1 else ()
+
+
+def _chain_names(chain: tuple[tuple[str, int, str], ...]) -> str:
+    return " → ".join(f"{path.rsplit('/', 1)[-1]}:{line} in {name}" for path, line, name in chain)
 
 
 def _frame_name(frame: Any) -> str:

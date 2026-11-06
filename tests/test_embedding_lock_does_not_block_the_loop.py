@@ -380,3 +380,50 @@ def test_a_warm_started_early_is_what_the_first_caller_finds(monkeypatch):
     assert engine._initialized and engine._model is not None
     assert engine.warm_in_background() is None, "loaded means nothing to warm"
     assert loads == ["embedding-engine-load"]
+
+
+def test_a_hold_on_the_loop_names_the_calls_between_the_coroutine_and_the_lock(caplog):
+    """The coroutine is where the await is; the calls under it are where the work is.
+
+    LIVE 2026-11-06, the third day run: "'vector_memory_engine.encode' taken at
+    vector_memory_engine.py:650, reached from the coroutine inference_gate.py:10055
+    in _generate_with_metadata_sink, was held 57ms ... (38ms on CPU)". That line
+    of the coroutine is one synchronous call, and nothing said which of the calls
+    under it encoded.
+    """
+    import logging
+    import time
+
+    from core.runtime.lockdep import checked_lock, note_event_loop_thread
+
+    lock = checked_lock("probe.a_section_three_calls_down")
+
+    def the_leaf():
+        with lock:
+            end = time.time() + 0.12
+            while time.time() < end:
+                sum(index * index for index in range(2000))
+
+    def the_check_in_between():
+        the_leaf()
+
+    def the_call_the_coroutine_makes():
+        the_check_in_between()
+
+    async def the_coroutine():
+        the_call_the_coroutine_makes()
+
+    async def main():
+        note_event_loop_thread()
+        await the_coroutine()
+
+    with caplog.at_level(logging.ERROR, logger="Aura.Lockdep"):
+        asyncio.run(main())
+
+    said = [r.getMessage() for r in caplog.records if "probe.a_section_three_calls_down" in r.getMessage()]
+    assert said, "the hold was not reported"
+    line = said[0]
+    assert "the_coroutine" in line
+    through = line.split(" through ", 1)[1]
+    order = [through.index(name) for name in ("the_call_the_coroutine_makes", "the_check_in_between", "the_leaf")]
+    assert order == sorted(order), line
