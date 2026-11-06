@@ -34,6 +34,7 @@ Integration points:
 
 import asyncio
 import logging
+import os
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -112,6 +113,41 @@ class CognitiveModifiers:
 # ---------------------------------------------------------------------------
 # Main class
 # ---------------------------------------------------------------------------
+
+#: Her process's memory, in MB, above which she reads the host as loaded: the
+#: integrity monitor's warning line (a fifth of the host's memory, its
+#: AURA_INTEGRITY_MEMORY_WARNING_MB when set), never below the 3500 MB this
+#: used to be. A flat 3500 MB was under her own size: on the third day run
+#: (6 November 2026) her process held about 4.3 GB on a 64 GB Mac at 10-18%
+#: CPU, and every report of it throttled her depth to 0.6 and her creativity to
+#: 0.8, "High host load", 122 times.
+_LOAD_MEMORY_FLOOR_MB = 3500.0
+_LOAD_MEMORY_FRACTION = 0.20
+_load_line_mb: float | None = None
+
+
+def memory_load_line_mb() -> float:
+    global _load_line_mb
+    if _load_line_mb is not None:
+        return _load_line_mb
+    line = _LOAD_MEMORY_FLOOR_MB
+    override = os.getenv("AURA_INTEGRITY_MEMORY_WARNING_MB")
+    try:
+        if override:
+            line = max(1.0, float(override))
+        else:
+            from core.runtime import resource_psutil as psutil
+
+            total_mb = float(psutil.virtual_memory().total) / (1024 * 1024)
+            line = max(_LOAD_MEMORY_FLOOR_MB, total_mb * _LOAD_MEMORY_FRACTION)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        record_degradation(
+            "homeostatic_coupling", exc, severity="warning",
+            action=f"read host load against the {_LOAD_MEMORY_FLOOR_MB:.0f} MB floor",
+        )
+    _load_line_mb = line
+    return line
+
 
 class HomeostaticCoupling:
     """Bridges internal states (drives, affect, attention) to cognitive performance.
@@ -326,7 +362,7 @@ class HomeostaticCoupling:
             return
 
         overheated = self._thermal_stress >= 2
-        loaded = self._cpu_stress > 85.0 or self._mem_stress > 3500
+        loaded = self._cpu_stress > 85.0 or self._mem_stress > memory_load_line_mb()
         self._report_strain(
             frozenset(name for name, on in (("thermal", overheated), ("load", loaded)) if on)
         )
@@ -342,7 +378,7 @@ class HomeostaticCoupling:
             mods.mood_prefix += " (Feeling a bit warm)"
 
         # 2. Resource Throttling (Phase 5)
-        if loaded: # Over 85% CPU or 3.5GB RAM
+        if loaded: # Over 85% CPU, or her process over the host's memory line
             mods.depth_mod *= 0.6  # Shorter responses
             mods.creativity_mod *= 0.8 # More deterministic to save tokens/compute
             if "hardware load" not in mods.mood_prefix:
