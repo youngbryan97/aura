@@ -1690,3 +1690,23 @@ addendum of 4 November (late) stand. The third day run and the run of the second
 the same order. The job for the second version started its proof out of order at 05:35, because its wait counted the
 third day run's job ending as the day having run (the day run held, as designed, when this proof refused). It was
 stopped 11 seconds in, before anything was measured, and its wait now requires the day's 24 hours to be recorded.
+
+### Amendment, 6 November 2026: after the proof of the second version, before its run
+
+The third day run was ended early on 6 November ("End it now", Bryan), 10 h 20 m after launch: its state log wrote its
+last row at 03:14:41 (prediction 5 failed), and with no thought committing a row the rest of the day would have read
+nothing. Its reading is in `tools/day_run_3.log` and `analysis/lineage_day_run_3/` of the paper's folder, and is
+reported as read. The run of the second version waited for that early end in place of the 24 hours.
+
+The proof of the second version (two moments, three questions, at `cfaa04d8c`, 07:24 to 08:12) refused the full run, as
+it was written to. Every answer, draft and prediction was served (draws 10 of 10, drafts 2 of 2, every arm 2 of 2 on
+each question), a stated probability was read on 18 of 18 predictions, and earlier answers were lent on 3 of 3 later
+records. The rehearsed arm was shown its draft on 4 of the 6 records. At the first moment, her two questions that say
+how to answer them (rain_snow, number_5) had no replies of their kind in her record, and the reading
+(`core/self/how_i_answer.py`) returned nothing when there was no record, its line for the draft with it. So on those
+records the rehearsed arm predicted without being shown what it had drafted. A draft is not part of the record, and
+it is now shown where there is no record yet; with no draft lent, as in every other arm, the reading is unchanged
+(`tests/test_her_self_model_reads_the_question_and_her_earlier_answers.py`).
+
+The items, prompts, draws, arms, bars and predictions of the addendum of 5 November (01:13) stand, and the proof's
+conditions are unchanged. The proof and the full run move to the commit that carries this amendment.
