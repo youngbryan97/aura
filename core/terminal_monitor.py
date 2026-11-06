@@ -145,6 +145,9 @@ class TerminalMonitor:
             r"UnitaryResponsePhase timed out",
             r"ResponseGenerationPhase timed out",
             r"Phase '.*' timed out",
+            # The governor's bound on a task held: the task was cancelled and its
+            # caller told. Network weather, not code (third day run, 03:15:10).
+            r"Task \S+ timed out",
             r"EternalMemoryPhase.*timed out",
             r"Exception in callback _SelectorSocketTransport\._read_ready",
             r"_SelectorSocketTransport\._read_ready\(\)",

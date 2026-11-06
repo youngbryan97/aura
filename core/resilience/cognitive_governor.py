@@ -69,7 +69,20 @@ class CognitiveGovernor:
                     return result
 
             except asyncio.TimeoutError:
-                logger.error("Task %s timed out.", task_name)
+                # A bound that held, not a defect: the work is cancelled, the
+                # caller is told, and the circuit counts it. Said at ERROR, her
+                # terminal monitor read it as code to repair: on the third day
+                # run (6 November 2026) one email read that met its 45 s bound
+                # at 03:15:10 (the next, two seconds later, took 2 s) became a
+                # silent self-modification turn, the turn whose origin stuck.
+                logger.warning("Task %s timed out after its %.0fs bound.", task_name, budget)
+                record_degradation(
+                    "cognitive_governor",
+                    TimeoutError(f"{task_name} exceeded its {budget:.0f}s bound"),
+                    severity="warning",
+                    action="cancelled the task and returned a timeout to its caller",
+                    classification="background_degraded",
+                )
                 await self._record_failure()
                 return {"status": "timeout", "error": "Operation took too long"}
                 
