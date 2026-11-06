@@ -549,6 +549,10 @@ class BootCognitiveMixin:
             self.narrative_engine = NarrativeEngine(self)
             ServiceContainer.register_instance("narrative_engine", self.narrative_engine)
             logger.info("✓ Narrative Engine initialized")
+            from core.brain.resting_rhythm import RestingRhythm
+
+            self.resting_rhythm = RestingRhythm(self)
+            ServiceContainer.register_instance("resting_rhythm", self.resting_rhythm)
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_cognitive_degradation(
                 e,

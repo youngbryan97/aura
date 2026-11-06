@@ -76,6 +76,10 @@ def background_response_suppression_reason(
     include_synthetic_noise: bool = True,
     origin: Any = None,
 ) -> str:
+    if background_policy.normalize_origin(origin) == "resting_cycle":
+        # Her resting rhythm (core/brain/resting_rhythm.py) is a cycle, not a
+        # message: nothing is asked of her model and nothing is said.
+        return "resting_cycle"
     if is_low_value_background_objective(objective):
         return "low_value_autonomous_objective"
     if include_synthetic_noise and looks_like_background_noise(objective):

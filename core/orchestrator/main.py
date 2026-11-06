@@ -1609,6 +1609,10 @@ class RobustOrchestrator(
                 and self.narrative_engine
             ):
                 await await_while_the_task_moves(self.narrative_engine.start(), stall_s=15.0, name='start:self.narrative_engine.start()')
+                # Her resting rhythm runs where her journal runs, and only there
+                # (core/brain/resting_rhythm.py).
+                if getattr(self, "resting_rhythm", None) is not None:
+                    await await_while_the_task_moves(self.resting_rhythm.start(), stall_s=15.0, name='start:self.resting_rhythm.start()')
 
             # Start Agency Core background tasks
             if not _foreground_only_runtime() and hasattr(self, "agency_core") and self.agency_core:
