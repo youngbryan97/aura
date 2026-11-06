@@ -137,7 +137,9 @@ def test_live_voice_turns_are_not_exported_into_chat_twice() -> None:
     assert "!line.mirroredToChat" in export
     assert "if (missing.length) sink(missing)" in export
     chunk = source[source.index("case 'voice.chunk':") :]
-    chunk = chunk[: chunk.index("break;")]
+    # To the next case, not the first break: the handler now leaves early for
+    # speech that was rejected or interrupted, and that break is not its end.
+    chunk = chunk[: chunk.index("case '", len("case 'voice.chunk':"))]
     assert "markLatestAuraTranscriptMirrored()" in chunk
     aura = _aura()
     assert "window.auraInterruptVoiceReply" in aura
