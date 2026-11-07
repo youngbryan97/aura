@@ -31,6 +31,12 @@ class _SetsTheTurnUp:
                 )
 
                 turn_grounding = turn_grounding_evidence()
+                # And what she and the person really share, so a true memory of
+                # it is not refused as an invented past (our_shared_past).
+                if context.get("visible_user_message") or context.get("her_own_turn"):
+                    from core.conversation.our_shared_past import our_shared_past
+
+                    turn_grounding = [*our_shared_past(), *(turn_grounding or [])]  # the turn's own kept first
                 if turn_grounding:
                     # Snapshot process-local custody before routing can cross
                     # task, thread, or worker boundaries. The worker receives
