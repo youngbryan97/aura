@@ -78,9 +78,12 @@ class _SetsTheTurnUp:
         # there is no user turn here to grade.
         # Read here rather than at its later assignment: this decision is
         # made before the binding, and the binding is the thing being guarded.
+        # A turn of her own has no person's question in it to recover: LIVE 7 November 2026 the "it has ended. What
+        # played, in order: ... at 3:29 of 4:00 ..." she was given became the question, and her word on a video was
+        # refused twice as arithmetic_answer_missing.
         derivable = self._origin_is_user_facing(
             str(context.get("origin", "") or "").lower()
-        )
+        ) and not context.get("her_own_turn")
         initial_visible_user_prompt = explicit_visible_user_prompt or (
             self._visible_user_prompt_from_messages(initial_messages, prompt)
             if derivable
