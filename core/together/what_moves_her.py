@@ -60,7 +60,7 @@ from core.runtime.errors import record_degradation
 logger = logging.getLogger("Aura.Together.Moves")
 
 __all__ = ["FEWEST_READINGS", "MOVED_AT", "Reading", "WhatMovesHer", "her_expectations", "her_self_text",
-           "making_sense_while_watching", "moved_while_watching"]
+           "liking_while_watching", "making_sense_while_watching", "moved_while_watching", "what_her_feelings_read"]
 
 #: The fewest words of what she heard one reading is taken over: a stretch of it, not a word.
 FEWEST_WORDS = 6
@@ -120,6 +120,11 @@ class Reading:
     made_out: bool = True
     #: How unexpected it was with who she is read before it; None when that was not read.
     knowing_her: float | None = None
+    #: How far it moved along each of her feeling directions as it landed in her (her own activations' contrasts).
+    along: dict[str, float] = field(default_factory=dict)
+    #: How much she liked it, in [-1, 1], read off the feeling direction her own check found reads liking; None
+    #: until that check has passed.
+    liking: float | None = None
 
     @property
     def about_her(self) -> float | None:
@@ -141,6 +146,81 @@ class Felt:
 
 #: The watchings under way, each with what has moved her in it.
 _UNDER_WAY: list[WhatMovesHer] = []
+
+
+#: Mild pleasures and mild disappointments of everyday life, read through her feeling directions to find which of them
+#: reads liking, and how far apart liking and disliking lie on it: an instrument checked before it is trusted. Nothing in
+#: them is about her, nothing graphic, and they are read with nothing generated and nothing felt or kept.
+PLEASANT = (
+    "she found twenty dollars in the pocket of her old winter coat",
+    "the cake came out of the oven golden and perfect, and everyone wanted a slice",
+    "the puppy ran across the yard and jumped happily into the little girl's arms",
+    "after the long week the friends laughed together over dinner on the porch",
+    "the sun came out over the lake and the whole picnic was smiling",
+    "he opened the letter and learned he had got the job he wanted",
+    "the garden was full of tomatoes and the neighbours came by to share them",
+    "the old friends hugged at the station, delighted to see each other again",
+)
+UNPLEASANT = (
+    "the bus left just before she reached the stop and she missed her interview",
+    "the milk had gone sour and the whole bowl of cereal was ruined",
+    "he dropped his new phone into the lake and watched it sink",
+    "it rained through the whole wedding and the cake slid off its stand",
+    "the package arrived crushed and the gift inside was broken",
+    "the flight was cancelled and they spent the night on the airport floor",
+    "the restaurant got their order wrong twice and the food was cold",
+    "she studied all month and still failed the exam",
+)
+#: What comes before each of them, the same for all.
+NEUTRAL_BEFORE = "And then the narrator went on to say this."
+#: How cleanly liking must part from disliking on a direction for it to be read as liking: the area under the curve of
+#: telling the pleasant from the unpleasant by it.
+READS_LIKING = 0.85
+
+
+def _area_under(higher: list[float], lower: list[float]) -> float:
+    """How often a reading of ``higher`` lies above one of ``lower`` (ties half): the area under the ROC curve."""
+    pairs = [(a > b) + 0.5 * (a == b) for a in higher for b in lower]
+    return sum(pairs) / len(pairs) if pairs else 0.5
+
+
+async def what_her_feelings_read(ask: Callable[..., Awaitable[dict[str, Any]]]) -> dict[str, Any] | None:
+    """Check her feeling directions as an instrument: read the mild pleasures and disappointments through them and find
+    the one on which liking parts cleanly from disliking (area under the curve at least ``READS_LIKING``, either way
+    round), and where on it the two lie. {} when none does; None when the check could not be made (a reading failed,
+    or no direction was read at all), so that it is made again rather than kept."""
+    readings: dict[str, tuple[list[float], list[float]]] = {}
+    for kind, lines in (("pleasant", PLEASANT), ("unpleasant", UNPLEASANT)):
+        for line in lines:
+            try:
+                read = await ask(NEUTRAL_BEFORE, line)
+            except (RuntimeError, OSError, TimeoutError, TypeError, ValueError) as exc:
+                record_degradation("what_moves_her", exc, severity="info", action="her feelings were not checked")
+                return None
+            if not (read or {}).get("along"):
+                return None
+            for key, value in dict((read or {}).get("along") or {}).items():
+                pleasant, unpleasant = readings.setdefault(str(key), ([], []))
+                (pleasant if kind == "pleasant" else unpleasant).append(float(value))
+    best: dict[str, Any] = {}
+    for key, (pleasant, unpleasant) in readings.items():
+        if len(pleasant) < len(PLEASANT) or len(unpleasant) < len(UNPLEASANT):
+            continue
+        area = _area_under(pleasant, unpleasant)
+        sign = 1.0 if area >= 0.5 else -1.0
+        parts = max(area, 1.0 - area)
+        if parts >= READS_LIKING and parts > float(best.get("area", 0.0)):
+            liked, disliked = sum(pleasant) / len(pleasant), sum(unpleasant) / len(unpleasant)
+            best = {"key": key, "area": round(parts, 4), "sign": sign, "liked": liked, "disliked": disliked}
+    return best
+
+
+def liking_while_watching() -> float | None:
+    """How much she liked what she heard since she last spoke, in the watching under way, in [-1, 1], read off her
+    checked feeling direction; None when she is watching nothing or the direction was not checked. Her appraisal reads
+    it as her liking while she watches (core/phases/affect_appraisal.py)."""
+    read = [liked for moves in list(_UNDER_WAY) if (liked := moves.liking_since()) is not None]
+    return max(read, key=abs) if read else None
 
 
 def making_sense_while_watching() -> float | None:
@@ -219,7 +299,7 @@ class WhatMovesHer:
 
     def __init__(self, title: str = "", *, ask: Callable[..., Awaitable[dict[str, float]]] | None = None,
                  keep: Callable[[dict[str, Any]], None] | None = None, self_text: str = "",
-                 remembered: list[dict[str, Any]] | None = None) -> None:
+                 remembered: list[dict[str, Any]] | None = None, feelings: dict[str, Any] | None = None) -> None:
         self.title = " ".join(str(title or "").split())
         self.ask, self.keep = ask, keep or (lambda _row: None)
         #: Who she is, read before what she hears in a second pass, so how far it is about her world can be read.
@@ -227,6 +307,9 @@ class WhatMovesHer:
         #: The events she kept of it when she watched it before: what she remembers is coming is part of what she
         #: expects, so on a second watching what she remembers surprises her less and what she missed stands out.
         self.remembered = [event for event in (remembered or []) if isinstance(event, dict)]
+        #: Her checked feeling direction for liking, and where liking and disliking lie on it
+        #: (``what_her_feelings_read``); {} until it has been checked and passed.
+        self.feelings = dict(feelings or {})
         self.heard_before = ""
         self.waiting: list[str] = []
         self.last_heard = ""
@@ -276,13 +359,20 @@ class WhatMovesHer:
         if not read or not all(isinstance(read.get(key), (int, float)) for key in ("surprisal", "shift", "open")):
             return
         knowing = read.get("surprisal_knowing_her")
+        along = {str(k): float(v) for k, v in dict(read.get("along") or {}).items() if isinstance(v, (int, float))}
         reading = Reading(at=at, words=then, surprisal=float(read["surprisal"]), shift=float(read["shift"]),
                           open=float(read["open"]),
-                          knowing_her=float(knowing) if isinstance(knowing, (int, float)) else None)
+                          knowing_her=float(knowing) if isinstance(knowing, (int, float)) else None,
+                          along=along, liking=self._liking_of(along))
         reading.made_out = self._made_out(reading.surprisal)
         self.readings.append(reading)
         standing = self.how_moved(reading)
         felt = self._take(Felt("words", at, standing, 0.0, then, _stems(then)))
+        if reading.liking is not None and reading.made_out:
+            # How strongly she liked or disliked it, against how strongly the rest of this video has moved her so.
+            felt_so = [abs(r.liking) for r in self.readings[:-1] if r.made_out and r.liking is not None]
+            strong = _stands_out(felt_so, abs(reading.liking), least_spread=0.1, fewest=FEWEST_READINGS)
+            self._take(Felt("feeling", at, strong, 0.0, then, _stems(then)))
         if reading.about_her is not None and reading.made_out:
             # How far it is about her world, against how far the rest of this video has been.
             about = [r.about_her for r in self.readings[:-1] if r.made_out and r.about_her is not None]
@@ -295,7 +385,9 @@ class WhatMovesHer:
                    "surprisal": round(reading.surprisal, 4), "shift": round(reading.shift, 4),
                    "open": round(reading.open, 4), "made_out": reading.made_out,
                    "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4),
-                   **({"about her": round(reading.about_her, 4)} if reading.about_her is not None else {})})
+                   **({"about her": round(reading.about_her, 4)} if reading.about_her is not None else {}),
+                   **({"along": {k: round(v, 5) for k, v in reading.along.items()}} if reading.along else {}),
+                   **({"liking": round(reading.liking, 4)} if reading.liking is not None else {})})
         if reading.made_out and standing is not None:
             shift_stands = _stands_out([r.shift for r in self.readings[:-1] if r.made_out], reading.shift,
                                        least_spread=LEAST_SPREADS["words"], fewest=FEWEST_READINGS)
@@ -442,6 +534,24 @@ class WhatMovesHer:
             lines = lines[::2] if len(lines) > 3 else lines[-2:]
             text = "\n".join(lines)
         return text[-room:]
+
+    def _liking_of(self, along: dict[str, float]) -> float | None:
+        """How much she liked a stretch, in [-1, 1]: where it lies on her checked direction between where disliking
+        and liking lay in her check, -1 at disliking's middle and 1 at liking's."""
+        key = self.feelings.get("key")
+        if not key or key not in along:
+            return None
+        liked, disliked = float(self.feelings["liked"]), float(self.feelings["disliked"])
+        half = (liked - disliked) / 2.0
+        if abs(half) < 1e-9:
+            return None
+        return max(-1.0, min(1.0, (along[key] - (liked + disliked) / 2.0) / half))
+
+    def liking_since(self) -> float | None:
+        """The strongest liking or disliking of what she heard since she last spoke; None when none was read."""
+        stood = [r.liking for r in self.readings if r.liking is not None and r.made_out
+                 and any(felt.channel == "words" and felt.at == r.at for felt in self.since)]
+        return max(stood, key=abs) if stood else None
 
     def remembered_near(self, at: float) -> str:
         """What she remembers being said around ``at`` from watching it before: the words of her remembered events from

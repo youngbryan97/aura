@@ -327,6 +327,10 @@ class AffectiveSteeringHook:
         self._inject_count = 0
         #: The residual sample Φ reads, and why it is silent when it is silent.
         self.phi = PhiResidualSampler(layer_idx=self._layer_idx, report=_emit_affective_fault)
+        #: While a reading of what she hears is being taken (core/brain/llm/what_she_expects_next.py surprise_of), the
+        #: block's output of each pass, kept for it to project onto this hook's directions: an observation of the pass,
+        #: never a change to it. None otherwise.
+        self.reading: list[Any] | None = None
         self._last_injection_norm = 0.0
         self._last_effective_alpha = 0.0
         self._last_mask_mode = "none"
@@ -832,6 +836,8 @@ class AffectiveSteeringHook:
                 # question about whether we happen to be steering it. The
                 # sample belongs to the forward pass, not to the injection.
                 hook.phi.maybe_record(h, inject_count=hook._inject_count)
+                if hook.reading is not None:
+                    hook.reading.append(h)
 
                 if rest is not None:
                     return (h,) + rest

@@ -60,6 +60,14 @@ def _what_the_turn_named(state: AuraState) -> str:
 
 
 def _liking(state: AuraState) -> float | None:
+    """Her liking of what the turn is about: while she watches, how what she heard since she last spoke landed along her
+    checked feeling direction (core/together/what_moves_her.py liking_while_watching); otherwise her record's regard
+    for what the turn named."""
+    from core.together.what_moves_her import liking_while_watching
+
+    watched = liking_while_watching()
+    if watched is not None:
+        return float(watched)
     text = _what_the_turn_named(state)
     if not text:
         return None

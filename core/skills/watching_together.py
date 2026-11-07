@@ -250,6 +250,47 @@ class WhatSheCanTake:
                 f"half the room she had above {self.began:.2f} when it began")
 
 
+#: How long a check of her feeling directions stands before it is made again, in seconds: a week.
+FEELINGS_CHECK_STANDS_S = 7 * 24 * 3600.0
+
+
+def _feelings_check_file() -> Any:
+    from pathlib import Path
+
+    from core.config import config
+
+    return Path(config.paths.data_dir) / "watching" / "what_her_feelings_read.json"
+
+
+async def her_feelings_checked(ask: Callable[..., Awaitable[dict[str, Any]]] | None) -> dict[str, Any]:
+    """Her feeling directions' check (core/together/what_moves_her.py ``what_her_feelings_read``), made once a week and
+    kept: which direction reads liking, and where liking and disliking lie on it. {} when it has not passed."""
+    import json
+
+    from core.together.what_moves_her import what_her_feelings_read
+
+    path = _feelings_check_file()
+    try:
+        kept = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError) as exc:
+        logger.debug("the check of her feelings could not be read: %s", exc)
+        kept = {}
+    if kept and time.time() - float(kept.get("checked_at") or 0.0) < FEELINGS_CHECK_STANDS_S:
+        return dict(kept.get("found") or {})
+    if ask is None:
+        return {}
+    found = await what_her_feelings_read(ask)
+    if found is None:
+        return {}  # not checked: made again next time, not kept
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"checked_at": time.time(), "found": found}, indent=1))
+    except OSError as exc:
+        logger.debug("the check of her feelings could not be kept: %s", exc)
+    logger.info("🎬 her feeling directions checked: %s", found or "none reads liking")
+    return found
+
+
 def the_floor_is_free(held: Any) -> Callable[[float], bool]:
     """Whether the with leaves her the floor at a moment: nobody speaking, and nothing said to her still owed."""
     from core.together.a_with import HER, THEM
@@ -363,6 +404,10 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         _ASKED_TO_THINK_OUT_LOUD.add(who)
     held.invited = max(held.invited, INVITED_REMARKS if who in _ASKED_TO_THINK_OUT_LOUD else 0)
     await _her_answer_settled(turn, at_most_s=ANSWER_WAITED_S)
+    # Before it opens, so nothing plays unwatched: whether her feeling directions read liking, checked once a week.
+    from core.together.what_moves_her import her_expectations as _her_expectations
+
+    feelings = await her_feelings_checked(_her_expectations())
     player = await open_player()
     if player is None:
         logger.info("🤝 %s could not be opened where %s watches; nothing to watch together.", title, who)
@@ -380,7 +425,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     remembered = await what_she_remembers_of(title, url)
     if remembered:
         keep({"kind": "remembered", "events": len(remembered), "wall": time.time()})
-    moves = WhatMovesHer(title, ask=her_expectations(), keep=keep, self_text=her_self_text(), remembered=remembered)
+    moves = WhatMovesHer(title, ask=her_expectations(), keep=keep, self_text=her_self_text(), remembered=remembered,
+                         feelings=feelings)
     moves.begin()
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)

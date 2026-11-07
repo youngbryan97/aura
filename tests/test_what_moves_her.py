@@ -540,3 +540,95 @@ def test_a_watching_is_kept_with_its_events_and_who_she_watched_it_with(monkeypa
         event_list=[{"from": 0.0, "to": 30.0, "heard": "slop", "seen": "", "moved": 0.4}]), url="u"))
     assert "with person:bryan" in recorded[0]["context"] and recorded[0]["metadata"]["with"] == "person:bryan"
     assert recorded[0]["metadata"]["events"][0]["heard"] == "slop"
+
+
+def _feels(direction_reads: bool):
+    """A stand-in for her model's reading along her feeling directions: "valence" parts the pleasant from the
+    unpleasant when ``direction_reads``; "arousal" never does."""
+    from core.together.what_moves_her import PLEASANT, UNPLEASANT
+
+    async def ask(before, then, *_rest):
+        valence = (0.04 if then in PLEASANT else -0.04 if then in UNPLEASANT else 0.0) if direction_reads else 0.0
+        if "awful" in then:
+            valence = -0.05  # ordinary lines lie in the middle, this one past where disliking lay
+        return {"surprisal": 3.0, "shift": 0.3, "open": 2.0, "tokens": 10.0,
+                "along": {"valence": valence + 0.001 * (len(then) % 3), "arousal": 0.01 * (len(then) % 2)}}
+
+    return ask
+
+
+def test_her_feeling_directions_are_checked_before_they_are_trusted_to_read_liking():
+    from core.together.what_moves_her import what_her_feelings_read
+
+    found = asyncio.run(what_her_feelings_read(_feels(True)))
+    assert found["key"] == "valence" and found["area"] == 1.0 and found["liked"] > found["disliked"]
+    assert asyncio.run(what_her_feelings_read(_feels(False))) == {}  # read, and no direction parts them
+
+    async def broken(*_a):
+        raise RuntimeError("no room")
+
+    async def unread(*_a):
+        return {"surprisal": 3.0, "shift": 0.3, "open": 2.0, "tokens": 10.0}
+
+    assert asyncio.run(what_her_feelings_read(broken)) is None and asyncio.run(what_her_feelings_read(unread)) is None
+
+
+def test_what_she_likes_or_dislikes_in_it_is_read_off_her_checked_direction_and_moves_her(monkeypatch):
+    import core.phases.affect_appraisal as appraisal
+    from core.together.what_moves_her import (
+        FEWEST_READINGS,
+        WhatMovesHer,
+        liking_while_watching,
+        what_her_feelings_read,
+    )
+
+    feelings = asyncio.run(what_her_feelings_read(_feels(True)))
+
+    async def go():
+        moves = WhatMovesHer("x", ask=_feels(True), feelings=feelings)
+        moves.begin()
+        try:
+            for i in range(FEWEST_READINGS + 2):
+                moves.heard(float(i), f"an ordinary line number {i} of what was said")
+                await moves._reading
+            moves.remarked()
+            moves.heard(30.0, "and then something truly awful happened to the dog")
+            await moves._reading
+            assert moves.readings[-1].liking == -1.0  # past where disliking lay in her check
+            assert moves.felt[-1].channel == "feeling" and moves.felt[-1].evidence == 1.0
+            assert liking_while_watching() == -1.0
+            monkeypatch.setattr(appraisal, "_what_the_turn_named", lambda _state: "")
+            assert appraisal._liking(SimpleNamespace()) == -1.0  # her liking while she watches is what she heard
+        finally:
+            moves.done()
+        assert liking_while_watching() is None
+
+    asyncio.run(go())
+
+
+def test_a_check_of_her_feelings_is_kept_for_a_week_and_one_that_could_not_be_made_is_not(monkeypatch, tmp_path):
+    import json as json_
+
+    import core.skills.watching_together as together
+
+    monkeypatch.setattr(together, "_feelings_check_file", lambda: tmp_path / "what_her_feelings_read.json")
+    calls = {"n": 0}
+    reads = _feels(True)
+
+    async def counted(*args):
+        calls["n"] += 1
+        return await reads(*args)
+
+    first = asyncio.run(together.her_feelings_checked(counted))
+    asked = calls["n"]
+    again = asyncio.run(together.her_feelings_checked(counted))
+    assert first["key"] == "valence" and again == first and calls["n"] == asked  # kept, not made again
+    (tmp_path / "what_her_feelings_read.json").unlink()
+
+    async def broken(*_a):
+        raise RuntimeError("no room")
+
+    assert asyncio.run(together.her_feelings_checked(broken)) == {}
+    assert not (tmp_path / "what_her_feelings_read.json").exists()
+    assert asyncio.run(together.her_feelings_checked(None)) == {}
+    assert json_.loads(json_.dumps(first))["area"] == 1.0

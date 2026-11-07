@@ -55,6 +55,8 @@ MOST_SELF_TOKENS = 160
 #: What a reading of surprise holds, and with who she is placed before it, how unexpected it was then too.
 SURPRISE_READS = ("surprisal", "shift", "open", "tokens")
 KNOWING_HER = "surprisal_knowing_her"
+#: How far what she heard moved along each of her feeling directions, beside the numbers.
+ALONG = "along"
 
 
 def transcript_of(said: str) -> str:
@@ -86,7 +88,35 @@ def score_next_turns(model: Any, tokenizer: Any, said: str, candidates: Sequence
     return [float(total) for total in mx.sum(chosen * real, axis=-1).tolist()]
 
 
-def surprise_of(model: Any, tokenizer: Any, before: str, then: str, self_text: str = "") -> dict[str, float]:
+def _along_her_feelings(hooks: list[Any], start: int, end: int) -> dict[str, float]:
+    """How far the positions ``start:end`` (what was heard) lie further along each of her feeling directions than the
+    positions before them (what came before, its first position left out for its outsized activation): the mean cosine
+    of each position's state with each direction, heard less before, averaged over the layers that hold that direction.
+    Her directions are her own activations' contrasts between feelings (core/consciousness/steering_vectors.py), so
+    this is reading what she heard as it lands in her (representation reading), with nothing changed."""
+    import mlx.core as mx
+
+    found: dict[str, list[float]] = {}
+    for hook in hooks:
+        passes = getattr(hook, "reading", None) or []
+        if not passes:
+            continue
+        h = passes[0][0].astype(mx.float32)
+        if h.shape[0] < end or start < 2:
+            continue
+        norms = mx.sqrt(mx.sum(h * h, axis=-1)) + 1e-6
+        for name, vector in dict(getattr(hook, "_vectors", {}) or {}).items():
+            v = mx.array(vector.v, dtype=mx.float32)
+            v = v / (mx.sqrt(mx.sum(v * v)) + 1e-6)
+            cosines = (h @ v) / norms
+            delta = mx.mean(cosines[start:end]) - mx.mean(cosines[1:start])
+            mx.eval(delta)
+            found.setdefault(str(getattr(vector, "key", "") or name), []).append(float(delta.item()))
+    return {key: sum(values) / len(values) for key, values in found.items()}
+
+
+def surprise_of(model: Any, tokenizer: Any, before: str, then: str, self_text: str = "", *,
+                engine: Any = None) -> dict[str, float]:
     """How what was heard (``then``) landed on what she expected after what came before it, in one forward pass over
     the plain words (no chat markup: it is what was heard, not a turn of anybody's).
 
@@ -97,6 +127,8 @@ def surprise_of(model: Any, tokenizer: Any, before: str, then: str, self_text: s
       the eye (Itti and Baldi 2005).
     - ``open``: how open what comes next is once it has been heard (entropy, nats): what suspense is made of (Ely,
       Frankel and Kamenica 2015).
+    - ``along``, with her steering ``engine``: how far it moved along each of her feeling directions, read where her
+      steering would write (``_along_her_feelings``): what she heard as it lands in her. Taken from the first pass.
     - ``surprisal_knowing_her``, with ``self_text`` (who she is) read before what came before: how unexpected its words
       were then. How much less unexpected knowing who she is makes them (the pointwise mutual information of the stretch
       and her self, in nats a token) is how far it is about her world: self-relevant material is attended to and kept
@@ -110,7 +142,15 @@ def surprise_of(model: Any, tokenizer: Any, before: str, then: str, self_text: s
     heard = list(tokenizer.encode(" " + " ".join(str(then or "").split()), add_special_tokens=False))[:MOST_THEN_TOKENS]
     if len(context) < 2 or len(heard) < 2:
         return {}
-    logits = model(mx.array([context + heard]))[0]
+    hooks = list(engine.active_hooks()) if engine is not None and hasattr(engine, "active_hooks") else []
+    for hook in hooks:
+        hook.reading = []
+    try:
+        logits = model(mx.array([context + heard]))[0]
+        along = _along_her_feelings(hooks, len(context), len(context) + len(heard)) if hooks else {}
+    finally:
+        for hook in hooks:
+            hook.reading = None
     # From the last word before it, which predicts its first, to its last, which predicts what follows it.
     rows = logits[len(context) - 1:].astype(mx.float32)
     logprobs = rows - mx.logsumexp(rows, axis=-1, keepdims=True)
@@ -119,8 +159,10 @@ def surprise_of(model: Any, tokenizer: Any, before: str, then: str, self_text: s
     shifts = mx.sum(probs[1:] * (logprobs[1:] - logprobs[:-1]), axis=-1)
     surprisal, shift, entropy = -mx.mean(picked), mx.mean(shifts), -mx.sum(probs[-1] * logprobs[-1])
     mx.eval(surprisal, shift, entropy)
-    read = {"surprisal": float(surprisal.item()), "shift": float(shift.item()), "open": float(entropy.item()),
-            "tokens": float(len(heard))}
+    read: dict[str, Any] = {"surprisal": float(surprisal.item()), "shift": float(shift.item()),
+                            "open": float(entropy.item()), "tokens": float(len(heard))}
+    if along:
+        read[ALONG] = along
     her = list(tokenizer.encode(" ".join(str(self_text or "").split()), add_special_tokens=False))[-MOST_SELF_TOKENS:]
     if len(her) >= 2:
         knowing = model(mx.array([her + context + heard]))[0][len(her) + len(context) - 1:-1].astype(mx.float32)
@@ -157,9 +199,11 @@ def as_a_job_of_the_worker(job: Any, model: Any, tokenizer: Any, engine: Any, me
             if len(surprise) in (2, 3):
                 # As a list in SURPRISE_READS order (and KNOWING_HER after, when asked), the shape the other pass
                 # answers in: a reply's text that is an object can be read as a call to something.
-                read = surprise_of(model, tokenizer, *surprise)
+                read = surprise_of(model, tokenizer, *surprise, engine=engine)
                 keys = [*SURPRISE_READS, *([KNOWING_HER] if KNOWING_HER in read else [])]
-                response["text"] = json.dumps([read[key] for key in keys] if read else [])
+                # How it moved along her feelings, where read, goes last, as the one object in the list.
+                answer = [read[key] for key in keys] + ([read[ALONG]] if read.get(ALONG) else []) if read else []
+                response["text"] = json.dumps(answer)
             else:
                 response["text"] = json.dumps(score_next_turns(model, tokenizer, asked[0], asked[1:]))
     except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
@@ -203,11 +247,18 @@ class _AsksWhatSheExpectsNext:
                 action="a stretch of what she heard was not read for how it landed; the worker gave no reading",
             )
             return {}
-        keys = [*SURPRISE_READS, KNOWING_HER][:len(read)] if isinstance(read, list) else []
-        if len(keys) < len(SURPRISE_READS) or len(read) > len(SURPRISE_READS) + 1 or not all(
-                isinstance(value, (int, float)) for value in read):
+        if not isinstance(read, list):
             return {}
-        return {key: float(value) for key, value in zip(keys, read, strict=True)}
+        along = read[-1] if read and isinstance(read[-1], dict) else None
+        numbers = read[:-1] if along is not None else read
+        keys = [*SURPRISE_READS, KNOWING_HER][:len(numbers)]
+        if len(keys) < len(SURPRISE_READS) or len(numbers) > len(SURPRISE_READS) + 1 or not all(
+                isinstance(value, (int, float)) for value in numbers):
+            return {}
+        got: dict[str, Any] = {key: float(value) for key, value in zip(keys, numbers, strict=True)}
+        if along:
+            got[ALONG] = {str(key): float(value) for key, value in along.items() if isinstance(value, (int, float))}
+        return got
 
 
 async def asked_of_the_worker(client: Any, said: str, candidates: Sequence[str]) -> list[float]:
