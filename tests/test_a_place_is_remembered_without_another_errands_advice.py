@@ -40,3 +40,15 @@ def test_a_title_she_names_in_a_decision_is_not_her_biography_and_speech_is_stil
     assert claim(decision, prompt=page, names_what_she_was_shown=True).ok
     assert not claim(decision, prompt=page).ok  # said to a person, it is checked as before
     assert not claim("I grew up in a small town by a lake.", prompt="", names_what_she_was_shown=True).ok
+
+
+def test_her_eyes_say_what_a_frame_shows_and_not_which_work_they_guess_it_is_from():
+    # LIVE 7 November 2026: frames of "Never Gonna Give You Up" were called a still from "the 1987 Sesame Street episode
+    # 'The Song of the Glass'" and from "the 1972 music video for 'A Full Commitment'".
+    from core.perception.her_eyes import plainly
+
+    assert plainly("A still from the 1987 *Sesame Street* episode “The Song of the Glass,” where Big Bird sings.") == ""
+    kept = plainly("A still from the music video for **Never Gonna Give You Up**, released in 1987.\n\n"
+                   "A man in sunglasses walks in front of a chain-link fence.")
+    assert kept == "A man in sunglasses walks in front of a chain-link fence."
+    assert plainly("A man kneels next to a large snake in a pet store.") == "A man kneels next to a large snake in a pet store."

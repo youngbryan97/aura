@@ -42,9 +42,22 @@ _TO_WHOEVER_SENT_IT = re.compile(
     r"(?:(?:this|the) (?:picture|image|screenshot|frame) (?:shows|depicts|is|appears to (?:be|show)) )?", re.IGNORECASE)
 
 
+#: Where a look says which work a picture is from, not what is in it: a guess the picture does not show. LIVE 7 November
+#: 2026, watching Rick Astley's "Never Gonna Give You Up", her eyes called frames of it a still from "the 1972 music video
+#: for 'A Full Commitment'", from "the 1987 Sesame Street episode 'The Song of the Glass'", and from a-ha's "Take On Me";
+#: the last moved her most of anything in it. What a frame shows (a man singing at a microphone in a tunnel) holds.
+_WHICH_WORK_IT_IS_FROM = re.compile(
+    r"(?:^|(?<=[.!?]\s))(?:\*\*)?(?:a|an|this is an?|the)\s+(?:\*\*)?(?:still|scene|screenshot|frame|clip|shot|image|moment)"
+    r"(?:\*\*)?\s+(?:from|of)\s+[^.!?\n]{0,240}?(?:music video|film|movie|episode|show|series|sketch|trailer|video|song)"
+    r"[^.!?\n]{0,240}[.!?:;]\s*", re.IGNORECASE)
+_A_YEAR_IT_GUESSES = re.compile(r",?\s*(?:released|from|filmed|recorded)\s+(?:in\s+)?(?:19|20)\d\d\b", re.IGNORECASE)
+
+
 def plainly(answer: str) -> str:
-    """What a look saw, without the reply's address to whoever sent the picture."""
+    """What a look saw, without the reply's address to whoever sent the picture, and without its guess at which work
+    the picture is from."""
     seen = _TO_WHOEVER_SENT_IT.sub("", str(answer or "").strip(), count=1).strip()
+    seen = _A_YEAR_IT_GUESSES.sub("", _WHICH_WORK_IT_IS_FROM.sub("", seen)).strip()
     # A look cut at its budget ends at its last whole sentence.
     whole = re.match(r"(?s)^(.*[.!?])(?:\s|$)", seen)
     seen = whole.group(1) if whole and not re.search(r"[.!?][\"'\u201d\u2019)*_]*$", seen) else seen
