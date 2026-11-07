@@ -121,6 +121,23 @@ def _asr_weights() -> str:
         return ASR_MODEL
 
 
+#: How often the ear says how it is keeping up, in seconds, to its own log.
+STATUS_EVERY_S = 10.0
+
+
+def _ear_log() -> Any:
+    """The file the ear's process writes what it says of itself to, appended to; None where it cannot be opened."""
+    try:
+        from core.config import config
+
+        path = Path(config.paths.data_dir).parent / "logs" / "her_ear.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path.open("a")
+    except (ImportError, AttributeError, OSError) as why:
+        logger.debug("the ear's own log could not be opened: %s", why)
+        return None
+
+
 def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None, weights: str = ASR_MODEL,
            hold: str = "") -> None:
     """Hear the application's sound and write each settled stretch of words as a JSON line until stopped. While the
@@ -151,9 +168,18 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
     began = monotonic_time()
     written = 0
     print(json.dumps({"listening": bundle}), file=out, flush=True)
+    said_at = began
+    held_for = 0.0
     with model.transcribe_stream(context_size=CONTEXT) as heard:
         while at_most_s is None or monotonic_time() - began < at_most_s:
             time.sleep(STEP_S)
+            if monotonic_time() - said_at >= STATUS_EVERY_S:
+                said_at = monotonic_time()
+                last = heard.finalized_tokens[-1] if heard.finalized_tokens else None
+                written_to = float(getattr(last, "end", 0.0) or (getattr(last, "start", 0.0) + getattr(last, "duration", 0.0))) if last else 0.0
+                print(f"her ear: {received['samples'] / SAMPLE_RATE:.1f}s heard, words written to {written_to:.1f}s, "
+                      f"{written} written, held {held_for:.0f}s of the last {STATUS_EVERY_S:.0f}s", file=sys.stderr, flush=True)
+                held_for = 0.0
             with lock:
                 second = np.concatenate(this_second) if this_second else None
                 this_second.clear()
@@ -163,6 +189,7 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
                 print(json.dumps({"at": round(heard_to, 2), "loudness": round(level[0], 1), "peak": round(level[1], 1)}),
                       file=out, flush=True)
             if hold and os.path.exists(hold):
+                held_for += STEP_S
                 continue  # what is heard waits in `pending`, to be written down once her voice is done
             with lock:
                 chunk = np.concatenate(pending) if pending else None
@@ -219,11 +246,14 @@ class HerEar:
                                                             "app": self.bundle, "user_visible": False}):
                 # A model process, declared as one with its weights named, so her model lanes count its memory.
                 self.hold = f"/tmp/aura-ear-hold-{os.getpid()}-{id(self)}"
+                # What the ear says of itself goes to a log of its own: LIVE 7 November 2026 it wrote no word down
+                # through a whole narrated film, and with its errors discarded nothing said why.
+                said_of_itself = _ear_log()
                 self.process = await get_subprocess_gateway().spawn_async(
                     [sys.executable, "-m", "core.senses.her_ear", "--app", self.bundle, "--model", _asr_weights(),
                      "--hold", self.hold],
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, source="core.senses.her_ear",
-                    accelerator_capability="model")
+                    stdout=asyncio.subprocess.PIPE, stderr=said_of_itself if said_of_itself is not None else
+                    asyncio.subprocess.DEVNULL, source="core.senses.her_ear", accelerator_capability="model")
         except (OSError, RuntimeError, ValueError, AttributeError, TypeError) as why:
             self.why_not = f"the ear did not start: {why}"
             return False
