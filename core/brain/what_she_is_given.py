@@ -230,6 +230,23 @@ def readings_in(text: Any, markers: Iterable[str]) -> list[str]:
 OF_THIS_TURN: list[Any] = []
 
 
+def _what_we_watched(said: Any) -> str:
+    """What she is watching with someone, or watched lately (core/skills/watching_together.py): read in every turn
+    from the start, not only once a watching has begun in this run, so "what did you think of all three?" after a
+    restart still finds them."""
+    try:
+        from core.skills import watching_together
+
+        if watching_together.what_we_are_watching in OF_THIS_TURN:
+            return ""  # the watching registered its own reading; it is read once
+        return watching_together.what_we_are_watching(str(said or ""))
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return ""
+
+
+OF_THIS_TURN.append(_what_we_watched)
+
+
 def _of_this_turn(said: Any) -> list[str]:
     found: list[str] = []
     for read in list(OF_THIS_TURN):
