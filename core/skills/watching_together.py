@@ -45,6 +45,10 @@ _PLAYING: dict[str, dict[str, Any]] = {}
 _WATCHINGS: set[asyncio.Task] = set()
 #: When she last finished watching something with each person (wall clock).
 _ENDED_AT: dict[str, float] = {}
+#: What she has watched with someone, newest last: title, who made it, with whom, when it ended, and her last word on it.
+_WATCHED_TOGETHER: list[dict[str, Any]] = []
+#: How many watchings are kept, and for how long after one ends it is part of what every turn carries, in seconds.
+WATCHED_TOGETHER_KEPT, WATCHED_TOGETHER_FOR_S = 12, 3 * 3600.0
 
 
 #: How many exchanges since the request a turn of hers reads while watching, besides the request and her answer.
@@ -418,13 +422,65 @@ def the_floor_is_free(held: Any) -> Callable[[float], bool]:
     return free
 
 
-def what_we_are_watching(_said: str = "") -> str:
-    """The reading every turn of the conversation carries while something plays: what, how far in, lately."""
-    if not _PLAYING:
+_LATELY_READ: dict[str, Any] = {}
+
+
+def _what_we_watched_lately(now: float) -> list[dict[str, Any]]:
+    """What she watched with someone lately, from her record of each watching (data/watched), so it outlasts a restart:
+    its title, who made it, when it ended, and her last word on it; and what has ended in this run since it was read.
+    Read again at most every half minute."""
+    import json
+    from pathlib import Path
+
+    kept = _LATELY_READ.get("watched")
+    if kept is None or now - float(_LATELY_READ.get("at", 0.0)) > 30.0:
+        kept = []
+        try:
+            from core.config import config
+
+            folder = Path(config.paths.data_dir) / "watched"
+            paths = [p for p in sorted(folder.glob("*.jsonl")) if now - p.stat().st_mtime <= WATCHED_TOGETHER_FOR_S]
+        except (ImportError, AttributeError, OSError) as exc:
+            logger.debug("what was watched lately could not be listed: %s", exc)
+            paths = []
+        for path in paths[-WATCHED_TOGETHER_KEPT:]:
+            try:
+                rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+                title = next((r.get("title") for r in rows if r.get("title")), "")
+                said = [r.get("words") for r in rows if r.get("kind") == "said" and r.get("words")]
+                ended = max((float(r.get("wall") or 0.0) for r in rows), default=path.stat().st_mtime) or path.stat().st_mtime
+                by = next((r.get("by") for r in rows if r.get("kind") == "remembered" and r.get("by")), "")
+                if title:
+                    kept.append({"title": title, "by": by, "ended": ended, "her last word": said[-1] if said else ""})
+            except (OSError, ValueError) as exc:
+                logger.debug("a watching could not be read: %s", exc)
+        _LATELY_READ.update({"at": now, "watched": kept})
+    titles = {w["title"] for w in kept}
+    every = [*kept, *(w for w in _WATCHED_TOGETHER if w["title"] not in titles)]
+    # The same thing watched again is one thing watched, as of its latest watching.
+    latest = {w["title"]: w for w in sorted(every, key=lambda w: float(w.get("ended") or 0.0))}
+    return sorted(latest.values(), key=lambda w: float(w.get("ended") or 0.0))
+
+
+def what_we_are_watching(_said: str = "", *, now: float | None = None) -> str:
+    """The reading every turn of the conversation carries while something plays: what, how far in, lately; and what
+    she has watched together with someone in the last hours, in the order they watched it, with her last word on each:
+    what a person has in mind of what they have just been watching with someone."""
+    now = time.time() if now is None else now
+    recent = [w for w in _what_we_watched_lately(now) if now - float(w.get("ended") or 0.0) <= WATCHED_TOGETHER_FOR_S]
+    if not _PLAYING and not recent:
         return ""
     from core.skills.watching_along import clock, what_she_watched
 
     blocks = []
+    if recent:
+        lines = ["## WHAT WE HAVE WATCHED TOGETHER LATELY"]
+        for number, watched in enumerate(recent, 1):
+            ago = max(1, round((now - float(watched["ended"])) / 60))
+            by = f" by {watched['by']}" if watched.get("by") else ""
+            last = " ".join(str(watched.get("her last word") or "").split())[:240]
+            lines.append(f"{number}. {watched['title']}{by}, ended {ago} min ago." + (f" Her last word on it: {last}" if last else ""))
+        blocks.append("\n".join(lines))
     for playing in _PLAYING.values():
         lines = [f"## WHAT IS PLAYING WHILE WE TALK\n{playing['title']} ({playing['url']}), "
                  f"at {clock(playing['at'])} of {clock(playing['duration'])}."]
@@ -623,8 +679,15 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         if not warming.done():
             warming.cancel()
         moves.done()
-        if _PLAYING.pop(who, None) is not None:
+        ended = _PLAYING.pop(who, None)
+        if ended is not None:
             _ENDED_AT[who] = time.time()
+            # What they watched together, kept for the turns after it: LIVE 7 November 2026, after three videos, asked
+            # "So what did you think of all three?", she answered that she had opened only one.
+            said = [words for _at, words in ended.get("said") or []]
+            _WATCHED_TOGETHER.append({"title": ended.get("title") or title, "by": by, "with": who,
+                                      "ended": time.time(), "her last word": said[-1] if said else ""})
+            del _WATCHED_TOGETHER[:-WATCHED_TOGETHER_KEPT]
         taking.left(who, by=IT)
         # How she came out of it, beside how it moved her: what her sweet spot and her limit are learned from. After
         # the watching is over, so nothing of it is left under way if this cannot be kept.

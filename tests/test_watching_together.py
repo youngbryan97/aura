@@ -121,7 +121,9 @@ def test_her_answer_goes_first_then_it_is_watched_together_and_the_with_ends_wit
     assert [w for _who, w, unprompted in taking.her_said if unprompted] == [f"thought {n}" for n in range(1, len(observations) + 1)]
     assert talks[-1] == [" ".join(f"thought {n}" for n in range(1, len(observations)))]  # each remark knows the ones before
     assert taking.left_by == ["it"] and not held.open  # over when the video is
-    assert together.what_we_are_watching() == ""  # and no longer read into the conversation
+    after = together.what_we_are_watching()
+    # No longer playing in the conversation, and kept as what they watched together, with her last word on it.
+    assert "WHAT IS PLAYING WHILE WE TALK" not in after and "Why volcanoes" in after and "thought" in after
 
 
 def test_a_remark_waits_while_either_has_the_floor_or_a_turn_of_theirs_is_being_answered(monkeypatch):
@@ -425,3 +427,33 @@ def test_her_email_and_reddit_wait_while_she_watches_with_someone(monkeypatch):
     assert not loop._passive_social_allowed()
     monkeypatch.setattr(together, "_ENDED_AT", {"Bryan": time.time() - 600.0})
     assert loop._passive_social_allowed() and loop._passive_social_blocker() == ""
+
+
+def test_what_they_watched_together_lately_is_carried_into_every_turn_from_her_record(monkeypatch, tmp_path):
+    # LIVE 7 November 2026: after three videos, asked "So what did you think of all three?", she said she had opened one.
+    import json
+    import os
+    import time
+    from types import SimpleNamespace
+
+    import core.config as config_module
+    import core.skills.watching_together as together
+
+    watched = tmp_path / "watched"
+    watched.mkdir()
+    now = time.time()
+    for name, title, said, ago in (("1.jsonl", "A stand-up set", "The restroom bit got me.", 1800),
+                                   ("2.jsonl", "Chickens get tails", "It just ends on the desk.", 900),
+                                   ("3.jsonl", "A stand-up set", "Wrong about the format, happily.", 600),
+                                   ("4.jsonl", "Long ago", "old", 6 * 3600)):
+        path = watched / name
+        path.write_text(json.dumps({"kind": "before", "title": title, "wall": now - ago - 60}) + "\n"
+                        + json.dumps({"kind": "said", "when": "after", "words": said, "wall": now - ago}) + "\n")
+        os.utime(path, (now - ago, now - ago))
+    monkeypatch.setattr(config_module, "config", SimpleNamespace(paths=SimpleNamespace(data_dir=tmp_path)))
+    monkeypatch.setattr(together, "_LATELY_READ", {})
+    monkeypatch.setattr(together, "_PLAYING", {})
+    block = together.what_we_are_watching(now=now)
+    assert block.startswith("## WHAT WE HAVE WATCHED TOGETHER LATELY")
+    assert block.index("Chickens get tails") < block.index("A stand-up set")  # in the order watched, the latest kept
+    assert block.count("A stand-up set") == 1 and "Wrong about the format" in block and "Long ago" not in block
