@@ -50,6 +50,10 @@ async def _lifted_run_desktop_objective_tracked(
     desktop lane called the executor directly, so the doors saw
     attempted=False/result=None and served receipt-less replies.
     """
+    from core.skills.watching_together import stopped_by
+
+    if stopped_by(message):
+        return None  # it stopped what they were watching together, and that was all it asked
     if conversation_only_surface:
         _desktop_exec_state["attempted"] = True
         return {

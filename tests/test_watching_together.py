@@ -482,3 +482,24 @@ def test_asked_to_stop_what_they_watch_together_it_is_stopped(monkeypatch):
     assert together._STOP_ASKED == {"someone": "they asked to stop it"}
     monkeypatch.setattr(together, "_PLAYING", {})
     assert together.stop_watching_if_asked("stop it") == ""  # nothing playing: nothing to stop
+
+
+def test_what_they_watched_this_sitting_is_carried_and_an_earlier_sitting_is_not():
+    # LIVE 7 November 2026: after a day of rehearsals she was handed a dozen watchings and lost "all of them".
+    from core.skills.watching_together import this_sitting
+
+    watched = [{"title": "morning", "began": 0, "ended": 300}, {"title": "B", "began": 6000, "ended": 6600},
+               {"title": "C", "began": 6700, "ended": 7300}, {"title": "D", "began": 7400, "ended": 8000}]
+    assert [w["title"] for w in this_sitting(watched, 8100.0)] == ["B", "C", "D"]
+    assert this_sitting(watched, 8000.0 + 46 * 60) == []  # after a long break, a new sitting
+
+
+def test_a_request_that_stopped_a_watching_is_not_also_a_task(monkeypatch):
+    import core.skills.watching_together as together
+
+    monkeypatch.setattr(together, "_PLAYING", {"someone": {"title": "A results page"}})
+    monkeypatch.setattr(together, "_STOP_ASKED", {})
+    monkeypatch.setattr(together, "_JUST_STOPPED", {})
+    said = "Stop this one, that's the search results page, not a video. Close it."
+    assert together.stop_watching_if_asked(said) and together.stopped_by(said)
+    assert not together.stopped_by("Close the other window.")

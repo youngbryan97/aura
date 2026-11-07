@@ -64,7 +64,19 @@ def stop_watching_if_asked(said: str) -> str:
     for who, playing in list(_PLAYING.items()):
         _STOP_ASKED[who] = "they asked to stop it"
         titles.append(str(playing.get("title") or "it"))
+    _JUST_STOPPED.update({"said": " ".join(str(said or "").split()), "at": time.time()})
     return ", ".join(titles)
+
+
+_JUST_STOPPED: dict[str, Any] = {}
+
+
+def stopped_by(said: str, *, within_s: float = 120.0) -> bool:
+    """Whether ``said`` is what just stopped a watching: done, so no other lane acts on it as a task of its own. LIVE
+    7 November 2026, "Stop this one ... Close it." stopped the watching and closed its tab, and the desktop lane also
+    took "close it" as a task, failed it, and answered "This did not complete: unparsable decision"."""
+    return (" ".join(str(said or "").split()) == _JUST_STOPPED.get("said")
+            and time.time() - float(_JUST_STOPPED.get("at") or 0.0) <= within_s)
 
 
 #: What she has watched with someone, newest last: title, who made it, with whom, when it ended, and her last word on it.
@@ -496,10 +508,13 @@ def _what_we_watched_lately(now: float) -> list[dict[str, Any]]:
                 rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
                 title = next((r.get("title") for r in rows if r.get("title")), "")
                 said = [r.get("words") for r in rows if r.get("kind") == "said" and r.get("words")]
-                ended = max((float(r.get("wall") or 0.0) for r in rows), default=path.stat().st_mtime) or path.stat().st_mtime
+                walls = [float(r.get("wall") or 0.0) for r in rows if r.get("wall")]
+                ended = max(walls, default=path.stat().st_mtime) or path.stat().st_mtime
+                began = min(walls, default=ended)
                 by = next((r.get("by") for r in rows if r.get("kind") == "remembered" and r.get("by")), "")
                 if title:
-                    kept.append({"title": title, "by": by, "ended": ended, "her last word": said[-1] if said else ""})
+                    kept.append({"title": title, "by": by, "began": began, "ended": ended,
+                                 "her last word": said[-1] if said else ""})
             except (OSError, ValueError) as exc:
                 logger.debug("a watching could not be read: %s", exc)
         _LATELY_READ.update({"at": now, "watched": kept})
@@ -510,12 +525,34 @@ def _what_we_watched_lately(now: float) -> list[dict[str, Any]]:
     return sorted(latest.values(), key=lambda w: float(w.get("ended") or 0.0))
 
 
+#: The longest break between two watchings that are one sitting, in seconds: past it, what was watched before is
+#: another sitting's, as an evening's films are not the morning's.
+A_SITTING_BREAKS_AFTER_S = 45 * 60.0
+
+
+def this_sitting(watched: list[dict[str, Any]], now: float) -> list[dict[str, Any]]:
+    """What they watched in this sitting: counting back from now, each watching that ended within
+    ``A_SITTING_BREAKS_AFTER_S`` of the next (or of now), and none before the first break. LIVE 7 November 2026, asked
+    "what did you think of all of them" after a long day of rehearsals, she was handed a dozen watchings of three hours
+    and said she did not have the list in front of her."""
+    ordered = sorted(watched, key=lambda w: float(w.get("ended") or 0.0))
+    kept: list[dict[str, Any]] = []
+    later = now
+    for watching in reversed(ordered):
+        ended = float(watching.get("ended") or 0.0)
+        if later - ended > A_SITTING_BREAKS_AFTER_S or now - ended > WATCHED_TOGETHER_FOR_S:
+            break
+        kept.append(watching)
+        later = float(watching.get("began") or ended)
+    return list(reversed(kept))
+
+
 def what_we_are_watching(_said: str = "", *, now: float | None = None) -> str:
     """The reading every turn of the conversation carries while something plays: what, how far in, lately; and what
     she has watched together with someone in the last hours, in the order they watched it, with her last word on each:
     what a person has in mind of what they have just been watching with someone."""
     now = time.time() if now is None else now
-    recent = [w for w in _what_we_watched_lately(now) if now - float(w.get("ended") or 0.0) <= WATCHED_TOGETHER_FOR_S]
+    recent = this_sitting(_what_we_watched_lately(now), now)
     if not _PLAYING and not recent:
         return ""
     from core.skills.watching_along import clock, what_she_watched
