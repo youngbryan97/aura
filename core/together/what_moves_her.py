@@ -282,6 +282,48 @@ def _middle(values: list[float]) -> float:
 #: How many of a channel's latest readings what it has been like is read from: what the video has been like lately (five
 #: minutes of its sound, longer of its looks and words), and a bound on the work each reading costs over a long film.
 LATELY = 300
+#: How many readings of each channel from her earlier watchings a new one starts from: what videos are usually like for
+#: her. A person does not meet a video's first words as if no video had come before; and with a reading every 25
+#: seconds or so, a short film never had the six of its own a reading is set against (LIVE 7 November 2026, rehearsal 4:
+#: 8 readings of words in three and a half minutes, none set against anything). Few, so this video's soon take over.
+PRIOR_READINGS = 30
+#: How many of her latest watchings what videos are usually like is read from.
+PRIOR_WATCHINGS = 10
+
+
+def what_videos_are_usually_like(folder: Any = None, *, excluding: str = "") -> dict[str, list[float]]:
+    """Her readings of each channel in her latest watchings (data/watched): words' shift and surprisal for the stretches
+    she made out, and how far each look and each second of sound departed from what she expected. {} where there are
+    none."""
+    import json
+    from pathlib import Path
+
+    try:
+        if folder is None:
+            from core.config import config
+
+            folder = Path(config.paths.data_dir) / "watched"
+        files = [p for p in sorted(Path(folder).glob("*.jsonl")) if p.name != excluding][-PRIOR_WATCHINGS:]
+    except (ImportError, AttributeError, OSError) as exc:
+        logger.debug("her earlier watchings could not be listed: %s", exc)
+        return {}
+    usual: dict[str, list[float]] = {"shift": [], "surprisal": [], "sight": [], "sound": []}
+    for path in files:
+        try:
+            for line in path.read_text().splitlines():
+                row = json.loads(line)
+                if row.get("kind") != "moved":
+                    continue
+                channel = row.get("channel", "words")
+                if channel == "words" and row.get("made_out"):
+                    for key in ("shift", "surprisal"):
+                        if isinstance(row.get(key), (int, float)):
+                            usual[key].append(float(row[key]))
+                elif channel in ("sight", "sound") and isinstance(row.get("surprise"), (int, float)):
+                    usual[channel].append(float(row["surprise"]))
+        except (OSError, ValueError) as exc:
+            logger.debug("a watching could not be read for what videos are usually like: %s", exc)
+    return {key: values[-PRIOR_READINGS:] for key, values in usual.items() if values}
 #: How far back, in spreads of recovery, readings still habituate: past five, a reading's weight is under one percent.
 HABITUATES_WITHIN = 5.0
 
@@ -373,7 +415,8 @@ class WhatMovesHer:
                  remembered: list[dict[str, Any]] | None = None, feelings: dict[str, Any] | None = None,
                  read_every_s: float = READ_AT_MOST_EVERY_S, show: Callable[[str], None] | None = None,
                  yoked: int | None = None, of_them: str = "", whom: Callable[[str], list[str]] | None = None,
-                 recall: Callable[[str], Awaitable[list[str]]] | None = None) -> None:
+                 recall: Callable[[str], Awaitable[list[str]]] | None = None,
+                 usual: dict[str, list[float]] | None = None) -> None:
         self.title = " ".join(str(title or "").split())
         self.ask, self.keep = ask, keep or (lambda _row: None)
         #: Who she is, read before what she hears in a second pass, so how far it is about her world can be read.
@@ -400,7 +443,11 @@ class WhatMovesHer:
         self.readings: list[Reading] = []
         self.felt: list[Felt] = []
         self.since: list[Felt] = []
-        self._raw: dict[str, list[float]] = {"sight": [], "sound": []}
+        #: What videos are usually like for her, from her earlier watchings (``what_videos_are_usually_like``): what each
+        #: channel's readings are set against until this video has enough of its own, which then take over.
+        self.usual = {key: list(values)[-PRIOR_READINGS:] for key, values in dict(usual or {}).items()}
+        self._raw: dict[str, list[float]] = {"sight": list(self.usual.get("sight", [])),
+                                             "sound": list(self.usual.get("sound", []))}
         self._reading: asyncio.Task | None = None
         self._seeing: asyncio.Task | None = None
         self.scenes: list[Reading] = []
@@ -616,14 +663,15 @@ class WhatMovesHer:
         the mean of how far its move of her expectation and its unexpectedness stand out from theirs. A stretch she did
         not make out moves nothing. None before there are enough to tell."""
         before = [r for r in self.readings if r.made_out and r is not reading]
-        if len(before) < FEWEST_READINGS:
+        shifts = [*self.usual.get("shift", []), *(r.shift for r in before)]
+        surprisals = [*self.usual.get("surprisal", []), *(r.surprisal for r in before)]
+        if min(len(shifts), len(surprisals)) < FEWEST_READINGS:
             return None
         if not reading.made_out:
             return 0.0
         spread = LEAST_SPREADS["words"]
-        shift = _stands_out([r.shift for r in before], reading.shift, least_spread=spread, fewest=FEWEST_READINGS)
-        surprisal = _stands_out([r.surprisal for r in before], reading.surprisal, least_spread=spread,
-                                fewest=FEWEST_READINGS)
+        shift = _stands_out(shifts, reading.shift, least_spread=spread, fewest=FEWEST_READINGS)
+        surprisal = _stands_out(surprisals, reading.surprisal, least_spread=spread, fewest=FEWEST_READINGS)
         return ((shift or 0.0) + (surprisal or 0.0)) / 2.0
 
     # ── what she saw and how it sounded ───────────────────────────────

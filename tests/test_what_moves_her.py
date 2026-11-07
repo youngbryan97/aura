@@ -907,3 +907,25 @@ def test_the_people_named_are_read_by_the_small_model_kept_on_this_machine():
     assert who_is_in_it.people_in("So Kevin and Allen Pan went out back.") == ["Kevin", "Allen Pan"]
     assert who_is_in_it.people_in("the internet is full of slop") == [] and who_is_in_it.people_in("") == []
     assert who_is_in_it.same_person("Allen", "Allen Pan") and not who_is_in_it.same_person("Allen Pan", "Kevin")
+
+
+def test_a_new_video_is_read_against_what_videos_are_usually_like_for_her(tmp_path):
+    # LIVE 7 November 2026, rehearsal 4: 8 readings of words in a three-and-a-half-minute film, none set against anything,
+    # because each video started from nothing and a reading is set against six of its own.
+    import json
+
+    from core.together.what_moves_her import FEWEST_READINGS, Reading, WhatMovesHer, what_videos_are_usually_like
+
+    earlier = tmp_path / "20261107-050735.jsonl"
+    earlier.write_text("\n".join(json.dumps({"kind": "moved", "channel": "words", "made_out": True,
+                                             "shift": 4.0 + 0.1 * (i % 5), "surprisal": 4.0 + 0.1 * (i % 3)})
+                                  for i in range(40)) + "\n" + json.dumps({"kind": "moved", "channel": "sight", "surprise": 2.0}))
+    usual = what_videos_are_usually_like(tmp_path)
+    assert len(usual["shift"]) <= 30 and usual["sight"] == [2.0]
+    fresh = WhatMovesHer("a film")
+    assert fresh.how_moved(Reading(at=5.0, words="the first words", surprisal=9.0, shift=9.0, open=1.0, made_out=True)) is None
+    seasoned = WhatMovesHer("a film", usual=usual)
+    moved = seasoned.how_moved(Reading(at=5.0, words="the first words", surprisal=9.0, shift=9.0, open=1.0, made_out=True))
+    assert moved is not None and moved > 0.5  # far past what videos usually are for her, from its first stretch
+    assert seasoned._raw["sight"] == [2.0]
+    assert FEWEST_READINGS > 1

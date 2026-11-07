@@ -514,7 +514,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
 
     from core.perception.what_her_senses_expect import SoundExpectation
     from core.perception.who_is_in_it import people_in
-    from core.together.what_moves_her import WhatMovesHer, her_expectations, her_self_text
+    from core.together.what_moves_her import WhatMovesHer, her_expectations, her_self_text, what_videos_are_usually_like
 
     keep = kept_at(title, url)
     # What moves her in it, read off her own expectations of what she sees, hears and is told
@@ -526,7 +526,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         keep({"kind": "remembered", "events": len(remembered), "of them": bool(of_them), "by": by, "wall": time.time()})
     moves = WhatMovesHer(f"{title}, by {by}" if by else title, ask=her_expectations(), keep=keep,
                          self_text=her_self_text(), remembered=remembered, feelings=feelings, show=_in_her_neural_stream,
-                         of_them=of_them, whom=people_in, recall=what_it_calls_up)
+                         of_them=of_them, whom=people_in, recall=what_it_calls_up,
+                         usual=await asyncio.to_thread(what_videos_are_usually_like))
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
 
