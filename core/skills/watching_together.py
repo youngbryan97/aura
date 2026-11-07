@@ -494,7 +494,6 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         keep({"kind": "remembered", "events": len(remembered), "wall": time.time()})
     moves = WhatMovesHer(title, ask=her_expectations(), keep=keep, self_text=her_self_text(), remembered=remembered,
                          feelings=feelings)
-    moves.begin()
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
 
@@ -547,6 +546,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     felt_before = await how_she_feels()
     if sweet:
         keep({"kind": "her sweet spot", **sweet, "wall": time.time()})
+    # Under way only inside what ends it: her appraisal reads a watching while it is registered (moves.done ends it).
+    moves.begin()
     try:
         await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held),
                           worth=worth, on_moment=took_in,
@@ -556,13 +557,18 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("together", exc, severity="warning", action="the watching together stopped")
     finally:
-        # How she came out of it, beside how it moved her: what her sweet spot and her limit are learned from.
-        keep({"kind": "felt", "before": felt_before, "after": await how_she_feels(), "highest withdraw": can_take.highest,
-              "moved most": max((felt.evidence for felt in moves.felt), default=0.0), "wall": time.time()})
         moves.done()
         if _PLAYING.pop(who, None) is not None:
             _ENDED_AT[who] = time.time()
         taking.left(who, by=IT)
+        # How she came out of it, beside how it moved her: what her sweet spot and her limit are learned from. After
+        # the watching is over, so nothing of it is left under way if this cannot be kept.
+        try:
+            keep({"kind": "felt", "before": felt_before, "after": await how_she_feels(),
+                  "highest withdraw": can_take.highest,
+                  "moved most": max((felt.evidence for felt in moves.felt), default=0.0), "wall": time.time()})
+        except OSError as exc:
+            record_degradation("together", exc, severity="info", action="how she came out of a watching was not kept")
 
 
 def start_watching_in_a_with(open_player: Callable[[], Awaitable[Any]], request: str, *, title: str, url: str,
