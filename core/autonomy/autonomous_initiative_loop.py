@@ -114,13 +114,18 @@ def _self_development_blocker(orchestrator=None) -> str:
     return ""
 
 
+#: How long she has been alone before her email and Reddit are read: the idle time below, counted for a shared watching
+#: from its end.
+_SOCIAL_IDLE_S = 120.0
+
+
 def _watching_with_someone() -> str:
-    """Who she is watching something with now, or "": her email and Reddit wait until it ends, as a person watching a
-    video with a friend does not go through their inbox while it plays. Idle time alone did not see it: nobody types
-    while a video plays, so two minutes in she was idle by the clock."""
+    """Who she is watching something with now, or finished watching with under ``_SOCIAL_IDLE_S`` ago, or "": her email
+    and Reddit wait, as a person watching a video with a friend does not go through their inbox while it plays. Idle
+    time alone did not see it: nobody types while a video plays, so two minutes in she was idle by the clock."""
     from core.skills.watching_together import watching_with
 
-    return watching_with()
+    return watching_with(within_s=_SOCIAL_IDLE_S)
 
 
 def _passive_social_allowed(orchestrator=None) -> bool:
@@ -128,7 +133,7 @@ def _passive_social_allowed(orchestrator=None) -> bool:
         return False
     return background_activity_allowed(
         orchestrator,
-        min_idle_seconds=120.0,
+        min_idle_seconds=_SOCIAL_IDLE_S,
         max_memory_percent=78.0,
         max_failure_pressure=0.15,
         require_conversation_ready=False,
@@ -142,7 +147,7 @@ def _passive_social_blocker(orchestrator=None) -> str:
         return f"watching something with {who}"
     return background_activity_reason(
         orchestrator,
-        min_idle_seconds=120.0,
+        min_idle_seconds=_SOCIAL_IDLE_S,
         max_memory_percent=78.0,
         max_failure_pressure=0.15,
         require_conversation_ready=False,

@@ -357,10 +357,21 @@ def test_her_email_and_reddit_wait_while_she_watches_with_someone(monkeypatch):
     monkeypatch.setattr(loop, "background_activity_allowed", lambda *_a, **_k: True)
     monkeypatch.setattr(loop, "background_activity_reason", lambda *_a, **_k: "")
     monkeypatch.setattr(together, "_PLAYING", {})
+    monkeypatch.setattr(together, "_ENDED_AT", {})
     assert together.watching_with() == ""
     assert loop._passive_social_allowed() and loop._passive_social_blocker() == ""
 
+    monkeypatch.setattr(together, "_ENDED_AT", {})
     monkeypatch.setattr(together, "_PLAYING", {"Bryan": {"title": "One Punch Gauntlet"}})
     assert together.watching_with() == "Bryan"
     assert not loop._passive_social_allowed()
     assert loop._passive_social_blocker() == "watching something with Bryan"
+
+    # Just after it ends he is still there, though he has typed nothing for the whole video: her time alone counts
+    # from its end.
+    monkeypatch.setattr(together, "_PLAYING", {})
+    monkeypatch.setattr(together, "_ENDED_AT", {"Bryan": time.time() - 30.0})
+    assert together.watching_with(within_s=120.0) == "Bryan" and together.watching_with() == ""
+    assert not loop._passive_social_allowed()
+    monkeypatch.setattr(together, "_ENDED_AT", {"Bryan": time.time() - 600.0})
+    assert loop._passive_social_allowed() and loop._passive_social_blocker() == ""

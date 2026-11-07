@@ -43,6 +43,8 @@ LATELY_LOOKS, LATELY_SAID = 6, 3
 #: What is playing for whom, while it plays.
 _PLAYING: dict[str, dict[str, Any]] = {}
 _WATCHINGS: set[asyncio.Task] = set()
+#: When she last finished watching something with each person (wall clock).
+_ENDED_AT: dict[str, float] = {}
 
 
 #: How many exchanges since the request a turn of hers reads while watching, besides the request and her answer.
@@ -76,9 +78,15 @@ async def her_answer_before_it_plays(request: str, found: str) -> str:
     return said.strip() or found
 
 
-def watching_with() -> str:
-    """Who she is watching something with now, or "" when nothing plays."""
-    return next(iter(_PLAYING), "")
+def watching_with(*, within_s: float = 0.0, now: float | None = None) -> str:
+    """Who she is watching something with now, or finished watching with less than ``within_s`` ago; "" if nobody.
+    Somebody watching with her is there though they type nothing, so time alone since the watching counts from its
+    end, as it does from a person's last word."""
+    if _PLAYING:
+        return next(iter(_PLAYING))
+    now = time.time() if now is None else now
+    recent = [(at, who) for who, at in _ENDED_AT.items() if now - at < within_s]
+    return max(recent)[1] if recent else ""
 
 
 def owed_an_answer() -> bool:
@@ -276,7 +284,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("together", exc, severity="warning", action="the watching together stopped")
     finally:
-        _PLAYING.pop(who, None)
+        if _PLAYING.pop(who, None) is not None:
+            _ENDED_AT[who] = time.time()
         taking.left(who, by=IT)
 
 
