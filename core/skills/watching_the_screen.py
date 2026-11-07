@@ -306,6 +306,8 @@ class OnTheirScreen:
 
         self.expects = SightExpectation()
         self.last_sight: float | None = None
+        #: The part of the window her eyes last looked at: when it changes, what they expect starts again from it.
+        self._looked_within: Any = None
         self.began = 0.0
         #: A digest of each picture of the window, to tell a video still playing from one that has stopped.
         self.pictures: list[str] = []
@@ -435,9 +437,13 @@ class OnTheirScreen:
         """How loud each second of what plays was since last asked, from her ear; None when she does not hear it."""
         return self.ear.sounds_since() if self.ear is not None and self.ear.listening else None
 
-    def _sight_of(self, picture: bytes) -> float | None:
-        from core.perception.what_her_senses_expect import glance_of
+    def _sight_of(self, picture: bytes, within: Any = None) -> float | None:
+        """How far this look departed from what her eyes expected; a new part of the window looked at (where it plays
+        found, or the window resized) is a new view, not a cut, and what they expect starts again from it."""
+        from core.perception.what_her_senses_expect import SightExpectation, glance_of
 
+        if within != self._looked_within:
+            self._looked_within, self.expects = within, SightExpectation()
         return self.expects.took(glance_of(picture))
 
     def sight(self) -> float | None:
@@ -486,7 +492,7 @@ class OnTheirScreen:
                 self.pictures.append(hashlib.sha1(taken_bytes).hexdigest())
                 within = self.video_within or await asyncio.to_thread(self.where_it_plays.took, taken_bytes)
                 smaller = await asyncio.to_thread(_smaller, taken_bytes, within=within)
-                self.last_sight = await asyncio.to_thread(self._sight_of, smaller)
+                self.last_sight = await asyncio.to_thread(self._sight_of, smaller, within)
                 # Two instruments, so her eyes and her voice work at once (core/perception/words_on_screen.py): the
                 # words in what plays, read every look on the Neural Engine, and a picture of it from her vision
                 # model, which shares her 27B's GPU, every few looks.

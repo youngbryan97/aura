@@ -61,3 +61,24 @@ def test_speech_coming_back_after_a_pause_is_no_startle():
         ears.heard(-65.0)  # a pause
     assert ears.heard(-27.0)[1] == 0.0 and ears.above_usual < 2.0  # the narration again
     assert ears.heard(-5.0)[1] > 5.0 and ears.above_usual > 20.0  # a bang over it
+
+
+def test_her_eyes_start_again_when_what_they_look_at_changes_and_a_cut_in_it_still_reads():
+    from PIL import Image
+
+    from core.skills.watching_the_screen import OnTheirScreen
+
+    def picture(colour):
+        out = io.BytesIO()
+        Image.new("RGB", (64, 36), colour).save(out, format="PNG")
+        return out.getvalue()
+
+    eyes = object.__new__(OnTheirScreen)
+    from core.perception.what_her_senses_expect import SightExpectation
+
+    eyes.expects, eyes.last_sight, eyes._looked_within = SightExpectation(), None, None
+    assert eyes._sight_of(picture((10, 10, 10))) == 0.0
+    eyes._sight_of(picture((10, 10, 10)))
+    assert eyes._sight_of(picture((250, 250, 250)), (0.1, 0.1, 0.9, 0.9)) == 0.0  # where it plays found: a new view
+    eyes._sight_of(picture((250, 250, 250)), (0.1, 0.1, 0.9, 0.9))
+    assert eyes._sight_of(picture((0, 0, 0)), (0.1, 0.1, 0.9, 0.9)) > 1.0  # a cut within it
