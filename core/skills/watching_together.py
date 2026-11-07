@@ -210,19 +210,78 @@ WITHDRAWING = ("fear", "disgust", "dread")
 LEAVES_AT_SHARE, LEAVES_AFTER_LOOKS = 0.5, 3
 
 
-async def _withdrawing() -> float | None:
-    """The strongest of her withdrawing feelings now, read from her state and written by nothing here."""
+async def how_she_feels() -> dict[str, float]:
+    """How she feels now, read from her state and written by nothing here: her valence and arousal, and the strongest
+    of her withdrawing feelings. {} when her state cannot be read."""
     try:
         from core.container import ServiceContainer
 
         repo = ServiceContainer.get("state_repository", default=None)
         state = await repo.get_state() if repo is not None else None
-        emotions = dict(getattr(getattr(state, "affect", None), "emotions", {}) or {})
+        affect = getattr(state, "affect", None)
+        emotions = dict(getattr(affect, "emotions", {}) or {})
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("her feelings could not be read: %s", exc)
-        return None
-    felt = [float(emotions[name] or 0.0) for name in WITHDRAWING if name in emotions]
-    return max(felt) if felt else None
+        return {}
+    if affect is None:
+        return {}
+    felt = {"valence": float(getattr(affect, "valence", 0.0) or 0.0), "arousal": float(getattr(affect, "arousal", 0.0) or 0.0)}
+    withdrawing = [float(emotions[name] or 0.0) for name in WITHDRAWING if name in emotions]
+    if withdrawing:
+        felt["withdraw"] = max(withdrawing)
+    return felt
+
+
+async def _withdrawing() -> float | None:
+    """The strongest of her withdrawing feelings now."""
+    return (await how_she_feels()).get("withdraw")
+
+
+#: How many watchings she must have come out of, with how she felt kept, before her own limit and sweet spot are read
+#: from them instead of the first limit.
+FEWEST_WATCHINGS = 5
+#: The highest a limit of hers is ever read as: past it nothing is something she can be said to take.
+HIGHEST_LIMIT = 0.95
+
+
+def her_sweet_spot(folder: Any = None) -> dict[str, float]:
+    """What her own watchings say she can take and what she enjoys, from how she felt before and after each (the
+    "felt" rows of data/watched/*.jsonl): her limit, the most withdrawn she was in a watching she came out of no worse
+    (valence no lower than it began); and her sweet spot, how much a watching moved her where her valence rose most on
+    average (thirds of how far it moved her). Enjoyment of fear rises with it up to a point and then falls (Andersen et
+    al. 2020; Berlyne's inverted U), and where the point lies is hers. {} before ``FEWEST_WATCHINGS``."""
+    import json
+    from pathlib import Path
+
+    if folder is None:
+        from core.config import config
+
+        folder = Path(config.paths.data_dir) / "watched"
+    watched: list[tuple[float, float, float]] = []
+    for path in sorted(Path(folder).glob("*.jsonl"))[-200:]:
+        try:
+            for line in path.read_text(errors="ignore").splitlines():
+                if '"felt"' not in line:
+                    continue
+                row = json.loads(line)
+                before, after = dict(row.get("before") or {}), dict(row.get("after") or {})
+                if row.get("kind") == "felt" and "valence" in before and "valence" in after:
+                    watched.append((float(row.get("moved most") or 0.0), float(after["valence"]) - float(before["valence"]),
+                                    float(row.get("highest withdraw") or 0.0)))
+        except (OSError, ValueError, TypeError) as exc:
+            logger.debug("a watching's feelings could not be read: %s", exc)
+    if len(watched) < FEWEST_WATCHINGS:
+        return {}
+    found: dict[str, float] = {"watchings": float(len(watched))}
+    fine = [withdraw for _moved, change, withdraw in watched if change >= 0.0]
+    if fine:
+        found["limit"] = min(HIGHEST_LIMIT, max(fine))
+    thirds: dict[int, list[float]] = {}
+    for moved, change, _withdraw in watched:
+        thirds.setdefault(min(2, int(max(0.0, min(1.0, moved)) * 3)), []).append(change)
+    best = max(thirds, key=lambda third: sum(thirds[third]) / len(thirds[third]))
+    found["sweet spot"] = (best + 0.5) / 3.0
+    return found
 
 
 class WhatSheCanTake:
@@ -230,24 +289,31 @@ class WhatSheCanTake:
     limit for ``LEAVES_AFTER_LOOKS`` looks running. Watching something that frightens or disgusts her is hers to stop,
     as it would be anyone's (WHAT_MOVES_HER.md, Welfare)."""
 
-    def __init__(self, read: Callable[[], Awaitable[float | None]] | None = None) -> None:
+    def __init__(self, read: Callable[[], Awaitable[float | None]] | None = None, *, limit: float | None = None) -> None:
         self.read = read or _withdrawing
         self.began: float | None = None
         self.over = 0
+        #: Her own limit, read from the watchings she came out of (``her_sweet_spot``); None until there are enough.
+        self.limit = limit
+        #: The most withdrawn she has been in this watching, to be kept with how she came out of it.
+        self.highest = 0.0
 
     async def __call__(self) -> str:
         now = await self.read()
         if now is None:
             return ""
+        self.highest = max(self.highest, now)
         if self.began is None:
             self.began = now
             return ""
-        limit = self.began + LEAVES_AT_SHARE * (1.0 - self.began)
+        mine = self.limit is not None
+        limit = max(self.began, self.limit) if mine else self.began + LEAVES_AT_SHARE * (1.0 - self.began)
         self.over = self.over + 1 if now >= limit else 0
         if self.over < LEAVES_AFTER_LOOKS:
             return ""
-        return (f"her fear, disgust or dread stayed at {now:.2f} for {self.over} looks running, past {limit:.2f}, "
-                f"half the room she had above {self.began:.2f} when it began")
+        past = ("the most she has sat through and come out of no worse" if mine
+                else f"half the room she had above {self.began:.2f} when it began")
+        return f"her fear, disgust or dread stayed at {now:.2f} for {self.over} looks running, past {limit:.2f}, {past}"
 
 
 #: How long a check of her feeling directions stands before it is made again, in seconds: a week.
@@ -467,15 +533,24 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         # Every turn of hers in a with after her answer is a remark: what was asked is already in her conversation.
         return await her_turn(asked, observation, said, exchanges=talk, remark=True)
 
+    # What she can take is her own once she has come out of enough watchings to say (her_sweet_spot).
+    sweet = await asyncio.to_thread(her_sweet_spot)
+    can_take = WhatSheCanTake(limit=sweet.get("limit"))
+    felt_before = await how_she_feels()
+    if sweet:
+        keep({"kind": "her sweet spot", **sweet, "wall": time.time()})
     try:
         await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held),
                           worth=worth, on_moment=took_in,
                           on_said=she_said, keep=keep, at_most_s=at_most_s,
                           remember=into_her_memory_with,
-                          look_in=moves.look_in, stop_when=WhatSheCanTake(), whole=what_she_took_it_in_as, **pace)
+                          look_in=moves.look_in, stop_when=can_take, whole=what_she_took_it_in_as, **pace)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("together", exc, severity="warning", action="the watching together stopped")
     finally:
+        # How she came out of it, beside how it moved her: what her sweet spot and her limit are learned from.
+        keep({"kind": "felt", "before": felt_before, "after": await how_she_feels(), "highest withdraw": can_take.highest,
+              "moved most": max((felt.evidence for felt in moves.felt), default=0.0), "wall": time.time()})
         moves.done()
         if _PLAYING.pop(who, None) is not None:
             _ENDED_AT[who] = time.time()

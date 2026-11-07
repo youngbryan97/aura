@@ -632,3 +632,35 @@ def test_a_check_of_her_feelings_is_kept_for_a_week_and_one_that_could_not_be_ma
     assert not (tmp_path / "what_her_feelings_read.json").exists()
     assert asyncio.run(together.her_feelings_checked(None)) == {}
     assert json_.loads(json_.dumps(first))["area"] == 1.0
+
+
+def test_her_own_limit_and_sweet_spot_are_read_from_how_she_came_out_of_her_watchings(tmp_path):
+    import json as json_
+
+    from core.skills.watching_together import FEWEST_WATCHINGS, WhatSheCanTake, her_sweet_spot
+
+    def watched(name, moved, change, withdraw):
+        row = {"kind": "felt", "before": {"valence": 0.1}, "after": {"valence": 0.1 + change},
+               "highest withdraw": withdraw, "moved most": moved}
+        (tmp_path / f"{name}.jsonl").write_text(json_.dumps({"kind": "moment"}) + "\n" + json_.dumps(row) + "\n")
+
+    for i in range(FEWEST_WATCHINGS - 1):
+        watched(f"a{i}", 0.5, 0.1, 0.4)
+    assert her_sweet_spot(tmp_path) == {}  # too few to say
+    watched("b", 0.9, -0.3, 0.8)  # moved a lot, came out worse, very withdrawn
+    watched("c", 0.55, 0.2, 0.6)  # moved middling, came out better, fairly withdrawn
+    found = her_sweet_spot(tmp_path)
+    assert found["limit"] == 0.6  # the most withdrawn she was in a watching she came out of no worse
+    assert found["sweet spot"] == pytest.approx(0.5)  # the middle third, where her valence rose most
+
+    readings = iter([0.1, 0.65, 0.7, 0.75])
+
+    async def read():
+        return next(readings)
+
+    async def go():
+        can_take = WhatSheCanTake(read, limit=found["limit"])
+        said = [await can_take() for _ in range(4)]
+        assert said[:3] == ["", "", ""] and "the most she has sat through" in said[3] and can_take.highest == 0.75
+
+    asyncio.run(go())
