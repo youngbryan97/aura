@@ -187,3 +187,25 @@ def test_a_remark_is_worth_what_moved_her_and_newness_only_where_nothing_she_hea
     assert worth_with((0.93, "THAT WENT LIKE THIRTY FEET")) == pytest.approx(0.93)
     assert worth_with((0.55, "an ordinary line")) == 0.0  # heard, read, and nothing in it moved her: new is not enough
     assert worth_with(None) == NEW_AND_UNKNOWN  # nothing she heard was read: what is new to her stands in
+
+
+def test_a_remark_of_hers_is_felt_for_what_moved_her_while_she_watches(monkeypatch):
+    """Her remarks were felt for her world model's surprise at her own state alone: what she had just heard, which moved
+    her to speak, reached none of her feelings. While she watches, her appraisal's novelty is the greater of the two."""
+    import core.phases.affect_appraisal as appraisal
+    from core.together.what_moves_her import WhatMovesHer, moved_while_watching
+
+    monkeypatch.setattr(appraisal, "_world_surprise", lambda: 0.3)
+    assert moved_while_watching() is None and appraisal._novelty() == 0.3  # watching nothing: her world model's
+    moves = WhatMovesHer("I built a glove that explodes")
+    monkeypatch.setattr(moves, "moved", lambda: (0.92, "THAT WENT LIKE THIRTY FEET"))
+    moves.begin()
+    try:
+        assert moved_while_watching() == 0.92 and appraisal._novelty() == 0.92
+        monkeypatch.setattr(moves, "moved", lambda: (0.1, "an ordinary line"))
+        assert appraisal._novelty() == 0.3  # her world model surprised her more
+    finally:
+        moves.done()
+    assert moved_while_watching() is None and appraisal._novelty() == 0.3
+    monkeypatch.setattr(appraisal, "_world_surprise", lambda: None)
+    assert appraisal._novelty() is None

@@ -20,6 +20,23 @@ logger = logging.getLogger(__name__)
 
 
 def _novelty() -> float | None:
+    """Her latest surprise among her recent ones: her world model's, or, while she watches something, how far what she
+    heard since she last spoke moved her expectations (core/together/what_moves_her.py), whichever is the greater.
+    None before either has read anything.
+
+    Her turns while watching are her remarks, and a remark was felt for her world model's surprise at her own state
+    alone: what she had just heard, which moved her to speak, reached none of her feelings."""
+    from core.together.what_moves_her import moved_while_watching
+
+    return _greater(_world_surprise(), moved_while_watching())
+
+
+def _greater(one: float | None, other: float | None) -> float | None:
+    known = [value for value in (one, other) if value is not None]
+    return max(known) if known else None
+
+
+def _world_surprise() -> float | None:
     """Her world model's latest surprise among its recent ones; None before it has seen anything."""
     from core.runtime.service_registry import get_runtime_service
 

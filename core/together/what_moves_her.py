@@ -37,7 +37,7 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Together.Moves")
 
-__all__ = ["FEWEST_READINGS", "MOVED_AT", "Reading", "WhatMovesHer", "her_expectations"]
+__all__ = ["FEWEST_READINGS", "MOVED_AT", "Reading", "WhatMovesHer", "her_expectations", "moved_while_watching"]
 
 #: The fewest words of what she heard one reading is taken over: a stretch of it, not a word.
 FEWEST_WORDS = 6
@@ -58,6 +58,18 @@ LEAST_SPREAD = 0.1
 #: And it is not made out only if her model also finds it less expected than this, in nats a token: a striking line is
 #: still speech, and word salad is far less expected than any. To be set from her readings in the first rehearsal.
 LEAST_UNMADE = 7.0
+
+
+#: The watchings under way, each with what has moved her in it.
+_UNDER_WAY: list[WhatMovesHer] = []
+
+
+def moved_while_watching() -> float | None:
+    """How far what she heard since she last spoke moved her, in the watching under way; None when she is watching
+    nothing, or nothing she heard has been read enough to tell. Her appraisal of a turn of hers reads it as her latest
+    surprise while she watches (core/phases/affect_appraisal.py), so a remark of hers is felt for what moved her."""
+    read = [moved[0] for moves in list(_UNDER_WAY) if (moved := moves.moved()) is not None]
+    return max(read) if read else None
 
 
 @dataclass
@@ -173,6 +185,11 @@ class WhatMovesHer:
     def remarked(self) -> None:
         self.since = []
 
+    def begin(self) -> None:
+        """Under way: what moves her in it is her latest surprise while it plays."""
+        if self not in _UNDER_WAY:
+            _UNDER_WAY.append(self)
+
     def getting_it(self) -> float | None:
         """How much more she expects of it now than at its start: the middle surprisal of her first third of readings
         she made sense of less that of her last third, in nats a token. What makes something rewarding to take in is
@@ -182,6 +199,8 @@ class WhatMovesHer:
         return _middle(made_out[:third]) - _middle(made_out[-third:]) if third >= 2 else None
 
     def done(self) -> None:
+        if self in _UNDER_WAY:
+            _UNDER_WAY.remove(self)
         if self._reading is not None and not self._reading.done():
             self._reading.cancel()
         progress = self.getting_it()

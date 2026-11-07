@@ -322,6 +322,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     keep = kept_at(title, url)
     # What moves her in it, read off her own expectations of what she hears (core/together/what_moves_her.py).
     moves = WhatMovesHer(title, ask=her_expectations(), keep=keep)
+    moves.begin()
     worth = WorthSaying(held, moves=moves)
 
     def took_in(moment: Any, plays: dict[str, Any]) -> None:
