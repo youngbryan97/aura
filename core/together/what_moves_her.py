@@ -113,6 +113,12 @@ EVENT_STANDS, EVENT_AT_LEAST_S = 0.5, 20.0
 LOOK_SOONER, LOOK_LATER, BORED_AFTER_S = 0.5, 1.5, 90.0
 #: Evidence this small is not something that moved her, for boredom and for attention.
 STIRRED = 0.2
+#: What moved her this far is shown as it happens in her neural stream, at most once every so many seconds of it.
+SHOWN_AT, SHOWN_EVERY_S = 0.5, 5.0
+#: What each channel is, in plain words, for what she shows of it.
+CHANNEL_SAYS = {"words": "what she heard", "sight": "a change in what she saw", "sound": "a sound over the rest",
+                "scene": "a new scene", "self": "something about her world", "feeling": "how it felt to her",
+                "open": "what comes next left wide open", "together": "what you said"}
 
 
 @dataclass
@@ -315,7 +321,8 @@ class WhatMovesHer:
     def __init__(self, title: str = "", *, ask: Callable[..., Awaitable[dict[str, float]]] | None = None,
                  keep: Callable[[dict[str, Any]], None] | None = None, self_text: str = "",
                  remembered: list[dict[str, Any]] | None = None, feelings: dict[str, Any] | None = None,
-                 read_every_s: float = READ_AT_MOST_EVERY_S) -> None:
+                 read_every_s: float = READ_AT_MOST_EVERY_S, show: Callable[[str], None] | None = None,
+                 yoked: int | None = None) -> None:
         self.title = " ".join(str(title or "").split())
         self.ask, self.keep = ask, keep or (lambda _row: None)
         #: Who she is, read before what she hears in a second pass, so how far it is about her world can be read.
@@ -339,6 +346,17 @@ class WhatMovesHer:
         self.last_scene = ""
         self._last_read_at = -1e9
         self.read_every_s = float(read_every_s)
+        #: Where what moved her is shown as it happens (her neural stream), and when it last was.
+        self.show = show
+        self._shown_at = -1e9
+        self._shown_bored = False
+        #: For the causal test (WHAT_MOVES_HER.md, Part 3): with a seed, each reading on each channel is given the
+        #: values of one drawn at random from the readings before it on that channel. The readings keep their spread and
+        #: lose their alignment with what plays, so whatever follows them should part from the content. None: her own.
+        import random
+
+        self._yoke = random.Random(yoked) if yoked is not None else None
+        self._yoked_history: dict[str, list[Any]] = {}
         self.now = 0.0
         self.last_stirred = 0.0
         self.events: list[_Event] = [_Event(began=0.0)]
@@ -386,6 +404,7 @@ class WhatMovesHer:
         took = time.monotonic() - began
         if not read or not all(isinstance(read.get(key), (int, float)) for key in ("surprisal", "shift", "open")):
             return
+        read = self._yoked_read("words", read)
         knowing = read.get("surprisal_knowing_her")
         along = {str(k): float(v) for k, v in dict(read.get("along") or {}).items() if isinstance(v, (int, float))}
         reading = Reading(at=at, words=then, surprisal=float(read["surprisal"]), shift=float(read["shift"]),
@@ -428,6 +447,15 @@ class WhatMovesHer:
                                        least_spread=LEAST_SPREADS["words"], fewest=FEWEST_READINGS)
             self._maybe_a_new_event(at, shift_stands or 0.0)
 
+    def _yoked_read(self, channel: str, read: dict[str, Any]) -> dict[str, Any]:
+        """Her own reading, or, yoked, one drawn at random from those before it on its channel (the first stands)."""
+        if self._yoke is None:
+            return read
+        history = self._yoked_history.setdefault(channel, [])
+        drawn = self._yoke.choice(history) if history else read
+        history.append(dict(read))
+        return dict(drawn)
+
     def _made_out(self, surprisal: float) -> bool:
         """Whether a stretch this unexpected is one she made sense of: no further above the middle of what she made
         sense of in this video than ``NOT_MADE_OUT`` of its spreads, or less unexpected than ``LEAST_UNMADE``."""
@@ -459,6 +487,7 @@ class WhatMovesHer:
         """One look: how far it departed from what her eyes expected (core/perception/what_her_senses_expect.py)."""
         self.now = max(self.now, float(at or 0.0))
         if surprise is not None:
+            surprise = self._yoked_read("sight", {"value": float(surprise)})["value"]
             raw = self._raw["sight"]
             standing = _stands_out(raw, float(surprise), least_spread=LEAST_SPREADS["sight"], fewest=FEWEST_LOOKS)
             raw.append(float(surprise))
@@ -510,6 +539,8 @@ class WhatMovesHer:
         how far it rose above what her ear expected as an onset (dB beyond an onset's threshold). A startle needs no
         history of the video to stand."""
         self.now = max(self.now, float(at or 0.0))
+        yoked = self._yoked_read("sound", {"value": float(surprise), "onset": float(onset)})
+        surprise, onset = yoked["value"], yoked["onset"]
         raw = self._raw["sound"]
         standing = _stands_out(raw, float(surprise), least_spread=LEAST_SPREADS["sound"], fewest=FEWEST_SECONDS)
         raw.append(float(surprise))
@@ -535,9 +566,30 @@ class WhatMovesHer:
         self.since.append(felt)
         if felt.evidence >= STIRRED:
             self.last_stirred = max(self.last_stirred, felt.at)
+            self._shown_bored = False
         if felt.evidence > self.events[-1].moved:
             self.events[-1].moved, self.events[-1].what = felt.evidence, felt.what
+        self._show(felt)
         return felt
+
+    def _show(self, felt: Felt) -> None:
+        """What moved her, shown as it happens: the channel in plain words, what it was of, how far it moved her, and
+        how she liked it where that was read. Nothing of hers is said: it is her reading, shown."""
+        if self.show is None:
+            return
+        try:
+            if felt.evidence >= SHOWN_AT and felt.at - self._shown_at >= SHOWN_EVERY_S:
+                self._shown_at = felt.at
+                what = f' — "{felt.what[:110]}"' if felt.what and felt.channel not in ("sight", "sound") else ""
+                liked = next((r.liking for r in [*self.readings, *self.scenes][-3:] if r.at == felt.at and r.liking is not None), None)
+                felt_as = f", liked {liked:+.2f}" if liked is not None else ""
+                self.show(f"{_clock(felt.at)} moved by {CHANNEL_SAYS.get(felt.channel, felt.channel)}{what} "
+                          f"({felt.evidence:.2f}{felt_as})")
+            elif self.bored() and not self._shown_bored:
+                self._shown_bored = True
+                self.show(f"{_clock(self.now)} nothing has moved her for {int(self.now - self.last_stirred)} seconds")
+        except (RuntimeError, TypeError, ValueError, AttributeError) as exc:
+            logger.debug("what moved her was not shown: %s", exc)
 
     def moved(self, *, without: tuple[str, ...] = ()) -> tuple[float, str] | None:
         """How far what she took in since she last spoke moved her, all channels together (noisy-OR of each channel's

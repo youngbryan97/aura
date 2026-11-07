@@ -729,3 +729,33 @@ def test_what_her_eyes_say_of_a_new_scene_is_read_for_how_unexpected_it_is_in_wh
         assert "words on it" not in moves.scenes[0].words
 
     asyncio.run(go())
+
+
+def test_what_moves_her_is_shown_in_her_stream_as_it_happens_and_so_is_her_boredom_once():
+    from core.together.what_moves_her import WhatMovesHer
+
+    shown: list[str] = []
+    moves = WhatMovesHer("x", show=shown.append)
+    for look in range(10):
+        moves.saw(5.0 * look, 0.1, "a garage")
+    moves.saw(50.0, 8.0, "an explosion in a field")
+    moves.saw(52.0, 9.0, "smoke over the field")  # within five seconds of the last shown: not shown again
+    assert len(shown) == 1 and shown[0].startswith("0:50 moved by a change in what she saw (1.00")
+    for look in range(12, 40):
+        moves.saw(5.0 * look, 0.1, "a garage")
+    assert shown[-1].endswith("seconds") and "nothing has moved her" in shown[-1]
+    assert sum("nothing has moved her" in line for line in shown) == 1
+
+
+def test_yoked_her_readings_keep_their_spread_and_lose_their_alignment_with_what_plays():
+    from core.together.what_moves_her import WhatMovesHer
+
+    own, yoked = WhatMovesHer("x"), WhatMovesHer("x", yoked=7)
+    values = [0.1 + 0.001 * look for look in range(10)] + [8.0] + [0.1] * 10
+    for look, value in enumerate(values):
+        own.saw(5.0 * look, value)
+        yoked.saw(5.0 * look, value)
+    cut_own = own.felt[10].evidence
+    cut_yoked = yoked.felt[10].evidence
+    assert cut_own == 1.0 and cut_yoked == 0.0  # the cut, yoked to a look before it, moves nothing
+    assert set(yoked._raw["sight"]) <= set(values)  # every value one of her own, from earlier in the same video

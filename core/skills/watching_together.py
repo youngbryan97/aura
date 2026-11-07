@@ -358,6 +358,16 @@ async def her_feelings_checked(ask: Callable[..., Awaitable[dict[str, Any]]] | N
     return found
 
 
+def _in_her_neural_stream(line: str) -> None:
+    """What moved her while she watches, shown in her neural stream as it happens."""
+    try:
+        from core.thought_stream import get_emitter
+
+        get_emitter().emit("Watching 🎬", line, level="info", category="Perception")
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug("what moved her was not shown in her stream: %s", exc)
+
+
 def the_floor_is_free(held: Any) -> Callable[[float], bool]:
     """Whether the with leaves her the floor at a moment: nobody speaking, and nothing said to her still owed."""
     from core.together.a_with import HER, THEM
@@ -493,7 +503,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     if remembered:
         keep({"kind": "remembered", "events": len(remembered), "wall": time.time()})
     moves = WhatMovesHer(title, ask=her_expectations(), keep=keep, self_text=her_self_text(), remembered=remembered,
-                         feelings=feelings)
+                         feelings=feelings, show=_in_her_neural_stream)
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
 
