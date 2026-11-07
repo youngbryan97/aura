@@ -34,6 +34,9 @@ WATCHED_AT_MOST_S = 30 * 60.0
 #: view: a channel's page plays its trailer at 0.128 of it, a page for one video plays it at 0.293. A video watched
 #: first takes at least this; a smaller one is offered and watched when her model chooses it.
 THE_PAGE_IS_ITS_VIDEO = 0.2
+#: The least share of the view a video playing with its sound takes to be taken as the one she chose: more than a
+#: preview in a list of results (about 0.09), less than a vertical video in a wide window (0.269).
+CHOSEN_TAKES_AT_LEAST = 0.15
 #: When each request to watch was last watched first, so that a request is watched first once: a site that plays the
 #: next video when one ends (at a new address) is not watched on by itself. After it, her model decides.
 _WATCHED_FOR: dict[str, float] = {}
@@ -71,7 +74,9 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
     # browser lets a page play sound only after a person has acted on it. LIVE 7 November 2026, asked to find a cooking
     # video and watch it, she chose a short one; its page stated no length and its video took 0.269 of the view, so it
     # was not taken as what the page is for, and she paused and played it on her own page while no watching began.
-    chosen = plays.get("paused") is False and plays.get("muted") is False
+    # And at more than a thumbnail's share of the view: a results page plays its first result's preview with sound
+    # (LIVE 7 November 2026, a search for steak techniques was handed over and watched as if it were the video).
+    chosen = plays.get("paused") is False and plays.get("muted") is False and share >= CHOSEN_TAKES_AT_LEAST
     return {**observation, "elements": [*(observation.get("elements") or []),
                                         {"role": "watching", "name": name, "selector": WATCHING, "share_of_view": round(share, 3),
                                          "its_own": its_own or chosen, "chosen": chosen}]}

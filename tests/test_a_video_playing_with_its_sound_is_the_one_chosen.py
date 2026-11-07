@@ -54,3 +54,10 @@ def test_a_muted_preview_is_not():
     assert offered["its_own"] is False
     assert watched_first({"url": "https://videos.example/results", "elements": [offered]},
                          "Find us a cooking video, and let's watch it together.", take=False) is None
+
+
+def test_a_preview_playing_with_sound_in_a_list_of_results_is_not():
+    # LIVE 7 November 2026: a results page playing its first result's preview with sound was watched as the video.
+    preview = {"x": 300, "y": 200, "w": 300, "h": 170, "vw": 1024, "vh": 768, "duration": 600.0}
+    offered = _offered({**preview, "paused": False, "muted": False})
+    assert offered["chosen"] is False
