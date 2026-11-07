@@ -252,6 +252,39 @@ def test_she_stays_quiet_through_what_does_not_interest_her_and_speaks_at_the_lu
     assert worth.interest == 0.0 and not look(120.0, "a sponsor read again", 0.3)
 
 
+def test_what_is_new_is_new_to_her_not_how_her_eyes_word_it(monkeypatch):
+    """LIVE 22 October 2026: how unlike a look's words were from the last look's read 0.88 at the middle, since her eyes
+    word the same garage differently every five seconds, and all 125 of October's readings said to speak. New is a
+    word (by stem) she has not taken in over the last two minutes of it, and enough is as much as came before the
+    middle of her remarks."""
+    from types import SimpleNamespace
+
+    from core.skills.watching_together import NEW_AND_UNKNOWN, NEW_TO_HER_S, WorthSaying
+    from core.together import remarks
+    from core.together.a_with import With
+
+    monkeypatch.setattr(remarks, "interest_in", lambda _seen, _change: (0.0, ""))  # her record says nothing of any of it
+    worth = WorthSaying(With(who="person:bryan", what="watching a video", began=0.0))
+
+    def look(at: float, seen: str) -> float | None:
+        return worth.took_in(SimpleNamespace(at=at, seen=seen, read=""))
+
+    assert look(0.0, "A man in a garage holds a welded glove") == 1.0
+    assert look(5.0, "In the garage, the man is holding the glove he welded") == 0.0  # the same garage, worded again
+    assert look(10.0, "Sparks fly as a pumpkin bursts on the lawn") == 1.0
+    assert look(10.0 + NEW_TO_HER_S + 1.0, "the garage and the glove again") == 1.0  # two minutes on, it is new again
+    assert worth.unknown_and_new and worth.enough_is_new()
+    worth.remarked()  # her first remark, at the opening: not what enough is measured by
+    look(140.0, "a ladder and a rake")
+    assert worth.enough_is_new()
+    worth.remarked()
+    assert not worth.unknown_and_new and worth.fresh == 0
+    look(145.0, "a ladder and a bucket")  # one new word, where her last remark came after two (ladder, rake)
+    assert not worth.enough_is_new()
+    look(150.0, "a hose on the fence")
+    assert worth.enough_is_new() and worth.unknown_and_new and worth.interest == 0.0 < NEW_AND_UNKNOWN
+
+
 def test_each_remark_answers_what_she_was_shown_before_it_and_the_request_comes_first(monkeypatch):
     """LIVE 2026-10-21, rehearsal 11: with every remark folded into one reply to the request, a remark three minutes
     in began "Let me think out loud before it starts"."""

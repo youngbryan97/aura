@@ -103,36 +103,83 @@ def owed_an_answer() -> bool:
         return False
 
 
+#: How far back what she has taken in of a video counts for whether something in it is new to her, in seconds of it.
+NEW_TO_HER_S = 120.0
+#: What something new is worth to her when her record says nothing of it: what a chance is before anything has been
+#: seen of it (core/together/when_to_say_something.py reads an unknown as one half).
+NEW_AND_UNKNOWN = 0.5
+
+
 class WorthSaying:
     """Whether what has played since her last remark is worth one now: her own rule for speaking unasked inside a with
-    (core/together/when_to_say_something.py), how much it interests her (core/together/remarks.py interest_in) against
-    what taking his attention from what plays costs. Not that something new was said: LIVE 20 October 2026 new words
-    were the whole of the rule, and a sponsor's read is all new words.
+    (core/together/when_to_say_something.py), how much it is worth to her against what taking his attention from what
+    plays costs.
 
-    Interest is the most any look since her last remark held, so a remark at a lull can be about what came before it.
-    What plays will not be there to point at later, so all of a remark's worth is lost by waiting (the rule's m)."""
+    Its worth is what her record says of what it names (her strongest like or dislike among them, her stake in what it
+    is about: core/together/remarks.py interest_in), or, where it says nothing, that enough has come since she last
+    spoke that is new to her: words (by stem) she has not seen or heard in the last ``NEW_TO_HER_S`` of it, as many as
+    the middle of her remarks so far came after (her first, at the opening where every word is new, not counted), worth
+    ``NEW_AND_UNKNOWN``.
+
+    LIVE 22 October 2026 its worth was how unlike each look's words were from the last look's. Her eyes word the same
+    garage differently every five seconds, so it read 0.88 at the middle, and every one of the 125 readings of October's
+    watchings said to speak: she spoke whenever fifteen seconds had passed and her last remark had been heard, 18 times
+    in 11 minutes, about every 35 seconds. Replayed over the same looks this speaks 10 times, 24 to 114 seconds apart,
+    sooner where more is coming. Before that (LIVE 20 October 2026) new words were the whole of the rule, and a sponsor's
+    read is all new words: so newness is worth only what an unknown is, and her record's word on a thing outweighs it.
+
+    The cost side reads how much of each look is new to her against how much has been (a.eventful), so a lull is a
+    stretch where little is new, not one her eyes happened to word like the last. Worth is the most since her last
+    remark, so a remark at a lull can be about what came before it. What plays will not be there to point at later, so
+    all of a remark's worth is lost by waiting (the rule's m)."""
 
     def __init__(self, held: Any) -> None:
         self.held, self.interest, self.thing = held, 0.0, ""
+        self.recent: list[tuple[float, set[str]]] = []
+        self.fresh, self.at_remarks = 0, []
+        #: Whether something new to her that her record says nothing of has come since she last spoke.
+        self.unknown_and_new = False
 
-    def took_in(self, moment: Any) -> None:
+    def took_in(self, moment: Any) -> float | None:
+        """Take in a look; how much of it is new to her, in [0, 1], or None where it has no words."""
+        from core.skills.watching_along import _stems
         from core.together.remarks import interest_in
 
         seen = " ".join(part for part in (moment.seen, moment.read) if part)
-        change = self.held.field_of_view[-1].change if self.held.field_of_view else None
-        interest, thing = interest_in(seen, change)
-        if interest >= self.interest:
+        at = float(getattr(moment, "at", 0.0) or 0.0)
+        came = _stems(seen)
+        self.recent = [(when, stems) for when, stems in self.recent if at - when <= NEW_TO_HER_S]
+        known = set().union(*(stems for _when, stems in self.recent))
+        new = came - known
+        self.recent.append((at, came))
+        self.fresh += len(new)
+        interest, thing = interest_in(seen, None)  # what her record says of it, and nothing for how new it is
+        if interest > 0.0 and interest >= self.interest:
             self.interest, self.thing = interest, thing or seen[:80]
+        elif interest <= 0.0 and new:
+            # Her record says nothing of it: its worth is unknown, and new to her. A thing her record has a word on,
+            # however small (a sponsor's read), is worth that word, new or not.
+            self.unknown_and_new = True
+            self.thing = self.thing or seen[:80]
+        return len(new) / len(came) if came else None
+
+    def enough_is_new(self) -> bool:
+        """Whether as much has come that is new to her since she last spoke as was new when she did."""
+        middle = sorted(self.at_remarks[1:])
+        return self.fresh >= max(1, middle[len(middle) // 2] if middle else 1)
 
     def remarked(self) -> None:
-        self.interest, self.thing = 0.0, ""
+        self.at_remarks.append(self.fresh)
+        self.fresh, self.interest, self.thing, self.unknown_and_new = 0, 0.0, "", False
 
     def __call__(self, _moment: Any, now: float) -> bool:
         from core.together.when_to_say_something import worth_saying_now
 
-        say = worth_saying_now(self.held, now, interest=self.interest, thing=self.thing, lost_by_waiting=1.0)
-        logger.info("🤝 %s: %s (interest %.2f in %s)", "worth saying now" if say.speak else "stays quiet", say.why,
-                    self.interest, self.thing or "what is on")
+        worth = max(self.interest, NEW_AND_UNKNOWN if self.unknown_and_new and self.enough_is_new() else 0.0)
+        say = worth_saying_now(self.held, now, interest=worth, thing=self.thing, lost_by_waiting=1.0)
+        logger.info("🤝 %s: %s (worth %.2f: her record %.2f in %s, %d new since she spoke)",
+                    "worth saying now" if say.speak else "stays quiet", say.why, worth, self.interest,
+                    self.thing or "what is on", self.fresh)
         return say.speak
 
 
@@ -254,13 +301,11 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     worth = WorthSaying(held)
 
     def took_in(moment: Any, plays: dict[str, Any]) -> None:
-        from core.together.taking_it_up import _how_much_changed
-
         playing.update(at=float(plays.get("at") or moment.at), duration=float(plays.get("duration") or 0.0))
         playing["moments"].append(moment)
         shown = " ".join(part for part in (moment.seen, moment.read) if part)[:400] or title
-        held.shown(shown, time.time(), change=_how_much_changed(held, shown))
-        worth.took_in(moment)
+        # How much of it is new to her, not how unlike its words are from the last look's (WorthSaying).
+        held.shown(shown, time.time(), change=worth.took_in(moment))
 
     shown_last = {"observation": ""}
 
