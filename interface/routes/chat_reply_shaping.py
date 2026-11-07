@@ -1787,7 +1787,14 @@ def _append_sensory_claim_correction(user_message: object, reply_text: object) -
             sensory_claim_correction,
         )
 
-        kept, removed = excise_unsupported_sensory_claims(reply_text)
+        # What she watched with someone lately is her own record: retold, it is recalled, not sensed now.
+        try:
+            from core.skills.watching_together import what_we_are_watching
+
+            recalled = what_we_are_watching()
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            recalled = ""
+        kept, removed = excise_unsupported_sensory_claims(reply_text, recalled=recalled)
         correction = str(sensory_claim_correction(reply_text, user_message) or "").strip()
         if removed:
             dropped = " ".join(removed)[:200]

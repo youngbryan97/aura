@@ -1258,7 +1258,25 @@ def unsupported_sensory_claims(reply: Any, bundle: EvidenceBundle) -> list[str]:
     return unsupported
 
 
-def excise_unsupported_sensory_claims(reply: Any, bundle: Any = None) -> tuple[str, list[str]]:
+def _recalled_from(sentence: str, recalled: str) -> bool:
+    """Whether a sentence retells what her own record holds (``recalled``): most of its words of four letters or more are
+    in it. LIVE 7 November 2026, asked which of three videos stuck with her, her account of how one ended ("stops on
+    the standing desk, in his living room, discount code still on screen") was cut as a claim to see it now, though it
+    was her own last word on it, kept when the watching ended."""
+    if not recalled:
+        return False
+    words = {w.lower() for w in re.findall(r"[A-Za-z]{4,}", sentence)}
+    if len(words) < 3:
+        return False
+    known = {w.lower() for w in re.findall(r"[A-Za-z]{4,}", recalled)}
+    return len(words & known) / len(words) >= RECALLED_SHARE
+
+
+#: The share of a sentence's words that must be in her record for it to be read as recalled, not sensed now.
+RECALLED_SHARE = 0.6
+
+
+def excise_unsupported_sensory_claims(reply: Any, bundle: Any = None, recalled: str = "") -> tuple[str, list[str]]:
     """Remove the sentences that assert unreadable channels.
 
     Returns (kept_text, removed_sentences).
@@ -1299,7 +1317,7 @@ def excise_unsupported_sensory_claims(reply: Any, bundle: Any = None) -> tuple[s
     for index in range(0, len(parts), 2):
         sentence = parts[index]
         separator = parts[index + 1] if index + 1 < len(parts) else ""
-        if sentence.strip() and _unsupported(sentence):
+        if sentence.strip() and _unsupported(sentence) and not _recalled_from(sentence, recalled):
             removed.append(sentence.strip())
             continue
         kept.append(sentence + separator)
