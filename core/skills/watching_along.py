@@ -234,6 +234,10 @@ def what_she_watched(moments: list[Moment], *, room: int = 3000, across: bool = 
         captions = re.search(r'words on it: "([^"]*)"', m.seen or "")
         if captions and len(re.findall(r"[A-Za-z]{2,}", captions.group(1))) >= 4:
             read = ""
+        # What her ear could not make out is not given as heard: LIVE 7 November 2026, a wordless animated film, she
+        # was given "heard: . . ." and remarked on "all those dots where a voice should be".
+        if len(re.findall(r"[A-Za-z]{2,}", read)) < 2:
+            read = ""
         parts = [f"seen: {m.seen}" if m.seen else "", f"heard: {read}" if read else ""]
         line = "; ".join(p for p in parts if p)
         if line:
