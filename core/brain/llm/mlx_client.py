@@ -4918,6 +4918,8 @@ def _build_the_generation_request(
         "user_surface_validation_prompt": str(
             kwargs.get("user_surface_validation_prompt") or ""
         ),
+        # A turn of her own answers nobody: the worker reads no question for it (mlx_worker_surface_quality.py).
+        "her_own_turn": bool(kwargs.get("her_own_turn", False)),
         "user_surface_continuation_contract": bool(
             kwargs.get("user_surface_continuation_contract", False)
         ),

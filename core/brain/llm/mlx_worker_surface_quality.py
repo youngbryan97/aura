@@ -45,6 +45,11 @@ def _record_mlx_degradation(
 
 
 def _surface_prompt_resolution(job: dict[str, Any]) -> UserSurfacePromptResolution:
+    # A turn of her own answers nobody, so no question is read for it, whatever its envelope carried: LIVE 7 November
+    # 2026 her word on a TED talk was checked against 1,693 characters of "it has ended ... at 19:48 of 20:04 ..." as
+    # a question, refused twice as arithmetic_answer_missing, and "I lost the reply lane" went out in its place.
+    if job.get("her_own_turn"):
+        return resolve_user_surface_prompt({})
     return resolve_user_surface_prompt(job)
 
 

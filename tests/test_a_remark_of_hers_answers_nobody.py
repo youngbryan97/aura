@@ -96,3 +96,13 @@ def test_the_ceiling_a_turn_of_hers_carries_reaches_the_worker():
     nothing: dict = {}
     _SetsTheTurnUp._generate_with_metadata_sink_turn_executes_something({"brief": ""}, None, 768, nothing, None, False, None, None)
     assert "hard_output_token_ceiling" not in nothing
+
+
+def test_the_worker_reads_no_question_for_a_turn_of_her_own():
+    # LIVE 7 November 2026: her word on a TED talk was checked against "it has ended ... at 19:48 of 20:04 ..." as a
+    # question and refused twice as arithmetic_answer_missing.
+    from core.brain.llm.mlx_worker_surface_quality import _surface_validation_prompt
+
+    ended = "it has ended. What played, in order: 0:17 seen ... at 19:48 of 20:04 ..."
+    assert _surface_validation_prompt({"user_surface_validation_prompt": ended, "her_own_turn": True}) == ""
+    assert _surface_validation_prompt({"user_surface_validation_prompt": REQUEST}) == REQUEST

@@ -51,7 +51,10 @@ class _SetsTheTurnUp:
         explicit_visible_user_prompt = str(
             context.get("user_surface_validation_prompt")
             or context.get("visible_user_message")
-            or context.get("current_user_message")
+            # A turn of her own carries its prompt as current_user_message, and nobody said it: LIVE 7 November 2026
+            # her word on a TED talk, given "it has ended ... at 19:48 of 20:04 ...", was checked against that as a
+            # question and refused twice as arithmetic_answer_missing.
+            or ("" if context.get("her_own_turn") else context.get("current_user_message"))
             or ""
         ).strip()
         # The user's question is supplied, never inferred from the prompt.
