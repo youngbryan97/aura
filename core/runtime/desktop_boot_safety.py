@@ -89,6 +89,10 @@ def desktop_resource_guard_enabled(env: Mapping[str, str] | None = None) -> bool
     return desktop_safe_boot_enabled(env) or env_flag_enabled(env.get("AURA_LAUNCHED_FROM_APP"))
 
 
+#: The most the Metal buffer cache may hold beside her model's weights, in GB, unless a larger one is chosen.
+METAL_CACHE_CEILING_GB = 4.0
+
+
 def compute_mlx_cache_limit(total_ram_bytes: int, env: Mapping[str, str] | None = None) -> int:
     env = env or os.environ
     total_ram_bytes = max(int(total_ram_bytes), 8 * _GIB)
@@ -109,6 +113,11 @@ def compute_mlx_cache_limit(total_ram_bytes: int, env: Mapping[str, str] | None 
         limit = int(total_ram_bytes * ratio)
         limit = min(limit, int(hard_cap_gb * _GIB))
         limit = max(int(floor_gb * _GIB), limit)
+        # A ceiling whatever the launcher passes: Aura.app's compiled launcher sets 0.16 and 10 GB, and at that the
+        # buffers kept for reuse took her past her process tree's limit while she watched (LIVE 7 November 2026). A
+        # larger cache is a deliberate choice (AURA_ALLOW_LARGE_METAL_CACHE=1), not a default.
+        if str(env.get("AURA_ALLOW_LARGE_METAL_CACHE", "")).strip() != "1":
+            limit = min(limit, int(METAL_CACHE_CEILING_GB * _GIB))
         if not _unsafe_memory_limits_allowed(env):
             limit = min(limit, 10 * _GIB)
         return limit

@@ -3059,8 +3059,8 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         env["AURA_EAGER_LOCAL_SENSORY_BOOT"] = "1"
         env["AURA_EAGER_CORTEX_WARMUP"] = "0"
         env["AURA_DEFERRED_CORTEX_PREWARM"] = "1"
-        env["AURA_DESKTOP_METAL_CACHE_RATIO"] = "0.16"
-        env["AURA_DESKTOP_METAL_CACHE_CAP_GB"] = "10"
+        env["AURA_DESKTOP_METAL_CACHE_RATIO"] = "0.06"
+        env["AURA_DESKTOP_METAL_CACHE_CAP_GB"] = "4"
         env["AURA_DESKTOP_MLX_MEMORY_RATIO"] = "0.54"
         env["AURA_DESKTOP_MLX_MEMORY_CAP_GB"] = "34"
         env["AURA_DESKTOP_MLX_MEMORY_FLOOR_GB"] = "18"
@@ -3154,8 +3154,8 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         export AURA_EXTERNAL_GUI_OWNER=1
         export AURA_EAGER_CORTEX_WARMUP=0
         export AURA_DEFERRED_CORTEX_PREWARM=1
-        export AURA_DESKTOP_METAL_CACHE_RATIO=0.16
-        export AURA_DESKTOP_METAL_CACHE_CAP_GB=10
+        export AURA_DESKTOP_METAL_CACHE_RATIO=0.06
+        export AURA_DESKTOP_METAL_CACHE_CAP_GB=4
         export AURA_DESKTOP_MLX_MEMORY_RATIO=0.54
         export AURA_DESKTOP_MLX_MEMORY_CAP_GB=34
         export AURA_DESKTOP_MLX_MEMORY_FLOOR_GB=18

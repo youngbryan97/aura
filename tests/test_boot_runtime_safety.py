@@ -570,7 +570,7 @@ def test_desktop_safe_boot_clamps_stale_floor_overrides(monkeypatch):
 
     total = 64 * 1024 ** 3
 
-    assert compute_mlx_cache_limit(total) == 10 * 1024 ** 3
+    assert compute_mlx_cache_limit(total) == 4 * 1024 ** 3  # the ceiling holds over a stale override too
     assert compute_mlx_memory_limit(total) == 34 * 1024 ** 3
     assert compute_process_rss_limit(total) == int(total * 0.81)
 

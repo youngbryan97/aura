@@ -158,8 +158,8 @@ def test_native_bridge_targets_input_effects_and_verifies_activation():
     assert "AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB" in swift
     assert "AURA_MLX_72B_PROCESS_RESERVE_GB" in swift
     assert "AURA_FOREGROUND_CHAT_MAX_TOKENS" in swift
-    assert 'env["AURA_DESKTOP_METAL_CACHE_RATIO"] = "0.16"' in swift
-    assert 'env["AURA_DESKTOP_METAL_CACHE_CAP_GB"] = "10"' in swift
+    assert 'env["AURA_DESKTOP_METAL_CACHE_RATIO"] = "0.06"' in swift
+    assert 'env["AURA_DESKTOP_METAL_CACHE_CAP_GB"] = "4"' in swift
     assert 'env["AURA_DESKTOP_MLX_MEMORY_RATIO"] = "0.54"' in swift
     assert 'env["AURA_DESKTOP_MLX_MEMORY_CAP_GB"] = "34"' in swift
     assert 'env["AURA_DESKTOP_MLX_MEMORY_FLOOR_GB"] = "18"' in swift
