@@ -183,15 +183,24 @@ class _UnderstandsThePage(_PlacesHerself):
             )
         ]
         wanted = cls._words_of(goal)
+        # A button every item of a list carries ("More actions", "Watch later" on each of thirty videos) is the list's
+        # furniture, not the way into an item: offered before links for what it does, ninety of them filled the budget
+        # and no video's own link was offered (LIVE 7 November 2026, asked to pick one of Allen Pan's videos on his
+        # channel, she pressed "More actions" and "Watch later" for ten minutes, saying she wanted the video itself).
+        from collections import Counter
+
+        names = Counter(" ".join(str(e.get("name") or "").split()).lower() for e in live if isinstance(e, Mapping))
+
+        def role_rank(element: Any) -> int:
+            role = str(element.get("role") or "").lower()
+            name = " ".join(str(element.get("name") or "").split()).lower()
+            if role in ("button", "submit") and name and names[name] >= cls.FURNITURE_REPEATS:
+                return len(cls._ACTIONABLE_ROLES) + 1
+            return cls._ACTIONABLE_ROLES.index(role) if role in cls._ACTIONABLE_ROLES else len(cls._ACTIONABLE_ROLES)
+
         ranked = sorted(
             enumerate(live),
-            key=lambda pair: (
-                -cls._how_far_it_answers(pair[1], wanted),
-                cls._ACTIONABLE_ROLES.index(str(pair[1].get("role") or "").lower())
-                if str(pair[1].get("role") or "").lower() in cls._ACTIONABLE_ROLES
-                else len(cls._ACTIONABLE_ROLES),
-                pair[0],
-            ),
+            key=lambda pair: (-cls._how_far_it_answers(pair[1], wanted), role_rank(pair[1]), pair[0]),
         )
         # What the page draws is the page's content, not furniture cut for room:
         # LIVE 2 Oct a game's canvas fell below forty links carrying the goal's
@@ -209,6 +218,9 @@ class _UnderstandsThePage(_PlacesHerself):
         return [element for _index, element in sorted(kept, key=lambda pair: pair[0])]
 
     #: Words that name nothing in particular, so sharing one says nothing.
+    #: How many times a button's name repeats on a page for it to be the furniture of a list's items.
+    FURNITURE_REPEATS = 4
+
     _SAYS_NOTHING = frozenset({
         "the", "a", "an", "and", "or", "of", "to", "for", "on", "in", "at", "by",
         "with", "from", "it", "its", "this", "that", "your", "you", "me", "my",

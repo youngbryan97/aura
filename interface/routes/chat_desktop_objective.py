@@ -550,6 +550,11 @@ async def _execute_desktop_objective_from_chat(
         effect_correction = ""
     if effect_correction:
         response = f"{str(response or '').rstrip()}\n\n{effect_correction}"
+    if not result.get("ok") and not result.get("beside") and _asks_to_watch(objective):
+        # Asked to find something and watch it, and it did not get there: what happened is told in her own words, with
+        # the trace as evidence. LIVE 7 November 2026 the trace went out as her reply ("I got as far as
+        # https://www.youtube.com/@allenpan and stopped: the page stopped changing. what the page draws ...").
+        response = await her_answer_when_nothing_plays(objective, str(response or ""))
     return {
         "ok": bool(result.get("ok")),
         "status": status,

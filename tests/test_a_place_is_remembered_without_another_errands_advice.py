@@ -52,3 +52,17 @@ def test_her_eyes_say_what_a_frame_shows_and_not_which_work_they_guess_it_is_fro
                    "A man in sunglasses walks in front of a chain-link fence.")
     assert kept == "A man in sunglasses walks in front of a chain-link fence."
     assert plainly("A man kneels next to a large snake in a pet store.") == "A man kneels next to a large snake in a pet store."
+
+
+def test_a_button_every_list_item_carries_does_not_crowd_out_the_items_own_links():
+    # LIVE 7 November 2026: on Allen Pan's channel, "More actions", "Watch later" and "Add to queue" on each of thirty
+    # videos filled the budget, no video's own link was offered, and she pressed menus for ten minutes.
+    from core.skills.sovereign_browser import SovereignBrowserSkill as Skill
+
+    elements = [{"role": "link", "name": "Home", "selector": "h"}]
+    for i in range(30):
+        elements += [{"role": "button", "name": "More actions", "selector": f"m{i}"},
+                     {"role": "button", "name": "Watch later", "selector": f"w{i}"},
+                     {"role": "link", "name": f"Video {i} about a gadget", "selector": f"v{i}"}]
+    kept = Skill._controls_worth_offering(elements, "Go to his channel, look through his videos, and pick one.")
+    assert sum(1 for e in kept if e["name"].startswith("Video")) == 30
