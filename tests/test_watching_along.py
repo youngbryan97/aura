@@ -309,6 +309,30 @@ async def test_a_remark_as_it_plays_is_its_first_thought_said_as_it_comes(monkey
     assert as_it_plays["hard_output_token_ceiling"] < answer["hard_output_token_ceiling"] <= 512
 
 
+@pytest.mark.asyncio
+async def test_a_remark_is_not_handed_the_request_again(monkeypatch):
+    """LIVE 22 October 2026, rehearsal 16: each remark's look reached her as fresh evidence under the request to watch,
+    and 11 of her 18 remarks as it played began by answering it again ("you re-prompted me", "I'm already *in* it").
+    A remark's look serves no request; her answer to the request is the turn that carries it."""
+    import core.skills.watching_along as watching_along
+
+    handed = []
+
+    class _Engine:
+        async def think(self, _request, *, context, **_kw):
+            handed.append(context)
+            return SimpleNamespace(content="The glove is welded plate, and he is grinning at it.")
+
+    monkeypatch.setattr("core.container.ServiceContainer.get", lambda name, default=None: _Engine() if name == "cognitive_engine" else default)
+    await watching_along.her_turn(ASKED, "playing, at 2:04 of 11:13.\n2:04 seen: a man holds up a glove", ["one"], remark=True)
+    await watching_along.her_turn(ASKED, "it has ended. What played, in order:\n2:04 seen: a glove", ["one"], remark=True)
+    await watching_along.her_turn(ASKED, "before it plays. What was found of it: a glove video", [])
+    as_it_plays, after, answer = (turn["turn_sensory_evidence"] for turn in handed)
+    assert as_it_plays["request"] == "" and after["request"] == ""
+    assert answer["request"] == ASKED  # her answer to the request is given the request
+    assert "2:04 seen: a man holds up a glove" in as_it_plays["observation"]
+
+
 def test_what_is_said_as_it_plays_is_her_first_thought():
     """LIVE 20 October 2026, stopped at its first paragraph a remark was "Okay. Here we go." """
     from core.skills.watching_along import first_thought

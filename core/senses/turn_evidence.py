@@ -171,6 +171,9 @@ def sensory_evidence_grounding_block(value: Any) -> str:
     Data only. It closed on sentences addressed to her model ("This is data from the sensor read ... Answer from it in
     your own words, preserve its uncertainty ...", "Do not claim a current observation from it."), which is the
     prompt engineering Bryan's standing rule forbids; a failed read says so by its status, cause and detail.
+
+    A read nobody asked for this turn (her own look while she watches) has no request, and says none: an empty
+    "request:" line is not a request.
     """
 
     evidence = TurnSensoryEvidence.from_value(value)
@@ -184,8 +187,9 @@ def sensory_evidence_grounding_block(value: Any) -> str:
         f"observed_at_unix: {evidence.observed_at:.6f}",
         f"scope: {evidence.scope}",
         f"coverage: {evidence.coverage}",
-        f"request: {evidence.request}",
     ]
+    if evidence.request:
+        lines.append(f"request: {evidence.request}")
     if evidence.ok:
         lines.append(f"observation: {evidence.observation}")
     else:

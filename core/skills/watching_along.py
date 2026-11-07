@@ -446,7 +446,12 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     engine = ServiceContainer.get("cognitive_engine", default=None)
     if engine is None:
         return ""
-    evidence = TurnSensoryEvidence(channel="screen", ok=True, request=request, observed_at=time.time(),
+    # A remark's look is hers, taken while she watches, for no request of anyone's. LIVE 22 October 2026, rehearsal 16:
+    # each remark's look went to her as fresh evidence with "request: Go to Allen Pan's YouTube channel ... before it
+    # starts, tell me ..." under it, the last thing she read before speaking, and 11 of her 18 remarks while it played
+    # began by answering it again ("you re-prompted me", "we're not doing this from the top again", "I'm already *in* it").
+    # The request stays where it was said: at the head of the talk since the watching began (the_talk_since).
+    evidence = TurnSensoryEvidence(channel="screen", ok=True, request="" if remark else request, observed_at=time.time(),
                                    observation=observation[:3200], source="watching_along",
                                    scope="what plays on her own page", coverage="partial")
     # The turn that asked her to watch is open while she watches; her remarks are work it is waiting on, as the

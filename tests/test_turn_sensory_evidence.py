@@ -39,6 +39,17 @@ def test_successful_camera_receipt_is_bounded_grounding_not_raw_media() -> None:
     assert "I do not see another person" in block
     # Data only: nothing in it is addressed to her model.
     assert "Answer from it" not in block and "Do not claim" not in block
+    assert "request: Can you determine whether anyone else" in block
+
+
+def test_a_read_nobody_asked_for_says_no_request() -> None:
+    """Her own look while she watches served no request: LIVE 22 October 2026 a remark's evidence carried the request
+    to watch under "request:", and she answered it again in most of her remarks."""
+    block = sensory_evidence_grounding_block(
+        TurnSensoryEvidence(channel="screen", ok=True, request="", observed_at=1_786_857_523.0,
+                            observation="a man in a garage holds up a glove", source="watching_along"))
+    assert "observation: a man in a garage holds up a glove" in block
+    assert "request:" not in block
 
 
 def test_fresh_read_rejects_general_sensor_availability_contradictions() -> None:
