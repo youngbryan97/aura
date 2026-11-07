@@ -121,6 +121,8 @@ def _asr_weights() -> str:
         return ASR_MODEL
 
 
+#: The longest what is heard waits for her voice before it is written down anyway, in seconds.
+HELD_AT_MOST_S = 6.0
 #: How often the ear says how it is keeping up, in seconds, to its own log.
 STATUS_EVERY_S = 10.0
 
@@ -169,7 +171,7 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
     written = 0
     print(json.dumps({"listening": bundle}), file=out, flush=True)
     said_at = began
-    held_for = 0.0
+    held_for = held_running = 0.0
     with model.transcribe_stream(context_size=CONTEXT) as heard:
         while at_most_s is None or monotonic_time() - began < at_most_s:
             time.sleep(STEP_S)
@@ -190,7 +192,14 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
                       file=out, flush=True)
             if hold and os.path.exists(hold):
                 held_for += STEP_S
-                continue  # what is heard waits in `pending`, to be written down once her voice is done
+                held_running += STEP_S
+                # What is heard waits in `pending` while her voice uses the GPU, but no longer than HELD_AT_MOST_S at
+                # a time: a person goes on hearing while they speak. LIVE 7 November 2026, with a remark a minute
+                # taking thirty seconds and more, her ear was held through most of an explainer's narration and she
+                # remarked on the picture instead.
+                if held_running < HELD_AT_MOST_S:
+                    continue
+            held_running = 0.0
             with lock:
                 chunk = np.concatenate(pending) if pending else None
                 pending.clear()
