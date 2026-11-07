@@ -200,6 +200,9 @@ class Watching:
     #: The events she took it in as, and the most anything in it moved her (core/together/what_moves_her.py).
     events: str = ""
     moved_most: float = 0.0
+    #: How far what she heard of it was about her world, in nats a token (knowing who she is made it that much less
+    #: unexpected); None when it was not read.
+    about_her: float | None = None
 
     def since(self, looks: int) -> list[Moment]:
         """The moments after the first ``looks``: counted by look, since a video's clock starts again after an advert."""
@@ -344,7 +347,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
                       worth: Callable[[Moment, float], bool] | None = None,
                       look_in: Callable[[float], float] | None = None,
                       stop_when: Callable[[], Awaitable[str]] | None = None,
-                      whole: Callable[[], tuple[str, float]] | None = None) -> Watching:
+                      whole: Callable[[], tuple[Any, ...]] | None = None) -> Watching:
     """Watch what plays with whoever asked ``request``, saying what she thinks before, during and after. ``page`` is a
     page of her own browser, or a player of another place it plays (core/skills/watching_the_screen.py, the person's
     own screen). Watched as something done together (core/skills/watching_together.py): ``before`` off when her
@@ -453,7 +456,9 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         watching.moments.append(Moment(at=watching.moments[-1].at if watching.moments else 0.0, read=last_words))
         perceive("", last_words)
     if whole is not None:
-        watching.events, watching.moved_most = whole()
+        took = whole()
+        watching.events, watching.moved_most = took[0], took[1]
+        watching.about_her = took[2] if len(took) > 2 else None
     how_it_ends = ("it has ended" if watching.ended else f"it is still playing; she stopped watching it: {watching.stopped}"
                    if watching.stopped else "it is still playing; we stopped watching")
     # What she took it in as: its events where she has them, else her looks across it.
@@ -680,16 +685,19 @@ async def into_her_memory(watching: Watching, *, url: str = "") -> None:
     said = "\n".join(f"{clock(at)} {words}" for at, words in watching.said)
     try:
         # What moved her more is kept as mattering more, as emotional memories are kept better in people (the more it
-        # moved her, up to 0.9 from 0.6).
+        # moved her, up to 0.9 from 0.6), and what was about her world more again (the self-reference effect: up to a
+        # tenth more, at a nat a token).
+        about = max(0.0, min(1.0, watching.about_her or 0.0))
         await episodic.record_episode_async(
             context=f"Watched {watching.title or 'a video'} as it played, with whoever asked: {watching.request}"[:600],
             action="watching_along", outcome=said[-4000:], success=watching.ended,
-            importance=round(0.6 + 0.3 * max(0.0, min(1.0, watching.moved_most)), 3),
+            importance=round(min(1.0, 0.6 + 0.3 * max(0.0, min(1.0, watching.moved_most)) + 0.1 * about), 3),
             source="watching_along",
             metadata={"provenance": "her own words while watching", "verified": False, "title": watching.title,
                       "url": url, "ended": watching.ended, "looks": len(watching.moments),
                       "what happened in it": watching.events[:3000], "stopped": watching.stopped,
-                      "moved most": round(watching.moved_most, 4)})
+                      "moved most": round(watching.moved_most, 4),
+                      "about her": None if watching.about_her is None else round(watching.about_her, 4)})
     except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
         record_degradation("watching_along", exc, severity="info", action="a watching did not reach her memory")
 

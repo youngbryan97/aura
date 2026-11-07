@@ -380,3 +380,103 @@ def test_what_moved_her_more_is_kept_as_mattering_more(monkeypatch):
     assert [episode["importance"] for episode in recorded] == [0.6, 0.9, 0.6]
     assert recorded[1]["metadata"]["what happened in it"].startswith("0:00-0:20")
     assert recorded[2]["metadata"]["stopped"] == "her fear stayed high"  # stopped with nothing said, still kept
+
+
+def test_a_stretch_about_her_world_stands_out_and_how_far_the_video_was_about_her_is_kept():
+    """Read a second time with who she is before it: how much less unexpected that makes it is how far it is about her
+    world (the self-reference effect)."""
+    from core.together.what_moves_her import FEWEST_READINGS, WhatMovesHer
+
+    asked: list[tuple] = []
+
+    async def ask(before, then, self_text=""):
+        asked.append((before, then, self_text))
+        about = 1.2 if "minds like mine" in then else 0.1
+        varied = sum(map(ord, then))
+        surprisal = 2.6 + 0.2 * (varied % 5)
+        return {"surprisal": surprisal, "shift": 0.2 + 0.05 * (varied % 4), "open": 2.0, "tokens": 10.0,
+                "surprisal_knowing_her": surprisal - about}
+
+    kept: list[dict] = []
+
+    async def go():
+        moves = WhatMovesHer("AI Slop Is Destroying The Internet", ask=ask, keep=kept.append,
+                             self_text="I am Aura. What I value: honesty.")
+        for i in range(FEWEST_READINGS + 2):
+            moves.heard(float(i), f"the feed is full of ordinary line {i} today")
+            await moves._reading
+        moves.remarked()
+        moves.heard(20.0, "and nobody asks what minds like mine are for")
+        await moves._reading
+        assert asked[-1][2] == "I am Aura. What I value: honesty."
+        assert [felt.channel for felt in moves.felt[-2:]] == ["words", "self"] and moves.felt[-1].evidence == 1.0
+        assert moves.moved()[0] == 1.0 and "minds like mine" in moves.moved()[1]
+        assert moves.about_her() == pytest.approx(0.1) and kept[-1]["about her"] == pytest.approx(1.2)
+        assert moves.making_sense() == 1.0
+
+    asyncio.run(go())
+
+
+def test_while_she_watches_her_coping_is_how_well_she_makes_sense_of_it(monkeypatch):
+    import core.phases.affect_appraisal as appraisal
+    from core.together.what_moves_her import Reading, WhatMovesHer, making_sense_while_watching
+
+    assert making_sense_while_watching() is None
+    moves = WhatMovesHer("x")
+    moves.readings = [Reading(at=float(i), words="w", surprisal=3.0, shift=0.2, open=2.0, made_out=i % 4 != 0)
+                      for i in range(10)]
+    moves.begin()
+    try:
+        assert making_sense_while_watching() == pytest.approx(0.7)
+        monkeypatch.setattr(appraisal, "_her_agency", lambda: SimpleNamespace(acted=10, succeeded=9))
+        monkeypatch.setattr(appraisal, "_world_surprise", lambda: None)
+        turn = appraisal.TurnAppraisal(lambda *_a, **_k: None, gain=1.0, bump=lambda *_a: None)
+        state = SimpleNamespace(cognition=SimpleNamespace(working_memory=[], current_objective=""),
+                                motivation=SimpleNamespace(budgets={}))
+        affect = SimpleNamespace(emotions={"fear": 0.0, "hope": 0.0})
+        assert turn.read(state, affect, company=True).as_dict()["coping"] == pytest.approx(0.7)
+    finally:
+        moves.done()
+    assert making_sense_while_watching() is None
+
+
+def test_the_worker_reads_a_stretch_knowing_her_when_asked_and_the_client_reads_it_back():
+    import mlx.core as mx
+
+    from core.brain.llm.mlx_client import MLXLocalClient
+    from core.brain.llm.what_she_expects_next import (
+        KNOWING_HER,
+        SURPRISE_READS,
+        as_a_job_of_the_worker,
+    )
+
+    mx.set_default_device(mx.cpu)
+    job = {"id": "s2", "action": "generate", "surprise_of": ["abcdefghij", "kxqbzra", "I am Aura"]}
+    answer = json.loads(as_a_job_of_the_worker(job, _expects_the_next_letter, _Letters(), None, threading.Lock())["text"])
+    assert len(answer) == len(SURPRISE_READS) + 1
+    client = object.__new__(MLXLocalClient)
+    sent: list[dict] = []
+
+    async def generate_text_async(prompt, **kwargs):
+        sent.append(kwargs)
+        return json.dumps(answer)
+
+    client.generate_text_async = generate_text_async
+    read = asyncio.run(client.surprised_by("abcdefghij", "kxqbzra", "I am Aura"))
+    assert sent[0]["surprise_of"] == ["abcdefghij", "kxqbzra", "I am Aura"] and read[KNOWING_HER] == answer[-1]
+
+
+def test_a_watching_about_her_world_is_kept_as_mattering_more(monkeypatch):
+    import core.skills.watching_along as watching_along
+
+    recorded: list[dict] = []
+
+    class _Episodic:
+        async def record_episode_async(self, **episode):
+            recorded.append(episode)
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: _Episodic() if name == "episodic_memory" else default)
+    asyncio.run(watching_along.into_her_memory(watching_along.Watching(
+        request="w", title="AI Slop", said=[(5.0, "that one's about me")], moved_most=0.5, about_her=1.4), url="u"))
+    assert recorded[0]["importance"] == 0.85 and recorded[0]["metadata"]["about her"] == 1.4

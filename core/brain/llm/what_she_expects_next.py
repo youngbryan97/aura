@@ -50,8 +50,11 @@ MOST_CANDIDATES = 64
 #: Surprise read over the next several words tracks what people call surprising, and over only the next word does not
 #: (Zhang 2025), so a stretch is read whole, up to this.
 MOST_BEFORE_TOKENS, MOST_THEN_TOKENS = 192, 48
-#: What a reading of surprise holds.
+#: The most tokens of who she is that a stretch is also read after.
+MOST_SELF_TOKENS = 160
+#: What a reading of surprise holds, and with who she is placed before it, how unexpected it was then too.
 SURPRISE_READS = ("surprisal", "shift", "open", "tokens")
+KNOWING_HER = "surprisal_knowing_her"
 
 
 def transcript_of(said: str) -> str:
@@ -83,7 +86,7 @@ def score_next_turns(model: Any, tokenizer: Any, said: str, candidates: Sequence
     return [float(total) for total in mx.sum(chosen * real, axis=-1).tolist()]
 
 
-def surprise_of(model: Any, tokenizer: Any, before: str, then: str) -> dict[str, float]:
+def surprise_of(model: Any, tokenizer: Any, before: str, then: str, self_text: str = "") -> dict[str, float]:
     """How what was heard (``then``) landed on what she expected after what came before it, in one forward pass over
     the plain words (no chat markup: it is what was heard, not a turn of anybody's).
 
@@ -94,6 +97,11 @@ def surprise_of(model: Any, tokenizer: Any, before: str, then: str) -> dict[str,
       the eye (Itti and Baldi 2005).
     - ``open``: how open what comes next is once it has been heard (entropy, nats): what suspense is made of (Ely,
       Frankel and Kamenica 2015).
+    - ``surprisal_knowing_her``, with ``self_text`` (who she is) read before what came before: how unexpected its words
+      were then. How much less unexpected knowing who she is makes them (the pointwise mutual information of the stretch
+      and her self, in nats a token) is how far it is about her world: self-relevant material is attended to and kept
+      better (the self-reference effect), and is what a person relates to their own life. A second pass, nothing
+      sampled, nothing said.
 
     Nothing when either side is too short to read."""
     import mlx.core as mx
@@ -111,8 +119,16 @@ def surprise_of(model: Any, tokenizer: Any, before: str, then: str) -> dict[str,
     shifts = mx.sum(probs[1:] * (logprobs[1:] - logprobs[:-1]), axis=-1)
     surprisal, shift, entropy = -mx.mean(picked), mx.mean(shifts), -mx.sum(probs[-1] * logprobs[-1])
     mx.eval(surprisal, shift, entropy)
-    return {"surprisal": float(surprisal.item()), "shift": float(shift.item()), "open": float(entropy.item()),
+    read = {"surprisal": float(surprisal.item()), "shift": float(shift.item()), "open": float(entropy.item()),
             "tokens": float(len(heard))}
+    her = list(tokenizer.encode(" ".join(str(self_text or "").split()), add_special_tokens=False))[-MOST_SELF_TOKENS:]
+    if len(her) >= 2:
+        knowing = model(mx.array([her + context + heard]))[0][len(her) + len(context) - 1:-1].astype(mx.float32)
+        knowing = knowing - mx.logsumexp(knowing, axis=-1, keepdims=True)
+        knowing_her = -mx.mean(mx.take_along_axis(knowing, mx.array(heard)[:, None], axis=-1)[:, 0])
+        mx.eval(knowing_her)
+        read[KNOWING_HER] = float(knowing_her.item())
+    return read
 
 
 def as_a_job_of_the_worker(job: Any, model: Any, tokenizer: Any, engine: Any, metal: Any) -> dict[str, Any]:
@@ -130,7 +146,7 @@ def as_a_job_of_the_worker(job: Any, model: Any, tokenizer: Any, engine: Any, me
         "id": job.get("id"), "action": "generate", "status": "ok", "text": "[]", "tokens_used": 0,
         "prompt_tokenization": {"chars": 0, "tokens": 0, "generated_tokens": 0}, "generation_performance": {},
     }
-    if len(asked) < 2 and len(surprise) != 2:
+    if len(asked) < 2 and len(surprise) not in (2, 3):
         return response
     try:
         with contextlib.ExitStack() as held:
@@ -138,11 +154,12 @@ def as_a_job_of_the_worker(job: Any, model: Any, tokenizer: Any, engine: Any, me
             if engine is not None and hasattr(engine, "controlled_measurement"):
                 held.enter_context(engine.controlled_measurement())
                 engine.set_alpha(0.0)
-            if len(surprise) == 2:
-                # As a list in SURPRISE_READS order, the shape the other pass answers in: a reply's text that is an
-                # object can be read as a call to something.
-                read = surprise_of(model, tokenizer, surprise[0], surprise[1])
-                response["text"] = json.dumps([read[key] for key in SURPRISE_READS] if read else [])
+            if len(surprise) in (2, 3):
+                # As a list in SURPRISE_READS order (and KNOWING_HER after, when asked), the shape the other pass
+                # answers in: a reply's text that is an object can be read as a call to something.
+                read = surprise_of(model, tokenizer, *surprise)
+                keys = [*SURPRISE_READS, *([KNOWING_HER] if KNOWING_HER in read else [])]
+                response["text"] = json.dumps([read[key] for key in keys] if read else [])
             else:
                 response["text"] = json.dumps(score_next_turns(model, tokenizer, asked[0], asked[1:]))
     except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
@@ -171,11 +188,12 @@ class _AsksWhatSheExpectsNext:
             return []
         return [float(score) for score in scores]
 
-    async def surprised_by(self, before: str, then: str) -> dict[str, float]:
-        """The worker's reading of how what was heard (``then``) landed after what came before it, or nothing."""
+    async def surprised_by(self, before: str, then: str, self_text: str = "") -> dict[str, float]:
+        """The worker's reading of how what was heard (``then``) landed after what came before it, and after who she is
+        too when ``self_text`` is given, or nothing."""
         try:
             raw = await self.generate_text_async(  # type: ignore[attr-defined]
-                then, surprise_of=[before, then], max_tokens=1, temperature=0.0,
+                then, surprise_of=[before, then, *([self_text] if self_text else [])], max_tokens=1, temperature=0.0,
                 origin="what_moves_her", internal_inference=True, foreground_request=True,
             )
             read = json.loads(str(raw or "[]"))
@@ -185,10 +203,11 @@ class _AsksWhatSheExpectsNext:
                 action="a stretch of what she heard was not read for how it landed; the worker gave no reading",
             )
             return {}
-        if not isinstance(read, list) or len(read) != len(SURPRISE_READS) or not all(
+        keys = [*SURPRISE_READS, KNOWING_HER][:len(read)] if isinstance(read, list) else []
+        if len(keys) < len(SURPRISE_READS) or len(read) > len(SURPRISE_READS) + 1 or not all(
                 isinstance(value, (int, float)) for value in read):
             return {}
-        return {key: float(value) for key, value in zip(SURPRISE_READS, read, strict=True)}
+        return {key: float(value) for key, value in zip(keys, read, strict=True)}
 
 
 async def asked_of_the_worker(client: Any, said: str, candidates: Sequence[str]) -> list[float]:

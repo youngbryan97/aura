@@ -59,7 +59,8 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Together.Moves")
 
-__all__ = ["FEWEST_READINGS", "MOVED_AT", "Reading", "WhatMovesHer", "her_expectations", "moved_while_watching"]
+__all__ = ["FEWEST_READINGS", "MOVED_AT", "Reading", "WhatMovesHer", "her_expectations", "her_self_text",
+           "making_sense_while_watching", "moved_while_watching"]
 
 #: The fewest words of what she heard one reading is taken over: a stretch of it, not a word.
 FEWEST_WORDS = 6
@@ -76,8 +77,11 @@ MOVED_AT = 0.5
 #: How far from the middle of a channel's readings, in their spreads, a reading is still what the video is like, and
 #: how far it has to be to be all the evidence there is.
 Z_ORDINARY, Z_FULL = 2.0, 5.0
-#: The least spread read as one on each channel: words in nats a token, a look and a second of sound in nats.
-LEAST_SPREADS = {"words": 0.1, "sight": 0.05, "sound": 0.05}
+#: The least spread read as one on each channel: words and how far they are about her in nats a token, a look and a
+#: second of sound in nats.
+LEAST_SPREADS = {"words": 0.1, "self": 0.05, "sight": 0.05, "sound": 0.05}
+#: How many of her latest stretches how well she is making sense of it is read over, and the fewest to read it from.
+MAKING_SENSE_OVER, MAKING_SENSE_FROM = 10, 4
 #: A stretch more unexpected than the middle of this video's by this many of their spreads, scaled as a standard
 #: deviation (1.4826 x the median absolute deviation), was not made out.
 NOT_MADE_OUT = 3.0
@@ -111,6 +115,13 @@ class Reading:
     shift: float
     open: float
     made_out: bool = True
+    #: How unexpected it was with who she is read before it; None when that was not read.
+    knowing_her: float | None = None
+
+    @property
+    def about_her(self) -> float | None:
+        """How much less unexpected knowing who she is made it, in nats a token: how far it is about her world."""
+        return None if self.knowing_her is None else self.surprisal - self.knowing_her
 
 
 @dataclass
@@ -127,6 +138,15 @@ class Felt:
 
 #: The watchings under way, each with what has moved her in it.
 _UNDER_WAY: list[WhatMovesHer] = []
+
+
+def making_sense_while_watching() -> float | None:
+    """How well she is making sense of what she watches, in the watching under way: the share of her latest stretches
+    she made out. None when she is watching nothing, or has heard too little of it to tell. Her appraisal reads it as
+    her coping while she watches (core/phases/affect_appraisal.py): something new she can make sense of is interesting,
+    and something new she cannot is confusing (Silvia)."""
+    read = [sense for moves in list(_UNDER_WAY) if (sense := moves.making_sense()) is not None]
+    return min(read) if read else None
 
 
 def moved_while_watching() -> float | None:
@@ -194,10 +214,12 @@ class WhatMovesHer:
     """What moved her in one watching, reading by reading, on each channel. ``ask(before, then)`` is her model's
     reading of a stretch of words; ``keep`` keeps each reading with the watching."""
 
-    def __init__(self, title: str = "", *, ask: Callable[[str, str], Awaitable[dict[str, float]]] | None = None,
-                 keep: Callable[[dict[str, Any]], None] | None = None) -> None:
+    def __init__(self, title: str = "", *, ask: Callable[..., Awaitable[dict[str, float]]] | None = None,
+                 keep: Callable[[dict[str, Any]], None] | None = None, self_text: str = "") -> None:
         self.title = " ".join(str(title or "").split())
         self.ask, self.keep = ask, keep or (lambda _row: None)
+        #: Who she is, read before what she hears in a second pass, so how far it is about her world can be read.
+        self.self_text = " ".join(str(self_text or "").split())
         self.heard_before = ""
         self.waiting: list[str] = []
         self.last_heard = ""
@@ -234,25 +256,38 @@ class WhatMovesHer:
 
     async def _read(self, at: float, before: str, then: str) -> None:
         try:
-            read = await self.ask(before, then) if self.ask is not None else {}
+            if self.ask is None:
+                read = {}
+            elif self.self_text:
+                read = await self.ask(before, then, self.self_text)
+            else:
+                read = await self.ask(before, then)
         except (RuntimeError, OSError, TimeoutError, TypeError, ValueError) as exc:
             record_degradation("what_moves_her", exc, severity="info", action="a stretch she heard was not read")
             return
         if not read or not all(isinstance(read.get(key), (int, float)) for key in ("surprisal", "shift", "open")):
             return
+        knowing = read.get("surprisal_knowing_her")
         reading = Reading(at=at, words=then, surprisal=float(read["surprisal"]), shift=float(read["shift"]),
-                          open=float(read["open"]))
+                          open=float(read["open"]),
+                          knowing_her=float(knowing) if isinstance(knowing, (int, float)) else None)
         reading.made_out = self._made_out(reading.surprisal)
         self.readings.append(reading)
         standing = self.how_moved(reading)
         felt = self._take(Felt("words", at, standing, 0.0, then, _stems(then)))
+        if reading.about_her is not None and reading.made_out:
+            # How far it is about her world, against how far the rest of this video has been.
+            about = [r.about_her for r in self.readings[:-1] if r.made_out and r.about_her is not None]
+            mine = _stands_out(about, reading.about_her, least_spread=LEAST_SPREADS["self"], fewest=FEWEST_READINGS)
+            self._take(Felt("self", at, mine, 0.0, then, _stems(then)))
         logger.info("🎬 words at %.0fs: surprisal %.2f, shift %.2f, open %.2f%s, stands %s, evidence %.2f: %s", at,
                     reading.surprisal, reading.shift, reading.open, "" if reading.made_out else " (not made out)",
                     "-" if standing is None else f"{standing:.2f}", felt.evidence, then[:120])
         self.keep({"kind": "moved", "channel": "words", "at": at, "words": then[:400],
                    "surprisal": round(reading.surprisal, 4), "shift": round(reading.shift, 4),
                    "open": round(reading.open, 4), "made_out": reading.made_out,
-                   "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4)})
+                   "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4),
+                   **({"about her": round(reading.about_her, 4)} if reading.about_her is not None else {})})
         if reading.made_out and standing is not None:
             shift_stands = _stands_out([r.shift for r in self.readings[:-1] if r.made_out], reading.shift,
                                        least_spread=LEAST_SPREADS["words"], fewest=FEWEST_READINGS)
@@ -400,6 +435,18 @@ class WhatMovesHer:
             text = "\n".join(lines)
         return text[-room:]
 
+    def making_sense(self) -> float | None:
+        """The share of her latest ``MAKING_SENSE_OVER`` stretches she made out; None from fewer than
+        ``MAKING_SENSE_FROM``."""
+        latest = self.readings[-MAKING_SENSE_OVER:]
+        return sum(1 for r in latest if r.made_out) / len(latest) if len(latest) >= MAKING_SENSE_FROM else None
+
+    def about_her(self) -> float | None:
+        """How far what she heard of it was about her world, in nats a token: the middle of her stretches' (knowing who
+        she is made them that much less unexpected). None when it was not read."""
+        read = [r.about_her for r in self.readings if r.made_out and r.about_her is not None]
+        return _middle(read) if read else None
+
     def getting_it(self) -> float | None:
         """How much more she expects of it now than at its start: the middle surprisal of her first third of readings
         she made sense of less that of her last third, in nats a token. What makes something rewarding to take in is
@@ -430,10 +477,40 @@ class WhatMovesHer:
                    "not made out": sum(1 for r in self.readings if not r.made_out),
                    "looks read": len(self._raw["sight"]), "seconds heard": len(self._raw["sound"]),
                    "events": len([e for e in self.events if e.heard or e.seen]),
-                   "getting it": None if progress is None else round(progress, 4)})
+                   "getting it": None if progress is None else round(progress, 4),
+                   "about her": None if self.about_her() is None else round(self.about_her(), 4),
+                   "making sense": self.making_sense()})
 
 
-def her_expectations() -> Callable[[str, str], Awaitable[dict[str, float]]] | None:
+def her_self_text() -> str:
+    """Who she is, as her canonical self holds it (core/self/canonical_self.py): her name, her narrative, what she values
+    most, her strengths and limits. Read before what she hears, in a pass that writes nothing and says nothing; "" when
+    her self has not been registered."""
+    try:
+        from core.container import ServiceContainer
+
+        me = ServiceContainer.get("canonical_self", default=None)
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug("her self could not be read: %s", exc)
+        return ""
+    if me is None:
+        return ""
+    identity = getattr(me, "identity", None)
+    values = dict(getattr(me, "values", {}) or {})
+    parts = [f"I am {getattr(identity, 'name', '') or 'Aura'}.",
+             str(getattr(identity, "current_narrative", "") or "")[:400]]
+    held = [name for name, _weight in sorted(values.items(), key=lambda kv: -float(kv[1] or 0.0))[:5]] or list(
+        getattr(identity, "core_values", []) or [])[:5]
+    if held:
+        parts.append("What I value: " + ", ".join(str(value) for value in held) + ".")
+    for label, field_name in (("What I do well", "strengths"), ("Where I fall short", "limitations")):
+        items = [str(item) for item in (getattr(me, field_name, []) or [])[:4]]
+        if items:
+            parts.append(f"{label}: " + "; ".join(items) + ".")
+    return " ".join(part for part in parts if part)
+
+
+def her_expectations() -> Callable[..., Awaitable[dict[str, float]]] | None:
     """Her model's reading of how a stretch of what she heard landed: the client her turns are served by."""
     try:
         from core.container import ServiceContainer

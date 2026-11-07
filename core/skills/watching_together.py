@@ -366,12 +366,12 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     _read_in_every_turn()
 
     from core.perception.what_her_senses_expect import SoundExpectation
-    from core.together.what_moves_her import WhatMovesHer, her_expectations
+    from core.together.what_moves_her import WhatMovesHer, her_expectations, her_self_text
 
     keep = kept_at(title, url)
     # What moves her in it, read off her own expectations of what she sees, hears and is told
     # (core/together/what_moves_her.py), and what her ear expects of each second of it.
-    moves = WhatMovesHer(title, ask=her_expectations(), keep=keep)
+    moves = WhatMovesHer(title, ask=her_expectations(), keep=keep, self_text=her_self_text())
     moves.begin()
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
@@ -390,8 +390,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
             moves.sounded(max(0.0, at - back), surprise, onset)
         moves.heard(at, moment.read)
 
-    def what_she_took_it_in_as() -> tuple[str, float]:
-        return moves.events_text(), max((felt.evidence for felt in moves.felt), default=0.0)
+    def what_she_took_it_in_as() -> tuple[str, float, float | None]:
+        return moves.events_text(), max((felt.evidence for felt in moves.felt), default=0.0), moves.about_her()
 
     shown_last = {"observation": ""}
 

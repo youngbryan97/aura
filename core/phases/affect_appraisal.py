@@ -126,6 +126,17 @@ class TurnAppraisal:
         ledger = _her_agency()
         if ledger is not None:
             checks["coping"] = coping_of(int(ledger.acted), int(ledger.succeeded))
+        # While she watches, what she copes with is what plays: whether she is making sense of it. Something new she
+        # can make sense of is interesting, and something new she cannot is confusing (Silvia 2008); a threat to
+        # someone in it is not one she has to meet (core/together/what_moves_her.py making_sense_while_watching).
+        try:
+            from core.together.what_moves_her import making_sense_while_watching
+
+            sense = making_sense_while_watching()
+            if sense is not None:
+                checks["coping"] = sense
+        except AFFECT_UPDATE_ERRORS as exc:
+            logger.debug("how well she is making sense of what she watches could not be read: %s", exc)
         for name, reader in (("novelty", _novelty), ("liking", lambda: _liking(state))):
             try:
                 checks[name] = reader()
