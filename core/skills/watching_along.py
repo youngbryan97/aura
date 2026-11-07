@@ -648,6 +648,12 @@ def first_thought(words: str, about: str = "") -> str:
     if not first:
         return ""
     thought = cleaned[first]
+    # A short paragraph that points ahead runs on into what it introduces: LIVE 7 November 2026 a remark was "Right —
+    # here is what I want to push on, and it's the bit that just landed in the room.", its point in the paragraph after.
+    rest = paragraphs[paragraphs.index(first) + 1:]
+    if rest and len(re.findall(r"[A-Za-z']+", thought)) < A_THOUGHT_STANDS_ALONE and re.search(
+            r"\b(?:here(?:'s|’s| is)|this is what|what I want to|the (?:bit|part|thing|line) (?:that|where))\b", thought, re.IGNORECASE):
+        thought = f"{thought}\n\n{_without_the_end_of_a_note(rest[0])}".strip()
     # A quotation it opens runs on to where it closes: LIVE 22 October 2026 a remark ended inside one, 'the on-screen
     # text is saying: "While they secretly start working on goals that are harmful or straight up incomprehensible to
     # us.', its close in the paragraph after.
