@@ -29,7 +29,10 @@ So she reads what plays on three channels, each against her own expectation of i
   line), and moves nothing;
 - **sight**: how far each look departed from what her eyes expected of it (core/perception/what_her_senses_expect.py);
 - **sound**: how far each second rose above what this video usually sounds like, and its onsets, the startle's
-  stimulus.
+  stimulus;
+- **scene**: what her eyes say of each new scene, read by her own model as what she hears is, against the scenes
+  before it: how unexpected what she sees is in what it means, not only in its pixels, and how it lands along her
+  feelings.
 
 A reading moves her as far as it stands out from this video's readings on its channel: how many of their spreads it
 lies above their middle (a robust standard score). Within ``Z_ORDINARY`` it is what this video is like and is no
@@ -282,6 +285,12 @@ def _alike(one: frozenset[str], other: frozenset[str]) -> float:
     return len(one & other) / len(union) if union else 0.0
 
 
+def _a_scene(seen: str) -> str:
+    """What her eyes said a look showed, without the words read off it: a new picture's description, or ""."""
+    described = str(seen or "").split('words on it:')[0].strip().rstrip(";").strip()
+    return " ".join(described.split()) if len(described.split()) >= FEWEST_WORDS else ""
+
+
 def _clock(seconds: float) -> str:
     seconds = max(0, int(seconds))
     return f"{seconds // 60}:{seconds % 60:02d}"
@@ -325,6 +334,9 @@ class WhatMovesHer:
         self.since: list[Felt] = []
         self._raw: dict[str, list[float]] = {"sight": [], "sound": []}
         self._reading: asyncio.Task | None = None
+        self._seeing: asyncio.Task | None = None
+        self.scenes: list[Reading] = []
+        self.last_scene = ""
         self._last_read_at = -1e9
         self.read_every_s = float(read_every_s)
         self.now = 0.0
@@ -457,6 +469,41 @@ class WhatMovesHer:
                        "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4)})
         if seen and not self.events[-1].seen:
             self.events[-1].seen = " ".join(seen.split())[:300]
+        scene = _a_scene(seen)
+        if scene and scene != self.last_scene and self.ask is not None and (self._seeing is None or self._seeing.done()):
+            before = "\n".join(part for part in (self.title, *[r.words for r in self.scenes[-3:]]) if part)
+            self.last_scene = scene
+            self._seeing = asyncio.get_running_loop().create_task(self._read_scene(at, before, scene),
+                                                                  name="what_moves_her_in_what_she_sees")
+
+    async def _read_scene(self, at: float, before: str, scene: str) -> None:
+        """What her eyes said of a new scene, read by her own model against the scenes before it."""
+        try:
+            read = await self.ask(before, scene)
+        except (RuntimeError, OSError, TimeoutError, TypeError, ValueError) as exc:
+            record_degradation("what_moves_her", exc, severity="info", action="a scene she saw was not read")
+            return
+        if not read or not all(isinstance(read.get(key), (int, float)) for key in ("surprisal", "shift", "open")):
+            return
+        along = {str(k): float(v) for k, v in dict(read.get("along") or {}).items() if isinstance(v, (int, float))}
+        reading = Reading(at=at, words=scene, surprisal=float(read["surprisal"]), shift=float(read["shift"]),
+                          open=float(read["open"]), along=along, liking=self._liking_of(along))
+        before_these = list(self.scenes)
+        self.scenes.append(reading)
+        spread = LEAST_SPREADS["words"]
+        shift = _stands_out([r.shift for r in before_these], reading.shift, least_spread=spread, fewest=FEWEST_LOOKS)
+        unexpected = _stands_out([r.surprisal for r in before_these], reading.surprisal, least_spread=spread,
+                                 fewest=FEWEST_LOOKS)
+        standing = None if shift is None or unexpected is None else (shift + unexpected) / 2.0
+        felt = self._take(Felt("scene", at, standing, 0.0, scene, _stems(scene)))
+        if reading.liking is not None:
+            felt_so = [abs(r.liking) for r in before_these if r.liking is not None]
+            strong = _stands_out(felt_so, abs(reading.liking), least_spread=0.1, fewest=FEWEST_LOOKS)
+            self._take(Felt("feeling", at, strong, 0.0, scene, _stems(scene)))
+        self.keep({"kind": "moved", "channel": "scene", "at": at, "words": scene[:300],
+                   "surprisal": round(reading.surprisal, 4), "shift": round(reading.shift, 4),
+                   "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4),
+                   **({"liking": round(reading.liking, 4)} if reading.liking is not None else {})})
 
     def sounded(self, at: float, surprise: float, onset: float) -> None:
         """One second of sound: how far it rose above what this video usually sounds like (``surprise``, in dB), and
@@ -585,9 +632,12 @@ class WhatMovesHer:
         return max(-1.0, min(1.0, (along[key] - (liked + disliked) / 2.0) / half))
 
     def liking_since(self) -> float | None:
-        """The strongest liking or disliking of what she heard since she last spoke; None when none was read."""
-        stood = [r.liking for r in self.readings if r.liking is not None and r.made_out
+        """The strongest liking or disliking of what she heard or saw since she last spoke; None when none was read."""
+        heard = [r.liking for r in self.readings if r.liking is not None and r.made_out
                  and any(felt.channel == "words" and felt.at == r.at for felt in self.since)]
+        seen = [r.liking for r in self.scenes if r.liking is not None
+                and any(felt.channel == "scene" and felt.at == r.at for felt in self.since)]
+        stood = heard + seen
         return max(stood, key=abs) if stood else None
 
     def remembered_near(self, at: float) -> str:
@@ -640,8 +690,9 @@ class WhatMovesHer:
     def done(self) -> None:
         if self in _UNDER_WAY:
             _UNDER_WAY.remove(self)
-        if self._reading is not None and not self._reading.done():
-            self._reading.cancel()
+        for task in (self._reading, self._seeing):
+            if task is not None and not task.done():
+                task.cancel()
         last = self.events[-1]
         if last.heard or last.seen:
             self.keep({"kind": "event", "from": round(last.began, 1), "to": round(self.now, 1),
@@ -651,6 +702,7 @@ class WhatMovesHer:
         self.keep({"kind": "moved overall", "readings": len(self.readings),
                    "not made out": sum(1 for r in self.readings if not r.made_out),
                    "looks read": len(self._raw["sight"]), "seconds heard": len(self._raw["sound"]),
+                   "scenes read": len(self.scenes),
                    "events": len([e for e in self.events if e.heard or e.seen]),
                    "getting it": None if progress is None else round(progress, 4),
                    "about her": None if self.about_her() is None else round(self.about_her(), 4),

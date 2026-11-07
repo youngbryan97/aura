@@ -703,3 +703,29 @@ def test_a_stretch_that_leaves_what_comes_next_wide_open_is_its_own_channel():
         assert [felt.channel for felt in moves.since][-1] == "open" and moves.since[-1].evidence == 1.0
 
     asyncio.run(go())
+
+
+def test_what_her_eyes_say_of_a_new_scene_is_read_for_how_unexpected_it_is_in_what_it_means():
+    from core.together.what_moves_her import FEWEST_LOOKS, WhatMovesHer
+
+    async def ask(before, then, *_rest):
+        exploding = "explodes" in then
+        varied = sum(map(ord, then))
+        return {"surprisal": 7.5 if exploding else 3.0 + 0.1 * (varied % 4), "shift": 1.5 if exploding else 0.3,
+                "open": 2.0, "tokens": 10.0}
+
+    async def go():
+        moves = WhatMovesHer("x", ask=ask)
+        for look in range(FEWEST_LOOKS + 1):
+            moves.saw(5.0 * look, 0.1, f'a man in a garage holds a tool, view {look}; words on it: "hi"')
+            await moves._seeing
+        moves.saw(40.0, 0.1, 'words on it: "three two one"')  # only words read off it: no new scene
+        assert len(moves.scenes) == FEWEST_LOOKS + 1
+        moves.remarked()
+        moves.saw(45.0, 0.1, "a pumpkin on a stump explodes into pieces across the lawn")
+        await moves._seeing
+        scene = [felt for felt in moves.since if felt.channel == "scene"]
+        assert scene and scene[-1].evidence == 1.0 and "pumpkin" in moves.moved()[1]
+        assert "words on it" not in moves.scenes[0].words
+
+    asyncio.run(go())
