@@ -94,8 +94,11 @@ def compute_mlx_cache_limit(total_ram_bytes: int, env: Mapping[str, str] | None 
     total_ram_bytes = max(int(total_ram_bytes), 8 * _GIB)
 
     if desktop_resource_guard_enabled(env):
+        # The Metal buffer cache holds freed buffers for reuse beside the weights. At 0.16 of 64 GB (10 GB) it filled
+        # over half an hour of watching, the 27B worker reached a 31 GB footprint, her process tree passed its 52 GB
+        # ceiling, and her last word on a TED talk was refused (LIVE 7 November 2026). 0.06 leaves the 4 GB floor.
         ratio = _resource_env_float(
-            env, "AURA_DESKTOP_METAL_CACHE_RATIO", "AURA_SAFE_BOOT_METAL_CACHE_RATIO", 0.16
+            env, "AURA_DESKTOP_METAL_CACHE_RATIO", "AURA_SAFE_BOOT_METAL_CACHE_RATIO", 0.06
         )
         hard_cap_gb = _resource_env_float(
             env, "AURA_DESKTOP_METAL_CACHE_CAP_GB", "AURA_SAFE_BOOT_METAL_CACHE_CAP_GB", 10.0

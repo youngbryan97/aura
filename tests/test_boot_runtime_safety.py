@@ -500,7 +500,7 @@ def test_compute_mlx_cache_limit_uses_safer_cap_for_desktop_safe_boot(monkeypatc
     total = 64 * 1024 ** 3
     limit = compute_mlx_cache_limit(total)
 
-    assert limit == 10 * 1024 ** 3
+    assert limit == 4 * 1024 ** 3  # 0.06 of 64 GB is under the 4 GB floor (LIVE 7 November 2026)
 
 
 def test_compute_mlx_memory_limit_uses_desktop_safe_active_memory_ceiling(monkeypatch):
@@ -592,8 +592,8 @@ def test_live_boot_proof_inherits_safe_desktop_mlx_limits(resource_observer):
     assert env["AURA_CONTRACTS_ENFORCE"] == "1"
     assert env["AURA_EAGER_LOCAL_SENSORY_BOOT"] == "0"
     assert env["AURA_ENABLE_PROACTIVE_VISION"] == "0"
-    assert env["AURA_DESKTOP_METAL_CACHE_RATIO"] == "0.16"
-    assert env["AURA_DESKTOP_METAL_CACHE_CAP_GB"] == "10"
+    assert env["AURA_DESKTOP_METAL_CACHE_RATIO"] == "0.06"
+    assert env["AURA_DESKTOP_METAL_CACHE_CAP_GB"] == "4"
     assert env["AURA_FOREGROUND_CHAT_MAX_TOKENS"] == "2048"
     assert env["AURA_MLX_MEMORY_LIMIT_GB"] == "34"
     assert env["AURA_PROCESS_RSS_LIMIT_GB"] == "52"

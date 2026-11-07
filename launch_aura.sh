@@ -311,8 +311,8 @@ if [ "${AURA_DESKTOP_RESOURCE_GUARD:-0}" = "1" ] || [ "${AURA_SAFE_BOOT_DESKTOP:
     # lane cold until a foreground demand that did not reliably trigger a load.
     : "${AURA_DEFERRED_CORTEX_PREWARM:=1}"
     : "${AURA_ENABLE_PERMANENT_SWARM:=0}"
-    : "${AURA_DESKTOP_METAL_CACHE_RATIO:=0.16}"
-    : "${AURA_DESKTOP_METAL_CACHE_CAP_GB:=10}"
+    : "${AURA_DESKTOP_METAL_CACHE_RATIO:=0.06}"
+    : "${AURA_DESKTOP_METAL_CACHE_CAP_GB:=4}"
     : "${AURA_DESKTOP_MLX_MEMORY_RATIO:=0.54}"
     : "${AURA_DESKTOP_MLX_MEMORY_CAP_GB:=34}"   # in-process MLX 32B headroom
     : "${AURA_DESKTOP_MLX_MEMORY_FLOOR_GB:=18}"

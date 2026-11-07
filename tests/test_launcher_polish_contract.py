@@ -232,8 +232,8 @@ def test_launch_script_supports_gui_window_mode():
     assert "export AURA_BACKGROUND_BOOT_GRACE_S" in shell
     assert "AURA_ENABLE_PERMANENT_SWARM:=0" in shell
     assert "AURA_EXTERNAL_GUI_OWNER:=1" in shell
-    assert "AURA_DESKTOP_METAL_CACHE_RATIO:=0.16" in shell
-    assert "AURA_DESKTOP_METAL_CACHE_CAP_GB:=10" in shell
+    assert "AURA_DESKTOP_METAL_CACHE_RATIO:=0.06" in shell
+    assert "AURA_DESKTOP_METAL_CACHE_CAP_GB:=4" in shell
     assert "AURA_DESKTOP_MLX_MEMORY_RATIO:=0.54" in shell
     assert "AURA_DESKTOP_MLX_MEMORY_CAP_GB:=34" in shell
     assert "AURA_DESKTOP_MLX_MEMORY_FLOOR_GB:=18" in shell
