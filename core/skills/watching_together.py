@@ -155,6 +155,7 @@ class WorthSaying:
     all of a remark's worth is lost by waiting (the rule's m)."""
 
     def __init__(self, held: Any, moves: Any = None) -> None:
+        self.struck = ""
         self.held, self.interest, self.thing = held, 0.0, ""
         self.moves = moves
         self.recent: list[tuple[float, set[str]]] = []
@@ -224,6 +225,9 @@ class WorthSaying:
                 from_her = max(from_her, sharing)
         worth = max(self.interest, from_her)
         say = worth_saying_now(self.held, now, interest=worth, thing=thing, lost_by_waiting=1.0)
+        # What struck her, hers to know when she speaks (core/together/what_moves_her.py ``what_struck_her``).
+        self.struck = self.moves.what_struck_her() if say.speak and self.moves is not None and callable(
+            getattr(self.moves, "what_struck_her", None)) else ""
         logger.info("🤝 %s: %s (worth %.2f: her record %.2f in %s, %s)",
                     "worth saying now" if say.speak else "stays quiet", say.why, worth, self.interest,
                     thing or "what is on", how)

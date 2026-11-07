@@ -818,6 +818,19 @@ class WhatMovesHer:
         most = max(strongest.values(), key=lambda felt: felt.evidence)
         return 1.0 - unmoved, most.what
 
+    def what_struck_her(self) -> str:
+        """What moved her most since she last spoke, as she would know it: on which sense, and what it was of; "" where
+        nothing has. Hers to know when she speaks, as a person knows what made them laugh: LIVE 7 November 2026 her
+        remarks were given what played and not what had struck her in it, and read it out ("He just went from a policy
+        comparison ... The arc is:")."""
+        moving = [felt for felt in self.since if felt.evidence > 0.0]
+        if not moving:
+            return ""
+        most = max(moving, key=lambda felt: felt.evidence)
+        said = CHANNEL_SAYS.get(most.channel, most.channel)
+        what = " ".join(str(most.what or "").split())[:160]
+        return f'{said}: "{what}"' if what and most.channel not in ("sight", "sound") else said
+
     def unshared(self) -> tuple[float, str]:
         """How much she has taken in since she last spoke and not shared, and the latest of it that she made out: each
         stretch of words she made out counts ``UNDERSTOOD_COUNTS``, and whatever moved her counts what it moved her by,

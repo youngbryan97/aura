@@ -453,6 +453,9 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         if ((speaking is None or speaking.done()) and since and said_out and (worth(moment, time.time()) if worth else new.worth_a_remark())
                 and time.monotonic() - spoke_at_wall >= quiet_at_least_s and (may_speak is None or may_speak(time.time()))):
             observation = playing_now(moment.at, float(plays.get("duration") or 0), watching.moments, since[-NOW_LOOKS:])
+            struck = str(getattr(worth, "struck", "") or "")
+            if struck:
+                observation = f"{observation}\nwhat struck her in it since she last spoke: {struck}"
             speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))
             spoke_after_looks, spoke_at_wall = len(watching.moments), time.monotonic()
             new.remarked()
@@ -616,7 +619,7 @@ def first_thought(words: str, about: str = "") -> str:
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", words or "") if part.strip()]
     # A heading or a line that leads into what follows is not a thought (LIVE 20 October 2026: "**After it ends — my
     # thoughts:**" was said as one).
-    said = [part for part in paragraphs if not re.fullmatch(r"#{1,6}\s[^\n]*|\*\*[^*\n]+\*\*\W*|[^\n]*:\W*", part)]
+    said = [part for part in paragraphs if not re.fullmatch(r"#{1,6}\s[^\n]*|\*\*[^*\n]+\*\*\W*|[^\n.!?…]*:\W*", part)]
     shown = _stems(" ".join(_named(about)))
 
     def says_something(part: str) -> bool:
@@ -629,21 +632,48 @@ def first_thought(words: str, about: str = "") -> str:
         # word it named one, and a short reaction of hers was not said while a long description was.
         return count >= A_THOUGHT_HAS_WORDS and (not shown or count >= A_THOUGHT_STANDS_ALONE or len(_stems(" ".join(_named(part))) & shown) >= 2)
 
-    thought = next((part for part in said if says_something(part)), "")
-    if not thought:
+    # Where her private notes ran past their bound, the first of what she said can be the end of a note: it starts
+    # mid-sentence, or annotates a line it quotes. LIVE 7 November 2026, said as a remark: '. This is time, man." -
+    # casual, warm opening'. That much is not said; what follows it is.
+    cleaned = {part: _without_the_end_of_a_note(part) for part in said}
+    first = next((part for part in said if cleaned[part] and says_something(cleaned[part])), "")
+    if not first:
         return ""
+    thought = cleaned[first]
     # A quotation it opens runs on to where it closes: LIVE 22 October 2026 a remark ended inside one, 'the on-screen
     # text is saying: "While they secretly start working on goals that are harmful or straight up incomprehensible to
     # us.', its close in the paragraph after.
-    following = paragraphs[paragraphs.index(thought) + 1:]
+    following = paragraphs[paragraphs.index(first) + 1:]
     while _a_quotation_left_open(thought) and following:
         thought = f"{thought}\n\n{following.pop(0)}"
     if _a_quotation_left_open(thought):
         opened = max(thought.rfind('"'), thought.rfind("“"))
         before = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)(?:\s|$)", thought[:opened])
         thought = before.group(1).strip() if before else thought
+    # A last sentence that leads into what follows is not said without it: LIVE 7 November 2026 a remark ended "The
+    # arc is:", its list in the paragraph after.
+    led_into = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)\s+[^.!?…]*:\W*$", thought)
+    thought = led_into.group(1).strip() if led_into else thought
     whole = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)(?:\s|$)", thought)
     return whole.group(1).strip() if whole and not re.search(r"[.!?…][\"'”’)*_]*$", thought) else thought
+
+
+def _without_the_end_of_a_note(part: str) -> str:
+    """A paragraph without a note's end at its head: text before its first sentence that starts mid-sentence (with a
+    stop, a comma or a lower-case word), or a line it annotates after a quotation ('..." - casual, warm opening')."""
+    import re
+
+    text = part.strip()
+
+    def is_a_note(head: str) -> bool:
+        return bool(re.match(r"^[.,;:)\]…]|^[a-z]", head) or re.search(r"[\"”]\s+[-–—]\s+[a-z]", head))
+
+    while text:
+        parts = re.split(r"(?<=[.!?…])[\"'”’)*_]*\s+(?=[A-Z\"“*])", text, maxsplit=1)
+        if not is_a_note(parts[0]):
+            return text
+        text = parts[1].strip() if len(parts) > 1 else ""
+    return text
 
 
 def _a_quotation_left_open(text: str) -> bool:

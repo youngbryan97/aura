@@ -519,3 +519,14 @@ def test_a_remark_does_not_end_inside_a_quotation():
     # Never closed, it ends at the sentence before the quotation.
     assert first_thought(opened) == ('Wait, hold on, I think we just hit the part where the "terrifying line" actually '
                                      'gets named.')
+
+
+def test_the_end_of_a_note_and_a_lead_in_are_not_said_and_a_reaction_is():
+    # LIVE 7 November 2026, said as remarks: '. This is time, man." - casual, warm opening' and "... The arc is:".
+    from core.skills.watching_along import first_thought
+
+    assert first_thought('. This is time, man." - casual, warm opening') == ""
+    assert first_thought("Ha. The guns-in-the-open line got me, and he sells it completely. The arc is:") == (
+        "Ha. The guns-in-the-open line got me, and he sells it completely.")
+    assert first_thought("and then they lose it. Honestly that callback to the Texas bit is the best part so far.") == (
+        "Honestly that callback to the Texas bit is the best part so far.")
