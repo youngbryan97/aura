@@ -28,7 +28,7 @@ So she reads what plays on three channels, each against her own expectation of i
   moved what she expects next. A stretch far less expected than any she made sense of was not made out (a misheard
   line), and moves nothing;
 - **sight**: how far each look departed from what her eyes expected of it (core/perception/what_her_senses_expect.py);
-- **sound**: how far each second's loudness departed from what her ear expected, and its onsets, the startle's
+- **sound**: how far each second rose above what this video usually sounds like, and its onsets, the startle's
   stimulus.
 
 A reading moves her as far as it stands out from this video's readings on its channel: how many of their spreads it
@@ -81,9 +81,9 @@ MOVED_AT = 0.5
 #: How far from the middle of a channel's readings, in their spreads, a reading is still what the video is like, and
 #: how far it has to be to be all the evidence there is.
 Z_ORDINARY, Z_FULL = 2.0, 5.0
-#: The least spread read as one on each channel: words and how far they are about her in nats a token, a look and a
-#: second of sound in nats.
-LEAST_SPREADS = {"words": 0.1, "self": 0.05, "sight": 0.05, "sound": 0.05}
+#: The least spread read as one on each channel: words and how far they are about her in nats a token, a look in nats,
+#: a second of sound in decibels above the video's usual.
+LEAST_SPREADS = {"words": 0.1, "self": 0.05, "sight": 0.05, "sound": 1.0}
 #: How many of her latest stretches how well she is making sense of it is read over, and the fewest to read it from.
 MAKING_SENSE_OVER, MAKING_SENSE_FROM = 10, 4
 #: What she remembers of it from watching it before, around where it plays now: from this long before to this long
@@ -459,8 +459,9 @@ class WhatMovesHer:
             self.events[-1].seen = " ".join(seen.split())[:300]
 
     def sounded(self, at: float, surprise: float, onset: float) -> None:
-        """One second of sound: how far its loudness departed from what her ear expected, and how far it rose above
-        that as an onset (dB beyond an onset's threshold). A startle needs no history of the video to stand."""
+        """One second of sound: how far it rose above what this video usually sounds like (``surprise``, in dB), and
+        how far it rose above what her ear expected as an onset (dB beyond an onset's threshold). A startle needs no
+        history of the video to stand."""
         self.now = max(self.now, float(at or 0.0))
         raw = self._raw["sound"]
         standing = _stands_out(raw, float(surprise), least_spread=LEAST_SPREADS["sound"], fewest=FEWEST_SECONDS)

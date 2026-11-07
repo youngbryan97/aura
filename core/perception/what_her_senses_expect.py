@@ -115,6 +115,9 @@ def loudness_of(samples: Any) -> tuple[float, float] | None:
 ONSET_DB = 10.0
 #: Quieter than this is silence, in dBFS: no surprise is read in it, and a rise out of it is read from here.
 SILENCE_DB = -70.0
+#: How many of the last seconds what this video usually sounds like is read over: their median, which a pause of a
+#: few seconds barely moves.
+USUAL_OVER_S = 60
 
 
 @dataclass
@@ -124,16 +127,33 @@ class SoundExpectation:
     #: How noisy a second's loudness is, as a variance in dB^2.
     noise: float = 9.0
     scales: list[Belief] = field(default_factory=list)
+    lately: list[float] = field(default_factory=list)
+    #: How far the last second rose above what this video usually sounds like, in dB (0 when it did not): what of its
+    #: sound stands out, as a swell, a crash or a bang does and speech coming back after a pause does not.
+    above_usual: float = 0.0
 
     def __post_init__(self) -> None:
         if not self.scales:
             self.scales = [Belief(noise=self.noise, forget=forget) for forget in (FAST, SLOW)]
 
+    def usual(self) -> float | None:
+        """What this video usually sounds like: the median loudness of its last ``USUAL_OVER_S`` seconds."""
+        if not self.lately:
+            return None
+        ordered = sorted(self.lately)
+        return ordered[len(ordered) // 2]
+
     def heard(self, loudness_db: float) -> tuple[float, float]:
         """Take in one second's loudness; how far it departed from what her ear expected (nats) and how far it rose
         above that expectation as an onset (dB above ``ONSET_DB``, 0 when it did not)."""
         level = max(SILENCE_DB, float(loudness_db))
-        fast = self.scales[0]
-        expected = float(fast.mean[0]) if fast.mean is not None else level
+        # Against the louder of what the last seconds were and what this video usually sounds like: speech coming back
+        # after a pause rises far above the pause, and is no startle; a bang rises above the video's usual too.
+        fast = self.scales[0].mean
+        known = [value for value in (float(fast[0]) if fast is not None else None, self.usual()) if value is not None]
+        expected = max(known) if known else level
+        usual = self.usual()
+        self.above_usual = max(0.0, level - usual) if usual is not None else 0.0
         surprise = sum(belief.surprise([level]) for belief in self.scales) / len(self.scales)
+        self.lately = [*self.lately, level][-USUAL_OVER_S:]
         return surprise, max(0.0, level - expected - ONSET_DB)

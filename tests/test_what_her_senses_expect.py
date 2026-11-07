@@ -49,3 +49,15 @@ def test_loudness_and_a_glance_of_a_picture():
     glance = glance_of(out.getvalue())
     assert glance.shape == (32 * 18 + 8 * 4 * 3,) and 0.0 <= glance.min() <= glance.max() <= 1.0
     assert glance_of(b"not a picture") is None
+
+
+def test_speech_coming_back_after_a_pause_is_no_startle():
+    from core.perception.what_her_senses_expect import SoundExpectation
+
+    ears = SoundExpectation()
+    for _ in range(60):
+        ears.heard(-28.0)  # a minute of narration
+    for _ in range(3):
+        ears.heard(-65.0)  # a pause
+    assert ears.heard(-27.0)[1] == 0.0 and ears.above_usual < 2.0  # the narration again
+    assert ears.heard(-5.0)[1] > 5.0 and ears.above_usual > 20.0  # a bang over it

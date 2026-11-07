@@ -508,8 +508,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         moves.saw(at, getattr(moment, "sight", None), moment.seen)
         seconds = [row for row in (getattr(moment, "sounds", None) or []) if isinstance(row.get("loudness"), (int, float))]
         for back, row in enumerate(reversed(seconds)):
-            surprise, onset = ears.heard(float(row["loudness"]))
-            moves.sounded(max(0.0, at - back), surprise, onset)
+            _surprise, onset = ears.heard(float(row["loudness"]))
+            moves.sounded(max(0.0, at - back), ears.above_usual, onset)
         moves.heard(at, moment.read)
         # What they said since the last look, as the with heard it.
         for turn in list(held.turns):
