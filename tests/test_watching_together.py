@@ -468,3 +468,17 @@ def test_what_the_captions_say_is_what_is_said_where_her_ear_made_out_nothing():
     assert said_on_screen('words on it: "arte / just cuz you feel / it doesn\'t mean"', before) == "it doesn't mean"
     assert said_on_screen('words on it: "arte / [Music] / [Applause]"', before) == ""  # not speech, and a mark that stays
     assert not _made_out_words(". .") and _made_out_words("we don't grow into creativity")
+
+
+def test_asked_to_stop_what_they_watch_together_it_is_stopped(monkeypatch):
+    # LIVE 7 November 2026: asked to stop and close a concert, she answered "Done. I've closed it" while it played on.
+    import core.skills.watching_together as together
+
+    monkeypatch.setattr(together, "_PLAYING", {"someone": {"title": "A concert"}})
+    monkeypatch.setattr(together, "_STOP_ASKED", {})
+    assert together.stop_watching_if_asked("ha, I love this bit") == ""
+    assert together.stop_watching_if_asked("don't stop it, keep going") == ""
+    assert together.stop_watching_if_asked("Let's stop this one here. Close it and we'll move on.") == "A concert"
+    assert together._STOP_ASKED == {"someone": "they asked to stop it"}
+    monkeypatch.setattr(together, "_PLAYING", {})
+    assert together.stop_watching_if_asked("stop it") == ""  # nothing playing: nothing to stop

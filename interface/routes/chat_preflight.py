@@ -2440,7 +2440,14 @@ async def _run_chat_preflight(
             # was searched and what the connectivity probe really said, so the
             # "I can't stream anything" case comes out in her own words.
             try:
-                _media = await _resolve_play_request_off_the_loop(_original_user_message)
+                # Asked to stop what they are watching together: it is stopped, and her reply knows it was.
+                from core.skills.watching_together import stop_watching_if_asked
+
+                _stopped = stop_watching_if_asked(_original_user_message)
+                if _stopped:
+                    body.message = (f"[{_stopped!r}, which you were watching together, is being stopped at their asking; "
+                                    "its tab closes once you have said your word on it.]\n\n" f"{body.message}")
+                _media = None if _stopped else await _resolve_play_request_off_the_loop(_original_user_message)
                 if _media is not None and _media.playable and _media.item is not None:
                     _publish_media_card(_media)
                     body.message = (

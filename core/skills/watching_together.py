@@ -33,7 +33,7 @@ from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["her_answer_before_it_plays", "her_answer_when_nothing_plays", "owed_an_answer", "the_talk_since", "watch_in_a_with", "watching_with", "what_we_are_watching"]
+__all__ = ["her_answer_before_it_plays", "her_answer_when_nothing_plays", "stop_watching_if_asked", "owed_an_answer", "the_talk_since", "watch_in_a_with", "watching_with", "what_we_are_watching"]
 
 #: How long the watching waits for the turn that asked for it to settle before it starts anyway.
 ANSWER_WAITED_S = 180.0
@@ -45,6 +45,28 @@ _PLAYING: dict[str, dict[str, Any]] = {}
 _WATCHINGS: set[asyncio.Task] = set()
 #: When she last finished watching something with each person (wall clock).
 _ENDED_AT: dict[str, float] = {}
+#: Who has asked to stop what they are watching with her, and their words.
+_STOP_ASKED: dict[str, str] = {}
+#: What asks to stop or close what is being watched together: said to her while it plays.
+_ASKS_TO_STOP = r"(?i)\b(?:stop (?:it|this|that|the video|watching)|let'?s stop|close (?:it|this|that|the (?:tab|video|window))|turn (?:it|this|that) off|shut (?:it|this|that) off|that'?s enough|enough of (?:it|this)|end (?:it|this) here)\b"
+
+
+def stop_watching_if_asked(said: str) -> str:
+    """When the person watching with her asks to stop it, the watching is stopped: its reason to stop is theirs, and it
+    ends as one she stops does, with her word on it and its tab closed. The title stopped, or "". LIVE 7 November 2026,
+    asked "Let's stop this one here ... Close it and we'll move on", she answered "Done. I've closed it" while it
+    played on: nothing in a watching heard a request to stop."""
+    import re
+
+    if not _PLAYING or not re.search(_ASKS_TO_STOP, str(said or "")) or re.search(r"(?i)\bdon'?t stop\b", str(said or "")):
+        return ""
+    titles = []
+    for who, playing in list(_PLAYING.items()):
+        _STOP_ASKED[who] = "they asked to stop it"
+        titles.append(str(playing.get("title") or "it"))
+    return ", ".join(titles)
+
+
 #: What she has watched with someone, newest last: title, who made it, with whom, when it ended, and her last word on it.
 _WATCHED_TOGETHER: list[dict[str, Any]] = []
 #: How many watchings are kept, and for how long after one ends it is part of what every turn carries, in seconds.
@@ -701,11 +723,14 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     # Under way only inside what ends it: her appraisal reads a watching while it is registered (moves.done ends it).
     moves.begin()
     try:
+        async def stop_when() -> str:
+            return _STOP_ASKED.pop(who, "") or await can_take()
+
         await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held),
                           worth=worth, on_moment=took_in,
                           on_said=she_said, keep=keep, at_most_s=at_most_s,
                           remember=into_her_memory_with,
-                          look_in=moves.look_in, stop_when=can_take, whole=what_she_took_it_in_as, **pace)
+                          look_in=moves.look_in, stop_when=stop_when, whole=what_she_took_it_in_as, **pace)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("together", exc, severity="warning", action="the watching together stopped")
     finally:
