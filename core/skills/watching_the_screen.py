@@ -299,6 +299,7 @@ class OnTheirScreen:
         self.url, self.title, self.duration_s, self.words = url, title, float(duration_s or 0.0), words
         self.bundle, self.owner = _their_browser(url)
         self.window: dict[str, Any] | None = None
+        self.tab: dict[str, str] | None = None
         self.ear: Any = None
         # What her eyes expect of the next look at where it plays, and how far the last look departed from it
         # (core/perception/what_her_senses_expect.py).
@@ -341,6 +342,8 @@ class OnTheirScreen:
             record_degradation("watching_the_screen", exc, action="the browser did not open the link in time; "
                                "the video is not watched", severity="info")
             return False
+        # Which tab it opened in, so that the tab is closed when it is over (``done``).
+        self.tab = await asyncio.to_thread(_the_tab_it_opened_in, self.bundle)
         deadline = monotonic_time() + WINDOW_WAITED_S
         while monotonic_time() < deadline:
             self.window = await asyncio.to_thread(_window_showing, self.owner, self.title)
@@ -518,6 +521,11 @@ class OnTheirScreen:
             await self.ear.stop()
         # What plays next in their player is not watched together: paused as a person pauses it, where it plays on
         # (LIVE 20 October 2026, rehearsal 7: the site played its next video, and her ear went on hearing it).
+        # Closed as a person closes what they opened once it is over: LIVE 7 November 2026 the site played its next
+        # video, and Bryan closed the window himself. Where it cannot be closed, what plays on is paused.
+        if await asyncio.to_thread(_close_the_tab_it_opened_in, self.bundle, getattr(self, "tab", None), self.url):
+            logger.info("the tab the video played in was closed, now it is over")
+            return
         if not await self._pause_what_plays_on():
             # Not playing yet: a site counts down before it plays the next video. LIVE 7 November 2026, after four
             # watchings four tabs of Safari played what each site chose next (lofi, a prayer, BBC clips), and her ear,
@@ -546,6 +554,66 @@ class OnTheirScreen:
             if await self._pause_what_plays_on():
                 logger.info("what their browser played on after the video was paused")
                 return
+
+
+#: How their browser is asked which tab is in front and to close one, by the bundle that opens links: Safari's and
+#: Chrome's (and Chrome's kin) scripting dictionaries. A browser without one is not asked.
+_FRONT_TAB = {
+    "com.apple.Safari": 'tell application id "com.apple.Safari" to return (id of front window as text) & "|" & '
+                        '(index of current tab of front window as text) & "|" & (URL of current tab of front window)',
+    "chromium": 'tell application id "{bundle}" to return (id of front window as text) & "|" & '
+                '(active tab index of front window as text) & "|" & (URL of active tab of front window)',
+}
+_CLOSE_TAB = {
+    "com.apple.Safari": 'tell application id "com.apple.Safari"\n set t to tab {index} of window id {window}\n'
+                        ' if URL of t contains "{host}" then close t\nend tell',
+    "chromium": 'tell application id "{bundle}"\n set t to tab {index} of window id {window}\n'
+                ' if URL of t contains "{host}" then close t\nend tell',
+}
+_CHROMIUM = ("com.google.Chrome", "com.brave.Browser", "com.microsoft.edgemac", "com.vivaldi.Vivaldi", "company.thebrowser.Browser")
+
+
+def _scripted(bundle: str, scripts: dict[str, str]) -> str:
+    return scripts.get(bundle) or (scripts["chromium"] if bundle in _CHROMIUM else "")
+
+
+def _the_tab_it_opened_in(bundle: str) -> dict[str, str] | None:
+    """The window and tab in front of their browser just after a link was opened: where it opened. None where the
+    browser cannot be asked."""
+    import subprocess
+
+    script = _scripted(bundle, _FRONT_TAB).replace("{bundle}", bundle)
+    if not script:
+        return None
+    try:
+        said = subprocess.run(["/usr/bin/osascript", "-e", script], capture_output=True, text=True, timeout=5.0)
+    except (OSError, subprocess.SubprocessError) as why:
+        logger.info("which tab it opened in could not be read: %s", why)
+        return None
+    window, _, rest = said.stdout.strip().partition("|")
+    index, _, url = rest.partition("|")
+    return {"window": window, "index": index, "url": url} if window.isdigit() and index.isdigit() else None
+
+
+def _close_the_tab_it_opened_in(bundle: str, tab: dict[str, str] | None, url: str) -> bool:
+    """Close the tab the video was opened in, if it is still on the video's site (a person's own tab is never closed);
+    whether it was asked to."""
+    import subprocess
+    from urllib.parse import urlsplit
+
+    host = urlsplit(url).netloc.removeprefix("www.")
+    script = _scripted(bundle, _CLOSE_TAB)
+    if not (tab and host and script and '"' not in host):
+        return False
+    script = script.replace("{bundle}", bundle).replace("{index}", tab["index"]).replace("{window}", tab["window"])
+    try:
+        with on_their_desktop("the tab the video played in, closed now it is over"):
+            done = subprocess.run(["/usr/bin/osascript", "-e", script.replace("{host}", host)],
+                                  capture_output=True, text=True, timeout=5.0)
+    except (OSError, subprocess.SubprocessError) as why:
+        logger.info("the tab it played in could not be closed: %s", why)
+        return False
+    return done.returncode == 0
 
 
 #: How long after a video ends what their browser plays next is looked for, and how often, in seconds.
