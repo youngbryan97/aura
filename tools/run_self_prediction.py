@@ -77,6 +77,13 @@ def _cortex_answered(answers: list[dict[str, Any]], reply: str, state: Any, ques
         return False
     if reply.strip() == UnitaryResponsePhase._build_minimal_live_voice_reply(state, question).strip():
         return False
+    # The offline sentence her reply path serves when its checks refuse her drafts ("I can't work through that question
+    # right now — my language backend is temporarily unavailable on my side."). On 5 and 6 November it was counted as
+    # her prediction on 75 and 95 first-word questions.
+    from core.synthesis import generate_offline_fallback_response
+
+    if reply.strip() == generate_offline_fallback_response(question).strip():
+        return False
     replies = [answer for answer in answers if answer.get("user_facing")]
     return bool(replies) and all(answer.get("endpoint") == PRIMARY_ENDPOINT for answer in replies)
 

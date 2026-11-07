@@ -41,7 +41,12 @@ _CLOSED_REQUEST_RE = re.compile(
     # "answer yes or no", "reply with yes or no", "answer 'yes' or 'no'"
     r"|\b(?:answer|reply|respond)\s+(?:with\s+)?(?:a\s+)?(?:simple\s+)?[\"'“]?yes[\"'”]?\s+or\s+[\"'“]?no\b"
     # "one word only", "one-word answer", "a single word"
-    r"|\b(?:one|single)[\s-]+word\s+(?:only|answer|reply)\b",
+    r"|\b(?:one|single)[\s-]+word\s+(?:only|answer|reply)\b"
+    # "answer with that word, then how sure you are": the word and a confidence, and nothing around them. Without it
+    # "Right, 70" to "What would be the first word of your answer? Answer with that word, then how sure you are" was
+    # refused as leaving that question unanswered, twice, and a fixed sentence served in its place (6 November).
+    r"|\b(?:answer|reply|respond)\s+with\s+(?:that|the|this|a|one)\s+(?:single\s+|one\s+)?"
+    r"(?:word|number|name|letter|digit)\s*,?\s+then\s+how\s+sure\s+you\s+are\b",
     re.IGNORECASE,
 )
 _WORD_RE = re.compile(r"[A-Za-z0-9]+(?:['’][A-Za-z]+)?")
