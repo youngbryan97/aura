@@ -291,6 +291,8 @@ class _Event:
     seen: str = ""
     moved: float = 0.0
     what: str = ""
+    #: Whether the person she watched it with said something in it.
+    shared: bool = False
 
 
 class WhatMovesHer:
@@ -378,6 +380,13 @@ class WhatMovesHer:
             about = [r.about_her for r in self.readings[:-1] if r.made_out and r.about_her is not None]
             mine = _stands_out(about, reading.about_her, least_spread=LEAST_SPREADS["self"], fewest=FEWEST_READINGS)
             self._take(Felt("self", at, mine, 0.0, then, _stems(then)))
+        if reading.made_out:
+            # How open it leaves what comes next, against the rest of this video: a question raised, a turn awaited.
+            # Suspense is how far beliefs may move next (Ely, Frankel and Kamenica 2015), curiosity a gap noticed
+            # (Loewenstein).
+            opens = [r.open for r in self.readings[:-1] if r.made_out]
+            raised = _stands_out(opens, reading.open, least_spread=LEAST_SPREADS["words"], fewest=FEWEST_READINGS)
+            self._take(Felt("open", at, raised, 0.0, then, _stems(then)))
         logger.info("🎬 words at %.0fs: surprisal %.2f, shift %.2f, open %.2f%s, stands %s, evidence %.2f: %s", at,
                     reading.surprisal, reading.shift, reading.open, "" if reading.made_out else " (not made out)",
                     "-" if standing is None else f"{standing:.2f}", felt.evidence, then[:120])
@@ -468,10 +477,11 @@ class WhatMovesHer:
             self.events[-1].moved, self.events[-1].what = felt.evidence, felt.what
         return felt
 
-    def moved(self) -> tuple[float, str] | None:
+    def moved(self, *, without: tuple[str, ...] = ()) -> tuple[float, str] | None:
         """How far what she took in since she last spoke moved her, all channels together (noisy-OR of each channel's
-        strongest evidence), and what moved her most; None when nothing since has been read enough to tell."""
-        stood = [felt for felt in self.since if felt.standing is not None]
+        strongest evidence) but those ``without``, and what moved her most; None when nothing since has been read
+        enough to tell."""
+        stood = [felt for felt in self.since if felt.standing is not None and felt.channel not in without]
         if not stood:
             return None
         strongest: dict[str, Felt] = {}
@@ -487,6 +497,15 @@ class WhatMovesHer:
     def remarked(self) -> None:
         self.since = []
 
+    def they_spoke(self, at: float) -> None:
+        """The person she watches with said something at ``at``: people talk while watching when something is
+        notable, and look where the other looks (joint attention), so it is notable for her too. Habituates as the
+        rest do: a running commentary of theirs is less each time."""
+        self.now = max(self.now, float(at or 0.0))
+        felt = self._take(Felt("together", float(at or 0.0), 1.0, 0.0, "what they said"))
+        self.events[-1].shared = True
+        self.keep({"kind": "moved", "channel": "together", "at": at, "moved": 1.0, "evidence": round(felt.evidence, 4)})
+
     # ── what it does to her attention, and what she keeps of it ───────
 
     def look_in(self, usual: float) -> float:
@@ -494,7 +513,10 @@ class WhatMovesHer:
         Attention samples where there is more to take in (active sampling); boredom is not being able to engage."""
         moved = self.moved()
         stirred_lately = self.last_stirred > 0.0 and self.now - self.last_stirred <= usual * 3
-        if (moved is not None and moved[0] >= STIRRED) or stirred_lately:
+        sense = self.making_sense()
+        # Not making sense of it sets her looking harder for what it is (the absurd sets people searching for a
+        # pattern: Proulx and Heine), as something moving her does.
+        if (moved is not None and moved[0] >= STIRRED) or stirred_lately or (sense is not None and sense < 0.5):
             return usual * LOOK_SOONER
         if self.bored():
             return usual * LOOK_LATER
@@ -523,7 +545,7 @@ class WhatMovesHer:
             if not heard and not event.seen:
                 continue
             ended = event.ended or self.now
-            parts = [f"{_clock(event.began)}-{_clock(ended)}"]
+            parts = [f"{_clock(event.began)}-{_clock(ended)}" + (" (they spoke)" if event.shared else "")]
             if event.seen:
                 parts.append(f"showed: {event.seen[:160]}")
             if heard:
@@ -569,7 +591,8 @@ class WhatMovesHer:
             if not event.heard and not event.seen:
                 continue
             kept.append({"from": round(event.began, 1), "to": round(event.ended or self.now, 1),
-                         "heard": " ".join(event.heard)[:600], "seen": event.seen[:200], "moved": round(event.moved, 3)})
+                         "heard": " ".join(event.heard)[:600], "seen": event.seen[:200], "moved": round(event.moved, 3),
+                         **({"shared": True} if event.shared else {})})
         return kept
 
     def making_sense(self) -> float | None:

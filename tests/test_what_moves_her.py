@@ -169,7 +169,7 @@ def test_a_remark_is_worth_what_moved_her_and_newness_only_where_nothing_she_hea
         def __init__(self, moved):
             self.value, self.cleared = moved, 0
 
-        def moved(self):
+        def moved(self, **_kw):
             return self.value
 
         def remarked(self):
@@ -662,5 +662,42 @@ def test_her_own_limit_and_sweet_spot_are_read_from_how_she_came_out_of_her_watc
         can_take = WhatSheCanTake(read, limit=found["limit"])
         said = [await can_take() for _ in range(4)]
         assert said[:3] == ["", "", ""] and "the most she has sat through" in said[3] and can_take.highest == 0.75
+
+    asyncio.run(go())
+
+
+def test_what_they_say_while_it_plays_is_notable_to_her_but_not_a_remark_s_worth_and_confusion_makes_her_look():
+    from core.together.what_moves_her import FEWEST_READINGS, Reading, WhatMovesHer
+
+    kept: list[dict] = []
+    moves = WhatMovesHer("x", keep=kept.append)
+    moves.they_spoke(40.0)
+    assert moves.moved()[0] == 1.0 and moves.moved(without=("together",)) is None
+    assert moves.look_in(5.0) == 2.5 and moves.events[-1].shared
+    moves.they_spoke(42.0)
+    assert moves.felt[-1].evidence < 1.0  # a running commentary of theirs is less each time
+    confused = WhatMovesHer("y")
+    confused.readings = [Reading(at=float(i), words="w", surprisal=9.0, shift=0.2, open=2.0, made_out=i % 3 == 0)
+                         for i in range(FEWEST_READINGS + 4)]
+    assert confused.making_sense() < 0.5 and confused.look_in(5.0) == 2.5
+
+
+def test_a_stretch_that_leaves_what_comes_next_wide_open_is_its_own_channel():
+    from core.together.what_moves_her import FEWEST_READINGS, WhatMovesHer
+
+    async def ask(before, then, *_rest):
+        varied = sum(map(ord, then))
+        return {"surprisal": 2.6 + 0.2 * (varied % 5), "shift": 0.2 + 0.05 * (varied % 4), "tokens": 10.0,
+                "open": 6.0 if "but what happened next" in then else 2.0 + 0.1 * (varied % 3)}
+
+    async def go():
+        moves = WhatMovesHer("x", ask=ask)
+        for i in range(FEWEST_READINGS + 2):
+            moves.heard(float(i), f"an ordinary line number {i} of what was said")
+            await moves._reading
+        moves.remarked()
+        moves.heard(30.0, "and nobody knew, but what happened next changed everything")
+        await moves._reading
+        assert [felt.channel for felt in moves.since][-1] == "open" and moves.since[-1].evidence == 1.0
 
     asyncio.run(go())

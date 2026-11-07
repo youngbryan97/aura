@@ -184,7 +184,8 @@ class WorthSaying:
         from core.together.what_moves_her import MOVED_AT
         from core.together.when_to_say_something import worth_saying_now
 
-        moved = self.moves.moved() if self.moves is not None else None
+        # What they said moved her too, and she answers them for it: it is not also a remark's worth.
+        moved = self.moves.moved(without=("together",)) if self.moves is not None else None
         thing = self.thing
         if moved is not None:
             stirred, words = moved
@@ -510,6 +511,13 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
             surprise, onset = ears.heard(float(row["loudness"]))
             moves.sounded(max(0.0, at - back), surprise, onset)
         moves.heard(at, moment.read)
+        # What they said since the last look, as the with heard it.
+        for turn in list(held.turns):
+            if turn.by == THEM and turn.at > their_last["at"]:
+                their_last["at"] = turn.at
+                moves.they_spoke(at)
+
+    their_last = {"at": time.time()}
 
     def what_she_took_it_in_as() -> tuple[str, float, float | None, list[dict[str, Any]]]:
         return (moves.events_text(), max((felt.evidence for felt in moves.felt), default=0.0), moves.about_her(),
