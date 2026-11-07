@@ -759,3 +759,39 @@ def test_yoked_her_readings_keep_their_spread_and_lose_their_alignment_with_what
     cut_yoked = yoked.felt[10].evidence
     assert cut_own == 1.0 and cut_yoked == 0.0  # the cut, yoked to a look before it, moves nothing
     assert set(yoked._raw["sight"]) <= set(values)  # every value one of her own, from earlier in the same video
+
+
+def test_knowing_who_made_it_and_what_they_made_before_is_part_of_what_she_expects(monkeypatch):
+    import core.skills.watching_along as watching_along
+    from core.together.what_moves_her import WhatMovesHer
+
+    glove = SimpleNamespace(action="watching_along", timestamp=100.0, source_metadata={
+        "title": "I built a glove", "by": "Allen Pan", "events": [{"heard": "I love punching watermelons"}]})
+    this_one = SimpleNamespace(action="watching_along", timestamp=200.0, source_metadata={
+        "title": "Childhood inventions", "by": "Allen Pan", "events": [{"heard": "this very video"}]})
+    someone_else = SimpleNamespace(action="watching_along", timestamp=300.0, source_metadata={
+        "title": "Volcanoes", "by": "Kurzgesagt", "events": [{"heard": "magma rises"}]})
+
+    class _Episodic:
+        def pattern_complete(self, cue, limit):
+            assert cue == "Watched by Allen Pan"
+            return [glove, this_one, someone_else]
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: _Episodic() if name == "episodic_memory" else default)
+    of_them = asyncio.run(watching_along.what_she_remembers_of_them("Allen Pan", "Childhood inventions"))
+    assert of_them == "I built a glove: I love punching watermelons"  # not this video, not someone else's
+
+    asked: list = []
+
+    async def ask(before, then):
+        asked.append(before)
+        return {"surprisal": 3.0, "shift": 0.3, "open": 2.0, "tokens": 10.0}
+
+    async def go():
+        moves = WhatMovesHer("Childhood inventions, by Allen Pan", ask=ask, of_them=of_them, read_every_s=0.0)
+        moves.heard(5.0, "so today we are building the thing I always wanted")
+        await moves._reading
+        assert asked[-1].startswith("Childhood inventions, by Allen Pan\nI built a glove: I love punching")
+
+    asyncio.run(go())

@@ -207,6 +207,8 @@ class Watching:
     #: with: what she recalls of it if she watches it again, and that they watched it together.
     event_list: list[dict[str, Any]] = field(default_factory=list)
     with_whom: str = ""
+    #: Who made it, as its page said.
+    by: str = ""
 
     def since(self, looks: int) -> list[Moment]:
         """The moments after the first ``looks``: counted by look, since a video's clock starts again after an advert."""
@@ -708,6 +710,38 @@ async def what_she_remembers_of(title: str, url: str = "") -> list[dict[str, Any
     return latest[1] if latest else []
 
 
+#: How much of what she remembers of a maker's other videos is read before what she hears of a new one, in characters.
+OF_THEM_CHARS = 300
+
+
+async def what_she_remembers_of_them(by: str, title: str = "") -> str:
+    """What she remembers of what ``by`` made before (another video than ``title``): what was said in the first events
+    of her latest watching of one, recalled as she recalls anything. "" when she has watched nothing of theirs, or kept
+    no events of it."""
+    from core.container import ServiceContainer
+    from core.runtime.errors import record_degradation
+
+    episodic = ServiceContainer.get("episodic_memory", default=None)
+    recall = getattr(episodic, "pattern_complete", None)
+    if not callable(recall) or not by:
+        return ""
+    try:
+        episodes = await asyncio.to_thread(recall, f"Watched by {by}", 8)
+    except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+        record_degradation("watching_along", exc, severity="info", action="she watched it without recalling its maker")
+        return ""
+    latest: tuple[float, str] | None = None
+    for episode in episodes or []:
+        kept = dict(getattr(episode, "source_metadata", None) or {})
+        if getattr(episode, "action", "") != "watching_along" or kept.get("by") != by or kept.get("title") == title:
+            continue
+        heard = " ".join(str(event.get("heard") or "") for event in (kept.get("events") or [])[:4] if isinstance(event, dict))
+        when = float(getattr(episode, "timestamp", 0.0) or 0.0)
+        if heard.strip() and (latest is None or when > latest[0]):
+            latest = (when, f"{kept.get('title') or 'one of theirs'}: {' '.join(heard.split())}")
+    return latest[1][:OF_THEM_CHARS] if latest else ""
+
+
 async def into_her_memory(watching: Watching, *, url: str = "") -> None:
     """The watching as one episode of her own: what was watched, with whom, and what she said of it, in her words, so
     that asked later what she thought of it she recalls it as she remembers anything she did."""
@@ -724,8 +758,8 @@ async def into_her_memory(watching: Watching, *, url: str = "") -> None:
         # tenth more, at a nat a token).
         about = max(0.0, min(1.0, watching.about_her or 0.0))
         await episodic.record_episode_async(
-            context=(f"Watched {watching.title or 'a video'} as it played, with {watching.with_whom or 'whoever asked'}: "
-                     f"{watching.request}")[:600],
+            context=(f"Watched {watching.title or 'a video'}{f' by {watching.by}' if watching.by else ''} as it played, "
+                     f"with {watching.with_whom or 'whoever asked'}: {watching.request}")[:600],
             action="watching_along", outcome=said[-4000:], success=watching.ended,
             importance=round(min(1.0, 0.6 + 0.3 * max(0.0, min(1.0, watching.moved_most)) + 0.1 * about), 3),
             source="watching_along",
@@ -734,7 +768,7 @@ async def into_her_memory(watching: Watching, *, url: str = "") -> None:
                       "what happened in it": watching.events[:3000], "stopped": watching.stopped,
                       "moved most": round(watching.moved_most, 4),
                       "about her": None if watching.about_her is None else round(watching.about_her, 4),
-                      "events": watching.event_list[:60], "with": watching.with_whom})
+                      "events": watching.event_list[:60], "with": watching.with_whom, "by": watching.by})
     except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
         record_degradation("watching_along", exc, severity="info", action="a watching did not reach her memory")
 

@@ -322,7 +322,7 @@ class WhatMovesHer:
                  keep: Callable[[dict[str, Any]], None] | None = None, self_text: str = "",
                  remembered: list[dict[str, Any]] | None = None, feelings: dict[str, Any] | None = None,
                  read_every_s: float = READ_AT_MOST_EVERY_S, show: Callable[[str], None] | None = None,
-                 yoked: int | None = None) -> None:
+                 yoked: int | None = None, of_them: str = "") -> None:
         self.title = " ".join(str(title or "").split())
         self.ask, self.keep = ask, keep or (lambda _row: None)
         #: Who she is, read before what she hears in a second pass, so how far it is about her world can be read.
@@ -330,6 +330,8 @@ class WhatMovesHer:
         #: The events she kept of it when she watched it before: what she remembers is coming is part of what she
         #: expects, so on a second watching what she remembers surprises her less and what she missed stands out.
         self.remembered = [event for event in (remembered or []) if isinstance(event, dict)]
+        #: What she remembers of what its maker made before: what she has come to expect of them.
+        self.of_them = " ".join(str(of_them or "").split())
         #: Her checked feeling direction for liking, and where liking and disliking lie on it
         #: (``what_her_feelings_read``); {} until it has been checked and passed.
         self.feelings = dict(feelings or {})
@@ -381,8 +383,8 @@ class WhatMovesHer:
             return
         self._last_read_at = float(at or 0.0)
         then = " ".join(self.waiting)
-        before = "\n".join(part for part in (self.title, self.remembered_near(at), self.heard_before[-BEFORE_CHARS:])
-                           if part)
+        before = "\n".join(part for part in (self.title, self.of_them, self.remembered_near(at),
+                                              self.heard_before[-BEFORE_CHARS:]) if part)
         self.heard_before = f"{self.heard_before} {then}".strip()[-4 * BEFORE_CHARS:]
         self.waiting = []
         self._reading = asyncio.get_running_loop().create_task(self._read(at, before, then), name="what_moves_her")

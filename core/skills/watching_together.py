@@ -454,7 +454,8 @@ async def _her_answer_settled(turn: Any, *, at_most_s: float) -> None:
 
 
 async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: str, *, title: str, url: str,
-                          at_most_s: float | None = None, turn: Any = None, who: str = "", **pace: float) -> None:
+                          at_most_s: float | None = None, turn: Any = None, who: str = "", by: str = "",
+                          **pace: float) -> None:
     """Watch in the with the request opened (or one begun for it), once her answer to it has gone out."""
     from core.skills.watching_along import (
         her_turn,
@@ -462,6 +463,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         kept_at,
         watch_along,
         what_she_remembers_of,
+        what_she_remembers_of_them,
     )
     from core.together.a_with import IT, THEM
     from core.together.taking_it_up import install, who_she_is_with
@@ -500,10 +502,13 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     # What moves her in it, read off her own expectations of what she sees, hears and is told
     # (core/together/what_moves_her.py), and what her ear expects of each second of it.
     remembered = await what_she_remembers_of(title, url)
-    if remembered:
-        keep({"kind": "remembered", "events": len(remembered), "wall": time.time()})
-    moves = WhatMovesHer(title, ask=her_expectations(), keep=keep, self_text=her_self_text(), remembered=remembered,
-                         feelings=feelings, show=_in_her_neural_stream)
+    # Who made it, and what she remembers of what they made before: part of what she expects of this one.
+    of_them = await what_she_remembers_of_them(by, title) if by else ""
+    if remembered or of_them:
+        keep({"kind": "remembered", "events": len(remembered), "of them": bool(of_them), "by": by, "wall": time.time()})
+    moves = WhatMovesHer(f"{title}, by {by}" if by else title, ask=her_expectations(), keep=keep,
+                         self_text=her_self_text(), remembered=remembered, feelings=feelings, show=_in_her_neural_stream,
+                         of_them=of_them)
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
 
@@ -533,7 +538,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
                 moves.events_kept())
 
     def into_her_memory_with(watched: Any) -> Any:
-        watched.with_whom = who
+        watched.with_whom, watched.by = who, by
         return into_her_memory(watched, url=url)
 
     shown_last = {"observation": ""}
@@ -582,7 +587,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
 
 
 def start_watching_in_a_with(open_player: Callable[[], Awaitable[Any]], request: str, *, title: str, url: str,
-                             at_most_s: float | None = None) -> asyncio.Task:
+                             at_most_s: float | None = None, by: str = "") -> asyncio.Task:
     """Begin the watching beside the turn that asked for it; the turn goes on to her answer and ends.
 
     The watching is the conversation's, not the turn's, so it starts with nothing the turn bound: a task is given a
@@ -594,7 +599,7 @@ def start_watching_in_a_with(open_player: Callable[[], Awaitable[Any]], request:
     from core.runtime.turn_outcome import current_turn
 
     task = asyncio.get_running_loop().create_task(
-        watch_in_a_with(open_player, request, title=title, url=url, at_most_s=at_most_s, turn=current_turn()),
+        watch_in_a_with(open_player, request, title=title, url=url, at_most_s=at_most_s, turn=current_turn(), by=by),
         name="watching_in_a_with", context=contextvars.Context())
     _WATCHINGS.add(task)
     task.add_done_callback(_WATCHINGS.discard)

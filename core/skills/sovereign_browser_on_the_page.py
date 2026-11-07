@@ -172,10 +172,11 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
             # Watched together, beside the conversation (core/skills/watching_together.py): her answer to the
             # request goes first, then it opens on their screen; the turn ends with her answer, not the video.
             await page.evaluate(QUIET_HERE)
-            start_watching_in_a_with(lambda: on_their_screen(step["url"], title, duration, words), goal,
-                                     title=title, url=step["url"], at_most_s=at_most)
-            # Who made it, as the page states it: LIVE 22 October 2026 she wondered aloud whose channel it was.
+            # Who made it, as the page states it: LIVE 22 October 2026 she wondered aloud whose channel it was. The
+            # watching is told too: knowing who made it is part of what she expects of it.
             by = " ".join(str(said_of_itself.get("by") or "").split())
+            start_watching_in_a_with(lambda: on_their_screen(step["url"], title, duration, words), goal,
+                                     title=title, url=step["url"], at_most_s=at_most, by=by)
             did = (f"Found \"{title or 'the video'}\"{f' by {by}' if by else ''}{f' ({clock(duration)})' if duration else ''}. It opens on their "
                    "screen once this reply has gone, and is watched with them there while the conversation goes on.")
             return {**step, "did": did, "why": did, "moved": True, "ok": True, "over": True, "beside": True,
