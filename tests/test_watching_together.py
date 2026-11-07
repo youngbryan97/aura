@@ -457,3 +457,14 @@ def test_what_they_watched_together_lately_is_carried_into_every_turn_from_her_r
     assert block.startswith("## WHAT WE HAVE WATCHED TOGETHER LATELY")
     assert block.index("Chickens get tails") < block.index("A stand-up set")  # in the order watched, the latest kept
     assert block.count("A stand-up set") == 1 and "Wrong about the format" in block and "Long ago" not in block
+
+
+def test_what_the_captions_say_is_what_is_said_where_her_ear_made_out_nothing():
+    # LIVE 7 November 2026, a concert: her ear heard "." while the captions read "just cuz you feel it / doesn't mean".
+    from core.skills.watching_together import _made_out_words, said_on_screen
+
+    before: list[str] = []
+    assert said_on_screen('words on it: "arte / just cuz you feel"', before) == "just cuz you feel"
+    assert said_on_screen('words on it: "arte / just cuz you feel / it doesn\'t mean"', before) == "it doesn't mean"
+    assert said_on_screen('words on it: "arte / [Music] / [Applause]"', before) == ""  # not speech, and a mark that stays
+    assert not _made_out_words(". .") and _made_out_words("we don't grow into creativity")

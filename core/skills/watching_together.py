@@ -98,6 +98,32 @@ async def her_answer_when_nothing_plays(request: str, found: str) -> str:
     return said.strip() or found
 
 
+def _made_out_words(heard: Any) -> bool:
+    """Whether her ear made out words in it: three or more of two letters or more."""
+    import re
+
+    return len(re.findall(r"[A-Za-z]{2,}", str(heard or ""))) >= 3
+
+
+#: How many looks' caption lines are kept to tell a new line from one still on screen.
+CAPTION_LINES_KEPT = 12
+
+
+def said_on_screen(seen: Any, shown_before: list[str]) -> str:
+    """The caption lines new on screen since the last looks: what is said there, without what is not speech
+    ("[Music]", "[Applause]") and without what stays on screen (a channel's mark, a lower third), which a new line
+    is not. ``shown_before`` is kept up to date."""
+    import re
+
+    found = re.search(r'words on it: "([^"]*)"', str(seen or ""))
+    lines = [" ".join(line.split()) for line in (found.group(1).split(" / ") if found else [])]
+    lines = [re.sub(r"\[[^\]]*\]", "", line).strip() for line in lines]
+    new = [line for line in lines if len(re.findall(r"[A-Za-z]{2,}", line)) >= 2 and line not in shown_before]
+    shown_before.extend(line for line in lines if line)
+    del shown_before[:-CAPTION_LINES_KEPT]
+    return " ".join(new)
+
+
 def watching_with(*, within_s: float = 0.0, now: float | None = None) -> str:
     """Who she is watching something with now, or finished watching with less than ``within_s`` ago; "" if nobody.
     Somebody watching with her is there though they type nothing, so time alone since the watching counts from its
@@ -616,6 +642,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
 
+    shown_before: list[str] = []
+
     def took_in(moment: Any, plays: dict[str, Any]) -> None:
         playing.update(at=float(plays.get("at") or moment.at), duration=float(plays.get("duration") or 0.0))
         playing["moments"].append(moment)
@@ -628,7 +656,12 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         for back, row in enumerate(reversed(seconds)):
             _surprise, onset = ears.heard(float(row["loudness"]))
             moves.sounded(max(0.0, at - back), ears.above_usual, onset)
-        moves.heard(at, moment.read)
+        # What is said, as she takes it in: what her ear wrote down, or where it made out next to nothing (sung words
+        # over music, a film in another language), what the captions or subtitles say. LIVE 7 November 2026, a
+        # concert: her ear heard "." while the captions read "just cuz you feel it / doesn't mean it's there", and her
+        # remarks were of the camera and the light.
+        captions = said_on_screen(moment.seen, shown_before)
+        moves.heard(at, moment.read if _made_out_words(moment.read) else (captions or moment.read))
         # What they said since the last look, as the with heard it.
         for turn in list(held.turns):
             if turn.by == THEM and turn.at > their_last["at"]:
