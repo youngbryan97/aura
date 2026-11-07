@@ -508,6 +508,7 @@ class OnTheirScreen:
                     asked = "What is happening in this picture?" if within else "What is happening in the video playing in this window?"
                     seen = plainly(await look_with_her_eyes(asked, base64.b64encode(smaller).decode("ascii"),
                                                             max_tokens=LOOK_TOKENS, timeout_s=seconds))
+                    seen = _without_names_it_guessed(seen, f"{self.title} {' '.join(words)}")
                 shown = f'words on it: "{" / ".join(words)}"' if words else ""
                 return "; ".join(part for part in (seen, shown) if part)
             except (RuntimeError, OSError, ValueError, TypeError, KeyError, TimeoutError) as why:
@@ -571,6 +572,27 @@ _CLOSE_TAB = {
                 ' if URL of t contains "{host}" then close t\nend tell',
 }
 _CHROMIUM = ("com.google.Chrome", "com.brave.Browser", "com.microsoft.edgemac", "com.vivaldi.Vivaldi", "company.thebrowser.Browser")
+
+
+def _without_names_it_guessed(seen: str, shown: str) -> str:
+    """What her eyes said of a picture, without the names of people it guessed: a face does not say who it is, and a
+    name is kept only where the picture or the page shows it written (``shown``: the video's title and the words on
+    it). LIVE 7 November 2026, a TED talk: her eyes named Sir Ken Robinson "Andy Warrington", and she remarked on her
+    own "misfire in the visual feed" instead of on the talk."""
+    import re
+
+    written = {w.lower() for w in re.findall(r"[A-Za-z]{2,}", shown or "")}
+
+    def guessed(match: re.Match[str]) -> str:
+        name = match.group(0)
+        words = [w.strip("*") for w in name.split()]
+        return name if all(w.lower() in written for w in words) else "a person"
+
+    # A first name and a surname as a person's is written (bold or not): two capitalised words, not part of a longer
+    # name (a place, a building) and not begun by a word that begins a sentence or a name of a thing.
+    pattern = (r"(?<![A-Za-z]\s)(?<!\bthe\s)\*{0,2}\b(?!(?:The|A|An|In|On|At|This|That|It|He|She|They|His|Her|Its|Their|"
+               r"Some|Two|One|Here|There|What|When|Where|While|With|After|Before)\b)[A-Z][a-z]+\s+[A-Z][a-z]+\b(?!\s+[A-Z])\*{0,2}")
+    return re.sub(pattern, guessed, seen or "")
 
 
 def _scripted(bundle: str, scripts: dict[str, str]) -> str:

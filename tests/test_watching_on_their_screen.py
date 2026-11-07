@@ -376,3 +376,14 @@ def test_the_words_on_what_plays_are_read_without_her_models():
     ImageDraw.Draw(image).text((20, 40), "trigger the gun when you punch", fill=(255, 255, 255), font=font)
     assert "trigger the gun when you punch" in " ".join(words_in(_png(np.asarray(image)))).lower()
 
+
+
+def test_her_eyes_do_not_name_a_face_the_page_does_not_name():
+    # LIVE 7 November 2026, a TED talk: her eyes named Sir Ken Robinson "Andy Warrington", and she remarked on her own
+    # "misfire in the visual feed" instead of on the talk.
+    from core.skills.watching_the_screen import _without_names_it_guessed as named
+
+    title = "Do schools kill creativity? | Sir Ken Robinson | TED"
+    assert named("**Andy Warrington** speaking on a stage.", title) == "a person speaking on a stage."
+    assert named("Ken Robinson gestures to the audience.", title) == "Ken Robinson gestures to the audience."
+    assert named("The Sydney Opera House is behind him.", title) == "The Sydney Opera House is behind him."
