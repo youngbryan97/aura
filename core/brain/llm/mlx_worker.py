@@ -6590,8 +6590,8 @@ def _mlx_worker_loop(
                 continue
 
             action = job.get("action")
-            if action == "generate" and job.get("expect_next"):
-                # A pass that scores candidate next turns and writes nothing.
+            if action == "generate" and (job.get("expect_next") or job.get("surprise_of")):
+                # A pass that scores candidate next turns, or how heard words landed, and writes nothing.
                 ipc_writer.put(as_a_job_of_the_worker(job, model, tokenizer, engine, metal_semaphore))
             elif action == "generate":
                 # Bound before any path that can build the response, so a

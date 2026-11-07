@@ -4862,6 +4862,7 @@ def _build_the_generation_request(
         "output_shape": _the_shape_named(kwargs),
         "choose_from": [str(c) for c in (kwargs.get("choose_from") or ())],
         "expect_next": [str(c) for c in (kwargs.get("expect_next") or ())],
+        "surprise_of": [str(c) for c in (kwargs.get("surprise_of") or ())],
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
         ).strip().lower(),

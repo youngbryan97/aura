@@ -595,7 +595,7 @@ def test_what_was_said_is_read_before_her_model_is_handed_the_turn():
     serving = Path("core/brain/inference_gate_turn_serving.py").read_text()
     assert 'await heard_in_a_turn(str(said), getattr(self, "_mlx_client", None))' in serving
     worker = Path("core/brain/llm/mlx_worker.py").read_text()
-    assert 'if action == "generate" and job.get("expect_next"):' in worker
+    assert 'if action == "generate" and (job.get("expect_next") or job.get("surprise_of")):' in worker
     assert '"expect_next": [str(c) for c in (kwargs.get("expect_next") or ())]' in Path("core/brain/llm/mlx_client.py").read_text()
 
 

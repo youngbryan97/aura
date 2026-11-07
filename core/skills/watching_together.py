@@ -128,13 +128,19 @@ class WorthSaying:
     sooner where more is coming. Before that (LIVE 20 October 2026) new words were the whole of the rule, and a sponsor's
     read is all new words: so newness is worth only what an unknown is, and her record's word on a thing outweighs it.
 
+    What she heard since she last spoke, once her own model has read it (core/together/what_moves_her.py), says more
+    than how new it is: where a stretch of it stands among this video's in how much it moved her expectations, in its
+    top fifth (``MOVED_AT``), is what it is worth, and below that it is worth nothing. Newness stands in only where
+    nothing she heard since has been read (nothing said, or her model not reached).
+
     The cost side reads how much of each look is new to her against how much has been (a.eventful), so a lull is a
     stretch where little is new, not one her eyes happened to word like the last. Worth is the most since her last
     remark, so a remark at a lull can be about what came before it. What plays will not be there to point at later, so
     all of a remark's worth is lost by waiting (the rule's m)."""
 
-    def __init__(self, held: Any) -> None:
+    def __init__(self, held: Any, moves: Any = None) -> None:
         self.held, self.interest, self.thing = held, 0.0, ""
+        self.moves = moves
         self.recent: list[tuple[float, set[str]]] = []
         self.fresh, self.at_remarks = 0, []
         #: Whether something new to her that her record says nothing of has come since she last spoke.
@@ -171,15 +177,28 @@ class WorthSaying:
     def remarked(self) -> None:
         self.at_remarks.append(self.fresh)
         self.fresh, self.interest, self.thing, self.unknown_and_new = 0, 0.0, "", False
+        if self.moves is not None:
+            self.moves.remarked()
 
     def __call__(self, _moment: Any, now: float) -> bool:
+        from core.together.what_moves_her import MOVED_AT
         from core.together.when_to_say_something import worth_saying_now
 
-        worth = max(self.interest, NEW_AND_UNKNOWN if self.unknown_and_new and self.enough_is_new() else 0.0)
-        say = worth_saying_now(self.held, now, interest=worth, thing=self.thing, lost_by_waiting=1.0)
-        logger.info("🤝 %s: %s (worth %.2f: her record %.2f in %s, %d new since she spoke)",
+        moved = self.moves.moved() if self.moves is not None else None
+        thing = self.thing
+        if moved is not None:
+            stirred, words = moved
+            from_her = stirred if stirred >= MOVED_AT else 0.0
+            thing = words[:80] if from_her > self.interest else thing
+            how = f"moved {stirred:.2f}"
+        else:
+            from_her = NEW_AND_UNKNOWN if self.unknown_and_new and self.enough_is_new() else 0.0
+            how = f"{self.fresh} new since she spoke"
+        worth = max(self.interest, from_her)
+        say = worth_saying_now(self.held, now, interest=worth, thing=thing, lost_by_waiting=1.0)
+        logger.info("🤝 %s: %s (worth %.2f: her record %.2f in %s, %s)",
                     "worth saying now" if say.speak else "stays quiet", say.why, worth, self.interest,
-                    self.thing or "what is on", self.fresh)
+                    thing or "what is on", how)
         return say.speak
 
 
@@ -298,7 +317,12 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     spoken: list[tuple[float, str, str]] = []
     _read_in_every_turn()
 
-    worth = WorthSaying(held)
+    from core.together.what_moves_her import WhatMovesHer, her_expectations
+
+    keep = kept_at(title, url)
+    # What moves her in it, read off her own expectations of what she hears (core/together/what_moves_her.py).
+    moves = WhatMovesHer(title, ask=her_expectations(), keep=keep)
+    worth = WorthSaying(held, moves=moves)
 
     def took_in(moment: Any, plays: dict[str, Any]) -> None:
         playing.update(at=float(plays.get("at") or moment.at), duration=float(plays.get("duration") or 0.0))
@@ -306,6 +330,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         shown = " ".join(part for part in (moment.seen, moment.read) if part)[:400] or title
         # How much of it is new to her, not how unlike its words are from the last look's (WorthSaying).
         held.shown(shown, time.time(), change=worth.took_in(moment))
+        moves.heard(float(moment.at or 0.0), moment.read)
 
     shown_last = {"observation": ""}
 
@@ -324,11 +349,12 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     try:
         await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held),
                           worth=worth, on_moment=took_in,
-                          on_said=she_said, keep=kept_at(title, url), at_most_s=at_most_s,
+                          on_said=she_said, keep=keep, at_most_s=at_most_s,
                           remember=lambda watched: into_her_memory(watched, url=url), **pace)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("together", exc, severity="warning", action="the watching together stopped")
     finally:
+        moves.done()
         if _PLAYING.pop(who, None) is not None:
             _ENDED_AT[who] = time.time()
         taking.left(who, by=IT)
