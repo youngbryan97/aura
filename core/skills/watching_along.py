@@ -222,10 +222,18 @@ def what_she_watched(moments: list[Moment], *, room: int = 3000, across: bool = 
     """Moments as quoted data, newest kept when there is not room for all; or, ``across``, every so many of them from
     the first to the last, so that what she made of the whole has the whole: a 21-minute film is some 250 looks, and
     its last 3,000 characters were its last minute or so."""
+    import re
+
     lines, last_read = [], ""
     for m in moments:
         read = m.read if m.read and m.read != last_read else ""
         last_read = m.read or last_read
+        # One account of what was said: where captions on it say it, what her ear wrote down of the same words is
+        # not given beside them. LIVE 7 November 2026, a TED talk: given both, and they differed, she stopped to say
+        # "the transcript is doing something that doesn't" match instead of remarking on the talk.
+        captions = re.search(r'words on it: "([^"]*)"', m.seen or "")
+        if captions and len(re.findall(r"[A-Za-z]{2,}", captions.group(1))) >= 4:
+            read = ""
         parts = [f"seen: {m.seen}" if m.seen else "", f"heard: {read}" if read else ""]
         line = "; ".join(p for p in parts if p)
         if line:
