@@ -203,6 +203,10 @@ class Watching:
     #: How far what she heard of it was about her world, in nats a token (knowing who she is made it that much less
     #: unexpected); None when it was not read.
     about_her: float | None = None
+    #: Its events as she kept them (when, what was said, what it showed, how far it moved her), and who she watched it
+    #: with: what she recalls of it if she watches it again, and that they watched it together.
+    event_list: list[dict[str, Any]] = field(default_factory=list)
+    with_whom: str = ""
 
     def since(self, looks: int) -> list[Moment]:
         """The moments after the first ``looks``: counted by look, since a video's clock starts again after an advert."""
@@ -459,6 +463,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         took = whole()
         watching.events, watching.moved_most = took[0], took[1]
         watching.about_her = took[2] if len(took) > 2 else None
+        watching.event_list = list(took[3]) if len(took) > 3 else []
     how_it_ends = ("it has ended" if watching.ended else f"it is still playing; she stopped watching it: {watching.stopped}"
                    if watching.stopped else "it is still playing; we stopped watching")
     # What she took it in as: its events where she has them, else her looks across it.
@@ -673,6 +678,36 @@ def into_her_senses(seen: str, read: str) -> None:
             record_degradation("watching_along", exc, severity="info", action="a moment did not reach her senses")
 
 
+async def what_she_remembers_of(title: str, url: str = "") -> list[dict[str, Any]]:
+    """The events she kept of it when she last watched it, recalled as she recalls anything: recalling strengthens a
+    memory and can let the present rewrite it (core/memory/episodic_memory.py ``pattern_complete``). [] when she has
+    not watched it, or kept no events of it."""
+    from core.container import ServiceContainer
+    from core.runtime.errors import record_degradation
+
+    episodic = ServiceContainer.get("episodic_memory", default=None)
+    recall = getattr(episodic, "pattern_complete", None)
+    if not callable(recall) or not (title or url):
+        return []
+    try:
+        episodes = await asyncio.to_thread(recall, f"Watched {title}", 8)
+    except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+        record_degradation("watching_along", exc, severity="info", action="she watched it without recalling it")
+        return []
+    latest: tuple[float, list[dict[str, Any]]] | None = None
+    for episode in episodes or []:
+        kept = dict(getattr(episode, "source_metadata", None) or {})
+        if getattr(episode, "action", "") != "watching_along":
+            continue
+        if not ((url and kept.get("url") == url) or (title and kept.get("title") == title)):
+            continue
+        events = kept.get("events")
+        when = float(getattr(episode, "timestamp", 0.0) or 0.0)
+        if isinstance(events, list) and events and (latest is None or when > latest[0]):
+            latest = (when, [event for event in events if isinstance(event, dict)])
+    return latest[1] if latest else []
+
+
 async def into_her_memory(watching: Watching, *, url: str = "") -> None:
     """The watching as one episode of her own: what was watched, with whom, and what she said of it, in her words, so
     that asked later what she thought of it she recalls it as she remembers anything she did."""
@@ -689,7 +724,8 @@ async def into_her_memory(watching: Watching, *, url: str = "") -> None:
         # tenth more, at a nat a token).
         about = max(0.0, min(1.0, watching.about_her or 0.0))
         await episodic.record_episode_async(
-            context=f"Watched {watching.title or 'a video'} as it played, with whoever asked: {watching.request}"[:600],
+            context=(f"Watched {watching.title or 'a video'} as it played, with {watching.with_whom or 'whoever asked'}: "
+                     f"{watching.request}")[:600],
             action="watching_along", outcome=said[-4000:], success=watching.ended,
             importance=round(min(1.0, 0.6 + 0.3 * max(0.0, min(1.0, watching.moved_most)) + 0.1 * about), 3),
             source="watching_along",
@@ -697,7 +733,8 @@ async def into_her_memory(watching: Watching, *, url: str = "") -> None:
                       "url": url, "ended": watching.ended, "looks": len(watching.moments),
                       "what happened in it": watching.events[:3000], "stopped": watching.stopped,
                       "moved most": round(watching.moved_most, 4),
-                      "about her": None if watching.about_her is None else round(watching.about_her, 4)})
+                      "about her": None if watching.about_her is None else round(watching.about_her, 4),
+                      "events": watching.event_list[:60], "with": watching.with_whom})
     except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
         record_degradation("watching_along", exc, severity="info", action="a watching did not reach her memory")
 

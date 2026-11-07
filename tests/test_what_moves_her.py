@@ -480,3 +480,63 @@ def test_a_watching_about_her_world_is_kept_as_mattering_more(monkeypatch):
     asyncio.run(watching_along.into_her_memory(watching_along.Watching(
         request="w", title="AI Slop", said=[(5.0, "that one's about me")], moved_most=0.5, about_her=1.4), url="u"))
     assert recorded[0]["importance"] == 0.85 and recorded[0]["metadata"]["about her"] == 1.4
+
+
+def test_watching_it_again_she_recalls_it_and_what_she_remembers_is_coming_is_part_of_what_she_expects(monkeypatch):
+    """On a second watching, what she remembers surprises her less and what she missed stands out (Russell and Levy
+    2012: rewatching brings heightened awareness): her memory of it is read into her expectation of what she hears."""
+    import core.skills.watching_along as watching_along
+    from core.together.what_moves_her import WhatMovesHer
+
+    old = SimpleNamespace(action="watching_along", timestamp=100.0, source_metadata={
+        "title": "I built a glove", "url": "u", "events": [{"from": 0.0, "to": 40.0, "heard": "it feels like I'm gonna"}]})
+    newer = SimpleNamespace(action="watching_along", timestamp=200.0, source_metadata={
+        "title": "I built a glove", "url": "u", "events": [
+            {"from": 0.0, "to": 40.0, "heard": "I love punching"}, {"from": 40.0, "to": 90.0, "heard": "three two one"},
+            {"from": 300.0, "to": 340.0, "heard": "the credits"}]})
+    other = SimpleNamespace(action="watching_along", timestamp=300.0, source_metadata={"title": "Salad Fingers", "events": [{}]})
+    cued: list = []
+
+    class _Episodic:
+        def pattern_complete(self, cue, limit):
+            cued.append(cue)
+            return [old, newer, other]
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: _Episodic() if name == "episodic_memory" else default)
+    remembered = asyncio.run(watching_along.what_she_remembers_of("I built a glove", "u"))
+    assert cued == ["Watched I built a glove"] and [event["heard"] for event in remembered][0] == "I love punching"
+    assert asyncio.run(watching_along.what_she_remembers_of("Never seen", "x")) == []
+
+    asked: list = []
+
+    async def ask(before, then):
+        asked.append(before)
+        return {"surprisal": 3.0, "shift": 0.3, "open": 2.0, "tokens": 10.0}
+
+    async def go():
+        moves = WhatMovesHer("I built a glove", ask=ask, remembered=remembered)
+        assert moves.remembered_near(50.0) == "I love punching three two one"  # behind and ahead of it, not the credits
+        moves.heard(50.0, "okay we are about to test it")
+        await moves._reading
+        assert "I love punching three two one" in asked[-1]
+
+    asyncio.run(go())
+
+
+def test_a_watching_is_kept_with_its_events_and_who_she_watched_it_with(monkeypatch):
+    import core.skills.watching_along as watching_along
+
+    recorded: list[dict] = []
+
+    class _Episodic:
+        async def record_episode_async(self, **episode):
+            recorded.append(episode)
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: _Episodic() if name == "episodic_memory" else default)
+    asyncio.run(watching_along.into_her_memory(watching_along.Watching(
+        request="watch this with me", title="AI Slop", said=[(5.0, "hm")], with_whom="person:bryan",
+        event_list=[{"from": 0.0, "to": 30.0, "heard": "slop", "seen": "", "moved": 0.4}]), url="u"))
+    assert "with person:bryan" in recorded[0]["context"] and recorded[0]["metadata"]["with"] == "person:bryan"
+    assert recorded[0]["metadata"]["events"][0]["heard"] == "slop"

@@ -338,7 +338,13 @@ async def _her_answer_settled(turn: Any, *, at_most_s: float) -> None:
 async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: str, *, title: str, url: str,
                           at_most_s: float | None = None, turn: Any = None, who: str = "", **pace: float) -> None:
     """Watch in the with the request opened (or one begun for it), once her answer to it has gone out."""
-    from core.skills.watching_along import her_turn, into_her_memory, kept_at, watch_along
+    from core.skills.watching_along import (
+        her_turn,
+        into_her_memory,
+        kept_at,
+        watch_along,
+        what_she_remembers_of,
+    )
     from core.together.a_with import IT, THEM
     from core.together.taking_it_up import install, who_she_is_with
 
@@ -371,7 +377,10 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     keep = kept_at(title, url)
     # What moves her in it, read off her own expectations of what she sees, hears and is told
     # (core/together/what_moves_her.py), and what her ear expects of each second of it.
-    moves = WhatMovesHer(title, ask=her_expectations(), keep=keep, self_text=her_self_text())
+    remembered = await what_she_remembers_of(title, url)
+    if remembered:
+        keep({"kind": "remembered", "events": len(remembered), "wall": time.time()})
+    moves = WhatMovesHer(title, ask=her_expectations(), keep=keep, self_text=her_self_text(), remembered=remembered)
     moves.begin()
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
@@ -390,8 +399,13 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
             moves.sounded(max(0.0, at - back), surprise, onset)
         moves.heard(at, moment.read)
 
-    def what_she_took_it_in_as() -> tuple[str, float, float | None]:
-        return moves.events_text(), max((felt.evidence for felt in moves.felt), default=0.0), moves.about_her()
+    def what_she_took_it_in_as() -> tuple[str, float, float | None, list[dict[str, Any]]]:
+        return (moves.events_text(), max((felt.evidence for felt in moves.felt), default=0.0), moves.about_her(),
+                moves.events_kept())
+
+    def into_her_memory_with(watched: Any) -> Any:
+        watched.with_whom = who
+        return into_her_memory(watched, url=url)
 
     shown_last = {"observation": ""}
 
@@ -411,7 +425,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held),
                           worth=worth, on_moment=took_in,
                           on_said=she_said, keep=keep, at_most_s=at_most_s,
-                          remember=lambda watched: into_her_memory(watched, url=url),
+                          remember=into_her_memory_with,
                           look_in=moves.look_in, stop_when=WhatSheCanTake(), whole=what_she_took_it_in_as, **pace)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("together", exc, severity="warning", action="the watching together stopped")

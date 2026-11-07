@@ -82,6 +82,9 @@ Z_ORDINARY, Z_FULL = 2.0, 5.0
 LEAST_SPREADS = {"words": 0.1, "self": 0.05, "sight": 0.05, "sound": 0.05}
 #: How many of her latest stretches how well she is making sense of it is read over, and the fewest to read it from.
 MAKING_SENSE_OVER, MAKING_SENSE_FROM = 10, 4
+#: What she remembers of it from watching it before, around where it plays now: from this long before to this long
+#: ahead, in seconds of it, and at most this many characters.
+REMEMBERED_BEHIND_S, REMEMBERED_AHEAD_S, REMEMBERED_CHARS = 30.0, 60.0, 400
 #: A stretch more unexpected than the middle of this video's by this many of their spreads, scaled as a standard
 #: deviation (1.4826 x the median absolute deviation), was not made out.
 NOT_MADE_OUT = 3.0
@@ -215,11 +218,15 @@ class WhatMovesHer:
     reading of a stretch of words; ``keep`` keeps each reading with the watching."""
 
     def __init__(self, title: str = "", *, ask: Callable[..., Awaitable[dict[str, float]]] | None = None,
-                 keep: Callable[[dict[str, Any]], None] | None = None, self_text: str = "") -> None:
+                 keep: Callable[[dict[str, Any]], None] | None = None, self_text: str = "",
+                 remembered: list[dict[str, Any]] | None = None) -> None:
         self.title = " ".join(str(title or "").split())
         self.ask, self.keep = ask, keep or (lambda _row: None)
         #: Who she is, read before what she hears in a second pass, so how far it is about her world can be read.
         self.self_text = " ".join(str(self_text or "").split())
+        #: The events she kept of it when she watched it before: what she remembers is coming is part of what she
+        #: expects, so on a second watching what she remembers surprises her less and what she missed stands out.
+        self.remembered = [event for event in (remembered or []) if isinstance(event, dict)]
         self.heard_before = ""
         self.waiting: list[str] = []
         self.last_heard = ""
@@ -249,7 +256,8 @@ class WhatMovesHer:
         if self.ask is None or len(stretch) < FEWEST_WORDS or (self._reading is not None and not self._reading.done()):
             return
         then = " ".join(self.waiting)
-        before = "\n".join(part for part in (self.title, self.heard_before[-BEFORE_CHARS:]) if part)
+        before = "\n".join(part for part in (self.title, self.remembered_near(at), self.heard_before[-BEFORE_CHARS:])
+                           if part)
         self.heard_before = f"{self.heard_before} {then}".strip()[-4 * BEFORE_CHARS:]
         self.waiting = []
         self._reading = asyncio.get_running_loop().create_task(self._read(at, before, then), name="what_moves_her")
@@ -434,6 +442,25 @@ class WhatMovesHer:
             lines = lines[::2] if len(lines) > 3 else lines[-2:]
             text = "\n".join(lines)
         return text[-room:]
+
+    def remembered_near(self, at: float) -> str:
+        """What she remembers being said around ``at`` from watching it before: the words of her remembered events from
+        ``REMEMBERED_BEHIND_S`` before it to ``REMEMBERED_AHEAD_S`` after."""
+        near = [str(event.get("heard") or "") for event in self.remembered
+                if float(event.get("to") or 0.0) >= at - REMEMBERED_BEHIND_S
+                and float(event.get("from") or 0.0) <= at + REMEMBERED_AHEAD_S]
+        return " ".join(" ".join(near).split())[:REMEMBERED_CHARS]
+
+    def events_kept(self) -> list[dict[str, Any]]:
+        """Her events of it, to keep with her memory of the watching: when, what was said, what it showed, how far it
+        moved her."""
+        kept = []
+        for event in self.events:
+            if not event.heard and not event.seen:
+                continue
+            kept.append({"from": round(event.began, 1), "to": round(event.ended or self.now, 1),
+                         "heard": " ".join(event.heard)[:600], "seen": event.seen[:200], "moved": round(event.moved, 3)})
+        return kept
 
     def making_sense(self) -> float | None:
         """The share of her latest ``MAKING_SENSE_OVER`` stretches she made out; None from fewer than
