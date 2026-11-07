@@ -23,6 +23,10 @@ __all__ = ["NER_MODEL", "people_in", "same_person"]
 NER_MODEL = "dslim/distilbert-NER"
 #: How sure the model must be that a name is a person's.
 SURE_OF_A_PERSON = 0.6
+#: The least memory the host must have free for the model to be loaded, in bytes: it and the library it runs on take a
+#: few hundred megabytes, and her own model is refused generation when the host runs short. Below it, nothing is read
+#: and it is tried again later.
+ROOM_NEEDED = 3 * 1024**3
 
 _LOCK = threading.Lock()
 _READER: dict[str, Any] = {}
@@ -33,6 +37,8 @@ def _reader() -> Any | None:
     with _LOCK:
         if "pipeline" in _READER or "failed" in _READER:
             return _READER.get("pipeline")
+        if not _room_for_it():
+            return None
         try:
             from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 
@@ -47,6 +53,15 @@ def _reader() -> Any | None:
             record_degradation("who_is_in_it", exc, severity="info", action="who is in what she watches is not read")
             return None
         return _READER["pipeline"]
+
+
+def _room_for_it() -> bool:
+    try:
+        from core.runtime import resource_psutil as psutil
+
+        return float(psutil.virtual_memory().available) >= ROOM_NEEDED
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return True
 
 
 def people_in(text: str) -> list[str]:
