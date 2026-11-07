@@ -631,6 +631,11 @@ def first_thought(words: str, about: str = "") -> str:
     shown = _stems(" ".join(_named(about)))
 
     def says_something(part: str) -> bool:
+        # Written as code is not said: LIVE 7 November 2026, twice in a concert, a remark was the docstring of a class
+        # of her own source ("``retry`` is given one held item and answers whether it landed. Anything\n    it raises
+        # counts as not landing"), its indentation and all.
+        if "``" in part or len(re.findall(r"(?m)^ {4,}\S", part)) >= 1 or re.search(r"\b[a-z]+_[a-z_]+\(", part):
+            return False
         # Quoted whole, it is what was said in the video, not what she thinks of it (LIVE 20 October 2026, rehearsal 9:
         # '*"In July of 2026, 700 AI agents hacked the infrastructure of Hugging Face..."*' was said as a remark).
         if re.fullmatch(r"[*_\s]*[\"“].*[\"”][.…]*[*_\s]*", part, re.DOTALL):
