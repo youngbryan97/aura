@@ -41,7 +41,7 @@ def test_what_she_heard_is_read_for_how_unexpected_it_was_how_far_it_moved_her_a
     mx.set_default_device(mx.cpu)
     expected = surprise_of(_expects_the_next_letter, _Letters(), "abcdefghij", "klmnopq")
     broken = surprise_of(_expects_the_next_letter, _Letters(), "abcdefghij", "kxqbzra")
-    assert set(expected) == set(SURPRISE_READS) and all(math.isfinite(value) for value in broken.values())
+    assert set(expected) == {*SURPRISE_READS, "peak"} and all(math.isfinite(value) for value in broken.values())
     assert expected["surprisal"] < broken["surprisal"] and expected["tokens"] == 8.0  # its leading space and 7 letters
     assert surprise_of(_expects_the_next_letter, _Letters(), "a", "klm") == {}  # too little before it to read against
     steering = SimpleNamespace(alpha=5.4, during=[], set_alpha=None, controlled_measurement=None)
@@ -929,3 +929,21 @@ def test_a_new_video_is_read_against_what_videos_are_usually_like_for_her(tmp_pa
     assert moved is not None and moved > 0.5  # far past what videos usually are for her, from its first stretch
     assert seasoned._raw["sight"] == [2.0]
     assert FEWEST_READINGS > 1
+
+
+def test_what_she_took_in_and_did_not_share_fills_with_what_she_made_out_and_sooner_with_what_moved_her():
+    # LIVE 7 November 2026: a stand-up set she heard and made out, 13 stretches of it in four minutes, moved her past
+    # the bar in none, and she said nothing at all.
+    from core.together.what_moves_her import SHARE_AT, UNDERSTOOD_COUNTS, Felt, WhatMovesHer
+
+    moves = WhatMovesHer("a set")
+    moves.since = [Felt("words", float(i), 0.0, 0.0, f"line {i}") for i in range(4)]
+    taken, latest = moves.unshared()
+    assert taken == pytest.approx(4 * UNDERSTOOD_COUNTS) and taken < SHARE_AT and latest == "line 3"
+    moves.since.append(Felt("words", 5.0, 3.0, 0.7, "the punchline"))
+    taken, latest = moves.unshared()
+    assert taken >= SHARE_AT and latest == "the punchline"
+    moves.since.append(Felt("sight", 6.0, None, 0.0))  # a look read nothing: not taken in
+    assert moves.unshared()[0] == pytest.approx(taken)
+    moves.remarked()
+    assert moves.unshared() == (0.0, "")

@@ -211,6 +211,17 @@ class WorthSaying:
         else:
             from_her = NEW_AND_UNKNOWN if self.unknown_and_new and self.enough_is_new() else 0.0
             how = f"{self.fresh} new since she spoke"
+        # And what she has taken in and not shared: she speaks because she has something of it to share, which what
+        # she makes out of it fills, and what moves her fills sooner (core/together/what_moves_her.py ``unshared``).
+        if self.moves is not None and callable(getattr(self.moves, "unshared", None)):
+            from core.together.what_moves_her import SHARE_AT, SHARE_WORTH
+
+            taken, latest = self.moves.unshared()
+            if taken >= SHARE_AT:
+                sharing = min(1.0, SHARE_WORTH * taken / SHARE_AT)
+                if sharing > max(self.interest, from_her):
+                    thing, how = (latest[:80] or thing), f"{how}; {taken:.2f} taken in and not shared"
+                from_her = max(from_her, sharing)
         worth = max(self.interest, from_her)
         say = worth_saying_now(self.held, now, interest=worth, thing=thing, lost_by_waiting=1.0)
         logger.info("🤝 %s: %s (worth %.2f: her record %.2f in %s, %s)",

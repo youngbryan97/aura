@@ -151,6 +151,8 @@ class Reading:
     knowing_her: float | None = None
     #: How far it moved along each of her feeling directions as it landed in her (her own activations' contrasts).
     along: dict[str, float] = field(default_factory=dict)
+    #: Its most unexpected short run of words (nats a token): a twist the stretch's mean dilutes; None where not read.
+    peak: float | None = None
     #: How much she liked it, in [-1, 1], read off the feeling direction her own check found reads liking; None
     #: until that check has passed.
     liking: float | None = None
@@ -282,6 +284,10 @@ def _middle(values: list[float]) -> float:
 #: How many of a channel's latest readings what it has been like is read from: what the video has been like lately (five
 #: minutes of its sound, longer of its looks and words), and a bound on the work each reading costs over a long film.
 LATELY = 300
+#: What one stretch of words she made out adds to what she has taken in and not shared (``unshared``), beside what it
+#: moved her by; and how much unshared makes a remark worth it, as a remark's worth (``SHARE_WORTH``) once it is there:
+#: five stretches she made out, about two minutes of talk, or fewer of them that moved her.
+UNDERSTOOD_COUNTS, SHARE_AT, SHARE_WORTH = 0.2, 1.0, 0.6
 #: How many readings of each channel from her earlier watchings a new one starts from: what videos are usually like for
 #: her. A person does not meet a video's first words as if no video had come before; and with a reading every 25
 #: seconds or so, a short film never had the six of its own a reading is set against (LIVE 7 November 2026, rehearsal 4:
@@ -307,7 +313,7 @@ def what_videos_are_usually_like(folder: Any = None, *, excluding: str = "") -> 
     except (ImportError, AttributeError, OSError) as exc:
         logger.debug("her earlier watchings could not be listed: %s", exc)
         return {}
-    usual: dict[str, list[float]] = {"shift": [], "surprisal": [], "sight": [], "sound": []}
+    usual: dict[str, list[float]] = {"shift": [], "surprisal": [], "peak": [], "sight": [], "sound": []}
     for path in files:
         try:
             for line in path.read_text().splitlines():
@@ -316,7 +322,7 @@ def what_videos_are_usually_like(folder: Any = None, *, excluding: str = "") -> 
                     continue
                 channel = row.get("channel", "words")
                 if channel == "words" and row.get("made_out"):
-                    for key in ("shift", "surprisal"):
+                    for key in ("shift", "surprisal", "peak"):
                         if isinstance(row.get(key), (int, float)):
                             usual[key].append(float(row[key]))
                 elif channel in ("sight", "sound") and isinstance(row.get("surprise"), (int, float)):
@@ -518,7 +524,8 @@ class WhatMovesHer:
         reading = Reading(at=at, words=then, surprisal=float(read["surprisal"]), shift=float(read["shift"]),
                           open=float(read["open"]),
                           knowing_her=float(knowing) if isinstance(knowing, (int, float)) else None,
-                          along=along, liking=self._liking_of(along))
+                          along=along, liking=self._liking_of(along),
+                          peak=float(read["peak"]) if isinstance(read.get("peak"), (int, float)) else None)
         reading.made_out = self._made_out(reading.surprisal)
         self.readings.append(reading)
         standing = self.how_moved(reading)
@@ -547,6 +554,7 @@ class WhatMovesHer:
                     "-" if standing is None else f"{standing:.2f}", felt.evidence, then[:120])
         self.keep({"kind": "moved", "channel": "words", "at": at, "words": then[:400],
                    "surprisal": round(reading.surprisal, 4), "shift": round(reading.shift, 4),
+                   **({"peak": round(reading.peak, 4)} if reading.peak is not None else {}),
                    "open": round(reading.open, 4), "made_out": reading.made_out, "took s": round(took, 3),
                    "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4),
                    **({"about her": round(reading.about_her, 4)} if reading.about_her is not None else {}),
@@ -672,6 +680,12 @@ class WhatMovesHer:
         spread = LEAST_SPREADS["words"]
         shift = _stands_out(shifts, reading.shift, least_spread=spread, fewest=FEWEST_READINGS)
         surprisal = _stands_out(surprisals, reading.surprisal, least_spread=spread, fewest=FEWEST_READINGS)
+        peaks = [*self.usual.get("peak", []), *(r.peak for r in before if r.peak is not None)]
+        peak = (_stands_out(peaks, reading.peak, least_spread=spread, fewest=FEWEST_READINGS)
+                if reading.peak is not None else None)
+        if peak:
+            # A twist moves her though the rest of the stretch was ordinary: the most it moved her by either way.
+            return max(((shift or 0.0) + (surprisal or 0.0)) / 2.0, peak)
         return ((shift or 0.0) + (surprisal or 0.0)) / 2.0
 
     # ── what she saw and how it sounded ───────────────────────────────
@@ -803,6 +817,22 @@ class WhatMovesHer:
             unmoved *= 1.0 - felt.evidence
         most = max(strongest.values(), key=lambda felt: felt.evidence)
         return 1.0 - unmoved, most.what
+
+    def unshared(self) -> tuple[float, str]:
+        """How much she has taken in since she last spoke and not shared, and the latest of it that she made out: each
+        stretch of words she made out counts ``UNDERSTOOD_COUNTS``, and whatever moved her counts what it moved her by,
+        on every channel. People watching together speak because they have something of it they have not shared
+        (joint attention, affiliation), not on a clock: nothing taken in is nothing to share, and what moves her fills
+        it sooner. LIVE 7 November 2026, a stand-up set she heard and made out, 13 stretches of it in four minutes, moved
+        her past the bar in none, and she said nothing at all."""
+        taken = 0.0
+        latest = ""
+        for felt in self.since:
+            understood = felt.channel == "words" and felt.standing is not None
+            taken += (UNDERSTOOD_COUNTS if understood else 0.0) + max(0.0, float(felt.evidence))
+            if understood and felt.what:
+                latest = felt.what
+        return taken, latest
 
     def remarked(self) -> None:
         self.since = []

@@ -115,6 +115,9 @@ def _along_her_feelings(hooks: list[Any], start: int, end: int) -> dict[str, flo
     return {key: sum(values) / len(values) for key, values in found.items()}
 
 
+#: How many of a stretch's tokens its peak is read over: a short phrase, as a twist is.
+PEAK_TOKENS = 3
+
 def surprise_of(model: Any, tokenizer: Any, before: str, then: str, self_text: str = "", *,
                 engine: Any = None) -> dict[str, float]:
     """How what was heard (``then``) landed on what she expected after what came before it, in one forward pass over
@@ -158,9 +161,14 @@ def surprise_of(model: Any, tokenizer: Any, before: str, then: str, self_text: s
     probs = mx.exp(logprobs)
     shifts = mx.sum(probs[1:] * (logprobs[1:] - logprobs[:-1]), axis=-1)
     surprisal, shift, entropy = -mx.mean(picked), mx.mean(shifts), -mx.sum(probs[-1] * logprobs[-1])
-    mx.eval(surprisal, shift, entropy)
+    # Its peak: the most unexpected run of PEAK_TOKENS words in it, a punchline's twist or a reveal, which the mean of a
+    # whole stretch dilutes (incongruity: the turn a joke's last words take; LIVE 7 November 2026, a stand-up set read
+    # in 13 stretches moved her in none, and she said nothing for four minutes).
+    run = min(PEAK_TOKENS, int(picked.shape[0]))
+    peak = -mx.min(mx.convolve(picked, mx.ones((run,)) / run, mode="valid")) if run else surprisal
+    mx.eval(surprisal, shift, entropy, peak)
     read: dict[str, Any] = {"surprisal": float(surprisal.item()), "shift": float(shift.item()),
-                            "open": float(entropy.item()), "tokens": float(len(heard))}
+                            "open": float(entropy.item()), "peak": float(peak.item()), "tokens": float(len(heard))}
     if along:
         read[ALONG] = along
     her = list(tokenizer.encode(" ".join(str(self_text or "").split()), add_special_tokens=False))[-MOST_SELF_TOKENS:]
