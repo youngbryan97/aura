@@ -823,13 +823,22 @@ class WhatMovesHer:
         nothing has. Hers to know when she speaks, as a person knows what made them laugh: LIVE 7 November 2026 her
         remarks were given what played and not what had struck her in it, and read it out ("He just went from a policy
         comparison ... The arc is:")."""
+        # What it was of, not which sense took it: a bare "a sound over the rest" or "a change in what she saw" was
+        # remarked on as itself (LIVE 7 November 2026, a TED talk: "Right. There it is. *That* sound over the rest").
+        # A rise in the sound or a change in the picture is told by what was said as it came.
         moving = [felt for felt in self.since if felt.evidence > 0.0]
         if not moving:
             return ""
         most = max(moving, key=lambda felt: felt.evidence)
-        said = CHANNEL_SAYS.get(most.channel, most.channel)
         what = " ".join(str(most.what or "").split())[:160]
-        return f'{said}: "{what}"' if what and most.channel not in ("sight", "sound") else said
+        if most.channel not in ("sight", "sound") and what:
+            return f'{CHANNEL_SAYS.get(most.channel, most.channel)}: "{what}"'
+        heard = [felt for felt in self.since if felt.channel == "words" and felt.what and abs(felt.at - most.at) <= 20.0]
+        near = min(heard, key=lambda felt: abs(felt.at - most.at), default=None)
+        if near is None:
+            return ""
+        place = "the room went loud" if most.channel == "sound" else "the picture changed"
+        return f'{place} around "{" ".join(near.what.split())[:160]}"'
 
     def unshared(self) -> tuple[float, str]:
         """How much she has taken in since she last spoke and not shared, and the latest of it that she made out: each
