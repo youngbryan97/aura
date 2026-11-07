@@ -795,3 +795,115 @@ def test_knowing_who_made_it_and_what_they_made_before_is_part_of_what_she_expec
         assert asked[-1].startswith("Childhood inventions, by Allen Pan\nI built a glove: I love punching")
 
     asyncio.run(go())
+
+
+def _readings_with_people():
+    """A stand-in for her model and for who is named: Kevin is in lines she likes; Rex in lines she dislikes; "what
+    happens next" leaves it wide open."""
+    from core.together.what_moves_her import PLEASANT, UNPLEASANT
+
+    async def ask(before, then, *_rest):
+        varied = sum(map(ord, then))
+        valence = 0.06 if "Kevin" in then else -0.06 if "Rex" in then else 0.0
+        if then in PLEASANT:
+            valence = 0.04
+        if then in UNPLEASANT:
+            valence = -0.04
+        return {"surprisal": 2.6 + 0.2 * (varied % 5), "shift": 0.2 + 0.05 * (varied % 4), "tokens": 10.0,
+                "open": 6.0 if "what happens next" in then else 2.0 + 0.1 * (varied % 3),
+                "along": {"valence": valence + 0.001 * (len(then) % 3)}}
+
+    def whom(text):
+        return [name for name in ("Kevin Lee", "Kevin", "Rex") if name in text]
+
+    return ask, whom
+
+
+def test_she_comes_to_feel_about_the_people_in_it_and_fears_for_the_one_she_cares_about_when_it_is_wide_open():
+    """Zillmann's affective disposition theory: caring about someone in it is much of why it holds an audience, and
+    fear for someone she cares about is what suspense is made of."""
+    from core.together.what_moves_her import FEWEST_READINGS, WhatMovesHer, what_her_feelings_read
+
+    ask, whom = _readings_with_people()
+    shown: list[str] = []
+
+    async def go():
+        feelings = await what_her_feelings_read(ask)
+        moves = WhatMovesHer("x", ask=ask, whom=whom, feelings=feelings, show=shown.append, read_every_s=0.0)
+        for i in range(FEWEST_READINGS + 2):
+            moves.heard(float(i), f"an ordinary line number {i} of what was said here")
+            await moves._reading
+        for i, line in enumerate(["Kevin Lee laughs and hands round the cake", "Kevin builds the kite with the kids",
+                                  "Kevin waves at us from the boat", "Rex kicks the sandcastle over again"]):
+            moves.heard(20.0 + i, line)
+            await moves._reading
+        kevin = moves.people["kevin lee"]
+        assert kevin.name == "Kevin Lee" and kevin.named == 3 and kevin.feeling > 0.3
+        assert moves.people["rex"].feeling < 0.0
+        assert any("she has come to like Kevin Lee" in line for line in shown)
+        moves.remarked()
+        moves.heard(40.0, "and Kevin is up on the roof and what happens next nobody knows")
+        await moves._reading
+        for_them = [felt for felt in moves.since if felt.channel == "for them"]
+        assert for_them and for_them[-1].evidence > 0.5
+        assert moves.people_kept()["Kevin Lee"]["named"] == 4 and "Kevin Lee" in moves.events[-1].people
+
+    asyncio.run(go())
+
+
+def test_what_moves_her_calls_up_memories_of_her_own_in_the_background_and_shows_none_of_them(monkeypatch):
+    import core.skills.watching_along as watching_along
+    from core.together.what_moves_her import FEWEST_READINGS, WhatMovesHer
+
+    recalled: list[str] = []
+
+    async def recall(text):
+        recalled.append(text)
+        return ["episode-1", "episode-2"]
+
+    async def ask(before, then, *_rest):
+        varied = sum(map(ord, then))
+        striking = "THIRTY FEET" in then
+        return {"surprisal": 6.0 if striking else 2.6 + 0.2 * (varied % 5),
+                "shift": 1.4 if striking else 0.2 + 0.05 * (varied % 4), "open": 2.0, "tokens": 10.0}
+
+    shown: list[str] = []
+
+    async def go():
+        moves = WhatMovesHer("x", ask=ask, recall=recall, show=shown.append, read_every_s=0.0)
+        for i in range(FEWEST_READINGS + 2):
+            moves.heard(float(i), f"an ordinary line number {i} of what was said")
+            await moves._reading
+        assert not recalled  # nothing moved her: nothing called up
+        moves.heard(30.0, "THAT WENT LIKE THIRTY FEET oh my god")
+        await moves._reading
+        await moves._recalling
+        moves.heard(35.0, "THAT WENT LIKE THIRTY FEET again oh my god")
+        await moves._reading
+        assert recalled == ["THAT WENT LIKE THIRTY FEET oh my god"]  # not again within twenty seconds
+        assert moves.reminded_of == ["episode-1", "episode-2"]
+        assert not any("episode" in line or "remind" in line for line in shown)
+
+    asyncio.run(go())
+
+    episodes = [SimpleNamespace(action="conversation", episode_id="mine-1"),
+                SimpleNamespace(action="watching_along", episode_id="a-watching"),
+                SimpleNamespace(action="conversation", episode_id="mine-2")]
+
+    class _Episodic:
+        def pattern_complete(self, cue, limit):
+            return episodes
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: _Episodic() if name == "episodic_memory" else default)
+    assert asyncio.run(watching_along.what_it_calls_up("the glove")) == ["mine-1", "mine-2"]  # her own, not watchings
+
+
+def test_the_people_named_are_read_by_the_small_model_kept_on_this_machine():
+    from core.perception import who_is_in_it
+
+    if who_is_in_it._reader() is None:
+        pytest.skip("the entity model is not on this machine")
+    assert who_is_in_it.people_in("So Kevin and Allen Pan went out back.") == ["Kevin", "Allen Pan"]
+    assert who_is_in_it.people_in("the internet is full of slop") == [] and who_is_in_it.people_in("") == []
+    assert who_is_in_it.same_person("Allen", "Allen Pan") and not who_is_in_it.same_person("Allen Pan", "Kevin")

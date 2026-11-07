@@ -462,6 +462,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         into_her_memory,
         kept_at,
         watch_along,
+        what_it_calls_up,
         what_she_remembers_of,
         what_she_remembers_of_them,
     )
@@ -487,6 +488,10 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     from core.together.what_moves_her import her_expectations as _her_expectations
 
     feelings = await her_feelings_checked(_her_expectations())
+    # Who is in it is read by a small model of its own: loaded beside the player opening, so no reading waits on it.
+    from core.perception import who_is_in_it
+
+    warming = asyncio.ensure_future(asyncio.to_thread(who_is_in_it._reader))
     player = await open_player()
     if player is None:
         logger.info("🤝 %s could not be opened where %s watches; nothing to watch together.", title, who)
@@ -496,6 +501,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     _read_in_every_turn()
 
     from core.perception.what_her_senses_expect import SoundExpectation
+    from core.perception.who_is_in_it import people_in
     from core.together.what_moves_her import WhatMovesHer, her_expectations, her_self_text
 
     keep = kept_at(title, url)
@@ -508,7 +514,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         keep({"kind": "remembered", "events": len(remembered), "of them": bool(of_them), "by": by, "wall": time.time()})
     moves = WhatMovesHer(f"{title}, by {by}" if by else title, ask=her_expectations(), keep=keep,
                          self_text=her_self_text(), remembered=remembered, feelings=feelings, show=_in_her_neural_stream,
-                         of_them=of_them)
+                         of_them=of_them, whom=people_in, recall=what_it_calls_up)
     ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
 
@@ -533,9 +539,9 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
 
     their_last = {"at": time.time()}
 
-    def what_she_took_it_in_as() -> tuple[str, float, float | None, list[dict[str, Any]]]:
+    def what_she_took_it_in_as() -> tuple[Any, ...]:
         return (moves.events_text(), max((felt.evidence for felt in moves.felt), default=0.0), moves.about_her(),
-                moves.events_kept())
+                moves.events_kept(), moves.people_kept(), list(moves.reminded_of))
 
     def into_her_memory_with(watched: Any) -> Any:
         watched.with_whom, watched.by = who, by
@@ -572,6 +578,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("together", exc, severity="warning", action="the watching together stopped")
     finally:
+        if not warming.done():
+            warming.cancel()
         moves.done()
         if _PLAYING.pop(who, None) is not None:
             _ENDED_AT[who] = time.time()

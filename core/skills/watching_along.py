@@ -209,6 +209,9 @@ class Watching:
     with_whom: str = ""
     #: Who made it, as its page said.
     by: str = ""
+    #: Who was in it, and how she came to feel about them; and the memories of her own it called up (their ids).
+    people: dict[str, dict[str, float]] = field(default_factory=dict)
+    reminded_of: list[str] = field(default_factory=list)
 
     def since(self, looks: int) -> list[Moment]:
         """The moments after the first ``looks``: counted by look, since a video's clock starts again after an advert."""
@@ -466,6 +469,8 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         watching.events, watching.moved_most = took[0], took[1]
         watching.about_her = took[2] if len(took) > 2 else None
         watching.event_list = list(took[3]) if len(took) > 3 else []
+        watching.people = dict(took[4]) if len(took) > 4 else {}
+        watching.reminded_of = list(took[5]) if len(took) > 5 else []
     how_it_ends = ("it has ended" if watching.ended else f"it is still playing; she stopped watching it: {watching.stopped}"
                    if watching.stopped else "it is still playing; we stopped watching")
     # What she took it in as: its events where she has them, else her looks across it.
@@ -710,6 +715,30 @@ async def what_she_remembers_of(title: str, url: str = "") -> list[dict[str, Any
     return latest[1] if latest else []
 
 
+#: How many memories of her own one moving moment may call up.
+CALLED_UP = 3
+
+
+async def what_it_calls_up(text: str) -> list[str]:
+    """The memories of her own (not of watchings) that ``text`` calls up, recalled as she recalls anything, so recalling
+    them strengthens them and lets the present touch them (core/memory/episodic_memory.py ``pattern_complete``); their
+    ids, to link them to the watching. Nothing of them is shown or said here."""
+    from core.container import ServiceContainer
+
+    episodic = ServiceContainer.get("episodic_memory", default=None)
+    recall = getattr(episodic, "pattern_complete", None)
+    if not callable(recall) or not str(text or "").strip():
+        return []
+    try:
+        episodes = await asyncio.to_thread(recall, str(text), CALLED_UP + 3)
+    except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("what it called up of hers was not recalled: %s", exc)
+        return []
+    mine = [str(getattr(episode, "episode_id", "") or "") for episode in episodes or []
+            if getattr(episode, "action", "") != "watching_along"]
+    return [episode for episode in mine if episode][:CALLED_UP]
+
+
 #: How much of what she remembers of a maker's other videos is read before what she hears of a new one, in characters.
 OF_THEM_CHARS = 300
 
@@ -768,7 +797,8 @@ async def into_her_memory(watching: Watching, *, url: str = "") -> None:
                       "what happened in it": watching.events[:3000], "stopped": watching.stopped,
                       "moved most": round(watching.moved_most, 4),
                       "about her": None if watching.about_her is None else round(watching.about_her, 4),
-                      "events": watching.event_list[:60], "with": watching.with_whom, "by": watching.by})
+                      "events": watching.event_list[:60], "with": watching.with_whom, "by": watching.by,
+                      "people": watching.people, "reminded of": watching.reminded_of[:20]})
     except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
         record_degradation("watching_along", exc, severity="info", action="a watching did not reach her memory")
 

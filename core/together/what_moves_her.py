@@ -32,7 +32,16 @@ So she reads what plays on three channels, each against her own expectation of i
   stimulus;
 - **scene**: what her eyes say of each new scene, read by her own model as what she hears is, against the scenes
   before it: how unexpected what she sees is in what it means, not only in its pixels, and how it lands along her
-  feelings.
+  feelings;
+- **the people in it**: who is named in what she hears and sees (core/perception/who_is_in_it.py), and how she comes to
+  feel about each, the running mean of how she liked what she heard and saw with them in it. Caring about someone in a
+  story is much of why it holds an audience, and fear for someone she cares about is what suspense is made of
+  (Zillmann's affective disposition theory): what comes next left wide open, with someone she cares about in it, is
+  its own channel.
+
+Things that move her also call up her own memories, as what a person watches reminds them of their own life (the
+self-reference effect). The recall is in the background: it strengthens those memories as any recall does, links them
+to the watching in her memory, and is shown nowhere.
 
 A reading moves her as far as it stands out from this video's readings on its channel: how many of their spreads it
 lies above their middle (a robust standard score). Within ``Z_ORDINARY`` it is what this video is like and is no
@@ -118,7 +127,14 @@ SHOWN_AT, SHOWN_EVERY_S = 0.5, 5.0
 #: What each channel is, in plain words, for what she shows of it.
 CHANNEL_SAYS = {"words": "what she heard", "sight": "a change in what she saw", "sound": "a sound over the rest",
                 "scene": "a new scene", "self": "something about her world", "feeling": "how it felt to her",
-                "open": "what comes next left wide open", "together": "what you said"}
+                "open": "what comes next left wide open", "together": "what you said",
+                "for them": "what might happen to someone she cares about"}
+#: How far she must have come to feel about someone in it, either way, to care what happens to them, and the running
+#: mean's window: how many of the stretches they were in her feeling about them is the mean of, at most.
+CARES_AT, FEELS_OVER = 0.3, 10
+#: How far she must have been moved by something for it to call up memories of her own, and the least time between two
+#: such recalls, in seconds of the video.
+REMINDS_AT, REMINDED_EVERY_S = 0.5, 20.0
 
 
 @dataclass
@@ -291,6 +307,12 @@ def _alike(one: frozenset[str], other: frozenset[str]) -> float:
     return len(one & other) / len(union) if union else 0.0
 
 
+def _one_person(one: str, other: str) -> bool:
+    """Whether two names are one person: every word of the shorter is a word of the longer."""
+    a, b = set(one.lower().split()), set(other.lower().split())
+    return bool(a and b) and (a <= b or b <= a)
+
+
 def _a_scene(seen: str) -> str:
     """What her eyes said a look showed, without the words read off it: a new picture's description, or ""."""
     described = str(seen or "").split('words on it:')[0].strip().rstrip(";").strip()
@@ -303,6 +325,19 @@ def _clock(seconds: float) -> str:
 
 
 @dataclass
+class Person:
+    """Someone in what she watches, and how she has come to feel about them."""
+
+    name: str
+    first_at: float
+    last_at: float
+    named: int = 0
+    feeling: float = 0.0
+    felt: int = 0
+    shown: bool = False
+
+
+@dataclass
 class _Event:
     began: float
     ended: float = 0.0
@@ -312,6 +347,8 @@ class _Event:
     what: str = ""
     #: Whether the person she watched it with said something in it.
     shared: bool = False
+    #: Who was in it.
+    people: list[str] = field(default_factory=list)
 
 
 class WhatMovesHer:
@@ -322,7 +359,8 @@ class WhatMovesHer:
                  keep: Callable[[dict[str, Any]], None] | None = None, self_text: str = "",
                  remembered: list[dict[str, Any]] | None = None, feelings: dict[str, Any] | None = None,
                  read_every_s: float = READ_AT_MOST_EVERY_S, show: Callable[[str], None] | None = None,
-                 yoked: int | None = None, of_them: str = "") -> None:
+                 yoked: int | None = None, of_them: str = "", whom: Callable[[str], list[str]] | None = None,
+                 recall: Callable[[str], Awaitable[list[str]]] | None = None) -> None:
         self.title = " ".join(str(title or "").split())
         self.ask, self.keep = ask, keep or (lambda _row: None)
         #: Who she is, read before what she hears in a second pass, so how far it is about her world can be read.
@@ -332,6 +370,14 @@ class WhatMovesHer:
         self.remembered = [event for event in (remembered or []) if isinstance(event, dict)]
         #: What she remembers of what its maker made before: what she has come to expect of them.
         self.of_them = " ".join(str(of_them or "").split())
+        #: Who is named in a text (core/perception/who_is_in_it.py people_in), and who has been in this video.
+        self.whom = whom
+        self.people: dict[str, Person] = {}
+        #: What calls up her own memories, and which of them it called up: her memories, recalled in the background.
+        self.recall = recall
+        self.reminded_of: list[str] = []
+        self._recalling: asyncio.Task | None = None
+        self._recalled_at = -1e9
         #: Her checked feeling direction for liking, and where liking and disliking lie on it
         #: (``what_her_feelings_read``); {} until it has been checked and passed.
         self.feelings = dict(feelings or {})
@@ -427,6 +473,7 @@ class WhatMovesHer:
             about = [r.about_her for r in self.readings[:-1] if r.made_out and r.about_her is not None]
             mine = _stands_out(about, reading.about_her, least_spread=LEAST_SPREADS["self"], fewest=FEWEST_READINGS)
             self._take(Felt("self", at, mine, 0.0, then, _stems(then)))
+        raised = None
         if reading.made_out:
             # How open it leaves what comes next, against the rest of this video: a question raised, a turn awaited.
             # Suspense is how far beliefs may move next (Ely, Frankel and Kamenica 2015), curiosity a gap noticed
@@ -434,6 +481,7 @@ class WhatMovesHer:
             opens = [r.open for r in self.readings[:-1] if r.made_out]
             raised = _stands_out(opens, reading.open, least_spread=LEAST_SPREADS["words"], fewest=FEWEST_READINGS)
             self._take(Felt("open", at, raised, 0.0, then, _stems(then)))
+        self._maybe_recall(at, then)
         logger.info("🎬 words at %.0fs: surprisal %.2f, shift %.2f, open %.2f%s, stands %s, evidence %.2f: %s", at,
                     reading.surprisal, reading.shift, reading.open, "" if reading.made_out else " (not made out)",
                     "-" if standing is None else f"{standing:.2f}", felt.evidence, then[:120])
@@ -448,6 +496,88 @@ class WhatMovesHer:
             shift_stands = _stands_out([r.shift for r in self.readings[:-1] if r.made_out], reading.shift,
                                        least_spread=LEAST_SPREADS["words"], fewest=FEWEST_READINGS)
             self._maybe_a_new_event(at, shift_stands or 0.0)
+        # Who is in it, once the reading is kept: naming people takes its own while, and nothing above waits on it.
+        named = await self._who_is_in(then)
+        self._met(at, named, reading.liking if reading.made_out else None)
+        cared = max((abs(self.people[key].feeling) for key in self._keys_of(named)
+                     if abs(self.people[key].feeling) >= CARES_AT), default=0.0)
+        if raised is not None and cared:
+            # What comes next wide open with someone she cares about in it: fear and hope for them.
+            self._take(Felt("for them", at, raised * min(1.0, cared / (2 * CARES_AT)), 0.0, then, _stems(then)))
+
+    # ── the people in it ──────────────────────────────────────────────
+
+    async def _who_is_in(self, text: str) -> list[str]:
+        if self.whom is None or not text:
+            return []
+        try:
+            return list(await asyncio.to_thread(self.whom, text))
+        except (RuntimeError, OSError, ValueError, TypeError) as exc:
+            logger.debug("who is in it was not read: %s", exc)
+            return []
+
+    def _keys_of(self, named: list[str]) -> list[str]:
+        return [key for key, person in self.people.items() if any(_one_person(name, person.name) for name in named)]
+
+    def _met(self, at: float, named: list[str], liking: float | None) -> None:
+        """They were in what she heard or saw at ``at``: counted, and how she liked it is part of how she feels about
+        them (the running mean of the last ``FEELS_OVER``)."""
+        met: set[str] = set()
+        for name in sorted(named, key=len, reverse=True):  # the fullest name first, so "Kevin" joins Kevin Lee
+            key = next((key for key, person in self.people.items() if _one_person(name, person.name)), None)
+            if key is None:
+                key = name.lower()
+                self.people[key] = Person(name=name, first_at=at, last_at=at)
+            person = self.people[key]
+            if len(name) > len(person.name):
+                person.name = name  # "Allen" heard first is Allen Pan once he is named in full
+            if key in met:
+                continue  # named twice in one stretch is in it once
+            met.add(key)
+            person.named += 1
+            person.last_at = at
+            if liking is not None:
+                person.felt += 1
+                person.feeling += (float(liking) - person.feeling) / min(person.felt, FEELS_OVER)
+            if person.name not in self.events[-1].people:
+                self.events[-1].people.append(person.name)
+            if (not person.shown and person.felt >= 3 and abs(person.feeling) >= CARES_AT
+                    and self.show is not None):
+                person.shown = True
+                way = "like" if person.feeling > 0 else "dislike"
+                try:
+                    self.show(f"{_clock(at)} she has come to {way} {person.name} ({person.feeling:+.2f})")
+                except (RuntimeError, TypeError, ValueError, AttributeError) as exc:
+                    logger.debug("how she feels about someone was not shown: %s", exc)
+
+    def people_kept(self) -> dict[str, dict[str, float]]:
+        """Who was in it, and how she came to feel about them: to keep with her memory of the watching."""
+        return {person.name: {"feeling": round(person.feeling, 3), "named": person.named}
+                for person in sorted(self.people.values(), key=lambda person: -person.named)[:20]}
+
+    # ── what it calls up of her own ───────────────────────────────────
+
+    def _maybe_recall(self, at: float, then: str) -> None:
+        """A stretch that moved her far enough calls up memories of her own, in the background: shown nowhere."""
+        if self.recall is None or (self._recalling is not None and not self._recalling.done()):
+            return
+        if at - self._recalled_at < REMINDED_EVERY_S:
+            return
+        strongest = max((felt.evidence for felt in self.felt[-6:] if felt.at == at), default=0.0)
+        if strongest < REMINDS_AT:
+            return
+        self._recalled_at = at
+        self._recalling = asyncio.get_running_loop().create_task(self._recall(then), name="what_it_calls_up_of_hers")
+
+    async def _recall(self, then: str) -> None:
+        try:
+            called = await self.recall(then) if self.recall is not None else []
+        except (RuntimeError, OSError, TimeoutError, TypeError, ValueError) as exc:
+            logger.debug("what it calls up of hers was not recalled: %s", exc)
+            return
+        for episode in called or []:
+            if episode and episode not in self.reminded_of:
+                self.reminded_of.append(str(episode))
 
     def _yoked_read(self, channel: str, read: dict[str, Any]) -> dict[str, Any]:
         """Her own reading, or, yoked, one drawn at random from those before it on its channel (the first stands)."""
@@ -535,6 +665,7 @@ class WhatMovesHer:
                    "surprisal": round(reading.surprisal, 4), "shift": round(reading.shift, 4),
                    "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4),
                    **({"liking": round(reading.liking, 4)} if reading.liking is not None else {})})
+        self._met(at, await self._who_is_in(scene), reading.liking)
 
     def sounded(self, at: float, surprise: float, onset: float) -> None:
         """One second of sound: how far it rose above what this video usually sounds like (``surprise``, in dB), and
@@ -662,6 +793,8 @@ class WhatMovesHer:
                 continue
             ended = event.ended or self.now
             parts = [f"{_clock(event.began)}-{_clock(ended)}" + (" (they spoke)" if event.shared else "")]
+            if event.people:
+                parts.append("with " + ", ".join(event.people[:4]))
             if event.seen:
                 parts.append(f"showed: {event.seen[:160]}")
             if heard:
@@ -711,7 +844,8 @@ class WhatMovesHer:
                 continue
             kept.append({"from": round(event.began, 1), "to": round(event.ended or self.now, 1),
                          "heard": " ".join(event.heard)[:600], "seen": event.seen[:200], "moved": round(event.moved, 3),
-                         **({"shared": True} if event.shared else {})})
+                         **({"shared": True} if event.shared else {}),
+                         **({"people": event.people[:8]} if event.people else {})})
         return kept
 
     def making_sense(self) -> float | None:
@@ -744,7 +878,7 @@ class WhatMovesHer:
     def done(self) -> None:
         if self in _UNDER_WAY:
             _UNDER_WAY.remove(self)
-        for task in (self._reading, self._seeing):
+        for task in (self._reading, self._seeing, self._recalling):
             if task is not None and not task.done():
                 task.cancel()
         last = self.events[-1]
@@ -756,7 +890,8 @@ class WhatMovesHer:
         self.keep({"kind": "moved overall", "readings": len(self.readings),
                    "not made out": sum(1 for r in self.readings if not r.made_out),
                    "looks read": len(self._raw["sight"]), "seconds heard": len(self._raw["sound"]),
-                   "scenes read": len(self.scenes),
+                   "scenes read": len(self.scenes), "people": len(self.people),
+                   "reminded her of": len(self.reminded_of),
                    "events": len([e for e in self.events if e.heard or e.seen]),
                    "getting it": None if progress is None else round(progress, 4),
                    "about her": None if self.about_her() is None else round(self.about_her(), 4),
