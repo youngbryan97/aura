@@ -31,7 +31,14 @@ from interface.routes import chat_preflight as _chat_preflight
 import re
 import time
 from core.runtime.errors import describe_error, record_degradation
-from core.skills.watching_together import her_answer_before_it_plays
+from core.skills.watching_together import her_answer_before_it_plays, her_answer_when_nothing_plays
+
+
+def _asks_to_watch(objective: str) -> bool:
+    """Whether the objective asks for something to be watched, run or played with whoever asked."""
+    from core.skills.whether_a_page_serves import what_the_task_needs
+
+    return what_the_task_needs(str(objective or "")) == "run"
 
 
 def _in_words(error: str) -> str:
@@ -327,6 +334,9 @@ async def _execute_desktop_objective_from_chat(
     if result.get("ok") and (research_response or result.get("beside")):
         response = (await her_answer_before_it_plays(objective, _desktop_deliverable_text(result) or summary)
                     if result.get("beside") else research_response)  # going on beside: her own turn answers
+        if not result.get("beside") and _asks_to_watch(objective):
+            # Asked to watch it with them, and nothing plays: what she found is told in her own words, not the page's.
+            response = await her_answer_when_nothing_plays(objective, research_response)
     elif result.get("ok"):
         # Lead with WHAT SHE SAW, not with the step count.
         #

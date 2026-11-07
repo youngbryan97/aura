@@ -73,6 +73,31 @@ def _read_comprehension(*, url: str, title: str, text: str) -> dict[str, Any]:
     return comprehension_payload(url=url, title=title, text=text)
 
 
+
+#: How many times "done" is handed back while what the goal asks to watch is not yet playing with them.
+WATCH_DONE_HANDED_BACK_AT_MOST = 2
+
+
+def _a_watching_still_owed(goal: Any, steps: list[dict[str, Any]]) -> bool:
+    """Whether "done" is handed back to her: the goal asks for something to be watched (or run, or played) with whoever
+    asked, nothing has been handed over to be watched beside them yet, and it has been handed back fewer than
+    ``WATCH_DONE_HANDED_BACK_AT_MOST`` times. Noted in ``steps``, which her next look reads.
+
+    LIVE 7 November 2026, asked "Let's find a funny stand-up comedy clip on YouTube ... and watch it together", she
+    declared it done on the results page, a clip found and none opened; the page's text went back as her reply and
+    nothing was watched."""
+    from core.skills.whether_a_page_serves import what_the_task_needs
+
+    if what_the_task_needs(str(goal or "")) != "run" or any(step.get("beside") or step.get("moved") and step.get("where")
+                                                            for step in steps):
+        return False
+    handed_back = sum(1 for step in steps if step.get("note") == "a_watching_is_still_owed")
+    if handed_back >= WATCH_DONE_HANDED_BACK_AT_MOST:
+        return False
+    steps.append({"note": "a_watching_is_still_owed",
+                  "why": "asked to watch it with them, and nothing is playing with them yet: open what was found"})
+    return True
+
 class BrowserAction(BaseModel):
     type: Literal["click", "type", "scroll", "wait", "get_html", "screenshot", "go"] = Field(
         ...,
@@ -1785,6 +1810,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         )
                         surprised = True
                         continue
+                    if _a_watching_still_owed(goal, steps):
+                        surprised = True
+                        continue
                     completed = True
                     steps.append({"why": str(decision.get("why") or ""), "done": True})
                     break
@@ -1879,7 +1907,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 if expected and not moved:
                     surprised = True
                     self._learn_from_surprise(shape, expected, observation)
-                if decision.get("done") is True:
+                if decision.get("done") is True and not _a_watching_still_owed(goal, steps):
                     completed = True
                     break
         except Exception as exc:

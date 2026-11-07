@@ -33,7 +33,7 @@ from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["her_answer_before_it_plays", "owed_an_answer", "the_talk_since", "watch_in_a_with", "watching_with", "what_we_are_watching"]
+__all__ = ["her_answer_before_it_plays", "her_answer_when_nothing_plays", "owed_an_answer", "the_talk_since", "watch_in_a_with", "watching_with", "what_we_are_watching"]
 
 #: How long the watching waits for the turn that asked for it to settle before it starts anyway.
 ANSWER_WAITED_S = 180.0
@@ -74,6 +74,20 @@ async def her_answer_before_it_plays(request: str, found: str) -> str:
         # What she will have of it as it plays is part of what is so before it plays: LIVE 20 October 2026, without it
         # her answer said "I can't reliably stream my thoughts second-by-second on my own".
         said = await her_turn(request, f"before it plays. What was found of it: {found}. {AS_IT_PLAYS}", [])
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
+        record_degradation("watching_together", exc, severity="info", action="what was found stands as the reply")
+        said = ""
+    return said.strip() or found
+
+
+async def her_answer_when_nothing_plays(request: str, found: str) -> str:
+    """Her reply to a request to find something and watch it, when her browsing ended with nothing playing with them:
+    her own turn, with what it found as evidence. LIVE 7 November 2026 the results page's text went back as her reply
+    ("Jeff Allen shares humorous insights into 37 years of marriage ... 802K 6y ago Dry Bar Comedy")."""
+    from core.skills.watching_along import her_turn
+
+    try:
+        said = await her_turn(request, f"what her browsing found, with nothing opened or playing yet: {found[:1500]}", [])
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
         record_degradation("watching_together", exc, severity="info", action="what was found stands as the reply")
         said = ""
