@@ -232,15 +232,20 @@ async def what_her_feelings_read(ask: Callable[..., Awaitable[dict[str, Any]]]) 
                 pleasant, unpleasant = readings.setdefault(str(key), ([], []))
                 (pleasant if kind == "pleasant" else unpleasant).append(float(value))
     best: dict[str, Any] = {}
+    areas: dict[str, float] = {}
     for key, (pleasant, unpleasant) in readings.items():
         if len(pleasant) < len(PLEASANT) or len(unpleasant) < len(UNPLEASANT):
             continue
         area = _area_under(pleasant, unpleasant)
+        areas[key] = round(max(area, 1.0 - area), 4)
         sign = 1.0 if area >= 0.5 else -1.0
         parts = max(area, 1.0 - area)
         if parts >= READS_LIKING and parts > float(best.get("area", 0.0)):
             liked, disliked = sum(pleasant) / len(pleasant), sum(unpleasant) / len(unpleasant)
             best = {"key": key, "area": round(parts, 4), "sign": sign, "liked": liked, "disliked": disliked}
+    # How cleanly each direction parted them, kept beside the verdict, so a check that passes none says how near it came.
+    logger.info("her feeling directions, how cleanly each parts liking from disliking: %s",
+                dict(sorted(areas.items(), key=lambda item: -item[1])))
     return best
 
 

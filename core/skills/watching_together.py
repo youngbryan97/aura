@@ -49,6 +49,8 @@ _ENDED_AT: dict[str, float] = {}
 
 #: How many exchanges since the request a turn of hers reads while watching, besides the request and her answer.
 RECENT_EXCHANGES = 8
+#: How long before a watching began its request may have been made: her answer can take minutes.
+REQUEST_BEFORE_S = 900.0
 
 #: How many remarks asking her to think out loud counts for, as remarks of hers taken up: a welcome of 0.8 to begin.
 INVITED_REMARKS = 3
@@ -319,6 +321,8 @@ class WhatSheCanTake:
 
 #: How long a check of her feeling directions stands before it is made again, in seconds: a week.
 FEELINGS_CHECK_STANDS_S = 7 * 24 * 3600.0
+#: How long a check that found no direction reading liking stands: an hour, so it is soon made again.
+NO_FEELING_FOUND_STANDS_S = 3600.0
 
 
 def _feelings_check_file() -> Any:
@@ -342,7 +346,8 @@ async def her_feelings_checked(ask: Callable[..., Awaitable[dict[str, Any]]] | N
     except (OSError, ValueError) as exc:
         logger.debug("the check of her feelings could not be read: %s", exc)
         kept = {}
-    if kept and time.time() - float(kept.get("checked_at") or 0.0) < FEELINGS_CHECK_STANDS_S:
+    stands = FEELINGS_CHECK_STANDS_S if kept.get("found") else NO_FEELING_FOUND_STANDS_S
+    if kept and time.time() - float(kept.get("checked_at") or 0.0) < stands:
         return dict(kept.get("found") or {})
     if ask is None:
         return {}
@@ -417,7 +422,14 @@ def the_talk_since(began: float, request: str, spoken: list[tuple[float, str, st
 
     remarks = {words for _at, _shown, words in spoken}
     pairs: list[tuple[str, list[str]]] = [(request, [])]
-    events = [*((at, role, words) for at, role, words in said_since(began) if not (role == "assistant" and words in remarks)),
+    # From the request on, not from when the watching began: her answer to it can be kept before the player has opened.
+    # LIVE 7 November 2026, rehearsal 1: her answer was kept at 03:57:44 and the watching began after it, so no remark
+    # saw that she had answered, and the first one answered the request again ("I'm going to go out on a limb and say
+    # this is Rick Astley").
+    talk = said_since(began - REQUEST_BEFORE_S)
+    asked_at = max((at for at, role, words in talk if role == "user" and words == request), default=None)
+    talk = [turn for turn in talk if turn[0] >= (asked_at if asked_at is not None else began)]
+    events = [*((at, role, words) for at, role, words in talk if not (role == "assistant" and words in remarks)),
               *((at, "remark", (shown, words)) for at, shown, words in spoken)]
     for _at, role, words in sorted(events, key=lambda e: e[0]):
         if role == "user" and words == request and len(pairs) == 1:

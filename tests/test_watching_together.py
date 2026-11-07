@@ -175,6 +175,23 @@ def test_a_remark_is_her_turn_with_the_talk_since_it_began_in_the_order_it_was_s
     ]
 
 
+def test_her_answer_kept_before_the_watching_began_is_still_her_answer(monkeypatch):
+    # LIVE 7 November 2026, rehearsal 1: her answer was kept at 03:57:44 and the watching began after it, so no remark
+    # saw that she had answered, and the first remark answered the request again.
+    import core.together.remarks as remarks
+    from core.skills.watching_together import the_talk_since
+
+    kept = [(10.0, "user", "an older thing she was asked"), (10.5, "assistant", "an older answer"),
+            (40.0, "user", ASKED), (84.0, "assistant", "Found it. I expect volcanoes.")]
+    monkeypatch.setattr(remarks, "said_since", lambda began: [t for t in kept if t[0] >= began])
+    talk = the_talk_since(90.0, ASKED, [(120.0, "playing, at 0:30: an island rising", "The island is new.")])
+    assert [(pair["user"], pair["aura"]) for pair in talk] == [
+        (ASKED, "Found it. I expect volcanoes."),
+        ("[Aura's own eyes and ears on the video they are watching together] playing, at 0:30: an island rising",
+         "The island is new."),
+    ]
+
+
 def test_a_remark_thought_while_they_began_talking_is_not_said_over_them(monkeypatch):
     import core.skills.watching_along as watching_along
 
