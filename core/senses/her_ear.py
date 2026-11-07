@@ -131,13 +131,21 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
     import numpy as np
     from parakeet_mlx import from_pretrained
 
+    from core.perception.what_her_senses_expect import loudness_of
+
     model = from_pretrained(weights)
     pending: list[Any] = []
+    # Each second's sound is also measured for how loud it was, whether or not it is being written down yet: a bang
+    # is heard when it comes, not once her voice is done (core/perception/what_her_senses_expect.py).
+    this_second: list[Any] = []
+    received = {"samples": 0}
     lock = checked_lock("her_ear.pending")
 
     def on_audio(samples: Any) -> None:
         with lock:
             pending.append(samples)
+            this_second.append(samples)
+            received["samples"] += len(samples)
 
     held = _capture(bundle, on_audio)
     began = monotonic_time()
@@ -146,6 +154,14 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
     with model.transcribe_stream(context_size=CONTEXT) as heard:
         while at_most_s is None or monotonic_time() - began < at_most_s:
             time.sleep(STEP_S)
+            with lock:
+                second = np.concatenate(this_second) if this_second else None
+                this_second.clear()
+                heard_to = received["samples"] / SAMPLE_RATE
+            level = loudness_of(second) if second is not None else None
+            if level is not None:
+                print(json.dumps({"at": round(heard_to, 2), "loudness": round(level[0], 1), "peak": round(level[1], 1)}),
+                      file=out, flush=True)
             if hold and os.path.exists(hold):
                 continue  # what is heard waits in `pending`, to be written down once her voice is done
             with lock:
@@ -170,6 +186,8 @@ class HerEar:
     bundle: str
     process: Any = None
     heard: list[dict[str, Any]] = field(default_factory=list)
+    #: How loud each second was, since last asked: {"at", "loudness", "peak"}, in dBFS.
+    sounds: list[dict[str, Any]] = field(default_factory=list)
     listening: bool = False
     why_not: str = ""
     _reader: Any = None
@@ -242,11 +260,18 @@ class HerEar:
                 self._answered.set()
             elif said.get("words"):
                 self.heard.append(said)
+            elif isinstance(said.get("loudness"), (int, float)):
+                self.sounds.append(said)
         self._answered.set()
 
     def since(self) -> list[dict[str, Any]]:
         """What was heard since the last time this was asked."""
         came, self.heard = self.heard, []
+        return came
+
+    def sounds_since(self) -> list[dict[str, Any]]:
+        """How loud each second was since the last time this was asked."""
+        came, self.sounds = self.sounds, []
         return came
 
     async def stop(self) -> None:

@@ -176,11 +176,14 @@ def clock(seconds: float) -> str:
 
 @dataclass
 class Moment:
-    """One look at what plays: when, what her eyes saw, and the words shown over it."""
+    """One look at what plays: when, what her eyes saw, and the words shown over it; how far the look departed from what
+    her eyes expected (``sight``), and how loud each second since the last look was (``sounds``, from her ear)."""
 
     at: float
     seen: str = ""
     read: str = ""
+    sight: float | None = None
+    sounds: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -192,6 +195,11 @@ class Watching:
     moments: list[Moment] = field(default_factory=list)
     said: list[tuple[float, str]] = field(default_factory=list)
     ended: bool = False
+    #: Why she stopped watching it before it ended, when she did: in her own state's terms.
+    stopped: str = ""
+    #: The events she took it in as, and the most anything in it moved her (core/together/what_moves_her.py).
+    events: str = ""
+    moved_most: float = 0.0
 
     def since(self, looks: int) -> list[Moment]:
         """The moments after the first ``looks``: counted by look, since a video's clock starts again after an advert."""
@@ -333,12 +341,17 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
                       may_speak: Callable[[float], bool] | None = None,
                       on_moment: Callable[[Moment, dict[str, Any]], None] | None = None,
                       on_said: Callable[[str], None] | None = None,
-                      worth: Callable[[Moment, float], bool] | None = None) -> Watching:
+                      worth: Callable[[Moment, float], bool] | None = None,
+                      look_in: Callable[[float], float] | None = None,
+                      stop_when: Callable[[], Awaitable[str]] | None = None,
+                      whole: Callable[[], tuple[str, float]] | None = None) -> Watching:
     """Watch what plays with whoever asked ``request``, saying what she thinks before, during and after. ``page`` is a
     page of her own browser, or a player of another place it plays (core/skills/watching_the_screen.py, the person's
     own screen). Watched as something done together (core/skills/watching_together.py): ``before`` off when her
     answer to the request already said what she expects, ``may_speak`` whether the with leaves her the floor now, and
-    ``on_moment`` / ``on_said`` what the with takes in of each look and each remark."""
+    ``on_moment`` / ``on_said`` what the with takes in of each look and each remark. ``look_in`` is how long until she
+    looks again (what moves her sets it: core/together/what_moves_her.py), ``stop_when`` her reason to stop watching
+    before it ends, if she has one, and ``whole`` what she took it in as, for what she makes of it after."""
     player = page if callable(getattr(page, "heard", None)) else OnAPage(page)
     look = look or player.eyes()
     turn = turn or her_turn
@@ -376,6 +389,11 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     new = _WhatIsNew()
     in_adverts = 0.0
     while at_most_s is None or monotonic_time() - began - in_adverts < at_most_s:
+        stopping = await stop_when() if stop_when is not None else ""
+        if stopping:
+            watching.stopped = stopping
+            keep({"kind": "stopped", "why": stopping, "wall": time.time()})
+            break
         plays = await player.state()
         if not plays:
             break
@@ -393,6 +411,8 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
             advert_began = time.monotonic()
             keep({"kind": "advert", "skipped": await player.tend(), "wall": time.time()})
             await player.heard()
+            if callable(getattr(player, "sounds", None)):
+                await player.sounds()  # an advert's sound is not what her ear comes to expect of the video
             await asyncio.sleep(ADVERT_LOOK_S)
             in_adverts += time.monotonic() - advert_began
             continue
@@ -404,11 +424,16 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         # Her eyes are told when her voice is using the GPU they share, so the part of a look that needs it can wait
         # (core/skills/watching_the_screen.py); what is said and the words on what plays go on being taken in.
         composing = speaking is not None and not speaking.done()
-        moment = Moment(at=float(plays.get("at") or 0.0), seen=await look("speaking" if composing else "playing"), read=read)
+        seen = await look("speaking" if composing else "playing")
+        sounds = await player.sounds() if callable(getattr(player, "sounds", None)) else None
+        moment = Moment(at=float(plays.get("at") or 0.0), seen=seen, read=read,
+                        sight=player.sight() if callable(getattr(player, "sight", None)) else None,
+                        sounds=list(sounds or []))
         watching.moments.append(moment)
         new.took_in(moment)
         perceive(moment.seen, moment.read)
-        keep({"kind": "moment", "at": moment.at, "seen": moment.seen, "read": moment.read, "wall": time.time()})
+        keep({"kind": "moment", "at": moment.at, "seen": moment.seen, "read": moment.read, "wall": time.time(),
+              **({"sight": round(moment.sight, 4)} if moment.sight is not None else {})})
         if on_moment is not None:
             on_moment(moment, plays)
         since = watching.since(spoke_after_looks)
@@ -419,7 +444,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
             speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))
             spoke_after_looks, spoke_at_wall = len(watching.moments), time.monotonic()
             new.remarked()
-        await asyncio.sleep(look_every_s)
+        await asyncio.sleep(look_in(look_every_s) if look_in is not None else look_every_s)
     if speaking is not None:
         await speaking
     # What was said after the last look, up to the end: heard too, before she says what she made of it.
@@ -427,10 +452,15 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     if last_words.strip():
         watching.moments.append(Moment(at=watching.moments[-1].at if watching.moments else 0.0, read=last_words))
         perceive("", last_words)
-    await speak(f"{'it has ended' if watching.ended else 'it is still playing; we stopped watching'}. What played, in "
-                f"order:\n{what_she_watched(watching.moments, room=WHOLE_ROOM, across=True)}",
+    if whole is not None:
+        watching.events, watching.moved_most = whole()
+    how_it_ends = ("it has ended" if watching.ended else f"it is still playing; she stopped watching it: {watching.stopped}"
+                   if watching.stopped else "it is still playing; we stopped watching")
+    # What she took it in as: its events where she has them, else her looks across it.
+    played = watching.events or what_she_watched(watching.moments, room=WHOLE_ROOM, across=True)
+    await speak(f"{how_it_ends}. What played, in order:\n{played}"[:OBSERVATION_ROOM],
                 watching.moments[-1].at if watching.moments else 0.0, "after")
-    keep({"kind": "after", "ended": watching.ended, "wall": time.time()})
+    keep({"kind": "after", "ended": watching.ended, "stopped": watching.stopped, "wall": time.time()})
     await player.done()
     await remember(watching)
     return watching
@@ -645,16 +675,21 @@ async def into_her_memory(watching: Watching, *, url: str = "") -> None:
     from core.runtime.errors import record_degradation
 
     episodic = ServiceContainer.get("episodic_memory", default=None)
-    if episodic is None or not hasattr(episodic, "record_episode_async") or not watching.said:
+    if episodic is None or not hasattr(episodic, "record_episode_async") or not (watching.said or watching.events):
         return
     said = "\n".join(f"{clock(at)} {words}" for at, words in watching.said)
     try:
+        # What moved her more is kept as mattering more, as emotional memories are kept better in people (the more it
+        # moved her, up to 0.9 from 0.6).
         await episodic.record_episode_async(
             context=f"Watched {watching.title or 'a video'} as it played, with whoever asked: {watching.request}"[:600],
-            action="watching_along", outcome=said[-4000:], success=watching.ended, importance=0.6,
+            action="watching_along", outcome=said[-4000:], success=watching.ended,
+            importance=round(0.6 + 0.3 * max(0.0, min(1.0, watching.moved_most)), 3),
             source="watching_along",
             metadata={"provenance": "her own words while watching", "verified": False, "title": watching.title,
-                      "url": url, "ended": watching.ended, "looks": len(watching.moments)})
+                      "url": url, "ended": watching.ended, "looks": len(watching.moments),
+                      "what happened in it": watching.events[:3000], "stopped": watching.stopped,
+                      "moved most": round(watching.moved_most, 4)})
     except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
         record_degradation("watching_along", exc, severity="info", action="a watching did not reach her memory")
 

@@ -185,7 +185,7 @@ def test_a_remark_is_worth_what_moved_her_and_newness_only_where_nothing_she_hea
         return weighed[-1]
 
     assert worth_with((0.93, "THAT WENT LIKE THIRTY FEET")) == pytest.approx(0.93)
-    assert worth_with((0.55, "an ordinary line")) == 0.0  # heard, read, and nothing in it moved her: new is not enough
+    assert worth_with((0.3, "an ordinary line")) == 0.0  # heard, read, and too little in it moved her: new is not enough
     assert worth_with(None) == NEW_AND_UNKNOWN  # nothing she heard was read: what is new to her stands in
 
 
@@ -209,3 +209,174 @@ def test_a_remark_of_hers_is_felt_for_what_moved_her_while_she_watches(monkeypat
     assert moved_while_watching() is None and appraisal._novelty() == 0.3
     monkeypatch.setattr(appraisal, "_world_surprise", lambda: None)
     assert appraisal._novelty() is None
+
+
+def test_she_gets_used_to_a_bang_and_recovers_and_ordinary_speech_is_no_evidence():
+    """Rankin et al. 2009: the same stimulus again moves less, the more often it comes, and recovers with time."""
+    from core.together.what_moves_her import RECOVERS_S, WhatMovesHer
+
+    moves = WhatMovesHer("I built a glove that explodes")
+    for second in range(30):
+        moves.sounded(float(second), 0.05 + 0.01 * (second % 3), 0.0)
+    assert all(felt.evidence == 0.0 for felt in moves.felt)  # what the video is like is evidence of nothing
+    bangs = []
+    for at in (30.0, 33.0, 36.0, 36.0 + 4 * RECOVERS_S):
+        moves.sounded(at, 6.0, 12.0)
+        bangs.append(moves.felt[-1].evidence)
+    assert bangs[0] == 1.0 and bangs[0] > bangs[1] > bangs[2] and bangs[3] > 0.9
+
+
+def test_a_cut_moves_her_opens_an_event_and_makes_her_look_sooner_and_nothing_for_long_bores_her():
+    from core.together.what_moves_her import MOVED_AT, WhatMovesHer
+
+    kept: list[dict] = []
+    moves = WhatMovesHer("x", keep=kept.append)
+    for look in range(10):
+        moves.saw(5.0 * look, 0.1 + 0.001 * look, "a man in a garage")
+    moves.saw(55.0, 8.0, "an explosion in a field")
+    stirred, what = moves.moved()
+    assert stirred >= MOVED_AT and "explosion" in what
+    events = [row for row in kept if row["kind"] == "event"]
+    assert events and events[-1]["to"] == 55.0 and "garage" in events[-1]["seen"]
+    assert moves.events[-1].seen == "an explosion in a field"  # the look that departs is the new event's first
+    assert moves.look_in(5.0) == 2.5
+    moves.remarked()
+    for look in range(12, 40):
+        moves.saw(5.0 * look, 0.1, "the same garage")
+    assert moves.bored() and moves.look_in(5.0) == 7.5
+    assert "0:55" in moves.events_text() and "explosion" in moves.events_text()
+
+
+def test_she_stops_watching_when_what_she_cannot_take_stays_past_her_limit():
+    from core.skills.watching_together import LEAVES_AFTER_LOOKS, WhatSheCanTake
+
+    readings = iter([0.1, 0.3, 0.6, 0.7, 0.2, 0.6, 0.65, 0.7, 0.8])
+
+    async def read():
+        return next(readings)
+
+    async def go():
+        can_take = WhatSheCanTake(read)
+        said = [await can_take() for _ in range(9)]
+        # Began at 0.1, so her limit is 0.55. Two looks past it, then back below: she watched on. Then three running.
+        assert said[:7] == [""] * 7
+        assert "0.70" in said[7] and "0.55" in said[7] and can_take.over >= LEAVES_AFTER_LOOKS
+
+    asyncio.run(go())
+
+
+def test_a_watching_she_stops_ends_with_her_reason_and_how_often_she_looks_is_hers(monkeypatch):
+    import core.skills.watching_along as watching_along
+
+    monkeypatch.setattr(watching_along, "AN_END_HOLDS_S", 0.0)
+    slept: list[float] = []
+    real_sleep = asyncio.sleep
+
+    async def sleep(seconds):
+        slept.append(seconds)
+        await real_sleep(0)
+
+    monkeypatch.setattr(watching_along.asyncio, "sleep", sleep)
+
+    class _Player:
+        def __init__(self):
+            self.at = 0.0
+
+        async def says(self):
+            return {"title": "Salad Fingers"}
+
+        async def start(self):
+            return None
+
+        async def state(self):
+            self.at += 5.0
+            return {"ended": self.at > 60.0, "at": self.at, "duration": 60.0}
+
+        async def tend(self):
+            return ""
+
+        async def heard(self):
+            return []
+
+        async def sounds(self):
+            return [{"at": self.at, "loudness": -30.0, "peak": -20.0}]
+
+        def sight(self):
+            return 0.1
+
+        def eyes(self):
+            async def look(_when):
+                return "a thin green figure in a field"
+            return look
+
+        async def done(self):
+            return None
+
+    turns: list[str] = []
+
+    async def turn(_request, observation, _said):
+        turns.append(observation)
+        return "That was more than I wanted to sit through."
+
+    looks = {"n": 0}
+
+    async def stop_when():
+        looks["n"] += 1
+        return "her fear stayed high" if looks["n"] > 3 else ""
+
+    moments: list = []
+    watched = asyncio.run(watching_along.watch_along(
+        _Player(), "watch this with me", turn=turn, say=lambda _w: real_sleep(0, True), perceive=lambda *_: None,
+        before=False, remember=lambda _w: real_sleep(0), quiet_at_least_s=1e9, look_in=lambda usual: usual * 0.5,
+        stop_when=stop_when, on_moment=lambda moment, _plays: moments.append(moment),
+        whole=lambda: ("0:00-0:15; showed: a thin green figure in a field", 0.4)))
+    assert watched.stopped == "her fear stayed high" and not watched.ended
+    assert turns[-1].startswith("it is still playing; she stopped watching it: her fear stayed high")
+    assert "a thin green figure" in turns[-1] and watched.moved_most == 0.4
+    assert slept and all(seconds == watching_along.LOOK_EVERY_S * 0.5 for seconds in slept)
+    assert moments[0].sight == 0.1 and moments[0].sounds[0]["loudness"] == -30.0
+
+
+def test_her_ear_says_how_loud_each_second_was_beside_what_was_said():
+    import json
+
+    from core.senses.her_ear import HerEar
+
+    class _Stdout:
+        def __init__(self, lines):
+            self.lines = [json.dumps(line).encode() + b"\n" for line in lines]
+
+        async def readline(self):
+            return self.lines.pop(0) if self.lines else b""
+
+    ear = HerEar("com.apple.Safari")
+    ear.process = SimpleNamespace(stdout=_Stdout([{"listening": "com.apple.Safari"}, {"at": 1.0, "loudness": -31.5, "peak": -12.0},
+                                                  {"at": 1.2, "words": "three two one"}, {"at": 2.0, "loudness": -6.0, "peak": -1.0}]),
+                                  returncode=None)
+    ear._answered = asyncio.Event()
+    asyncio.run(ear._read())
+    assert ear.listening and [row["words"] for row in ear.since()] == ["three two one"]
+    assert [row["loudness"] for row in ear.sounds_since()] == [-31.5, -6.0] and ear.sounds_since() == []
+
+
+def test_what_moved_her_more_is_kept_as_mattering_more(monkeypatch):
+    import core.skills.watching_along as watching_along
+
+    recorded: list[dict] = []
+
+    class _Episodic:
+        async def record_episode_async(self, **episode):
+            recorded.append(episode)
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: _Episodic() if name == "episodic_memory" else default)
+    quiet = watching_along.Watching(request="watch this", title="A", said=[(5.0, "hm")], moved_most=0.0)
+    moving = watching_along.Watching(request="watch this", title="B", said=[(5.0, "oh!")], moved_most=1.0,
+                                     events="0:00-0:20; said: three two one")
+    nothing_said = watching_along.Watching(request="watch this", title="C", events="0:00-0:20; showed: a field",
+                                           stopped="her fear stayed high")
+    for watching in (quiet, moving, nothing_said):
+        asyncio.run(watching_along.into_her_memory(watching, url="u"))
+    assert [episode["importance"] for episode in recorded] == [0.6, 0.9, 0.6]
+    assert recorded[1]["metadata"]["what happened in it"].startswith("0:00-0:20")
+    assert recorded[2]["metadata"]["stopped"] == "her fear stayed high"  # stopped with nothing said, still kept

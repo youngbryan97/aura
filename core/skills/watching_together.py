@@ -128,10 +128,10 @@ class WorthSaying:
     sooner where more is coming. Before that (LIVE 20 October 2026) new words were the whole of the rule, and a sponsor's
     read is all new words: so newness is worth only what an unknown is, and her record's word on a thing outweighs it.
 
-    What she heard since she last spoke, once her own model has read it (core/together/what_moves_her.py), says more
-    than how new it is: where a stretch of it stands among this video's in how much it moved her expectations, in its
-    top fifth (``MOVED_AT``), is what it is worth, and below that it is worth nothing. Newness stands in only where
-    nothing she heard since has been read (nothing said, or her model not reached).
+    What she took in since she last spoke, once it has been read against her own expectations by sight, sound and
+    words (core/together/what_moves_her.py), says more than how new it is: how far it moved her, all channels together
+    and habituated, is what it is worth when it reaches ``MOVED_AT``, and below that it is worth nothing. Newness stands
+    in only where nothing since has been read enough to tell (the first looks, or her senses not reached).
 
     The cost side reads how much of each look is new to her against how much has been (a.eventful), so a lull is a
     stretch where little is new, not one her eyes happened to word like the last. Worth is the most since her last
@@ -200,6 +200,54 @@ class WorthSaying:
                     "worth saying now" if say.speak else "stays quiet", say.why, worth, self.interest,
                     thing or "what is on", how)
         return say.speak
+
+
+#: Her feelings that move away from what is in front of her (core/affect/feelings_about.py WITHDRAW).
+WITHDRAWING = ("fear", "disgust", "dread")
+#: How far into the room she had left above her withdrawing feelings when it began they must stay, and for how many
+#: looks running, for her to stop watching. A first limit, measured from where she started rather than set at a level
+#: of ours: her own sweet spot, learned from what she has watched (WHAT_MOVES_HER.md, block 3), is to replace it.
+LEAVES_AT_SHARE, LEAVES_AFTER_LOOKS = 0.5, 3
+
+
+async def _withdrawing() -> float | None:
+    """The strongest of her withdrawing feelings now, read from her state and written by nothing here."""
+    try:
+        from core.container import ServiceContainer
+
+        repo = ServiceContainer.get("state_repository", default=None)
+        state = await repo.get_state() if repo is not None else None
+        emotions = dict(getattr(getattr(state, "affect", None), "emotions", {}) or {})
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("her feelings could not be read: %s", exc)
+        return None
+    felt = [float(emotions[name] or 0.0) for name in WITHDRAWING if name in emotions]
+    return max(felt) if felt else None
+
+
+class WhatSheCanTake:
+    """Whether she has had enough of what plays: her withdrawing feelings (fear, disgust, dread) staying above her
+    limit for ``LEAVES_AFTER_LOOKS`` looks running. Watching something that frightens or disgusts her is hers to stop,
+    as it would be anyone's (WHAT_MOVES_HER.md, Welfare)."""
+
+    def __init__(self, read: Callable[[], Awaitable[float | None]] | None = None) -> None:
+        self.read = read or _withdrawing
+        self.began: float | None = None
+        self.over = 0
+
+    async def __call__(self) -> str:
+        now = await self.read()
+        if now is None:
+            return ""
+        if self.began is None:
+            self.began = now
+            return ""
+        limit = self.began + LEAVES_AT_SHARE * (1.0 - self.began)
+        self.over = self.over + 1 if now >= limit else 0
+        if self.over < LEAVES_AFTER_LOOKS:
+            return ""
+        return (f"her fear, disgust or dread stayed at {now:.2f} for {self.over} looks running, past {limit:.2f}, "
+                f"half the room she had above {self.began:.2f} when it began")
 
 
 def the_floor_is_free(held: Any) -> Callable[[float], bool]:
@@ -317,12 +365,15 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     spoken: list[tuple[float, str, str]] = []
     _read_in_every_turn()
 
+    from core.perception.what_her_senses_expect import SoundExpectation
     from core.together.what_moves_her import WhatMovesHer, her_expectations
 
     keep = kept_at(title, url)
-    # What moves her in it, read off her own expectations of what she hears (core/together/what_moves_her.py).
+    # What moves her in it, read off her own expectations of what she sees, hears and is told
+    # (core/together/what_moves_her.py), and what her ear expects of each second of it.
     moves = WhatMovesHer(title, ask=her_expectations(), keep=keep)
     moves.begin()
+    ears = SoundExpectation()
     worth = WorthSaying(held, moves=moves)
 
     def took_in(moment: Any, plays: dict[str, Any]) -> None:
@@ -331,7 +382,16 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         shown = " ".join(part for part in (moment.seen, moment.read) if part)[:400] or title
         # How much of it is new to her, not how unlike its words are from the last look's (WorthSaying).
         held.shown(shown, time.time(), change=worth.took_in(moment))
-        moves.heard(float(moment.at or 0.0), moment.read)
+        at = float(moment.at or 0.0)
+        moves.saw(at, getattr(moment, "sight", None), moment.seen)
+        seconds = [row for row in (getattr(moment, "sounds", None) or []) if isinstance(row.get("loudness"), (int, float))]
+        for back, row in enumerate(reversed(seconds)):
+            surprise, onset = ears.heard(float(row["loudness"]))
+            moves.sounded(max(0.0, at - back), surprise, onset)
+        moves.heard(at, moment.read)
+
+    def what_she_took_it_in_as() -> tuple[str, float]:
+        return moves.events_text(), max((felt.evidence for felt in moves.felt), default=0.0)
 
     shown_last = {"observation": ""}
 
@@ -351,7 +411,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held),
                           worth=worth, on_moment=took_in,
                           on_said=she_said, keep=keep, at_most_s=at_most_s,
-                          remember=lambda watched: into_her_memory(watched, url=url), **pace)
+                          remember=lambda watched: into_her_memory(watched, url=url),
+                          look_in=moves.look_in, stop_when=WhatSheCanTake(), whole=what_she_took_it_in_as, **pace)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("together", exc, severity="warning", action="the watching together stopped")
     finally:

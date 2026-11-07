@@ -300,6 +300,12 @@ class OnTheirScreen:
         self.bundle, self.owner = _their_browser(url)
         self.window: dict[str, Any] | None = None
         self.ear: Any = None
+        # What her eyes expect of the next look at where it plays, and how far the last look departed from it
+        # (core/perception/what_her_senses_expect.py).
+        from core.perception.what_her_senses_expect import SightExpectation
+
+        self.expects = SightExpectation()
+        self.last_sight: float | None = None
         self.began = 0.0
         #: A digest of each picture of the window, to tell a video still playing from one that has stopped.
         self.pictures: list[str] = []
@@ -425,6 +431,20 @@ class OnTheirScreen:
     async def heard(self) -> list[dict[str, Any]] | None:
         return self.ear.since() if self.ear is not None and self.ear.listening else None
 
+    async def sounds(self) -> list[dict[str, Any]] | None:
+        """How loud each second of what plays was since last asked, from her ear; None when she does not hear it."""
+        return self.ear.sounds_since() if self.ear is not None and self.ear.listening else None
+
+    def _sight_of(self, picture: bytes) -> float | None:
+        from core.perception.what_her_senses_expect import glance_of
+
+        return self.expects.took(glance_of(picture))
+
+    def sight(self) -> float | None:
+        """How far the last look departed from what her eyes expected, once: None when there was no look since."""
+        came, self.last_sight = self.last_sight, None
+        return came
+
     def pictures_due(self, picture: bytes, *, her_voice_busy: bool) -> bool:
         """Whether this look earns a picture from her vision model: what plays has changed since the last one (or it
         has been long enough), and her voice is not using the GPU they share. Marked pictured when it is."""
@@ -466,6 +486,7 @@ class OnTheirScreen:
                 self.pictures.append(hashlib.sha1(taken_bytes).hexdigest())
                 within = self.video_within or await asyncio.to_thread(self.where_it_plays.took, taken_bytes)
                 smaller = await asyncio.to_thread(_smaller, taken_bytes, within=within)
+                self.last_sight = await asyncio.to_thread(self._sight_of, smaller)
                 # Two instruments, so her eyes and her voice work at once (core/perception/words_on_screen.py): the
                 # words in what plays, read every look on the Neural Engine, and a picture of it from her vision
                 # model, which shares her 27B's GPU, every few looks.
