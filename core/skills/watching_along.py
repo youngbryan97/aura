@@ -697,7 +697,8 @@ async def what_she_remembers_of(title: str, url: str = "") -> list[dict[str, Any
     if not callable(recall) or not (title or url):
         return []
     try:
-        episodes = await asyncio.to_thread(recall, f"Watched {title}", 8)
+        # Cued by its title (or its address), not "Watched ...", which every watching of hers begins with.
+        episodes = await asyncio.to_thread(recall, title or url, 8)
     except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
         record_degradation("watching_along", exc, severity="info", action="she watched it without recalling it")
         return []
@@ -755,7 +756,7 @@ async def what_she_remembers_of_them(by: str, title: str = "") -> str:
     if not callable(recall) or not by:
         return ""
     try:
-        episodes = await asyncio.to_thread(recall, f"Watched by {by}", 8)
+        episodes = await asyncio.to_thread(recall, by, 8)
     except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
         record_degradation("watching_along", exc, severity="info", action="she watched it without recalling its maker")
         return ""

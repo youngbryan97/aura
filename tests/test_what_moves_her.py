@@ -506,7 +506,7 @@ def test_watching_it_again_she_recalls_it_and_what_she_remembers_is_coming_is_pa
     monkeypatch.setattr("core.container.ServiceContainer.get",
                         lambda name, default=None: _Episodic() if name == "episodic_memory" else default)
     remembered = asyncio.run(watching_along.what_she_remembers_of("I built a glove", "u"))
-    assert cued == ["Watched I built a glove"] and [event["heard"] for event in remembered][0] == "I love punching"
+    assert cued == ["I built a glove"] and [event["heard"] for event in remembered][0] == "I love punching"
     assert asyncio.run(watching_along.what_she_remembers_of("Never seen", "x")) == []
 
     asked: list = []
@@ -774,7 +774,7 @@ def test_knowing_who_made_it_and_what_they_made_before_is_part_of_what_she_expec
 
     class _Episodic:
         def pattern_complete(self, cue, limit):
-            assert cue == "Watched by Allen Pan"
+            assert cue == "Allen Pan"
             return [glove, this_one, someone_else]
 
     monkeypatch.setattr("core.container.ServiceContainer.get",

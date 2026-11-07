@@ -274,10 +274,18 @@ def _middle(values: list[float]) -> float:
     return ordered[len(ordered) // 2] if ordered else 0.0
 
 
+#: How many of a channel's latest readings what it has been like is read from: what the video has been like lately (five
+#: minutes of its sound, longer of its looks and words), and a bound on the work each reading costs over a long film.
+LATELY = 300
+#: How far back, in spreads of recovery, readings still habituate: past five, a reading's weight is under one percent.
+HABITUATES_WITHIN = 5.0
+
+
 def _stands_out(before: list[float], value: float, *, least_spread: float, fewest: int) -> float | None:
-    """How far ``value`` stands out from the readings before it, as evidence in [0, 1]: its robust standard score (spreads
-    above their middle, the spread 1.4826 x their median absolute deviation, at least ``least_spread``) from
-    ``Z_ORDINARY`` to ``Z_FULL``. None before there are ``fewest`` readings to set it against."""
+    """How far ``value`` stands out from the readings before it lately (the latest ``LATELY``), as evidence in [0, 1]: its
+    robust standard score (spreads above their middle, the spread 1.4826 x their median absolute deviation, at least
+    ``least_spread``) from ``Z_ORDINARY`` to ``Z_FULL``. None before there are ``fewest`` readings to set it against."""
+    before = before[-LATELY:]
     if len(before) < fewest:
         return None
     middle = _middle(before)
@@ -692,8 +700,10 @@ class WhatMovesHer:
         """Habituate a reading against the moving readings before it on its channel, and keep it."""
         if felt.standing is not None:
             fresh = felt.standing
+            within = HABITUATES_WITHIN * RECOVERS_S
             used = sum(prior.evidence * _alike(felt.stems, prior.stems) * math.exp(-max(0.0, felt.at - prior.at) / RECOVERS_S)
-                       for prior in self.felt if prior.channel == felt.channel and prior.evidence > 0.0)
+                       for prior in self.felt[-5 * LATELY:]
+                       if prior.channel == felt.channel and prior.evidence > 0.0 and felt.at - prior.at <= within)
             felt.evidence = fresh / (1.0 + used)
         self.felt.append(felt)
         self.since.append(felt)
