@@ -140,6 +140,16 @@
    "path": "core/memory/embedding_model.py"
   },
   {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_synchronous_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "from_pretrained"
+   ],
+   "ownership_mode": "in_process_sync_heartbeat",
+   "path": "core/perception/who_is_in_it.py"
+  },
+  {
    "expected_load_references": 5,
    "guard_symbol": "_acquire_voice_model_lane",
    "min_guard_sites": 4,

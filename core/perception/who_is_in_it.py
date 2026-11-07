@@ -28,7 +28,7 @@ SURE_OF_A_PERSON = 0.6
 #: and it is tried again later.
 ROOM_NEEDED = 3 * 1024**3
 
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()
 _READER: dict[str, Any] = {}
 
 
@@ -40,6 +40,27 @@ def _reader() -> Any | None:
         if not _room_for_it():
             return None
         try:
+            from core.runtime import model_lane_control as lanes
+        except ImportError:
+            lanes = None
+        if lanes is not None and "lease" not in _READER:
+            # Held through the lane like every model this host loads, so the lane controller counts its memory and can
+            # take it back; it is loaded again the next time it is needed. A refusal is tried again later.
+            try:
+                _READER["lease"] = lanes.acquire_synchronous_in_process_model_lane(
+                    owner_id="who-is-in-it",
+                    model_path=NER_MODEL,
+                    purpose="serve",
+                    request_gb=LANE_GB,
+                    priority=20,
+                    preemptible=True,
+                    evict=_evict,
+                    metadata={"engine": "who_is_in_it", "model_role": "named_people", "device": "cpu"},
+                )
+            except lanes.ModelLaneControlError as exc:
+                logger.info("who is in what she watches waits for room in the model lane: %s", exc)
+                return None
+        try:
             from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 
             tokenizer = AutoTokenizer.from_pretrained(NER_MODEL, local_files_only=True)
@@ -50,9 +71,30 @@ def _reader() -> Any | None:
             from core.runtime.errors import record_degradation
 
             _READER["failed"] = str(exc)
+            _give_back(_READER.pop("lease", None), "load_failed")
             record_degradation("who_is_in_it", exc, severity="info", action="who is in what she watches is not read")
             return None
         return _READER["pipeline"]
+
+
+#: What the model and its library are counted at in the model lane, in GB.
+LANE_GB = 0.6
+
+
+def _evict(_owner: Any, reason: str) -> bool:
+    """Give the model back to the lane; it is loaded again the next time a name is read."""
+    with _LOCK:
+        _READER.pop("pipeline", None)
+        lease = _READER.pop("lease", None)
+    _give_back(lease, f"eviction:{reason}")
+    logger.info("The model that reads who is named was given back to the lane (%s).", reason)
+    return True
+
+
+def _give_back(lease: Any, reason: str) -> None:
+    release = getattr(lease, "release", None)
+    if callable(release):
+        release(reason=f"who_is_in_it_{reason}")
 
 
 def _room_for_it() -> bool:

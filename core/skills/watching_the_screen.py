@@ -435,7 +435,8 @@ class OnTheirScreen:
 
     async def sounds(self) -> list[dict[str, Any]] | None:
         """How loud each second of what plays was since last asked, from her ear; None when she does not hear it."""
-        return self.ear.sounds_since() if self.ear is not None and self.ear.listening else None
+        sounds_since = getattr(self.ear, "sounds_since", None) if self.ear is not None and self.ear.listening else None
+        return sounds_since() if callable(sounds_since) else None
 
     def _sight_of(self, picture: bytes, within: Any = None) -> float | None:
         """How far this look departed from what her eyes expected; a new part of the window looked at (where it plays
