@@ -1258,7 +1258,11 @@ class _AnswersTheDesktopDirectly:
                         }
                     )
                 )
-            validation_prompt = visible_user_message or objective
+            # A turn of her own that nobody's words open is checked against no one's question. LIVE 7 November 2026,
+            # rehearsal 1: each remark while a video played was checked against the request that started the watching,
+            # and refused for not answering "tell me what you think it'll be about"; the one let through answered it again.
+            her_own = bool(context.get("her_own_turn")) and not str(context.get("visible_user_message") or "").strip()
+            validation_prompt = "" if her_own else (visible_user_message or objective)
             if obligation_contract:
                 messages.append(
                     {"role": "user", "content": obligation_parent_request}

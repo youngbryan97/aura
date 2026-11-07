@@ -2256,6 +2256,34 @@ def _run_chat_preflight_inject_expressive_affordance(_original_user_message, bod
         record_degradation("chat", _affordance_exc)
         logger.debug("Chat affordance-menu preflight skipped: %s", _affordance_exc)
 
+#: The longest a person's turn waits for what is on this machine to be looked up, in seconds.
+MEDIA_LOOKUP_WAIT_S = 4.0
+_MEDIA_LOOKUP_IN_FLIGHT: dict[str, Any] = {}
+
+
+async def _resolve_play_request_off_the_loop(message: str) -> Any | None:
+    """What this machine holds for a play request, looked up off the event loop and waited on for at most
+    ``MEDIA_LOOKUP_WAIT_S``; None when it took longer, or a lookup is still going.
+
+    LIVE 7 November 2026: "Find us a cooking video on YouTube ... let's watch it together" was looked up in the local
+    media library on the event loop, and the walk of her media roots never returned (a directory listing that did
+    not come back), so every request to her server, her health included, waited behind it until her app was quit.
+    A lookup that has not come back is let finish on its own; no second one is started beside it."""
+    from core.media.playback import resolve_play_request
+
+    running = _MEDIA_LOOKUP_IN_FLIGHT.get("task")
+    if running is not None and not running.done():
+        return None
+    task = asyncio.ensure_future(asyncio.to_thread(resolve_play_request, message))
+    _MEDIA_LOOKUP_IN_FLIGHT["task"] = task
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), timeout=MEDIA_LOOKUP_WAIT_S)
+    except asyncio.TimeoutError:
+        logger.warning("🎬 looking up %r on this machine took over %.0fs; her turn goes on without it",
+                       message[:80], MEDIA_LOOKUP_WAIT_S)
+        return None
+
+
 async def _run_chat_preflight(
     body: Any,
     request: Any,
@@ -2412,10 +2440,8 @@ async def _run_chat_preflight(
             # was searched and what the connectivity probe really said, so the
             # "I can't stream anything" case comes out in her own words.
             try:
-                from core.media.playback import resolve_play_request
-
-                _media = resolve_play_request(_original_user_message)
-                if _media.playable and _media.item is not None:
+                _media = await _resolve_play_request_off_the_loop(_original_user_message)
+                if _media is not None and _media.playable and _media.item is not None:
                     _publish_media_card(_media)
                     body.message = (
                         f"[you are already playing {_media.item.title!r} "
@@ -2425,7 +2451,7 @@ async def _run_chat_preflight(
                         "do not describe a file or offer to play it.]\n\n"
                         f"{body.message}"
                     )
-                elif _media.status == "needs_network":
+                elif _media is not None and _media.status == "needs_network":
                     body.message = (
                         f"[nothing matching {_media.query!r} is on this machine "
                         f"({_media.searched}), but the network is up, so finding "

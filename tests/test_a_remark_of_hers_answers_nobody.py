@@ -66,6 +66,9 @@ async def test_a_remark_ends_on_what_she_senses_and_keeps_the_room_it_was_given(
     # Owed to nobody, it is not continued past its end as an unfinished answer is (LIVE 2026-10-20, her answer before
     # the film ran a second generation of 921 tokens as a continuation of the first).
     assert handed["semantic_completion_contract"] is False
+    # Checked against no one's question: LIVE 7 November 2026 each remark was checked against the request that started
+    # the watching and refused for not answering "tell me what you think it'll be about".
+    assert handed["user_surface_validation_prompt"] == ""
     # What the gate is handed passes its request contract: LIVE 2026-10-20 a floor of 0 was rejected as malformed,
     # the gate failed the turn closed, and her answer fell to the full pipeline with an 88,103-character prompt.
     from core.brain.request_contract import validate_request_context
@@ -79,6 +82,7 @@ async def test_a_turn_somebody_is_waiting_for_still_ends_on_what_they_said(monke
         "desktop_quick_reply_contract": True, "visible_user_message": REQUEST, "max_tokens": 320})
     assert handed["messages"][-1] == {"role": "user", "content": REQUEST}
     assert handed["max_tokens"] >= 512 and handed["her_own_turn"] is False and handed["hard_output_token_ceiling"] is None
+    assert handed["user_surface_validation_prompt"] == REQUEST
 
 
 def test_the_ceiling_a_turn_of_hers_carries_reaches_the_worker():
