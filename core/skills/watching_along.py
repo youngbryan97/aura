@@ -47,9 +47,17 @@ LOOK_TOKENS = 70
 #: The looks a remark as it plays is given: what is on now. Given every look since her last remark, she narrated the
 #: oldest of them in their own form, "**0:21–0:28:** The title card reads", at 1:00 (LIVE 20 October 2026).
 NOW_LOOKS = 3
-#: The characters of what played that what she made of the whole is given, taken across it from start to end: twice a
-#: remark's 3,000, some 1,500 tokens, beside the request, her answer and the latest exchanges.
-WHOLE_ROOM = 6000
+#: The characters of what was said in it before those looks that a remark as it plays is given: what someone watching
+#: has in mind of where it has been going. Given only the newest looks, some fifteen seconds, each remark was about the
+#: moment and none could be about the argument a film was making or what came before (LIVE 22 October 2026, rehearsal 16).
+SAID_SO_FAR_ROOM = 1500
+#: The characters of what she watched one turn of hers is given as its evidence: the bound her turn evidence keeps
+#: (core/senses/turn_evidence.py), which keeps the first of anything longer.
+OBSERVATION_ROOM = 3200
+#: The characters of what played that what she made of the whole is given, taken across it from start to end, within
+#: what her evidence keeps. At 6,000 the evidence kept its first 3,200, so what she made of a film was given its first
+#: half and not its end.
+WHOLE_ROOM = OBSERVATION_ROOM - 200
 #: How long what she made of it waits for the floor at the end, when somebody has it: the two minutes a turn of theirs
 #: takes, at most, to be answered (the watching waits the same for her answer to the request).
 FLOOR_WAITED_S = 120.0
@@ -208,6 +216,34 @@ def what_she_watched(moments: list[Moment], *, room: int = 3000, across: bool = 
         every += 1
         text = "\n".join(lines[index] for index in range(len(lines)) if index % every == 0 or index == len(lines) - 1)
     return text[-room:]
+
+
+def said_in_it(moments: list[Moment], *, room: int = SAID_SO_FAR_ROOM) -> str:
+    """What was heard of what plays over ``moments``, in order, on one line, its newest ``room`` characters from a
+    word's start: its words, not her looks at it."""
+    heard, last = [], ""
+    for m in moments:
+        read = " ".join((m.read or "").split())
+        if read and read != last:
+            heard.append(read)
+        last = read or last
+    text = " ".join(heard)
+    if len(text) <= room:
+        return text
+    cut = text[-room:]
+    if text[-room - 1] != " " and not cut.startswith(" "):  # it begins inside a word: not that word
+        cut = cut.split(" ", 1)[1] if " " in cut else ""
+    return cut.strip()
+
+
+def playing_now(at: float, duration: float, moments: list[Moment], now: list[Moment]) -> str:
+    """What a remark as it plays is given: how far in, what was said in it before ``now`` (the newest of ``moments``),
+    and the newest looks, which always have their room within ``OBSERVATION_ROOM``."""
+    head, newest = f"playing, at {clock(at)} of {clock(duration)}.", what_she_watched(now)
+    label = "heard in it before now: "
+    left = OBSERVATION_ROOM - len(head) - len(newest) - len(label) - 2
+    so_far = said_in_it(moments[:max(0, len(moments) - len(now))], room=min(SAID_SO_FAR_ROOM, left)) if left > 0 else ""
+    return "\n".join(line for line in (head, f"{label}{so_far}" if so_far else "", newest) if line)
 
 
 def _stems(text: str) -> set[str]:
@@ -379,7 +415,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         said_out = not watching.said or time.monotonic() >= spoke_at_wall + len(watching.said[-1][1].split()) / WORDS_A_SECOND
         if ((speaking is None or speaking.done()) and since and said_out and (worth(moment, time.time()) if worth else new.worth_a_remark())
                 and time.monotonic() - spoke_at_wall >= quiet_at_least_s and (may_speak is None or may_speak(time.time()))):
-            observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(since[-NOW_LOOKS:])}"
+            observation = playing_now(moment.at, float(plays.get("duration") or 0), watching.moments, since[-NOW_LOOKS:])
             speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))
             spoke_after_looks, spoke_at_wall = len(watching.moments), time.monotonic()
             new.remarked()
@@ -452,7 +488,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # began by answering it again ("you re-prompted me", "we're not doing this from the top again", "I'm already *in* it").
     # The request stays where it was said: at the head of the talk since the watching began (the_talk_since).
     evidence = TurnSensoryEvidence(channel="screen", ok=True, request="" if remark else request, observed_at=time.time(),
-                                   observation=observation[:3200], source="watching_along",
+                                   observation=observation[:OBSERVATION_ROOM], source="watching_along",
                                    scope="what plays on her own page", coverage="partial")
     # The turn that asked her to watch is open while she watches; her remarks are work it is waiting on, as the
     # pursuit's own decisions are (LIVE 2026-09-28, refused as background inside an open turn until they said so).
@@ -530,7 +566,7 @@ def first_thought(words: str, about: str = "") -> str:
     # A heading or a line that leads into what follows is not a thought (LIVE 20 October 2026: "**After it ends — my
     # thoughts:**" was said as one).
     said = [part for part in paragraphs if not re.fullmatch(r"#{1,6}\s[^\n]*|\*\*[^*\n]+\*\*\W*|[^\n]*:\W*", part)]
-    shown = _named(about)
+    shown = _stems(" ".join(_named(about)))
 
     def says_something(part: str) -> bool:
         # Quoted whole, it is what was said in the video, not what she thinks of it (LIVE 20 October 2026, rehearsal 9:
@@ -538,7 +574,9 @@ def first_thought(words: str, about: str = "") -> str:
         if re.fullmatch(r"[*_\s]*[\"“].*[\"”][.…]*[*_\s]*", part, re.DOTALL):
             return False
         count = len(re.findall(r"[A-Za-z']+", part))
-        return count >= A_THOUGHT_HAS_WORDS and (not shown or count >= A_THOUGHT_STANDS_ALONE or len(_named(part) & shown) >= 2)
+        # Named by stem: "he reads the manual like a recipe" names the "reading" and the "manual" she was shown. Word for
+        # word it named one, and a short reaction of hers was not said while a long description was.
+        return count >= A_THOUGHT_HAS_WORDS and (not shown or count >= A_THOUGHT_STANDS_ALONE or len(_stems(" ".join(_named(part))) & shown) >= 2)
 
     thought = next((part for part in said if says_something(part)), "")
     if not thought:

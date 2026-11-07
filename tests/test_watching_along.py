@@ -411,7 +411,39 @@ async def test_a_remark_as_it_plays_is_given_what_is_on_now(monkeypatch):
                                      remember=lambda _w: asyncio.sleep(0), look_every_s=0.0, quiet_at_least_s=0.0,
                                      may_speak=may_speak)
     as_it_plays = [o for o in asked if o.startswith("playing")]
-    assert as_it_plays and all(len(o.splitlines()) <= 1 + watching_along.NOW_LOOKS for o in as_it_plays)
+    looks = [[line for line in o.splitlines() if line[:1].isdigit()] for o in as_it_plays]
+    assert as_it_plays and all(len(given) <= watching_along.NOW_LOOKS for given in looks)
+    # And what was said in it before those looks, so a remark can be about where it has been going (LIVE 22 October
+    # 2026, rehearsal 16: fifteen seconds of it was all a remark had).
+    assert "heard in it before now: a new island number 5" in as_it_plays[-1]
+
+
+def test_what_was_said_in_it_is_its_words_in_order_and_the_newest_looks_always_fit():
+    from core.skills.watching_along import OBSERVATION_ROOM, Moment, playing_now, said_in_it
+
+    moments = [Moment(at=5.0 * i, seen=f"a long look number {i} " * 30, read=f"line {i // 2} of the narration")
+               for i in range(400)]
+    heard = said_in_it(moments[:6])
+    assert heard == "line 0 of the narration line 1 of the narration line 2 of the narration"  # each once, in order
+    whole = said_in_it(moments, room=100_000)
+    for room in (40, 41, 45):
+        cut = said_in_it(moments, room=room)
+        # its newest words, from a word's start
+        assert len(cut) <= room and cut.endswith("line 199 of the narration") and f" {cut}" in f" {whole}"
+        assert whole[len(whole) - len(cut) - 1] == " "
+    given = playing_now(1995.0, 2000.0, moments, moments[-3:])
+    assert len(given) <= OBSERVATION_ROOM and given.startswith("playing, at 33:15 of 33:20.")
+    assert moments[-1].seen.strip() in given and "heard in it before now: " in given  # the newest look is whole
+    assert playing_now(5.0, 60.0, moments[:1], moments[:1]).count("\n") == 1  # nothing before it, no line for it
+
+
+def test_what_she_made_of_it_is_given_the_whole_of_it_within_what_her_evidence_keeps():
+    """At 6,000 characters across the film her evidence kept the first 3,200: its first half, not its end."""
+    from core.skills.watching_along import OBSERVATION_ROOM, WHOLE_ROOM, Moment, what_she_watched
+
+    moments = [Moment(at=5.0 * i, seen=f"scene {i}", read=f"said at {i}") for i in range(600)]
+    whole = f"it has ended. What played, in order:\n{what_she_watched(moments, room=WHOLE_ROOM, across=True)}"
+    assert len(whole) <= OBSERVATION_ROOM and "said at 599" in whole and "scene 0" in whole
 
 
 def test_a_remark_that_names_nothing_she_was_shown_is_not_her_thought():
@@ -431,6 +463,9 @@ def test_a_remark_that_names_nothing_she_was_shown_is_not_her_thought():
     glove = "playing, at 3:02 of 11:13.\n3:00 Allen Pan in his garage; heard: I love punching. I love fisting."
     assert first_thought("He calls punching fisting, and that is such a him choice of word that I laughed out loud a "
                          "little.", about=glove).startswith("He calls punching")
+    # Named by stem: a short reaction that names what she was shown in its own words is hers to say.
+    manual = "playing, at 1:53 of 11:13.\n1:50 seen: two men sitting on a garage floor reading a manual"
+    assert first_thought("Ha, he reads the manual like it's a recipe book.", about=manual).startswith("Ha, he reads")
 
 
 def test_a_quotation_of_what_was_said_is_not_her_remark():
