@@ -346,3 +346,21 @@ def test_asked_once_to_think_out_loud_she_is_asked_for_the_next_one_too(monkeypa
     _taking.__dict__["_withs"] = lambda: SimpleNamespace(current=lambda _who: held2, begin=lambda *a, **k: held2)
     asyncio.run(watch("Now Salad Fingers. Same again."))
     assert held2.invited == together.INVITED_REMARKS
+
+
+def test_her_email_and_reddit_wait_while_she_watches_with_someone(monkeypatch):
+    """Nobody types while a video plays, so two minutes in she was idle by the clock and her email and Reddit checks
+    could run mid-video. While something plays with someone they wait, and the blocker says why."""
+    import core.autonomy.autonomous_initiative_loop as loop
+    import core.skills.watching_together as together
+
+    monkeypatch.setattr(loop, "background_activity_allowed", lambda *_a, **_k: True)
+    monkeypatch.setattr(loop, "background_activity_reason", lambda *_a, **_k: "")
+    monkeypatch.setattr(together, "_PLAYING", {})
+    assert together.watching_with() == ""
+    assert loop._passive_social_allowed() and loop._passive_social_blocker() == ""
+
+    monkeypatch.setattr(together, "_PLAYING", {"Bryan": {"title": "One Punch Gauntlet"}})
+    assert together.watching_with() == "Bryan"
+    assert not loop._passive_social_allowed()
+    assert loop._passive_social_blocker() == "watching something with Bryan"

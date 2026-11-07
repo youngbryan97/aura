@@ -33,7 +33,7 @@ from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["her_answer_before_it_plays", "owed_an_answer", "the_talk_since", "watch_in_a_with", "what_we_are_watching"]
+__all__ = ["her_answer_before_it_plays", "owed_an_answer", "the_talk_since", "watch_in_a_with", "watching_with", "what_we_are_watching"]
 
 #: How long the watching waits for the turn that asked for it to settle before it starts anyway.
 ANSWER_WAITED_S = 180.0
@@ -74,6 +74,11 @@ async def her_answer_before_it_plays(request: str, found: str) -> str:
         record_degradation("watching_together", exc, severity="info", action="what was found stands as the reply")
         said = ""
     return said.strip() or found
+
+
+def watching_with() -> str:
+    """Who she is watching something with now, or "" when nothing plays."""
+    return next(iter(_PLAYING), "")
 
 
 def owed_an_answer() -> bool:
