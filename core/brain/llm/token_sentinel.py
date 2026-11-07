@@ -558,6 +558,8 @@ class TokenSentinel:
                 self._reply(),
                 prompt=self._prompt,
                 complete=complete,
+                # Not speech to anyone (a decision about a page she reads): a title she names is not her biography.
+                names_what_she_was_shown=not self._user_surface,
             )
         except (ImportError, RuntimeError, TypeError, ValueError) as exc:
             self._ontology_check_degraded = True

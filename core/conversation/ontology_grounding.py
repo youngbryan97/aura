@@ -268,13 +268,35 @@ def _result(
     )
 
 
+#: How many words of a claim, from where it matched, must stand word for word in what she was shown for it to be read
+#: as words read off it rather than said of herself.
+_SHOWN_WORDS = 4
+
+
+def _read_off_what_she_was_shown(text: str, start: int, end: int, prompt: str) -> bool:
+    """Whether the claim at ``text[start:end]`` repeats words she was shown: a title or a line of the page she is reading,
+    named, not said of herself. LIVE 7 November 2026: choosing among stand-up clips, her decision named the one titled
+    "I Grew Up In ..." and was cut off at that phrase as a claim to a human childhood, three times in one search, so she
+    could not choose it and each cut threw her prompt's cache away."""
+    if not prompt:
+        return False
+    words = re.findall(r"[A-Za-z0-9']+", text[start:])[:_SHOWN_WORDS]
+    if len(words) < 3:
+        return False
+    run = r"\W+".join(re.escape(word) for word in words)
+    return re.search(run, prompt, re.IGNORECASE) is not None
+
+
 def detect_unsupported_embodiment_claim(
     text: object,
     *,
     prompt: object = "",
     complete: bool = True,
+    names_what_she_was_shown: bool = False,
 ) -> OntologyGroundingViolation:
-    """Classify generated text as pass, pending prefix, or literal violation."""
+    """Classify generated text as pass, pending prefix, or literal violation. ``names_what_she_was_shown``: a generation
+    nobody hears (a decision about a page, not speech to a person) may repeat words she was shown, as a title she
+    names, without their being read as a claim of hers."""
 
     body = str(text or "").strip()
     prompt_text = str(prompt or "")
@@ -291,6 +313,8 @@ def detect_unsupported_embodiment_claim(
                 claim_type in {"physical_body_state", "physical_sensory_claim"}
                 and _claim_is_explicitly_digital(scope, match.group(0))
             ):
+                continue
+            if names_what_she_was_shown and _read_off_what_she_was_shown(screened, match.start(), match.end(), prompt_text):
                 continue
             return _result(
                 OntologyGroundingStatus.VIOLATION,

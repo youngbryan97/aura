@@ -29,3 +29,14 @@ def test_a_place_remembered_by_another_errands_search_is_left_out():
 
 def test_it_is_kept_when_this_errand_names_it():
     assert "Allen Pan" in _what_the_place_is(RESULTS, "Now let's do Allen Pan. Go to his channel and pick one.")
+
+
+def test_a_title_she_names_in_a_decision_is_not_her_biography_and_speech_is_still_checked():
+    # LIVE 7 November 2026: her decision naming the clip "I Grew Up In ..." was cut off as a claim to a human childhood.
+    from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim as claim
+
+    page = "results: I Grew Up In | Jeff Allen, 5:12; Menopause Is Worse Than PMS"
+    decision = "I Grew Up In is 5 minutes and the funniest title here"
+    assert claim(decision, prompt=page, names_what_she_was_shown=True).ok
+    assert not claim(decision, prompt=page).ok  # said to a person, it is checked as before
+    assert not claim("I grew up in a small town by a lake.", prompt="", names_what_she_was_shown=True).ok

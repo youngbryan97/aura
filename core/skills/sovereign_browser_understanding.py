@@ -793,6 +793,10 @@ class _UnderstandsThePage(_PlacesHerself):
                     # The typed lane for "say what was settled": the worker and the
                     # gate's clock both read it, and neither opens the channel.
                     **({} if worked_out_here else {"cognitive_mode": "fast"}),
+                    # How long she reasons before choosing, bounded: a choice on a page is a step, and its thinking
+                    # at 15 tokens a second was the most of each round's time (LIVE 7 November 2026, 450 tokens of
+                    # thinking, 61 seconds, for one click).
+                    **({"private_channel_budget": self.DECISION_THINKS_AT_MOST} if worked_out_here else {}),
                     **(
                         {"schema": self._DECISION_SCHEMA, "output_shape": "json_object"}
                         if shaped
@@ -1110,6 +1114,8 @@ class _UnderstandsThePage(_PlacesHerself):
 
     #: The most one decision about a page may write.
     DECISION_MAX_TOKENS = 900
+    #: The most she reasons privately before a choice on a page, in tokens.
+    DECISION_THINKS_AT_MOST = 192
 
     #: The smallest budget that counts as a declared answer, rather than a closed
     #: question answered once. Below `A_CLOSED_QUESTIONS_FLOOR` the runtime reads
