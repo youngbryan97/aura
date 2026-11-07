@@ -68,6 +68,10 @@ FEWEST_WORDS = 6
 MOST_WORDS = 60
 #: The characters of what she heard before a stretch that it is read against.
 BEFORE_CHARS = 700
+#: The least time between two readings of what she heard, in seconds of the video: what is heard in between waits and
+#: is read with the next, so her model's passes leave her voice and her eyes their share of the GPU. Each reading's
+#: time is kept, to set this from.
+READ_AT_MOST_EVERY_S = 6.0
 #: The fewest readings on a channel before where one stands among them can be told: of words, of looks, of seconds.
 FEWEST_READINGS, FEWEST_LOOKS, FEWEST_SECONDS = 6, 6, 10
 #: How far she must have been moved, all channels together, for a remark to be worth it: one channel's reading half
@@ -301,7 +305,8 @@ class WhatMovesHer:
 
     def __init__(self, title: str = "", *, ask: Callable[..., Awaitable[dict[str, float]]] | None = None,
                  keep: Callable[[dict[str, Any]], None] | None = None, self_text: str = "",
-                 remembered: list[dict[str, Any]] | None = None, feelings: dict[str, Any] | None = None) -> None:
+                 remembered: list[dict[str, Any]] | None = None, feelings: dict[str, Any] | None = None,
+                 read_every_s: float = READ_AT_MOST_EVERY_S) -> None:
         self.title = " ".join(str(title or "").split())
         self.ask, self.keep = ask, keep or (lambda _row: None)
         #: Who she is, read before what she hears in a second pass, so how far it is about her world can be read.
@@ -320,6 +325,8 @@ class WhatMovesHer:
         self.since: list[Felt] = []
         self._raw: dict[str, list[float]] = {"sight": [], "sound": []}
         self._reading: asyncio.Task | None = None
+        self._last_read_at = -1e9
+        self.read_every_s = float(read_every_s)
         self.now = 0.0
         self.last_stirred = 0.0
         self.events: list[_Event] = [_Event(began=0.0)]
@@ -340,6 +347,9 @@ class WhatMovesHer:
             self.waiting = [" ".join(stretch[-MOST_WORDS:])]
         if self.ask is None or len(stretch) < FEWEST_WORDS or (self._reading is not None and not self._reading.done()):
             return
+        if self.readings and float(at or 0.0) - self._last_read_at < self.read_every_s:
+            return
+        self._last_read_at = float(at or 0.0)
         then = " ".join(self.waiting)
         before = "\n".join(part for part in (self.title, self.remembered_near(at), self.heard_before[-BEFORE_CHARS:])
                            if part)
@@ -348,6 +358,9 @@ class WhatMovesHer:
         self._reading = asyncio.get_running_loop().create_task(self._read(at, before, then), name="what_moves_her")
 
     async def _read(self, at: float, before: str, then: str) -> None:
+        import time
+
+        began = time.monotonic()
         try:
             if self.ask is None:
                 read = {}
@@ -358,6 +371,7 @@ class WhatMovesHer:
         except (RuntimeError, OSError, TimeoutError, TypeError, ValueError) as exc:
             record_degradation("what_moves_her", exc, severity="info", action="a stretch she heard was not read")
             return
+        took = time.monotonic() - began
         if not read or not all(isinstance(read.get(key), (int, float)) for key in ("surprisal", "shift", "open")):
             return
         knowing = read.get("surprisal_knowing_her")
@@ -392,7 +406,7 @@ class WhatMovesHer:
                     "-" if standing is None else f"{standing:.2f}", felt.evidence, then[:120])
         self.keep({"kind": "moved", "channel": "words", "at": at, "words": then[:400],
                    "surprisal": round(reading.surprisal, 4), "shift": round(reading.shift, 4),
-                   "open": round(reading.open, 4), "made_out": reading.made_out,
+                   "open": round(reading.open, 4), "made_out": reading.made_out, "took s": round(took, 3),
                    "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4),
                    **({"about her": round(reading.about_her, 4)} if reading.about_her is not None else {}),
                    **({"along": {k: round(v, 5) for k, v in reading.along.items()}} if reading.along else {}),

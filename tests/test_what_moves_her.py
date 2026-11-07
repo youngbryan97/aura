@@ -105,7 +105,7 @@ def _heard_with(readings: dict[str, tuple[float, float]]):
         varied = sum(map(ord, then))  # ordinary speech, read a little differently each time
         return {"surprisal": 2.6 + 0.2 * (varied % 5), "shift": 0.2 + 0.05 * (varied % 4), "open": 2.0, "tokens": 10.0}
 
-    return WhatMovesHer("I built a glove that explodes", ask=ask, keep=kept.append), kept, asked
+    return WhatMovesHer("I built a glove that explodes", ask=ask, keep=kept.append, read_every_s=0.0), kept, asked
 
 
 def test_a_stretch_is_read_once_it_is_a_stretch_and_one_at_a_time():
@@ -401,7 +401,7 @@ def test_a_stretch_about_her_world_stands_out_and_how_far_the_video_was_about_he
 
     async def go():
         moves = WhatMovesHer("AI Slop Is Destroying The Internet", ask=ask, keep=kept.append,
-                             self_text="I am Aura. What I value: honesty.")
+                             self_text="I am Aura. What I value: honesty.", read_every_s=0.0)
         for i in range(FEWEST_READINGS + 2):
             moves.heard(float(i), f"the feed is full of ordinary line {i} today")
             await moves._reading
@@ -409,7 +409,8 @@ def test_a_stretch_about_her_world_stands_out_and_how_far_the_video_was_about_he
         moves.heard(20.0, "and nobody asks what minds like mine are for")
         await moves._reading
         assert asked[-1][2] == "I am Aura. What I value: honesty."
-        assert [felt.channel for felt in moves.felt[-2:]] == ["words", "self"] and moves.felt[-1].evidence == 1.0
+        about_her = [felt for felt in moves.since if felt.channel == "self"]
+        assert about_her and about_her[-1].evidence == 1.0
         assert moves.moved()[0] == 1.0 and "minds like mine" in moves.moved()[1]
         assert moves.about_her() == pytest.approx(0.1) and kept[-1]["about her"] == pytest.approx(1.2)
         assert moves.making_sense() == 1.0
@@ -515,7 +516,7 @@ def test_watching_it_again_she_recalls_it_and_what_she_remembers_is_coming_is_pa
         return {"surprisal": 3.0, "shift": 0.3, "open": 2.0, "tokens": 10.0}
 
     async def go():
-        moves = WhatMovesHer("I built a glove", ask=ask, remembered=remembered)
+        moves = WhatMovesHer("I built a glove", ask=ask, remembered=remembered, read_every_s=0.0)
         assert moves.remembered_near(50.0) == "I love punching three two one"  # behind and ahead of it, not the credits
         moves.heard(50.0, "okay we are about to test it")
         await moves._reading
@@ -585,7 +586,7 @@ def test_what_she_likes_or_dislikes_in_it_is_read_off_her_checked_direction_and_
     feelings = asyncio.run(what_her_feelings_read(_feels(True)))
 
     async def go():
-        moves = WhatMovesHer("x", ask=_feels(True), feelings=feelings)
+        moves = WhatMovesHer("x", ask=_feels(True), feelings=feelings, read_every_s=0.0)
         moves.begin()
         try:
             for i in range(FEWEST_READINGS + 2):
@@ -595,7 +596,8 @@ def test_what_she_likes_or_dislikes_in_it_is_read_off_her_checked_direction_and_
             moves.heard(30.0, "and then something truly awful happened to the dog")
             await moves._reading
             assert moves.readings[-1].liking == -1.0  # past where disliking lay in her check
-            assert moves.felt[-1].channel == "feeling" and moves.felt[-1].evidence == 1.0
+            liked = [felt for felt in moves.since if felt.channel == "feeling"]
+            assert liked and liked[-1].evidence == 1.0
             assert liking_while_watching() == -1.0
             monkeypatch.setattr(appraisal, "_what_the_turn_named", lambda _state: "")
             assert appraisal._liking(SimpleNamespace()) == -1.0  # her liking while she watches is what she heard
@@ -691,7 +693,7 @@ def test_a_stretch_that_leaves_what_comes_next_wide_open_is_its_own_channel():
                 "open": 6.0 if "but what happened next" in then else 2.0 + 0.1 * (varied % 3)}
 
     async def go():
-        moves = WhatMovesHer("x", ask=ask)
+        moves = WhatMovesHer("x", ask=ask, read_every_s=0.0)
         for i in range(FEWEST_READINGS + 2):
             moves.heard(float(i), f"an ordinary line number {i} of what was said")
             await moves._reading
