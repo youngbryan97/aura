@@ -559,7 +559,11 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
                "allow_tools": False, "her_own_turn": True,
                "recent_completed_exchanges": exchanges if exchanges is not None else
                [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
-    thought = await engine.think(request, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
+    # A remark's objective is what plays, not the request: the objective cues what she recalls and which kept answer is
+    # brought to the turn. LIVE 7 November 2026, rehearsal 4: with her answer in the talk and the request off the
+    # evidence, a remark at 1:22 still began "My gut before we press play", cued by the request it was handed.
+    objective = observation if remark else request
+    thought = await engine.think(objective, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     words = str(getattr(thought, "content", "") or "").strip()
     return first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words)
 

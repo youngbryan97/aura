@@ -518,15 +518,39 @@ class OnTheirScreen:
             await self.ear.stop()
         # What plays next in their player is not watched together: paused as a person pauses it, where it plays on
         # (LIVE 20 October 2026, rehearsal 7: the site played its next video, and her ear went on hearing it).
+        if not await self._pause_what_plays_on():
+            # Not playing yet: a site counts down before it plays the next video. LIVE 7 November 2026, after four
+            # watchings four tabs of Safari played what each site chose next (lofi, a prayer, BBC clips), and her ear,
+            # which hears all of the browser, heard them under the next film. Looked at for a while longer, beside.
+            task = asyncio.ensure_future(self._pause_what_plays_on_within(PLAYS_ON_WITHIN_S))
+            _PAUSING.add(task)
+            task.add_done_callback(_PAUSING.discard)
+
+    async def _pause_what_plays_on(self) -> bool:
+        """Pause what plays in their player now, if anything does; whether something was paused."""
         try:
             # Its window by where it is: its title is the next video's now (core/skills/their_player.py ax_window_for).
             window = dict(self.window or {}, kCGWindowName="")
             reading = await asyncio.to_thread(read_their_player, window) if self.window else None
             if reading is not None and reading.pause is not None:
                 with on_their_desktop("what played on after the video, paused in their browser"):
-                    await asyncio.to_thread(press, reading.pause)
+                    return bool(await asyncio.to_thread(press, reading.pause))
         except (ImportError, RuntimeError, OSError, ValueError, TypeError, KeyError, AttributeError) as why:
             logger.info("what played on was not paused: %s", why)
+        return False
+
+    async def _pause_what_plays_on_within(self, within_s: float) -> None:
+        deadline = _now() + within_s
+        while _now() < deadline:
+            await asyncio.sleep(PLAYS_ON_LOOKED_AT_EVERY_S)
+            if await self._pause_what_plays_on():
+                logger.info("what their browser played on after the video was paused")
+                return
+
+
+#: How long after a video ends what their browser plays next is looked for, and how often, in seconds.
+PLAYS_ON_WITHIN_S, PLAYS_ON_LOOKED_AT_EVERY_S = 20.0, 2.0
+_PAUSING: set[Any] = set()
 
 
 async def on_their_screen(url: str, title: str, duration_s: float, words: str = "") -> OnTheirScreen | None:
