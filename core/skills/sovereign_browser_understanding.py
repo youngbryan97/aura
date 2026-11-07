@@ -97,6 +97,25 @@ async def _her_mind_built_now() -> str:
         return ""
 
 
+
+def _what_the_place_is(claim: str, goal: str = "") -> str:
+    """What a remembered place is, without what to do there, which was worked out for another goal: what a page is
+    carries to the next visit, and how to get on there was the advice of one errand. A place remembered by what one
+    errand looked for there (a search for 'X') is left out when this goal does not name it.
+
+    LIVE 7 November 2026: her notes on YouTube read "to make progress there you Search for 'Allen Pan' to find his
+    channel", from an errand of October; asked to find a cooking video and then a stand-up clip, she searched "Allen
+    Pan's cooking videos" and "Allen Pan stand up comedy"."""
+    import re
+
+    here = re.split(r";\s*(?:to make progress )?there you\b", claim, maxsplit=1)[0].strip()
+    asked = {word.lower() for word in re.findall(r"[A-Za-z]{3,}", goal or "")}
+    for quoted in re.findall(r"['\u2018\u201c\"]([^'\u2019\u201d\"]{2,60})['\u2019\u201d\"]", here):
+        words = {word.lower() for word in re.findall(r"[A-Za-z]{3,}", quoted)}
+        if goal and words and not words & asked:
+            return ""
+    return here
+
 class _UnderstandsThePage(_PlacesHerself):
     """Lifted whole from SovereignBrowserSkill; see sovereign_browser.py."""
 
@@ -413,7 +432,7 @@ class _UnderstandsThePage(_PlacesHerself):
         return "|".join(parts) or "plain"
 
     @staticmethod
-    def _recall_about(url: str, shape: str) -> str:
+    def _recall_about(url: str, shape: str, goal: str = "") -> str:
         """What she already knows about this place, and about places like it.
 
         Written knowledge that is never read back is a diary, not learning. The
@@ -440,7 +459,9 @@ class _UnderstandsThePage(_PlacesHerself):
                 if not claim:
                     continue
                 if (host and host in claim) or (shape and shape in tags):
-                    remembered.append(f"- {claim}")
+                    claim = _what_the_place_is(claim, goal)
+                    if claim and f"- {claim}" not in remembered:
+                        remembered.append(f"- {claim}")
             if not remembered:
                 return ""
             return "WHAT I ALREADY KNOW ABOUT PAGES LIKE THIS:\n" + "\n".join(remembered[:6])

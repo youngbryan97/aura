@@ -389,7 +389,7 @@ async def _understand_the_page_again(
     if (understanding is None or surprised) and (on_the_page.watched_first(observation, str(goal), take=False) or played_first(observation, str(goal), take=False)) is None:
         prior, url = understanding, str(observation.get("url") or "")
         understanding = await self._understand_page(
-            goal, observation, prior, mind, self._recall_about(url, shape)
+            goal, observation, prior, mind, self._recall_about(url, shape, str(goal))
         )
         surprised = False
         self._remember_the_place(url, understanding, shape)
