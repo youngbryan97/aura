@@ -121,7 +121,7 @@ WHAT_PLAYS = r"""() => {
     if (b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top) words.push(t);
   }
   return {x: r.left, y: r.top, w: r.width, h: r.height, vw: innerWidth, vh: innerHeight, at: best.currentTime || 0,
-          duration: isFinite(best.duration) ? best.duration : 0, paused: best.paused, ended: best.ended,
+          duration: isFinite(best.duration) ? best.duration : 0, paused: best.paused, ended: best.ended, muted: best.muted,
           words: words.join(' ').slice(0, 600)};
 }"""
 

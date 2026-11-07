@@ -67,9 +67,14 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
         its_own = bool((await page.evaluate(WHAT_THE_PAGE_SAYS) or {}).get("length"))
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         its_own = False
+    # A video playing with its sound on is one somebody chose: pages play their previews and trailers muted, and a
+    # browser lets a page play sound only after a person has acted on it. LIVE 7 November 2026, asked to find a cooking
+    # video and watch it, she chose a short one; its page stated no length and its video took 0.269 of the view, so it
+    # was not taken as what the page is for, and she paused and played it on her own page while no watching began.
+    chosen = plays.get("paused") is False and plays.get("muted") is False
     return {**observation, "elements": [*(observation.get("elements") or []),
                                         {"role": "watching", "name": name, "selector": WATCHING, "share_of_view": round(share, 3),
-                                         "its_own": its_own}]}
+                                         "its_own": its_own or chosen, "chosen": chosen}]}
 
 
 def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) -> dict[str, Any] | None:
@@ -93,7 +98,8 @@ def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) 
     # And a page that says the video is its own: LIVE 22 October 2026, asked to look through Allen Pan's videos and
     # pick one, she searched his name, and the results page's preview of its first video, a third of the view, was
     # watched before she had looked at any of the others.
-    if not any(handed or (float(e.get("share_of_view") or 0) >= THE_PAGE_IS_ITS_VIDEO and e.get("its_own", True))
+    # And one playing with its sound on, however little of the view it takes: a vertical video in a wide window.
+    if not any(handed or e.get("chosen") or (float(e.get("share_of_view") or 0) >= THE_PAGE_IS_ITS_VIDEO and e.get("its_own", True))
                for e in plays):
         if plays and take:
             logger.info("a video at %.3f of the view, not taken as what the page is for", float(plays[0].get("share_of_view") or 0))
