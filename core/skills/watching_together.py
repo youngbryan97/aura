@@ -115,12 +115,30 @@ async def her_answer_before_it_plays(request: str, found: str, *, opened: str = 
         # only the rounds, with the results page's list in them, her answer chose again from the list ("I bought an
         # Exoskeleton to wield Giant Anime Swords. 34:58.") while another of his videos was opening, and her first
         # three remarks were about the mix-up.
-        head = f"What she opened, and is about to play: {opened} How her browsing came to it: " if opened else "What was found of it: "
-        said = await her_turn(request, f"before it plays. {head}{found}. {AS_IT_PLAYS}", [])
+        named = _what_she_opened_plainly(opened) or opened
+        head = f"What she opened, and is about to play: {named} How her browsing came to it: " if named else "What was found of it: "
+        said = ""
+        # Twice, where the first comes back with nothing: the person is waiting on it, and the video waits for it.
+        # LIVE 7 November 2026, dress rehearsal: her draft was refused and nothing was tried again, and the results
+        # page's text went out as her answer ("Allen Pan 1.4M 2y ago 14:44 Medieval Armor makes you Invincible?!").
+        for _attempt in range(2):
+            said = (await her_turn(request, f"before it plays. {head}{found}. {AS_IT_PLAYS}", [])).strip()
+            if said:
+                break
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
         record_degradation("watching_together", exc, severity="info", action="what was found stands as the reply")
         said = ""
-    return said.strip() or found
+    # Failing her own words, what she opened, said plainly; the page's own text only where nothing names it.
+    return said or _what_she_opened_plainly(opened) or found
+
+
+def _what_she_opened_plainly(opened: str) -> str:
+    """The step's account of what it opened ('Found "X" by Y (10:30). It opens on their screen once ...'), as a line
+    that names it: 'Found "X" by Y (10:30).'"""
+    import re
+
+    first = re.match(r'\s*(Found ".*?"[^.]*?(?:\([^)]*\))?\.)', str(opened or ""))
+    return first.group(1).strip() if first else ""
 
 
 async def her_answer_when_nothing_plays(request: str, found: str) -> str:

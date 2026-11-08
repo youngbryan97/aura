@@ -7853,6 +7853,18 @@ def _assess_user_facing_reply(
         raw, user_message, recent_messages, grounding=grounding
     ):
         reasons.append("fabricated_shared_history")
+        # What was refused, and against how much, so a refusal can be checked: LIVE 7 November 2026 her answer to
+        # "So what did you think of all three?" was refused twice and neither the sentence nor its grounding was kept.
+        try:
+            from core.dialogue.shared_history import fabricated_shared_history
+
+            logger.warning(
+                "fabricated_shared_history: %r (grounding: %d items, %d chars)",
+                [one[:200] for one in fabricated_shared_history(raw, user_message, recent_messages, grounding=grounding)][:3],
+                len(list(grounding or ())), sum(len(str(g)) for g in (grounding or ())),
+            )
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            pass
     if recent_messages and borrowed_first_person_spans(
         raw, [*recent_messages, user_message]
     ):

@@ -8009,11 +8009,22 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                         failure_reasons=[str(r)[:120] for r in (integrity.reasons or ())][:8],
                     )
                     return self._strip_silence(cleaned)
+                # The sentence behind a leak refusal, so the refusal can be checked: LIVE 7 November 2026 her
+                # answer before a video was refused as internal_task_prompt_leak and nothing showed what tripped it.
+                _leak_sentence = ""
+                if "internal_task_prompt_leak" in (integrity.reasons or ()):
+                    try:
+                        from core.conversation.response_reliability import internal_task_prompt_leak_evidence
+
+                        _leak_sentence = internal_task_prompt_leak_evidence(cleaned, user_input_for_eval)
+                    except (ImportError, RuntimeError, TypeError, ValueError):
+                        _leak_sentence = ""
                 logger.warning(
-                    "🛡️ %s produced malformed model text (%s, len=%d). Treating it as failed generation.",
+                    "🛡️ %s produced malformed model text (%s, len=%d). Treating it as failed generation.%s",
                     label,
                     ",".join(integrity.reasons) or "unknown",
                     len(cleaned),
+                    f" The leak: {_leak_sentence!r}" if _leak_sentence else "",
                 )
                 self._annotate_last_generation_metadata(
                     ok=False,
