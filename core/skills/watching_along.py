@@ -23,6 +23,7 @@ import asyncio
 import base64
 import json
 import logging
+import math
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -216,6 +217,34 @@ class Watching:
     def since(self, looks: int) -> list[Moment]:
         """The moments after the first ``looks``: counted by look, since a video's clock starts again after an advert."""
         return self.moments[looks:]
+
+
+#: How sure her ear has to have been of a look's words for them to be given to her as heard: the most it was of any
+#: five seconds of babble. Measured 8 November 2026 through her ear's own streaming recognizer, in one-second steps:
+#: of 72 five-second windows of a narration played backwards that it wrote three words or more for ("her in a sense
+#: value of it, sure is perish and vow it"), the surest was 0.871; of 84 of a Kurzgesagt narration and of Salad
+#: Fingers, 81 were surer than that. A cartoon's invented language, the same night, came out as slurs she said back.
+HER_EAR_SURE_ABOVE = 0.871
+
+
+def how_sure(heard: list[dict[str, Any]]) -> float:
+    """How sure her ear was of what it wrote down over ``heard``: the geometric mean of its tokens' confidences, each
+    phrase weighted by its tokens; 1.0 where it did not say (an ear from before it kept its certainty)."""
+    weighted = [(float(h["confidence"]), max(1, int(h.get("tokens") or 1))) for h in heard
+                if isinstance(h, dict) and str(h.get("words") or "").strip() and isinstance(h.get("confidence"), (int, float))]
+    if not weighted:
+        return 1.0
+    total = sum(n for _c, n in weighted)
+    return math.exp(sum(n * math.log(max(1e-6, c)) for c, n in weighted) / total)
+
+
+def her_ear_was_sure(heard: list[dict[str, Any]]) -> bool:
+    """Whether what her ear wrote down over ``heard`` is to be taken as heard: fewer than three words to go on, or
+    surer than she ever was of babble."""
+    import re
+
+    words = " ".join(str(h.get("words") or "") for h in heard if isinstance(h, dict))
+    return len(re.findall(r"[A-Za-z]{2,}", words)) < 3 or how_sure(heard) > HER_EAR_SURE_ABOVE
 
 
 def what_she_watched(moments: list[Moment], *, room: int = 3000, across: bool = False) -> str:
@@ -448,6 +477,10 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
             keep({"kind": "skipped", "control": skipped, "wall": time.time()})
         heard = await player.heard()
         read = " ".join(str(h.get("words") or "") for h in heard or []) if heard is not None else str(plays.get("words") or "")
+        if heard and not her_ear_was_sure(heard):
+            # What her ear wrote down with no more certainty than babble is not given to her as heard.
+            keep({"kind": "not made out", "words": read, "sure": round(how_sure(heard), 3), "wall": time.time()})
+            read = ""
         # Her eyes are told when her voice is using the GPU they share, so the part of a look that needs it can wait
         # (core/skills/watching_the_screen.py); what is said and the words on what plays go on being taken in.
         composing = speaking is not None and not speaking.done()

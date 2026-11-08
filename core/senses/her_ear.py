@@ -218,8 +218,8 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
                     # down is to be read off what it has written, not chosen.
                     sure = math.exp(sum(math.log(max(1e-6, float(getattr(t, "confidence", 1.0) or 1e-6))) for t in settled)
                                     / len(settled))
-                    print(json.dumps({"at": round(settled[0].start, 2), "words": words, "confidence": round(sure, 3)}),
-                          file=out, flush=True)
+                    print(json.dumps({"at": round(settled[0].start, 2), "words": words, "confidence": round(sure, 3),
+                                      "tokens": len(settled)}), file=out, flush=True)
                     print(f"her ear wrote, {sure:.3f} sure: {words[:160]}", file=sys.stderr, flush=True)
     del held
 
