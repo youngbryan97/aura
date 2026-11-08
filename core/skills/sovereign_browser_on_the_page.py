@@ -77,6 +77,13 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
     # And at more than a thumbnail's share of the view: a results page plays its first result's preview with sound
     # (LIVE 7 November 2026, a search for steak techniques was handed over and watched as if it were the video).
     chosen = plays.get("paused") is False and plays.get("muted") is False and share >= CHOSEN_TAKES_AT_LEAST
+    # And a page she opened by a link she chose plays what she chose, playing yet or not: LIVE 8 November 2026,
+    # rehearsal 11, the video she clicked opened paused at 0.429 of the view, was not taken as hers, and its page was
+    # read for a minute before she pressed its Play.
+    from core.conversation.our_shared_past import the_same_thing
+
+    here = str(observation.get("url") or "")
+    chosen = chosen or any(the_same_thing(here, there) for there in getattr(browser, "_chose_to_open", None) or ())
     return {**observation, "elements": [*(observation.get("elements") or []),
                                         {"role": "watching", "name": name, "selector": WATCHING, "share_of_view": round(share, 3),
                                          "its_own": its_own or chosen, "chosen": chosen}]}

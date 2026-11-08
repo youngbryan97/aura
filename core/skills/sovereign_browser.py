@@ -1849,6 +1849,11 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # reason for (``_the_one_she_means``).
                 decision = self._the_one_she_means(decision, elements)
                 moves = _moves_from_the_decision(decision, elements)
+                # Where the links she clicks lead: a page she chose to open plays what she chose (with_what_plays).
+                leads = {str(el.get("selector")): str(el.get("href")) for el in elements
+                         if isinstance(el, Mapping) and el.get("href") and el.get("selector")}
+                browser._chose_to_open = [leads[action.selector] for action, _said in moves
+                                          if action.type == "click" and action.selector in leads]
 
                 if not moves:
                     # A decision with nothing in it that can be done is a bad round, as an unreadable one is: she looks
