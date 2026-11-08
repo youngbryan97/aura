@@ -27,10 +27,20 @@ class TimeWeightedRetriever:
         return min(1.0, (base_sim * time_penalty) + reinforcement_bonus)
 
     def _apply_seasonal_context(self, text: str, timestamp: float) -> str:
-        """Translates bare timestamps into relative human intuition."""
-        days_old = int((time.time() - timestamp) / 86400)
+        """Translates bare timestamps into relative human intuition.
+
+        Within a day, in minutes or hours: "Today" put a sitting three hours gone beside the one going on. LIVE 8
+        November 2026, dress rehearsal: asked "So what did you think of all three?", she gave word for word her answer
+        to the same question three hours before, of three other videos.
+        """
+        seconds_old = max(0.0, time.time() - timestamp)
+        days_old = int(seconds_old / 86400)
+        if seconds_old < 3600:
+            minutes = max(1, int(seconds_old / 60))
+            return f"[{minutes} minute{'s' if minutes != 1 else ''} ago] {text}"
         if days_old == 0:
-            return f"[Today] {text}"
+            hours = int(seconds_old / 3600)
+            return f"[{hours} hour{'s' if hours != 1 else ''} ago] {text}"
         elif days_old < 30:
             return f"[{days_old} days ago] {text}"
         elif days_old < 365:

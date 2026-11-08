@@ -28,3 +28,17 @@ async def test_unknown_time_is_not_today(timestamp):
     ])
     assert "[Time unknown] remembered" in result
     assert "[Today]" not in result
+
+
+def test_within_a_day_a_memory_says_how_many_minutes_or_hours_ago():
+    """LIVE 8 November 2026: "[Today]" put a sitting three hours gone beside the one going on."""
+    import time
+
+    from core.memory.temporal_rag import TimeWeightedRetriever
+
+    retriever = TimeWeightedRetriever()
+    now = time.time()
+    assert retriever._apply_seasonal_context("x", now - 30) == "[1 minute ago] x"
+    assert retriever._apply_seasonal_context("x", now - 12 * 60) == "[12 minutes ago] x"
+    assert retriever._apply_seasonal_context("x", now - 3 * 3600 - 60) == "[3 hours ago] x"
+    assert retriever._apply_seasonal_context("x", now - 3600 - 60) == "[1 hour ago] x"
