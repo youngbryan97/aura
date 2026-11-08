@@ -264,6 +264,14 @@ class PromptCacheLRU:
         self._resume_bindings: dict[str, PromptCacheResumeBinding] = {}
         self._resume_ttl_s = 300.0
         self._resume_binding_limit = max(2, min(8, max_size))
+        # Entries that have served a hit: the protected segment of a segmented LRU, evicted only once every entry
+        # that has never been reused is gone. LIVE 7 November 2026, picking a video from a results page: four browser
+        # calls shared a 3968-token prefix of her system prompt. The third reused it, and its own 8218-token prompt
+        # and reply went in after it; the byte budget then evicted by age alone, the snapshot with the entry before
+        # it ("budget drained 9357 tokens"), and the fourth call read all 7826 tokens again, 26.8s. On a model whose
+        # cache cannot be trimmed, a finished prompt is reusable only by a prompt that extends it exactly, and a
+        # prefix that has served a hit is the one later prompts are known to share.
+        self._reused: set[tuple] = set()
 
     # ── introspection: what is actually retained right now ───────────────
     def retained_tokens(self) -> int:
@@ -325,8 +333,7 @@ class PromptCacheLRU:
             for lane in lanes_by_drain_order:
                 queue = self._lru.get(lane)
                 if queue:
-                    evict_model_key, evict_tokens = queue.popleft()
-                    self._delete(evict_model_key, list(evict_tokens))
+                    self._evict_from(queue)
                     evicted = True
                     break
             if evicted:
@@ -381,6 +388,18 @@ class PromptCacheLRU:
         self._cache.clear()
         self._lru.clear()
         self._resume_bindings.clear()
+        self._reused.clear()
+
+    def _victim(self, queue_for_lane: deque) -> tuple:
+        """The entry to evict from a lane: its oldest that has never served a hit, else its oldest."""
+        return next((cache_key for cache_key in queue_for_lane if cache_key not in self._reused), queue_for_lane[0])
+
+    def _evict_from(self, queue_for_lane: deque) -> tuple:
+        cache_key = self._victim(queue_for_lane)
+        queue_for_lane.remove(cache_key)
+        evict_model_key, evict_tokens = cache_key
+        self._delete(evict_model_key, list(evict_tokens))
+        return cache_key
 
     def clear_model_key(self, model_key: Any) -> None:  # noqa: D401 - see log
         logger.info("🧊 [PROMPT CACHE] cleared everything under key=%s", model_key)
@@ -610,6 +629,7 @@ class PromptCacheLRU:
         return True
 
     def _delete(self, model_key: int, tokens: list[int]) -> None:
+        self._reused.discard((model_key, tuple(tokens)))
         path = [self._cache[model_key]]
         for tok in tokens:
             path.append(path[-1][tok])
@@ -663,6 +683,7 @@ class PromptCacheLRU:
             # Untrimmable cache: putting it back keeps it available for the
             # prefix path instead of silently dropping a live entry.
             self.insert_cache(model_key, list(result.exact), cache_entry.prompt_cache)
+            self._reused.add((model_key, tuple(result.exact)))
 
         if result.shorter is not None:
             cache_entry = self._extract(model_key, result.shorter)
@@ -687,6 +708,8 @@ class PromptCacheLRU:
                 # LIVE 2026-10-02, every item a hit that reused 1472 of ~5300
                 # tokens, with 4189 shared from one item to the next.
                 self._diverged_at[model_key] = result.common_prefix
+            if self._holds(model_key, result.shorter):
+                self._reused.add((model_key, tuple(result.shorter)))
             prefix_len = len(result.shorter)
             logger.info(
                 "🎯 [PROMPT CACHE] prefix hit — reused %d/%d tokens, %d to prefill.",
@@ -867,13 +890,12 @@ class PromptCacheLRU:
         queue_for_lane = self._queue_for(lane)
         queue_for_lane.append(cache_key)
         while len(queue_for_lane) > self._lane_budget(lane):
-            evict_model_key, evict_tokens = queue_for_lane.popleft()
+            _evict_model_key, evict_tokens = self._evict_from(queue_for_lane)
             # An eviction nobody can see is a cache that looks like it works.
             logger.info(
                 "🧊 [PROMPT CACHE] evicted %d tokens from lane %s (budget %d)",
                 len(evict_tokens), lane, self._lane_budget(lane),
             )
-            self._delete(evict_model_key, list(evict_tokens))
         before = self.retained_tokens()
         self._enforce_total_token_budget()
         after = self.retained_tokens()
