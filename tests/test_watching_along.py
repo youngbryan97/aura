@@ -415,7 +415,7 @@ async def test_a_remark_as_it_plays_is_given_what_is_on_now(monkeypatch):
     assert as_it_plays and all(len(given) <= watching_along.NOW_LOOKS for given in looks)
     # And what was said in it before those looks, so a remark can be about where it has been going (LIVE 22 October
     # 2026, rehearsal 16: fifteen seconds of it was all a remark had).
-    assert "heard in it before now: a new island number 5" in as_it_plays[-1]
+    assert "heard in it before now: \"a new island number 5" in as_it_plays[-1]
 
 
 def test_what_was_said_in_it_is_its_words_in_order_and_the_newest_looks_always_fit():
@@ -501,7 +501,7 @@ def test_what_she_made_of_the_whole_is_given_the_whole_from_start_to_end():
     assert len(whole) <= 6000
     assert whole.startswith("0:00 seen: scene 0 ")
     assert any(f"scene {n} " in whole for n in range(120, 141))
-    assert whole.rstrip().endswith("narration line 259")
+    assert whole.rstrip().endswith("narration line 259\"")
     # A remark as it plays still has the newest looks.
     assert "scene 0 " not in what_she_watched(looks)
 

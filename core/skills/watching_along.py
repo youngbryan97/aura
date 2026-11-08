@@ -238,7 +238,10 @@ def what_she_watched(moments: list[Moment], *, room: int = 3000, across: bool = 
         # was given "heard: . . ." and remarked on "all those dots where a voice should be".
         if len(re.findall(r"[A-Za-z]{2,}", read)) < 2:
             read = ""
-        parts = [f"seen: {m.seen}" if m.seen else "", f"heard: {read}" if read else ""]
+        # What she heard is quoted, as the words on it are: its "you" is the speaker's, said to whoever watches. LIVE 8
+        # November 2026, dress rehearsal: given a narration's "You have five thousand two hundred weeks" unquoted, her
+        # remarks told the person what had got to them ("The line that actually got you was the temporal one").
+        parts = [f"seen: {m.seen}" if m.seen else "", f'heard: "{read}"' if read else ""]
         line = "; ".join(p for p in parts if p)
         if line:
             lines.append(f"{clock(m.at)} {line}")
@@ -275,7 +278,7 @@ def playing_now(at: float, duration: float, moments: list[Moment], now: list[Mom
     label = "heard in it before now: "
     left = OBSERVATION_ROOM - len(head) - len(newest) - len(label) - 2
     so_far = said_in_it(moments[:max(0, len(moments) - len(now))], room=min(SAID_SO_FAR_ROOM, left)) if left > 0 else ""
-    return "\n".join(line for line in (head, f"{label}{so_far}" if so_far else "", newest) if line)
+    return "\n".join(line for line in (head, f'{label}"{so_far}"' if so_far else "", newest) if line)
 
 
 def _stems(text: str) -> set[str]:
