@@ -281,6 +281,11 @@ async def _execute_desktop_objective_from_chat(
     }
     if her_reply_first:
         _say_before_working_a_page(objective, cognitive_reply)
+    if _asks_to_watch(objective):
+        # Asked to watch something else while something plays: it is stopped first (watching_together.stop_for_the_next).
+        from core.skills.watching_together import stop_for_the_next
+
+        await stop_for_the_next(objective)
     result = await _chat_capability_inventory._execute_governed_live_skill(
         "desktop_task",
         desktop_params,

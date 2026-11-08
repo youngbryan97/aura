@@ -72,6 +72,32 @@ def stop_watching_if_asked(said: str) -> str:
 _JUST_STOPPED: dict[str, Any] = {}
 
 
+
+
+async def stop_for_the_next(asked: str) -> str:
+    """Asked to watch something else while something plays, what plays is stopped, as a person stops one video to put
+    on the next, and the request waits for her last word on it. The titles stopped, or "".
+
+    LIVE 8 November 2026, dress rehearsal: "Now asdfmovie. Pick whichever episode you want." came while a 44-minute
+    video she had chosen was still playing. Her remarks on it and her browsing for the next were one model's work: her
+    decision on the first page came back empty, the small model could not be loaded beside it, and the person was
+    told "This did not complete: unparsable decision"."""
+    if not _PLAYING:
+        return ""
+    titles = []
+    for who, playing in list(_PLAYING.items()):
+        _STOP_ASKED[who] = "they asked to watch something else"
+        titles.append(str(playing.get("title") or "it"))
+    logger.info("🤝 Asked for something else to watch (%r): stopping %s first.", str(asked or "")[:80], ", ".join(titles))
+    from core.skills.watching_along import A_TURN_OF_HERS_TAKES_AT_MOST_S, LOOK_EVERY_S
+
+    # The watching sees the stop at its next look, and her last word on it is a turn of hers, bounded as each is.
+    deadline = monotonic_time() + LOOK_EVERY_S + A_TURN_OF_HERS_TAKES_AT_MOST_S
+    while _PLAYING and monotonic_time() < deadline:  # noqa: ASYNC110 - a watching has no event to wait on; its entry is all it leaves
+        await asyncio.sleep(0.5)
+    return ", ".join(titles)
+
+
 def stopped_by(said: str, *, within_s: float = 120.0) -> bool:
     """Whether ``said`` is what just stopped a watching: done, so no other lane acts on it as a task of its own. LIVE
     7 November 2026, "Stop this one ... Close it." stopped the watching and closed its tab, and the desktop lane also

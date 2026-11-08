@@ -530,7 +530,11 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
     return look
 
 
-async def her_turn(request: str, observation: str, said: list[str], *, seconds: float = 60.0,
+#: The longest a turn of hers in a watching is given, in seconds.
+A_TURN_OF_HERS_TAKES_AT_MOST_S = 60.0
+
+
+async def her_turn(request: str, observation: str, said: list[str], *, seconds: float = A_TURN_OF_HERS_TAKES_AT_MOST_S,
                     exchanges: list[dict[str, Any]] | None = None, remark: bool = False) -> str:
     """Her own turn: her cognitive engine on the desktop lane, the request as the person's turn, what she has said so
     far as hers, what she watched as fresh sensory evidence on the screen channel. ``exchanges``, when the watching
