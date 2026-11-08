@@ -101,6 +101,24 @@ def test_the_point_is_a_chunk_boundary_short_of_the_divergence():
     assert keep is not None
 
 
+def test_the_end_of_a_changed_system_prompt_is_kept_over_where_the_old_one_diverged():
+    """LIVE 8 November 2026: kept at 1,408 tokens of a 3,968-token system prompt that had changed since the last
+    call, so the next call, with the same system prompt, read 6,585 tokens again."""
+    from core.brain.llm.mlx_worker import _a_prefix_worth_keeping
+
+    lru = PromptCacheLRU(max_size=8)
+    lru.insert_cache(_KEY, list(range(500)), ["KV"])
+    _fetch(lru, list(range(300)) + [9999] * 50)
+    at, keep = _a_prefix_worth_keeping(lru, _KEY, list(range(800)), 0, ["KV"], 64, shared_to=700)
+    assert at == 640 and keep is not None
+    # Where the last search ran out lies deeper than the system prompt: a conversation's history. That is kept.
+    at, _keep = _a_prefix_worth_keeping(lru, _KEY, list(range(800)), 0, ["KV"], 64, shared_to=100)
+    assert at == 256
+    # A point at or past the end of this prompt is no prefix of it; the other point is taken.
+    at, _keep = _a_prefix_worth_keeping(lru, _KEY, list(range(400)), 0, ["KV"], 64, shared_to=900)
+    assert at == 256
+
+
 def test_a_divergence_inside_the_first_chunk_is_not_worth_a_copy():
     from core.brain.llm.mlx_worker import _a_prefix_worth_keeping
 

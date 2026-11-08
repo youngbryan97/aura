@@ -2349,13 +2349,15 @@ def _a_prefix_worth_keeping(
     except (AttributeError, TypeError, ValueError):
         return 0, None
     # Just short of where it ran out, rounded down to a chunk boundary, since
-    # the callback only ever reports at one.
+    # the callback only ever reports at one. Of the two, the deeper: where the
+    # last search ran out lies inside the system prompt when that prompt has
+    # changed since, and its end is where calls with it go on sharing. LIVE 8
+    # November 2026, a pick's first page call kept 1,408 tokens of a 3,968-token
+    # system prompt, and the next call, the same system prompt, read 6,585 again.
     chunk = max(1, int(step_size or 1))
     points = ((max(0, int(point or 0)) // chunk) * chunk for point in (diverged, shared_to))
-    keep_to = next((point for point in points if point > max(already_reused, chunk)), 0)
+    keep_to = max((point for point in points if max(already_reused, chunk) < point < len(tokens)), default=0)
     if not keep_to:
-        return 0, None
-    if keep_to >= len(tokens):
         return 0, None
 
     def keep(processed_here: int) -> None:
