@@ -65,3 +65,15 @@ def test_the_conversation_keeps_the_turn_its_next_turn_extends():
     lru.insert_cache(TALK, system, ["kept mid-prefill"])
     lru.insert_cache(TALK, turn, ["the last turn"])
     assert lru._holds(TALK, turn) and not lru._holds(TALK, system)
+
+
+def test_the_conversation_s_older_entries_go_before_a_page_call_s_newest():
+    """LIVE 8 November 2026, rehearsal 11: 21,086 tokens of the conversation's entries stayed while each page call's
+    system prompt, kept mid-prefill, was drained as soon as it was kept."""
+    lru = PromptCacheLRU(max_size=12, max_total_tokens=90)
+    lru.insert_cache(TALK, list(range(0, 30)), ["an older turn"])
+    lru.insert_cache(TALK, list(range(100, 130)), ["the last turn"])
+    system = list(range(500, 540))
+    lru.insert_cache(PAGES, system, ["her system prompt, kept mid-prefill"])
+    assert lru._holds(PAGES, system)
+    assert lru._holds(TALK, list(range(100, 130))) and not lru._holds(TALK, list(range(0, 30)))

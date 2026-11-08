@@ -329,6 +329,15 @@ class PromptCacheLRU:
         while self.retained_tokens() > self.max_total_tokens or (
             byte_budget > 0 and self.retained_bytes() > byte_budget
         ):
+            # The conversation keeps its newest entry, the one its next turn extends; its older ones go before another
+            # lane's newest. LIVE 8 November 2026, rehearsal 11: 21,086 tokens of the conversation's entries stayed
+            # while each page call's system prompt, kept mid-prefill, was drained as soon as it was kept, and five
+            # page calls in a row read their whole prompts again, 111 s of prefill.
+            talk = self._lru.get("user_surface")
+            if talk and len(talk) > 1:
+                cache_key = talk.popleft()
+                self._delete(cache_key[0], list(cache_key[1]))
+                continue
             evicted = False
             for lane in lanes_by_drain_order:
                 queue = self._lru.get(lane)
