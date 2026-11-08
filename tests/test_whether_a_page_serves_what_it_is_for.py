@@ -26,6 +26,10 @@ _PLAYER_SAYS_IT_FAILED = """<h1>A game</h1><her-player style="display:block;widt
 customElements.define('her-player', class extends HTMLElement { constructor() { super(); this.attachShadow({mode: 'open'}).innerHTML =
 '<div style="width:480px;height:320px;background:#222;color:#fff">Something went wrong: this content could not be loaded.</div>'; } });
 </script><canvas width=10 height=10></canvas>"""
+#: A page built of components, its menu one of them, holding the page's own links and words; and a film to watch.
+_A_PAGE_OF_COMPONENTS = """<app-drawer style="display:block;width:300px;height:600px;background:#fff">
+<nav><a href="/a">Home</a><a href="/b">Subscriptions</a><p>Start watching videos to build a feed.</p></nav></app-drawer>
+<script>setInterval(() => { document.querySelector('p').style.color = '#' + Math.floor(Math.random() * 999); }, 50);</script>"""
 _AN_ARTICLE = "<h1>Bees</h1>" + "<p>" + "Bees gather nectar and make honey in the hive through the summer. " * 30 + "</p>"
 _NOT_FOUND = "<h1>Page not found</h1><p>The page you asked for has been removed.</p>"
 
@@ -85,6 +89,23 @@ def test_a_page_whose_document_is_not_there_does_not_serve():
 def test_a_page_seen_doing_what_it_is_for_serves(body, task, seen):
     verdict = _judge(body, task)
     assert verdict.ok is True and seen in verdict.says(), verdict
+
+
+def test_a_component_holding_the_page_s_own_links_is_not_a_thing_that_runs(monkeypatch):
+    """LIVE 8 November 2026: a video site's side menu was seen as a game running, and she was sent to play it."""
+    from core.skills import whether_a_page_serves as serving
+    from core.skills.whether_a_page_serves import seen_running
+
+    monkeypatch.setattr(serving, "_SEEN_RUNNING", {})  # what other pages at this address were seen doing
+    verdict = _judge(_A_PAGE_OF_COMPONENTS, "watch a video of his")
+    assert "nothing on it that runs" in verdict.says(), verdict
+    assert not seen_running("http://test.example/")
+
+
+def test_a_page_to_find_the_thing_from_is_not_taken_for_a_broken_one():
+    """With nothing of its own that runs and nothing seen failing, a page cannot yet be told; it is not given up for
+    another site."""
+    assert _judge(_A_PAGE_OF_COMPONENTS, "watch a video of his").ok is None
 
 
 @pytest.mark.unit

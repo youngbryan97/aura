@@ -76,7 +76,11 @@ _EMBEDS = r"""
   const shown = (root) => Array.from(root.querySelectorAll("*")).filter((n) => !/^(STYLE|SCRIPT|TEMPLATE)$/.test(n.tagName)
     && !n.children.length && n.getClientRects().length).map((n) => (n.textContent || "").trim()).filter(Boolean).join(" ");
   // What runs: a canvas, a player, an embed, a frame, or a component of the page's own (a custom element) it draws in.
-  const runs = all.filter((el) => /^(CANVAS|VIDEO|AUDIO|EMBED|OBJECT|IFRAME)$/.test(el.tagName) || el.tagName.includes("-"))
+  // A component draws in itself when none of its own children show: a page built of components holds its links and
+  // words in them. LIVE 8 November 2026 a video site's side menu ("its tp-yt-app-drawer draws its screen") was taken
+  // for a game seen running, and she was sent to play it before reading the page.
+  const drawsInItself = (el) => !Array.from(el.children).some((child) => child.getClientRects().length);
+  const runs = all.filter((el) => /^(CANVAS|VIDEO|AUDIO|EMBED|OBJECT|IFRAME)$/.test(el.tagName) || (el.tagName.includes("-") && drawsInItself(el)))
     .filter((el) => el.tagName === "AUDIO" || big(el))
     .map((el) => { const r = el.getBoundingClientRect(); return { tag: el.tagName.toLowerCase(), x: r.x, y: r.y, w: r.width, h: r.height,
       media: el.tagName === "VIDEO" || el.tagName === "AUDIO" ? { error: el.error ? el.error.code : 0, ready: el.readyState, time: el.currentTime } : null,
@@ -256,8 +260,11 @@ async def whether_it_serves(page: Any, task: str, *, look_for_s: float = 2.5) ->
     if needs == "run":
         thing = seen["runs"][0] if seen["runs"] else None
         if thing is None:
-            why.append("there is nothing on it that runs")
-            return Serves(False if why else None, why)
+            # Nothing seen to fail is not a failure. A page the thing is found from (a site's front page, a channel, an
+            # index) has nothing of its own that runs and is not broken; with evidence beside it, a page is.
+            if why:
+                return Serves(False, [*why, "there is nothing on it that runs"])
+            return Serves(None, ["there is nothing on it that runs yet"])
         if thing["said"] and _FAILS.search(thing["said"]):
             why.append(f"its {thing['tag']} says: {_FAILS.search(thing['said']).group(0)}")
         if thing["media"] and thing["media"]["error"]:
