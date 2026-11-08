@@ -228,3 +228,11 @@ def test_her_chat_turn_binds_the_record_of_what_we_share():
 
     source = inspect.getsource(chat)
     assert "for shared in (*our_shared_past(), what_played_lately()):" in source
+
+
+def test_a_remark_that_sets_up_its_point_runs_on_into_it():
+    point = "Two old people holding hands on a bench, and nobody in it is performing happiness."
+    said = first_thought(
+        "And I want to really look at this image because I think it's the most honest visual of the whole talk.\n\n"
+        + point, about="the image, the honest visual, old people holding hands, a bench")
+    assert said.endswith(point)

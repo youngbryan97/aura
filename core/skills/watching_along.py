@@ -663,7 +663,12 @@ def first_thought(words: str, about: str = "") -> str:
     rest = paragraphs[paragraphs.index(first) + 1:]
     if rest and len(re.findall(r"[A-Za-z']+", thought)) < A_THOUGHT_STANDS_ALONE and re.search(
             r"\b(?:here(?:'s|’s| is)|this is what|what I want to|the (?:bit|part|thing|line) (?:that|where)|hold on|wait|"
-            r"(?:need|have|want) to (?:stop|pause|flag|say|push)|for a (?:second|moment|sec))\b", thought, re.IGNORECASE):
+            r"(?:need|have|want) to (?:stop|pause|flag|say|push)|for a (?:second|moment|sec)|"
+            # LIVE 7 November 2026, dress rehearsal, said as remarks with their point in the paragraph after: "And I
+            # want to really look at this image because I think it's the most honest visual of the whole talk." and
+            # "And I think this is where the talk finally gets to be *true* in a way that surprises you."
+            r"I want to (?:really )?(?:look|sit|stay|talk|point)|this is (?:where|the (?:part|moment|point)))\b",
+            thought, re.IGNORECASE):
         thought = f"{thought}\n\n{_without_the_end_of_a_note(rest[0])}".strip()
     # A quotation it opens runs on to where it closes: LIVE 22 October 2026 a remark ended inside one, 'the on-screen
     # text is saying: "While they secretly start working on goals that are harmful or straight up incomprehensible to
