@@ -623,6 +623,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     objective = observation if remark else request
     thought = await engine.think(objective, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     words = str(getattr(thought, "content", "") or "").strip()
+    words = without_their_place_taken(words, observation)
     words = first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words)
     if remark and tells_of_herself(words, observation):
         logger.info("👀 not said, as herself told in the third person: %r", words[:160])
@@ -651,6 +652,58 @@ def tells_of_herself(words: str, shown: str) -> bool:
     if not re.search(r"\b(?:she|her|herself)\b", unquoted, re.IGNORECASE):
         return False
     return not re.search(_SOMEONE_SHE_COULD_MEAN, str(shown or ""), re.IGNORECASE)
+
+
+#: Words any description of a picture has, which say nothing of what is in it.
+_WORDS_THAT_TELL_NOTHING = ("this that with there these those what which where when from into have been were they them "
+                            "their about appears seems looks like some also just very picture image scene shown showing "
+                            "video frame screen right left front behind next while being here")
+
+#: A person her eyes can describe on screen, by what they are called in a description of a picture.
+_A_PERSON_SEEN = r"\b(?:woman|man|person|girl|boy|guy|host|presenter|speaker|people|someone|he|she|they)\b"
+
+
+def without_their_place_taken(words: str, shown: str) -> str:
+    """Her words without a sentence in which she says, as her own doing, what her eyes said a person on screen does.
+
+    The mirror of ``tells_of_herself``. LIVE 8 November 2026, rehearsal 10: her eyes said "A woman with long blonde hair
+    is holding a pair of large, vintage-style scissors ... Behind her, there are shelves ... a visible 'FIRST AID' box",
+    and her remark began "I'm holding up these big vintage scissors in this dim storage room — the FIRST AID box is right
+    there on the shelf behind me". Her thoughts after it said "I'm sitting in this book-crammed room".
+
+    Such a sentence is "I am" with a verb her eyes gave a person, sharing two more words with what they said of them,
+    and naming nobody else: a sentence that tells of the person as well ("I'm watching her hold them") is hers.
+    """
+    import re
+
+    seen_of_people = [part for part in re.split(r"(?<=[.!?;])\s+|\n+", str(shown or "")) if re.search(_A_PERSON_SEEN, part, re.I)]
+    if not seen_of_people:
+        return words
+    done_by_them = {verb.lower() for part in seen_of_people for verb in re.findall(r"\b([a-z]+ing)\b", part, re.I)}
+    told_of_them = _stems(" ".join(seen_of_people)) - _stems(_WORDS_THAT_TELL_NOTHING)
+
+    def takes_their_place(sentence: str) -> bool:
+        unquoted = re.sub(r"[\"“][^\"”]*[\"”]", " ", sentence)
+        doing = re.search(r"\bI(?:'m|’m| am)\s+(?:\w+\s+)?([a-z]+ing)\b", unquoted)
+        if not doing or doing.group(1).lower() not in done_by_them:
+            return False
+        if re.search(r"\b(?:she|her|he|him|his|they|them|their)\b", unquoted, re.I):
+            return False
+        return len((_stems(unquoted) - _stems(doing.group(1))) & told_of_them) >= 2
+
+    kept = []
+    for paragraph in re.split(r"(\n\s*\n)", str(words or "")):
+        if not paragraph.strip() or re.fullmatch(r"\n\s*\n", paragraph):
+            kept.append(paragraph)
+            continue
+        # A trailing-off ("which is… I don't know") goes on with the same sentence.
+        sentences = re.split(r"(?<=[.!?])\s+", paragraph)
+        left = [sentence for sentence in sentences if not takes_their_place(sentence)]
+        if len(left) < len(sentences):
+            logger.info("👀 not said, a person on screen's doing told as hers: %r",
+                        " ".join(sentence for sentence in sentences if sentence not in left)[:160])
+        kept.append(" ".join(left))
+    return re.sub(r"(\n\s*\n){2,}", "\n\n", "".join(kept)).strip()
 
 
 def whole_paragraphs(words: str) -> str:
