@@ -694,10 +694,17 @@ class _AnswersTheDesktopDirectly:
         """
         from core.brain.executable_reasoning import should_use_executable_reasoning
         from core.brain.reasoning_amplifier_v2 import is_amplifiable
+        from core.conversation.session_scope import is_her_own_turn
         from core.learning.examples_she_meets import note_to_check_async
 
         from .cognitive_engine import record_degradation
 
+        # A turn of hers answered no request: what it read is what she saw. LIVE 7 November 2026, dress rehearsal: a
+        # remark's reading of a video ("playing, at 0:02 of 11:13. 0:01 seen: A man in a yellow shirt ...") was queued
+        # as a problem she answered, taken for mathematics, and checked by three samples on her model while the
+        # person's next request waited 35 seconds for it.
+        if is_her_own_turn():
+            return False
         task_type = is_amplifiable(request)
         if task_type is None or not should_use_executable_reasoning(request, task_type=task_type):
             return False
