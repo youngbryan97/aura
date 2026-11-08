@@ -508,10 +508,14 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
             spoke_after_looks, spoke_at_wall = len(watching.moments), time.monotonic()
             new.remarked()
         await asyncio.sleep(look_in(look_every_s) if look_in is not None else look_every_s)
-    if speaking is not None:
-        await speaking
     # What was said after the last look, up to the end: heard too, before she says what she made of it.
     last_words = " ".join(str(h.get("words") or "") for h in (await player.heard() or []))
+    # Then what plays on is stopped, at once, as a person stops it before saying what they thought: LIVE 8 November
+    # 2026, rehearsal 9, its tab was closed 43 s after the end was seen, once her thoughts after were said, and Bryan
+    # watched the site go on to its next video meanwhile.
+    await player.done()
+    if speaking is not None:
+        await speaking
     if last_words.strip():
         watching.moments.append(Moment(at=watching.moments[-1].at if watching.moments else 0.0, read=last_words))
         perceive("", last_words)
@@ -529,7 +533,6 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     await speak(f"{how_it_ends}. What played, in order:\n{played}"[:OBSERVATION_ROOM],
                 watching.moments[-1].at if watching.moments else 0.0, "after")
     keep({"kind": "after", "ended": watching.ended, "stopped": watching.stopped, "wall": time.time()})
-    await player.done()
     await remember(watching)
     return watching
 

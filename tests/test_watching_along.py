@@ -530,3 +530,55 @@ def test_the_end_of_a_note_and_a_lead_in_are_not_said_and_a_reaction_is():
         "Ha. The guns-in-the-open line got me, and he sells it completely.")
     assert first_thought("and then they lose it. Honestly that callback to the Texas bit is the best part so far.") == (
         "Honestly that callback to the Texas bit is the best part so far.")
+
+
+@pytest.mark.asyncio
+async def test_what_plays_on_is_stopped_before_she_says_what_she_thought(monkeypatch):
+    """LIVE 8 November 2026, rehearsal 9: the tab was closed 43 s after the end was seen, once her thoughts after were
+    said, and the site went on to its next video meanwhile."""
+    import core.skills.watching_along as watching_along
+
+    monkeypatch.setattr(watching_along, "AN_END_HOLDS_S", 0.0)
+    happened = []
+
+    class _Player:
+        def __init__(self):
+            self.at = 0.0
+
+        async def says(self):
+            return {"title": "Volcanoes"}
+
+        async def start(self):
+            return None
+
+        async def state(self):
+            self.at += 5.0
+            return {"ended": self.at > 30.0, "at": self.at, "duration": 30.0}
+
+        async def tend(self):
+            return ""
+
+        async def heard(self):
+            happened.append("heard")
+            return [{"words": f"the island at {int(self.at)}"}]
+
+        def eyes(self):
+            async def look(_when):
+                return f"ash over the sea at {int(self.at)}"
+            return look
+
+        async def done(self):
+            happened.append("stopped what plays")
+
+    async def turn(_request, observation, _said):
+        happened.append("after" if observation.startswith("it has ended") else "during")
+        return "The ash reached the water."
+
+    async def say(_words):
+        return True
+
+    await watching_along.watch_along(_Player(), ASKED, turn=turn, say=say, perceive=lambda *_: None, before=False,
+                                     remember=lambda _w: asyncio.sleep(0), look_every_s=0.0, quiet_at_least_s=0.0)
+    assert happened.count("stopped what plays") == 1
+    assert happened.index("stopped what plays") < happened.index("after")
+    assert happened.index("stopped what plays") > len(happened) - 1 - happened[::-1].index("heard")
