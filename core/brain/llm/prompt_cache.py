@@ -390,9 +390,56 @@ class PromptCacheLRU:
         self._resume_bindings.clear()
         self._reused.clear()
 
+    #: The share of the budget entries may keep by having once served a hit. Past it the oldest of them goes first:
+    #: LIVE 8 November 2026, 24,480 tokens of prefixes reused in earlier steps held the budget, every new prompt was
+    #: evicted on the call that stored it ("budget drained 9242 tokens"), and four page calls in a row each read all
+    #: of their 8,972 to 11,952 tokens again, 115 s of prefill.
+    REUSED_HOLD_AT_MOST = 0.5
+
     def _victim(self, queue_for_lane: deque) -> tuple:
-        """The entry to evict from a lane: its oldest that has never served a hit, else its oldest."""
-        return next((cache_key for cache_key in queue_for_lane if cache_key not in self._reused), queue_for_lane[0])
+        """The entry to evict from a lane.
+
+        Its oldest that has served a hit, while those hold more than their share; else, outside the conversation, its
+        oldest that only extends another entry here, the shorter one serving every prompt the longer does; else its
+        oldest that has never served a hit; else its oldest. The conversation keeps its longer entries: the next turn
+        extends the last one.
+        """
+        if self._reused_hold_too_much():
+            held = next((cache_key for cache_key in queue_for_lane if cache_key in self._reused), None)
+            if held is not None:
+                return held
+        fresh = [cache_key for cache_key in queue_for_lane if cache_key not in self._reused]
+        if not fresh:
+            return queue_for_lane[0]
+        if self._lane_of(fresh[0][0]) != "user_surface":
+            longer = next((cache_key for cache_key in fresh if self._extends_another(cache_key, queue_for_lane)), None)
+            if longer is not None:
+                return longer
+        return fresh[0]
+
+    def _reused_hold_too_much(self) -> bool:
+        """Whether the entries that have served a hit hold more than ``REUSED_HOLD_AT_MOST`` of the budget."""
+        held = [cache_key for queue in self._lru.values() for cache_key in queue if cache_key in self._reused]
+        if not held:
+            return False
+        tokens = sum(len(cache_key[1]) for cache_key in held)
+        byte_budget = self.max_total_bytes
+        if byte_budget <= 0 and self.max_total_tokens > 0 and self.kv_bytes_per_token > 0:
+            byte_budget = self.max_total_tokens * self.kv_bytes_per_token
+        if byte_budget > 0 and self.kv_bytes_per_token > 0:
+            in_bytes = tokens * self.kv_bytes_per_token + len(held) * self.fixed_bytes_per_entry
+            return in_bytes > self.REUSED_HOLD_AT_MOST * byte_budget
+        return self.max_total_tokens > 0 and tokens > self.REUSED_HOLD_AT_MOST * self.max_total_tokens
+
+    @staticmethod
+    def _extends_another(cache_key: tuple, queue_for_lane: deque) -> bool:
+        """Whether another entry of this lane is a strict prefix of this one, for the same model."""
+        model_key, tokens = cache_key
+        return any(
+            other is not cache_key and other[0] == model_key and len(other[1]) < len(tokens)
+            and tokens[: len(other[1])] == other[1]
+            for other in queue_for_lane
+        )
 
     def _evict_from(self, queue_for_lane: deque) -> tuple:
         cache_key = self._victim(queue_for_lane)
