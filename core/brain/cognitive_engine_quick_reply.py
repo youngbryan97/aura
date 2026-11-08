@@ -36,14 +36,28 @@ def said_once(text: str) -> str:
     paragraphs = re.split(r"(\n\s*\n)", str(text or ""))
     kept: list[str] = []
     before: set[tuple[str, ...]] = set()
+    openings: set[tuple[str, ...]] = set()
+    dropped = False
     for index in range(0, len(paragraphs), 2):
         part = paragraphs[index]
         runs = _runs_of_words(part)
         if before and len(runs) >= A_REPLY_HAS_RUNS and len(runs & before) >= A_REPEAT_SHARES * len(runs):
             return "".join(kept).rstrip()
+        # A paragraph begun again in other words: the same opening words as one before it, and the rest of the reply
+        # going on after it. LIVE 8 November 2026, rehearsal 11: "**Homemade Hoverbike** was the opposite energy" and,
+        # straight after it, "**Homemade Hoverbike** was the opposite register".
+        opening = tuple(re.findall(r"[a-z0-9']+", part.lower())[:A_PARAGRAPH_BEGUN_AGAIN_IN])
+        if len(opening) == A_PARAGRAPH_BEGUN_AGAIN_IN and opening in openings:
+            dropped = True
+            continue
+        openings.add(opening)
         kept.append(part + (paragraphs[index + 1] if index + 1 < len(paragraphs) else ""))
         before |= runs
-    return str(text or "")
+    return "".join(kept).rstrip() if dropped else str(text or "")
+
+
+#: How many opening words two paragraphs share where the second is the first begun again.
+A_PARAGRAPH_BEGUN_AGAIN_IN = 5
 
 
 class _AnswersTheDesktopDirectly:
