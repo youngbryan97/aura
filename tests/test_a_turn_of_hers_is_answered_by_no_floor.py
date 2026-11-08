@@ -236,3 +236,20 @@ def test_a_remark_that_sets_up_its_point_runs_on_into_it():
         "And I want to really look at this image because I think it's the most honest visual of the whole talk.\n\n"
         + point, about="the image, the honest visual, old people holding hands, a bench")
     assert said.endswith(point)
+
+
+def test_a_turn_of_hers_is_told_what_they_watched_and_not_what_she_said_of_it(monkeypatch):
+    from core.skills import watching_together as wt
+
+    now = 10_000.0
+    earlier = {"title": "Why Being Delusional is a Superpower", "by": "", "began": now - 1500, "ended": now - 900,
+               "her last word": "I want to be honest about where my prediction was off.",
+               "as it played": [(17.0, "I predicted he'd open on positive delusion.")]}
+    monkeypatch.setattr(wt, "_what_we_watched_lately", lambda _now: [earlier])
+    monkeypatch.setattr(wt, "_PLAYING", {})
+    theirs = wt.what_we_are_watching(now=now)
+    assert "As it played she said" in theirs and "Her last word on it" in theirs
+    with her_own_turn_scope():
+        hers = wt.what_we_are_watching(now=now)
+    assert "1. Why Being Delusional is a Superpower, ended 15 min ago." in hers
+    assert "prediction" not in hers

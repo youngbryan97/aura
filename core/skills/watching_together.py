@@ -626,8 +626,17 @@ def what_we_are_watching(_said: str = "", *, now: float | None = None) -> str:
 
     blocks = []
     if recent:
+        from core.conversation.session_scope import is_her_own_turn
+
         lines = ["## WHAT WE HAVE WATCHED TOGETHER LATELY"]
         playing = {str(p.get("title") or "") for p in _PLAYING.values()}
+        # What she said of each is for the person's turns, where they can ask about it. On a turn of hers, a remark
+        # while the next one plays, it is what she copies: LIVE 7 November 2026, dress rehearsal, after her last word
+        # on Veritasium's video ("I want to be honest about where my prediction was off"), her remarks on Allen Pan's
+        # were about her own watching ("let me actually watch this instead of predicting it from the title, because I
+        # got ahead of myself last time and you're right to call that out"); a run before, seven opened "And I'm
+        # *right there*". A turn of hers is told what they watched, and not what she said of it.
+        hers = is_her_own_turn()
         for number, watched in enumerate(recent, 1):
             ago = max(1, round((now - float(watched["ended"])) / 60))
             by = f" by {watched['by']}" if watched.get("by") else ""
@@ -635,11 +644,11 @@ def what_we_are_watching(_said: str = "", *, now: float | None = None) -> str:
             line = f"{number}. {watched['title']}{by}, ended {ago} min ago."
             # What she thought as it played, in her words then: what a person draws on when asked what they made of
             # it. Not for what plays now, whose remarks are in the talk.
-            remarks = [] if watched["title"] in playing else _spread(list(watched.get("as it played") or []), REMARKS_KEPT)
+            remarks = [] if hers or watched["title"] in playing else _spread(list(watched.get("as it played") or []), REMARKS_KEPT)
             if remarks:
                 line += " As it played she said: " + " / ".join(
                     f"({clock(at)}) {' '.join(words.split())[:REMARK_CHARS]}" for at, words in remarks)
-            lines.append(line + (f" Her last word on it: {last}" if last else ""))
+            lines.append(line + (f" Her last word on it: {last}" if last and not hers else ""))
         blocks.append("\n".join(lines))
     for playing in _PLAYING.values():
         lines = [f"## WHAT IS PLAYING WHILE WE TALK\n{playing['title']} ({playing['url']}), "
