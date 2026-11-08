@@ -10,14 +10,35 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
+from xml.etree import ElementTree
 
 from core.runtime.errors import record_degradation
 from core.verify.invariants import Violation, invariant
 
 logger = logging.getLogger("Aura.BrowserPresence")
+
+
+def as_nodes(svg: str) -> list:
+    """The glyph as [tag, attributes, children], for a page that refuses markup.
+
+    Comments are left out; namespaced attributes are left out too, since the
+    script sets every attribute without a namespace.
+    """
+    def node(element: ElementTree.Element) -> list:
+        children: list = [element.text] if (element.text or "").strip() else []
+        for child in element:
+            children.append(node(child))
+            if (child.tail or "").strip():
+                children.append(child.tail)
+        attributes = {name: value for name, value in element.attrib.items() if not name.startswith("{")}
+        return [element.tag.rpartition("}")[2], attributes, children]
+
+    return node(ElementTree.fromstring(svg))
+
+
 BOOTSTRAP = Path(__file__).with_suffix(".js").read_text(encoding="utf-8").replace(
     "__AURA_NEURON__",
-    json.dumps((Path(__file__).resolve().parents[2] / "interface/static/neuron_glyph.svg").read_text(encoding="utf-8")),
+    json.dumps(as_nodes((Path(__file__).resolve().parents[2] / "interface/static/neuron_glyph.svg").read_text(encoding="utf-8"))),
 )
 _ERRORS = (RuntimeError, AttributeError, TypeError, ValueError, OSError, TimeoutError)
 _VISIBLE_UNTIL: weakref.WeakKeyDictionary[Any, float] = weakref.WeakKeyDictionary()
