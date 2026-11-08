@@ -586,6 +586,28 @@ WORTH_TRYING_AT = 0.4
 
 
 
+async def _only_her_own_window_in_front() -> bool:
+    """Whether the application in front is hers: the one she talks to the person in, never the thing she acts in.
+
+    Only while a window of hers is up, which her host polling her says: with none, what is in front is not hers.
+    """
+    from core.config import get_config
+
+    try:
+        from core.perception.ambient_presence import get_ambient_presence
+
+        if not get_ambient_presence().drawing_surface_attached():
+            return False
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+    try:
+        named = str(getattr(get_config(), "app_name", "") or "").strip().lower()
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        named = ""
+    front = (await _frontmost()).strip().lower()
+    return bool(front) and front in {named, "aura", "aura-launcher"} - {""}
+
+
 async def _frontmost() -> str:
     """The application in front, for a run that was never told which one."""
     from core.skills.screen_pursuit_on_a_page import on_her_page
@@ -887,6 +909,13 @@ async def pursue_on_screen(
 
     MOVES_SAID.set({"at": 0.0, "line": "", "goal": goal, "place": target_app or expect_page or open_page,
                     "episode": uuid4().hex})
+    # Somewhere to act in. A run that names no application and no page acts in what is in front, and where that is her
+    # own window there is nothing to act in: LIVE 8 November 2026, rehearsal 10, a request to pick a cartoon was kept
+    # at as a game, 200 key presses into her own window ("brought 'Aura' back to the front"), for 14 minutes.
+    if not (target_app or expect_page or open_page) and await _only_her_own_window_in_front():
+        logger.info("nothing in front but her own window, and nothing named to act in; not started")
+        return {"ok": False, "outcome": "needs_person", "moves": [], "goal": goal,
+                "needs_person": "nothing is in front of me but my own window, so I need to be told where to do it"}
     _seam_early_response, awake_from_here = await _set_out(
         goal=goal, target_app=target_app, move_keys=move_keys, narrate=narrate, ends_at=ends_at,
     )

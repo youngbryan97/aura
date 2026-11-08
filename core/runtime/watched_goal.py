@@ -47,7 +47,11 @@ CONTINUING: tuple[str, ...] = (
     r"\bmonitor(?:ing|s)?\b",
     r"\bstick\s+with\b",
     r"\bcarry\s+on\b",
-    r"\bas\s+long\s+as\b",
+    # For as long as something lasts, not "as long as it is under ten minutes", which says which one: LIVE 8 November
+    # 2026, rehearsal 10, "Pick whichever short you want, as long as it is under ten minutes" was kept at as a game, 200
+    # key presses into her own window.
+    r"\bas\s+long\s+as\s+(?:possible|(?:you|we|i|she|he|they)\s+(?:can|could|like|want|need|are\s+able)|"
+    r"(?:it|that|this|they)\s+(?:takes?|lasts?|runs?|keeps?\s+going|goes\s+on|plays?))\b",
     r"\b(?:over\s+and\s+over|repeatedly|again\s+and\s+again)\b",
     r"\buntil\s+you\s+(?:get|reach|hit|see)\b",
 )

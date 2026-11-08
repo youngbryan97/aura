@@ -80,7 +80,12 @@ def place_named(message: object) -> str:
 _NOT_THERE = r"(?!\s+(?:to\s+)?(?:me|us|this|that|him|her)\b)"
 _ACTS = {
     "watch": re.compile(rf"\b(?:watch|view)\w*\b{_NOT_THERE}|\b(?:videos?|episodes?|films?|movies?|clips?|channels?|"
-                        r"trailers?|cartoons?|documentar\w+|vlogs?|shorts)\b", re.IGNORECASE),
+                        r"trailers?|cartoons?|documentar\w+|vlogs?|shorts)\b"
+                        # A short, as the thing chosen ("whichever short you want"), not as how long a thing is: LIVE 8
+                        # November 2026, rehearsal 10, the request never reached her browser.
+                        r"|\b(?:a|the|one|another|any|which|whichever|that|this|each|every|your|his|her|their)\s+short\b"
+                        r"(?=\s*(?:[.,;:!?]|$|\s+(?:you|that|which|of|from|he|she|they|we|i|is|was|by|to)\b))",
+                        re.IGNORECASE),
     "listen": re.compile(rf"\blisten\w*\b{_NOT_THERE}|\b(?:songs?|music|albums?|podcasts?)\b", re.IGNORECASE),
     "play": re.compile(r"\b(?:games?|play\s+(?:a|an|the|another|some|one)\b)", re.IGNORECASE),
     "read": re.compile(r"\b(?:articles?|posts?|threads?|stories|story|news)\b", re.IGNORECASE),
