@@ -1741,6 +1741,8 @@ class _UnderstandsThePage(_PlacesHerself):
                     )
                     answered_by = "whole_page_think"
                     if not self._decision_is_usable(raw, observation, goal):
+                        # What was put aside, so that a decision taken from the small model can be held against hers.
+                        logger.info("🌐 Her decision put aside as naming nothing doable: %r", str(raw or "")[:400])
                         answered_by = "fast_lane"
                         raw = await self._decide_on_the_fast_lane(router, prompt, mind)
             elif asks_about_her:
@@ -1768,6 +1770,20 @@ class _UnderstandsThePage(_PlacesHerself):
             answered_by or "unattributed",
             parsed.get("error") or "usable",
         )
+        if not parsed.get("error"):
+            # What she chose and why, by the names of the controls she was shown: LIVE 8 November 2026 her answer named
+            # an episode while another video opened, and nothing kept what the decision had chosen.
+            offered = self._controls_worth_offering(list(observation.get("elements") or []), goal)
+            chose = []
+            for item in parsed.get("actions") or []:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    named = str(offered[int(item.get("index"))].get("name") or "")[:90]
+                except (TypeError, ValueError, IndexError):
+                    named = ""
+                chose.append(f"{item.get('type') or 'click'} {named or item.get('value') or item.get('index')}")
+            logger.info("🌐 She chose %s, because: %s", "; ".join(chose) or "nothing", str(parsed.get("why") or "")[:300])
         return parsed
 
     @classmethod
