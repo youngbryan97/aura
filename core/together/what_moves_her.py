@@ -63,6 +63,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -398,6 +399,20 @@ class Person:
     shown: bool = False
 
 
+#: What her eyes say of a picture with nothing in it: a black or blank frame, a cut between scenes.
+_SHOWS_NOTHING = re.compile(
+    r"\b(?:entirely|completely|totally|all|just|only)\s+(?:black|blank|dark|white)\b"
+    r"|\bno\s+visible\s+(?:objects?|content|image|picture|people)\b"
+    r"|\b(?:a\s+)?blank\s+(?:or\s+empty\s+)?(?:image|screen|frame|picture)\b",
+    re.IGNORECASE,
+)
+
+
+def shows_nothing(seen: str) -> bool:
+    """Whether what her eyes said of a picture is that it shows nothing."""
+    return bool(_SHOWS_NOTHING.search(str(seen or "")))
+
+
 @dataclass
 class _Event:
     began: float
@@ -703,7 +718,11 @@ class WhatMovesHer:
             felt = self._take(Felt("sight", at, standing, 0.0, " ".join(str(seen or "").split())[:200]))
             self.keep({"kind": "moved", "channel": "sight", "at": at, "surprise": round(float(surprise), 4),
                        "moved": None if standing is None else round(standing, 4), "evidence": round(felt.evidence, 4)})
-        if seen and not self.events[-1].seen:
+        # What an event showed is its first look that saw something; a look that saw nothing (a black frame, a cut)
+        # gives way to it. LIVE 8 November 2026, rehearsal 12: an event from 1:16 to 2:25 began on a black frame and
+        # was handed to her thoughts after as "Entirely black", though from 1:50 her eyes saw the kiwi flying in its
+        # goggles, and she told the person she must have invented what she had said of it.
+        if seen and (not self.events[-1].seen or (shows_nothing(self.events[-1].seen) and not shows_nothing(seen))):
             self.events[-1].seen = " ".join(seen.split())[:300]
         scene = _a_scene(seen)
         if scene and scene != self.last_scene and self.ask is not None and (self._seeing is None or self._seeing.done()):
@@ -778,7 +797,11 @@ class WhatMovesHer:
             self.last_stirred = max(self.last_stirred, felt.at)
             self._shown_bored = False
         if felt.evidence > self.events[-1].moved:
-            self.events[-1].moved, self.events[-1].what = felt.evidence, felt.what
+            self.events[-1].moved = felt.evidence
+            if not shows_nothing(felt.what) or not self.events[-1].what:
+                self.events[-1].what = felt.what
+        elif shows_nothing(self.events[-1].what) and felt.what and not shows_nothing(felt.what):
+            self.events[-1].what = felt.what
         self._show(felt)
         return felt
 
