@@ -1838,8 +1838,16 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 moves = _moves_from_the_decision(decision, elements)
 
                 if not moves:
+                    # A decision with nothing in it that can be done is a bad round, as an unreadable one is: she looks
+                    # again, and the stall counter ends a page where nothing lands. LIVE 8 November 2026, dress
+                    # rehearsal: one such decision on a page of search results ended the whole pursuit, and the person
+                    # asked to watch something was told "nothing I chose could be done on the page".
                     steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
-                    break
+                    stalled += 1
+                    if stalled >= self.PURSUE_STALL_LIMIT:
+                        break
+                    surprised = True
+                    continue
                 if chose_the_drawing(moves) or on_the_page.handed_over(moves):  # played by sight, talked on or watched, on her own page
                     steps.append(await (played_on_the_drawing if chose_the_drawing(moves) else on_the_page.handed_over(moves))(browser, goal, observation))
                     if steps[-1].get("beside"):  # watched with them beside the conversation: this turn's part is done

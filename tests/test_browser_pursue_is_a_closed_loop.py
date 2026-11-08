@@ -129,7 +129,8 @@ class TestTheLoopTakesNoAuthorityOfItsOwn:
         skill = _skill_with([{"actions": [{"index": 99, "type": "click"}], "why": "?"}], executed)
         result = await skill._handle_pursue(_Browser([_page()]), None, "go", 3)
         assert not executed
-        assert result["steps"][-1]["error"] == "no_executable_action"
+        # Refused, and looked at again rather than ending there: a round with nothing doable is a bad round.
+        assert any(step.get("error") == "no_executable_action" for step in result["steps"])
 
     async def test_narration_is_kept_for_every_round(self):
         executed: list = []

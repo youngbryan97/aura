@@ -1004,6 +1004,13 @@ class _UnderstandsThePage(_PlacesHerself):
         for item in parsed.get("actions") or []:
             if not isinstance(item, dict):
                 continue
+            # Going somewhere needs no control on the page: an address, or the words to look up
+            # (core/skills/sovereign_browser_going.py), which the loop carries out and this check put aside as naming
+            # nothing to do. Put aside, a decision goes to the small model: LIVE 8 November 2026, dress rehearsal,
+            # asked to go to a channel, hers on the search results was replaced by one naming a control that could
+            # not be pressed, and no video opened.
+            if str(item.get("type") or "").lower() == "go" and str(item.get("value") or "").strip():
+                return True
             try:
                 index = int(item.get("index"))
             except (TypeError, ValueError):

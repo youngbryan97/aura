@@ -34,6 +34,11 @@ from core.runtime.errors import describe_error, record_degradation
 from core.skills.watching_together import her_answer_before_it_plays, her_answer_when_nothing_plays
 
 
+def _asked_to_watch_and_nothing_plays(result: dict[str, Any], objective: str) -> bool:
+    """Whether the objective asked for something to be watched and the task watched nothing, here or beside them."""
+    return not (result.get("watched") or result.get("beside")) and _asks_to_watch(objective)
+
+
 def _asks_to_watch(objective: str) -> bool:
     """Whether the objective asks for something to be watched, run or played with whoever asked."""
     from core.skills.whether_a_page_serves import what_the_task_needs
@@ -331,13 +336,15 @@ async def _execute_desktop_objective_from_chat(
         completed=completed,
         requested=requested,
     )
+    told_in_her_words = False
     if result.get("ok") and (research_response or result.get("beside")):
         response = (await her_answer_before_it_plays(objective, _desktop_deliverable_text(result) or summary,
                                                      opened=str(result.get("opened") or ""))
                     if result.get("beside") else research_response)  # going on beside: her own turn answers
-        if not result.get("beside") and _asks_to_watch(objective):
+        if _asked_to_watch_and_nothing_plays(result, objective):
             # Asked to watch it with them, and nothing plays: what she found is told in her own words, not the page's.
             response = await her_answer_when_nothing_plays(objective, research_response)
+            told_in_her_words = True
     elif result.get("ok"):
         # Lead with WHAT SHE SAW, not with the step count.
         #
@@ -551,10 +558,12 @@ async def _execute_desktop_objective_from_chat(
         effect_correction = ""
     if effect_correction:
         response = f"{str(response or '').rstrip()}\n\n{effect_correction}"
-    if not result.get("ok") and not result.get("beside") and _asks_to_watch(objective):
+    if not told_in_her_words and _asked_to_watch_and_nothing_plays(result, objective):
         # Asked to find something and watch it, and it did not get there: what happened is told in her own words, with
         # the trace as evidence. LIVE 7 November 2026 the trace went out as her reply ("I got as far as
-        # https://www.youtube.com/@allenpan and stopped: the page stopped changing. what the page draws ...").
+        # https://www.youtube.com/@allenpan and stopped: the page stopped changing. what the page draws ..."); LIVE 8
+        # November 2026 again, from a pursuit counted as done because its search had landed ("I got as far as
+        # https://www.youtube.com/results?search_query=Joel+Haver and stopped: nothing I chose could be done").
         response = await her_answer_when_nothing_plays(objective, str(response or ""))
     return {
         "ok": bool(result.get("ok")),
