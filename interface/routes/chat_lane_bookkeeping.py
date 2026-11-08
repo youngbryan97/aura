@@ -12,6 +12,7 @@ import hashlib
 import inspect
 import os
 import re
+import time
 from typing import Any
 
 from fastapi import Request
@@ -328,6 +329,29 @@ def _still_contradicts_the_runtime(
         return False
 
 
+def _this_sitting_began_at() -> float:
+    """When the sitting going on began: its first exchange, or now, where this turn is the first after a break
+    (core/conversation/sitting.py)."""
+    from core.conversation.sitting import sitting_begins, when
+
+    now = time.time()
+    exchanges = [
+        entry for entry in list(_chat_memory_state._conversation_log)
+        if isinstance(entry, dict) and str(entry.get("status") or "complete").strip().lower() == "complete"
+    ]
+    last_active = [
+        max(
+            [when(entry.get("completed_at") or entry.get("timestamp")) or 0.0]
+            + [float(item.get("at") or 0.0) for item in entry.get("said_after") or [] if isinstance(item, dict)]
+        )
+        for entry in exchanges
+    ]
+    begins = sitting_begins([at or None for at in last_active], now)
+    if begins >= len(exchanges):
+        return now
+    return when(exchanges[begins].get("timestamp")) or last_active[begins] or now
+
+
 async def _fetch_deep_memory_context(user_message: str) -> str:
     """The Invisible RAG Bridge, wired: silent per-turn semantic recall.
 
@@ -347,6 +371,7 @@ async def _fetch_deep_memory_context(user_message: str) -> str:
                     user_message,
                     principal_id=principal_id,
                     principal_surface=principal_surface,
+                    sitting_began_at=_this_sitting_began_at(),
                 ),
                 timeout=2.5,
             )

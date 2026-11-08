@@ -23,12 +23,36 @@ logger = logging.getLogger("Aura.RAGBridge")
 
 temporal_retriever = TimeWeightedRetriever(decay_rate=0.012)
 
+def _in_these_words(text: object) -> str:
+    """Words only, in lower case, one space apart: what is compared when a memory is asked whether it holds a request."""
+    import re
+
+    return " ".join(re.findall(r"[a-z0-9']+", str(text or "").lower()))
+
+
+def _asked_before_in_these_words(memory: dict, request: str, sitting_began_at: float) -> bool:
+    """Whether ``memory`` is of these same words asked in a sitting before this one: what was answered to them then was
+    about what was the case then.
+
+    LIVE 8 November 2026, dress rehearsal: asked "So what did you think of all three?" half an hour after the sitting
+    before had asked it, her answer gave that sitting's second video, its joke, and its closing line ("if Optimistic
+    Nihilism was a hug and Fish Tank was a nap") as this sitting's, recalled by the same words.
+    """
+    metadata = memory.get("metadata") if isinstance(memory.get("metadata"), dict) else {}
+    when = memory.get("timestamp", metadata.get("timestamp"))
+    if not isinstance(when, (int, float)) or when <= 0 or when >= sitting_began_at:
+        return False
+    asked = _in_these_words(request)
+    return bool(asked) and asked in _in_these_words(memory.get("text") or memory.get("content") or "")
+
+
 async def fetch_deep_context(
     user_query: str,
     threshold_words: int = 4,
     *,
     principal_id: str = "",
     principal_surface: str = "",
+    sitting_began_at: float | None = None,
 ) -> str:
     """
     Silently pulls vectorized memories related to the query.
@@ -86,6 +110,11 @@ async def fetch_deep_context(
                 **scope_kwargs,
             )
 
+        if sitting_began_at is not None:
+            raw_results = [
+                memory for memory in raw_results
+                if not (isinstance(memory, dict) and _asked_before_in_these_words(memory, user_query, sitting_began_at))
+            ]
         if not raw_results:
             _record(0, 0)
             return ""
