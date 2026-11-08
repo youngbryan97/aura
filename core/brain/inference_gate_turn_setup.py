@@ -139,11 +139,16 @@ class _SetsTheTurnUp:
         # answering. That is the same test used below to decide whether to
         # bind a question at all, and it is made from fields that reach here
         # on every path.
+        # A turn of hers has no person's words in it and is said to the person all the same: LIVE 8 November 2026,
+        # rehearsal 11, her reply on the episode she picked was taken for an answer code reads, ran into its budget
+        # mid-reasoning ("The user just said ... Looking at the sensory evidence ... Wait, let me re-read"), and was
+        # handed over as it was, unchecked.
         internal_inference_call = bool(
             context.get("internal_inference", False)
             or context.get("_non_chat_inference", False)
             or (
                 not explicit_visible_user_prompt
+                and not context.get("her_own_turn")
                 and not self._origin_is_user_facing(
                     str(context.get("origin", "") or "").lower()
                 )

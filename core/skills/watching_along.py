@@ -628,6 +628,13 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     if remark and tells_of_herself(words, observation):
         logger.info("👀 not said, as herself told in the third person: %r", words[:160])
         return ""
+    # Nor her working out of what she was given, said to the person as her turn: LIVE 8 November 2026, rehearsal 11, her
+    # reply on the episode she picked began "Okay so I'm in the middle of a watching-along session. The user just said".
+    from core.utils.an_answer import talks_about_the_asking
+
+    if talks_about_the_asking(words, "" if remark else request):
+        logger.info("👀 not said, her working out of what she was given: %r", words[:160])
+        return ""
     return words
 
 

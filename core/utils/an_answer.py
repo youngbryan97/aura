@@ -105,8 +105,12 @@ def what_was_finished(said: str) -> str:
 _ABOUT_THIS_EXCHANGE = re.compile(
     r"\buser's\s+(?:current\s+)?"
     r"(?:message|question|request|query|words|input|prompt|turn)\b"
-    r"|\bthe\s+user\s+(?:asks?|asked|says?|said|is\s+asking)\b"
-    r"|\buser\s+(?:asks?|asked|says?|is\s+asking)\b",
+    r"|\bthe\s+user\s+(?:just\s+|now\s+|also\s+|then\s+)?(?:asks?|asked|says?|said|is\s+asking|wrote|typed)\b"
+    r"|\buser\s+(?:asks?|asked|says?|is\s+asking)\b"
+    # And what she was handed for the turn, by the names her prompt gives it. LIVE 8 November 2026, rehearsal 11:
+    # "Looking at the sensory evidence: I searched ... Wait, let me re-read carefully. The observation says: ..."
+    r"|\b(?:looking\s+at|per|from|in|according\s+to)\s+the\s+sensory\s+evidence\b"
+    r"|\bthe\s+(?:sensory\s+evidence|observation)\s+(?:says|said|notes|states|reads|shows)\b",
     re.IGNORECASE,
 )
 
