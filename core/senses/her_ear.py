@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import json
 import logging
+import math
 import os
 import sys
 import threading
@@ -211,7 +212,15 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
                 written += len(settled)
                 words = "".join(token.text for token in settled).strip()
                 if words:
-                    print(json.dumps({"at": round(settled[0].start, 2), "words": words}), file=out, flush=True)
+                    # How sure the recognizer was of them, the geometric mean of its tokens' confidences, kept in her
+                    # ear's log beside them: LIVE 8 November 2026 a cartoon's invented language was written down as
+                    # English words, slurs among them, and said back; where her ear stops trusting what it writes
+                    # down is to be read off what it has written, not chosen.
+                    sure = math.exp(sum(math.log(max(1e-6, float(getattr(t, "confidence", 1.0) or 1e-6))) for t in settled)
+                                    / len(settled))
+                    print(json.dumps({"at": round(settled[0].start, 2), "words": words, "confidence": round(sure, 3)}),
+                          file=out, flush=True)
+                    print(f"her ear wrote, {sure:.3f} sure: {words[:160]}", file=sys.stderr, flush=True)
     del held
 
 
