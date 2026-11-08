@@ -3466,6 +3466,19 @@ async def _run_cognitive_engine_chat_turn(
         record_turn_transcript(recent_exchanges)
     for transcript_evidence in route_assessment_grounding:
         record_turn_grounding(transcript_evidence)
+    # What the record shows they share, for each gate that holds a reply's "we watched" and "you said" against the
+    # evidence: what they watched and what she heard and saw of it, and what the person said to her lately. LIVE 7
+    # November 2026, dress rehearsal: her answer to "So what did you think of all three?" was refused as
+    # fabricated_shared_history by a check given none of it, and the person got "I couldn't verify a reply".
+    try:
+        from core.conversation.our_shared_past import our_shared_past
+        from core.skills.watching_together import what_played_lately
+
+        for shared in (*our_shared_past(), what_played_lately()):
+            if shared:
+                record_turn_grounding(shared)
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("chat", exc, severity="warning", action="judged the reply without the record of what we share")
     recent_conversation_context = (
         _format_recent_conversation_context(recent_exchanges) if recent_exchanges else ""
     )

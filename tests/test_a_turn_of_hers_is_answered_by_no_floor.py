@@ -184,3 +184,47 @@ def test_her_retry_is_asked_as_first_asked_and_a_batch_cancels_nobody_else():
         inference_gate)
     assert "batch_timeout:" not in inspect.getsource(mlx_warmup_and_adapters)
     assert "repeated_earlier_reply" in UNSPEAKABLE_REASONS
+
+
+def test_her_answer_is_told_what_she_opened_before_how_she_came_to_it(monkeypatch):
+    import asyncio
+
+    from core.skills import watching_along
+    from core.skills.watching_together import her_answer_before_it_plays
+
+    told: list[str] = []
+
+    async def her_turn(request, observation, said):
+        told.append(observation)
+        return "That one, then."
+
+    monkeypatch.setattr(watching_along, "her_turn", her_turn)
+    opened = 'Found "I tried building AI Slop in Real Life" by Allen Pan (14:20).'
+    said = asyncio.run(her_answer_before_it_plays("Now let's do Allen Pan.", "results: Exoskeleton 34:58; ...",
+                                                  opened=opened))
+    assert said == "That one, then."
+    assert told[0].startswith(f"before it plays. What she opened, and is about to play: {opened} How her browsing")
+    assert told[0].index("AI Slop") < told[0].index("Exoskeleton")
+
+
+def test_what_played_grounds_a_moment_they_watched(monkeypatch):
+    from core.dialogue.shared_history import fabricated_shared_history
+    from core.skills import watching_together as wt
+
+    now = 10_000.0
+    urban = {"title": "Inside the Mind of a Master Procrastinator", "by": "", "began": now - 1200, "ended": now - 300,
+             "what played": "the Panic Monster shows up; a grid of tiny boxes, one for each week of a life"}
+    monkeypatch.setattr(wt, "_what_we_watched_lately", lambda _now: [urban])
+    record = wt.what_played_lately(now=now)
+    assert "We watched Inside the Mind of a Master Procrastinator. In it: the Panic Monster" in record
+    claim = "We were laughing at the Panic Monster, and then the grid of tiny boxes came up."
+    asked = ["So what did you think of all three?", "Now Salad Fingers. Pick whichever episode you want."]
+    assert fabricated_shared_history(claim, asked[0], asked[1:])
+    assert not fabricated_shared_history(claim, asked[0], asked[1:], grounding=[record])
+
+
+def test_her_chat_turn_binds_the_record_of_what_we_share():
+    import interface.routes.chat as chat
+
+    source = inspect.getsource(chat)
+    assert "for shared in (*our_shared_past(), what_played_lately()):" in source

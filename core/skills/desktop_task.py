@@ -4813,6 +4813,8 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             "receipts": receipts,
             "failures": [] if succeeded else [r for r in receipts if not r["ok"]],
             "planner": "browser_pursuit", "beside": any(step.get("beside") for step in steps),  # watched beside
+            # What she opened to watch beside them, as the step that opened it says ('Found "..." by ...').
+            "opened": next((str(step.get("did") or "") for step in reversed(steps) if step.get("beside")), ""),
             "summary": how_it_ended(str(report.get("final_url") or url), len(rounds), failure),
             "url": report.get("final_url") or url,
             # The names the task-level contract checks. This lane's expectation

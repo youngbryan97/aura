@@ -332,7 +332,8 @@ async def _execute_desktop_objective_from_chat(
         requested=requested,
     )
     if result.get("ok") and (research_response or result.get("beside")):
-        response = (await her_answer_before_it_plays(objective, _desktop_deliverable_text(result) or summary)
+        response = (await her_answer_before_it_plays(objective, _desktop_deliverable_text(result) or summary,
+                                                     opened=str(result.get("opened") or ""))
                     if result.get("beside") else research_response)  # going on beside: her own turn answers
         if not result.get("beside") and _asks_to_watch(objective):
             # Asked to watch it with them, and nothing plays: what she found is told in her own words, not the page's.

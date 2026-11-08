@@ -100,7 +100,7 @@ AS_IT_PLAYS = ("As it plays on their screen beside her window, she sees it every
                "speaks when something in it is worth saying.")
 
 
-async def her_answer_before_it_plays(request: str, found: str) -> str:
+async def her_answer_before_it_plays(request: str, found: str, *, opened: str = "") -> str:
     """Her reply to the request to watch, before the video starts: her own turn, with what her browsing found of it
     (its title, its length, what its page says of itself) as fresh evidence, as each remark of hers is made
     (core/skills/watching_along.py ``her_turn``). LIVE 20 October 2026 the browsing's receipt went out in its place
@@ -111,7 +111,12 @@ async def her_answer_before_it_plays(request: str, found: str) -> str:
     try:
         # What she will have of it as it plays is part of what is so before it plays: LIVE 20 October 2026, without it
         # her answer said "I can't reliably stream my thoughts second-by-second on my own".
-        said = await her_turn(request, f"before it plays. What was found of it: {found}. {AS_IT_PLAYS}", [])
+        # What she opened leads, and the rounds that came to it follow: LIVE 7 November 2026, dress rehearsal, handed
+        # only the rounds, with the results page's list in them, her answer chose again from the list ("I bought an
+        # Exoskeleton to wield Giant Anime Swords. 34:58.") while another of his videos was opening, and her first
+        # three remarks were about the mix-up.
+        head = f"What she opened, and is about to play: {opened} How her browsing came to it: " if opened else "What was found of it: "
+        said = await her_turn(request, f"before it plays. {head}{found}. {AS_IT_PLAYS}", [])
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
         record_degradation("watching_together", exc, severity="info", action="what was found stands as the reply")
         said = ""
@@ -510,13 +515,17 @@ def _what_we_watched_lately(now: float) -> list[dict[str, Any]]:
                 said = [r.get("words") for r in rows if r.get("kind") == "said" and r.get("words")]
                 as_it_played = [(float(r.get("at") or 0.0), str(r.get("words")))
                                 for r in rows if r.get("kind") == "said" and r.get("when") == "during" and r.get("words")]
+                # What her senses took in of it, not what she said of it.
+                played = " ".join(" ".join(f"{r.get('read') or ''} {r.get('seen') or ''}".split())
+                                  for r in rows if r.get("kind") == "moment")[:PLAYED_CHARS]
                 walls = [float(r.get("wall") or 0.0) for r in rows if r.get("wall")]
                 ended = max(walls, default=path.stat().st_mtime) or path.stat().st_mtime
                 began = min(walls, default=ended)
                 by = next((r.get("by") for r in rows if r.get("kind") == "remembered" and r.get("by")), "")
                 if title:
                     kept.append({"title": title, "by": by, "began": began, "ended": ended,
-                                 "her last word": said[-1] if said else "", "as it played": as_it_played})
+                                 "her last word": said[-1] if said else "", "as it played": as_it_played,
+                                 "what played": played})
             except (OSError, ValueError) as exc:
                 logger.debug("a watching could not be read: %s", exc)
         _LATELY_READ.update({"at": now, "watched": kept})
@@ -565,6 +574,26 @@ def _spread(items: list[Any], most: int) -> list[Any]:
         return items[-1:]
     step = (len(items) - 1) / (most - 1)
     return [items[round(i * step)] for i in range(most)]
+
+
+#: The most of what she heard and saw of one watching kept as evidence of it.
+PLAYED_CHARS = 12_000
+
+
+def what_played_lately(*, now: float | None = None) -> str:
+    """What played in each watching of this sitting, as her senses took it in: its title, who made it, and what she
+    heard and saw of it. Evidence for a reply that speaks of a moment they watched ("we were laughing at the Panic
+    Monster"), from her senses and not her words, so that nothing she said licenses what she says next.
+
+    LIVE 7 November 2026, dress rehearsal: "So what did you think of all three?" was answered, and the answer refused as
+    fabricated_shared_history by a check holding it against the person's words alone; "I couldn't verify a reply that
+    answers that request" went out in its place."""
+    now = time.time() if now is None else now
+    recent = this_sitting(_what_we_watched_lately(now), now)
+    return "\n".join(
+        f"We watched {w['title']}" + (f" by {w['by']}" if w.get("by") else "") + f". In it: {w.get('what played') or ''}"
+        for w in recent
+    )
 
 
 def what_we_are_watching(_said: str = "", *, now: float | None = None) -> str:
