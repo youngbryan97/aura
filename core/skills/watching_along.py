@@ -653,6 +653,22 @@ def _named(text: str) -> set[str]:
     return {word for word in re.findall(r"[a-z']{4,}", str(text or "").lower()) if word not in _NOT_ABOUT_ANYTHING}
 
 
+#: Runs of this many words are what a remark is held against what she heard by.
+A_HEARD_RUN = 4
+
+
+def _every_run_heard(part: str, heard: str) -> bool:
+    """Whether every run of ``A_HEARD_RUN`` words in ``part`` is one in ``heard``: the line said again, not a thought."""
+    import re
+
+    def runs(text: str) -> set[tuple[str, ...]]:
+        words = re.findall(r"[a-z0-9']+", str(text or "").lower())
+        return {tuple(words[i:i + A_HEARD_RUN]) for i in range(len(words) - A_HEARD_RUN + 1)}
+
+    said = runs(part)
+    return bool(said) and said <= runs(heard)
+
+
 def first_thought(words: str, about: str = "") -> str:
     """The first paragraph of hers that says something, to its last whole sentence: what a person says of what is
     playing while it plays, before the rest of what they would say about it. Something is said where it is long enough
@@ -674,6 +690,11 @@ def first_thought(words: str, about: str = "") -> str:
         # Quoted whole, it is what was said in the video, not what she thinks of it (LIVE 20 October 2026, rehearsal 9:
         # '*"In July of 2026, 700 AI agents hacked the infrastructure of Hugging Face..."*' was said as a remark).
         if re.fullmatch(r"[*_\s]*[\"“].*[\"”][.…]*[*_\s]*", part, re.DOTALL):
+            return False
+        # Nor is it where every run of its words is one she was just given as heard, however it is set off: LIVE 8
+        # November 2026, three remarks on a short story were its narration's lines in italics ("*...I'm every human
+        # being who ever lived.*").
+        if _every_run_heard(part, about):
             return False
         count = len(re.findall(r"[A-Za-z']+", part))
         # Named by stem: "he reads the manual like a recipe" names the "reading" and the "manual" she was shown. Word for
