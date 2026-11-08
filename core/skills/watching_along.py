@@ -580,7 +580,34 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     objective = observation if remark else request
     thought = await engine.think(objective, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     words = str(getattr(thought, "content", "") or "").strip()
-    return first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words)
+    words = first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words)
+    if remark and tells_of_herself(words, observation):
+        logger.info("👀 not said, as herself told in the third person: %r", words[:160])
+        return ""
+    return words
+
+
+#: Words that name a woman or a girl, or point back to one: what a "she" in a remark could be about besides herself.
+_SOMEONE_SHE_COULD_MEAN = (
+    r"\b(?:she|her|hers|herself|woman|women|girl|girls|lady|ladies|mother|mom|mum|sister|daughter|wife|queen|"
+    r"princess|actress|grandma|grandmother|aunt|niece|female|madam|ma'am|mrs|ms|miss)\b"
+)
+
+
+def tells_of_herself(words: str, shown: str) -> bool:
+    """Whether a remark tells of her in the third person: a "she" or "her" in it, outside what it quotes, where nothing
+    she was shown names or points back to a woman or a girl, so that it can only be herself.
+
+    A person watching beside someone does not say that they lean in (``without_asides``), and does not say "she leans
+    in" of themselves either. LIVE 8 November 2026, dress rehearsal, a cartoon of two men: from her second remark on
+    every one was told of her ("She pauses on it. 'Okay so he cooked the human.' ... She doesn't look at the screen
+    anymore. Looks at you instead."), each one read by the next as what she had said so far."""
+    import re
+
+    unquoted = re.sub(r"[\"“][^\"”]*[\"”]", " ", str(words or ""))
+    if not re.search(r"\b(?:she|her|herself)\b", unquoted, re.IGNORECASE):
+        return False
+    return not re.search(_SOMEONE_SHE_COULD_MEAN, str(shown or ""), re.IGNORECASE)
 
 
 def whole_paragraphs(words: str) -> str:
