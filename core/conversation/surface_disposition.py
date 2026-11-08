@@ -637,6 +637,10 @@ UNSPEAKABLE_REASONS: frozenset[str] = frozenset(
         # answer to his question. Every other *_leak reason the assessor emits
         # was already unspeakable; this one was missed.
         "stale_diagnostic_floor_leak",
+        # An earlier reply of hers, said again word for word to a later turn that did not ask for it: an answer to
+        # what was the case then (core/brain/llm/mlx_worker_surface_quality.repeats_an_earlier_reply). Checked by
+        # comparing the words, not judged.
+        "repeated_earlier_reply",
     }
 )
 

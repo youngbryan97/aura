@@ -745,6 +745,36 @@ def _recent_assistant_turns(job: dict[str, Any]) -> list[str]:
     return said
 
 
+#: Runs of this many words are what a reply is compared by, and the share of a draft's runs found in one earlier reply
+#: that makes it that reply said again. Fewer runs than ``A_REPLY_HAS_RUNS`` is too short to be a repeat ("Yes.").
+A_RUN_OF_WORDS, A_REPEAT_SHARES, A_REPLY_HAS_RUNS = 8, 0.5, 12
+_ASKED_TO_REPEAT = re.compile(
+    r"\b(?:repeat|say (?:that|it) (?:again|once more)|what did you (?:just )?say|one more time|word for word)\b",
+    re.IGNORECASE,
+)
+
+
+def _runs_of_words(text: str) -> set[tuple[str, ...]]:
+    words = re.findall(r"[a-z0-9']+", str(text or "").lower())
+    return {tuple(words[i:i + A_RUN_OF_WORDS]) for i in range(len(words) - A_RUN_OF_WORDS + 1)}
+
+
+def repeats_an_earlier_reply(draft: str, earlier: list[str], asked: str = "") -> bool:
+    """Whether ``draft`` is, for the most part, one of her ``earlier`` replies in the transcript said again, where the
+    person did not ask her to say it again.
+
+    LIVE 7 November 2026, dress rehearsal. Asked "So what did you think of all three?" at 18:56, with the three she had
+    watched since 18:20 in front of her, she gave word for word her answer to the same question at 17:34, of three
+    others ("Traffic has a perfect solution was the weirkest of the three"). The same words asked later are asked of
+    what is the case then."""
+    if asked and _ASKED_TO_REPEAT.search(asked):
+        return False
+    runs = _runs_of_words(draft)
+    if len(runs) < A_REPLY_HAS_RUNS:
+        return False
+    return any(len(runs & _runs_of_words(before)) >= A_REPEAT_SHARES * len(runs) for before in earlier if before)
+
+
 def _surface_quality_failure_reasons(
     job: dict[str, Any],
     response_text: Any,
@@ -805,6 +835,7 @@ def _surface_quality_failure_reasons(
             action="continued surface validation after self-claim verification failed",
             severity="error",
         )
+    repeated = repeats_an_earlier_reply(candidate, _recent_assistant_turns(job), prompt)
     if (
         assessment.ok
         and not assessment.retryable
@@ -812,10 +843,13 @@ def _surface_quality_failure_reasons(
         and not sanitizer_reasons
         and not self_claim_contradiction
         and not self_claim_verification_unavailable
+        and not repeated
     ):
         return []
     reasons = list(assessment.reasons)
     reasons.extend(sanitizer_reasons)
+    if repeated:
+        reasons.append("repeated_earlier_reply")
     if self_claim_contradiction:
         reasons.append("self_claim_contradiction")
     if self_claim_verification_unavailable:

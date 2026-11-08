@@ -182,10 +182,18 @@ class _WarmsUpAndSwapsAdapters:
             # swap and scavenger would all be blocked forever.
             self._active_generations = max(0, self._active_generations - 1)
             if timed_out:
-                # The queued decode continues invisibly after a timeout;
-                # ask the worker to yield instead of burning the lane.
-                with contextlib.suppress(Exception):
-                    self.soft_cancel_active_generation(reason=f"batch_timeout:{req_id[:12]}")
+                # The queued decode continues after a timeout: mlx_lm's
+                # batch_generate polls no cancel, and a batch job carries no
+                # sequence for the cancel channel to name. A soft cancel here
+                # could only land on the serial request that is current, which
+                # is somebody else's. LIVE 7 November 2026, dress rehearsal: a
+                # batch timeout cancelled her answer to "Let's watch this
+                # together", queued behind it, at 0 of 793 tokens; the retry
+                # answered without her senses, "I can't actually open that link".
+                _record_mlx_degradation(
+                    TimeoutError(f"batch decode {req_id[:12]} outlived its wait"),
+                    action="left the batch to finish; cancelled nothing, since the active request is not the batch",
+                )
         if not res or res.get("status") != "ok":
             return {}
         raw_texts_value = res.get("texts")

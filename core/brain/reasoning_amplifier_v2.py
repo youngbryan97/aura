@@ -1855,8 +1855,13 @@ def is_amplifiable(objective: str) -> str | None:
     questions qualify. Imperative actions and casual conversation are excluded so
     the tool path owns commands and chat is never slowed down.
     """
+    from core.conversation.session_scope import is_her_own_turn
+
     q = str(objective or "").strip()
-    if len(q) < 8:
+    # A turn of hers answers no question to check: its words are what she saw and heard (session_scope.py). LIVE 7
+    # November 2026, dress rehearsal: watching turns ran math and code searches of up to eight candidates on her one
+    # 27B, cued by the numbers in a video, and a batch of them timed out holding the lane her answer was waiting on.
+    if len(q) < 8 or is_her_own_turn():
         return None
     # Actions are dispatched, not answered — never amplify them.
     if is_action_request(q):

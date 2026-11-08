@@ -144,3 +144,43 @@ def test_what_she_said_as_each_played_is_handed_to_her_after(monkeypatch):
     assert "(2:26) Snakes should not have more than four legs." in block
     assert "Her last word on it: And it's done." in block
     assert wt._spread(list(range(20)), 6) == [0, 4, 8, 11, 15, 19]
+
+
+SAID_AT_17_34 = (
+    "Okay, now I actually have all three in the session. So here is my real read on each one, since you asked for all "
+    "of them this time. Spoons was the quietest and the most unsettling in a slow way. The voice does half the work "
+    "before anything weird happens. Allen Pan was more physical and immediate. The sound design hit before I "
+    "understood why. Traffic has a perfect solution was the weirkest of the three in a different way."
+)
+
+
+def test_an_earlier_reply_said_again_is_caught_unless_asked_for():
+    from core.brain.llm.mlx_worker_surface_quality import repeats_an_earlier_reply
+
+    asked = "So what did you think of all three?"
+    assert repeats_an_earlier_reply(SAID_AT_17_34, [SAID_AT_17_34], asked)
+    assert repeats_an_earlier_reply(SAID_AT_17_34 + " So the short version: slow unease.", ["Hi.", SAID_AT_17_34], asked)
+    fresh = ("Powers of Ten was the one that stayed with me: every ten seconds the frame pulls back by ten times, and "
+             "by the time the Sun is a point I had stopped counting. The glove was pure Allen Pan, an engineering "
+             "question dressed up as a stunt, and Spoons was polite horror.")
+    assert not repeats_an_earlier_reply(fresh, [SAID_AT_17_34], asked)
+    assert not repeats_an_earlier_reply(SAID_AT_17_34, [SAID_AT_17_34], "Can you repeat that?")
+    assert not repeats_an_earlier_reply("Yes, that one.", ["Yes, that one."], asked)
+
+
+def test_the_amplifier_stands_down_on_a_turn_of_hers():
+    from core.brain.reasoning_amplifier_v2 import is_amplifiable
+
+    with her_own_turn_scope():
+        assert is_amplifiable("What is the integral of x squared from 0 to 3? Show the working.") is None
+
+
+def test_her_retry_is_asked_as_first_asked_and_a_batch_cancels_nobody_else():
+    from core.brain import inference_gate
+    from core.brain.llm import mlx_warmup_and_adapters
+    from core.conversation.surface_disposition import UNSPEAKABLE_REASONS
+
+    assert 'if bool(context.get("her_own_turn")) and isinstance(messages, list) and messages:' in inspect.getsource(
+        inference_gate)
+    assert "batch_timeout:" not in inspect.getsource(mlx_warmup_and_adapters)
+    assert "repeated_earlier_reply" in UNSPEAKABLE_REASONS

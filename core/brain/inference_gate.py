@@ -10148,11 +10148,20 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                             retry_deadline = get_deadline(
                                 self._window_within(request_deadline, retry_timeout)
                             )
-                            retry_messages = self._build_primary_repair_messages(
-                                visible_user_prompt,
-                                messages,
-                            )
-                            retry_system_prompt = retry_messages[0]["content"]
+                            # A turn of hers is asked again as it was first asked: the repair framing drops
+                            # what she was shown, and an attempt that never ran (cancelled before its first token)
+                            # did not drown in it. LIVE 7 November 2026, dress rehearsal: retried from the repair
+                            # messages, her answer to "Let's watch this together" said "I can't actually open that
+                            # link or watch the video", and the film then played.
+                            if bool(context.get("her_own_turn")) and isinstance(messages, list) and messages:
+                                retry_messages = [dict(message) for message in messages]
+                                retry_system_prompt = system_prompt
+                            else:
+                                retry_messages = self._build_primary_repair_messages(
+                                    visible_user_prompt,
+                                    messages,
+                                )
+                                retry_system_prompt = retry_messages[0]["content"]
                             retry_morpho_kwargs, retry_temperature = self._generate_with_metadata_sink_retry_morpho_kwargs(morpho_kwargs, retry_attempt, somatic_temperature)
                             async with self._resource_context(
                                 enabled=True,
