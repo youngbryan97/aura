@@ -23,6 +23,7 @@ import hashlib
 import logging
 import re
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -317,6 +318,8 @@ class OnTheirScreen:
         self.video_within: tuple[float, float, float, float] | None = None
         self.pictured: Any = None
         self.since_pictured = 0
+        #: How many looks each name her eyes gave a thing came in (``_a_name_given_again``).
+        self.names_given: Counter[str] = Counter()
         #: The last reading of their player, the video's own place in it, the place and length its player last
         #: stated, and the place and moment the clock runs from.
         self.reading: Any = None
@@ -509,6 +512,7 @@ class OnTheirScreen:
                     seen = plainly(await look_with_her_eyes(asked, base64.b64encode(smaller).decode("ascii"),
                                                             max_tokens=LOOK_TOKENS, timeout_s=seconds))
                     seen = _without_names_it_guessed(seen, f"{self.title} {' '.join(words)}")
+                    seen = _a_name_given_again(seen, f"{self.title} {' '.join(words)}", self.names_given)
                 shown = f'words on it: "{" / ".join(words)}"' if words else ""
                 return "; ".join(part for part in (seen, shown) if part)
             except (RuntimeError, OSError, ValueError, TypeError, KeyError, TimeoutError) as why:
@@ -593,6 +597,27 @@ def _without_names_it_guessed(seen: str, shown: str) -> str:
     pattern = (r"(?<![A-Za-z]\s)(?<!\bthe\s)\*{0,2}\b(?!(?:The|A|An|In|On|At|This|That|It|He|She|They|His|Her|Its|Their|"
                r"Some|Two|One|Here|There|What|When|Where|While|With|After|Before)\b)[A-Z][a-z]+\s+[A-Z][a-z]+\b(?!\s+[A-Z])\*{0,2}")
     return re.sub(pattern, guessed, seen or "")
+
+
+def _a_name_given_again(seen: str, shown: str, given: Counter[str]) -> str:
+    """What her eyes said of a picture, with a name they gave a thing kept only once a look before gave it too.
+
+    A one-word name is a character's, and no picture writes it: her eyes give the one they take it to be, and keep
+    giving it where they know it. One given once is a slip, and is said as "a character": LIVE 8 November 2026,
+    rehearsal 9, a cartoon's blue moose was "Lumpy" in five looks and "Pebbles" in one, and her remark named Pebbles.
+    A name written in the title or on the picture (``shown``) is kept from the first; ``given`` counts across looks.
+    """
+    import re
+
+    written = {w.lower() for w in re.findall(r"[A-Za-z]{2,}", shown or "")}
+    names = {m.group(1) for m in re.finditer(r"\*\*([A-Z][a-z]+)\*\*(?!\s*:)", seen or "")} - {
+        n for n in re.findall(r"[A-Z][a-z]+", seen or "") if n.lower() in written}
+    for name in names:
+        given[name] += 1
+    slips = [name for name in names if given[name] < 2]
+    for name in slips:
+        seen = re.sub(rf"(?:\bthe\s+character\s+)?(?:\*\*)?\b{name}\b(?:\*\*)?", "a character", seen)
+    return re.sub(r"(^|[.!?]\s+)a character", r"\1A character", seen) if slips else seen
 
 
 def _scripted(bundle: str, scripts: dict[str, str]) -> str:
