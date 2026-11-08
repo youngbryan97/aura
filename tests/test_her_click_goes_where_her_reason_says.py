@@ -45,3 +45,10 @@ def test_two_controls_named_as_well_as_each_other_leave_the_number():
     elements = [{"name": "Robot arm build"}, {"name": "Robot arm repair"}, {"name": "Settings"}]
     decided = _decide(2, "The robot arm one.")
     assert SovereignBrowserSkill._the_one_she_means(decided, elements)["actions"][0]["index"] == 2
+
+
+def test_a_click_on_a_picture_that_names_nothing_stays_where_it_is():
+    """LIVE 8 November 2026: a click on the thumbnail of the video she described was taken to its description."""
+    elements = [{"name": "4:05\nNow playing"}, {"name": "Joel Haver portrays two knights observing a mysterious steed"}]
+    decided = _decide(0, "Two knights, a cryptic steed, foreboding visions - the one that does something with tone.")
+    assert SovereignBrowserSkill._the_one_she_means(decided, elements)["actions"][0]["index"] == 0

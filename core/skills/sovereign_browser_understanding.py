@@ -139,7 +139,7 @@ class _UnderstandsThePage(_PlacesHerself):
     _SAID_OF_ANY = frozenset(
         "video videos click clicking choose choosing chose pick picking because channel page about this that what "
         "which into just only their there every thing things watch watching want really actual actually going "
-        "would could should them they then than here".split()
+        "would could should them they then than here playing play views minutes seconds hours".split()
     )
 
     @classmethod
@@ -152,7 +152,8 @@ class _UnderstandsThePage(_PlacesHerself):
         list, so that her decision was put aside for the small model's; no video opened. The night before, she named
         an episode while a compilation two places away opened.
 
-        Taken only where the index's control shares no word with her reason and exactly one control shares two or more.
+        Taken only where the index's control names something and shares no word with her reason, and exactly one
+        control shares two or more.
         """
         import re
 
@@ -179,7 +180,10 @@ class _UnderstandsThePage(_PlacesHerself):
             index = int(clicks[0].get("index"))
         except (TypeError, ValueError):
             index = -1
-        if 0 <= index < len(elements) and shared[index] > 0:
+        # A control whose name says nothing of what it opens ("4:05 Now playing", a video's picture) is not one her
+        # reason can be held against: LIVE 8 November 2026 such a click, on the video she had described, was taken to
+        # that video's description, which opened nothing, and a round went by.
+        if 0 <= index < len(elements) and (shared[index] > 0 or not words(str(elements[index].get("name") or ""))):
             return decided
         best = max(shared, default=0)
         if best < 2 or shared.count(best) != 1:
