@@ -160,6 +160,23 @@ def _from_earlier_sittings(exchanges: Sequence[Any], now: float | None) -> int:
     return sitting_begins(times, time.time() if now is None else float(now))
 
 
+#: How much of the sitting going on now is read whole, in characters: about 3,000 tokens, which her model read in
+#: about ten seconds on 8 November 2026 (300 to 330 tokens a second). Past it, what the request bears on is read.
+#: LIVE 8 November 2026, rehearsal 10: "So what did you think of all three?" bore by meaning on none of the sitting's
+#: three watchings, only its last exchange reached her, a failed step's "This did not complete", and she answered "I
+#: can't watch the videos, so I don't have a personal reaction to them."
+A_SITTING_READ_WHOLE_CHARS = 12_000
+
+
+def _this_sitting(exchanges: Sequence[Any], now: float | None) -> range | None:
+    """The indices of the sitting going on now; None where an exchange's time is unknown, so where it began is too."""
+    from core.conversation.sitting import when
+
+    if not all(isinstance(entry, dict) and when(entry.get("at")) is not None for entry in exchanges):
+        return None
+    return range(_from_earlier_sittings(exchanges, now), len(exchanges))
+
+
 def measure_reach(
     exchanges: Sequence[Any], *, budget_chars: int = 0, request: str = "", now: float | None = None
 ) -> HistoryReach:
@@ -207,6 +224,11 @@ def measure_reach(
         if earlier:
             bearing = [index for index in bearing if index >= begins]
             said += f"; {len(earlier)} of them from sittings before this one, which reach her as memory"
+        # The sitting going on now is the conversation in front of her, and read whole while it is short.
+        sitting = _this_sitting(exchanges, now)
+        if sitting is not None and sum(sizes[index] for index in sitting) <= A_SITTING_READ_WHOLE_CHARS:
+            bearing = sorted(set(bearing) | set(sitting))
+            said += f"; this sitting's {len(sitting)} exchange(s) are read whole"
         reasons.append(said)
         kept = tuple(index for index in kept if index in bearing or index == count - 1)
         boundary = kept[0]
