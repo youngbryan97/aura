@@ -17,6 +17,35 @@ if TYPE_CHECKING:
     )
 
 
+def said_once(text: str) -> str:
+    """A reply up to the paragraph where it starts saying itself again: one made mostly of the runs of words of a
+    paragraph before it, measured as an earlier reply said again is (``repeats_an_earlier_reply``).
+
+    LIVE 8 November 2026, dress rehearsal: her answer to "So what did you think of all three?" went through the three
+    and then began again, "**Optimistic Nihilism** was the heavyweight ... I think you felt it land at 2:43", in the
+    words of its own first paragraph.
+    """
+    import re
+
+    from core.brain.llm.mlx_worker_surface_quality import (
+        A_REPEAT_SHARES,
+        A_REPLY_HAS_RUNS,
+        _runs_of_words,
+    )
+
+    paragraphs = re.split(r"(\n\s*\n)", str(text or ""))
+    kept: list[str] = []
+    before: set[tuple[str, ...]] = set()
+    for index in range(0, len(paragraphs), 2):
+        part = paragraphs[index]
+        runs = _runs_of_words(part)
+        if before and len(runs) >= A_REPLY_HAS_RUNS and len(runs & before) >= A_REPEAT_SHARES * len(runs):
+            return "".join(kept).rstrip()
+        kept.append(part + (paragraphs[index + 1] if index + 1 < len(paragraphs) else ""))
+        before |= runs
+    return str(text or "")
+
+
 class _AnswersTheDesktopDirectly:
     """Lifted whole out of CognitiveEngine; see cognitive_engine.py."""
 
@@ -1484,7 +1513,7 @@ class _AnswersTheDesktopDirectly:
                     generation_metadata=router_generation_metadata,
                 )
             return None
-        text = _restore_sentence_spacing(text)
+        text = said_once(_restore_sentence_spacing(text))
         if kept_planted is not None:
             from core.phases.kept_procedures_in_a_turn import after_the_draft
 
