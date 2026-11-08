@@ -807,7 +807,9 @@ def without_asides(part: str) -> str:
     if whole and a_gesture(whole.group("a") or whole.group("b") or ""):
         return ""
     while True:
-        opening = re.match(r"^" + _AN_ASIDE + r"(?P<stop>[.…]?)\s+(?=\S)", text)
+        # Its stop may run straight on into what she says: LIVE 8 November 2026, rehearsal 9, "*letting the credits
+        # wash over without turning away right away.*...and that's it." was said with the gesture in it.
+        opening = re.match(r"^" + _AN_ASIDE + r"(?P<stop>[.…]*)\s*(?=\S)", text)
         if not opening or not a_gesture(opening.group("a") or opening.group("b") or ""):
             return text
         # Starred and then carried on in lower case, it is a word stressed in her sentence, not a gesture before it.
@@ -816,6 +818,25 @@ def without_asides(part: str) -> str:
         if not opening.group("stop") and not re.search(r"[.…!?]$", inner) and re.match(r"[a-z]", text[opening.end():]):
             return text
         text = text[opening.end():].strip()
+        # What follows a gesture it ran on from begins her sentence.
+        text = text[:1].upper() + text[1:]
+
+
+def without_gestures(words: str) -> str:
+    """Her words without a paragraph that is a gesture, or the gesture one opens with (``without_asides``).
+
+    LIVE 8 November 2026, rehearsal 9, her reply on the episode she picked: "*settles in beside her screen as it starts
+    rolling.*...okay, and there we go."
+    """
+    import re
+
+    parts = re.split(r"(\n\s*\n)", str(words or ""))
+    kept: list[str] = []
+    for index in range(0, len(parts), 2):
+        said = without_asides(parts[index])
+        if said:
+            kept.append(said)
+    return "\n\n".join(kept)
 
 
 def _without_the_end_of_a_note(part: str) -> str:

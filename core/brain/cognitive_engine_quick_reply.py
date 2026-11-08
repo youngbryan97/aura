@@ -1513,7 +1513,10 @@ class _AnswersTheDesktopDirectly:
                     generation_metadata=router_generation_metadata,
                 )
             return None
-        text = said_once(_restore_sentence_spacing(text))
+        # What a person says, and not what they would do: a gesture is not said, in a reply as in a remark.
+        from core.skills.watching_along import without_gestures
+
+        text = without_gestures(said_once(_restore_sentence_spacing(text))) or text
         if kept_planted is not None:
             from core.phases.kept_procedures_in_a_turn import after_the_draft
 
