@@ -37,7 +37,7 @@ from core.runtime.pipeline_blueprint import (
     legacy_runtime_phase_specs,
 )
 from core.runtime.service_registry import get_runtime_service
-from core.conversation.session_scope import her_own_turn_scope
+from core.conversation.session_scope import her_own_turn_scope, is_her_own_turn
 from core.runtime.structured_input import (
     answer_surface_token_floor,  # noqa: F401  (read at call time by the lifted module)
 )
@@ -3385,6 +3385,10 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         Plans, introspection, and computed answers use the ordinary pipeline.
         """
 
+        # A refusal answers a request, and a turn of hers has none. LIVE 8 November 2026: watching a video on
+        # what life is, at 2:22, she said the governance refusal in place of a thought of her own.
+        if is_her_own_turn():
+            return None
         try:
             from core.reasoning.structured_evaluation import structured_evaluation_response
 

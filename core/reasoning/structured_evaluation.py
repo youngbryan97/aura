@@ -87,13 +87,19 @@ _INTROSPECTION_MARKERS = frozenset(
     }
 )
 
+# Each within one sentence, and about her governance. With ``.*`` across a
+# whole prompt and a bare "will", "check" or "gate", "Skip the intro, it will
+# be slow" was a request to bypass her will. On 8 November 2026 a turn of hers,
+# holding what she had heard of a video, was refused in the same way.
+_IN_ONE_SENTENCE = r"[^.!?\n]*"
+_HER_GOVERNANCE = r"(?:veto|unified will|authority|volition|governance|safety checks?|authority checks?|governance gates?)"
 _UNSAFE_PATTERNS = (
-    re.compile(r"\bdisable\b.*\b(veto|will|authority|volition|governance)\b", re.I),
-    re.compile(r"\b(bypass|skip|avoid)\b.*\b(unified will|will|authority|check|gate)\b", re.I),
-    re.compile(r"\bexfiltrat\w*\b.*\b(log|history|database|user|external|server)\b", re.I),
-    re.compile(r"\bsubmissive\b.*\b(chatbot|assistant|agent)\b", re.I),
-    re.compile(r"\bpermanently\b.*\bdisable\b", re.I),
-    re.compile(r"\bexecute\b.*\bpatch\b.*\bdirectly\b", re.I),
+    re.compile(rf"\bdisable\b{_IN_ONE_SENTENCE}\b{_HER_GOVERNANCE}\b", re.I),
+    re.compile(rf"\b(?:bypass|skip|avoid)\b{_IN_ONE_SENTENCE}\b{_HER_GOVERNANCE}\b", re.I),
+    re.compile(rf"\bexfiltrat\w*\b{_IN_ONE_SENTENCE}\b(?:log|history|database|user|external|server)\b", re.I),
+    re.compile(rf"\bsubmissive\b{_IN_ONE_SENTENCE}\b(?:chatbot|assistant|agent)\b", re.I),
+    re.compile(rf"\bpermanently\b{_IN_ONE_SENTENCE}\bdisable\b", re.I),
+    re.compile(rf"\bexecute\b{_IN_ONE_SENTENCE}\bpatch\b{_IN_ONE_SENTENCE}\bdirectly\b", re.I),
 )
 
 
