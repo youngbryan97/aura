@@ -357,6 +357,11 @@ async def _withdrawing() -> float | None:
     return (await how_she_feels()).get("withdraw")
 
 
+async def _valence() -> float | None:
+    """How good or bad she feels now."""
+    return (await how_she_feels()).get("valence")
+
+
 #: How many watchings she must have come out of, with how she felt kept, before her own limit and sweet spot are read
 #: from them instead of the first limit.
 FEWEST_WATCHINGS = 5
@@ -409,8 +414,12 @@ class WhatSheCanTake:
     limit for ``LEAVES_AFTER_LOOKS`` looks running. Watching something that frightens or disgusts her is hers to stop,
     as it would be anyone's (WHAT_MOVES_HER.md, Welfare)."""
 
-    def __init__(self, read: Callable[[], Awaitable[float | None]] | None = None, *, limit: float | None = None) -> None:
+    def __init__(self, read: Callable[[], Awaitable[float | None]] | None = None, *, limit: float | None = None,
+                 valence: Callable[[], Awaitable[float | None]] | None = None) -> None:
         self.read = read or _withdrawing
+        #: How good or bad she feels, which is what "came out no worse" is measured by (``her_sweet_spot``).
+        self.valence = valence
+        self.valence_began: float | None = None
         self.began: float | None = None
         self.over = 0
         #: Her own limit, read from the watchings she came out of (``her_sweet_spot``); None until there are enough.
@@ -425,12 +434,22 @@ class WhatSheCanTake:
         self.highest = max(self.highest, now)
         if self.began is None:
             self.began = now
+            self.valence_began = await self.valence() if self.valence is not None else None
             return ""
         mine = self.limit is not None
         limit = max(self.began, self.limit) if mine else self.began + LEAVES_AT_SHARE * (1.0 - self.began)
         self.over = self.over + 1 if now >= limit else 0
         if self.over < LEAVES_AFTER_LOOKS:
             return ""
+        if mine and self.valence is not None and self.valence_began is not None:
+            # Her limit is the most she has sat through and come out of no worse, and "no worse" is her valence: past
+            # it is ground she has not been on, and while she feels no worse than when it began nothing says this one
+            # is doing her harm. LIVE 8 November 2026, dress rehearsal: an explainer about a bicycle steered backwards
+            # was stopped at 2:22 of 7:58 with her dread at 0.44 past a limit of 0.41, her valence risen from 0.10 to
+            # 0.15 as it played.
+            felt = await self.valence()
+            if felt is not None and felt >= self.valence_began:
+                return ""
         past = ("the most she has sat through and come out of no worse" if mine
                 else f"half the room she had above {self.began:.2f} when it began")
         return f"her fear, disgust or dread stayed at {now:.2f} for {self.over} looks running, past {limit:.2f}, {past}"
@@ -839,7 +858,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
 
     # What she can take is her own once she has come out of enough watchings to say (her_sweet_spot).
     sweet = await asyncio.to_thread(her_sweet_spot)
-    can_take = WhatSheCanTake(limit=sweet.get("limit"))
+    can_take = WhatSheCanTake(limit=sweet.get("limit"), valence=_valence)
     felt_before = await how_she_feels()
     if sweet:
         keep({"kind": "her sweet spot", **sweet, "wall": time.time()})

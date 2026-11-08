@@ -947,3 +947,25 @@ def test_what_she_took_in_and_did_not_share_fills_with_what_she_made_out_and_soo
     assert moves.unshared()[0] == pytest.approx(taken)
     moves.remarked()
     assert moves.unshared() == (0.0, "")
+
+
+def test_past_her_own_limit_she_watches_on_while_she_feels_no_worse_than_when_it_began():
+    """LIVE 8 November 2026, dress rehearsal: an explainer about a bicycle steered backwards was stopped at 2:22 with
+    her dread at 0.44 past a limit of 0.41, her valence risen from 0.10 to 0.15 as it played."""
+    from core.skills.watching_together import WhatSheCanTake
+
+    def reader(values):
+        it = iter(values)
+
+        async def read():
+            return next(it)
+
+        return read
+
+    async def go(valences):
+        can_take = WhatSheCanTake(reader([0.24, 0.44, 0.44, 0.44, 0.44]), limit=0.41, valence=reader(valences))
+        return [await can_take() for _ in range(5)]
+
+    assert asyncio.run(go([0.10, 0.12, 0.15])) == [""] * 5
+    stopped = asyncio.run(go([0.10, 0.02, 0.02]))
+    assert stopped[:3] == [""] * 3 and "the most she has sat through" in stopped[3]
