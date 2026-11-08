@@ -745,8 +745,17 @@ async def say_it(words: str) -> bool:
     """Said aloud and in her chat, through her Will and constitution, as anything she says unasked is."""
     from core.container import ServiceContainer
 
+    from core.conversation.response_reliability import internal_leak_reasons
+
     orchestrator = ServiceContainer.get("orchestrator", default=None)
     if orchestrator is None or not hasattr(orchestrator, "emit_spontaneous_message"):
+        return False
+    # Machinery is not said, and what is not said is not kept as said. LIVE 7 November 2026, dress rehearsal: "I lost
+    # the reply lane for a moment. Ask that again..." was withheld from her chat as internal text (interface/
+    # event_bridge.py), and kept in her record of the watching as a remark, which she would read back as her own.
+    leaks = internal_leak_reasons(words)
+    if leaks:
+        logger.warning("👀 not said, as machinery (%s): %r", ",".join(leaks), words[:120])
         return False
     # A commentary the person asked for: LIVE 20 October 2026 every remark was withheld from the chat as a second
     # answer to the request that started the watching (interface/event_bridge.py), and Bryan saw none of them.

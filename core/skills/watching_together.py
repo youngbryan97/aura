@@ -508,13 +508,15 @@ def _what_we_watched_lately(now: float) -> list[dict[str, Any]]:
                 rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
                 title = next((r.get("title") for r in rows if r.get("title")), "")
                 said = [r.get("words") for r in rows if r.get("kind") == "said" and r.get("words")]
+                as_it_played = [(float(r.get("at") or 0.0), str(r.get("words")))
+                                for r in rows if r.get("kind") == "said" and r.get("when") == "during" and r.get("words")]
                 walls = [float(r.get("wall") or 0.0) for r in rows if r.get("wall")]
                 ended = max(walls, default=path.stat().st_mtime) or path.stat().st_mtime
                 began = min(walls, default=ended)
                 by = next((r.get("by") for r in rows if r.get("kind") == "remembered" and r.get("by")), "")
                 if title:
                     kept.append({"title": title, "by": by, "began": began, "ended": ended,
-                                 "her last word": said[-1] if said else ""})
+                                 "her last word": said[-1] if said else "", "as it played": as_it_played})
             except (OSError, ValueError) as exc:
                 logger.debug("a watching could not be read: %s", exc)
         _LATELY_READ.update({"at": now, "watched": kept})
@@ -547,6 +549,24 @@ def this_sitting(watched: list[dict[str, Any]], now: float) -> list[dict[str, An
     return list(reversed(kept))
 
 
+#: How much of what she said of each watching of the sitting she is handed: her remarks as it played, spread across it,
+#: each cut to its head, and her last word on it. LIVE 7 November 2026, dress rehearsal: handed 240 characters of her
+#: last word on each, asked "So what did you think of all three?", she said of Allen Pan's snake legs that "the sound
+#: design hit before I understood why" and it was "physical flinching": what she said of another of his videos, two
+#: hours before, from her recall.
+REMARKS_KEPT, REMARK_CHARS, LAST_WORD_CHARS = 6, 200, 480
+
+
+def _spread(items: list[Any], most: int) -> list[Any]:
+    """At most ``most`` of ``items``, spread evenly across them, first and last kept."""
+    if len(items) <= most:
+        return items
+    if most <= 1:
+        return items[-1:]
+    step = (len(items) - 1) / (most - 1)
+    return [items[round(i * step)] for i in range(most)]
+
+
 def what_we_are_watching(_said: str = "", *, now: float | None = None) -> str:
     """The reading every turn of the conversation carries while something plays: what, how far in, lately; and what
     she has watched together with someone in the last hours, in the order they watched it, with her last word on each:
@@ -560,11 +580,19 @@ def what_we_are_watching(_said: str = "", *, now: float | None = None) -> str:
     blocks = []
     if recent:
         lines = ["## WHAT WE HAVE WATCHED TOGETHER LATELY"]
+        playing = {str(p.get("title") or "") for p in _PLAYING.values()}
         for number, watched in enumerate(recent, 1):
             ago = max(1, round((now - float(watched["ended"])) / 60))
             by = f" by {watched['by']}" if watched.get("by") else ""
-            last = " ".join(str(watched.get("her last word") or "").split())[:240]
-            lines.append(f"{number}. {watched['title']}{by}, ended {ago} min ago." + (f" Her last word on it: {last}" if last else ""))
+            last = " ".join(str(watched.get("her last word") or "").split())[:LAST_WORD_CHARS]
+            line = f"{number}. {watched['title']}{by}, ended {ago} min ago."
+            # What she thought as it played, in her words then: what a person draws on when asked what they made of
+            # it. Not for what plays now, whose remarks are in the talk.
+            remarks = [] if watched["title"] in playing else _spread(list(watched.get("as it played") or []), REMARKS_KEPT)
+            if remarks:
+                line += " As it played she said: " + " / ".join(
+                    f"({clock(at)}) {' '.join(words.split())[:REMARK_CHARS]}" for at, words in remarks)
+            lines.append(line + (f" Her last word on it: {last}" if last else ""))
         blocks.append("\n".join(lines))
     for playing in _PLAYING.values():
         lines = [f"## WHAT IS PLAYING WHILE WE TALK\n{playing['title']} ({playing['url']}), "
@@ -781,7 +809,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
             # "So what did you think of all three?", she answered that she had opened only one.
             said = [words for _at, words in ended.get("said") or []]
             _WATCHED_TOGETHER.append({"title": ended.get("title") or title, "by": by, "with": who,
-                                      "ended": time.time(), "her last word": said[-1] if said else ""})
+                                      "ended": time.time(), "her last word": said[-1] if said else "",
+                                      "as it played": [(float(at), str(words)) for at, words in (ended.get("said") or [])[:-1]]})
             del _WATCHED_TOGETHER[:-WATCHED_TOGETHER_KEPT]
         taking.left(who, by=IT)
         # How she came out of it, beside how it moved her: what her sweet spot and her limit are learned from. After

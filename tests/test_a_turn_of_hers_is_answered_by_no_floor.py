@@ -98,3 +98,49 @@ def test_a_turn_of_hers_falls_to_no_other_model_and_no_second_run():
     assert 'or bool(context.get("her_own_turn"))\n                        ):' in gate
     loop = inspect.getsource(cognitive_engine_thinking_loop)
     assert 'record_response_path("her_own_turn_unsaid"' in loop
+
+
+def test_the_router_has_no_sentence_about_its_lane_for_her():
+    from core.brain.llm_health_router import _a_turn_of_hers
+
+    assert not _a_turn_of_hers({})
+    assert _a_turn_of_hers({"her_own_turn": True})
+    with her_own_turn_scope():
+        assert _a_turn_of_hers({})
+
+
+def test_machinery_is_not_said_or_kept_as_said(monkeypatch):
+    import asyncio
+
+    from core.container import ServiceContainer
+    from core.skills import watching_along
+
+    emitted: list[str] = []
+
+    class Orchestrator:
+        async def emit_spontaneous_message(self, words, **_kwargs):
+            emitted.append(words)
+            return {"ok": True}
+
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda name, default=None: Orchestrator()))
+    lost = "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
+    assert asyncio.run(watching_along.say_it(lost)) is False
+    assert asyncio.run(watching_along.say_it("Oh, the restroom. Of course it's the restroom.")) is True
+    assert emitted == ["Oh, the restroom. Of course it's the restroom."]
+
+
+def test_what_she_said_as_each_played_is_handed_to_her_after(monkeypatch):
+    from core.skills import watching_together as wt
+
+    now = 10_000.0
+    snakes = {"title": "giving snakes there legs back.", "by": "Allen Pan", "began": now - 900, "ended": now - 300,
+              "her last word": "And it's done.",
+              "as it played": [(2.0, "The shirt. MR UNIVERSE."), (146.0, "Snakes should not have more than four legs."),
+                               (355.0, "Granddaddy herpes, in the garage.")]}
+    monkeypatch.setattr(wt, "_what_we_watched_lately", lambda _now: [snakes])
+    monkeypatch.setattr(wt, "_PLAYING", {})
+    block = wt.what_we_are_watching(now=now)
+    assert "As it played she said: (0:02) The shirt. MR UNIVERSE." in block
+    assert "(2:26) Snakes should not have more than four legs." in block
+    assert "Her last word on it: And it's done." in block
+    assert wt._spread(list(range(20)), 6) == [0, 4, 8, 11, 15, 19]

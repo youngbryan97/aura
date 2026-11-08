@@ -523,6 +523,17 @@ def desktop_background_endpoint_deferral_reasons(
     return reasons
 
 
+def _a_turn_of_hers(kwargs: dict) -> bool:
+    """Whether the generation is for a turn of hers (a remark while she watches), where nobody asked anything.
+
+    "I lost the reply lane for a moment. Ask that again and I'll answer cleanly." is said to a person whose question
+    went unanswered. LIVE 7 November 2026, dress rehearsal: her lane gave no text for a remark at 1:52 of a video, and
+    that sentence was said as her remark. A turn of hers with nothing to say says nothing
+    (core/conversation/session_scope.py)."""
+    from core.conversation.session_scope import is_her_own_turn
+
+    return bool((kwargs or {}).get("her_own_turn")) or is_her_own_turn()
+
 class _DeepLaneUnavailable(RuntimeError):
     """This host cannot admit the deep solver, so no lane is built for it."""
 
@@ -1834,6 +1845,8 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             # not model output — get_last_generation_metadata() carries the flag.
             res["string_surface_fallback"] = True
             self._publish_generation_metadata(res)
+            if _a_turn_of_hers(kwargs):
+                return ""  # nothing is said for her: no sentence about the lane (_a_turn_of_hers)
             if str(error or "").strip() == "client_returned_no_text":
                 return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
             # v10.5 HARDENING: Return a diagnostic label so StructuredLLM can report it accurately
@@ -2397,7 +2410,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                         or bool(kwargs.get("health_probe", False)),
                     )
                 ):
-                    if strict_answer_request or caller_non_chat:
+                    if strict_answer_request or caller_non_chat or _a_turn_of_hers(kwargs):
                         return None
                     return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
                 return None
@@ -2420,7 +2433,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                     or bool(kwargs.get("health_probe", False)),
                 )
             ):
-                if strict_answer_request or caller_non_chat:
+                if strict_answer_request or caller_non_chat or _a_turn_of_hers(kwargs):
                     return None
                 return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
             # [STABILITY v55] Don't mask failures with robot responses.
