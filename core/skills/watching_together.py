@@ -28,6 +28,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from core.conversation.sitting import A_SITTING_BREAKS_AFTER_S
 from core.runtime.errors import record_degradation
 from core.runtime.wall_clock import monotonic_time
 
@@ -554,9 +555,10 @@ def _what_we_watched_lately(now: float) -> list[dict[str, Any]]:
     return sorted(latest.values(), key=lambda w: float(w.get("ended") or 0.0))
 
 
-#: The longest break between two watchings that are one sitting, in seconds: past it, what was watched before is
-#: another sitting's, as an evening's films are not the morning's.
-A_SITTING_BREAKS_AFTER_S = 45 * 60.0
+# The longest break between two watchings that are one sitting is A_SITTING_BREAKS_AFTER_S: past it, what was watched
+# before is another sitting's, as an evening's films are not the morning's. It is the one break every part of her
+# reads (core/conversation/sitting.py), so what they watched this sitting and the exchanges a request is read with end
+# at the same quiet.
 
 
 def this_sitting(watched: list[dict[str, Any]], now: float) -> list[dict[str, Any]]:

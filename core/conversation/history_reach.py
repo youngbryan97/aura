@@ -68,6 +68,7 @@ does not need what was left out.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -143,8 +144,24 @@ def _exchanges_it_bears_on(exchanges: Sequence[Any], request: str) -> tuple[list
     return bearing, f"{len(bearing)} earlier exchange(s) bear on this request ({how}), the oldest {len(earlier) - min(bearing)} back"
 
 
+def _from_earlier_sittings(exchanges: Sequence[Any], now: float | None) -> int:
+    """How many of ``exchanges`` (oldest first) come before the sitting that is going on now.
+
+    What a person and she said in an earlier sitting reaches her as memory, recalled with when it was; the
+    conversation in front of her is this sitting's, and the last exchange, which a new one answers into after any
+    break. LIVE 7 November 2026, after a day of rehearsals, each asking the same four things of other videos: "So what
+    did you think of all three?" bore by meaning on seven earlier exchanges asking it, each answered of three other
+    videos; one answer was given again word for word, of the wrong three. The next sitting's first answer named the
+    presenter of an earlier sitting's video, read with that sitting's request.
+    """
+    from core.conversation.sitting import sitting_begins, when
+
+    times = [when(entry.get("at")) if isinstance(entry, dict) else None for entry in exchanges]
+    return sitting_begins(times, time.time() if now is None else float(now))
+
+
 def measure_reach(
-    exchanges: Sequence[Any], *, budget_chars: int = 0, request: str = ""
+    exchanges: Sequence[Any], *, budget_chars: int = 0, request: str = "", now: float | None = None
 ) -> HistoryReach:
     """Fit ``exchanges`` to ``budget_chars`` and to what ``request`` bears on.
 
@@ -185,6 +202,11 @@ def measure_reach(
     kept = tuple(range(boundary, count))
     if str(request or "").strip() and count > 1:
         bearing, said = _exchanges_it_bears_on(exchanges, str(request))
+        begins = _from_earlier_sittings(exchanges, now)
+        earlier = [index for index in bearing if index < begins]
+        if earlier:
+            bearing = [index for index in bearing if index >= begins]
+            said += f"; {len(earlier)} of them from sittings before this one, which reach her as memory"
         reasons.append(said)
         kept = tuple(index for index in kept if index in bearing or index == count - 1)
         boundary = kept[0]

@@ -1697,6 +1697,14 @@ async def _keep_what_she_said_unasked(words: str, origin: str, at: float) -> boo
     return True
 
 
+def _last_said_at(entry: dict[str, Any]) -> float:
+    """When she last said something unasked after an exchange: where it last had anybody's attention."""
+    return max(
+        (float(item.get("at") or 0.0) for item in list(entry.get("said_after") or []) if isinstance(item, dict)),
+        default=0.0,
+    )
+
+
 def _said_after(entry: dict[str, Any]) -> list[str]:
     """What she said unasked after an exchange, in the order she said it."""
     return [
@@ -1758,7 +1766,11 @@ async def _recent_completed_conversation_exchanges(
                     "action_episode": action_episode,
                     "answer_provenance": answer_provenance,
                     # Only where she said something after it: an exchange's shape is otherwise unchanged.
-                    **({"said_after": _said_after(entry)} if _said_after(entry) else {}),
+                    **(
+                        {"said_after": _said_after(entry), "last_said_at": _last_said_at(entry)}
+                        if _said_after(entry)
+                        else {}
+                    ),
                 }
             )
         )
@@ -1946,6 +1958,10 @@ def _load_durable_conversation_exchanges_sync(
                 {"exchange_id": followed, "session_id": row_session_id, "position": position, "ambiguous": False},
             )
             state.setdefault("after", {})[int(nth)] = content
+            try:
+                state["after_at"] = max(float(state.get("after_at") or 0.0), float(row.get("created_at") or 0.0))
+            except (TypeError, ValueError):
+                state.setdefault("after_at", 0.0)
             continue
         exchange_id, separator, cid_side = cid.rpartition(":")
         canonical_side = "aura" if cid_side == "assistant" else cid_side
@@ -2034,7 +2050,10 @@ def _load_durable_conversation_exchanges_sync(
                         else None
                     ),
                     **(
-                        {"said_after": [words for _nth, words in sorted(state["after"].items())]}
+                        {
+                            "said_after": [words for _nth, words in sorted(state["after"].items())],
+                            "last_said_at": float(state.get("after_at") or 0.0),
+                        }
                         if state.get("after")
                         else {}
                     ),

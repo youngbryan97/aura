@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.conversation.history_reach import HistoryReach, measure_reach
+from core.conversation.sitting import when
 from core.utils.injected_blocks import is_stamped_runtime_payload
 
 VISIBLE_CONVERSATION_EXCHANGES = 40
@@ -32,12 +33,12 @@ def _attested_pairs(
     *,
     max_pairs: int | None = None,
     on_unattested: Callable[[Any], None] | None = None,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Runtime-attested user/assistant pairs that were actually delivered."""
 
     if not isinstance(exchanges, Sequence) or isinstance(exchanges, (str, bytes)):
         return []
-    pairs: list[dict[str, str]] = []
+    pairs: list[dict[str, Any]] = []
     candidates = list(exchanges)
     if max_pairs is not None:
         candidates = candidates[-max(1, int(max_pairs)) :]
@@ -54,7 +55,13 @@ def _attested_pairs(
         aura_text = str(entry.get("aura") or "").strip()
         if not user_text or not aura_text or aura_text == "...":
             continue
-        pairs.append({"user": user_text, "aura": _with_what_followed(aura_text, entry.get("said_after"))})
+        pair = {"user": user_text, "aura": _with_what_followed(aura_text, entry.get("said_after"))}
+        # When it was last active, for where a sitting begins (core/conversation/sitting.py): when it was completed, or
+        # when she last said something after it.
+        known = [at for at in (when(entry.get("timestamp")), when(entry.get("last_said_at"))) if at]
+        if known:
+            pair["at"] = max(known)
+        pairs.append(pair)
     return pairs
 
 
