@@ -390,6 +390,15 @@ def _record_the_round(
             ],
             "ok": bool(report.get("ok")),
             "url": observation.get("url"),
+            # What kind of move each was (click, type, scroll, go), so what the round did can vouch for her saying so.
+            "kinds": sorted(
+                {"click" for item in (decision.get("resolved_actions") or []) if isinstance(item, dict)}
+                | {
+                    str(item.get("type") or "click").lower()
+                    for item in (decision.get("actions") or [])
+                    if isinstance(item, dict)
+                }
+            ),
         }
     )
 

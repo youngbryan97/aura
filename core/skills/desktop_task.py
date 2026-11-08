@@ -54,6 +54,9 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 logger = logging.getLogger(__name__)
 
+#: The effect each kind of move on a page is, in the effect registry's names (core/epistemics/effect_registry.py).
+_EFFECT_OF_A_MOVE = {"click": "click", "type": "type", "scroll": "scroll", "go": "open_url"}
+
 #: Failures the artifact-authoring path can survive: the router is absent,
 #: the call times out, or the response is the wrong shape. None of them
 #: justify losing the document — the deterministic composer still runs.
@@ -4787,6 +4790,15 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                 "reason": str(step.get("asked") or ""),
                 "expect": str(step.get("expected") or ""),
                 "result": {"ok": bool(step.get("ok"))},
+                # The effects the round's moves were, where they moved the page: what "I clicked it" is held against
+                # (core/conversation/claimed_effect.py). LIVE 8 November 2026, dress rehearsal: after five rounds that
+                # searched, clicked a video and landed on it, her answer had "Correction: I said I clicked something,
+                # and scrolled something, and none of those have a verified receipt in this turn" put after it.
+                "actions": (
+                    sorted({_EFFECT_OF_A_MOVE[kind] for kind in step.get("kinds") or [] if kind in _EFFECT_OF_A_MOVE})
+                    if step.get("moved", step.get("ok"))
+                    else []
+                ),
             }
             for index, step in enumerate(acted)
         ]

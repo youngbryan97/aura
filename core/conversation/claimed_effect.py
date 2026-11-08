@@ -297,6 +297,10 @@ def unverified_effect_claims(reply: Any, receipts: Any) -> list[str]:
                 action = str(receipt.get("action") or "").strip()
                 if action:
                     verified_actions.add(action)
+                # A step made of several moves names each kind of effect it had (a browser round: clicks, typing).
+                verified_actions.update(
+                    str(one).strip() for one in (receipt.get("actions") or []) if str(one).strip()
+                )
     unverified: list[str] = []
     for action, pattern, description in _CLAIMED_EFFECT_PATTERNS:
         if action in verified_actions:
