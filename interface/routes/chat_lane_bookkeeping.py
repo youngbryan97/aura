@@ -352,6 +352,47 @@ def _this_sitting_began_at() -> float:
     return when(exchanges[begins].get("timestamp")) or last_active[begins] or now
 
 
+async def _her_earlier_answers_to(request: str, began: float) -> Any:
+    """A test of a recalled memory: whether it is mostly one of her answers, before this sitting, to these same words.
+
+    LIVE 8 November 2026, dress rehearsal: asked "So what did you think of all three?", she gave the sitting before's
+    answer to it almost word for word, three other videos and all; the memory it came from held her answer and not
+    the question, so a test of the question's words let it through.
+    """
+    from core.brain.llm.mlx_worker_surface_quality import (
+        A_REPEAT_SHARES,
+        A_REPLY_HAS_RUNS,
+        _runs_of_words,
+    )
+    from core.conversation.sitting import when
+    from core.memory.rag_bridge import _in_these_words
+
+    asked = _in_these_words(request)
+    try:
+        exchanges = await asyncio.to_thread(
+            _chat_memory_state._load_durable_conversation_exchanges_sync, limit=40
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("rag_bridge", exc, severity="warning", action="recalled without her earlier answers set aside")
+        return None
+    answers = [
+        _runs_of_words(str(exchange.get("aura") or ""))
+        for exchange in exchanges
+        if isinstance(exchange, dict)
+        and _in_these_words(exchange.get("user")) == asked
+        and (when(exchange.get("timestamp")) or began) < began
+    ]
+    answers = [runs for runs in answers if len(runs) >= A_REPLY_HAS_RUNS]
+    if not answers:
+        return None
+
+    def mostly_one_of_them(memory: dict) -> bool:
+        runs = _runs_of_words(str(memory.get("text") or memory.get("content") or ""))
+        return bool(runs) and any(len(runs & answer) >= A_REPEAT_SHARES * len(runs) for answer in answers)
+
+    return mostly_one_of_them
+
+
 async def _fetch_deep_memory_context(user_message: str) -> str:
     """The Invisible RAG Bridge, wired: silent per-turn semantic recall.
 
@@ -365,13 +406,15 @@ async def _fetch_deep_memory_context(user_message: str) -> str:
         from core.memory.rag_bridge import fetch_deep_context
 
         principal_id, principal_surface = _chat_memory_state._chat_memory_identity()
+        began = _this_sitting_began_at()
         return str(
             await asyncio.wait_for(
                 fetch_deep_context(
                     user_message,
                     principal_id=principal_id,
                     principal_surface=principal_surface,
-                    sitting_began_at=_this_sitting_began_at(),
+                    sitting_began_at=began,
+                    leave_out=await _her_earlier_answers_to(user_message, began),
                 ),
                 timeout=2.5,
             )

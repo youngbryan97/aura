@@ -12,6 +12,7 @@ checkable claim.
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 
 from core.container import ServiceContainer
 from core.memory.recall_telemetry import get_recall_telemetry
@@ -53,6 +54,7 @@ async def fetch_deep_context(
     principal_id: str = "",
     principal_surface: str = "",
     sitting_began_at: float | None = None,
+    leave_out: "Callable[[dict], bool] | None" = None,
 ) -> str:
     """
     Silently pulls vectorized memories related to the query.
@@ -115,6 +117,10 @@ async def fetch_deep_context(
                 memory for memory in raw_results
                 if not (isinstance(memory, dict) and _asked_before_in_these_words(memory, user_query, sitting_began_at))
             ]
+        if leave_out is not None:
+            # What the caller knows a memory to be that this bridge does not: her own earlier answer to these words,
+            # stored without them (LIVE 8 November 2026, the sitting before's answer said again word for word).
+            raw_results = [memory for memory in raw_results if not (isinstance(memory, dict) and leave_out(memory))]
         if not raw_results:
             _record(0, 0)
             return ""
