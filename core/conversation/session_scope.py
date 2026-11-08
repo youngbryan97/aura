@@ -37,6 +37,34 @@ user_question_var: contextvars.ContextVar[str] = contextvars.ContextVar(
 
 MAX_USER_QUESTION_CHARS: Final = 4000
 
+#: Whether this turn is hers: a remark while she watches, a thought she raises herself. Nobody said anything to her on
+#: it, so what a reply would answer is not there to be answered.
+#:
+#: LIVE DEFECT, 7 November 2026, dress rehearsal. A remark's turn reads what she saw and heard. Allen Pan's video said
+#: "test firing" and put "WHY?" on screen, and a stock answer keyed on a person's words ("headless", "test", "why")
+#: was served as her remark: "Most likely, the headless test is exercising the generator in isolation ...". The same
+#: night a docstring of her own source was said as a remark at a concert. Floors written to answer a person stand
+#: down on a turn of hers (core/synthesis.py, core/conversation/response_reliability.py).
+her_own_turn_var: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "aura_her_own_turn",
+    default=False,
+)
+
+
+def is_her_own_turn() -> bool:
+    """True inside a turn of hers (``her_own_turn_scope``)."""
+    return bool(her_own_turn_var.get())
+
+
+@contextmanager
+def her_own_turn_scope(hers: bool = True) -> Iterator[bool]:
+    """Mark the turn run inside as hers, or not, for its duration."""
+    token = her_own_turn_var.set(bool(hers))
+    try:
+        yield bool(hers)
+    finally:
+        her_own_turn_var.reset(token)
+
 #: Evidence actually handed to the model this turn.
 #:
 #: A MUTABLE set, replaced once per turn, because a ContextVar set inside a

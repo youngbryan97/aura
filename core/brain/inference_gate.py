@@ -10190,6 +10190,11 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                             or operator_evidence_contract
                             or desktop_cognitive_engine_contract
                             or bool(context.get("own_lane_required"))
+                            # A turn of hers is said by her model or not at all: a remark another model wrote is
+                            # not hers, and loading one costs what she is watching with. LIVE 7 November 2026, dress
+                            # rehearsal: her word on a video fell to a second 27B, memory reached 85%, and the next
+                            # request found every lane taken.
+                            or bool(context.get("her_own_turn"))
                         ):
                             logger.warning(
                                 "🧠 Proof/operator request requires a valid Cortex response; refusing lower-lane fallback."

@@ -299,6 +299,14 @@ def _format_number(value: float) -> str:
     return f"{value:.8g}"
 
 
+def _hers() -> bool:
+    """A floor answers a person's words; on a turn of hers nobody said any. Its words are what she saw and heard
+    (core/conversation/session_scope.py)."""
+    from core.conversation.session_scope import is_her_own_turn
+
+    return is_her_own_turn()
+
+
 def _format_direct_answer(q: str, answer: str) -> str:
     lower = q.lower()
     if "<answer>" in lower or "answer tag" in lower or "answer tags" in lower:
@@ -323,7 +331,7 @@ def verified_answer_floor(user_message: str) -> str:
     """
 
     q = re.sub(r"\s+", " ", str(user_message or "").strip())
-    if not q:
+    if not q or _hers():
         return ""
 
     # A status question, answered from the live health surface.
@@ -352,7 +360,7 @@ def _direct_answer_floor(user_message: str) -> str:
     """Return a reliable answer for unambiguous tiny factual/math turns."""
     q = re.sub(r"\s+", " ", str(user_message or "").strip())
     lower = q.lower()
-    if not lower:
+    if not lower or _hers():
         return ""
 
     exact_target = requested_exact_reply_target(q)
@@ -447,7 +455,7 @@ def _creative_response_floor(user_message: str) -> str:
 
 def deterministic_user_facing_floor(user_message: str) -> str:
     """Return only exact deterministic floors, never conversational filler."""
-    if looks_like_learning_resource_bundle(str(user_message or "")):
+    if _hers() or looks_like_learning_resource_bundle(str(user_message or "")):
         return ""
     return _direct_answer_floor(user_message) or _creative_response_floor(user_message)
 
@@ -472,7 +480,7 @@ _BROKEN_LANE_REPLY_RE = re.compile(
 
 def _conversation_response_floor(user_message: str) -> str:
     lower = re.sub(r"\s+", " ", str(user_message or "").strip().lower())
-    if not lower:
+    if not lower or _hers():
         return ""
     asks_state = any(
         phrase in lower

@@ -985,6 +985,20 @@ class _RunsTheThinkingLoop:
         success, temp_state = self._run_thinking_loop_part_3(direct_quick_reply, origin, state, success, temp_state)
         if direct_quick_reply is not None and self._is_user_facing_origin(origin) and not is_background:
             temp_state = await self._feel_the_quick_turn(temp_state, objective)
+        # A turn of hers that her own lane did not say goes unsaid. Nobody is waiting on an answer to it, and the whole
+        # pipeline run again for it is the costliest thing she can do while she watches: LIVE 7 November 2026, dress
+        # rehearsal, her word on a video ran on through the phases with a 106,407-character prompt, on two smaller
+        # models in turn, for ten minutes, and the next request's browsing found every lane taken.
+        if not success and direct_quick_reply is None and bool((context or {}).get("her_own_turn")):
+            record_response_path("her_own_turn_unsaid", model_generation=True)
+            return Thought(
+                id=str(uuid.uuid4()),
+                content="",
+                mode=mode,
+                confidence=0.0,
+                reasoning=["A turn of her own that her lane did not say; it goes unsaid."],
+                metadata={"her_own_turn": True, "unsaid": True},
+            )
 
         if not success:
             # Bound before the try, because the finally below reads it and the

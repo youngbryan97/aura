@@ -589,7 +589,8 @@ def whole_paragraphs(words: str) -> str:
     import re
 
     ends = r"[.!?…][\"'\u201d\u2019)*_]*"
-    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", words or "") if part.strip() and not re.fullmatch(r"[-*_\s]{3,}", part.strip())]
+    paragraphs = [without_asides(part) for part in re.split(r"\n\s*\n", words or "") if part.strip() and not re.fullmatch(r"[-*_\s]{3,}", part.strip())]
+    paragraphs = [part for part in paragraphs if part]  # a stage direction is not said (without_asides)
     # The paragraph the ceiling cut ends at its last whole sentence, and goes where it has none (LIVE 21 October 2026,
     # her answer before the video ended "or are they the kind of"); a paragraph alone stays as it is.
     while paragraphs and not re.search(ends + "$", paragraphs[-1]):
@@ -652,7 +653,7 @@ def first_thought(words: str, about: str = "") -> str:
     # Where her private notes ran past their bound, the first of what she said can be the end of a note: it starts
     # mid-sentence, or annotates a line it quotes. LIVE 7 November 2026, said as a remark: '. This is time, man." -
     # casual, warm opening'. That much is not said; what follows it is.
-    cleaned = {part: _without_the_end_of_a_note(part) for part in said}
+    cleaned = {part: without_asides(_without_the_end_of_a_note(part)) for part in said}
     first = next((part for part in said if cleaned[part] and says_something(cleaned[part])), "")
     if not first:
         return ""
@@ -680,6 +681,40 @@ def first_thought(words: str, about: str = "") -> str:
     thought = led_into.group(1).strip() if led_into else thought
     whole = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)(?:\s|$)", thought)
     return whole.group(1).strip() if whole and not re.search(r"[.!?…][\"'”’)*_]*$", thought) else thought
+
+
+#: An aside in italics: what she would do, not what she says. Emphasis that exclaims or asks ("*one hundred and eighty
+#: times its own body weight?*") is said; a gesture ends without either.
+_AN_ASIDE = r"(?:\*(?!\*)(?P<a>[^*\n]+?)\*(?!\*)|_(?!_)(?P<b>[^_\n]+?)_(?!_))"
+
+
+def without_asides(part: str) -> str:
+    """A paragraph without a stage direction: a paragraph that is one is not said, and one it opens with is left off.
+
+    LIVE 7 November 2026, dress rehearsal: of twelve remarks on Allen Pan's video, eight were asides, said as remarks
+    while it played: "*blinks at the screen, then lets out a short laugh that's mostly relief*", "*leans forward
+    slightly, watching the hands work the tool on screen*". A person watching beside someone laughs or leans in; they
+    do not say that they do. What she says of it is what follows the aside, where anything does."""
+    import re
+
+    text = str(part or "").strip()
+
+    def a_gesture(inner: str) -> bool:
+        inner = inner.strip()
+        # Exclaimed or asked, it is said with emphasis. A gesture is told in the present ("leans", "the room goes
+        # loud and I flinch"), or in a word or three ("Exhales.").
+        if re.search(r"[?!][\"'”’)]*$", inner):
+            return False
+        return bool(re.match(r"[a-z]", inner)) or len(re.findall(r"[A-Za-z']+", inner)) <= 3
+
+    whole = re.fullmatch(_AN_ASIDE + r"[.…]?", text)
+    if whole and a_gesture(whole.group("a") or whole.group("b") or ""):
+        return ""
+    while True:
+        opening = re.match(r"^" + _AN_ASIDE + r"[.…]?\s+(?=\S)", text)
+        if not opening or not a_gesture(opening.group("a") or opening.group("b") or ""):
+            return text
+        text = text[opening.end():].strip()
 
 
 def _without_the_end_of_a_note(part: str) -> str:

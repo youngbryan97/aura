@@ -701,9 +701,10 @@ class _ServesTheTurn:
         for _reserved in _GENERATE_EXPLICIT_KWARGS:
             morpho_kwargs.pop(_reserved, None)
         morpho_kwargs.setdefault("clean_user_surface_contract", True)
+        # A turn of hers answers nobody, so it is graded against no question (inference_gate_turn_setup copies the flag).
         morpho_kwargs.setdefault(
             "user_surface_validation_prompt",
-            initial_visible_user_prompt or visible_user_prompt,
+            "" if (context or {}).get("her_own_turn") else initial_visible_user_prompt or visible_user_prompt,
         )
         morpho_kwargs.setdefault(
             "clean_user_surface_recurrent_loops",

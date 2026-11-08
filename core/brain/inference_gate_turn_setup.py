@@ -630,6 +630,13 @@ class _SetsTheTurnUp:
             # was graded against its own prompt, read as arithmetic for the
             # scores in it, and thrown away as arithmetic_answer_missing.
             "internal_inference",
+            # Whether the turn is hers: nobody's words to answer, so the worker reads no question for it
+            # (core/brain/llm/mlx_worker_surface_quality._surface_prompt_resolution). The worker was taught that and the
+            # flag was never copied here: LIVE 7 November 2026, dress rehearsal, her word on Allen Pan's video was graded
+            # against 1,673 characters of "it has ended. What played, in order ..." (validation_source=legacy_unbound),
+            # refused twice as arithmetic_answer_missing; the fallback loaded a second 27B, memory reached 85%, and the
+            # next request's browsing found the lane taken.
+            "her_own_turn",
         ):
             if _gen_key in context:
                 morpho_kwargs[_gen_key] = context[_gen_key]

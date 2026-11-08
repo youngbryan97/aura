@@ -37,6 +37,7 @@ from core.runtime.pipeline_blueprint import (
     legacy_runtime_phase_specs,
 )
 from core.runtime.service_registry import get_runtime_service
+from core.conversation.session_scope import her_own_turn_scope
 from core.runtime.structured_input import (
     answer_surface_token_floor,  # noqa: F401  (read at call time by the lifted module)
 )
@@ -2321,7 +2322,9 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
             # downstream, and only one of them is the mind the demo is taken to
             # demonstrate. This records which one ran, phase by phase, so the
             # question has an answer instead of a claim.
-            with bind_turn(outcome), recording_turn(
+            # A turn of hers (a remark while she watches) answers nobody's words: the floors written to answer a
+            # person stand down inside it (core/conversation/session_scope.py).
+            with bind_turn(outcome), her_own_turn_scope(bool((context or {}).get("her_own_turn"))), recording_turn(
                 turn_id,
                 phases_available=[phase.__class__.__name__ for phase in self._phases],
             ) as turn_receipt:

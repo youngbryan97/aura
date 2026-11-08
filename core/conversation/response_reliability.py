@@ -3992,9 +3992,12 @@ def own_source_excerpt_floor(user_message: Any) -> str:
     # hands off this. Two copies of this judgement would drift, and the way it
     # fails is that one layer answers a question the other was going to answer
     # properly. See core/utils/own_source_intent.py.
+    from core.conversation.session_scope import is_her_own_turn
     from core.utils.own_source_intent import asks_for_own_source
 
-    if not asks_for_own_source(user_message):
+    # Nobody asked for her code on a turn of hers (core/conversation/session_scope.py): LIVE 7 November 2026 a
+    # docstring of her source was said as a remark at a concert.
+    if is_her_own_turn() or not asks_for_own_source(user_message):
         return ""
     try:
         from core.self.source_excerpt import excerpt_for_topic, source_tree_is_readable
@@ -4190,8 +4193,11 @@ def occluded_screen_view_floor(user_message: Any) -> str:
 
 
 def live_chat_diagnostic_floor(user_message: Any) -> str:
+    from core.conversation.session_scope import is_her_own_turn
+
     text = _normalize(user_message)
-    if not text or looks_like_learning_resource_bundle(str(user_message or "")):
+    # On a turn of hers, the words are what she saw and heard, not a question about her chat (session_scope.py).
+    if not text or is_her_own_turn() or looks_like_learning_resource_bundle(str(user_message or "")):
         return ""
     live_surface = _is_chat_surface_reference(text)
     backend_surface = _contains_any_marker(text, ("headless", "backend", "test", "tests", "passes", "pass", "passed"))
@@ -6376,7 +6382,9 @@ def _has_stale_diagnostic_floor_leak(user_message: Any, reply_text: Any) -> bool
         term in raw_norm for term in diagnostic_terms
     ):
         return False
-    if is_reliability_concern(user_message) or live_chat_diagnostic_floor(user_message):
+    from core.conversation.session_scope import is_her_own_turn
+
+    if not is_her_own_turn() and (is_reliability_concern(user_message) or live_chat_diagnostic_floor(user_message)):
         return False
     return True
 
@@ -8338,6 +8346,10 @@ def conversation_reliability_system_block(user_message: Any = "") -> str:
 
 
 def reliability_floor_for_user(user_message: Any) -> str:
+    from core.conversation.session_scope import is_her_own_turn
+
+    if is_her_own_turn():  # nobody asked anything on a turn of hers (core/conversation/session_scope.py)
+        return ""
     diagnostic = live_chat_diagnostic_floor(user_message)
     if diagnostic:
         return diagnostic
