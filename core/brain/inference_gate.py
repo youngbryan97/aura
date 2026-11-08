@@ -5714,10 +5714,28 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
 
         lane = self.get_conversation_status()
         if not lane.get("conversation_ready"):
-            if self._lane_only_needs_visible_conversation_proof(lane):
+            if self._lane_only_needs_visible_conversation_proof(lane) or self._lane_only_busy(lane):
                 return lane
             raise RuntimeError(str(lane.get("last_failure_reason") or "foreground_lane_not_ready"))
         return lane
+
+    @staticmethod
+    def _lane_only_busy(lane: dict[str, Any] | None) -> bool:
+        """Whether a loaded lane is kept from conversation only by a generation already under way on it.
+
+        A busy lane is not a broken one: the client queues a request behind the one in flight ("Waiting for in-flight
+        request"), and the turn waits its turn. LIVE 8 November 2026, dress rehearsal: asked "So what did you think of
+        all three?" while a remark of hers on the video still playing was being written, the person's turn found the
+        lane "blocked by active_generation_in_flight" after its warmup, was refused as "lanes_exhausted" twice, and the
+        answer that came through the path it fell to was an earlier sitting's, word for word.
+        """
+        if not isinstance(lane, dict):
+            return False
+        if str(lane.get("state", "") or "").lower() != "ready" or bool(lane.get("warmup_in_flight", False)):
+            return False
+        blockers = {str(item).strip() for item in (lane.get("readiness_blockers") or []) if str(item or "").strip()}
+        busy = {"active_generation_in_flight", "foreground_generation_active", "foreground_owner_active"}
+        return bool(blockers & busy) and blockers <= busy | {"visible_conversation_probe_missing"}
 
     async def _ensure_cortex_recovery(self) -> None:
         """Proactively recover the 32B primary brain if it died (e.g., laptop sleep).
