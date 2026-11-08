@@ -7681,6 +7681,22 @@ _RETRYABLE_USER_FACING_REASONS = _HARD_USER_FACING_REASONS | frozenset(
 )
 
 
+def _what_she_perceived(sensory_evidence: Any) -> list[str]:
+    """The observation of a turn's sensory evidence that succeeded, as text; nothing for evidence that failed."""
+    try:
+        from core.senses.turn_evidence import TurnSensoryEvidence
+
+        seen = TurnSensoryEvidence.from_value(sensory_evidence)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation("response_reliability", exc, severity="warning",
+                           action="held a reply against the conversation without what she perceived",
+                           enforce_failure_policy=False)
+        return []
+    if seen is None or not seen.ok or not str(seen.observation or "").strip():
+        return []
+    return [str(seen.observation)]
+
+
 def _assess_user_facing_reply(
     user_message: Any,
     reply_text: Any,
@@ -7849,6 +7865,10 @@ def _assess_user_facing_reply(
     # exact turn custody object. A real transcript/memory recall therefore
     # survives; a shared past absent from both sources is a hard integrity
     # failure and cannot become the context that licenses the next invention.
+    # What she perceived on this turn is evidence she was given, as the conversation is. LIVE 7 November 2026, dress
+    # rehearsal: her last word on a video she had watched with him, "The thing he wanted us to believe we were
+    # watching.", was refused against no grounding at all, the look she had just taken of the video left out.
+    grounding = [*(grounding or ()), *_what_she_perceived(sensory_evidence)]
     if has_fabricated_shared_history(
         raw, user_message, recent_messages, grounding=grounding
     ):
