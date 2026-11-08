@@ -1835,6 +1835,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # One move is one action and the words she would say for it. Kept together so the loop can say that
                 # one and then make that one, in order, rather than making every choice and then reading out a list of
                 # what it had done.
+                # A click whose index names another control than her reason does is taken to the one she gave her
+                # reason for (``_the_one_she_means``).
+                decision = self._the_one_she_means(decision, elements)
                 moves = _moves_from_the_decision(decision, elements)
 
                 if not moves:

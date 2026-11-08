@@ -135,6 +135,64 @@ class _UnderstandsThePage(_PlacesHerself):
         )
         return f"{observation.get('url')}#{marks}"
 
+    #: Words a reason uses of any control, which name none of them in particular.
+    _SAID_OF_ANY = frozenset(
+        "video videos click clicking choose choosing chose pick picking because channel page about this that what "
+        "which into just only their there every thing things watch watching want really actual actually going "
+        "would could should them they then than here".split()
+    )
+
+    @classmethod
+    def _the_one_she_means(cls, decision: Mapping[str, Any], elements: list[Any]) -> dict[str, Any]:
+        """Her decision, its one click taken to the control her reason names where its index names another.
+
+        A number picked from a long list slips; the words she chose by do not. LIVE 8 November 2026, dress rehearsal,
+        her own channel page: "I'm clicking into the bathroom lock-in because it's the one video that's about a
+        person" chose the index of "Popular videos", and "I'm clicking the brain tumor video" chose index 41, off the
+        list, so that her decision was put aside for the small model's; no video opened. The night before, she named
+        an episode while a compilation two places away opened.
+
+        Taken only where the index's control shares no word with her reason and exactly one control shares two or more.
+        """
+        import re
+
+        from core.skills.watching_along import _stems
+
+        decided = dict(decision or {})
+        clicks = [
+            item for item in decided.get("actions") or []
+            if isinstance(item, dict) and str(item.get("type") or "click").lower() == "click"
+        ]
+        reason = str(decided.get("why") or decided.get("stand") or "")
+        if len(clicks) != 1 or len(decided.get("actions") or []) != 1 or not reason.strip():
+            return decided
+
+        def words(text: str) -> set[str]:
+            kept = " ".join(w for w in re.findall(r"[A-Za-z]{4,}", text) if w.lower() not in cls._SAID_OF_ANY)
+            return _stems(kept)
+
+        meant = words(reason)
+        if len(meant) < 2:
+            return decided
+        shared = [len(words(str(element.get("name") or "")) & meant) for element in elements]
+        try:
+            index = int(clicks[0].get("index"))
+        except (TypeError, ValueError):
+            index = -1
+        if 0 <= index < len(elements) and shared[index] > 0:
+            return decided
+        best = max(shared, default=0)
+        if best < 2 or shared.count(best) != 1:
+            return decided
+        found = shared.index(best)
+        logger.info(
+            "🌐 Her click named %r by number and %r by her reason; taking the one she gave her reason for.",
+            str(elements[index].get("name") or "")[:80] if 0 <= index < len(elements) else f"index {index}",
+            str(elements[found].get("name") or "")[:80],
+        )
+        decided["actions"] = [{**clicks[0], "index": found}]
+        return decided
+
     @classmethod
     def _controls_worth_offering(
         cls, elements: list[Any], goal: str = ""
@@ -1001,6 +1059,7 @@ class _UnderstandsThePage(_PlacesHerself):
         elements = cls._controls_worth_offering(
             list(observation.get("elements") or []), goal
         )
+        parsed = cls._the_one_she_means(parsed, elements)
         for item in parsed.get("actions") or []:
             if not isinstance(item, dict):
                 continue
