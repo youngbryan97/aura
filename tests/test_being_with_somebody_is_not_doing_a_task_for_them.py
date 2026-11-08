@@ -950,3 +950,25 @@ def test_while_a_with_is_open_her_screen_looks_go_to_it():
     assert "held = get_together().current()" in body
     assert "remark_in_a_with(held, latest_screen()) if held is not None else consider_utterance(result)" in body
     assert "held is None and time.time() - self._last_spoke_at < self._min_speech_gap_s" in body
+
+
+def test_the_space_between_her_own_remarks_is_no_silence_of_the_pair():
+    """LIVE 7 November 2026, dress rehearsal: asked to think out loud and answered by nobody, each remark waited out
+    the space her last two had left, and the spaces grew from 48 s to 185 s."""
+    held = With(who=INES, what=FILM, began=0.0)
+    held.invited = 3
+    held.said(THEM, 0.0, until=2.0)
+    held.said(HER, 6.0, until=20.0, unprompted=True)
+    held.said(HER, 68.0, until=90.0, unprompted=True)
+    held.said(HER, 229.0, until=250.0, unprompted=True)
+    assert list(held.silences) == [4.0]
+    held.said(THEM, 252.0, until=253.0)
+    assert list(held.silences) == [4.0, 2.0]
+
+
+def test_invited_and_answered_by_nobody_any_pause_is_her_moment():
+    held = With(who=INES, what=FILM, began=0.0)
+    held.invited = 3
+    held.said(HER, 10.0, until=25.0, unprompted=True)
+    held.said(HER, 60.0, until=80.0, unprompted=True)
+    assert held.moment(85.0) == 1.0

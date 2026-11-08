@@ -154,7 +154,11 @@ class With:
                 # Nobody said when it ended, so it ended when the next began,
                 # and that is no silence to learn from.
                 last.until = max(at, last.at)
-            elif at >= last.until and by != IT and last.by != IT:
+            elif at >= last.until and by != IT and last.by != IT and by != last.by:
+                # A silence between two turns of one party is a lapse, not a pause the pair left each other. LIVE 7
+                # November 2026, dress rehearsal: invited to think out loud and answered by nobody, the only silences
+                # were the spaces between her own remarks, so each remark waited out the one before and took as long
+                # again to compose: 48 s between the first two, then 139, 98, 93, 96, 185.
                 self.silences.append(at - last.until)
         turn = Turn(by=by, at=at, until=until, about=about)
         self._settle_her_remark(turn)
