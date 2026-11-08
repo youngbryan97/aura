@@ -1348,6 +1348,8 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             if (tag === 'a' && el.href) {
                 try {
                     const there = new URL(el.href, location.href);
+                    // Where it leads, so what she has already watched there can be told from what she has not.
+                    if (/^https?:$/.test(there.protocol)) entry.href = there.href.slice(0, 300);
                     if (/^https?:$/.test(there.protocol) && there.hostname.replace(/^www\./, '') !== location.hostname.replace(/^www\./, '')) {
                         entry.goes_to = there.hostname.replace(/^www\./, '');
                     }

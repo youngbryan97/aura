@@ -423,6 +423,14 @@ class _UnderstandsThePage(_PlacesHerself):
                     state.append(f"position {kin.index(element) + 1} of {len(kin)}")
             if element.get("goes_to"):
                 state.append(f"to {element['goes_to']}")
+            # What she has watched already, from her own record of it: LIVE 8 November 2026, rehearsal 10, she picked
+            # a video she had watched six hours before and spoke of it as new.
+            if element.get("href"):
+                from core.conversation.our_shared_past import when_we_watched
+
+                watched = when_we_watched(str(element["href"]))
+                if watched:
+                    state.append(watched)
             alike = element.get("alike")
             if isinstance(alike, (list, tuple)) and len(alike) == 2 and not element.get("group"):
                 # Its place among the controls like it, counted by the page.

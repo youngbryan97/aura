@@ -24,7 +24,7 @@ from typing import Any
 
 logger = logging.getLogger("Aura.Conversation.OurSharedPast")
 
-__all__ = ["our_shared_past"]
+__all__ = ["our_shared_past", "the_same_thing", "when_we_watched"]
 
 #: How far back what the person said counts, in seconds: four weeks.
 SAID_WITHIN_S = 28 * 24 * 3600.0
@@ -121,3 +121,85 @@ def our_shared_past(*, now: float | None = None) -> list[str]:
     with _LOCK:
         _KEPT.update({"at": now, "past": past})
     return list(past)
+
+
+#: What was watched, as (address, wall time, title), newest first, and when it was read.
+_WATCHINGS: dict[str, Any] = {}
+
+
+def _watchings(now: float) -> list[tuple[str, float, str]]:
+    with _LOCK:
+        if _WATCHINGS and now - float(_WATCHINGS.get("at", 0.0)) < READ_AGAIN_AFTER_S:
+            return list(_WATCHINGS["held"])
+    try:
+        from core.config import config
+
+        files = sorted((Path(config.paths.data_dir) / "watched").glob("*.jsonl"), reverse=True)[:MOST_WATCHINGS]
+    except (ImportError, AttributeError, OSError) as exc:
+        logger.debug("what was watched could not be listed: %s", exc)
+        return []
+    held: list[tuple[str, float, str]] = []
+    for path in files:
+        url, wall, title = "", 0.0, ""
+        try:
+            with path.open() as lines:
+                for line in lines:
+                    row = json.loads(line)
+                    wall = wall or float(row.get("wall") or 0.0)
+                    title = title or " ".join(str(row.get("title") or "").split())
+                    url = url or str(row.get("url") or "")
+                    if url and wall:
+                        break
+        except (OSError, ValueError, TypeError) as exc:
+            logger.debug("a watching could not be read: %s", exc)
+            continue
+        if url:
+            held.append((url, wall or path.stat().st_mtime, title))
+    with _LOCK:
+        _WATCHINGS.update({"at": now, "held": held})
+    return held
+
+
+def the_same_thing(link: str, watched: str) -> bool:
+    """Whether two addresses name one thing: one site and path, and the same value for every query field both give.
+
+    Fields only one of them gives (where it was found from, a time to start at, a list it was in) do not tell two
+    things apart; a field both give with different values (which video, which page of results) does.
+    """
+    from urllib.parse import parse_qsl, urlsplit
+
+    try:
+        a, b = urlsplit(str(link or "")), urlsplit(str(watched or ""))
+    except ValueError:
+        return False
+    if not a.hostname or (a.hostname or "").removeprefix("www.") != (b.hostname or "").removeprefix("www."):
+        return False
+    if a.path.rstrip("/") != b.path.rstrip("/"):
+        return False
+    asked, kept = dict(parse_qsl(a.query)), dict(parse_qsl(b.query))
+    shared = asked.keys() & kept.keys()
+    if not asked and not kept:
+        return True
+    return bool(shared) and all(asked[field] == kept[field] for field in shared)
+
+
+def when_we_watched(link: str, *, now: float | None = None) -> str:
+    """When she watched what ``link`` leads to, in her words ("I watched this today at 06:02"); '' where she has not.
+
+    LIVE 8 November 2026, rehearsal 10: asked to pick a video from a channel, she chose one she had watched six hours
+    before, and spoke of it as new.
+    """
+    from datetime import datetime
+
+    now = time.time() if now is None else float(now)
+    for url, wall, _title in _watchings(now):
+        if the_same_thing(link, url):
+            then, today = datetime.fromtimestamp(wall), datetime.fromtimestamp(now)
+            days = (today.date() - then.date()).days
+            clock = then.strftime("%H:%M")
+            if days == 0:
+                return f"I watched this today at {clock}"
+            if days == 1:
+                return f"I watched this yesterday at {clock}"
+            return f"I watched this on {then.day} {then.strftime('%B')}"
+    return ""
