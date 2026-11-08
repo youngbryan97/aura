@@ -203,7 +203,7 @@ def test_her_answer_is_told_what_she_opened_before_how_she_came_to_it(monkeypatc
     said = asyncio.run(her_answer_before_it_plays("Now let's do Allen Pan.", "results: Exoskeleton 34:58; ...",
                                                   opened=opened))
     assert said == "That one, then."
-    assert told[0].startswith(f"before it plays. What she opened, and is about to play: {opened} How her browsing")
+    assert told[0].startswith(f"before it plays. What I opened, and am about to play: {opened} How my browsing")
     assert told[0].index("AI Slop") < told[0].index("Exoskeleton")
 
 

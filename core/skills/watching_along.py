@@ -628,6 +628,9 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     if remark and tells_of_herself(words, observation):
         logger.info("👀 not said, as herself told in the third person: %r", words[:160])
         return ""
+    if not remark:
+        # Her answer before or after it plays keeps what it says, less a sentence telling of her as "she".
+        words = _without_herself_told_of(words, observation)
     # Nor her working out of what she was given, said to the person as her turn: LIVE 8 November 2026, rehearsal 11, her
     # reply on the episode she picked began "Okay so I'm in the middle of a watching-along session. The user just said".
     from core.utils.an_answer import talks_about_the_asking
@@ -643,6 +646,19 @@ _SOMEONE_SHE_COULD_MEAN = (
     r"\b(?:she|her|hers|herself|woman|women|girl|girls|lady|ladies|mother|mom|mum|sister|daughter|wife|queen|"
     r"princess|actress|grandma|grandmother|aunt|niece|female|madam|ma'am|mrs|ms|miss)\b"
 )
+
+
+def _without_herself_told_of(words: str, shown: str) -> str:
+    """Her words, less each sentence that tells of her in the third person (``tells_of_herself``), paragraph by
+    paragraph. LIVE 8 November 2026, rehearsal 12: "Oh, good pick — or rather, *her* good pick."."""
+    import re
+
+    paragraphs = []
+    for paragraph in re.split(r"\n\s*\n", str(words or "")):
+        kept = [sentence for sentence in re.split(r"(?<=[.!?])\s+", paragraph) if not tells_of_herself(sentence, shown)]
+        if any(sentence.strip() for sentence in kept):
+            paragraphs.append(" ".join(kept).strip())
+    return "\n\n".join(paragraphs)
 
 
 def tells_of_herself(words: str, shown: str) -> bool:

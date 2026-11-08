@@ -122,9 +122,11 @@ INVITED_REMARKS = 3
 #: Who has asked her to think out loud while something plays.
 _ASKED_TO_THINK_OUT_LOUD: set[str] = set()
 
-#: What she has of a video as it plays beside her, as the watching gives it (core/skills/watching_the_screen.py).
-AS_IT_PLAYS = ("As it plays on their screen beside her window, she sees it every few seconds, hears its sound, and "
-               "speaks when something in it is worth saying.")
+#: What she has of a video as it plays beside her, as the watching gives it (core/skills/watching_the_screen.py), in her
+#: own person: told of her as "she", it read as someone else, and her reply said "or rather, *her* good pick" and asked
+#: the person to tell her what happened in it (LIVE 8 November 2026, rehearsal 12).
+AS_IT_PLAYS = ("As it plays on their screen beside my window, I see it every few seconds, hear its sound, and "
+               "speak when something in it is worth saying.")
 
 
 async def her_answer_before_it_plays(request: str, found: str, *, opened: str = "") -> str:
@@ -143,7 +145,7 @@ async def her_answer_before_it_plays(request: str, found: str, *, opened: str = 
         # Exoskeleton to wield Giant Anime Swords. 34:58.") while another of his videos was opening, and her first
         # three remarks were about the mix-up.
         named = _what_she_opened_plainly(opened) or opened
-        head = f"What she opened, and is about to play: {named} How her browsing came to it: " if named else "What was found of it: "
+        head = f"What I opened, and am about to play: {named} How my browsing came to it: " if named else "What was found of it: "
         said = ""
         # Twice, where the first comes back with nothing: the person is waiting on it, and the video waits for it.
         # LIVE 7 November 2026, dress rehearsal: her draft was refused and nothing was tried again, and the results
