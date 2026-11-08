@@ -253,3 +253,12 @@ def test_a_turn_of_hers_is_told_what_they_watched_and_not_what_she_said_of_it(mo
         hers = wt.what_we_are_watching(now=now)
     assert "1. Why Being Delusional is a Superpower, ended 15 min ago." in hers
     assert "prediction" not in hers
+
+
+def test_a_word_she_stresses_at_the_head_of_a_sentence_is_not_a_gesture():
+    """LIVE 8 November 2026, dress rehearsal: "*This* is the pivot." was said as "is the pivot."."""
+    from core.skills.watching_along import without_asides
+
+    assert without_asides("*This* is the pivot. That little moment.") == "*This* is the pivot. That little moment."
+    assert without_asides("*Exhales.* That's the whole video.") == "That's the whole video."
+    assert without_asides("*leans forward* That's the whole video.") == "That's the whole video."

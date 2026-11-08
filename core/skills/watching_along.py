@@ -743,8 +743,13 @@ def without_asides(part: str) -> str:
     if whole and a_gesture(whole.group("a") or whole.group("b") or ""):
         return ""
     while True:
-        opening = re.match(r"^" + _AN_ASIDE + r"[.…]?\s+(?=\S)", text)
+        opening = re.match(r"^" + _AN_ASIDE + r"(?P<stop>[.…]?)\s+(?=\S)", text)
         if not opening or not a_gesture(opening.group("a") or opening.group("b") or ""):
+            return text
+        # Starred and then carried on in lower case, it is a word stressed in her sentence, not a gesture before it.
+        # LIVE 8 November 2026, dress rehearsal: "*This* is the pivot." was said as "is the pivot."
+        inner = (opening.group("a") or opening.group("b") or "").strip()
+        if not opening.group("stop") and not re.search(r"[.…!?]$", inner) and re.match(r"[a-z]", text[opening.end():]):
             return text
         text = text[opening.end():].strip()
 
