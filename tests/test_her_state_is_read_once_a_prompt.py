@@ -88,7 +88,9 @@ def test_a_page_reading_has_the_room_a_page_decision_has():
 
     body = inspect.getsource(u._UnderstandsThePage._understand_page)
     assert "max_tokens=420" not in body
-    assert body.count("self.DECISION_MAX_TOKENS") == 2
+    # Both ways of asking take the one budget, a decision's room and, where the reading acts, its moves on top.
+    assert "most_tokens = self.DECISION_MAX_TOKENS" in body
+    assert body.count("max_tokens=most_tokens") == 2
 
 
 def test_a_cut_off_reading_keeps_the_fields_she_finished():

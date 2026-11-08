@@ -200,7 +200,7 @@ def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
     monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [list(range(len(names)))])
     monkeypatch.setattr(where_i_stand, "against_the_rest", lambda leans: [one.toward for one in leans])
 
-    async def understand(goal, observation, prior, mind, recalled=""):
+    async def understand(goal, observation, prior, mind, recalled="", acts_from=""):
         return {"here": "a scale", "done_when": "all answered"}
 
     async def mind():

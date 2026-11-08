@@ -55,7 +55,7 @@ def _skill_with(decisions, executed):
     async def _decide(goal, observation, history, understanding=None, *, said_before="", noticed="", settled=False):
         return decisions.pop(0) if decisions else {"done": True, "actions": []}
 
-    async def _understand(goal, observation, prior, mind, recalled=""):
+    async def _understand(goal, observation, prior, mind, recalled="", acts_from=""):
         return {"here": "a test page", "done_when": "the stub says so"}
 
     async def _mind():
@@ -276,7 +276,7 @@ class TestSheActsFromAnUnderstandingNotAStepCount:
         )
         calls: list = []
 
-        async def _counting_understand(goal, observation, prior, mind, recalled=""):
+        async def _counting_understand(goal, observation, prior, mind, recalled="", acts_from=""):
             calls.append(prior)
             return {"here": "a page"}
 

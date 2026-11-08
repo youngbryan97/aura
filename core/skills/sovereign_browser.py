@@ -5,7 +5,7 @@ import random
 import re
 import time
 import urllib.parse
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -412,8 +412,12 @@ async def _understand_the_page_again(
     shape: Any,
     surprised: Any,
     understanding: Any,
+    acts_from: Callable[[], str] | None = None,
 ) -> tuple[Any, Any]:
     """Read the page afresh where there is no understanding of it yet, or it surprised her.
+
+    ``acts_from``, where the page does not ask about her, gives what she brings to acting on it, and the reading then
+    says what she does there as well (``_UnderstandsThePage._understand_page``).
 
     Moved out of ``_handle_pursue`` by tools/extract_seam.py, which
     checks the body against the original token for token before
@@ -423,7 +427,7 @@ async def _understand_the_page_again(
     if (understanding is None or surprised) and (on_the_page.watched_first(observation, str(goal), take=False) or played_first(observation, str(goal), take=False)) is None:
         prior, url = understanding, str(observation.get("url") or "")
         understanding = await self._understand_page(
-            goal, observation, prior, mind, self._recall_about(url, shape, str(goal))
+            goal, observation, prior, mind, self._recall_about(url, shape, str(goal)), acts_from() if acts_from else ""
         )
         surprised = False
         self._remember_the_place(url, understanding, shape)
@@ -1707,6 +1711,8 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     shape=shape,
                     surprised=surprised or (arrived and shape != shape_before),
                     understanding=understanding,
+                    acts_from=None if self._asks_about_the_one_answering(observation) else (
+                        lambda: self._acting_context(steps, said_before=said_before, noticed=noticed)),
                 )
 
                 decision = None
@@ -1762,9 +1768,13 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         goal, observation, steps, understanding, on_progress=still_going
                     )
                 if decision is None:
-                    decision = on_the_page.watched_first(observation, goal) or played_first(observation, goal) or await self._decide_next_actions(
-                        goal, observation, steps, understanding, said_before=said_before,
-                        noticed=noticed, settled=understanding != understood_before,
+                    decision = (
+                        on_the_page.watched_first(observation, goal) or played_first(observation, goal)
+                        or self._what_her_reading_chose(observation, goal)
+                        or await self._decide_next_actions(
+                            goal, observation, steps, understanding, said_before=said_before,
+                            noticed=noticed, settled=understanding != understood_before,
+                        )
                     )
                 # Every decision said out loud, the moment it is made — the
                 # ones that act and the ones that do not — and left up long

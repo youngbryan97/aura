@@ -50,6 +50,17 @@ _BROWSER_DECISION_ERRORS = (
 )
 _ADVANCING_BUTTON_WORDS = ("next", "continue", "submit", "finish", "start")
 
+#: How a decision is asked for its moves, in the same words wherever one is asked: after a reading, or in it.
+_ASKED_MOVES = (
+    '"actions": [{"index": <int>, "type": "click"|"type"|"scroll"|"go", '
+    '"value": "<text for type, up/down for scroll, for go an address or words to look up on the web>"}]'
+)
+_ASKED_WHY = (
+    '"why": "<one sentence, first person, why these and not the others>", '
+    '"expect": "<what this should do to the page>", "done": false'
+)
+_ASKED_DONE = "Set done to true only when the whole task is accomplished. Use the index numbers exactly as listed above."
+
 
 async def _her_mind_built_now() -> str:
     """One assembly of her mind from her live state; empty when there is none.
@@ -944,6 +955,7 @@ class _UnderstandsThePage(_PlacesHerself):
         prior: Mapping[str, Any] | None,
         mind: str,
         recalled: str = "",
+        acts_from: str = "",
     ) -> dict[str, Any]:
         """What she takes this page to be, and what doing the goal here means.
 
@@ -967,9 +979,17 @@ class _UnderstandsThePage(_PlacesHerself):
         Revised, not regenerated. A revision that discards what was already
         worked out is a rebuild wearing another name, so the prior
         understanding is given back to her and she is asked what changed.
+
+        Where ``acts_from`` is given, what she brings to acting here, the same
+        reading says what she does on the page, and that is kept apart from
+        the reading for the loop to take (``_what_her_reading_chose``). A person
+        who has taken in a page does not read it a second time to decide: LIVE
+        8 November 2026 a pick took 2 min 45 s, and each of its two decisions
+        prefilled again the page its reading had just read, 1,322 and 3,762
+        tokens.
         """
 
-
+        self._her_reading_chose = None
         router = optional_service("llm_router", default=None)
         if router is None:
             return dict(prior or {})
@@ -982,46 +1002,59 @@ class _UnderstandsThePage(_PlacesHerself):
                 + "\n\nRevise it only where this page contradicts it.\n\n"
             )
 
+        acting = bool(acts_from)
         prompt = (
             f"WHAT I AM TRYING TO ACCOMPLISH: {goal}\n\n"
+            + (f"{acts_from}\n\n" if acting else "")
             + (f"{recalled}\n\n" if recalled else "")
             + f"{prior_view}"
             f"{self._render_observation(observation, goal)}\n\n"
-            "Describe the situation, as JSON only:\n"
-            '{"here": "<what this page is>", '
+            + ("Describe the situation, and act on this page from it, as JSON only:\n" if acting
+               else "Describe the situation, as JSON only:\n")
+            + '{"here": "<what this page is>", '
             '"to_progress": "<what I have to do on THIS page to move forward>", '
             '"relevant": "<which controls matter and what they do>", '
             '"how_to_answer": "<what this page wants from me for each question: '
             'what its options mean and what choosing one of them says>", '
             '"present_but_not_needed": "<controls that exist here and are not what I need>", '
-            '"done_when": "<how I will know the whole task is finished>"}'
+            '"done_when": "<how I will know the whole task is finished>"'
+            + (f", {_ASKED_MOVES}, {_ASKED_WHY}}}\n{_ASKED_DONE}" if acting else "}")
         )
+        most_tokens = self.DECISION_MAX_TOKENS + (self.ACTING_ON_A_READING_TAKES if acting else 0)
         try:
             think = getattr(router, "think", None)
             if callable(think) and mind:
                 async with while_she_writes("her model is reading the page"):
                     raw = self._the_text_of(await think(
-                        prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA,
+                        prompt, system_prompt=mind,
+                        schema=self._READING_THAT_ACTS_SCHEMA if acting else self._UNDERSTANDING_SCHEMA,
                         output_shape="json_object", serves_current_turn=True,
                         origin=self._PAGE_ORIGIN, purpose="page_understanding",
-                        max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2,
+                        max_tokens=most_tokens, temperature=0.2,
                         _non_chat_inference=True,
                     ))
             else:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
                     return dict(prior or {})
-                raw = await generate(prompt, max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2)
+                raw = await generate(prompt, max_tokens=most_tokens, temperature=0.2)
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.understand", exc, severity="debug")
             return dict(prior or {})
 
         parsed = self._parse_decision(str(raw or ""))
-        if parsed.get("error"):
+        # A reading cut off before it closed is kept for what of it finished; what it chose is not acted on, its
+        # reason being what was cut.
+        cut = bool(parsed.get("error") or parsed.get("truncated"))
+        if cut:
             parsed = the_finished_fields(str(raw or ""))
         if not parsed:
             return dict(prior or {})
-        parsed.pop("actions", None)
+        chose = {key: parsed.pop(key) for key in ("actions", "why", "expect", "done") if key in parsed}
+        if acting and not cut and (chose.get("actions") or chose.get("done") is True):
+            self._her_reading_chose = (str(observation.get("url") or ""), chose)
+        logger.info("🌐 Her reading of %s: %s", str(observation.get("url") or "")[:80],
+                    ", ".join(f"{key} {len(str(value))}c" for key, value in parsed.items() if value) or "nothing")
         merged = dict(prior or {})
         merged.update({key: value for key, value in parsed.items() if value})
         return merged
@@ -1298,6 +1331,83 @@ class _UnderstandsThePage(_PlacesHerself):
         },
         "required": ["here", "to_progress", "done_when"],
     }
+
+    #: A reading that also says what she does on the page: what a decision asks, without a placement, which only a
+    #: page asking about her takes, and such a page is not read this way.
+    _READING_THAT_ACTS_SCHEMA: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            **_UNDERSTANDING_SCHEMA["properties"],
+            **{key: value for key, value in _DECISION_SCHEMA["properties"].items() if key != "stand"},
+        },
+        "required": _UNDERSTANDING_SCHEMA["required"],
+    }
+
+    #: What acting on a reading adds to it: its moves and a sentence of why. LIVE 8 November 2026 the two decisions
+    #: made after readings wrote 83 and 147 tokens.
+    ACTING_ON_A_READING_TAKES = 300
+
+    #: What the last reading chose, with the address it was made on; None where it chose nothing or was not asked to.
+    _her_reading_chose: tuple[str, dict[str, Any]] | None = None
+
+    def _what_her_reading_chose(self, observation: Mapping[str, Any], goal: str) -> dict[str, Any] | None:
+        """What her reading of this page chose to do on it, taken once, and only if it names something doable here."""
+        held, self._her_reading_chose = self._her_reading_chose, None
+        if held is None or held[0] != str(observation.get("url") or ""):
+            return None
+        chose = held[1]
+        if not self._decision_is_usable(json.dumps(chose), observation, goal):
+            logger.info("🌐 What her reading chose names nothing doable here: %.300s", json.dumps(chose))
+            return None
+        decision = self._parse_decision(json.dumps(chose))
+        logger.info("🌐 Decision by the mechanics lane on page_reading: usable")
+        self._say_what_she_chose(decision, observation, goal)
+        return decision
+
+    def _acting_context(self, history: list[dict[str, Any]], *, said_before: str = "", noticed: str = "") -> str:
+        """What she brings to acting on a page that does not ask about her, as a decision on it is given it."""
+        self_state = ""
+        try:
+            from core.self.capability_ledger import self_knowledge_line
+
+            self_state = self_knowledge_line()
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.self_state", exc, severity="debug")
+        said = " ".join(str(said_before or "").split())
+        parts = [
+            noticed,
+            f"WHAT YOU TOLD THEM BEFORE YOU BEGAN: {said}" if said else "",
+            self_state,
+            self._positions_taken(history),
+        ]
+        return "\n\n".join(part for part in parts if part)
+
+    @staticmethod
+    def _positions_taken(history: list[dict[str, Any]]) -> str:
+        """Every position already taken in this pursuit, the last twelve."""
+        stated = [entry for entry in history if entry.get("chose") and entry.get("why")]
+        if not stated:
+            return ""
+        return "POSITIONS I HAVE ALREADY TAKEN IN THIS TASK:\n" + "\n".join(
+            f"- {entry.get('asked') or entry.get('url', '')}: chose "
+            f"{', '.join(entry.get('chose') or [])} \u2014 {entry.get('why', '')[:140]}"
+            for entry in stated[-12:]
+        )
+
+    def _say_what_she_chose(self, decision: Mapping[str, Any], observation: Mapping[str, Any], goal: str) -> None:
+        """What she chose and why, by the names of the controls she was shown: LIVE 8 November 2026 her answer named
+        an episode while another video opened, and nothing kept what the decision had chosen."""
+        offered = self._controls_worth_offering(list(observation.get("elements") or []), goal)
+        chose = []
+        for item in decision.get("actions") or []:
+            if not isinstance(item, dict):
+                continue
+            try:
+                named = str(offered[int(item.get("index"))].get("name") or "")[:90]
+            except (TypeError, ValueError, IndexError):
+                named = ""
+            chose.append(f"{item.get('type') or 'click'} {named or item.get('value') or item.get('index')}")
+        logger.info("🌐 She chose %s, because: %s", "; ".join(chose) or "nothing", str(decision.get("why") or "")[:300])
 
     @staticmethod
     def _the_text_of(reply: Any) -> str:
@@ -1650,16 +1760,7 @@ class _UnderstandsThePage(_PlacesHerself):
         # style preference here: a self-report that contradicts itself across
         # sixty items is not a self-report, and the only way an answer can bind
         # the next one is if the next one can see it.
-        positions = ""
-        stated = [
-            entry for entry in history if entry.get("chose") and entry.get("why")
-        ]
-        if stated:
-            positions = "POSITIONS I HAVE ALREADY TAKEN IN THIS TASK:\n" + "\n".join(
-                f"- {entry.get('asked') or entry.get('url', '')}: chose "
-                f"{', '.join(entry.get('chose') or [])} \u2014 {entry.get('why', '')[:140]}"
-                for entry in stated[-12:]
-            )
+        positions = self._positions_taken(history)
 
         # What she told them before she began, so that at the end she can hold
         # the outcome against it. Never beside a question about her: an answer
@@ -1674,18 +1775,15 @@ class _UnderstandsThePage(_PlacesHerself):
             + f"{self._render_observation(observation, goal)}\n\n"
             f"{positions}\n\n"
             "Act on this page from that understanding. Answer with JSON only:\n"
-            '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll"|"go", '
-            '"value": "<text for type, up/down for scroll, for go an address or words to look up on the web>"}], '
+            '{' + _ASKED_MOVES + ', '
             '"stand": "<where you place yourself among the positions this '
             'page offers, in your own words, worked out before you pick one: '
             'which of them is more you and how much more. There is no right '
             'answer; it is a placement within what this page can ask, not a '
             'verdict on yourself. Leave empty where the control asks you for '
             'no placement>", '
-            '"why": "<one sentence, first person, why these and not the others>", '
-            '"expect": "<what this should do to the page>", "done": false}\n'
-            "Set done to true only when the whole task is accomplished. Use the "
-            "index numbers exactly as listed above."
+            + _ASKED_WHY + '}\n'
+            + _ASKED_DONE
         )
         try:
             think = getattr(router, "think", None)
@@ -1834,19 +1932,7 @@ class _UnderstandsThePage(_PlacesHerself):
             parsed.get("error") or "usable",
         )
         if not parsed.get("error"):
-            # What she chose and why, by the names of the controls she was shown: LIVE 8 November 2026 her answer named
-            # an episode while another video opened, and nothing kept what the decision had chosen.
-            offered = self._controls_worth_offering(list(observation.get("elements") or []), goal)
-            chose = []
-            for item in parsed.get("actions") or []:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    named = str(offered[int(item.get("index"))].get("name") or "")[:90]
-                except (TypeError, ValueError, IndexError):
-                    named = ""
-                chose.append(f"{item.get('type') or 'click'} {named or item.get('value') or item.get('index')}")
-            logger.info("🌐 She chose %s, because: %s", "; ".join(chose) or "nothing", str(parsed.get("why") or "")[:300])
+            self._say_what_she_chose(parsed, observation, goal)
         return parsed
 
     @classmethod

@@ -51,7 +51,7 @@ def _skill(understood: list[Any], settled: list[bool], expect: str = "") -> Sove
             return {"done": True, "actions": []}
         return {"actions": [{"index": 0, "type": "click"}], "why": "on", "expect": expect}
 
-    async def _understand(goal, observation, prior, mind, recalled=""):
+    async def _understand(goal, observation, prior, mind, recalled="", acts_from=""):
         understood.append(observation["url"])
         return {"here": observation["url"], "to_progress": f"look {len(understood)}"}
 
