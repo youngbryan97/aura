@@ -54,8 +54,21 @@ def _attested_pairs(
         aura_text = str(entry.get("aura") or "").strip()
         if not user_text or not aura_text or aura_text == "...":
             continue
-        pairs.append({"user": user_text, "aura": aura_text})
+        pairs.append({"user": user_text, "aura": _with_what_followed(aura_text, entry.get("said_after"))})
     return pairs
+
+
+def _with_what_followed(aura_text: str, said_after: Any) -> str:
+    """Her reply and what she said after it unasked, before the person spoke again: all she said in that exchange.
+
+    LIVE 7 November 2026, dress rehearsal: her remarks on three videos were in the chat window and not in the
+    conversation her model read, whose last turn was her choosing a video before it played; asked what she thought of
+    all three, she chose it again (core/conversation/said_unasked.py).
+    """
+    if not isinstance(said_after, Sequence) or isinstance(said_after, (str, bytes)):
+        return aura_text
+    followed = [" ".join(str(words).split()) for words in said_after if str(words or "").strip()]
+    return "\n\n".join([aura_text, *followed]) if followed else aura_text
 
 
 def _as_messages(pairs: Sequence[dict[str, str]]) -> list[dict[str, str]]:

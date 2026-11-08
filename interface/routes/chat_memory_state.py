@@ -37,6 +37,7 @@ from core.runtime import resource_psutil as psutil
 import re
 from core.runtime.errors import describe_error, record_degradation
 from core.utils.injected_blocks import stamp_runtime_payload
+from core.conversation.said_unasked import keep_with as _keep_with
 import threading
 
 from interface.routes.chat_common import (
@@ -1643,6 +1644,71 @@ def _conversation_record_visible_to_principal(
     return principal_surface == "owner"
 
 
+async def _keep_what_she_said_unasked(words: str, origin: str, at: float) -> bool:
+    """Keep a remark of hers with the exchange it follows: the last one complete, as the chat window shows it.
+
+    Kept in memory as that exchange's ``said_after``, and on disk as her turn with the cid
+    ``<exchange id>:after:<n>``, so a restart reads it back where it was said (core/conversation/said_unasked.py).
+    """
+    async with _get_convo_lock():
+        target = next(
+            (
+                entry
+                for entry in reversed(_conversation_log)
+                if str(entry.get("status") or "complete").strip().lower() == "complete"
+            ),
+            None,
+        )
+        if target is None:
+            return False
+        said_after = target.setdefault("said_after", [])
+        said_after.append({"words": words, "at": float(at), "origin": origin})
+        nth = len(said_after)
+        exchange_id = str(target.get("id") or "")[:64]
+        session_id = str(target.get("session_id") or "")[:64]
+        principal_id = str(target.get("principal_id") or "")
+        principal_surface = str(target.get("principal_surface") or "")
+    persistence = ServiceContainer.get("persistence", default=None)
+    record_turn = getattr(persistence, "record_turn", None)
+    if exchange_id and callable(record_turn):
+        scope = (
+            {"principal_id": principal_id, "principal_surface": principal_surface}
+            if principal_id and principal_surface
+            else {}
+        )
+        try:
+            await asyncio.to_thread(
+                record_turn,
+                "aura",
+                words,
+                origin=origin,
+                cid=f"{exchange_id}:after:{nth}",
+                session_id=session_id or None,
+                metadata={"unasked": True},
+                **scope,
+            )
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "chat.conversation_persistence",
+                exc,
+                severity="warning",
+                action="a remark of hers was kept in memory and not on disk",
+            )
+    return True
+
+
+def _said_after(entry: dict[str, Any]) -> list[str]:
+    """What she said unasked after an exchange, in the order she said it."""
+    return [
+        str(item.get("words") or "").strip()
+        for item in list(entry.get("said_after") or [])
+        if isinstance(item, dict) and str(item.get("words") or "").strip()
+    ]
+
+
+_keep_with(_keep_what_she_said_unasked)
+
+
 async def _recent_completed_conversation_exchanges(
     *,
     current_user_message: str,
@@ -1691,6 +1757,8 @@ async def _recent_completed_conversation_exchanges(
                     "session_id": str(entry.get("session_id") or "")[:64],
                     "action_episode": action_episode,
                     "answer_provenance": answer_provenance,
+                    # Only where she said something after it: an exchange's shape is otherwise unchanged.
+                    **({"said_after": _said_after(entry)} if _said_after(entry) else {}),
                 }
             )
         )
@@ -1870,6 +1938,15 @@ def _load_durable_conversation_exchanges_sync(
             continue
         row_session_id = str(row.get("session_id") or safe_session_id or "")[:64]
         cid = str(row.get("cid") or "").strip()
+        # Something she said unasked after an exchange (_keep_what_she_said_unasked): read back with it.
+        followed, after_marker, nth = cid.rpartition(":after:")
+        if after_marker and followed and nth.isdigit() and role in {"aura", "assistant"}:
+            state = identified.setdefault(
+                (row_session_id, followed),
+                {"exchange_id": followed, "session_id": row_session_id, "position": position, "ambiguous": False},
+            )
+            state.setdefault("after", {})[int(nth)] = content
+            continue
         exchange_id, separator, cid_side = cid.rpartition(":")
         canonical_side = "aura" if cid_side == "assistant" else cid_side
         role_side = "aura" if role == "assistant" else role
@@ -1955,6 +2032,11 @@ def _load_durable_conversation_exchanges_sync(
                         if isinstance(aura_row.get("metadata"), dict)
                         and isinstance(aura_row["metadata"].get("answer_provenance"), dict)
                         else None
+                    ),
+                    **(
+                        {"said_after": [words for _nth, words in sorted(state["after"].items())]}
+                        if state.get("after")
+                        else {}
                     ),
                 },
             )

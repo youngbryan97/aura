@@ -3444,6 +3444,8 @@ async def _run_cognitive_engine_chat_turn(
         for text in (
             str(exchange.get("user") or "").strip(),
             str(exchange.get("aura") or "").strip(),
+            # What she said after it unasked is in the conversation too (core/conversation/said_unasked.py).
+            *(str(words or "").strip() for words in list(exchange.get("said_after") or [])),
         )
         if text
     ]

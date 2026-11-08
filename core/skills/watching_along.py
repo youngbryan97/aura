@@ -766,7 +766,13 @@ async def say_it(words: str) -> bool:
     # answer to the request that started the watching (interface/event_bridge.py), and Bryan saw none of them.
     decision = await orchestrator.emit_spontaneous_message(words, modality="both", origin=ORIGIN,
                                                            metadata={"visible_presence": True, "narration": True})
-    return not (isinstance(decision, dict) and decision.get("ok") is False)
+    said = not (isinstance(decision, dict) and decision.get("ok") is False)
+    if said:
+        # Said in the chat, so said in the conversation she keeps (core/conversation/said_unasked.py).
+        from core.conversation.said_unasked import she_said_unasked
+
+        await she_said_unasked(words, origin=ORIGIN)
+    return said
 
 
 def into_her_senses(seen: str, read: str) -> None:
