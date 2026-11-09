@@ -56,6 +56,12 @@ def _what_she_reads_of_before() -> int:
 WORKING, OFFERED, MERGED, STALLED = "working", "offered", "merged", "stalled"
 
 
+def _her_own_model() -> str:
+    from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+
+    return PRIMARY_ENDPOINT
+
+
 def slug_of(goal: str) -> str:
     """A name for a goal's record, workspace and branch: its first words, and a hash of all of it."""
     plain = re.sub(r"^\s*\[[^\]]*\]\s*", "", str(goal or ""))
@@ -226,6 +232,9 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         prior_turns=turns_from(record.steps, _what_she_reads_of_before()),
         work_in_background=True,
         native_tools_only=True,
+        # Her own model. Background work otherwise goes to the small reflex models, which are for reflexes: LIVE
+        # 8 November 2026, the first pass at her goal went to Brainstem and Reflex and both were held for headroom.
+        prefer_endpoint=_her_own_model(),
     )
     calls = list((result or {}).get("tool_calls") or [])
     words = str((result or {}).get("content") or "").strip()
