@@ -131,7 +131,7 @@ _RELATIONAL_PAST_RES: tuple[re.Pattern[str], ...] = (
         # generated rather than spelled out.
         r"(?i)\b(?:as\s+)?you\s*(?:['\u2019]\s*(?:re|ve)|\s+(?:are|have|just|also))?\s*"
         r"(?:point(?:ed|ing)?\s+out|"
-        r"(?:sa(?:y|ys|id|ying)|tell|tells|told|telling|mention|mentions|mentioned|"
+        r"(?:sa(?:y|ys|id|ying)|ask|asks|asked|asking|tell|tells|told|telling|mention|mentions|mentioned|"
         r"mentioning|not(?:e|es|ed|ing)|notic(?:e|es|ed|ing)|observ(?:e|es|ed|ing)|"
         r"remark(?:s|ed|ing)?|state(?:s|d)?|stating|claim(?:s|ed|ing)?|"
         r"argu(?:e|es|ed|ing)|suggest(?:s|ed|ing)?|impl(?:y|ies|ied|ying)|"
@@ -174,6 +174,11 @@ _IRREALIS_SECOND_PERSON_RE = re.compile(
     r"(?:suppose|assuming|assume|imagine|say|consider|if)\s+"
     r"(?:that\s+)?you\s+(?:were|had)\b"
 )
+
+# A speech act under a condition attributes nothing: "if you ask me", "unless you say otherwise". On 8 November 2026
+# "ask" joined the speech-act class for "And then you ask him, 'do you think this snake enjoys having legs?'", said of
+# a question asked in a video, and "if you ask me" is the commonest way that verb follows "you".
+_CONDITION_BEFORE_YOU_RE = re.compile(r"(?i)\b(?:if|unless|whenever)\s+$")
 
 # A direct recollection question can have a one-word answer ("orca", "Tuesday",
 # "Paris"). That value is exactly the part that needs evidence. Earlier code
@@ -447,6 +452,8 @@ def fabricated_shared_history(
         if attribution is None:
             continue
         if _IRREALIS_SECOND_PERSON_RE.search(sentence):
+            continue
+        if _CONDITION_BEFORE_YOU_RE.search(sentence[: attribution.start()]):
             continue
         if _surface_says_not_an_attribution(sentence):
             continue

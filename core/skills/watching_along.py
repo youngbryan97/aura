@@ -625,6 +625,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     words = str(getattr(thought, "content", "") or "").strip()
     words = without_their_place_taken(words, observation)
     words = first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words)
+    words = _without_words_put_in_their_mouth(words, request, exchanges)
     if remark and tells_of_herself(words, observation):
         logger.info("👀 not said, as herself told in the third person: %r", words[:160])
         return ""
@@ -646,6 +647,29 @@ _SOMEONE_SHE_COULD_MEAN = (
     r"\b(?:she|her|hers|herself|woman|women|girl|girls|lady|ladies|mother|mom|mum|sister|daughter|wife|queen|"
     r"princess|actress|grandma|grandmother|aunt|niece|female|madam|ma'am|mrs|ms|miss)\b"
 )
+
+
+def _without_words_put_in_their_mouth(words: str, request: str, exchanges: Any = None) -> str:
+    """Her words without a sentence that says the person said or asked what nothing the person said holds.
+
+    LIVE 8 November 2026, the demo: a question asked in the video she was watching, "do you think this snake enjoys
+    having legs?", became the person's own in her remark, "And then you ask him". Her replies to the person had this
+    check (interface/routes/chat_reply_shaping.py); her turns while she watched did not. What the person said is the
+    request and the person's side of the conversation; what was said in the video is not theirs.
+    """
+    import re
+
+    from core.dialogue.shared_history import fabricated_shared_history
+
+    theirs = [str(entry.get("user") or "") for entry in exchanges or () if isinstance(entry, dict)]
+    offending = fabricated_shared_history(words, request, theirs)
+    if not offending:
+        return words
+    kept = str(words)
+    for sentence in offending:
+        kept = kept.replace(sentence, "")
+    logger.info("👀 left out of her turn, words put in the person's mouth: %s", "; ".join(item[:80] for item in offending))
+    return "\n\n".join(" ".join(part.split()) for part in re.split(r"\n\s*\n", kept) if part.strip())
 
 
 def _without_herself_told_of(words: str, shown: str) -> str:
