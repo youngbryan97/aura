@@ -102,6 +102,11 @@ AUTONOMOUS_AUTHORITY_ORIGINS = frozenset(
         "subconscious_loop",
         "temporal",
         "autonomy_reflection",
+        # Her pass at a goal she set herself (core.agency.her_goal_at_work.ORIGIN). Not
+        # here, the capability engine ran its calls as "capability_engine", which no grant
+        # names, so aura.own-goal-work was never reached: day run 4, 9 November 2026,
+        # "signed_standing_authority_lease_missing" on every call.
+        "her_goal_background",
     }
 )
 

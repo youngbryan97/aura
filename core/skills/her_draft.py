@@ -142,7 +142,9 @@ class FindInSourceSkill(BaseSkill):
 
 class EditDraftInput(BaseModel):
     path: str = Field(..., description="File path, from the top of her source.")
-    old_text: str = Field(..., description="Text in the file to replace, exactly as it is there and found once. "
+    # Optional and None-tolerant: the capability engine drops an empty string before a skill sees it, so "" (a new
+    # file) arrived as nothing and failed validation (day run 4, 9 November 2026).
+    old_text: str | None = Field("", description="Text in the file to replace, exactly as it is there and found once. "
                                            "Empty to make a new file.")
     new_text: str = Field(..., description="What goes in its place, or the new file's whole text.")
 

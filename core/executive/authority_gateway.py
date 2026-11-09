@@ -18,6 +18,7 @@ from core.executive.execution_policy import (
     canonical_authority_arguments,
     canonical_authority_context,
     classify_execution_risk,
+    normalize_tool_name,
     resolve_execution_effect_scope,
 )
 from core.executive.executive_core import (
@@ -28,6 +29,8 @@ from core.executive.executive_core import (
     _coerce_intent_source,
 )
 from core.executive.standing_authority import (
+    OWN_GOAL_ORIGIN,
+    OWN_GOAL_TOOLS,
     context_has_user_authority,
     get_standing_authority_manager,
 )
@@ -877,6 +880,15 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
         result still traverses standing authority, Unified Will, substrate,
         ExecutiveCore, and capability-token issuance below.
         """
+
+        # Her goal tools, called by her pass at a goal she set herself, carry
+        # Bryan's standing yes (aura.own-goal-work, 9 November 2026: "She can do
+        # it without me"); there is no person on that pass to confirm a call. Day
+        # run 4 measured edit_draft held here for a fresh confirmation after the
+        # grant had answered. Everything below still applies to them: the lease,
+        # the Will, and the permission model's check of that lease.
+        if str(source or "") == OWN_GOAL_ORIGIN and normalize_tool_name(tool_name) in OWN_GOAL_TOOLS:
+            return None
 
         try:
             from core.executive.action_confirmation import (

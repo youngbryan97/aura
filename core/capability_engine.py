@@ -1509,6 +1509,29 @@ def _note_what_the_attempt_cost(
         self.logger.debug("the attempt was not recorded against its ledgers: %s", exc)
 
 
+
+def _declared_text_fields(meta: Any) -> frozenset[str]:
+    """The fields a skill's input model declares as text (str, or str or None); none when it cannot be read."""
+    try:
+        import types
+        import typing
+
+        from core.skills.action_scope import resolve_skill_target
+
+        model = getattr(resolve_skill_target(meta), "input_model", None)
+        fields = getattr(model, "model_fields", None) or {}
+        text = set()
+        for name, field in fields.items():
+            annotation = getattr(field, "annotation", None)
+            options = typing.get_args(annotation) if isinstance(annotation, types.UnionType) or (
+                getattr(annotation, "__origin__", None) is typing.Union) else (annotation,)
+            if str in options:
+                text.add(name)
+        return frozenset(text)
+    except (ImportError, AttributeError, TypeError) as exc:
+        logger.debug("no declared text fields for a skill (%s)", exc)
+        return frozenset()
+
 class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
     """Unified engine for Aura's capabilities (skills).
 
@@ -4787,7 +4810,15 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             return resolved in self._skills
 
     @staticmethod
-    def _normalize_execution_params(params: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_execution_params(
+        params: dict[str, Any], text_fields: frozenset[str] = frozenset()
+    ) -> dict[str, Any]:
+        """Unwrap nested params, and read a string as the bool or number it spells.
+
+        Not for a field the skill declares as text (``text_fields``): its string is its value.
+        LIVE, day run 4 (9 November 2026): edit_draft's old_text "" (a new file) arrived as
+        False and failed validation, and a new_text of "1" would have become True.
+        """
         normalized = dict(params or {})
         if "params" in normalized and isinstance(normalized["params"], dict):
             nested_params = dict(normalized["params"])
@@ -4798,7 +4829,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
 
         # Safe general basic type coercion for obvious types
         for k, v in list(normalized.items()):
-            if isinstance(v, str):
+            if isinstance(v, str) and k not in text_fields:
                 v_strip = v.strip()
                 if v_strip.lower() in ("true", "yes", "1", "t", "y", "on"):
                     normalized[k] = True
@@ -4925,7 +4956,9 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
 
         # Sanitize double-nested "params" from LLM hallucinations before execution.
         # Preserve any top-level fields we already inferred instead of discarding them.
-        normalized_params = self._normalize_execution_params(params)
+        normalized_params = self._normalize_execution_params(
+            params, _declared_text_fields(self.skills.get(skill_name))
+        )
         _note_double_nested_params(self.logger, skill_name, params, normalized_params)
         params = normalized_params
 

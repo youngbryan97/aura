@@ -995,14 +995,19 @@ class CognitiveIntegrationPhase(Phase):
 register_contract(
     CognitiveTransformContract(
         name="CognitiveIntegrationPhase",
-        version="1.0",
+        version="1.1",
         module=__name__,
         purpose=(
             "Run the learned cognitive systems — sentiment, anomaly, self-model, "
             "RL, plasticity — and fold their outputs into shared state."
         ),
         reads=("cognition.working_memory", "affect.valence", "affect.arousal"),
-        writes=("response_modifiers", "transition_cause"),
+        # affect.valence and affect.arousal: the sentiment organ blends the tone of what the
+        # person said into her affect (_run_sentiment). The measured writes predate 5 November,
+        # when nothing registered the organs and the blend never ran; on day run 4 (9 November
+        # 2026) it wrote both, undeclared, four times in its first 22 minutes, and her lineage
+        # refuses a receipt that writes outside its declaration.
+        writes=("response_modifiers", "transition_cause", "affect.valence", "affect.arousal"),
         preconditions=("state carries a cognition block",),
         branches=(
             BranchSpec(
