@@ -55,10 +55,14 @@ to the detailed pages.
 **Intrinsic Subject Core:** [plain-English explanation](docs/ISC_EXPLAINED.md),
 [variables and worked examples](docs/ISC_VARIABLES.md),
 [current results](docs/ISC_STATUS.md), and
-[reproduction guide](docs/ISC_REPRODUCTION.md). The completed seed-23 run
-recorded 22/24 under ISC-v6, with positive content and withheld-report outputs.
-A later shared-history defect means those paired results need rechecking; the
-carrier and split-system control questions remain unsettled.
+[reproduction guide](docs/ISC_REPRODUCTION.md). The preprint,
+[A preregistered test of computational subjecthood in a running AI system](https://doi.org/10.5281/zenodo.24075466),
+reports the test: a preregistered 24-line battery read by changing saved copies
+of Aura and comparing them with unchanged ones. On its confirmatory reading
+(seed 101, at `aeefdca31`) Aura passed all 24 lines under ISC-v7, the carrier
+was identified as all ten measured domains, and the five-ground bridge held.
+Three later tests came out against it, and the paper reports them as read. None
+of this establishes subjective experience.
 
 **Evidence map:** Claims should point to runnable tests, proof bundles, receipts,
 or replayable logs. Test counts change with the repo; use `pytest --collect-only`,
@@ -1074,9 +1078,11 @@ fixed triples. The completed seed-23 campaign at `8f548ed79`
 recorded 22/24 under ISC-v6, with positive content and withheld-report outputs.
 Later shared-history contamination requires rechecking the paired results;
 the two partition checks failed after an unchanged comparison drifted.
-The proposed carrier remains unsettled under later measurement revisions. [Current evidence and scope](docs/ISC_STATUS.md) keep those
-results separate from a full battery pass or a claim about subjective
-experience.
+Those are earlier readings. The confirmatory reading, seed 101 at `aeefdca31`,
+passed all 24 lines under ISC-v7 and identified the carrier as all ten measured
+domains; [current results](docs/ISC_STATUS.md) and the
+[preprint](https://doi.org/10.5281/zenodo.24075466) give its numbers, and
+neither makes a claim about subjective experience.
 
 ---
 

@@ -440,6 +440,9 @@ description is that document's own title.
 | `VISUAL_PROBE_REJECTIONS_2026-10-11.md` | Visual probe rejections, 11 October 2026 |
 | `WHAT_A_WORLD_S_CODE_SAYS_PUT_TO_ITS_RUNNING_2026-10-13.md` | What a world's code says, put to the world running it, 13 October 2026 |
 | `L01_WHO_SHE_IS_BUILT_IN_SMALL_PROOFS_2026-10-19.md` | Who she is, built into a model: small proofs, 19 October 2026 |
+| `conversation-presence-2026-10-21.md` | Conversation graphics and browser presence, 21 October 2026 |
+| `L09_WHERE_SHE_IS_WRONG_PREREGISTRATION_3_2026-10-20.md` | L09, attempt 3: what she learns from being corrected, on the kinds people ask that she gets wrong. Preregistration |
+| `voice-conversation-latency-2026-10-22.md` | Conversation latency checkpoint — 22 October 2026 |
 
 Machine-generated proof bundles live under `artifacts/` (see
 [ARTIFACT_INDEX.md](../../ARTIFACT_INDEX.md)); test standards live in
