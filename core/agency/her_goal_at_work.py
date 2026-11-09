@@ -56,10 +56,42 @@ def _what_she_reads_of_before() -> int:
 WORKING, OFFERED, MERGED, STALLED = "working", "offered", "merged", "stalled"
 
 
-def _her_own_model() -> str:
-    from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+#: The longest one pass may hold her model, in seconds: the cap the router puts on a whole tool loop
+#: (core/brain/llm/llm_router.py, think_and_act: "min(600.0, ...)").
+PASS_SECONDS = 600.0
 
-    return PRIMARY_ENDPOINT
+
+class HerCortex:
+    """Her own model's tool loop, admitted to the generation lane as every generation of her resident model is.
+
+    Not the router's. LIVE 8 November 2026: as background work the router sent her goal to the reflex models
+    (Brainstem, Reflex), both held for memory headroom; named, her cortex was skipped, because the endpoint the router
+    holds for it is her InferenceGate, which has no tool loop, and the pass came back as a prose answer from a smaller
+    model with no tools in its prompt. Her cortex's client is the one her own tool-using turns call
+    (core/brain/inference_gate_living_context.py). The lease is the one the router takes
+    (llm_health_router.acquire_external_generation_gate_lease); held by background work, a person's turn asks it to
+    yield, and each generation of the pass stands aside while someone is talking with her.
+    """
+
+    async def think_and_act(self, objective: str, **kwargs: Any) -> dict[str, Any]:
+        from core.brain.llm_health_router import (
+            _BACKGROUND_GENERATION_GATE_WAIT_S,
+            acquire_external_generation_gate_lease,
+            release_external_generation_gate_lease,
+        )
+        from core.runtime.service_access import resolve_inference_gate
+
+        client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
+        if client is None or not hasattr(client, "think_and_act"):
+            raise RuntimeError("her cortex's tool loop is not available")
+        lease = await acquire_external_generation_gate_lease(owner=f"{ORIGIN}:her_goal", timeout_s=PASS_SECONDS,
+                                                             wait_s=_BACKGROUND_GENERATION_GATE_WAIT_S)
+        if lease is None:
+            return {"content": "", "turns": 0, "tool_calls": [], "deferred": True}
+        try:
+            return await asyncio.wait_for(client.think_and_act(objective, **kwargs), timeout=PASS_SECONDS)
+        finally:
+            release_external_generation_gate_lease(lease)
 
 
 def slug_of(goal: str) -> str:
@@ -214,12 +246,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     if record.status != WORKING:
         logger.info("🛠️ '%s' is %s; no pass", goal[:60], record.status)
         return record
-    if router is None:
-        from core.runtime.service_access import resolve_llm_router
-
-        router = resolve_llm_router(default=None)
-    if router is None or not hasattr(router, "think_and_act"):
-        raise RuntimeError("her model's tool loop is not available")
+    router = router or HerCortex()
     workspace = await asyncio.to_thread(ensure_workspace, record)
     await save(record)  # her tools read it during the pass: edit_draft, check_draft and offer_draft
     result = await router.think_and_act(
@@ -232,9 +259,6 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         prior_turns=turns_from(record.steps, _what_she_reads_of_before()),
         work_in_background=True,
         native_tools_only=True,
-        # Her own model. Background work otherwise goes to the small reflex models, which are for reflexes: LIVE
-        # 8 November 2026, the first pass at her goal went to Brainstem and Reflex and both were held for headroom.
-        prefer_endpoint=_her_own_model(),
     )
     calls = list((result or {}).get("tool_calls") or [])
     words = str((result or {}).get("content") or "").strip()

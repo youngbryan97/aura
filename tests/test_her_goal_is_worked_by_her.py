@@ -45,8 +45,8 @@ class _HerModelStandIn:
         self.seen_prior = []
 
     async def think_and_act(self, objective, *, system_prompt, tools, max_turns, context, origin, prior_turns,
-                            work_in_background, native_tools_only, prefer_endpoint):
-        assert work_in_background and native_tools_only and prefer_endpoint == "Cortex"
+                            work_in_background, native_tools_only):
+        assert work_in_background and native_tools_only
         assert set(tools) == {skill.name for skill in her_draft.HER_TOOLS} and origin == work.ORIGIN
         self.seen_prior.append(list(prior_turns))
         if not self.passes:
@@ -167,3 +167,49 @@ def test_her_loop_on_her_own_goal_is_background_work_and_never_given_written_rul
         "origin": work.ORIGIN, "is_background": True}
     source = inspect.getsource(mlx_client.MLXLocalClient.think_and_act)
     assert 'if native_tools and tools and kwargs.get("native_tools_only"):\n                    # Tools offered' in source
+
+
+def test_a_pass_runs_on_her_cortex_s_own_tool_loop_under_the_lane_s_lease(monkeypatch):
+    import core.brain.llm_health_router as router
+    import core.runtime.service_access as access
+
+    taken, given_back, asked = [], [], []
+
+    class Client:
+        async def think_and_act(self, objective, **kwargs):
+            asked.append((objective, kwargs))
+            return {"content": "", "turns": 1, "tool_calls": []}
+
+    async def acquire(*, owner, timeout_s, wait_s):
+        taken.append(owner)
+        return 7
+
+    monkeypatch.setattr(access, "resolve_inference_gate", lambda default=None: type("Gate", (), {"_mlx_client": Client()})())
+    monkeypatch.setattr(router, "acquire_external_generation_gate_lease", acquire)
+    monkeypatch.setattr(router, "release_external_generation_gate_lease", given_back.append)
+    asyncio.run(work.HerCortex().think_and_act(GOAL, tools={}))
+    assert taken == [f"{work.ORIGIN}:her_goal"] and given_back == [7] and asked[0][0] == GOAL
+
+
+def test_a_pass_the_lane_cannot_admit_now_is_not_now(monkeypatch):
+    import core.brain.llm_health_router as router
+    import core.runtime.service_access as access
+
+    async def full(**_kwargs):
+        return None
+
+    class Client:
+        async def think_and_act(self, objective, **kwargs):
+            raise AssertionError("a pass the lane did not admit does not run")
+
+    monkeypatch.setattr(access, "resolve_inference_gate", lambda default=None: type("Gate", (), {"_mlx_client": Client()})())
+    monkeypatch.setattr(router, "acquire_external_generation_gate_lease", full)
+    assert asyncio.run(work.HerCortex().think_and_act(GOAL))["deferred"] is True
+
+
+def test_without_her_cortex_there_is_no_pass(monkeypatch):
+    import core.runtime.service_access as access
+
+    monkeypatch.setattr(access, "resolve_inference_gate", lambda default=None: None)
+    with pytest.raises(RuntimeError):
+        asyncio.run(work.HerCortex().think_and_act(GOAL))
