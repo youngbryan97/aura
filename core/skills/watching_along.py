@@ -555,7 +555,7 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
         try:
             from core.perception.browser_presence import without_presence
 
-            async with without_presence(page):
+            async with without_presence(page, clip):
                 shot = await page.screenshot(type="jpeg", quality=70, clip=clip) if clip else await page.screenshot(type="jpeg", quality=70)
             return plainly(await look_with_her_eyes("What is happening in this picture?", base64.b64encode(shot).decode("ascii"),
                                                     max_tokens=LOOK_TOKENS, timeout_s=seconds))

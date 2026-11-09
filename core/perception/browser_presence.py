@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import time
 import weakref
 from contextlib import asynccontextmanager
@@ -41,7 +42,10 @@ BOOTSTRAP = Path(__file__).with_suffix(".js").read_text(encoding="utf-8").replac
     json.dumps(as_nodes((Path(__file__).resolve().parents[2] / "interface/static/neuron_glyph.svg").read_text(encoding="utf-8"))),
 )
 _ERRORS = (RuntimeError, AttributeError, TypeError, ValueError, OSError, TimeoutError)
+#: Until when each page's mark is on screen: from her first action on it until her browser closes (math.inf).
 _VISIBLE_UNTIL: weakref.WeakKeyDictionary[Any, float] = weakref.WeakKeyDictionary()
+#: Where her pointer last was in each browser, so a page she opens next shows it where it was.
+_LAST_POINT: weakref.WeakKeyDictionary[Any, dict[str, float]] = weakref.WeakKeyDictionary()
 try:
     from playwright.async_api import Error as _PageError
 except ImportError:
@@ -86,18 +90,33 @@ async def show_activity(browser: Any, action: str, *, stage: str = "started", bo
     if page is None:
         return
     try:
-        await asyncio.wait_for(page.evaluate(
+        point = await asyncio.wait_for(page.evaluate(
             "data => window.__auraBrowserPresence?.show(data)",
-            {"action": action, "stage": stage, "box": box},
+            {"action": action, "stage": stage, "box": box, "point": _last_point_of(browser)},
         ), timeout=.5)
-        _VISIBLE_UNTIL[page] = time.monotonic() + (5.0 if stage == "started" else 1.1)
+        if isinstance(point, dict) and {"x", "y"} <= set(point):
+            try:
+                _LAST_POINT[browser] = {"x": float(point["x"]), "y": float(point["y"])}
+            except TypeError:
+                pass  # not a failure: a browser object that cannot be weakly referenced keeps no pointer
+        _VISIBLE_UNTIL[page] = 0.0 if action == "closed" else math.inf
     except (*_ERRORS, _PageError) as why:
         record_degradation("browser_presence", why, severity="debug", action="continued without the browser activity overlay")
 
 
+def _last_point_of(browser: Any) -> dict[str, float] | None:
+    try:
+        return _LAST_POINT.get(browser)
+    except TypeError:
+        return None
+
+
 @asynccontextmanager
-async def without_presence(page: Any):
-    """Reference-counted suspension, including when a screenshot fails."""
+async def without_presence(page: Any, clip: dict | None = None):
+    """Reference-counted suspension, including when a screenshot fails.
+
+    ``clip`` is the part of the window the picture takes, in CSS pixels; only what of the mark falls inside it is
+    hidden, so a picture of the video she is watching does not make her hue blink. None hides the whole mark."""
     # Most play frames have no mark to hide. They need no extra browser round trips.
     if _VISIBLE_UNTIL.get(page, 0.0) < time.monotonic():
         yield
@@ -105,7 +124,7 @@ async def without_presence(page: Any):
     suspended = False
     try:
         suspended = bool(await asyncio.wait_for(page.evaluate(
-            "() => window.__auraBrowserPresence?.suspend() || false"
+            "clip => window.__auraBrowserPresence?.suspend(clip) || false", clip
         ), timeout=.5))
     except (*_ERRORS, _PageError) as why:
         logger.debug("No browser overlay to suspend: %s", why)

@@ -66,7 +66,7 @@ async def picture_of(page: Any, clip: Mapping[str, float] | None = None, *, css:
     where ``css``, else at the screen's own pixels. None where no picture could be taken."""
     from core.perception.browser_presence import without_presence
 
-    async with without_presence(page):
+    async with without_presence(page, dict(clip) if clip else None):
         return await _picture_of(page, clip, css=css, kind=kind)
 
 

@@ -55,7 +55,8 @@ async def test_the_mark_is_drawn_where_the_page_refuses_markup():
             refused = await page.evaluate(
                 "() => { try { document.body.innerHTML = '<b>x</b>'; return ''; } catch (e) { return e.name; } }")
             assert refused == "TypeError", "the fixture page does not enforce Trusted Types"
-            where = {"x": CLICK["clickX"], "y": CLICK["clickY"], "width": 44, "height": 44}
+            # Her pointer is centred where she clicks (8 November 2026), so the picture is taken around that point.
+            where = {"x": CLICK["clickX"] - 22, "y": CLICK["clickY"] - 22, "width": 44, "height": 44}
             before = _marked(await page.screenshot(clip=where))
             await page.evaluate("data => window.__auraBrowserPresence.show(data)",
                                 {"action": "clicking", "stage": "started", "box": CLICK})
@@ -76,7 +77,7 @@ async def test_her_eyes_still_see_the_page_without_the_mark():
             await page.evaluate("data => window.__auraBrowserPresence.show(data)",
                                 {"action": "clicking", "stage": "started", "box": CLICK})
             await page.evaluate("() => window.__auraBrowserPresence.suspend()")
-            where = {"x": CLICK["clickX"], "y": CLICK["clickY"], "width": 44, "height": 44}
+            where = {"x": CLICK["clickX"] - 22, "y": CLICK["clickY"] - 22, "width": 44, "height": 44}
             assert _marked(await page.screenshot(clip=where)) == 0
         finally:
             await browser.close()
