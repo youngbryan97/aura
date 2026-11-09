@@ -170,10 +170,11 @@ header {
   transition: border-color var(--aura-dur) var(--aura-ease-out),
               box-shadow var(--aura-dur) var(--aura-ease-out);
 }
+/* Focus is said once, by the border: a ring outside it as well drew a second
+   outline around the message bar. */
 .input-bar:focus-within {
   border-color: hsla(var(--aura-live-hue), 82%, 76%, 0.45);
-  box-shadow: var(--aura-inner-light), var(--aura-shadow-2),
-              0 0 0 3px var(--aura-live-accent-soft);
+  box-shadow: var(--aura-inner-light), var(--aura-shadow-2);
 }
 #chat-input { caret-color: var(--aura-live-accent); }
 

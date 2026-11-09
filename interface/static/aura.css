@@ -1241,13 +1241,15 @@ main {
     letter-spacing: 1px;
 }
 
-/* Input Bar */
+/* Input Bar
+   Part of the conversation's surface, not a band laid over it: no rule across
+   the panel, no block of its own, and no live blur. A backdrop blur here
+   re-sampled the moving colour field behind it every frame, and the band it
+   made shimmered under a hard line above the message bar (8 Nov 2026). The
+   shade only deepens toward the bottom, from nothing at its top edge. */
 .input-area {
     padding: 24px 30px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    background: linear-gradient(0deg, rgba(8, 5, 18, 0.9), rgba(5, 3, 12, 0.4));
-    -webkit-backdrop-filter: blur(24px) saturate(140%);
-    backdrop-filter: blur(24px) saturate(140%);
+    background: linear-gradient(0deg, rgba(8, 5, 18, 0.55), rgba(8, 5, 18, 0));
     z-index: 100;
 }
 
@@ -1256,7 +1258,6 @@ main {
     align-items: center;
     gap: 12px;
     background: rgba(10, 10, 15, 0.6);
-    backdrop-filter: blur(10px);
     border: 1px solid rgba(138, 43, 226, 0.2);
     border-radius: 12px;
     padding: 8px 14px;
@@ -1373,6 +1374,104 @@ main {
 }
 .mic-btn .hidden {
     display: none;
+}
+
+/* Attaching files. The button is a quiet glyph beside SEND, not a third
+ * filled button: attaching is occasional, sending is not. */
+.attach-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    padding: 10px 10px;
+    line-height: 1;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-dim);
+}
+.attach-btn:hover {
+    color: var(--text);
+    box-shadow: none;
+    transform: none;
+    filter: none;
+}
+.attach-glyph {
+    width: 17px;
+    height: 17px;
+}
+.attachment-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.attachment-chips[hidden] {
+    display: none;
+}
+.attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    padding: 6px 6px 6px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.75rem;
+    color: var(--text);
+}
+.attachment-chip-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 260px;
+}
+.attachment-chip-status {
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+.attachment-chip.failed {
+    border-color: rgba(255, 120, 120, 0.45);
+}
+.attachment-chip.failed .attachment-chip-status {
+    color: #ff9a9a;
+}
+.attachment-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+.attachment-chip-remove:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.08);
+}
+.attachment-chip-remove svg {
+    width: 14px;
+    height: 14px;
+}
+.input-area.dropping .input-bar {
+    border-color: var(--accent);
+}
+.msg-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.msg-attachment {
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    opacity: 0.85;
 }
 
 .input.hdr-btn {
@@ -2130,7 +2229,6 @@ main {
 
     .input-area {
         background: var(--bg);
-        border-top: 1px solid var(--border);
         padding: 10px 15px 15px 15px;
         z-index: 10;
         position: relative;
