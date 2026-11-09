@@ -138,3 +138,15 @@ def test_the_turn_reads_what_was_attached():
 
     source = inspect.getsource(chat_preflight)
     assert "context_block, _attached, query=_original_user_message" in source
+
+
+def test_her_window_shows_the_file_picker_the_attach_button_asks_for():
+    """LIVE 8 November 2026: the paperclip did nothing. A file input asks the app's WKUIDelegate to run the open
+    panel, and the launcher had no handler for it, so WebKit chose no files and showed nothing."""
+    from pathlib import Path
+
+    launcher = Path("scripts/AuraLauncher.swift").read_text(encoding="utf-8")
+    handler = launcher.split("runOpenPanelWith parameters: WKOpenPanelParameters", 1)[1].split("\n    }\n", 1)[0]
+    assert "isLocalRuntimeOrigin(frame.securityOrigin)" in handler
+    assert "NSOpenPanel()" in handler and "parameters.allowsMultipleSelection" in handler
+    assert "completionHandler(response == .OK ? panel.urls : nil)" in handler

@@ -4000,6 +4000,37 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         completionHandler(panel.runModal() == .alertFirstButtonReturn ? field.stringValue : nil)
     }
 
+    /// Show the file picker for an `<input type="file">` on Aura's own pages.
+    ///
+    /// LIVE DEFECT, 2026-11-08: the attach button beside SEND did nothing.
+    /// A file input asks the app's WKUIDelegate to run the open panel, and
+    /// this delegate had no handler for it, so WebKit chose no files on the
+    /// page's behalf and showed nothing: the same silence as the JavaScript
+    /// panels above. A page that is not hers is still given no files.
+    func webView(
+        _ webView: WKWebView,
+        runOpenPanelWith parameters: WKOpenPanelParameters,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping ([URL]?) -> Void
+    ) {
+        guard isLocalRuntimeOrigin(frame.securityOrigin) else {
+            completionHandler(nil)
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = parameters.allowsDirectories
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.prompt = "Attach"
+        if let window = webView.window {
+            panel.beginSheetModal(for: window) { response in
+                completionHandler(response == .OK ? panel.urls : nil)
+            }
+        } else {
+            completionHandler(panel.runModal() == .OK ? panel.urls : nil)
+        }
+    }
+
     private func openNativeDesktopWindow() {
         if desktopWindow == nil {
             let frame = NSRect(x: 0, y: 0, width: 1280, height: 820)
