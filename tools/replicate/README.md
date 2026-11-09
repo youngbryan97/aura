@@ -4,6 +4,9 @@ This kit runs seed 101's substrate campaign on your machine and compares the res
 line. The campaign decides 22 of the 24 lines of the battery. Her language model is stubbed in it, so no model weights
 are needed and 16 GB of memory is enough.
 
+The repository's LICENSE grants a research-use license for exactly this: run the code to reproduce, verify, or test
+the paper's results, and publish what you find with a citation (https://doi.org/10.5281/zenodo.24075466).
+
 ## What you need
 
 - An Apple Silicon Mac (M1 or later) with macOS 14 or later.

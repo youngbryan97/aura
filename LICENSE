@@ -1,12 +1,38 @@
-Copyright (c) 2026 Bryan Young. All rights reserved.
+Copyright (c) 2026 Bryan A. Young. All rights reserved.
 
 This source code is made available for viewing, review, and educational
-purposes only. You may read and learn from this code.
+purposes. You may read it and learn from it.
 
-You may NOT:
-- Copy, redistribute, or publish this code or any substantial portion of it
-- Use this code in your own projects, products, or services
-- Create derivative works based on this code
-- Use this code for commercial purposes
+RESEARCH-USE GRANT
 
-For licensing inquiries, contact the author.
+You may download, install, and run this code, and change it only as far as
+running it on your own machine requires, for one purpose: to reproduce,
+verify, or test the results reported in "A preregistered test of
+computational subjecthood in a running AI system" (Bryan A. Young, 2026,
+https://doi.org/10.5281/zenodo.24075466), including running other systems
+through its tests. You may publish what you find, with the numbers and
+figures your runs produce, if you cite that paper.
+
+This grant is personal, non-exclusive, non-transferable, revocable, and free
+of charge. It does not permit you to:
+
+- copy, redistribute, publish, or host this code or any substantial part of
+  it, changed or unchanged, beyond the private copies the purpose above needs;
+- use it, or anything derived from it, in a product, a service, or any
+  commercial activity;
+- make, publish, or distribute a derivative work, or build another system on
+  its code;
+- use the code, its data, or its outputs to train or tune a machine-learning
+  model;
+- remove or alter this notice.
+
+No license is granted under any patent or patent application, by
+implication, estoppel, or otherwise. The grant ends automatically if you
+breach any of its terms, and you must then delete every copy you hold.
+
+The code is provided "as is", without warranty of any kind. In no event shall
+the author be liable for any claim, damages, or other liability arising from
+the code or its use.
+
+For any other use, including commercial licensing, contact the author at
+bry.young124@gmail.com.
