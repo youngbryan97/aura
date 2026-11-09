@@ -2510,6 +2510,14 @@ def _a_turn_ledger_is_bound() -> bool:
         return False
 
 
+
+async def _this_turns_files_into(prompt: str, messages: Any) -> tuple[str, Any]:
+    """The files the turn being answered carries, into a foreground call that does not already hold them
+    (core/conversation/attachments.py, carried_into_call). A function, not a method: the gate only shrinks."""
+    from core.conversation.attachments import carried_into_call
+
+    return await asyncio.to_thread(carried_into_call, prompt, messages if isinstance(messages, list) else None)
+
 class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -8435,6 +8443,11 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         except (ImportError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Halt state unreadable, proceeding with generation: %s", exc)
 
+        if isinstance(context, dict) and context.get("foreground_request"):
+            prompt, carried = await _this_turns_files_into(prompt, context.get("messages"))
+            if isinstance(carried, list) and carried is not context.get("messages"):
+                context["messages"] = carried
+
         sink_slot = self._generation_metadata_sink_slot()
         inherited_sink = sink_slot.get()
         bound_sink = (
@@ -10991,6 +11004,11 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         **kwargs,
     ) -> str | None:
         """Bind per-request evidence transport around the unified think path."""
+
+        if kwargs.get("foreground_request") and not kwargs.get("is_background"):
+            prompt, carried = await _this_turns_files_into(prompt, kwargs.get("messages"))
+            if isinstance(carried, list) and carried is not kwargs.get("messages"):
+                kwargs["messages"] = carried
 
         sink_slot = self._generation_metadata_sink_slot()
         sink_token = sink_slot.set(

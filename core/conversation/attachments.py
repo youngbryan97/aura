@@ -325,6 +325,10 @@ def this_turn() -> tuple[str, ...]:
     return _THIS_TURN.get()
 
 
+#: What every block of a turn's files holds; a model call that already holds it is given nothing twice.
+ATTACHED_MARK = "=== ATTACHED FILE: "
+
+
 def with_this_turns_files(message: str, *, room: int = FALLBACK_ROOM) -> str:
     """The message, preceded by what was read from this turn's files, as the main path gives it.
 
@@ -339,4 +343,32 @@ def with_this_turns_files(message: str, *, room: int = FALLBACK_ROOM) -> str:
     if not block:
         return message
     return f"{block}\nUser message: {message}"
+
+
+def carried_into_call(prompt: str, messages: list[Any] | None = None, *, room: int = FALLBACK_ROOM
+                      ) -> tuple[str, list[Any] | None]:
+    """A model call made on this turn, with this turn's files when it does not already hold them.
+
+    LIVE 9 November 2026: the final paper was attached and her cortex was handed it, but the reply failed a check and
+    was rewritten by the stabilizer, whose prompt held the person's words alone. The rewrite began "I want to be
+    straight with you: I can't see it right", the gate refused it as contradicting what the turn held, and she answered
+    "I couldn't get my full attention onto that one". The fix of 8 November gave the files to one path, the fallback
+    ladder; four more paths ask a model on the same turn. The gate calls this for every foreground request, so every
+    path is given the files, and a path that already holds them is given nothing twice.
+    """
+    if not this_turn():
+        return prompt, messages
+    held = [str(prompt or "")]
+    held += [str(item.get("content") or "") for item in messages or () if isinstance(item, dict)]
+    if any(ATTACHED_MARK in text for text in held):
+        return prompt, messages
+    if messages:
+        users = [index for index, item in enumerate(messages) if isinstance(item, dict) and item.get("role") == "user"]
+        if users:
+            given = list(messages)
+            last = dict(given[users[-1]])
+            last["content"] = with_this_turns_files(str(last.get("content") or ""), room=room)
+            given[users[-1]] = last
+            return prompt, given
+    return with_this_turns_files(str(prompt or ""), room=room), messages
 
