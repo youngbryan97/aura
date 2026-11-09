@@ -2416,11 +2416,13 @@ async def _run_chat_preflight(
         _attached = [str(item) for item in (getattr(body, "attachments", None) or [])][:8]
         if _attached and not is_benchmark:
             try:
-                from core.conversation.attachments import context_block
+                from core.conversation.attachments import carry_this_turn, context_block
                 from core.conversation.chat_preflight import (
                     MAX_COMPOSED_PREFLIGHT_CHARS,
                     _record_the_reads,
                 )
+
+                carry_this_turn(_attached)
 
                 _room = MAX_COMPOSED_PREFLIGHT_CHARS - len(body.message) - 4096
                 _block, _given = await asyncio.to_thread(

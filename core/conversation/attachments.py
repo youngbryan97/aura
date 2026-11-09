@@ -24,6 +24,7 @@ import subprocess
 import tempfile
 import time
 import zipfile
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -303,3 +304,39 @@ def context_block(attachment_ids: list[str], *, query: str = "", room: int) -> t
     for name, body in given:
         parts.append(f"=== ATTACHED FILE: {name} ===\n{body}\n=== END {name} ===")
     return "\n\n".join(parts), given
+
+
+#: The attachments the turn being answered carries. Set by the chat preflight when it reads them, so every path that
+#: answers the turn can hand the same files to the model it asks, and none answers as though nothing was attached.
+_THIS_TURN: ContextVar[tuple[str, ...]] = ContextVar("aura_attachments_this_turn", default=())
+
+#: How much of the attached files a smaller model is given, in characters. Its room is smaller than her cortex's, and a
+#: turn that reaches it is already late.
+FALLBACK_ROOM = 8_000
+
+
+def carry_this_turn(attachment_ids: list[str]) -> None:
+    """Record which files the turn being answered carries."""
+    _THIS_TURN.set(tuple(str(item) for item in attachment_ids))
+
+
+def this_turn() -> tuple[str, ...]:
+    """The files the turn being answered carries, or none."""
+    return _THIS_TURN.get()
+
+
+def with_this_turns_files(message: str, *, room: int = FALLBACK_ROOM) -> str:
+    """The message, preceded by what was read from this turn's files, as the main path gives it.
+
+    LIVE 8 November 2026: Bryan attached the paper about her. The preflight read it into the turn, her cortex could not
+    serve the turn, and the smaller model that answered instead was handed his message alone. It said, "I don't see the
+    paper attached in this message", about a file the turn held.
+    """
+    attached = this_turn()
+    if not attached:
+        return message
+    block, _given = context_block(list(attached), query=message, room=room)
+    if not block:
+        return message
+    return f"{block}\nUser message: {message}"
+

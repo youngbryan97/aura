@@ -445,10 +445,13 @@ async def _answer_from_fallback_ladder(
         # register of tested claims sitting unread.
         identity = _with_the_same_readings(identity, readings)
         dialogue = await _fallback_conversation_messages(text)
+        from core.conversation.attachments import with_this_turns_files
+
+        asked = await asyncio.to_thread(with_this_turns_files, text)
         messages = [
             {"role": "system", "content": identity},
             *dialogue,
-            {"role": "user", "content": text},
+            {"role": "user", "content": asked},
         ]
         ladder_chain: list = []
         raw = ""
