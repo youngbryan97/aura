@@ -254,10 +254,12 @@ def select_capabilities(
     )
     from core.skills.action_scope import resolve_skill_target, skill_has_action_within
 
+    from core.skills.catalog_policy import HER_GOAL_TOOLS
+
     catalogue = {
         name: declared_vocabulary(name, str(getattr(meta, "description", "") or ""))
         for name, meta in skills.items()
-        if getattr(meta, "enabled", True)
+        if getattr(meta, "enabled", True) and name not in HER_GOAL_TOOLS
     }
     if not catalogue:
         return []

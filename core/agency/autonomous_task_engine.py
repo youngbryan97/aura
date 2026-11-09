@@ -42,6 +42,11 @@ _NOT_AN_ANSWER = "No answer came back; the method for:"
 
 #: Off: her model is not sent the worded plan request below, which Bryan's rule against prompt engineering forbids; in
 #: her log of 16 to 19 October 2026 it made no plan in 205 tries ("No JSON array in response" 200 times).
+#: A goal she set herself with no deterministic plan is worked by her, a pass at a time, through tool calls offered
+#: to her model as data (core/agency/her_goal_at_work.py) rather than left unplanned.
+HER_GOALS_WORKED_BY_HER = declare("AURA_HER_GOALS_WORKED_BY_HER", kind=FlagKind.BOOL, default=True,
+                                  description="Work a goal she set herself through her own tool calls when it has no deterministic plan",
+                                  owner="core.agency.autonomous_task_engine")
 PLANNING_BY_MODEL = declare("AURA_TASK_PLANNING_BY_MODEL", kind=FlagKind.BOOL, default=False,
                             description="Send her model the task engine's worded plan request for goals without a deterministic plan",
                             owner="core.agency.autonomous_task_engine")
@@ -321,6 +326,36 @@ def _not_planned(engine: Any, goal: str, plan_id: str, context: dict | None, why
             logger.info("TaskEngine: deterministic grounded plan for '%s' (%s)", goal[:60], why[:80])
             return fallback
     return TaskPlan(plan_id=plan_id, goal=goal, steps=[], trace_id="", context={**dict(context or {}), "not_planned": why[:200]})
+
+
+def _her_own_goal(context: dict | None) -> bool:
+    """A goal she set herself: an initiative of hers, started by her own action loop."""
+    context = dict(context or {})
+    return context.get("requested_by") == "aura" and isinstance(context.get("initiative"), dict)
+
+
+async def _worked_by_her(goal: str, plan_id: str, trace_id: str) -> TaskResult:
+    """A pass of hers at ``goal`` through her own tools, reported as what it did: never as the goal done unless a
+    draft of hers was offered or taken. LIVE 8 November 2026: her goal "Implement persistent cold-store memory for
+    user-specific context", held since 25 August, had been given an empty plan on every one of hundreds of selections
+    since dda8ab337."""
+    from core.agency.her_goal_at_work import MERGED, OFFERED, load, slug_of, work_a_while
+
+    before = load(slug_of(goal))
+    steps_before = len(before.steps) if before is not None else 0
+    try:
+        record = await work_a_while(goal)
+    except (RuntimeError, OSError, ValueError) as why:
+        record_degradation("autonomous_task_engine", why, severity="warning", action="left her goal unworked this pass")
+        return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, summary=f"Her pass at it did not run: {why}",
+                          trace_id=trace_id, steps_completed=0, steps_total=0)
+    calls = len(record.steps) - steps_before
+    if calls == 0 and record.passes == (before.passes if before is not None else 0):
+        return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, summary="Not now: her model is held.",
+                          trace_id=trace_id, steps_completed=0, steps_total=0, deferred_reason="her_model_held")
+    return TaskResult(plan_id=plan_id, goal=goal, succeeded=record.status in (OFFERED, MERGED),
+                      summary=f"{calls} call(s) of hers this pass, {len(record.steps)} in all; the goal is {record.status}.",
+                      trace_id=trace_id, steps_completed=calls, steps_total=calls)
 
 
 from .task_fallback_plans import _BuildsAPlanWithoutTheModel
@@ -926,6 +961,9 @@ class AutonomousTaskEngine(_BuildsAPlanWithoutTheModel):
                 steps_total=0,
                 deferred_reason=planning_deferred_reason,
             )
+
+        if not plan.steps and plan.context.get("not_planned") and _her_own_goal(context) and HER_GOALS_WORKED_BY_HER.value():
+            return await _worked_by_her(goal, plan.plan_id, trace_id)
 
         if self._plan_needs_grounding_repair(plan, goal, plan.context):
             repaired = self._build_grounded_fallback_plan(goal, plan.plan_id, plan.context)

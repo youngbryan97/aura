@@ -173,6 +173,12 @@ INTERNAL_ONLY_SKILLS = frozenset(
 )
 
 
+#: Registered and run, but offered only to a pass of hers at a goal she set herself (core/agency/her_goal_at_work.py):
+#: each acts in her workspace for that goal, and a conversational turn has none. Offered to turns, "read /etc/hosts"
+#: was answered with read_source in place of file_operation (8 November 2026).
+HER_GOAL_TOOLS = frozenset({"read_source", "find_in_source", "edit_draft", "check_draft", "offer_draft"})
+
+
 # These project-local implementations are still discovered and reported, but
 # they are not exposed as parallel authorities for capabilities already owned by
 # hardened core skills.  A project declaration not listed here remains eligible

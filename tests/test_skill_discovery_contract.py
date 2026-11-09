@@ -267,8 +267,12 @@ def test_live_repo_catalog_matches_rust_and_dry_runs_every_skill():
     # `design_engineering` (2026-08-24, because showing how something works
     # had only two options, prose that cannot be dimensioned and an image
     # model that draws a machine that does not work). A count that moves when
-    # a capability is added is the point of the assertion.
-    assert len(catalog.accepted) == 82
+    # a capability is added is the point of the assertion. Three more came in
+    # after 24 August without this count moving (85 on 8 November), and five
+    # on 8 November 2026: read_source, find_in_source, edit_draft, check_draft
+    # and offer_draft, her tools for a goal she set herself, because her goals
+    # had no way to be worked on (core/agency/her_goal_at_work.py).
+    assert len(catalog.accepted) == 90
     assert len(catalog.excluded) == 10
     assert python_catalog.backend == "python"
     assert python_catalog.parity_status == "python_only"

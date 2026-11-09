@@ -11095,6 +11095,9 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         # happened.
         messages.extend(_tool_loop_evidence_messages(evidence))
         messages.append({"role": "user", "content": objective})
+        # What she already did toward this objective, in the calls she made and what came back: a goal of hers is
+        # worked on a few calls at a time, across as long as it takes (core/agency/her_goal_at_work.py).
+        messages.extend(_prior_tool_turns(kwargs.get("prior_turns")))
         tool_calls_made: list[dict[str, Any]] = []
         announced_without_acting = False
 
@@ -11134,6 +11137,9 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     self.max_tokens,
                     native_tools or tools,
                 ),
+                # A loop of hers on her own goal is background work: each of its generations stands aside while
+                # someone is talking with her (core/agency/her_goal_at_work.py).
+                **_in_the_background(kwargs),
                 # A tool call is structured output, and affective steering
                 # destroys structured output.
                 #
@@ -11179,6 +11185,10 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # The JSON contract asks for the same call as an ordinary
                 # answer, which needs no native tool-calling behaviour at all.
                 # Both protocols were already built here; only one was reachable.
+                if native_tools and tools and kwargs.get("native_tools_only"):
+                    # Tools offered as data only: the JSON contract is rules written to her model, which a loop on
+                    # her own goal does not use. An empty turn there is a generation held for someone else.
+                    break
                 if native_tools and tools:
                     logger.info(
                         "🔧 Native tool protocol produced nothing; retrying on the "
@@ -12598,6 +12608,32 @@ def _announces_an_action_it_did_not_take(text: object) -> bool:
         if _ANNOUNCES_AN_ACTION_RE.search(sentence) and _NAMES_A_MEANS_RE.search(sentence):
             return True
     return False
+
+
+def _in_the_background(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+    """What makes a tool loop's generations background work, when its caller asked for that."""
+    if not kwargs.get("work_in_background"):
+        return {}
+    return {"origin": str(kwargs.get("origin") or "background"), "is_background": True}
+
+
+def _prior_tool_turns(turns: Any) -> list[dict[str, Any]]:
+    """Earlier calls of hers and their results, as the loop's own messages: an assistant turn naming one call, then
+    the tool turn that answered it. Anything else is left out, and a call without its answer is too, since a template
+    renders a call left unanswered as one still waiting."""
+    if not isinstance(turns, (list, tuple)):
+        return []
+    kept: list[dict[str, Any]] = []
+    for call, answer in zip(turns[::2], turns[1::2]):
+        if not (isinstance(call, Mapping) and isinstance(answer, Mapping)):
+            continue
+        calls = call.get("tool_calls")
+        if call.get("role") != "assistant" or not isinstance(calls, list) or len(calls) != 1:
+            continue
+        if answer.get("role") != "tool" or answer.get("tool_call_id") != calls[0].get("id"):
+            continue
+        kept.extend([dict(call), dict(answer)])
+    return kept
 
 
 def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
