@@ -438,6 +438,10 @@ async def _understand_the_page_again(
     return surprised, understanding
 
 
+#: How long a thing is, as a list of things to watch says it: "4:11", "1:02:33", "3 minutes, 51 seconds".
+_A_LENGTH_SAID = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\b|\b\d+\s+(?:hours?|minutes?|seconds?)\b", re.IGNORECASE)
+
+
 def _moves_from_the_decision(
     decision: Mapping[str, Any], elements: list[Any]
 ) -> list[tuple[BrowserAction, Any]]:
@@ -1849,9 +1853,13 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # reason for (``_the_one_she_means``).
                 decision = self._the_one_she_means(decision, elements)
                 moves = _moves_from_the_decision(decision, elements)
-                # Where the links she clicks lead: a page she chose to open plays what she chose (with_what_plays).
+                # Where the links she clicks to a video lead: the page opens on what she chose (with_what_plays). A link
+                # to a video says how long it is; a link to a channel or a list does not, and the video its page plays
+                # first is not her choice: LIVE 8 November 2026, rehearsal 13, she opened a channel to look through
+                # its videos and its trailer was watched as her pick.
                 leads = {str(el.get("selector")): str(el.get("href")) for el in elements
-                         if isinstance(el, Mapping) and el.get("href") and el.get("selector")}
+                         if isinstance(el, Mapping) and el.get("href") and el.get("selector")
+                         and _A_LENGTH_SAID.search(str(el.get("name") or ""))}
                 browser._chose_to_open = [leads[action.selector] for action, _said in moves
                                           if action.type == "click" and action.selector in leads]
 

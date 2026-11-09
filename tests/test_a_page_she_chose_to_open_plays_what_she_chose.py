@@ -43,3 +43,14 @@ def test_a_page_she_did_not_click_through_to_is_not_her_choice():
 
 def test_the_loop_keeps_where_her_clicks_lead():
     assert "browser._chose_to_open = [" in inspect.getsource(sovereign_browser)
+
+
+def test_only_a_link_that_says_how_long_it_is_is_a_video_she_chose():
+    """LIVE 8 November 2026, rehearsal 13: she opened a channel to look through its videos, and its trailer was
+    watched as her pick."""
+    from core.skills.sovereign_browser import _A_LENGTH_SAID
+
+    for video in ("Homemade Hoverbike 3 minutes, 51 seconds", "4:11  Now playing", "A long one 1:02:33"):
+        assert _A_LENGTH_SAID.search(video), video
+    for elsewhere in ("Joel Creates @JoelCreates•693K subscribers Building improbable things", "Videos", "Search"):
+        assert not _A_LENGTH_SAID.search(elsewhere), elsewhere
