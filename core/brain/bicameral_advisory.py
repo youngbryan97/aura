@@ -373,12 +373,30 @@ class BicameralAdvisory:
         body["integrity"] = _sign(body)
         return body
 
+    def health_score(self) -> float:
+        """The share of its own bookkeeping that holds: issued frames within its limit, feedback applied only to
+        frames it issued, every reliability a number in [0, 1], and no history past its retention once it has pruned.
+
+        Read from its own state, so the resilience probe no longer scores it as unknown: LIVE 8 November 2026,
+        "BicameralAdvisory: get_status exposes no recognised health field"."""
+        with self._lock:
+            now = time.time()
+            self._prune(now)
+            checks = (
+                len(self._issued_frames) <= self._history_limit,
+                self._feedback_applied <= set(self._issued_frames),
+                all(math.isfinite(value) and 0.0 <= value <= 1.0 for value in self._reliability.values()),
+                all(now - float(entry.get("created_at") or now) <= HISTORY_RETENTION_S for entry in self._history),
+            )
+        return sum(checks) / len(checks)
+
     def get_status(self) -> dict[str, Any]:
         with self._lock:
             self._prune(time.time())
             last = dict(self._history[-1]) if self._history else None
             return {
                 "status": "active",
+                "health_score": self.health_score(),
                 "advisory_only": True,
                 "history_size": len(self._history),
                 "issued_frames": len(self._issued_frames),

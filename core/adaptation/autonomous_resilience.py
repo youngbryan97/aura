@@ -55,22 +55,31 @@ _FINDING_SCORES = {
 #: its own accord.
 _UNKNOWN_HEALTH_SCORE = 0.5
 
-#: Services already reported as uninstrumented, so a periodic probe reports the
-#: gap once instead of on every tick.
-_reported_uninstrumented: set[str] = set()
+#: Services whose health cannot be read, each with the reason, so a periodic
+#: probe reports the gap once instead of on every tick.
+_reported_uninstrumented: dict[str, str] = {}
+
+
+def uninstrumented_services() -> dict[str, str]:
+    """The services scored as unknown health so far, and why."""
+    return dict(sorted(_reported_uninstrumented.items()))
 
 
 def _report_uninstrumented(instance: Any, reason: str) -> float:
-    """Surface an unreadable health contract once, then score it as unknown."""
+    """Surface an unreadable health contract once, then score it as unknown.
+
+    A service that reports no health of its own is a gap in what can be
+    observed, not a fault in the running process, so it is kept in the mesh's
+    status and logged rather than recorded as a degradation. Recorded as one,
+    each service was counted against runtime health: LIVE 8 November 2026,
+    "autonomous_resilience: 163 degradations in the last 30m" in the first
+    seventeen minutes of a process, none logged because each was at debug,
+    while the count kept proof integrity marked degraded.
+    """
     name = type(instance).__name__
     if name not in _reported_uninstrumented:
-        _reported_uninstrumented.add(name)
-        record_degradation(
-            "autonomous_resilience",
-            RuntimeError(f"{name}: {reason}"),
-            severity="debug",
-            action="scored as unknown health rather than counted as healthy",
-        )
+        _reported_uninstrumented[name] = reason
+        logger.info("Health of %s cannot be read (%s); scored as unknown rather than as healthy.", name, reason)
     return _UNKNOWN_HEALTH_SCORE
 
 
@@ -418,7 +427,9 @@ class IntegrationAuditor:
 
         existing_health = set(getattr(autopoiesis, "_health_fns", {}).keys())
 
-        for name in registry:
+        # A copy: resolving a service can register others, and iterating the
+        # live dict raised "dictionary changed size during iteration".
+        for name in list(registry):
             if name in self._IGNORED_SERVICES:
                 continue
             try:
@@ -476,6 +487,8 @@ class IntegrationAuditor:
                     return _clamp01(float(status["health_score"]))
                 if "health" in status and isinstance(status["health"], (int, float)):
                     return _clamp01(float(status["health"]))
+                if isinstance(status.get("healthy"), bool):
+                    return 1.0 if status["healthy"] else 0.35
                 if "overall_healthy" in status:
                     return 1.0 if status["overall_healthy"] else 0.35
                 if "integrity_ok" in status:
@@ -1160,7 +1173,7 @@ class AutonomousResilienceMesh:
         )
 
     def get_status(self) -> dict[str, Any]:
-        return dict(self._last_report or {})
+        return {**(self._last_report or {}), "uninstrumented_services": uninstrumented_services()}
 
     @staticmethod
     def _default_container_cls() -> Any:

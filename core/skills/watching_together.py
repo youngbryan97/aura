@@ -519,10 +519,21 @@ async def her_feelings_checked(ask: Callable[..., Awaitable[dict[str, Any]]] | N
     if found is None:
         return {}  # not checked: made again next time, not kept
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"checked_at": time.time(), "found": found}, indent=1))
-    except OSError as exc:
-        logger.debug("the check of her feelings could not be kept: %s", exc)
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        gateway = get_file_write_gateway()
+        with local_internal_governed_scope(
+            "watching_together.feelings_check",
+            domain="state_mutation",
+            receipt_prefix="feelings-check",
+            constraints={"artifact": "aura.feelings_check.v1", "operation": "replace"},
+        ):
+            await gateway.ensure_directory_async(path.parent, source="watching_together")
+            await gateway.write_text_async(path, json.dumps({"checked_at": time.time(), "found": found}, indent=1),
+                                           source="watching_together")
+    except (OSError, RuntimeError, PermissionError) as exc:
+        logger.info("the check of her feelings could not be kept, so it is made again next time: %s", exc)
     logger.info("🎬 her feeling directions checked: %s", found or "none reads liking")
     return found
 

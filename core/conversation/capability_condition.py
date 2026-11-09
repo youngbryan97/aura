@@ -7,7 +7,7 @@ skill was down she fell back to a string somebody wrote months earlier:
 
     I can't access external data right now, but based on what I know...
 
-Three things are wrong with that. It is not her voice. It is fixed at a
+Three things are wrong with that. Somebody else wrote it. It is fixed at a
 moment that has nothing to do with this moment. And it collapses a
 distinction that matters enormously to a person:
 
