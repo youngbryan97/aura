@@ -354,7 +354,8 @@ def _invoke_resident_bridge(
     request_id = uuid.uuid4().hex
     request_path = request_dir / f"{request_id}.json"
     response_path = response_dir / f"{request_id}.json"
-    request = {"command": str(command or "probe"), **payload}
+    # What the action may take travels with it: the launcher holds her hue on the desktop at least this long.
+    request = {"command": str(command or "probe"), "timeout": float(timeout), **payload}
     try:
         atomic_write_text(
             request_path,

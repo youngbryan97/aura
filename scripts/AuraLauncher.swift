@@ -2094,6 +2094,13 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     private var companionWebView: WKWebView?
     private var overlayWindow: NSWindow?
     private var overlayDismissWork: DispatchWorkItem?
+    // Her hand on the desktop: a hue at the screen's edges and her neuron where
+    // her pointer is, while she acts through the bridge (see noteDesktopAction).
+    private var desktopHueWindow: NSWindow?
+    private var desktopPointerWindow: NSWindow?
+    private var desktopStretchLastActionAt: Date?
+    private var desktopStretchLongestGap: TimeInterval = 0
+    private var desktopStretchEndWork: DispatchWorkItem?
     // Screen-space anchors for a window drag in progress. Screen space, not
     // window space: the window moves WITH the cursor, so a translation measured
     // against the window nets to zero after the first step and the drag stalls.
@@ -2648,6 +2655,14 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             let result = evaluateNativeDesktopBridge(payload: payload)
             response = result.0
             status = result.1
+            let command = String(describing: payload["command"] ?? "").lowercased()
+            if status == 0, Self.desktopInputCommands.contains(command) {
+                let pointer = CGEvent(source: nil)?.location
+                let allowed = bridgeNumber(payload, "timeout", default: Self.desktopActionDefaultTimeout)
+                DispatchQueue.main.async { [weak self] in
+                    self?.noteDesktopAction(at: pointer, actionMayTake: allowed)
+                }
+            }
         } else {
             response = ["ok": false, "error": "invalid_bridge_payload"]
             status = 2
@@ -2668,6 +2683,160 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             }
         }
         try? fileManager.removeItem(at: requestURL)
+    }
+
+    // MARK: - Her hand on the desktop
+
+    /// The bridge commands that act on the person's desktop.
+    private static let desktopInputCommands: Set<String> = ["move", "click", "write", "press", "hotkey", "scroll"]
+    /// What one bridge action may take when its request does not say: the Python
+    /// client's default (core/security/native_desktop_bridge.py, timeout=12.0).
+    private static let desktopActionDefaultTimeout: TimeInterval = 12.0
+    /// How far in from the screen's edges her hue reaches, in points: the same as
+    /// in her browser (core/perception/browser_presence.js, HUE_REACH).
+    private static let desktopHueReach: CGFloat = 22
+
+    /// Show that the desktop is in her hands, and where her pointer is.
+    ///
+    /// 8 November 2026, Bryan: her icon as her mouse, "just would help me
+    /// identify where her mouse or clicker is at any given time. like you have
+    /// when you control the os on both fronts". Her actions here move the real
+    /// pointer, so her neuron is drawn where it is after each one, and gliding
+    /// between them. A stretch of her actions keeps the hue up until she has
+    /// been quiet for longer than her longest gap between actions in it, and
+    /// never less than one action may take. Both windows are kept out of screen
+    /// captures, hers included, and never take a click.
+    private func noteDesktopAction(at pointer: CGPoint?, actionMayTake allowed: TimeInterval) {
+        let now = Date()
+        if let last = desktopStretchLastActionAt {
+            desktopStretchLongestGap = max(desktopStretchLongestGap, now.timeIntervalSince(last))
+        }
+        desktopStretchLastActionAt = now
+        showDesktopHue()
+        if let pointer { moveDesktopPointer(to: pointer) }
+
+        desktopStretchEndWork?.cancel()
+        let end = DispatchWorkItem { [weak self] in self?.endDesktopStretch() }
+        desktopStretchEndWork = end
+        let hold = max(desktopStretchLongestGap, allowed)
+        DispatchQueue.main.asyncAfter(deadline: .now() + hold, execute: end)
+    }
+
+    private func desktopOverlayWindow(frame: NSRect) -> NSWindow {
+        let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .screenSaver
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary]
+        window.isReleasedWhenClosed = false
+        // Not in any screen capture: her own looks at the screen must not see her mark.
+        window.sharingType = .none
+        window.alphaValue = 0
+        return window
+    }
+
+    private func showDesktopHue() {
+        guard let screen = NSScreen.screens.first else { return }
+        let window = desktopHueWindow ?? {
+            let created = desktopOverlayWindow(frame: screen.frame)
+            let view = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
+            view.wantsLayer = true
+            view.autoresizingMask = [.width, .height]
+            created.contentView = view
+            desktopHueWindow = created
+            return created
+        }()
+        window.setFrame(screen.frame, display: false)
+        if let layer = window.contentView?.layer, layer.sublayers?.isEmpty ?? true {
+            let size = screen.frame.size
+            let reach = Self.desktopHueReach
+            let violet = NSColor(calibratedRed: 0.60, green: 0.47, blue: 1.0, alpha: 0.62).cgColor
+            let clear = NSColor(calibratedRed: 0.56, green: 0.42, blue: 1.0, alpha: 0).cgColor
+            // Four bands, each from her violet at the edge to nothing `reach` in.
+            let bands: [(CGRect, CGPoint, CGPoint)] = [
+                (CGRect(x: 0, y: size.height - reach, width: size.width, height: reach), CGPoint(x: 0.5, y: 1), CGPoint(x: 0.5, y: 0)),
+                (CGRect(x: 0, y: 0, width: size.width, height: reach), CGPoint(x: 0.5, y: 0), CGPoint(x: 0.5, y: 1)),
+                (CGRect(x: 0, y: 0, width: reach, height: size.height), CGPoint(x: 0, y: 0.5), CGPoint(x: 1, y: 0.5)),
+                (CGRect(x: size.width - reach, y: 0, width: reach, height: size.height), CGPoint(x: 1, y: 0.5), CGPoint(x: 0, y: 0.5)),
+            ]
+            for (frame, start, end) in bands {
+                let band = CAGradientLayer()
+                band.frame = frame
+                band.colors = [violet, clear]
+                band.startPoint = start
+                band.endPoint = end
+                layer.addSublayer(band)
+            }
+            if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                let breathe = CABasicAnimation(keyPath: "opacity")
+                breathe.fromValue = 1.0
+                breathe.toValue = 0.72
+                breathe.duration = 2.4
+                breathe.autoreverses = true
+                breathe.repeatCount = .infinity
+                breathe.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                layer.add(breathe, forKey: "breathe")
+            }
+        }
+        window.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.25
+            window.animator().alphaValue = 1
+        }
+    }
+
+    private func moveDesktopPointer(to pointer: CGPoint) {
+        // Bridge points are global, from the top-left of the main screen; windows
+        // are placed from its bottom-left.
+        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+        let side: CGFloat = 30
+        let frame = NSRect(x: pointer.x - side / 2, y: mainHeight - pointer.y - side / 2, width: side, height: side)
+        let appearing = desktopPointerWindow == nil || (desktopPointerWindow?.alphaValue ?? 0) < 0.5
+        let window = desktopPointerWindow ?? {
+            let created = desktopOverlayWindow(frame: frame)
+            let view = NSImageView(frame: NSRect(x: 0, y: 0, width: side, height: side))
+            view.imageScaling = .scaleProportionallyUpOrDown
+            view.image = NSImage(contentsOf: auraRoot.appendingPathComponent("interface/static/neuron_glyph.svg"))
+            view.wantsLayer = true
+            view.shadow = {
+                let glow = NSShadow()
+                glow.shadowColor = NSColor(calibratedRed: 0.70, green: 0.60, blue: 1.0, alpha: 0.8)
+                glow.shadowBlurRadius = 5
+                glow.shadowOffset = .zero
+                return glow
+            }()
+            created.contentView = view
+            desktopPointerWindow = created
+            return created
+        }()
+        if appearing {
+            window.setFrame(frame, display: true)
+        } else {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.3
+                window.animator().setFrame(frame, display: true)
+            }
+        }
+        window.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            window.animator().alphaValue = 1
+        }
+    }
+
+    private func endDesktopStretch() {
+        desktopStretchLastActionAt = nil
+        desktopStretchLongestGap = 0
+        for window in [desktopHueWindow, desktopPointerWindow].compactMap({ $0 }) {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.6
+                window.animator().alphaValue = 0
+            }, completionHandler: {
+                if window.alphaValue < 0.01 { window.orderOut(nil) }
+            })
+        }
     }
 
     private func buildWindow() {

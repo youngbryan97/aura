@@ -142,3 +142,26 @@ def test_her_looks_say_what_part_of_the_window_they_take():
     assert "without_presence(page, clip)" in inspect.getsource(watching_along)
     assert "without_presence(page, clip)" in inspect.getsource(sovereign_browser_drawing)
     assert "without_presence(page, dict(clip) if clip else None)" in inspect.getsource(a_picture_of_her_page)
+
+
+def test_on_the_desktop_her_actions_show_her_hue_and_pointer_kept_out_of_captures():
+    """The same on the desktop: an input action through her bridge shows the hue at the screen's edges and her neuron
+    where the pointer is, in windows no capture sees and no click lands on."""
+    from pathlib import Path
+
+    launcher = Path("scripts/AuraLauncher.swift").read_text(encoding="utf-8")
+    assert 'desktopInputCommands: Set<String> = ["move", "click", "write", "press", "hotkey", "scroll"]' in launcher
+    assert "self?.noteDesktopAction(at: pointer, actionMayTake: allowed)" in launcher
+    overlay = launcher.split("private func desktopOverlayWindow(frame: NSRect) -> NSWindow {", 1)[1].split("\n    }\n", 1)[0]
+    assert "window.sharingType = .none" in overlay and "window.ignoresMouseEvents = true" in overlay
+    assert "desktopHueReach: CGFloat = 22" in launcher and "const HUE_REACH = 22;" in Path(
+        "core/perception/browser_presence.js").read_text(encoding="utf-8")
+    assert "max(desktopStretchLongestGap, allowed)" in launcher
+
+
+def test_what_a_desktop_action_may_take_travels_with_it():
+    import inspect
+
+    from core.security import native_desktop_bridge
+
+    assert '"timeout": float(timeout), **payload' in inspect.getsource(native_desktop_bridge._invoke_resident_bridge)
