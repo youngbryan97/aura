@@ -1821,3 +1821,23 @@ content reports and the re-read tree at `fb2bc700d` (`tools/day_run_4.sh` in the
 
 **What each outcome means for the paper:** the lineage ground is reported on this day whatever it reads, beside the
 three earlier days, with the third day's failures as read. A prediction that fails is the finding, with its cause.
+
+### Amendment, 9 November 2026, afternoon: the fourth day restarted
+
+The fourth day opened at 13:05:41 at `4efa1397f`. Its first hourly check (13:27) found two predictions failing for
+faults in code, and a probe through the capability engine then found two more on the same path:
+1. Her goal pass's calls were refused, "signed_standing_authority_lease_missing" (prediction 9). The capability engine
+   keeps a call's origin only when it is user-facing or autonomous; hers was neither, so her calls ran as
+   "capability_engine", which no grant names, and the grant made for them was never reached. Its test had asked the
+   standing-authority manager directly.
+2. CognitiveIntegrationPhase wrote `affect.valence` and `affect.arousal` outside its contract, four times in 22
+   minutes (prediction 3): the sentiment organ, live since 5 November, blends the person's tone into her affect, and
+   the phase's measured writes predate it.
+3. The runtime's approval-mode overlay held `edit_draft` for a fresh confirmation after the grant had answered.
+4. The engine read every string argument as the bool or number it spells, so `edit_draft`'s empty `old_text` (a new
+   file) arrived as False and failed validation.
+
+With Bryan's word ("Dont mind restarting run and making changes ... now"), the day was ended at 14:22:58, 77 minutes
+after launch, and the four were fixed at `7f382ba61`, with a test that runs her goal tools through the engine's whole
+path. The fourth day restarts at the commit that carries this amendment. The predictions are unchanged. The first 77
+minutes are reported beside the day as read.
