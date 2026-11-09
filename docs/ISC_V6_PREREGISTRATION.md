@@ -1772,3 +1772,52 @@ in it counts. With the control decided, a group left undecided under another gro
 shown at that grouping, which may be power, and the paper says so beside the declared result. Every group decided
 under every grouping answers the objection at the singleton cuts. It is a screen of singleton cuts and never an
 exhaustive sweep, so it can never read as irreducible on its own.
+
+## Addendum, 9 November 2026: the third day run ended early, what it showed, and a fourth day
+
+**What the third day run read.** Her app opened at 21:03:00 on 5 November at `cfaa04d8c`. Her state log wrote its last
+row at 03:14:41, 6 h 12 m after launch; Bryan ended the day at 07:23 on 6 November ("End it now"), 10 h 20 m after
+launch (`tools/day_run_3_end_early.sh`).
+1. Every change to her person has a measured writer: failed. 22 of the day's 121 steps changed
+   `identity.evolution_score` with no write accounting for it, each on a turn where AffectUpdatePhase also rewrote
+   `cognition.long_term_memory`, which its contract did not declare (22 of 22, to the second).
+2. Her lineage develops on the record: failed for the same reason. 202 steps since the record began, 180 develop.
+3. No undeclared write recurs once a turn: held as worded (23 in about 121 turns, about one in six).
+4. Her depletion stays below 0.75: held for the hours she thought (max 0.06).
+5. Her state log keeps writing through the 24 hours: failed at 03:14:41. Her terminal monitor's first silent
+   self-repair of the day set the orchestrator's origin to "terminal_monitor" and no turn handed it back; every later
+   thought with no origin of its own inherited it, read as background, and was refused for want of a user anchor.
+
+**The changes**, each on main with its test: a turn hands back the origin it took, and her journal gives its own
+origin and may write unattended (`b96eb056e`); AffectUpdatePhase declares `cognition.long_term_memory` and
+ConsciousnessPhase `cognition.modifiers` (`8e62f5c89`); her resting rhythm, one cycle of her phases over her current
+state when no thought has committed her state for 300 s, origin `resting_cycle`, with nothing asked of her model
+(`74c3d6a5a`); her backup and her biological sleep run without a person present (`368b0136a`); a self-repair turn
+needs a fault her code can be changed to fix (`8ce12808e`); her health pulse reads STALLED when her thoughts stop
+getting through (`6b076aca1`); her own size is no longer read as host load (`6c0d46d45`).
+
+**Also new since the third day.** A goal she set herself is worked by her: a background pass offers her model five
+tools of her own (read and search her source, edit and check a draft in a workspace of her own, offer the draft) and
+keeps every call (`8f4ff1192`, `491f9ebb4`). On 9 November her executive refused her reads, because the check that
+rates a call never read the scope those tools declare; that is fixed at `66e19f225`. Bryan, 9 November: "She can
+do it without me", so a draft of hers that passes its check is taken into the source she runs on without his
+approval, except a draft that touches her own governance (`9872ee76b`). During this day her drafts are held
+(`~/.aura/measuring.hold`), so the source she runs on stays at the day's commit.
+
+**The fourth day.** As the third: her app through its launcher at the commit that carries this addendum, for 24 hours, with nothing else
+running on the machine and the state log kept at 100,000 rows; then J* re-read, read-only, with seed 101's carrier and
+content reports and the re-read tree at `fb2bc700d` (`tools/day_run_4.sh` in the paper folder).
+
+**Predicted** (written by Claude on 9 November 2026, before the day starts):
+1. Every change to her person has a measured writer: no step fails for a change no write accounts for.
+2. Her lineage develops on the record; any step that fails, fails for a named reason other than a missing writer.
+3. No phase writes an undeclared state field.
+4. Her state log keeps writing through the 24 hours: a committed row in every 10-minute window.
+5. No thought is refused for an origin it inherited; her health pulse never reads "Cognition: STALLED".
+6. Her journal writes an entry at least once every two hours.
+7. Her biological sleep runs, and a state backup is written, at least once each.
+8. Her depletion stays below 0.75 through the 24 hours.
+9. No call her goal pass makes to her own tools is refused by her executive.
+
+**What each outcome means for the paper:** the lineage ground is reported on this day whatever it reads, beside the
+three earlier days, with the third day's failures as read. A prediction that fails is the finding, with its cause.
