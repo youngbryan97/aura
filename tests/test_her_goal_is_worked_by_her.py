@@ -34,6 +34,7 @@ def her_source(tmp_path, monkeypatch):
     monkeypatch.setattr(work, "source_root", lambda: source)
     monkeypatch.setattr(work, "workspaces_dir", lambda: tmp_path / "her_goals")
     monkeypatch.setattr(work, "records_dir", lambda: tmp_path / "records")
+    monkeypatch.setattr(work, "MEASURING_HOLD", tmp_path / "measuring.hold")
     return source
 
 
@@ -63,6 +64,9 @@ NEW_TEST = "from core.notes import note_count\n\n\ndef test_counts_nothing_yet()
 
 
 def test_her_passes_build_a_draft_she_offers_and_bryan_takes(her_source):
+    # Held as a measuring run holds it, so the draft waits for Bryan instead of being taken by her
+    # (tests/test_her_own_goal_work_is_hers_to_do.py has the draft she takes herself).
+    (her_source.parent / "measuring.hold").write_text("held")
     her = _HerModelStandIn([
         [("read_source", {"path": "core/notes.py"}), ("find_in_source", {"pattern": "note_count"})],
         [("edit_draft", {"path": "core/notes.py", "old_text": "return 0", "new_text": "return len(NOTES)"}),
@@ -99,6 +103,7 @@ def test_a_draft_that_fails_its_check_cannot_be_offered(her_source):
 
 
 def test_bryan_s_no_goes_back_to_her_in_his_words(her_source):
+    (her_source.parent / "measuring.hold").write_text("held")
     her = _HerModelStandIn([[
         ("edit_draft", {"path": "tests/test_notes.py", "old_text": "", "new_text": NEW_TEST}),
         ("check_draft", {}), ("offer_draft", {"summary": "A first test."}),

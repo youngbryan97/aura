@@ -151,6 +151,23 @@ BOUNDED_MAINTENANCE_TEST_TOOLS = frozenset({"test_generator"})
 BOUNDED_SANDBOX_TOOLS = frozenset({"subconscious_sandbox_probe"})
 BACKGROUND_REFLECTION_TOOLS = frozenset({"swarm_debate"})
 OWNER_PRIVATE_MESSAGE_TOOLS = frozenset({"messages"})
+
+#: Her own tools for a goal she set herself (core/skills/her_draft.py), the five
+#: core.skills.catalog_policy.HER_GOAL_TOOLS names (a test holds the two equal).
+#: Each acts only inside a git worktree of her source that she works the goal in.
+OWN_GOAL_TOOLS = frozenset({"check_draft", "edit_draft", "find_in_source", "offer_draft", "read_source"})
+#: What each takes, and the arguments among them that name a place in her workspace.
+_OWN_GOAL_ARGUMENTS = {
+    "read_source": frozenset({"path", "from_line"}),
+    "find_in_source": frozenset({"pattern", "where"}),
+    "edit_draft": frozenset({"path", "old_text", "new_text"}),
+    "check_draft": frozenset({"tests"}),
+    "offer_draft": frozenset({"summary"}),
+}
+#: The pass that works a goal of hers (core.agency.her_goal_at_work.ORIGIN).
+OWN_GOAL_ORIGIN = "her_goal_background"
+#: The grant that is Bryan's standing yes to that work.
+OWN_GOAL_GRANT = "aura.own-goal-work"
 BACKGROUND_REFLECTION_ROLES = frozenset({"architect", "critic", "philosopher"})
 BACKGROUND_REFLECTION_MAX_ACTIONS = 6
 BACKGROUND_REFLECTION_WINDOW_SECONDS = 3600.0
@@ -186,6 +203,7 @@ _SUPPORTED_ARGUMENT_POLICIES = frozenset(
         "bounded_maintenance_test",
         "connected_account_read",
         "foreground_user_request",
+        "her_goal_work",
         "local_introspection",
         "owner_private_message",
         "public_research",
@@ -542,6 +560,28 @@ def _builtin_grants() -> tuple[StandingAuthorityGrant, ...]:
             window_seconds=BACKGROUND_REFLECTION_WINDOW_SECONDS,
             lease_ttl_seconds=180.0,
             argument_policy="bounded_background_reflection",
+            built_in=True,
+        ),
+        # Bryan, 9 November 2026: "Trying to remove myself from the loop tbh. She can do it
+        # without me." Her goal pass was refused even its reads that morning: no grant
+        # named its tools, and a goal she set herself has nobody to confirm a call.
+        StandingAuthorityGrant(
+            grant_id=OWN_GOAL_GRANT,
+            issuer="owner_policy",
+            description=(
+                "Aura may work a goal she set herself in a workspace of her own: read and "
+                "search her source, edit and check a draft there, and offer it."
+            ),
+            allowed_origins=(OWN_GOAL_ORIGIN,),
+            allowed_tools=tuple(sorted(OWN_GOAL_TOOLS)),
+            allowed_effect_scopes=("read_only", "read_write_artifacts", "sandboxed_compute"),
+            max_risk="high",
+            # A pass makes at most 12 calls (her_goal_at_work.CALLS_A_PASS); ten passes an hour.
+            max_actions=120,
+            window_seconds=3600.0,
+            # check_draft may run for 420 s.
+            lease_ttl_seconds=600.0,
+            argument_policy="her_goal_work",
             built_in=True,
         ),
         StandingAuthorityGrant(
@@ -922,6 +962,20 @@ class StandingAuthorityManager:
                 return False, "maintenance_tool_mismatch"
             valid, reason = self._validate_aura_source_paths(raw_paths)
             return (True, "read_only_maintenance") if valid else (False, reason)
+        if policy == "her_goal_work":
+            if tool_name not in OWN_GOAL_TOOLS:
+                return False, "her_goal_tool_mismatch"
+            if set(arguments) - _OWN_GOAL_ARGUMENTS[tool_name]:
+                return False, "her_goal_arguments_unsupported"
+            # The tools refuse a path outside her workspace themselves; a lease is not
+            # issued for one that names a place by climbing or from the root.
+            places = [arguments.get(key) for key in ("path", "where") if arguments.get(key)]
+            places += list(arguments.get("tests") or [])
+            for place in places:
+                text = str(place or "")
+                if text.startswith(("/", "~")) or ".." in text.replace("\\", "/").split("/"):
+                    return False, "her_goal_place_outside_her_workspace"
+            return True, "her_goal_work"
         if policy == "bounded_maintenance_test":
             if tool_name not in BOUNDED_MAINTENANCE_TEST_TOOLS:
                 return False, "bounded_maintenance_test_tool_mismatch"

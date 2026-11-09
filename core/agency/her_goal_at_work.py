@@ -17,8 +17,11 @@ How it works.
 - A pass offers her tools (core/skills/her_draft.py) through her model's own chat template, as their names, what each
   does and what each takes, after the goal and the calls she made before. She makes the next calls; what comes back
   is kept. A pass is background work, so it waits while she is talking with someone.
-- When she offers a draft the goal waits for Bryan. Only his approval moves her change into the source she runs on:
-  her self-modification has always required a person behind it, and his approval is that person.
+- A draft that has passed its check is taken into the source she runs on when she offers it. Until 9 November 2026
+  only Bryan's approval did that; that day he said "She can do it without me". Two kinds of draft still wait for him:
+  one that changes her own governance (what she may do and how she is checked, ``HER_OWN_GOVERNANCE``), so she
+  cannot loosen her own rules unattended, and any draft while a run is measuring her (``MEASURING_HOLD``), so the
+  source a measurement reads does not move under it. Nothing is pushed anywhere.
 """
 from __future__ import annotations
 
@@ -243,6 +246,10 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
 
     slug = slug_of(goal)
     record = load(slug) or GoalRecord(goal=str(goal), slug=slug)
+    if record.status == OFFERED:
+        # A draft held while she was measured, or offered before she could take it herself.
+        await asyncio.to_thread(take_it_herself, slug)
+        record = load(slug) or record
     if record.status != WORKING:
         logger.info("🛠️ '%s' is %s; no pass", goal[:60], record.status)
         return record
@@ -284,8 +291,54 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     return record
 
 
-def approve(slug: str) -> dict[str, Any]:
-    """Bryan's yes: her offered draft becomes part of the source she runs on, if the source has not moved past it."""
+#: Paths whose change waits for Bryan however well it checks: what she may do, how she is checked, and these rules.
+HER_OWN_GOVERNANCE = (
+    "core/governance/",
+    "core/governance_context.py",
+    "core/executive/",
+    "core/capabilities/permission_model.py",
+    "core/runtime/file_write_gateway.py",
+    "core/runtime/atomic_writer.py",
+    "core/skills/catalog_policy.py",
+    "core/skills/her_draft.py",
+    "core/agency/her_goal_at_work.py",
+    "tools/her_goals.py",
+    "config/",
+    "tests/test_her_goal_is_worked_by_her.py",
+    "tests/test_her_own_goal_work_is_hers_to_do.py",
+    "tests/test_a_scope_declared_on_the_class_is_the_scope_of_the_call.py",
+    "tests/test_standing_authority.py",
+    "tests/test_permission_model_typed_contract.py",
+)
+
+#: While this file exists a run is measuring her, and no draft of hers is taken (tools/day_run_4.sh makes it).
+MEASURING_HOLD = Path.home() / ".aura" / "measuring.hold"
+
+
+def governs_her(path: str) -> bool:
+    name = str(path or "").strip().removeprefix("./")
+    return any(name == rule or (rule.endswith("/") and name.startswith(rule)) for rule in HER_OWN_GOVERNANCE) \
+        or name.endswith("/DEPS") or name == "DEPS"
+
+
+def take_it_herself(slug: str) -> dict[str, Any]:
+    """Her offered draft into the source she runs on, without Bryan, unless it governs her or she is being measured."""
+    record = load(slug)
+    if record is None or record.status != OFFERED:
+        return {"ok": False, "why": f"no draft of hers waits under {slug}"}
+    governing = [name for name in record.offer.get("files") or [] if governs_her(name)]
+    if governing:
+        logger.warning("🛠️ her draft for '%s' changes her own governance (%s); it waits for Bryan",
+                       record.goal[:60], ", ".join(governing[:4]))
+        return {"ok": False, "why": "it changes her own governance, so it waits for Bryan", "files": governing}
+    if MEASURING_HOLD.exists():
+        logger.info("🛠️ her draft for '%s' waits: a run is measuring her", record.goal[:60])
+        return {"ok": False, "why": "a run is measuring her; her draft waits until it ends"}
+    return approve(slug, by="herself")
+
+
+def approve(slug: str, *, by: str = "Bryan") -> dict[str, Any]:
+    """A yes, Bryan's or her own: her offered draft becomes part of the source she runs on, if it has not moved past it."""
     record = load(slug)
     if record is None or record.status != OFFERED:
         return {"ok": False, "why": f"no draft of hers waits under {slug}"}
@@ -299,8 +352,9 @@ def approve(slug: str) -> dict[str, Any]:
         return {"ok": False, "why": merged.stderr.strip()[:300]}
     record.status = MERGED
     record.offer["merged_at"] = time.time()
+    record.offer["taken_by"] = by
     _write_now(record)
-    logger.info("🛠️ Bryan took her draft for '%s' (%s)", record.goal[:60], commit[:9])
+    logger.info("🛠️ %s took her draft for '%s' (%s)", by, record.goal[:60], commit[:9])
     return {"ok": True, "commit": commit}
 
 

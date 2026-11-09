@@ -344,6 +344,35 @@ def _said_not_to(text: str, at: int) -> bool:
 # The model
 # ---------------------------------------------------------------------------
 
+
+def _her_own_goal_work_is_leased(context: Dict[str, Any], effect_scope: str, execution_risk: str) -> bool:
+    """True when this call holds a valid lease from the grant that is Bryan's standing yes to her goal work.
+
+    A high-risk call asks a person to confirm it. A pass at a goal she set herself has no person to ask, and on
+    9 November 2026 Bryan said she should not need one ("She can do it without me"). The yes is a standing grant,
+    ``aura.own-goal-work``, bounded to her five goal tools, her goal pass's origin and her own workspace; holding a
+    valid lease from it is that yes. No other grant answers for a person here: the owner's foreground grant still
+    leaves a high-risk call to the person who is there to confirm it.
+    """
+    try:
+        from core.executive.standing_authority import OWN_GOAL_GRANT, validate_standing_authority_context
+    except ImportError:
+        return False
+    if str((context or {}).get("standing_authority_grant_id") or "") != OWN_GOAL_GRANT:
+        return False
+    try:
+        valid, _reason = validate_standing_authority_context(
+            context,
+            tool_name=context.get("tool") or context.get("skill"),
+            arguments=context.get("authority_arguments"),
+            origin=context.get("authority_origin") or context.get("origin") or context.get("source"),
+            effect_scope=effect_scope,
+            risk_level=execution_risk,
+        )
+    except (RuntimeError, TypeError, ValueError):
+        return False
+    return bool(valid)
+
 class PermissionRiskModel:
     """Per-action risk classification and approval gating.
 
@@ -532,7 +561,10 @@ class PermissionRiskModel:
             else:
                 # Check if user already pre-approved this class of action
                 pre_approved = context.get("user_explicitly_authorized", False)
-                if pre_approved:
+                if not pre_approved and _her_own_goal_work_is_leased(context, effect_scope, execution_risk):
+                    approved = True
+                    reason = f"HIGH risk, Bryan's standing yes to her own goal work: {reason}"
+                elif pre_approved:
                     approved = True
                     reason = f"HIGH risk, user pre-approved: {reason}"
                 else:

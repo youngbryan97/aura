@@ -256,8 +256,8 @@ class OfferDraftInput(BaseModel):
 class OfferDraftSkill(BaseSkill):
     result_schema = THE_SHARED_RESULT
     name = "offer_draft"
-    description = ("Offer her checked draft to Bryan. Only his approval puts it into the source she runs on; "
-                   "until he answers, the goal waits.")
+    description = ("Offer her checked draft. It goes into the source she runs on unless it changes her own "
+                   "governance or a run is measuring her; then it waits for Bryan.")
     input_model = OfferDraftInput
     effect_scope = "read_write_artifacts"
     timeout_seconds = 60.0
@@ -292,7 +292,14 @@ class OfferDraftSkill(BaseSkill):
         logging.getLogger("Aura.HerGoalAtWork").warning(
             "🛠️ Aura offers a draft toward '%s' (%s): %s. Answer with tools/her_goals.py approve|decline %s",
             record.goal[:80], head.strip()[:9], asked.summary.strip()[:200], record.slug)
-        return {"ok": True, "commit": head.strip(), "summary": "offered to Bryan; the goal waits for his answer"}
+        from core.agency.her_goal_at_work import take_it_herself
+
+        taken = await asyncio.to_thread(take_it_herself, record.slug)
+        if taken.get("ok"):
+            return {"ok": True, "commit": head.strip(), "taken": True,
+                    "summary": "taken into the source she runs on; it reaches her when she is next started"}
+        return {"ok": True, "commit": head.strip(), "taken": False,
+                "summary": f"offered; it waits for Bryan: {taken.get('why')}"}
 
 
 #: Her tools, in the order a goal is worked.
