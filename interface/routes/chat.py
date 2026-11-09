@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -772,6 +772,8 @@ _FALL_THROUGH = object()
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
+    #: Files the person attached to this message, by the ids ``/api/attachments`` gave them.
+    attachments: list[str] = []
 
 
 class CheatCodeRequest(BaseModel):
@@ -7323,6 +7325,24 @@ def _bound_http_turn(body: Any):
 
 
 
+
+
+@router.post("/attachments")
+async def api_attachments(
+    request: Request,
+    file: UploadFile = File(...),
+    _: None = Depends(_require_internal),
+    __: None = Depends(_check_rate_limit),
+):
+    """Keep a file the person attaches and read what it says (core/conversation/attachments.py)."""
+    from core.conversation.attachments import MOST_BYTES, AttachmentRefused, keep
+
+    data = await file.read(MOST_BYTES + 1)
+    try:
+        note = await keep(file.filename or "file", data, file.content_type or "")
+    except AttachmentRefused as refused:
+        return JSONResponse({"ok": False, "error": str(refused)}, status_code=413 if data else 400)
+    return JSONResponse({"ok": True, **note})
 
 
 @router.post("/chat")

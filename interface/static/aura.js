@@ -5391,6 +5391,9 @@ function chatHandoffScope() {
     return `${surface}:${scope}`;
 }
 
+// As many files as the server reads into one turn.
+const ATTACHMENTS_PER_MESSAGE = 8;
+
 function normalizeChatQueueItem(value, { rendered = null } = {}) {
     const source = value && typeof value === 'object' ? value : { message: value };
     const message = String(source.message || '').trim();
@@ -5419,6 +5422,10 @@ function normalizeChatQueueItem(value, { rendered = null } = {}) {
         handoffScope: suppliedHandoffScope === chatHandoffScope()
             ? suppliedHandoffScope
             : '',
+        attachments: (Array.isArray(source.attachments) ? source.attachments : [])
+            .map(String)
+            .filter(id => /^[0-9a-f]{16}$/.test(id))
+            .slice(0, ATTACHMENTS_PER_MESSAGE),
         deliveryState: [
             'queued',
             'submitting',
@@ -5444,6 +5451,7 @@ function chatQueueItemSnapshot(value) {
         turnId: item.turnId,
         deliveryState: item.deliveryState,
         handoffScope: item.handoffScope,
+        attachments: item.attachments,
     };
 }
 
@@ -5782,7 +5790,11 @@ async function postChatDelivery(item, message) {
             cache: 'no-store',
             credentials: 'same-origin',
             headers,
-            body: JSON.stringify({ message }),
+            body: JSON.stringify(
+                item.attachments && item.attachments.length
+                    ? { message, attachments: item.attachments }
+                    : { message }
+            ),
             signal: controller.signal,
         });
         return await readChatDeliveryResponse(response);
@@ -6234,12 +6246,128 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
     }
 };
 
+// Files attached to the next message. Each is sent to /api/attachments as soon
+// as it is chosen, where it is kept and read; the message carries only the ids,
+// and the server puts what was read from each file into the turn.
+const pendingAttachments = [];
+
+function attachmentSizeLabel(bytes) {
+    const size = Number(bytes) || 0;
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderAttachmentChips() {
+    const holder = $('attachment-chips');
+    if (!holder) return;
+    holder.hidden = pendingAttachments.length === 0;
+    holder.innerHTML = pendingAttachments.map((entry, index) => {
+        const status = entry.status === 'reading'
+            ? 'reading…'
+            : entry.status === 'failed'
+                ? (entry.error || 'could not be read')
+                : entry.readable === false
+                    ? `${attachmentSizeLabel(entry.size)}, no text in it`
+                    : attachmentSizeLabel(entry.size);
+        return `<span class="attachment-chip ${entry.status}" title="${escHtml(entry.name)}">`
+            + `<span class="attachment-chip-name">${escHtml(entry.name)}</span>`
+            + `<span class="attachment-chip-status">${escHtml(status)}</span>`
+            + `<button type="button" class="attachment-chip-remove" data-index="${index}" aria-label="Remove ${escHtml(entry.name)}">`
+            + `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg>`
+            + `</button></span>`;
+    }).join('');
+}
+
+async function attachFile(file) {
+    if (pendingAttachments.length >= ATTACHMENTS_PER_MESSAGE) {
+        appendMsg('system', `A message can carry ${ATTACHMENTS_PER_MESSAGE} files. ${file.name} was not attached.`, false, { system: true });
+        return;
+    }
+    const entry = { name: file.name || 'file', size: file.size, status: 'reading', id: '', error: '' };
+    pendingAttachments.push(entry);
+    renderAttachmentChips();
+    try {
+        const form = new FormData();
+        form.append('file', file, entry.name);
+        const response = await fetch('/api/attachments', {
+            method: 'POST',
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: auraDesktopHeaders(),
+            body: form,
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok || !/^[0-9a-f]{16}$/.test(String(result.id || ''))) {
+            entry.status = 'failed';
+            entry.error = String(result.error || result.detail || `upload failed (${response.status})`);
+        } else {
+            entry.status = 'ready';
+            entry.id = result.id;
+            entry.readable = result.readable !== false;
+        }
+    } catch (err) {
+        entry.status = 'failed';
+        entry.error = 'upload failed';
+    }
+    renderAttachmentChips();
+}
+
+function attachFiles(files) {
+    for (const file of Array.from(files || [])) attachFile(file);
+}
+
+$('attach-btn')?.addEventListener('click', () => $('attach-input')?.click());
+$('attach-input')?.addEventListener('change', event => {
+    attachFiles(event.target.files);
+    event.target.value = '';
+});
+$('attachment-chips')?.addEventListener('click', event => {
+    const button = event.target.closest('.attachment-chip-remove');
+    if (!button) return;
+    pendingAttachments.splice(Number(button.dataset.index), 1);
+    renderAttachmentChips();
+});
+$('chat-input')?.addEventListener('paste', event => {
+    const files = event.clipboardData && event.clipboardData.files;
+    if (files && files.length) {
+        event.preventDefault();
+        attachFiles(files);
+    }
+});
+(() => {
+    const zone = document.querySelector('.input-area');
+    if (!zone) return;
+    const carriesFiles = event => Array.from(event.dataTransfer?.types || []).includes('Files');
+    zone.addEventListener('dragover', event => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        zone.classList.add('dropping');
+    });
+    zone.addEventListener('dragleave', event => {
+        if (!zone.contains(event.relatedTarget)) zone.classList.remove('dropping');
+    });
+    zone.addEventListener('drop', event => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        zone.classList.remove('dropping');
+        attachFiles(event.dataTransfer.files);
+    });
+})();
+
 $('chat-form').onsubmit = async e => {
     e.preventDefault();
     const msgInput = $('chat-input');
     const msg = msgInput.value.trim();
 
     if (!msg) return;
+
+    const stillReading = pendingAttachments.filter(entry => entry.status === 'reading');
+    if (stillReading.length) {
+        appendMsg('system', `Still reading ${stillReading.map(entry => entry.name).join(', ')}. Send again when it is done.`, false, { system: true });
+        msgInput.focus();
+        return;
+    }
 
     if (
         (state.isSubmitting || state.activeChatRequest)
@@ -6255,10 +6383,17 @@ $('chat-form').onsubmit = async e => {
         return;
     }
 
-    const item = normalizeChatQueueItem({ message: msg, rendered: true });
+    const attached = pendingAttachments.filter(entry => entry.status === 'ready');
+    const item = normalizeChatQueueItem({
+        message: msg,
+        rendered: true,
+        attachments: attached.map(entry => entry.id),
+    });
     if (!item) return;
     flushTypingSignal({ submitted: true, messageCharsOverride: msg.length });
-    appendMsg('user', msg);
+    appendMsg('user', msg, false, { attachmentNames: attached.map(entry => entry.name) });
+    pendingAttachments.length = 0;
+    renderAttachmentChips();
     setChatPanelState('thinking');
 
     let requestPromise = null;
@@ -6396,7 +6531,11 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
             const body = narrated ? narrationCardHtml(narrated, text, render) : render(text);
             div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + `<div class="msg-content">` + body + thoughtHtml + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
         } else {
-            div.innerHTML = `<div class="msg-content">` + render(text) + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
+            const attached = Array.isArray(metadata.attachmentNames) && metadata.attachmentNames.length
+                ? `<div class="msg-attachments">` + metadata.attachmentNames
+                    .map(name => `<span class="msg-attachment">${escHtml(String(name))}</span>`).join('') + `</div>`
+                : '';
+            div.innerHTML = `<div class="msg-content">` + render(text) + attached + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
         }
         if (isAura) window.AuraConversationVisuals?.enhance(div.querySelector('.msg-content'));
         div.classList.remove('typing');

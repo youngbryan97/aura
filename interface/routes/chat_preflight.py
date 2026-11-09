@@ -2412,6 +2412,29 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _file_exc:
                 record_degradation("chat", _file_exc)
                 logger.debug("Chat file-reference preflight skipped: %s", _file_exc)
+        # 1b) Files the person attached: what was read from them, in the room the composed message has left.
+        _attached = [str(item) for item in (getattr(body, "attachments", None) or [])][:8]
+        if _attached and not is_benchmark:
+            try:
+                from core.conversation.attachments import context_block
+                from core.conversation.chat_preflight import (
+                    MAX_COMPOSED_PREFLIGHT_CHARS,
+                    _record_the_reads,
+                )
+
+                _room = MAX_COMPOSED_PREFLIGHT_CHARS - len(body.message) - 4096
+                _block, _given = await asyncio.to_thread(
+                    context_block, _attached, query=_original_user_message, room=_room
+                )
+                if _block:
+                    body.message = (
+                        f"{_block}\n{body.message}" if "User message:" in body.message
+                        else f"{_block}\nUser message: {body.message}"
+                    )
+                    _record_the_reads(_given)
+                    logger.info("Chat preflight: read %d attached file(s) into the turn.", len(_given))
+            except _CHAT_RECOVERABLE_ERRORS as _attach_exc:
+                record_degradation("chat", _attach_exc, action="answered without the attached files")
         _finish_timing("file_context")
 
         # 2) Directive injection

@@ -508,11 +508,24 @@
             </div>
 
             <div class="input-area">
+                <div class="attachment-chips" id="attachment-chips" aria-live="polite" hidden></div>
                 <form class="input-bar" id="chat-form" role="form" aria-label="Chat input">
                     <textarea id="chat-input" placeholder="Talk to Aura..." autocomplete="off" rows="1" aria-label="Message input"></textarea>
                     <div class="input-actions">
                         <button type="button" class="input-btn regen-btn" id="regen-btn" title="Regenerate last response (⌘+Shift+R)" aria-label="Regenerate response" style="display:none;">↻</button>
                         <button type="button" class="input-btn" id="chat-stop-btn" title="Stop this turn" aria-label="Stop response" style="display:none;">■</button>
+                        <!-- Any kind of file: the server reads what it can from it
+                             (text, PDF, Word and other documents, spreadsheets,
+                             slides, pictures) and says what it could not. -->
+                        <button type="button" class="input-btn attach-btn" id="attach-btn"
+                                title="Attach files" aria-label="Attach files">
+                            <svg class="attach-glyph" viewBox="0 0 24 24" aria-hidden="true"
+                                 fill="none" stroke="currentColor" stroke-width="1.6"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20.5 11.5l-8.1 8.1a5.25 5.25 0 0 1-7.4-7.4l8.6-8.6a3.5 3.5 0 0 1 5 5l-8.6 8.6a1.75 1.75 0 0 1-2.5-2.5l7.9-7.9"></path>
+                            </svg>
+                        </button>
+                        <input type="file" id="attach-input" multiple hidden>
                         <button type="submit" class="input-btn send-btn" aria-label="Send message">SEND</button>
                         <!-- The voice affordance was an unlabelled purple orb
                              beside SEND. It reads as decoration, so the whole
