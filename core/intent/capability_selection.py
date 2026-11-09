@@ -253,7 +253,6 @@ def select_capabilities(
         requested_foundational_domains,
     )
     from core.skills.action_scope import resolve_skill_target, skill_has_action_within
-
     from core.skills.catalog_policy import HER_GOAL_TOOLS
 
     catalogue = {

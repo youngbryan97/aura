@@ -1,8 +1,8 @@
 import asyncio
 import logging
+import os
 import random
 import threading
-import os
 import time
 from collections import deque
 from dataclasses import dataclass

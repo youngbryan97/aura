@@ -12624,7 +12624,7 @@ def _prior_tool_turns(turns: Any) -> list[dict[str, Any]]:
     if not isinstance(turns, (list, tuple)):
         return []
     kept: list[dict[str, Any]] = []
-    for call, answer in zip(turns[::2], turns[1::2]):
+    for call, answer in zip(turns[::2], turns[1::2], strict=False):  # an odd last call has no answer yet
         if not (isinstance(call, Mapping) and isinstance(answer, Mapping)):
             continue
         calls = call.get("tool_calls")

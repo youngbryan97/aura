@@ -518,6 +518,21 @@ def resolve_execution_effect_scope(
         if scoped:
             return scoped
 
+    # A skill that declares one scope for all its actions says so in
+    # ``effect_scope`` on the class, which is where catalog_policy asks new
+    # skills to put it, and registration refuses a skill whose code reaches past
+    # that declaration. This resolver read the per-action table and the old
+    # name table but never the class attribute, so a skill declared only the new
+    # way resolved to "unknown" and was rated critical. LIVE, 9 November 2026:
+    # her own goal pass was refused read_source and find_in_source, both
+    # declared read_only, for want of a confirmation no one was there to give.
+    if not declared:
+        for holder in (target, skill_class_named(name)):
+            on_class = str(getattr(holder, "effect_scope", "") or "").strip().lower()
+            if on_class:
+                declared = on_class
+                break
+
     policy = resolve_skill_policy(name, declared)
     if policy is not None:
         return policy.effect_scope

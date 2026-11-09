@@ -131,7 +131,7 @@ _RELATIONAL_PAST_RES: tuple[re.Pattern[str], ...] = (
         # generated rather than spelled out.
         r"(?i)\b(?:as\s+)?you\s*(?:['\u2019]\s*(?:re|ve)|\s+(?:are|have|just|also))?\s*"
         r"(?:point(?:ed|ing)?\s+out|"
-        r"(?:sa(?:y|ys|id|ying)|ask|asks|asked|asking|tell|tells|told|telling|mention|mentions|mentioned|"
+        r"(?:sa(?:y|ys|id|ying)|(?:ask|asks|asked|asking)(?!\s+me\b)|tell|tells|told|telling|mention|mentions|mentioned|"
         r"mentioning|not(?:e|es|ed|ing)|notic(?:e|es|ed|ing)|observ(?:e|es|ed|ing)|"
         r"remark(?:s|ed|ing)?|state(?:s|d)?|stating|claim(?:s|ed|ing)?|"
         r"argu(?:e|es|ed|ing)|suggest(?:s|ed|ing)?|impl(?:y|ies|ied|ying)|"
@@ -175,10 +175,19 @@ _IRREALIS_SECOND_PERSON_RE = re.compile(
     r"(?:that\s+)?you\s+(?:were|had)\b"
 )
 
+# "Ask" counts only when the person is said to have asked someone other than her. "You asked me to ..." describes
+# their request to her in this conversation, and before 8 November no form of "ask" was checked; counting it made
+# her paraphrase of the question just put to her ("You asked me to identify the current request ...") an invented
+# past, and a status turn failed its recall contract on it.
 # A speech act under a condition attributes nothing: "if you ask me", "unless you say otherwise". On 8 November 2026
 # "ask" joined the speech-act class for "And then you ask him, 'do you think this snake enjoys having legs?'", said of
 # a question asked in a video, and "if you ask me" is the commonest way that verb follows "you".
 _CONDITION_BEFORE_YOU_RE = re.compile(r"(?i)\b(?:if|unless|whenever)\s+$")
+
+# "When you ask that" in the present is the question being asked now, and attributes nothing; "when you asked him"
+# is a past event and is still read. The salvage test's draft, "When you ask that, something in me does shift", was
+# refused as an invented past from 8 November, when "ask" joined the class.
+_WHEN_YOU_IN_THE_PRESENT_RE = re.compile(r"(?i)\bwhen\s+you\s+(?:ask|say|tell|mention)\b")
 
 # A direct recollection question can have a one-word answer ("orca", "Tuesday",
 # "Paris"). That value is exactly the part that needs evidence. Earlier code
@@ -454,6 +463,8 @@ def fabricated_shared_history(
         if _IRREALIS_SECOND_PERSON_RE.search(sentence):
             continue
         if _CONDITION_BEFORE_YOU_RE.search(sentence[: attribution.start()]):
+            continue
+        if _WHEN_YOU_IN_THE_PRESENT_RE.search(sentence):
             continue
         if _surface_says_not_an_attribution(sentence):
             continue

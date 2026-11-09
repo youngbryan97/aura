@@ -129,11 +129,10 @@ def test_every_delivery_path_can_carry_the_mark():
     # 2. Socket stream that ends with the confidence attached.
     assert "finishStreamMsg(data.response_confidence)" in source
     assert re.search(r"function finishStreamMsg\(confidence\)", source)
-    assert re.search(
-        r"function finishStreamMsg\(confidence\)\s*\{\s*(?://[^\n]*\n\s*)*"
-        r"markReplyConfidence\(activeStreamDiv, confidence\)",
-        source,
-    ), "finishStreamMsg does not apply the mark"
+    # The finished reply is rendered once more before the mark goes on (8 November 2026); what matters is that
+    # the mark is applied to the streamed reply before the reference to it is dropped.
+    finish = source.split("function finishStreamMsg(confidence)", 1)[1].split("activeStreamDiv = null", 1)[0]
+    assert "markReplyConfidence(activeStreamDiv, confidence)" in finish, "finishStreamMsg does not apply the mark"
 
     # 3. Text already streamed, confidence arriving late on the HTTP response.
     delivery = source.split("function renderChatDeliveryAnswer", 1)[1].split("\nfunction handleWsEvent", 1)[0]

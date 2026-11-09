@@ -47,10 +47,14 @@ def test_every_enabled_skill_is_reachable_by_its_own_name(engine: CapabilityEngi
     a skill with no trigger patterns is fine, adding one that cannot be reached
     at all is not.
     """
+    from core.skills.catalog_policy import HER_GOAL_TOOLS
+
     unreachable = []
     for name, meta in engine.skills.items():
         if not meta.enabled:
             continue
+        if name in HER_GOAL_TOOLS:
+            continue  # hers, for a goal she set herself; a conversational turn is never offered them
         if name not in engine.detect_intent(f"use {name} for this"):
             unreachable.append(name)
 

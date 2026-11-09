@@ -22,6 +22,10 @@ REMARK = ("And he just covered his face. And then you ask him, \"do you think th
     ("If you ask me, the noodle part was the whole video.", True),
     ("Unless you say otherwise, I will keep the snake one.", True),
     ("You asked me to pick one under ten minutes, so I went with the snake legs.", True),
+    ("You asked me to judge which of his videos moves fastest, and the snake one does.", True),
+    ("Then you asked him whether the legs were comfortable.", False),
+    ("When you ask that, something in me does shift toward the snake.", True),
+    ("When you asked him whether snakes miss their legs, he laughed.", False),
 ])
 def test_what_is_put_in_the_persons_mouth(said, theirs):
     assert (not fabricated_shared_history(said, ASKED)) is theirs
@@ -37,3 +41,11 @@ def test_her_remark_keeps_all_but_the_sentence_that_gives_the_video_s_question_t
 def test_what_the_person_said_while_watching_is_theirs():
     exchanges = [{"user": "Do you think this snake enjoys having legs?", "aura": "Maybe."}]
     assert _without_words_put_in_their_mouth(REMARK, ASKED, exchanges) == REMARK
+
+
+def test_her_paraphrase_of_the_question_just_put_to_her_is_not_an_invented_past():
+    """The status probe's reply failed its recall contract when "ask" joined the class (cc06012e6)."""
+    asked = ("Live desktop route probe. Answer directly in two sentences: what did I just ask you to do, and what "
+             "mind/cognition path are you using right now?")
+    reply = "You asked me to identify the current request and name the live cognition path handling this turn."
+    assert not fabricated_shared_history(reply, asked)

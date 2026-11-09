@@ -89,7 +89,11 @@ def _the_sitting_fitted(pairs: list[dict[str, Any]], now: float | None = None) -
     once it was over. Her remarks while it played go first, the earliest of the longest exchange each time, each run
     of them left out marked where it was.
     """
-    from core.conversation.history_reach import A_SITTING_READ_WHOLE_CHARS, _exchange_chars, _this_sitting
+    from core.conversation.history_reach import (
+        A_SITTING_READ_WHOLE_CHARS,
+        _exchange_chars,
+        _this_sitting,
+    )
 
     sitting = _this_sitting(pairs, now)
     if sitting is None:

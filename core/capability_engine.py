@@ -2050,7 +2050,16 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
 
         if re.search(r"\bresearch\s+(?:about|on)\b", msg) and not skip_web_search:
             _promote("web_search")
-        return triggered
+
+        # Her goal tools act in her own workspace for a goal she set herself, and
+        # a conversational turn has neither. Capability selection already leaves
+        # them out; this router reaches the catalogue four other ways (trigger
+        # patterns, foundational candidates, declarations, names), so it leaves
+        # them out once, here, for all four. "Run some Python and tell me the
+        # result" was offered check_draft, whose description runs the tests.
+        from core.skills.catalog_policy import HER_GOAL_TOOLS
+
+        return [name for name in triggered if self.resolve_skill_name(name) not in HER_GOAL_TOOLS]
 
     @staticmethod
     def _is_mention_rather_than_request(message: str) -> bool:

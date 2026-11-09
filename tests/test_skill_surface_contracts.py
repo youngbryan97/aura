@@ -21,6 +21,13 @@ from core.skills.test_generator import TestGeneratorSkill
 from core.skills.toggle_senses import ToggleSensesSkill
 
 EXPECTED_REGISTERED_SKILLS = {
+    # Her goal tools (core/skills/her_draft.py, 8 November 2026): registered and
+    # run, offered only to a pass of hers at a goal she set herself.
+    "read_source",
+    "find_in_source",
+    "edit_draft",
+    "check_draft",
+    "offer_draft",
     "http_request",
     "pursue_on_screen",
     "reminder",

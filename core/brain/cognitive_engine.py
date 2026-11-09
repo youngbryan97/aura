@@ -16,6 +16,7 @@ from core.conversation.continuation import (
     continuation_prompt_prefix,  # noqa: F401  (read at call time by the lifted module)
     continuation_state_text,  # noqa: F401  (read at call time by the lifted module)
 )
+from core.conversation.session_scope import her_own_turn_scope, is_her_own_turn
 from core.goals.objective_lifecycle import (
     finalize_foreground_turn_state,  # noqa: F401  (read at call time by the lifted module)
     is_foreground_objective_origin,  # noqa: F401  (read at call time by the lifted module)
@@ -37,7 +38,6 @@ from core.runtime.pipeline_blueprint import (
     legacy_runtime_phase_specs,
 )
 from core.runtime.service_registry import get_runtime_service
-from core.conversation.session_scope import her_own_turn_scope, is_her_own_turn
 from core.runtime.structured_input import (
     answer_surface_token_floor,  # noqa: F401  (read at call time by the lifted module)
 )
