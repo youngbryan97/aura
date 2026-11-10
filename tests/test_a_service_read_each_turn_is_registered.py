@@ -58,16 +58,6 @@ DORMANT: dict[str, str] = {
     "conversation_intelligence": _PROMPT_TEXT,
     "humor_engine": _PROMPT_TEXT,
     "relational_intelligence": _PROMPT_TEXT,
-    "sentiment_tracker": _UNBUILT_ORGAN,
-    "autonomous_resilience_mesh": _UNBUILT_ORGAN,
-    "adaptive_immune_system": _UNBUILT_ORGAN,
-    "strange_loop": _UNBUILT_ORGAN,
-    "homeostatic_rl": _UNBUILT_ORGAN,
-    "topology_evolution": _UNBUILT_ORGAN,
-    "autopoiesis": _UNBUILT_ORGAN,
-    "alife_dynamics": _UNBUILT_ORGAN,
-    "alife_extensions": _UNBUILT_ORGAN,
-    "endogenous_fitness": _UNBUILT_ORGAN,
     "substrate_governor": (
         "the governor is built only by core/startup/aura_3_boot.py, which no boot "
         "path imports, and there under the name 'governor'"

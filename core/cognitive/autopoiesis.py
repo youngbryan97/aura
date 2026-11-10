@@ -782,12 +782,20 @@ class AutopoiesisEngine:
         attempts = self._repair_attempts.get(component, 0)
         escalation_index = attempts // self._ESCALATION_THRESHOLD
 
-        if escalation_index >= len(_ESCALATION_ORDER):
-            # All strategies exhausted.  Flag for human escalation.
-            self._escalate_to_human(component)
-            return None
+        # The gentlest strategy left that this component has a handler for. A
+        # strategy with no handler cannot work, so trying it is not a repair:
+        # LIVE, day run 4 (9 November 2026), reduce_load/global had none, was
+        # tried 202 times in 35 minutes, each a recorded failure, and her
+        # resilience took every one as a new loss (depletion 0.42 to 0.63 in 25
+        # minutes, frustration 1.00).
+        for strategy in _ESCALATION_ORDER[escalation_index:]:
+            if self._repair_handlers.get(strategy, {}).get(component) is not None:
+                return strategy
 
-        return _ESCALATION_ORDER[escalation_index]
+        # All strategies this component can be repaired by are exhausted, or it
+        # has none.  Flag for human escalation (which throttles itself).
+        self._escalate_to_human(component)
+        return None
 
     # ------------------------------------------------------------------
     # 5. Repair execution
