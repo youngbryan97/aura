@@ -101,6 +101,16 @@ def _what_the_shed_keeps_free() -> float:
 
 
 
+
+def _its_worker_is_resident(ep: Any) -> bool:
+    """Whether an endpoint's model worker is loaded and ready, through the lazy wrapper the router keeps."""
+    from core.brain.inference_gate import _hot_spare_is_ready
+
+    client = getattr(ep, "client", None)
+    if client is not None and not hasattr(client, "is_alive"):
+        client = getattr(client, "_client", None)
+    return client is not None and _hot_spare_is_ready(client)
+
 class _DefersBackgroundWork:
     """Lifted whole from HealthAwareLLMRouter; see llm_health_router.py."""
 
@@ -452,7 +462,13 @@ class _DefersBackgroundWork:
                 return default
             return value if math.isfinite(value) else default
 
-        if name == BRAINSTEM_ENDPOINT:
+        if _its_worker_is_resident(ep):
+            # Loaded and ready, a request wakes no worker, and waking one is what the thresholds below admit. Asked
+            # anyway, a brainstem loaded at 22:13:07 on 10 November was deferred 29 s later for want of the free
+            # memory its own load had taken, and her background work went back to the CPU. Pressure on a resident
+            # worker is the shed's to answer; critical kernel pressure and the process limit below still hold.
+            max_pressure, min_available = 100.0, 0.0
+        elif name == BRAINSTEM_ENDPOINT:
             # Brainstem's floor comes from the model bound to the lane.
             #
             # It was 22.0, calibrated when the lane held a 9B at about 6GB. The

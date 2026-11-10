@@ -100,3 +100,42 @@ def test_guard_disabled_never_defers(monkeypatch):
         lambda: _Snap(pressure_pct=95.0, available_gb=2.0),
     )
     assert HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(_brainstem_ep()) is None
+
+
+class _LoadedWorker:
+    def is_alive(self):
+        return True
+
+    def get_supervision_status(self):
+        return {"state": "ready"}
+
+
+class _LazyAroundIt:
+    """The router's lazy wrapper: no liveness of its own, the real client inside once made."""
+
+    def __init__(self, inner):
+        self._client = inner
+
+
+def _resident_brainstem_ep() -> EndpointHealth:
+    return EndpointHealth(name=BRAINSTEM_ENDPOINT, url="local://brainstem", model="qwen-7b",
+                          client=_LazyAroundIt(_LoadedWorker()))
+
+
+def _resident_reason(monkeypatch, snap: _Snap, kernel: str = "warn") -> str | None:
+    monkeypatch.setenv("AURA_DESKTOP_RESOURCE_GUARD", "1")
+    monkeypatch.setattr("core.utils.memory_monitor.get_memory_pressure_snapshot", lambda: snap)
+    monkeypatch.setattr("core.utils.memory_monitor.kernel_memory_pressure_level", lambda: kernel)
+    return HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(_resident_brainstem_ep())
+
+
+def test_a_loaded_brainstem_is_not_held_to_the_memory_its_own_load_took(monkeypatch):
+    """10 November 2026: loaded at 22:13:07, deferred 29 s later at 78.3% / 13.9 GB (need <62% and >=19 GB)."""
+    assert _resident_reason(monkeypatch, _Snap(pressure_pct=78.3, available_gb=13.9)) is None
+    assert _reason(monkeypatch, _Snap(pressure_pct=78.3, available_gb=13.9)) is not None, "not loaded, it is held"
+
+
+def test_a_loaded_brainstem_still_yields_to_critical_pressure_and_the_process_limit(monkeypatch):
+    assert _resident_reason(monkeypatch, _Snap(pressure_pct=78.3, available_gb=13.9), kernel="critical") is not None
+    near_the_limit = _Snap(pressure_pct=40.0, available_gb=30.0, process_rss_gb=37.0, process_rss_limit_gb=42.0)
+    assert _resident_reason(monkeypatch, near_the_limit) is not None
