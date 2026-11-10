@@ -53,6 +53,10 @@ def main() -> int:
             diff = subprocess.run(["git", "-c", "core.fsmonitor=false", "show", "--stat", record.offer.get("commit", "")],
                                   cwd=record.workspace, capture_output=True, text=True, check=False)
             print(diff.stdout[-3000:])
+            for name, gate in (record.offer.get("gates") or {}).items():
+                print(f"  gate {name}: {'passed' if gate.get('passed') else 'FAILED'} in {gate.get('seconds')} s")
+            if record.offer.get("taken_by"):
+                print(f"  taken by {record.offer['taken_by']} {_when(record.offer.get('merged_at'))}")
         return 0
     result = approve(record.slug) if asked.action == "approve" else decline(record.slug, asked.words)
     print(result)

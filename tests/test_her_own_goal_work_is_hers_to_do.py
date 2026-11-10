@@ -108,7 +108,7 @@ def test_a_draft_that_changes_her_own_governance_waits_for_bryan(her_source):
     record = _offer(her_source, "core/executive/looser.py", "ALLOW_EVERYTHING = True\n")
     assert record.status == work.OFFERED
     assert not (her_source / "core" / "executive" / "looser.py").exists()
-    assert "waits for Bryan" in record.steps[-1]["result"]
+    assert "waits for Bryan" in record.said[-1]["words"], "said where her next pass reads it"
 
 
 def test_a_draft_waits_while_a_run_measures_her_and_is_taken_after(her_source, monkeypatch):

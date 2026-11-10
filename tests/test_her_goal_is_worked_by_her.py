@@ -35,6 +35,9 @@ def her_source(tmp_path, monkeypatch):
     monkeypatch.setattr(work, "workspaces_dir", lambda: tmp_path / "her_goals")
     monkeypatch.setattr(work, "records_dir", lambda: tmp_path / "records")
     monkeypatch.setattr(work, "MEASURING_HOLD", tmp_path / "measuring.hold")
+    # This small repository has no Makefile or suite; what her own yes asks is tested in
+    # tests/test_her_own_yes_asks_the_gates.py.
+    monkeypatch.setattr(work, "_run_a_gate", lambda argv, *, cwd, env: (True, "stood in"))
     return source
 
 

@@ -4554,6 +4554,18 @@ needs her 27B free (her app down, or her app's own influence trials).
   selection mends 4 of 79 real past defects, most out of time. Left: a night
   run with long budgets, a promotion path (staged branch, full gates, then
   applied with a receipt), and one repair of hers promoted by it. Lane: yes.
+  2026-11-10, the promotion path. Her drafts are made on a branch of their
+  own in a workspace of hers, and since 9 November her own yes can take one
+  into the source she runs on unless it touches her governance. It took one
+  on its compile, lint and whatever tests it changed or named. Now her yes
+  first runs, in her workspace, the tests that name each module she changed,
+  the smoke suite, lint, layering and the writing gate, stops at the first
+  that fails, and hands the draft back to her with that gate's words; the
+  merge keeps what every gate said (`tools/her_goals.py` shows it). Left: one
+  repair of hers promoted by it. None of her 14 goals has reached a check:
+  "Find something productive to work on" holds 161 calls, every one a read
+  or a search, and several of her goals ("Drive alert: social is depleted",
+  "thermal_spike") are not work on source at all.
 - [ ] F06 Her state reaches her words through the model, not as instructions.
   Done: instructions out of her turns, canned answers out, her model answers
   identity and capability turns. Left: the prompts still in background loops

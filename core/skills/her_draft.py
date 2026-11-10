@@ -258,8 +258,9 @@ class OfferDraftInput(BaseModel):
 class OfferDraftSkill(BaseSkill):
     result_schema = THE_SHARED_RESULT
     name = "offer_draft"
-    description = ("Offer her checked draft. It goes into the source she runs on unless it changes her own "
-                   "governance or a run is measuring her; then it waits for Bryan.")
+    description = ("Offer her checked draft. When the pass ends it goes into the source she runs on if it passes "
+                   "the tests of every module it changed, the smoke suite, lint, layering and the writing gate, unless "
+                   "it changes her own governance or a run is measuring her; then it waits for Bryan.")
     input_model = OfferDraftInput
     effect_scope = "read_write_artifacts"
     timeout_seconds = 60.0
@@ -294,14 +295,11 @@ class OfferDraftSkill(BaseSkill):
         logging.getLogger("Aura.HerGoalAtWork").warning(
             "🛠️ Aura offers a draft toward '%s' (%s): %s. Answer with tools/her_goals.py approve|decline %s",
             record.goal[:80], head.strip()[:9], asked.summary.strip()[:200], record.slug)
-        from core.agency.her_goal_at_work import take_it_herself
-
-        taken = await asyncio.to_thread(take_it_herself, record.slug)
-        if taken.get("ok"):
-            return {"ok": True, "commit": head.strip(), "taken": True,
-                    "summary": "taken into the source she runs on; it reaches her when she is next started"}
+        # Her own yes runs the gates when this pass ends (her_goal_at_work.the_gates_her_yes_asks), outside this
+        # call: they take minutes, and a tool call has one.
         return {"ok": True, "commit": head.strip(), "taken": False,
-                "summary": f"offered; it waits for Bryan: {taken.get('why')}"}
+                "summary": "offered; when this pass ends her own yes runs the gates, and takes it if they pass and it "
+                           "does not change her own governance"}
 
 
 #: Her tools, in the order a goal is worked.

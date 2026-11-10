@@ -311,6 +311,13 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     await save(record)
     logger.info("🛠️ '%s': %d call(s) this pass (%s); %d in all; %s", goal[:60], len(calls),
                 ", ".join(str(call.get("tool")) for call in calls[:6]) or "none", len(record.steps), record.status)
+    if record.status == OFFERED:
+        # Offered this pass: her own yes, and the gates it asks, outside her model's turn.
+        taken = await asyncio.to_thread(take_it_herself, slug)
+        record = load(slug) or record
+        if not taken.get("ok") and record.status == OFFERED:
+            record.said.append({"words": f"My draft waits: {taken.get('why')}", "at": time.time()})
+            await save(record)
     return record
 
 
@@ -357,10 +364,85 @@ def take_it_herself(slug: str) -> dict[str, Any]:
     if MEASURING_HOLD.exists():
         logger.info("🛠️ her draft for '%s' waits: a run is measuring her", record.goal[:60])
         return {"ok": False, "why": "a run is measuring her; her draft waits until it ends"}
-    return approve(slug, by="herself")
+    gates = the_gates_her_yes_asks(record)
+    failed = next((name for name, gate in gates.items() if not gate["passed"]), "")
+    if failed:
+        # Back to her with what failed, in the words of the gate: her next pass reads it.
+        record = load(slug) or record
+        record.status, record.quiet_passes = WORKING, 0
+        record.said.append({"words": f"My own yes asked the gates first, and {failed} failed:\n"
+                                     f"{gates[failed]['tail']}", "at": time.time()})
+        record.offer = {**record.offer, "gates": gates}
+        _write_now(record)
+        logger.warning("🛠️ her draft for '%s' did not pass %s; it is hers to mend", record.goal[:60], failed)
+        return {"ok": False, "why": f"{failed} failed", "gates": gates}
+    return approve(slug, by="herself", gates=gates)
 
 
-def approve(slug: str, *, by: str = "Bryan") -> dict[str, Any]:
+#: How long one gate may take, in seconds: the bound the repository's own test runner gives one pytest process
+#: (tools/run_test_chunks.py, --chunk-timeout).
+GATE_SECONDS = 2400.0
+
+
+def tests_that_touch(changed: list[str], workspace: Path) -> list[str]:
+    """The test files that name a changed module, and the changed test files themselves."""
+    tests = {name for name in changed if Path(name).name.startswith("test_") and name.endswith(".py")}
+    for name in changed:
+        if not name.endswith(".py") or Path(name).name.startswith("test_") or not (workspace / name).exists():
+            continue
+        dotted = name[:-3].replace("/", ".")
+        found = _git("grep", "-l", "-F", "-e", dotted, "-e", name, "--", "tests", cwd=workspace, timeout=60.0)
+        tests.update(line.strip() for line in found.stdout.splitlines()
+                     if Path(line.strip()).name.startswith("test_") and line.strip().endswith(".py"))
+    return sorted(tests)
+
+
+def _run_a_gate(argv: list[str], *, cwd: Path, env: dict[str, str]) -> tuple[bool, str]:
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    with local_internal_governed_scope("her_goal_at_work.gate", domain="tool_execution",
+                                       receipt_prefix="her-goal-gate",
+                                       constraints={"artifact": "aura.her_goal_gate.v1", "operation": "check"}):
+        done = get_subprocess_gateway().run(argv, cwd=cwd, env=env, timeout=GATE_SECONDS, capture_output=True,
+                                            source="her_goal_at_work.gate")
+    out = (done.stdout or "") + (done.stderr or "")
+    return done.returncode == 0, out.strip()[-1500:]
+
+
+def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
+    """What her own yes asks of a draft before it goes into the source she runs on, in her workspace (F05).
+
+    Her check_draft runs the test files her draft changed or named, so a draft that changed only a module and named no
+    test passed on its compile and lint alone. Before she takes one herself it now passes the tests that name each
+    module it changed, the smoke suite, lint, layering and the writing gate. They run in the order given and stop at the
+    first that fails. Bryan's yes is his own judgment and asks none.
+    """
+    import os
+    import sys
+    import tempfile
+
+    workspace = record.workspace
+    env = {**os.environ, "PYTHON": sys.executable, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
+           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    tests = tests_that_touch(list(record.offer.get("files") or []), workspace)
+    gates: list[tuple[str, list[str]]] = []
+    if tests:
+        gates.append(("tests", ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                                *tests]))
+    gates += [(name, ["nice", "-n", "10", "make", name]) for name in ("smoke", "lint", "layering", "writing")]
+    results: dict[str, dict[str, Any]] = {}
+    for name, argv in gates:
+        started = time.time()
+        passed, tail = _run_a_gate(argv, cwd=workspace, env=env)
+        results[name] = {"passed": passed, "seconds": round(time.time() - started, 1), "tail": tail,
+                         **({"files": len(tests)} if name == "tests" else {})}
+        if not passed:
+            break
+    return results
+
+
+def approve(slug: str, *, by: str = "Bryan", gates: dict[str, Any] | None = None) -> dict[str, Any]:
     """A yes, Bryan's or her own: her offered draft becomes part of the source she runs on, if it has not moved past it."""
     record = load(slug)
     if record is None or record.status != OFFERED:
@@ -376,6 +458,8 @@ def approve(slug: str, *, by: str = "Bryan") -> dict[str, Any]:
     record.status = MERGED
     record.offer["merged_at"] = time.time()
     record.offer["taken_by"] = by
+    if gates is not None:
+        record.offer["gates"] = gates  # the receipt of her own yes: what each gate said
     _write_now(record)
     logger.info("🛠️ %s took her draft for '%s' (%s)", by, record.goal[:60], commit[:9])
     return {"ok": True, "commit": commit}
