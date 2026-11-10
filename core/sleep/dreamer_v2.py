@@ -24,6 +24,19 @@ class DreamerV2:
         self.vector_memory = vector_memory
         self.belief_graph = belief_graph
 
+    def _the_belief_graph(self):
+        """Her belief graph as it is now, when it was not there to be given at construction.
+
+        The dreamer is a singleton built when first asked for, and her belief graph is registered late in boot
+        (boot_autonomy._salvage_belief_graph), so a dreamer built before it kept None for good: "No belief graph
+        available — skipping audit" on every sleep cycle of day run 4's fifth start (10 November 2026).
+        """
+        if self.belief_graph is None:
+            from core.container import ServiceContainer
+
+            self.belief_graph = ServiceContainer.get("belief_graph", default=None)
+        return self.belief_graph
+
     @staticmethod
     def _dream_seed_is_admissible(node: dict[str, Any]) -> bool:
         """Keep failed chat surfaces and synthetic recursion out of dream input."""
@@ -151,7 +164,7 @@ class DreamerV2:
         # 3. Integrity audit
         try:
             from core.brain.cognitive.integrity_check import IntegrityGuard
-            guard = IntegrityGuard(belief_graph=self.belief_graph)
+            guard = IntegrityGuard(belief_graph=self._the_belief_graph())
             results["integrity"] = await guard.audit_beliefs()
             if emitter:
                 emitter.emit("Integrity 🛡️", str(results["integrity"]), level="info")
