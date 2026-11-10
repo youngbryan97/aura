@@ -109,7 +109,7 @@ JOURNAL_ORIGIN = "narrative_journal"
 
 
 async def _composed(brain: Any, prompt: str) -> Any:
-    """A journal, arc or record composed by her cortex through the direct generation path.
+    """A journal, arc or record composed through the direct generation path, on the background tier.
 
     Not the full cognitive cycle: through think() a journal prompt was read as a task (an open
     "temporal_obligation_active: You are writing Aura's internal journal" that held her other background work), wrapped
@@ -117,6 +117,10 @@ async def _composed(brain: Any, prompt: str) -> Any:
     person. On day run 4 (9 and 10 November 2026) "Journal Entry recorded." appeared 0 times in 591 attempts, and each
     failure was a loss her resilience took, holding her cortisol above its crisis line for six hours. The web
     interlocutor composes the same way for the same reason.
+
+    It asked for her cortex until 10 November, and the router's tier lock gives background work the background tier
+    whatever it asks (llm_health_router_endpoint_call._hold_the_tier_the_request_may_use), so the ask only put a line in
+    her log. Her journal is as good as the brainstem that writes it.
     """
     from types import SimpleNamespace
 
@@ -126,7 +130,6 @@ async def _composed(brain: Any, prompt: str) -> Any:
         purpose="journal",
         use_strategies=False,
         is_background=True,
-        prefer_tier="primary",
     )
     return SimpleNamespace(content=str(text or "").strip(), metadata={}, reasoning=[])
 

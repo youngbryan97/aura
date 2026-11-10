@@ -46,6 +46,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
@@ -555,6 +556,7 @@ class NeurochemicalSystem(_AnswersOutcomes):
                 severity="critical",
             )
             raise
+        _publish_her_chemistry(self)
         logger.info("NeurochemicalSystem STARTED (%.0f Hz)", self._UPDATE_HZ)
 
     async def stop(self):
@@ -804,6 +806,13 @@ class NeurochemicalSystem(_AnswersOutcomes):
                 severity="warning",
                 extra={"event": event, "amount": amount},
             )
+        # Kept so a crisis can say what moved her chemistry: what_moved_it below.
+        recent = self.__dict__.setdefault("_recent_events", deque())
+        now = time.monotonic()
+        recent.append((now, event, amount))
+        horizon = _how_long_an_event_moves_cortisol(self)
+        while recent and now - recent[0][0] > horizon:
+            recent.popleft()
         return amount
 
     # ── Event triggers ───────────────────────────────────────────────────
@@ -1086,3 +1095,51 @@ class NeurochemicalSystem(_AnswersOutcomes):
             else 0,
             "uptime_s": round(time.monotonic() - self._start_time, 1) if self._start_time else 0,
         }
+
+
+def _how_long_an_event_moves_cortisol(system: object) -> float:
+    """Seconds after which an event no longer shows in her cortisol: three of its return time constants, 95 % gone.
+
+    The tonic level returns to baseline as d(tonic)/dt = uptake_rate * (baseline - tonic), so its time constant is
+    1 / uptake_rate seconds; at cortisol's 0.008 that is 125 s, and the horizon 375 s.
+    """
+    chemicals = getattr(system, "chemicals", None) or {}
+    cortisol = chemicals.get("cortisol") if isinstance(chemicals, dict) else None
+    rate = float(getattr(cortisol, "uptake_rate", 0.0) or 0.0)
+    return 3.0 / rate if rate > 0.0 else 0.0
+
+
+def what_moved_it(system: object) -> dict[str, tuple[int, float]]:
+    """The chemical events still moving her cortisol, by kind: how many, and their summed size.
+
+    On day run 4 (9 and 10 November 2026) her cortisol crossed the crisis line twice and her log could not say why: no
+    level was written anywhere, and no event was kept. SubstrateAuthority says this when a crisis begins.
+    """
+    horizon = _how_long_an_event_moves_cortisol(system)
+    now = time.monotonic()
+    moved: dict[str, tuple[int, float]] = {}
+    for at, event, amount in list(getattr(system, "_recent_events", ()) or ()):
+        if now - at > horizon:
+            continue
+        count, total = moved.get(event, (0, 0.0))
+        moved[event] = (count + 1, total + float(amount))
+    return moved
+
+
+def _publish_her_chemistry(system: NeurochemicalSystem) -> None:
+    """Her chemical levels in runtime_health_report()["neurochemistry"], and the events still moving her cortisol."""
+
+    def fragment() -> dict[str, object]:
+        return {
+            "levels": {name: round(float(c.effective), 3) for name, c in dict(system.chemicals).items()},
+            "moving_cortisol": {event: {"count": count, "total": round(total, 3)}
+                                for event, (count, total) in what_moved_it(system).items()},
+        }
+
+    try:
+        from core.runtime.health_fragments import register_health_fragment
+
+        register_health_fragment("neurochemistry", fragment)
+    except (ImportError, RuntimeError) as exc:
+        _record_neurochemical_degradation(exc, action="ran without publishing her levels to the health report",
+                                          severity="warning")

@@ -50,7 +50,7 @@ async def test_her_journal_is_composed_directly_and_recorded(monkeypatch):
     await engine.consolidate_episodes()
 
     assert asked and asked[0]["origin"] == "narrative_journal" and asked[0]["is_background"] is True
-    assert asked[0]["prefer_tier"] == "primary", "her own cortex writes her journal"
+    assert "prefer_tier" not in asked[0], "background work takes the background tier; asking for her cortex was ignored"
     assert written and written[0][0].startswith("I read a post")
     assert written[0][1]["type"] == "narrative_journal"
 

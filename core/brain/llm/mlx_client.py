@@ -6267,7 +6267,8 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     cap_s=115.0,
                 )
             return 30.0
-        if _model_is_heavy_lane(self.model_path):
+        # The CPU lane too: at the light lanes' 8 s its ceiling was 34.4 s for any prompt (167 stalls, 10 November).
+        if _model_is_heavy_lane(self.model_path) or _lane_runs_on_the_cpu(self):
             # [RESILIENCE] Recurrent depth 2x loops means prompt eval takes
             # significantly longer.  These SLAs must accommodate that without
             # killing the cortex.  Cold-start can legitimately need 90s for

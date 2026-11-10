@@ -143,6 +143,8 @@ class GoalRecord:
     notes_from_bryan: list[dict[str, Any]] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
     last_worked_at: float = 0.0
+    #: The commit of her source when the goal stalled; a goal stalled on older source is worked again.
+    stalled_on: str = ""
 
     @property
     def workspace(self) -> Path:
@@ -198,6 +200,16 @@ def _git(*args: str, cwd: Path, timeout: float = 120.0) -> subprocess.CompletedP
                           text=True, timeout=timeout, check=False)
 
 
+def source_head() -> str:
+    """The commit her source is at, or "" when it cannot be read."""
+    try:
+        made = _git("rev-parse", "HEAD", cwd=source_root(), timeout=30.0)
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.debug("her source's commit is unreadable: %s", exc)
+        return ""
+    return made.stdout.strip() if made.returncode == 0 else ""
+
+
 def ensure_workspace(record: GoalRecord) -> Path:
     """Her worktree for the goal, made from the source she runs on when it does not exist yet."""
     path = record.workspace
@@ -250,6 +262,16 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         # A draft held while she was measured, or offered before she could take it herself.
         await asyncio.to_thread(take_it_herself, slug)
         record = load(slug) or record
+    if record.status == STALLED:
+        # A goal stalls after two passes with no call, and on day run 4 (9 and 10 November 2026) every stall came of a
+        # fault in what she was given: her tools refused, her model held. Stalled for good, a goal waited on a fix
+        # that had already landed. On source changed since it stalled, she works it again.
+        head = await asyncio.to_thread(source_head)
+        if head and head != record.stalled_on:
+            logger.info("🛠️ '%s' worked again: her source moved from %s to %s since it stalled", goal[:60],
+                        record.stalled_on[:9] or "before this was kept", head[:9])
+            record.status, record.quiet_passes = WORKING, 0
+            await save(record)
     if record.status != WORKING:
         logger.info("🛠️ '%s' is %s; no pass", goal[:60], record.status)
         return record
@@ -284,6 +306,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     # Two passes in a row with no call is a goal she is not working, whatever she says of it.
     if record.status == WORKING and record.quiet_passes >= 2:
         record.status = STALLED
+        record.stalled_on = await asyncio.to_thread(source_head)
     record.last_worked_at = now
     await save(record)
     logger.info("🛠️ '%s': %d call(s) this pass (%s); %d in all; %s", goal[:60], len(calls),

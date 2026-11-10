@@ -6569,7 +6569,9 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
             from core.utils.memory_monitor import get_memory_pressure_snapshot
 
             available_gb = float(get_memory_pressure_snapshot().available_gb)
-            cortex_reserve_gb = self._primary_load_required_gb()
+            from core.brain.llm_background_deferral import what_the_cortex_still_needs_gb
+
+            cortex_reserve_gb = what_the_cortex_still_needs_gb(self)
             fallback_reserve_gb = self._env_float("AURA_FALLBACK_RESIDENT_RESERVE_GB", 8.0)
             if available_gb >= cortex_reserve_gb + fallback_reserve_gb:
                 logger.info(

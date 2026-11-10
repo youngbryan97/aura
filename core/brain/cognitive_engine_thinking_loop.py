@@ -1230,6 +1230,16 @@ class _RunsTheThinkingLoop:
             # The reason travels with the empty thought, so a caller that only
             # sees "no content" can say why (her journal could not).
             held.metadata["deferred_reason"] = deferred
+            # And the turn's ledger is told it was held, not failed. Unsaid, a
+            # held resting cycle was a turn that served nothing, "the person
+            # was told", with no person: ten failures each half hour on day
+            # run 4 (10 November 2026), counted by her integrity audit.
+            from core.runtime.turn_origin import a_person_is_waiting
+            from core.runtime.turn_outcome import current_turn
+
+            turn = current_turn()
+            if turn is not None and not a_person_is_waiting(str(origin or "")):
+                turn.record_deferral(reason=deferred[:200], authority="response_generation")
             return held
         self._run_thinking_loop_record_pressure_read(context, objective)
 

@@ -539,6 +539,10 @@ class IntentionalRetriever:
             sm = SocialMemory()
 
             def _social(q: str, n: int) -> list[dict[str, Any]]:
+                # With nobody talking to her there is no relationship to recall. Asked anyway, the relational store
+                # refused the empty agent id, about ten times each half hour of day run 4 (10 November 2026).
+                if not sm.active_user_id:
+                    return []
                 toks = {t for t in q.lower().split() if len(t) > 2}
                 scored = []
                 for m in sm.milestones:

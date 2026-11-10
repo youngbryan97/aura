@@ -57,6 +57,25 @@ def _floor_for_the_model_on_this_lane() -> float:
     return max(projected * 1.5, projected + _what_the_shed_keeps_free())
 
 
+def what_the_cortex_still_needs_gb(gate: Any) -> float:
+    """Free memory to keep for loading her cortex, in GB: none once it is loaded and ready.
+
+    A load reserve answers whether a cold cortex could still be loaded. A loaded cortex already holds its memory, and
+    free memory is measured with it in place. The shed and the brainstem's admission both kept the full reserve with
+    the cortex resident, so the brainstem needed 43 GB free to load (11 GB of model, 24 of reserve, 8 for the
+    fallback). Day run 4's fifth start, 10 November 2026, had 21 to 33 GB free all day, deferred the brainstem 168
+    times, and sent all of her background work to the 1.5B model on the CPU, which cannot read a 3,000-character
+    prompt inside its first-token budget: 167 stalls in six hours, and no journal entry. A cortex still spawning or
+    warming has not taken its memory yet, so the reserve holds for it.
+    """
+    from core.brain.inference_gate import _hot_spare_is_ready
+
+    client = getattr(gate, "_mlx_client", None)
+    if client is not None and _hot_spare_is_ready(client):
+        return 0.0
+    return float(gate._primary_load_required_gb())
+
+
 def _what_the_shed_keeps_free() -> float:
     """The free memory below which the inference gate sheds background workers, in GB.
 
@@ -65,13 +84,14 @@ def _what_the_shed_keeps_free() -> float:
     fallback reserve (InferenceGate._shed_background_workers_for_memory_pressure). Between the two, a brainstem was
     loaded and then shed minutes later, over and over: day run 4, 10 November 2026, eight loads in 71 minutes and swap
     from 1.9 to 6.5 GB. Loading it now needs room for it above the line the shed keeps. Unreadable, it adds nothing,
-    and the footprint rule alone holds.
+    and the footprint rule alone holds. The cortex's part of that line is what_the_cortex_still_needs_gb, the same
+    number the shed uses.
     """
     try:
         from core.runtime.service_access import resolve_inference_gate
 
         gate = resolve_inference_gate()
-        cortex = float(gate._primary_load_required_gb()) if gate is not None else 0.0
+        cortex = what_the_cortex_still_needs_gb(gate) if gate is not None else 0.0
         fallback = float(os.environ.get("AURA_FALLBACK_RESIDENT_RESERVE_GB", "8.0"))
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         _module_logger.debug("the shed's line is unreadable, the footprint floor holds: %s", exc)

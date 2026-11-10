@@ -192,6 +192,10 @@ class SubstrateAuthority:
         self._recent_verdicts: list[SubstrateVerdict] = []
         self._MAX_VERDICTS = 100
 
+        # The neurochemical state last said, and since when (time.monotonic()).
+        self._chem_state_said = "normal"
+        self._chem_state_since = 0.0
+
         logger.info("SubstrateAuthority initialized (mandatory gate)")
 
     @staticmethod
@@ -258,6 +262,7 @@ class SubstrateAuthority:
         field_coherence = self._get_field_coherence()
         somatic_approach, somatic_confidence, body_budget = self._get_somatic_state(content, source, priority)
         chem_state, chem_constraints = self._get_neurochemical_constraints(category)
+        self._say_a_chemical_state_turning(chem_state, chem_constraints)
         user_facing_request = self._is_user_facing_source(source)
 
         constraints: list[str] = list(chem_constraints)
@@ -367,7 +372,19 @@ class SubstrateAuthority:
         self._record(verdict, content, source, category, priority)
 
         # ── Feedback into substrate ──────────────────────────────────
-        self._neurochemical_feedback(final, category)
+        # A block the chemistry made alone does not feed the chemistry. Each block
+        # fed frustration, frustration surges cortisol, and cortisol over its
+        # crisis line is what made the block: once over, she could not come
+        # back down while anything asked. Day run 4's fourth start, 9 and 10
+        # November 2026, held her initiative and expression for six hours.
+        blocked_by_the_chemistry_alone = (
+            final == AuthorizationDecision.BLOCK
+            and chem_decision == AuthorizationDecision.BLOCK
+            and field_decision != AuthorizationDecision.BLOCK
+            and somatic_decision != AuthorizationDecision.BLOCK
+        )
+        if not blocked_by_the_chemistry_alone:
+            self._neurochemical_feedback(final, category)
 
         if final == AuthorizationDecision.BLOCK:
             logger.info("🛑 SubstrateAuthority BLOCKED: %s/%s — %s",
@@ -432,6 +449,37 @@ class SubstrateAuthority:
             record_degradation("substrate_authority", exc)
             logger.debug("Neurochemical constraint read failed: %s", exc)
             return "normal", []
+
+    def _say_a_chemical_state_turning(self, chem_state: str, constraints: list[str]) -> None:
+        """Say when a neurochemical crisis begins, with her levels and what moved them, and when it ends.
+
+        Her cortisol was in neither the state log nor the health route, so on day run 4 two crises could be dated only
+        by their first block, and their cause not at all. A standing condition is said as it starts and as it ends.
+        """
+        previous = getattr(self, "_chem_state_said", "normal")
+        if chem_state == previous:
+            return
+        now = time.monotonic()
+        lasted = now - float(getattr(self, "_chem_state_since", 0.0) or now)
+        self._chem_state_said, self._chem_state_since = chem_state, now
+        if chem_state == "normal":
+            logger.info("🧪 SubstrateAuthority: neurochemical %s ended after %.0f s.", previous, lasted)
+            return
+        moved = ""
+        try:
+            from .neurochemical_system import what_moved_it
+
+            events = what_moved_it(self._neurochemical_ref)
+            moved = ", ".join(
+                f"{event} {count}x ({total:.2f})"
+                for event, (count, total) in sorted(events.items(), key=lambda kv: -kv[1][1])
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("substrate_authority", exc, action="said a crisis without the events that moved it")
+        logger.warning(
+            "🧪 SubstrateAuthority: neurochemical %s began (%s); events still moving her cortisol: %s.",
+            chem_state, "; ".join(constraints) or "no reading", moved or "none recorded",
+        )
 
     # ── Neurochemical feedback ───────────────────────────────────────
 
