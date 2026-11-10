@@ -75,16 +75,35 @@ def _inside(workspace: Path, relative: str) -> Path:
     return path
 
 
-async def _run(*args: str, cwd: Path, timeout: float, env: dict[str, str] | None = None) -> tuple[int, str]:
-    process = await asyncio.create_subprocess_exec(*args, cwd=str(cwd), env=env, stdout=asyncio.subprocess.PIPE,
-                                                   stderr=asyncio.subprocess.STDOUT)
+#: The governed domain of each kind of effect her tools have; a call with none of these only reads.
+_EFFECTS = {"commit": "file_write", "compute": "tool_execution"}
+
+
+async def _run(*args: str, cwd: Path, timeout: float, env: dict[str, str] | None = None,
+               effect: str = "") -> tuple[int, str]:
+    """A program run for her tools through the subprocess gateway: read-only, or an effect inside a governed scope.
+
+    An effect is a commit in her workspace or running code (her tests, a compile). Its output and errors come back
+    together, as they did when these ran outside the gateway (Master Todo Q06).
+    """
+    import subprocess
+
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    gateway, source = get_subprocess_gateway(), f"her_draft.{effect or 'read'}"
     try:
-        out, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        process.kill()
-        await process.wait()
+        if not effect:
+            done = await gateway.run_async(list(args), cwd=cwd, env=env, timeout=timeout, read_only=True,
+                                           source=source, accelerator_capability="none")
+        else:
+            with local_internal_governed_scope(source, domain=_EFFECTS[effect], receipt_prefix="her-draft",
+                                               constraints={"artifact": "aura.her_draft.v1", "operation": effect}):
+                done = await gateway.run_async(list(args), cwd=cwd, env=env, timeout=timeout, source=source,
+                                               accelerator_capability="none")
+    except subprocess.TimeoutExpired:
         return 124, f"stopped after {int(timeout)} s"
-    return int(process.returncode or 0), out.decode("utf-8", errors="replace")
+    return int(done.returncode or 0), str(done.stdout or "") + str(done.stderr or "")
 
 
 def _goal_of(context: dict[str, Any] | None) -> str:
@@ -252,7 +271,8 @@ class CheckDraftSkill(BaseSkill):
         report: dict[str, Any] = {"changed": changed, "tests": tests}
         passed = True
         if python:
-            code, out = await _run(sys.executable, "-m", "py_compile", *python, cwd=workspace, timeout=120.0, env=env)
+            code, out = await _run(sys.executable, "-m", "py_compile", *python, cwd=workspace, timeout=120.0, env=env,
+                                   effect="compute")
             report["compile"] = "ok" if code == 0 else out.strip()[-1500:]
             passed &= code == 0
             code, out = await _run(sys.executable, "-m", "ruff", "check", "--select", "E9,F", "--output-format",
@@ -261,7 +281,8 @@ class CheckDraftSkill(BaseSkill):
             passed &= code == 0
         if tests:
             code, out = await _run("nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-x", "-p",
-                                   "no:cacheprovider", *tests, cwd=workspace, timeout=CHECK_SECONDS, env=env)
+                                   "no:cacheprovider", *tests, cwd=workspace, timeout=CHECK_SECONDS, env=env,
+                                   effect="compute")
             report["tests_output"] = out.strip()[-2500:]
             passed &= code == 0
         report["passed"] = bool(passed and (python or tests))
@@ -301,10 +322,11 @@ class OfferDraftSkill(BaseSkill):
         check = record.last_check or {}
         if not check.get("passed") or float(check.get("at") or 0) < float(record.last_edit_at or 0):
             return {"ok": False, "error": "her draft has not passed a check since it last changed"}
-        await _run("git", "add", "-A", cwd=workspace, timeout=60.0)
+        await _run("git", "add", "-A", cwd=workspace, timeout=60.0, effect="commit")
         message = f"{asked.summary.strip()}\n\nDrafted by Aura toward her goal: {record.goal}"
         code, out = await _run("git", "-c", "core.fsmonitor=false", "-c", "user.name=Aura", "-c",
-                               "user.email=aura@localhost", "commit", "-q", "-m", message, cwd=workspace, timeout=60.0)
+                               "user.email=aura@localhost", "commit", "-q", "-m", message, cwd=workspace, timeout=60.0,
+                               effect="commit")
         if code != 0:
             return {"ok": False, "error": out.strip()[:500]}
         _, head = await _run("git", "rev-parse", "HEAD", cwd=workspace, timeout=30.0)

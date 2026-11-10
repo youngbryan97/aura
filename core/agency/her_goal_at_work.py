@@ -195,9 +195,24 @@ async def save(record: GoalRecord) -> None:
                                        json.dumps(record.to_dict(), indent=1, default=str), source="her_goal_at_work")
 
 
-def _git(*args: str, cwd: Path, timeout: float = 120.0) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-c", "core.fsmonitor=false", *args], cwd=str(cwd), capture_output=True,
-                          text=True, timeout=timeout, check=False)
+#: The governed domain of each effect git has in her goal work; a call with none of these only reads.
+_GIT_EFFECTS = {"workspace": "file_write", "merge": "self_modification"}
+
+
+def _git(*args: str, cwd: Path, timeout: float = 120.0, effect: str = "") -> subprocess.CompletedProcess:
+    """git through the subprocess gateway: read-only, or an effect (making her workspace, merging her draft into the
+    source she runs on) inside a governed scope of its own (Master Todo Q06)."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    argv, source = ["git", "-c", "core.fsmonitor=false", *args], f"her_goal_at_work.git.{effect or 'read'}"
+    if not effect:
+        return get_subprocess_gateway().run(argv, cwd=cwd, timeout=timeout, read_only=True, source=source,
+                                            accelerator_capability="none")
+    with local_internal_governed_scope(source, domain=_GIT_EFFECTS[effect], receipt_prefix="her-goal-git",
+                                       constraints={"artifact": "aura.her_goal_git.v1", "operation": effect}):
+        return get_subprocess_gateway().run(argv, cwd=cwd, timeout=timeout, source=source,
+                                            accelerator_capability="none")
 
 
 def source_head() -> str:
@@ -218,7 +233,7 @@ def ensure_workspace(record: GoalRecord) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     root = source_root()
     base = _git("rev-parse", "HEAD", cwd=root).stdout.strip()
-    made = _git("worktree", "add", "-B", branch_of(record.slug), str(path), base, cwd=root)
+    made = _git("worktree", "add", "-B", branch_of(record.slug), str(path), base, cwd=root, effect="workspace")
     if made.returncode != 0:
         raise RuntimeError(f"her workspace could not be made: {made.stderr.strip()[:300]}")
     record.base = base
@@ -453,7 +468,7 @@ def approve(slug: str, *, by: str = "Bryan", gates: dict[str, Any] | None = None
     moved = _git("merge-base", "--is-ancestor", "HEAD", commit, cwd=root)
     if moved.returncode != 0:
         return {"ok": False, "why": "the source she runs on moved since her draft; she has to bring her draft up to it"}
-    merged = _git("merge", "--ff-only", commit, cwd=root)
+    merged = _git("merge", "--ff-only", commit, cwd=root, effect="merge")
     if merged.returncode != 0:
         return {"ok": False, "why": merged.stderr.strip()[:300]}
     record.status = MERGED

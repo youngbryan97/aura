@@ -3854,9 +3854,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   attachments, text recognition on her screen readings, ruff on a proposal's
   source, ffprobe on a recording, the script asking a browser for its front
   tab, and the two `node` syntax checks of a part she writes (which had no
-  bound at all). Twelve remain, each an effect: opening apps, closing a tab,
-  Swift builds and codesign, C under sanitizers, git and pytest in her goal
-  work, ffmpeg's stream and the voice worker.
+  bound at all). Then her goal work: git, ruff and pytest in her draft tools
+  and git in her goal workspaces, read-only where they read, and each effect
+  (making a workspace, a commit in it, running her code, the merge into the
+  source she runs on) in a governed scope of its own. Ten remain: opening
+  apps, closing a tab, Swift builds and codesign, C under sanitizers,
+  ffmpeg's stream and the voice worker.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
