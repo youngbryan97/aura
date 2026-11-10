@@ -1841,3 +1841,14 @@ With Bryan's word ("Dont mind restarting run and making changes ... now"), the d
 after launch, and the four were fixed at `7f382ba61`, with a test that runs her goal tools through the engine's whole
 path. The fourth day restarts at the commit that carries this amendment. The predictions are unchanged. The first 77
 minutes are reported beside the day as read.
+
+### Amendment, 9 November 2026, evening: the fourth day restarted again
+
+The restarted day opened at 15:20:45 at `68c7df036`. Its goal pass reached her tools for the first time and no call
+was refused by her executive. From 16:15 her autopoiesis organ, live since 5 November, chose a repair with no handler
+(reduce_load/global) 202 times in 35 minutes; each try was a recorded failure, her resilience took each as a new
+loss, and her depletion climbed from 0.42 to 0.63 in 25 minutes with frustration at 1.00, toward prediction 8's 0.75.
+The day was ended at 16:51:27, 91 minutes after launch, under Bryan's word of the afternoon ("Dont mind restarting run
+and making changes"); autopoiesis now tries only a repair it has a handler for (`91c144472`). The fourth day restarts
+at the commit that carries this amendment, with its predictions unchanged; its first two attempts are reported beside
+it as read.
