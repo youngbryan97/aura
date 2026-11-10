@@ -41,11 +41,21 @@ def _the_shell() -> Path:
     if built.exists():
         return built
     built.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["swiftc", "-O", "-o", str(built), str(_SHELL_SOURCE), "-framework", "AppKit", "-framework", "WebKit"],
-        check=True, capture_output=True, timeout=600,
-    )
+    _a_build_step(["swiftc", "-O", "-o", str(built), str(_SHELL_SOURCE), "-framework", "AppKit", "-framework", "WebKit"],
+                  timeout=600, what="swiftc")
     return built
+
+
+def _a_build_step(argv: list[str], *, timeout: float, what: str) -> subprocess.CompletedProcess:
+    """One step of building her app, through the subprocess gateway in a governed scope: it writes what it builds
+    (Master Todo Q06). Raises CalledProcessError when the step fails, as before."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    with local_internal_governed_scope(f"as_a_mac_app.{what}", domain="tool_execution", receipt_prefix="mac-app",
+                                       constraints={"artifact": "aura.mac_app.v1", "operation": what}):
+        return get_subprocess_gateway().run(argv, timeout=timeout, check=True, source=f"as_a_mac_app.{what}",
+                                            accelerator_capability="none")
 
 
 def where_applications_go() -> Path:
@@ -94,7 +104,7 @@ def _an_icon(name: str, accent: str, out: Path) -> Path | None:
             suffix = "" if scale == 1 else "@2x"
             picture.resize((pixels, pixels), Image.Resampling.LANCZOS).save(iconset / f"icon_{points}x{points}{suffix}.png")
     try:
-        subprocess.run(["iconutil", "-c", "icns", str(iconset), "-o", str(out)], check=True, capture_output=True, timeout=60)
+        _a_build_step(["iconutil", "-c", "icns", str(iconset), "-o", str(out)], timeout=60, what="iconutil")
     except (OSError, subprocess.SubprocessError) as why:
         logger.info("no icon could be made: %s", why)
         return None
@@ -146,7 +156,7 @@ def as_a_mac_app(page: Path, name: str, *, accent: str = "", version: str = "1.0
             **({"CFBundleIconFile": "AppIcon"} if icon else {}),
         }
         (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
-        subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app)], check=True, capture_output=True, timeout=120)
+        _a_build_step(["codesign", "--force", "--deep", "--sign", "-", str(app)], timeout=120, what="codesign")
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(app, target, symlinks=True)

@@ -3857,9 +3857,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   bound at all). Then her goal work: git, ruff and pytest in her draft tools
   and git in her goal workspaces, read-only where they read, and each effect
   (making a workspace, a commit in it, running her code, the merge into the
-  source she runs on) in a governed scope of its own. Ten remain: opening
-  apps, closing a tab, Swift builds and codesign, C under sanitizers,
-  ffmpeg's stream and the voice worker.
+  source she runs on) in a governed scope of its own. Then the Swift build,
+  icon and codesign of an app she rebuilt and the C model of a device under
+  sanitizers, each step in a scope, and ffmpeg's decode as a read-only spawn.
+  Five remain, and none is mechanical. Three open an app or a file for the
+  person and one closes the tab a link opened in: the owner for those is the
+  desktop action gateway, which asks the Rule of Two and refuses a desktop
+  action in a turn that has read a web page, which is every turn these run
+  in (watching, rebuilding from a page). Moving them is a decision about that
+  rule, not a move. The fifth is her voice worker, a long-lived process that
+  loads a speech model, whose spawn has to declare the model it loads.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.

@@ -295,9 +295,12 @@ def read_a_recording(path: str, *, per_second: float = 10.0, wide: int = 480, mo
                                          accelerator_capability="none")
     width, height = (int(v) for v in probe.stdout.strip().split(",")[:2])
     tall = max(2, int(round(height * wide / width / 2)) * 2)
-    process = subprocess.Popen(["ffmpeg", "-v", "error", "-t", str(most_s), "-i", path, "-vf",
-                                f"fps={per_second},scale={wide}:{tall}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-                               stdout=subprocess.PIPE)
+    # Read-only: ffmpeg decodes the recording to its output and writes nowhere.
+    process = get_subprocess_gateway().spawn(["ffmpeg", "-v", "error", "-t", str(most_s), "-i", path, "-vf",
+                                              f"fps={per_second},scale={wide}:{tall}", "-f", "rawvideo", "-pix_fmt",
+                                              "rgb24", "-"],
+                                             stdout=subprocess.PIPE, text=False, read_only=True,
+                                             source="watching_someone_play.ffmpeg", accelerator_capability="none")
 
     def frames() -> Iterable[tuple[np.ndarray, float]]:
         size, index = wide * tall * 3, 0

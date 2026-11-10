@@ -219,14 +219,15 @@ def tried_on_paper(spec: DeviceSpec, driver: str, scenarios: dict[str, str], *, 
         folder = Path(scratch)
         (folder / "device.c").write_text(the_model_in_c(spec), "utf-8")
         (folder / "test.c").write_text(_HARNESS % {"driver": driver, "scenarios": "\n".join(functions), "calls": "\n".join(calls)}, "utf-8")
-        built = subprocess.run([compiler, "-std=c11", "-g", "-O1", "-Wall", "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
-                                "-o", str(folder / "tried"), str(folder / "device.c"), str(folder / "test.c")],
-                               capture_output=True, text=True, timeout=timeout_s)
+        built = _in_the_sandbox([compiler, "-std=c11", "-g", "-O1", "-Wall", "-fsanitize=address,undefined",
+                                 "-fno-omit-frame-pointer", "-o", str(folder / "tried"), str(folder / "device.c"),
+                                 str(folder / "test.c")], timeout=timeout_s, what="compile")
         if built.returncode != 0:
             return Tried(False, compile_error=(built.stderr or built.stdout).strip())
         try:
-            ran = subprocess.run([str(folder / "tried")], capture_output=True, text=True, timeout=timeout_s, cwd=scratch,
-                                 env={"ASAN_OPTIONS": "detect_leaks=0:abort_on_error=0", "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"})
+            ran = _in_the_sandbox([str(folder / "tried")], timeout=timeout_s, cwd=scratch, what="run",
+                                  env={"ASAN_OPTIONS": "detect_leaks=0:abort_on_error=0",
+                                       "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"})
         except subprocess.TimeoutExpired:
             return Tried(False, failed=[f"the driver did not finish within {timeout_s:g}s: it waits for something the device never does"])
     out = ran.stdout.splitlines()
@@ -238,3 +239,17 @@ def tried_on_paper(spec: DeviceSpec, driver: str, scenarios: dict[str, str], *, 
         found = next((line.strip() for line in ran.stderr.splitlines() if "ERROR: AddressSanitizer" in line or "runtime error:" in line), ran.stderr[:300])
     ok = not failed and not broke and not found and ran.returncode == 0 and len(passed) == len(scenarios)
     return Tried(ok, passed, failed, broke, found)
+
+
+def _in_the_sandbox(argv: list[str], *, timeout: float, what: str, cwd: str | None = None,
+                    env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    """Her C model of a device compiled or run in its scratch folder, through the subprocess gateway in a governed
+    scope (Master Todo Q06). TimeoutExpired when it runs past its bound, as before."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    with local_internal_governed_scope(f"a_device_on_paper.{what}", domain="tool_execution",
+                                       receipt_prefix="device-on-paper",
+                                       constraints={"artifact": "aura.device_on_paper.v1", "operation": what}):
+        return get_subprocess_gateway().run(argv, timeout=timeout, cwd=cwd, env=env,
+                                            source=f"a_device_on_paper.{what}", accelerator_capability="none")
