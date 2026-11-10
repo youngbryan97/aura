@@ -568,7 +568,10 @@ async def her_check_reads(request: str, previous_reply: str = "", *, timeout_s: 
     read = await asyncio.to_thread(check_asked, claim, timeout_s=timeout_s, reach=reach)
     logger.info("🌐 Asked to check %r: %s", claim[:120],
                 ", ".join(f"{v.verdict.lower()} by {publisher(v.source_url)}" for v in read) or "nothing read")
-    return [WorldSource(f"read for her check of \"{claim[:160]}\", which it {v.verdict.lower().replace('_', ' ')} "
+    # Fetched from the web, and when: LIVE 10 November 2026 a page read live for her check was labelled only "read for
+    # her check", and she answered that she had no live web search and could not pull the page fresh.
+    return [WorldSource(f"fetched from the web at {time.strftime('%H:%M on %d %B %Y', time.localtime(v.timestamp))} "
+                        f"for her check of \"{claim[:160]}\", which it {v.verdict.lower().replace('_', ' ')} "
                         f"({tier_of(v.source_url)})", publisher(v.source_url), v.source_url, v.evidence_excerpt)
             for v in read if v.source_url and v.evidence_excerpt]
 

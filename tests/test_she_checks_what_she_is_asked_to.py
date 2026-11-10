@@ -93,7 +93,10 @@ def test_her_answer_is_given_what_her_check_read(monkeypatch):
     monkeypatch.setattr(epistemic_reach, "get_epistemic_reach", lambda: engine)
     found = asyncio.run(what_the_world_says.her_check_reads(f"Is it true that {CLAIM}? Can you check that?"))
     assert len(found) == 1 and found[0].location.endswith("Eiffel_Tower") and "1889" in found[0].text
-    assert "read for her check" in found[0].origin
+    # Said as what it was: a page fetched from the web, and when (LIVE 2026-11-10 she answered that she had no live web
+    # search, of a page her check had just read live).
+    assert "fetched from the web at " in found[0].origin and "for her check" in found[0].origin
+    assert __import__("time").strftime("%d %B %Y") in found[0].origin
     assert asyncio.run(what_the_world_says.her_check_reads("How are you today?")) == []
 
 
