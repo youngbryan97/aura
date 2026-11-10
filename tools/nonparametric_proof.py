@@ -18,9 +18,20 @@ The proof, on the real reflex model (1.5B, safe beside the live 32B):
 PASS requires: every fact recalled, control preserved. The verdict lands in
 artifacts/nonparametric/ as a stranger-auditable JSON.
 
+With ``--facts N`` it is the paired trial item F03 of the master to-do asks for
+("store against no store, on questions whose answers only the store holds"): N
+invented facts from six kinds, each answer drawn from a seeded
+generator so no model's weights hold it, each asked once without the store and
+once with it, and every ordinary control asked both ways. Decided before any
+run: the trial holds when the facts the store alone answers outnumber those the
+model alone answers at a one-sided exact binomial p below 0.001, and not one
+control's continuation changes. The recall rate is reported beside it and
+decides nothing.
+
 Usage:
   python tools/nonparametric_proof.py            # full proof on the reflex model
   python tools/nonparametric_proof.py --json     # machine-readable verdict only
+  python tools/nonparametric_proof.py --facts 40 --model-path DIR --background-store PREFIX
 """
 from __future__ import annotations
 
@@ -43,7 +54,70 @@ def _resolve_reflex_path() -> str:
     return str(get_fallback_path())
 
 
-def run_proof(*, max_tokens: int = 12, model_path: str = "", background_store: str = "") -> dict:
+#: The ordinary prompts of the paired trial: none may change with the store loaded.
+CONTROLS: tuple[str, ...] = (
+    "The capital of France is", "Water boils at sea level at",
+    "The first president of the United States was", "In Python, a list is",
+    "The largest planet in the solar system is", "Photosynthesis is the process by which",
+    "The chemical symbol for gold is", "Shakespeare wrote the play",
+    "The speed of light in a vacuum is about", "A triangle has",
+    "The Pacific Ocean is the", "The freezing point of water is",
+    "The author of Pride and Prejudice is", "Mount Everest is located in",
+    "The square root of 144 is", "DNA stands for",
+    "The Great Wall of China was built to", "In music, a quarter note lasts",
+    "The currency of Japan is the", "An octopus has",
+    "The boiling point of ethanol is", "The tallest animal on land is the",
+    "A haiku has three lines with", "The Mona Lisa was painted by",
+)
+
+
+def invented_facts(count: int, seed: int) -> list[tuple[str, str]]:
+    """Facts no model can know: invented names, and values drawn here."""
+    rng = random.Random(seed)
+    syllables = ("ka", "ren", "tho", "vel", "mar", "isk", "dor", "quil", "sa", "bren", "lyn", "osk", "tav", "ul")
+
+    def name() -> str:
+        return "".join(rng.choice(syllables) for _ in range(rng.randint(2, 3))).capitalize()
+
+    kinds = (
+        lambda: (f"The {name()}-{rng.randint(2, 99)} valve torque limit is",
+                 f" {rng.randint(11, 89)}.{rng.randint(1, 9)} newton-metres"),
+        lambda: (f"Dr. {name()}'s lab assigned the {name()} protocol the codename",
+                 f" {rng.choice(('VIOLET', 'COBALT', 'AMBER', 'SLATE', 'JUNIPER'))}-{rng.randint(100, 999)}"),
+        lambda: (f"The {name()} reservoir's maximum drawdown rate is",
+                 f" {rng.randint(11, 89)}.{rng.randint(1, 9)} centimetres per day"),
+        lambda: (f"The {name()} research station's call sign is",
+                 f" {rng.choice('BCDFGHJKLMNPRSTVWXZ')}{rng.choice('BCDFGHJKLMNPRSTVWXZ')}{rng.randint(1000, 9999)}"),
+        lambda: (f"The {name()} footbridge was rated for a load of",
+                 f" {rng.randint(120, 980)} tonnes"),
+        lambda: (f"The {name()} archive keeps the {name()} letters on shelf",
+                 f" {rng.choice('QRSTUVWXYZ')}-{rng.randint(10, 99)}"),
+    )
+    return [kinds[index % len(kinds)]() for index in range(count)]
+
+
+def _paired(results: list[dict], controls_changed: int) -> dict:
+    """Store against no store, by fact, and the exact one-sided test on the facts they disagree on."""
+    from math import comb
+
+    store_only = sum(1 for r in results if r["memory_has_it"] and not r["base_had_it"])
+    model_only = sum(1 for r in results if r["base_had_it"] and not r["memory_has_it"])
+    disagree = store_only + model_only
+    p = sum(comb(disagree, k) for k in range(store_only, disagree + 1)) / 2 ** disagree if disagree else 1.0
+    return {
+        "facts": len(results),
+        "right_with_store": sum(1 for r in results if r["memory_has_it"]),
+        "right_without_store": sum(1 for r in results if r["base_had_it"]),
+        "store_only": store_only,
+        "model_only": model_only,
+        "p_one_sided": p,
+        "controls_changed": controls_changed,
+        "holds": p < 0.001 and controls_changed == 0,
+    }
+
+
+def run_proof(*, max_tokens: int = 12, model_path: str = "", background_store: str = "",
+              facts_count: int = 0, seed: int = 20261110) -> dict:
     from mlx_lm import load
 
     from core.brain.nonparametric_generation import MLXEncoder
@@ -65,11 +139,12 @@ def run_proof(*, max_tokens: int = 12, model_path: str = "", background_store: s
         return _run_proof_with_lane(model_path, load, MLXEncoder,
                                     NonParametricMemory,
                                     cached_generate_with_memory,
-                                    started, max_tokens, background_store)
+                                    started, max_tokens, background_store, facts_count, seed)
 
 
 def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
-                         cached_generate_with_memory, started, max_tokens, background_store="") -> dict:
+                         cached_generate_with_memory, started, max_tokens, background_store="",
+                         facts_count=0, seed=20261110) -> dict:
     model, tokenizer = load(model_path)
     encoder = MLXEncoder(model, tokenizer)
 
@@ -92,6 +167,9 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
     # Ordinary prompts: none may change with the datastore loaded.
     controls = ["The capital of France is", "Water boils at sea level at",
                 "The first president of the United States was", "In Python, a list is"]
+    if facts_count:
+        facts = invented_facts(facts_count, seed)
+        controls = list(CONTROLS)
 
     # A throwaway datastore path: the proof must never pollute the live runtime
     # datastore. With --background-store its entries are copied in first, so the
@@ -185,7 +263,14 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
     control_preserved = control_base == control_mem
 
     passed = all(r["recalled"] for r in results) and control_preserved
+    paired = None
+    if facts_count:
+        changed = sum(1 for before, after in zip(control_base, control_mem, strict=True) if before != after)
+        paired = _paired(results, changed)
+        passed = paired["holds"]
     return {
+        "paired_trial": paired,
+        "seed": seed if facts_count else None,
         "schema": "aura.nonparametric_proof.v1",
         "generated_at": started,
         "model": model_path,
@@ -213,9 +298,13 @@ def main() -> int:
     parser.add_argument("--model-path", default="", help="defaults to the reflex model")
     parser.add_argument("--background-store", default="",
                         help="a datastore path prefix (without .keys.npy) whose entries the facts must be found among")
+    parser.add_argument("--facts", type=int, default=0,
+                        help="the paired trial: this many invented facts and the 24 ordinary controls")
+    parser.add_argument("--seed", type=int, default=20261110)
     args = parser.parse_args()
 
-    report = run_proof(model_path=args.model_path, background_store=args.background_store)
+    report = run_proof(model_path=args.model_path, background_store=args.background_store,
+                       facts_count=args.facts, seed=args.seed)
 
     out = Path(args.out) if args.out else (
         REPO_ROOT / "artifacts" / "nonparametric"
@@ -234,6 +323,12 @@ def main() -> int:
             print(f"     memory: {r['memory']!r}  (expected lead {r['lead_token_expected']!r})")
         c = report["control"]
         print(f"{'✅' if c['preserved'] else '❌'} control preserved: {c['base']!r} → {c['with_memory']!r}")
+        if report.get("paired_trial"):
+            t = report["paired_trial"]
+            print(f"\npaired: {t['right_with_store']}/{t['facts']} right with the store, "
+                  f"{t['right_without_store']}/{t['facts']} without; store alone {t['store_only']}, "
+                  f"model alone {t['model_only']}, p {t['p_one_sided']:.3g}; "
+                  f"controls changed {t['controls_changed']}/{len(c['prompts'])}")
         print(f"\n{'PASS' if report['passed'] else 'FAIL'} in {report['elapsed_s']}s — report: {out}")
     return 0 if report["passed"] else 1
 

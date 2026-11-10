@@ -4562,13 +4562,18 @@ items come first; these run in the time between. Each item closes on its
 check, run and recorded, not on the build. **Lane** says whether the check
 needs her 27B free (her app down, or her app's own influence trials).
 
-- [ ] F01 Steering of the forward pass on user turns. Today every surface
+- [x] F01 Steering of the forward pass on user turns. Today every surface
   decode logs steering α=0.0. The 18 October capture from her own replies was
   one axis (valence, arousal and energy cosine 0.95 to 1.00); the recorder now
   keeps the steering slots (ecf118954). Left: capture again from replies
   recorded with the slots, certify (`tools/measure_fusion_channel.py`, five of
   five, the voice criterion included), install. Closes when her log shows
   α > 0 on user turns and a paired trial shows the words change with it. Lane: yes.
+  CLOSED 10 November 2026: every person's turn since the 23 October install
+  decoded at α 0.5 (71 of 71, 7–9 November); the paired trial on her 27B with
+  the installed basis `e267aa76` changed the words on 6 of 8 prompts and held
+  five of five, her voice +0.111 nats a token against −0.0025 for a random
+  direction. [Evidence](evidence/F01_STEERING_ON_USER_TURNS_2026-11-10.md).
 - [ ] F02 Endogenous language pathway. Live: bound at boot, head over 248,320
   tokens, α 0.60. Left: the 18 October refit (content-bearing, not installed)
   installed after a voice check, and a paired trial that the pathway changes
