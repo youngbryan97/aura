@@ -261,18 +261,20 @@ class VerifiedFacts:
             if fact.claim:
                 self._facts[key_of(fact.claim)] = fact
 
-    def _save(self) -> None:
-        from core.governance_context import local_internal_governed_scope
-        from core.runtime.file_write_gateway import get_file_write_gateway
-
+    def _as_text(self) -> str:
+        """The store as it is written, read while the lock is held."""
         rows = [{"claim": f.claim, "status": f.status, "attestations": [asdict(a) for a in f.attestations]}
                 for f in self._facts.values()]
+        return json.dumps(rows, indent=1, ensure_ascii=False)
+
+    def _save(self, text: str) -> None:
+        """The store written, after the lock is let go: LIVE 10 November 2026 its fsync ran while the lock was held,
+        and lockdep tainted her runtime for it. The newest body for the file wins, in the order of the saves, and
+        on a thread running an event loop it is written off that loop (core/runtime/atomic_writer.py)."""
+        from core.runtime.atomic_writer import atomic_write_text_behind
+
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with local_internal_governed_scope("what_she_has_verified.save", domain="memory_write",
-                                           receipt_prefix="verified-facts",
-                                           constraints={"artifact": "aura.verified_facts.v1", "operation": "replace"}):
-            get_file_write_gateway().write_text(self.path, json.dumps(rows, indent=1, ensure_ascii=False),
-                                                source="what_she_has_verified")
+        atomic_write_text_behind(self.path, text)
 
     def attest(self, claim: str, url: str, verdict: str, quote: str = "") -> Fact | None:
         """Keep what a source said of a checkable claim; a program's own reading is attested with it where it can."""
@@ -284,8 +286,9 @@ class VerifiedFacts:
             reckoned = computed(claim)
             if reckoned and not any(a.tier == "computed" for a in fact.attestations):
                 fact.attestations.append(Attestation(url="program:arithmetic", verdict=reckoned))
-            self._save()
-            return fact
+            text = self._as_text()
+        self._save(text)
+        return fact
 
     def get(self, claim: str) -> Fact | None:
         return self._facts.get(key_of(claim))

@@ -95,10 +95,14 @@ class OpenSearch:
         Britannica and National Geographic."""
         from core.epistemics.epistemic_reach import _numbers
         from core.epistemics.what_she_has_verified import counts, publisher, tier_of
-        from core.skills.looking_it_up import _AS_A_BROWSER
+        from core.skills.looking_it_up import _AS_A_BROWSER, _text_of
+        from core.skills.sovereign_browser_going import refused
 
         figures = sorted(_numbers(claim), key=len, reverse=True)[:2]
-        queries = list(dict.fromkeys(q for q in (keywords(claim), " ".join([*terms[:4], *figures])) if q.strip()))
+        # The claim as it was said first: LIVE 10 November 2026 an engine asked "speed light vacuum exactly 299,792,458
+        # metres second" gave content farms and the dictionaries' "exactly", and asked the sentence, Britannica and NIST.
+        said = " ".join(str(claim or "").split())
+        queries = list(dict.fromkeys(q for q in (said, keywords(claim), " ".join([*terms[:4], *figures])) if q.strip()))
         policy = getattr(gateway, "policy", None)
         every: list[str] = []
         for name, address, read in _engines(policy):
@@ -106,6 +110,11 @@ class OpenSearch:
             for query in queries or [" ".join(terms[:8])]:
                 answer = await gateway.get(address.format(q=urllib.parse.quote_plus(query)), headers=_AS_A_BROWSER)
                 if not getattr(answer, "ok", False):
+                    break
+                if refused("", _text_of(answer.body_preview or "")):
+                    # A page asking whether a person is searching is a refusal, not an empty answer (LIVE 10
+                    # November 2026, DuckDuckGo's challenge came back as 202). Nothing here tries to get past it.
+                    logger.info("%s asked whether a person was searching; its results are not read", name)
                     break
                 try:
                     found += [url for _title, url in read(answer.body_preview or "")]

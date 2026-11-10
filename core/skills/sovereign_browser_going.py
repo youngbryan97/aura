@@ -30,7 +30,9 @@ def where_to_go(value: str) -> str:
 #: What a page says when it refuses a browser rather than serving it.
 _REFUSALS = re.compile(
     r"you have been blocked|attention required|access (?:to this page has been )?denied|403 forbidden|"
-    r"verify you are (?:a )?human|not a robot|unusual traffic|captcha|too many requests",
+    r"verify you are (?:a )?human|not a robot|unusual traffic|captcha|too many requests|"
+    # LIVE 2026-11-10, DuckDuckGo: "Please complete the following challenge to confirm this search was made by a human."
+    r"complete the following challenge|confirm (?:that )?(?:this \w+ was made by|you are|you're) a human",
     re.IGNORECASE,
 )
 

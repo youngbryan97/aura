@@ -123,3 +123,27 @@ def test_a_source_is_what_the_operators_list_says_and_its_classes_are_checked(ur
 
     assert tier_of(url) == tier
     assert counts(tier) is (tier in ("reference", "official", "primary", "news"))
+
+
+def test_the_store_is_written_after_its_lock_is_let_go(tmp_path, monkeypatch):
+    """LIVE 2026-11-10: 'LOCKDEP blocking_op_under_lock: fsync attempted while holding
+    ['what_she_has_verified.facts']', and her runtime was tainted for it."""
+    import json
+
+    import core.runtime.atomic_writer as writer
+    from core.epistemics.what_she_has_verified import VerifiedFacts
+    from core.runtime import lockdep
+
+    held: list[list[str]] = []
+    original = writer.atomic_write_text_behind
+
+    def probe(path, text, **kwargs):
+        held.append(lockdep.get_validator().held_names())
+        return original(path, text, **kwargs)
+
+    monkeypatch.setattr(writer, "atomic_write_text_behind", probe)
+    store = VerifiedFacts(tmp_path / "verified_facts.json")
+    store.attest("The Eiffel Tower opened in 1889 in Paris.", "https://www.britannica.com/topic/Eiffel-Tower",
+                 "SUPPORTED", "opened in 1889")
+    assert held and all("what_she_has_verified.facts" not in names for names in held)
+    assert json.loads((tmp_path / "verified_facts.json").read_text())[0]["claim"].startswith("The Eiffel Tower")

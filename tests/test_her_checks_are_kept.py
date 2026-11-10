@@ -230,3 +230,28 @@ def test_her_ordinary_app_reads_the_reputable_sources():
     launcher = (Path(__file__).resolve().parents[1] / "launch_aura.sh").read_text(encoding="utf-8")
     default = re.search(r': "\$\{AURA_REACH_READ_HOSTS:=([^}]*)\}"', launcher)
     assert default is not None and "@reputable" in default.group(1).split(",")
+
+
+def test_an_engine_is_asked_the_claim_as_it_was_said_first_and_a_challenge_is_not_an_answer(monkeypatch):
+    """LIVE 2026-11-10: asked "speed light vacuum exactly 299,792,458 metres second" an engine gave content farms, and
+    asked the sentence, Britannica and NIST; then DuckDuckGo answered 202 with a challenge for a human, which was read as
+    a search that found nothing."""
+    from urllib.parse import parse_qs, urlparse
+
+    from core.epistemics.searched_sources import OpenSearch
+    from core.skills import looking_it_up
+
+    challenge = ("<html><body>Unfortunately, bots use DuckDuckGo too. Please complete the following challenge to "
+                 "confirm this search was made by a human.</body></html>")
+    monkeypatch.setattr(looking_it_up, "ENGINES", (
+        ("asks", "https://asks.test/?q={q}", lambda _text: [("result", "https://www.britannica.com/x")]),
+        ("answers", "https://answers.test/?q={q}", lambda _text: [("result", "https://www.nist.gov/c"),
+                                                                  ("result", "https://www.britannica.com/c")])))
+    gateway = _AllowlistGateway({"asks.test", "answers.test", "www.britannica.com", "www.nist.gov"},
+                                {"asks.test": challenge, "answers.test": "<html/>"})
+    claim = "the speed of light in a vacuum is exactly 299,792,458 metres per second"
+    found = asyncio.run(OpenSearch().found(gateway, ["speed", "light"], claim))
+    assert "https://www.britannica.com/x" not in found  # what a challenge page lists is not read as results
+    assert found == ["https://www.nist.gov/c", "https://www.britannica.com/c"]
+    first_answered = next(url for url in gateway.asked if "answers.test" in url)
+    assert parse_qs(urlparse(first_answered).query)["q"] == [claim]
