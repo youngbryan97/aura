@@ -279,8 +279,9 @@ def test_measuring_needs_no_model_at_all():
 
 def test_she_places_herself_before_she_thinks_about_it():
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
-    measured = body.index("measure_the_screen")
-    reasoned = body.index("_thinking_for_one_answer")
+    # The calls, not the names: lifted into its mixin, the method opens with the names it imports at call time.
+    measured = body.index("measure_the_screen(")
+    reasoned = body.index("_thinking_for_one_answer(")
     assert measured < reasoned
     from core.skills import sovereign_browser_one_question as one
 

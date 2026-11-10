@@ -104,4 +104,8 @@ def test_every_page_call_says_the_turn_is_waiting_on_it():
     decide = inspect.getsource(u._UnderstandsThePage._decide_next_actions)
     assert "prompt, mind, shaped=True, worked_out_here=not settled" in decide
     assert "self._decide_on_the_fast_lane(" in decide
+    # The class is built from this module and the one its answering methods were lifted into.
+    from core.skills import sovereign_browser_answering
+
+    source += inspect.getsource(sovereign_browser_answering)
     assert source.count("serves_current_turn=True") >= 3

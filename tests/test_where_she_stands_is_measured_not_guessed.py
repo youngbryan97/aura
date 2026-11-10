@@ -255,4 +255,5 @@ def test_the_live_path_places_them_together():
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
     assert "against_the_rest" in inspect.getsource(one._every_question_measured)
     assert "_every_question_measured" in inspect.getsource(one.measure_the_screen)
-    assert body.index("measure_the_screen") < body.index("_thinking_for_one_answer")
+    # The calls, not the names: lifted into its mixin, the method opens with the names it imports at call time.
+    assert body.index("measure_the_screen(") < body.index("_thinking_for_one_answer(")
