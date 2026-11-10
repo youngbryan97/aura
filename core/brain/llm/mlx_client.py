@@ -58,6 +58,7 @@ from core.brain.llm.how_big_is_the_checkpoint import (  # noqa: F401 - re-export
 from core.brain.llm.measured_admission import (
     record_generation,  # noqa: F401  (re-exported: the lifted recorder reads it here)
 )
+from core.brain.nonparametric_binding import principal_of_the_turn
 from core.conversation.continuation import continuation_state_text
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
@@ -4920,6 +4921,9 @@ def _build_the_generation_request(
         ),
         # A turn of her own answers nobody: the worker reads no question for it (mlx_worker_surface_quality.py).
         "her_own_turn": bool(kwargs.get("her_own_turn", False)),
+        # Whose turn this is, so her one-shot memory recalls what that person may see. The worker refuses recall to
+        # a job that names nobody, and none did (core/brain/nonparametric_binding.py ``principal_of_the_turn``).
+        "principal": principal_of_the_turn(kwargs),
         "user_surface_continuation_contract": bool(
             kwargs.get("user_surface_continuation_contract", False)
         ),

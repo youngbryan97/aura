@@ -28,6 +28,15 @@ model alone answers at a one-sided exact binomial p below 0.001, and not one
 control's continuation changes. The recall rate is reported beside it and
 decides nothing.
 
+The paired trial decodes the way her worker does: mlx_lm's ``generate_step``
+with her hidden-state tap and the recall processor the worker installs
+(core/brain/recall_on_the_gpu.py), greedily. Its first run, on 10 November,
+went through ``cached_generate_with_memory`` instead, which lets a memory take
+up to 0.9 of the next token where her processor allows 0.35; that path stays
+for the plain proof. Before the store is asked anything, the queries of the
+no-store arm are given to the store's mean, as her replies are, so the gate
+the store arm meets is the centred one her running app meets.
+
 Usage:
   python tools/nonparametric_proof.py            # full proof on the reflex model
   python tools/nonparametric_proof.py --json     # machine-readable verdict only
@@ -42,6 +51,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -94,6 +105,42 @@ def invented_facts(count: int, seed: int) -> list[tuple[str, str]]:
                  f" {rng.choice('QRSTUVWXYZ')}-{rng.randint(10, 99)}"),
     )
     return [kinds[index % len(kinds)]() for index in range(count)]
+
+
+def _decode_as_she_does(model, tokenizer, prompt: str, memory, *, max_tokens: int, principal: str,
+                        recall: bool) -> tuple[str, list]:
+    """Greedy decode through her worker's own pieces: the tap, and with ``recall`` her recall processor, which gives
+    the reply's queries back to the store when the reply ends. Without it, the hidden states the tap saw, as the
+    unit queries a reply would have given."""
+    import mlx.core as mx
+    from mlx_lm.generate import generate_step
+
+    from core.brain.nonparametric_worker import HiddenStateTap
+    from core.brain.recall_on_the_gpu import RecallOnTheGpu
+
+    heard: list = []
+    out: list[int] = []
+    eos = getattr(tokenizer, "eos_token_id", None)
+    with HiddenStateTap(model) as tap:
+        if recall:
+            processor = RecallOnTheGpu(memory, principal=principal)
+            tap.when_done.append(processor.given_back)
+            processors = [processor.processor(tap)]
+        else:
+            def listen(tokens, logits):
+                hidden = tap.last_hidden
+                if hidden is not None:
+                    q = hidden.reshape(-1).astype(mx.float32)
+                    heard.append(q / mx.maximum(mx.linalg.norm(q), 1e-8))
+                return logits
+            processors = [listen]
+        for token, _ in generate_step(mx.array(tokenizer.encode(prompt)), model, max_tokens=max_tokens,
+                                      sampler=lambda x: mx.argmax(x, axis=-1), logits_processors=processors):
+            token = int(token)
+            if eos is not None and token == eos:
+                break
+            out.append(token)
+    return tokenizer.decode(out).strip(), heard
 
 
 def _paired(results: list[dict], controls_changed: int) -> dict:
@@ -188,29 +235,27 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         max_entries=max(64, background_entries + 64),
     )
 
+    heard: list = []
+
+    def decode(prompt: str, tokens: int, use_memory: bool) -> str:
+        if facts_count:
+            text, queries = _decode_as_she_does(model, tokenizer, prompt, memory, max_tokens=tokens,
+                                                principal="nonparametric_proof", recall=use_memory)
+            heard.extend(queries)
+            return text
+        return cached_generate_with_memory(model, tokenizer, prompt, memory, max_tokens=tokens,
+                                           use_memory=use_memory, principal="nonparametric_proof")
+
     results = []
     # 2. BASE pass (memory present but OFF) — the model cannot know these.
     for prompt, answer in facts:
-        base_out = cached_generate_with_memory(
-            model,
-            tokenizer,
-            prompt,
-            memory,
-            max_tokens=max_tokens,
-            use_memory=False,
-            principal="nonparametric_proof",
-        )
-        results.append({"prompt": prompt, "expected": answer.strip(), "base": base_out})
+        results.append({"prompt": prompt, "expected": answer.strip(), "base": decode(prompt, max_tokens, False)})
 
-    control_base = [cached_generate_with_memory(
-        model,
-        tokenizer,
-        prompt,
-        memory,
-        max_tokens=6,
-        use_memory=False,
-        principal="nonparametric_proof",
-    ) for prompt in controls]
+    control_base = [decode(prompt, 6, False) for prompt in controls]
+    if heard:
+        import mlx.core as mx
+
+        memory.took_queries(np.asarray(mx.stack(heard)))
 
     # 3. ONE-SHOT ingest via the REAL production path: full-sequence keys
     # (one entry per answer position) so recall carries the whole value.
@@ -230,16 +275,8 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         ingested_positions += ingestor.ingest_sequence(prompt, answer.strip(), encoder)
 
     # 4. MEMORY pass — the blend must surface the trusted continuation.
-    for record, (prompt, answer) in zip(results, facts):
-        mem_out = cached_generate_with_memory(
-            model,
-            tokenizer,
-            prompt,
-            memory,
-            max_tokens=max_tokens,
-            use_memory=True,
-            principal="nonparametric_proof",
-        )
+    for record, (prompt, answer) in zip(results, facts, strict=True):
+        mem_out = decode(prompt, max_tokens, True)
         # The blend controls the FIRST token; the KV-cached continuation then
         # follows the model. Success = the answer's leading token surfaced
         # where the base failed. We check the numeric/code prefix.
@@ -251,15 +288,7 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         record["recalled"] = record["memory_has_it"] and not record["base_had_it"]
 
     # 5. CONTROL — unrelated prompt unchanged with the datastore loaded.
-    control_mem = [cached_generate_with_memory(
-        model,
-        tokenizer,
-        prompt,
-        memory,
-        max_tokens=6,
-        use_memory=True,
-        principal="nonparametric_proof",
-    ) for prompt in controls]
+    control_mem = [decode(prompt, 6, True) for prompt in controls]
     control_preserved = control_base == control_mem
 
     passed = all(r["recalled"] for r in results) and control_preserved
@@ -279,6 +308,8 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         "background_entries": background_entries,
         "ingested_positions": ingested_positions,
         "similarity_mode": "centered" if memory.similarity_ready() else "raw_fallback",
+        "decode": ("her worker's: generate_step, hidden-state tap, recall_on_the_gpu" if facts_count
+                   else "cached_generate_with_memory"),
         "facts": results,
         "control": {
             "prompts": controls,

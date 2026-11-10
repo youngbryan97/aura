@@ -31,6 +31,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Protocol
 
+from core.brain.nonparametric_binding import LOCAL_OWNER_PRINCIPAL
 from core.capabilities.browser_controller import get_browser_controller
 from core.conversation.word_markers import names_any
 from core.runtime.action_executor import ActionExecutor
@@ -3236,12 +3237,10 @@ class WebInterlocutorSession:
         return "What distinction should I make next if I want to avoid overclaiming while still learning from this?"
 
 
-#: The principal a background job belongs to. There is one local operator on
-#: this machine today, so an absent principal resolves to a single well-known
-#: owner rather than to "everyone" — the boundary exists so that adding real
-#: principals later is a change of value, not a change of shape
-#: (CP126 d0b864a8).
-_LOCAL_OWNER_PRINCIPAL = "local_owner"
+#: The principal a background job belongs to: the one local operator, named in
+#: one place (core/brain/nonparametric_binding.py) so a job and a generation
+#: agree on whose it is.
+_LOCAL_OWNER_PRINCIPAL = LOCAL_OWNER_PRINCIPAL
 
 
 def _job_owner(context: dict[str, Any] | None) -> str:

@@ -34,10 +34,34 @@ from typing import Any
 from core.brain.nonparametric_identity import EntryProvenance, TrustLevel
 
 __all__ = [
+    "LOCAL_OWNER_PRINCIPAL",
     "MemoryBinding",
     "binding_for_job",
     "ingest_provenance",
+    "principal_of_the_turn",
 ]
+
+#: The person a generation is for when nothing more particular is known. There is one local operator on this
+#: machine, so a turn that names nobody is theirs; the boundary exists so that adding real principals later is a
+#: change of value, not a change of shape (CP126 d0b864a8).
+LOCAL_OWNER_PRINCIPAL = "local_owner"
+
+
+def principal_of_the_turn(request: Any) -> str:
+    """Whose turn a generation request is: the principal an authenticating layer put on it, or the local operator.
+
+    Only ``authenticated_principal`` is read. A plain ``principal`` on a caller's mapping is a claim, not an
+    authentication (core/brain/llm/mlx_client.py keeps it out of execution contexts for that reason), and naming
+    someone else's principal would read their entries.
+
+    MEASURED 10 November 2026: the worker refuses recall to a job that names nobody (``binding_for_job``), and no
+    job the client built named anybody. Her log held 251 openings of her store and not one installed recall.
+    """
+    if isinstance(request, dict):
+        value = request.get("authenticated_principal")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return LOCAL_OWNER_PRINCIPAL
 
 
 @dataclass(frozen=True)

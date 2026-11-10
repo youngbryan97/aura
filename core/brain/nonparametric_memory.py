@@ -250,6 +250,9 @@ class NonParametricMemory:
         # with the store so the correction survives restarts.
         self._query_mu = np.zeros(self._dim, dtype=np.float32)
         self._query_mu_n = 0
+        #: Moves whenever the mean does. A copy of the store kept elsewhere (core/brain/recall_on_the_gpu.py) is
+        #: refreshed by the content generation, which a query does not move, so it needs this to see the mean change.
+        self._mean_generation = 0
         #: Per-entry provenance, parallel to the key rows. Nothing could say
         #: why an entry was admitted or drop every entry from a discredited
         #: source (CP126 ``ff3a4505``), and no entry named a principal, so
@@ -296,8 +299,20 @@ class NonParametricMemory:
                 "rows": np.asarray(rows, dtype=np.int64),
                 "mu": (self._query_mu if centered else np.zeros(self._dim, dtype=np.float32)).copy(),
                 "gate": float(self.MIN_SIM_CENTERED if centered else self.MIN_SIM_RAW),
+                "mean_generation": int(self._mean_generation),
                 "dist_scale": float(self._dist_scale),
                 "max_lambda": float(self._max_lambda),
+            }
+
+    def mean_view(self) -> dict[str, Any]:
+        """The mean and gate a query is centred and judged by now, without the entries: what ``visible_to`` returns
+        about the mean, for a caller that already holds the entries."""
+        with self._lock:
+            centered = self._query_mu_n >= self.MU_READY_N
+            return {
+                "mean_generation": int(self._mean_generation),
+                "mu": (self._query_mu if centered else np.zeros(self._dim, dtype=np.float32)).copy(),
+                "gate": float(self.MIN_SIM_CENTERED if centered else self.MIN_SIM_RAW),
             }
 
     def took_queries(self, queries: Any, *, interpolated: int = 0, fallthrough: int = 0) -> None:
@@ -313,6 +328,7 @@ class NonParametricMemory:
                     self._query_mu += (q - self._query_mu) / float(self._query_mu_n)
                 else:
                     self._query_mu += 0.005 * (q - self._query_mu)
+                self._mean_generation += 1
             self._stats["queried"] += int(qs.shape[0])
             self._stats["interpolated"] = int(self._stats.get("interpolated", 0)) + int(interpolated)
             self._stats["fallthrough"] = int(self._stats.get("fallthrough", 0)) + int(fallthrough)
@@ -505,6 +521,7 @@ class NonParametricMemory:
                     self._query_mu += (q - self._query_mu) / float(self._query_mu_n)
                 else:
                     self._query_mu += 0.005 * (q - self._query_mu)
+                self._mean_generation += 1
             # CP126 d5cc1faf. Candidates used to be selected by raw
             # Euclidean distance while the confidence gate judged them by
             # mean-centered cosine — two metrics that disagree precisely
@@ -1137,6 +1154,7 @@ class NonParametricMemory:
                 if new_mu is not None:
                     self._query_mu = new_mu
                     self._query_mu_n = new_mu_n
+                    self._mean_generation += 1
                 self._reindex_content_keys()
                 self._content_generation += 1
                 self._identity_cache = None

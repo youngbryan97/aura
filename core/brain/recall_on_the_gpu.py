@@ -26,6 +26,7 @@ import logging
 from typing import Any
 
 import numpy as np
+
 from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.RecallOnTheGpu")
@@ -38,37 +39,58 @@ _HELD_LOCK = checked_lock("recall_on_the_gpu.held")
 _DEGENERATE = 1e-6
 
 
+def _with_the_mean(on: dict[str, Any], view: dict[str, Any]) -> dict[str, Any]:
+    """``on`` centred on the mean in ``view``: the parts of each similarity that depend on the mean, and the gate."""
+    import mlx.core as mx
+
+    mu = mx.array(view["mu"])
+    km = on["keys"] @ mu
+    mm = mx.sum(mu * mu)
+    out = {**on, "mu": mu, "km": km, "mm": mm,
+           "key_centered": mx.sqrt(mx.maximum(on["key_norms"] - 2.0 * km + mm, 0.0)),
+           "gate": float(view["gate"]), "mean_generation": int(view.get("mean_generation", -1))}
+    mx.eval(out["km"], out["key_centered"])
+    return out
+
+
 def _on_the_gpu(memory: Any, principal: str) -> dict[str, Any]:
-    """The entries ``principal`` may see, on the GPU, with the parts of each similarity that do not depend on the
-    query worked out once."""
+    """The entries ``principal`` may see, on the GPU, centred on the store's mean as it is now.
+
+    The entries are put on the GPU again only when the store's content changes. The mean changes with every reply
+    (``given_back``), and with it the gate: under sixteen queries the store judges raw cosine at 0.98, from then on
+    centred cosine at 0.60. The copy was kept by the content generation alone, so one made at boot, before the mean
+    was ready, kept the raw gate and a zero mean for as long as nothing new was stored, which on her store was every
+    reply. The mean's parts are worked out again whenever the mean has moved: one product over the keys a reply.
+    """
     import mlx.core as mx
 
     generation = int(getattr(memory, "_content_generation", -1))
+    mean_view = getattr(memory, "mean_view", None)
     key = (id(memory), principal)
     with _HELD_LOCK:
         held = _HELD.get(key)
-        if held is not None and held[0] == generation:
-            return held[1]
+    if held is not None and held[0] == generation:
+        on = held[1]
+        if mean_view is None:
+            return on
+        view = mean_view()
+        if int(view.get("mean_generation", -1)) == on.get("mean_generation"):
+            return on
+        on = _with_the_mean(on, view)
+        with _HELD_LOCK:
+            _HELD[key] = (generation, on)
+        return on
     seen = memory.visible_to(principal)
-    keys = mx.array(seen["keys"])
-    mu = mx.array(seen["mu"])
-    km = keys @ mu
-    mm = mx.sum(mu * mu)
-    on = {
+    on = _with_the_mean({
         "n": int(seen["keys"].shape[0]),
-        "keys": keys,
+        "keys": mx.array(seen["keys"]),
         "key_norms": mx.array(seen["key_norms"]),
-        "km": km,
-        "mm": mm,
-        "mu": mu,
-        "key_centered": mx.sqrt(mx.maximum(mx.array(seen["key_norms"]) - 2.0 * km + mm, 0.0)),
         "token_ids": mx.array(seen["token_ids"].astype(np.int32)),
         "weights": mx.maximum(mx.array(seen["weights"]), 0.0),
-        "gate": float(seen["gate"]),
         "dist_scale": float(seen["dist_scale"]),
         "max_lambda": float(seen["max_lambda"]),
-    }
-    mx.eval(on["keys"], on["key_centered"], on["km"])
+    }, seen)
+    mx.eval(on["keys"])
     with _HELD_LOCK:
         _HELD[key] = (int(seen["generation"]), on)
     return on

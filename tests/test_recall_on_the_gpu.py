@@ -101,3 +101,26 @@ def test_the_replys_queries_are_given_back_to_the_store(store):
     recall.given_back()
     assert memory._stats["queried"] == queried + 3
     assert memory._stats["interpolated"] >= 3
+
+
+def test_a_copy_made_before_the_mean_was_ready_follows_it_once_it_is(tmp_path):
+    """Her store at boot: the mean starts empty, the first reply's copy judges raw cosine at 0.98, and the replies
+    after it must be judged centred at 0.60. The copy was kept by the content generation alone, which a reply does
+    not move, so every reply after the first kept the raw gate."""
+    rng = np.random.default_rng(11)
+    memory = NonParametricMemory(DIM, tmp_path / "cold", max_entries=1024)
+    keys = rng.normal(size=(64, DIM)).astype(np.float32)
+    keys /= np.linalg.norm(keys, axis=1, keepdims=True)
+    for i, key in enumerate(keys):
+        memory.add(key, i % VOCABULARY, f"t{i}", provenance=EntryProvenance(source_id="test", principal="bryan"))
+    first = RecallOnTheGpu(memory, principal="bryan")
+    assert first.entries["gate"] == memory.MIN_SIM_RAW
+    replies = rng.normal(size=(memory.MU_READY_N, DIM)).astype(np.float32)
+    memory.took_queries(replies / np.linalg.norm(replies, axis=1, keepdims=True))
+    second = RecallOnTheGpu(memory, principal="bryan")
+    assert second.entries["gate"] == memory.MIN_SIM_CENTERED
+    assert np.allclose(np.asarray(second.entries["mu"]), memory.mean_view()["mu"])
+    assert second.entries["keys"] is first.entries["keys"], "the entries stay where they are; only the mean moves"
+    logits = mx.array(np.zeros((1, VOCABULARY), dtype=np.float32))
+    near = keys[5] + 0.05 * rng.normal(size=DIM).astype(np.float32)
+    assert not np.array_equal(np.asarray(second(None, logits, hidden=mx.array(near))), np.asarray(logits))
