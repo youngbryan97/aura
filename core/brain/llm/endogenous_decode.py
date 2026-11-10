@@ -422,7 +422,33 @@ def install_endogenous_processor(
         )
         return receipt, ""
     reason = str(receipt.get("reason") or "")
-    return receipt, "" if decision_is_expected_absence(reason) else reason
+    if decision_is_expected_absence(reason):
+        return receipt, ""
+    if reason.split(":", 1)[0] in _STANDING_REFUSALS:
+        # The head is loaded once per process and a worker keeps its tokenizer for life, so a head fitted for
+        # another tokenizer, layout or meaning is refused on every generation for as long as the worker lives.
+        # MEASURED 10 November 2026: 336 warnings and as many faults by 09:00, every one the 1.5B worker refusing
+        # the head fitted for her 27B's tokenizer. Said when it starts; the receipt and the pathway's health still
+        # count every refusal.
+        with _LOAD_LOCK:
+            if reason in _STANDING_REFUSALS_SAID:
+                return receipt, ""
+            _STANDING_REFUSALS_SAID.add(reason)
+        detail = (f" (head fitted for tokenizer {receipt.get('tokenizer', '?')}; said once for this worker, "
+                  "which keeps its tokenizer for life)") if reason == "tokenizer_mismatch" else " (said once)"
+        return receipt, reason + detail
+    return receipt, reason
 
 
-__all__ += ["install_endogenous_processor"]
+#: Refusals a worker's life cannot change: the head and the tokenizer are each loaded once.
+_STANDING_REFUSALS = frozenset({"tokenizer_mismatch", "layout_mismatch", "semantics_mismatch"})
+_STANDING_REFUSALS_SAID: set[str] = set()
+
+
+def reset_standing_refusals() -> None:
+    """Forget which standing refusals were said. For tests, and for a worker that swaps its head or tokenizer."""
+    with _LOAD_LOCK:
+        _STANDING_REFUSALS_SAID.clear()
+
+
+__all__ += ["install_endogenous_processor", "reset_standing_refusals"]

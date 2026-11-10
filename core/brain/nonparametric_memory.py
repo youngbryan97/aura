@@ -1015,8 +1015,13 @@ class NonParametricMemory:
         if drop < n - 1:
             self._keys[drop : n - 1] = self._keys[drop + 1 : n]
             self._key_norms[drop : n - 1] = self._key_norms[drop + 1 : n]
-        for values in (self._token_ids, self._tokens, self._weights, self._ts):
+        # Every per-row list moves with the rows. The provenance list did not, so after one eviction each later row
+        # carried the principal and source of the row before it, which is what decides who may read it; and the
+        # dedup index kept pointing one row past every entry after the drop, so a replay rewrote a neighbour.
+        for values in (self._token_ids, self._tokens, self._weights, self._ts, self._provenance):
             values.pop(drop)
+        self._content_keys = {key: (row - 1 if row > drop else row)
+                              for key, row in self._content_keys.items() if row != drop}
         self._size -= 1
         self._stats["evicted"] += 1
 
