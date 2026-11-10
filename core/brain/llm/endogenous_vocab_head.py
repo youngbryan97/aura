@@ -417,18 +417,65 @@ def head_directory() -> Path:
     return Path(str(_HEAD_DIR_FLAG.value() or DEFAULT_HEAD_DIR))
 
 
-def alpha_from_env(default: float = 0.6) -> float:
+#: Beside an installed head: the alpha it earned in its paired trial (tools/measure_endogenous_pathway.py --sweep),
+#: and the weights it was earned on.
+EARNED_ALPHA_FILE = "earned_alpha.json"
+
+_EARNED_CACHE: dict[str, tuple[float, float | None]] = {}
+
+
+def earned_alpha(directory: Path | None = None, *, name: str = "vocab_head") -> float | None:
+    """The alpha the installed head earned, or None when it has earned none.
+
+    A certificate counts only for the weights it was measured on: a refitted head has earned nothing until it is
+    measured again. Read once per change of the file.
+    """
+    target = Path(directory) if directory is not None else head_directory()
+    path = target / EARNED_ALPHA_FILE
+    try:
+        stamp = path.stat().st_mtime
+    except OSError:
+        return None
+    cached = _EARNED_CACHE.get(str(path))
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    value: float | None = None
+    try:
+        certificate = json.loads(path.read_text(encoding="utf-8"))
+        manifest = json.loads((target / f"{name}.json").read_text(encoding="utf-8"))
+        alpha = float(certificate.get("alpha"))
+        if (certificate.get("weights_sha256") and certificate.get("weights_sha256") == manifest.get("weights_sha256")
+                and math.isfinite(alpha) and alpha >= 0.0):
+            value = min(4.0, alpha)
+    except (OSError, ValueError, TypeError, AttributeError):
+        value = None
+    _EARNED_CACHE[str(path)] = (stamp, value)
+    return value
+
+
+def alpha_from_env(default: float = 0.6, *, directory: Path | None = None) -> float:
     """Strength of the endogenous term. Zero disables the pathway entirely.
 
     Bounded here rather than trusted from the flag: the declared coercion
     turns a malformed value into the default, and this turns a hostile but
     well-formed one — a negative, an infinity, a thousand — into something a
     decode loop can survive.
+
+    Set by nobody, it is the alpha the installed head earned, and with none earned the pathway is shut, as F01's
+    steering is. It was the flag's default of 0.6, which no measurement chose. MEASURED 10 November 2026 on her 27B
+    (tools/measure_endogenous_pathway.py): at 0.6 her own replies were 0.057 nats a token less likely under the head
+    with the state each was said in, at 0.1 still 0.0005 less, and only at 0.05, the alpha the head was evaluated at,
+    were they not less likely. ``default`` is what a value that cannot be read at all falls back to; ``directory``
+    is the head whose certificate counts (the installed one when not given).
     """
     try:
-        value = float(_ALPHA_FLAG.value())
+        value, source = _ALPHA_FLAG.value_with_source()
+        value = float(value)
     except (TypeError, ValueError):
         return float(default)
+    if str(source).startswith("default"):  # unset, or set to something that is not a number
+        earned = earned_alpha(directory)
+        return 0.0 if earned is None else earned
     if not math.isfinite(value) or value < 0.0:
         return 0.0
     return min(4.0, value)
@@ -442,7 +489,9 @@ __all__ = [
     "BiasDecision",
     "EndogenousVocabHead",
     "HeadUnusableError",
+    "EARNED_ALPHA_FILE",
     "alpha_from_env",
+    "earned_alpha",
     "head_directory",
     "tokenizer_signature",
     "untrained_head",

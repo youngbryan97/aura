@@ -175,9 +175,11 @@ def test_two_tokenizers_of_the_same_size_get_different_fingerprints():
     assert tokenizer_signature(Tok(0)) == tokenizer_signature(Tok(0))
 
 
-def test_alpha_from_env_is_bounded(monkeypatch):
+def test_alpha_from_env_is_bounded(monkeypatch, tmp_path):
+    monkeypatch.setenv("AURA_ENDOGENOUS_HEAD_DIR", str(tmp_path))
+    # Not a number is not a setting: the head's earned alpha, and with none earned the pathway is shut.
     monkeypatch.setenv("AURA_ENDOGENOUS_ALPHA", "not-a-number")
-    assert alpha_from_env(0.6) == 0.6
+    assert alpha_from_env(0.6) == 0.0
     monkeypatch.setenv("AURA_ENDOGENOUS_ALPHA", "-3")
     assert alpha_from_env() == 0.0
     monkeypatch.setenv("AURA_ENDOGENOUS_ALPHA", "99")

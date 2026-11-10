@@ -209,7 +209,7 @@ def build_endogenous_processor(
         return None, receipt
 
     alpha = job.get("endogenous_alpha")
-    alpha = alpha_from_env() if alpha is None else float(alpha)
+    alpha = alpha_from_env(directory=directory) if alpha is None else float(alpha)
     delta, decision = head.decide(state, tokenizer_sig=signature, alpha=alpha)
     receipt.update(decision.as_dict())
     receipt["build_ms"] = round((time.perf_counter() - started) * 1000.0, 3)

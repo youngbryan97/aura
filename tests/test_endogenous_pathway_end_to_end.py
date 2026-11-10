@@ -12,6 +12,8 @@ substrate steers her words.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 
@@ -28,7 +30,7 @@ from core.brain.llm.endogenous_intervention import (
 )
 from core.brain.llm.endogenous_readout_training import TurnTokens, fit_vocab_head
 from core.brain.llm.endogenous_state import STATE_DIM, assemble_state
-from core.brain.llm.endogenous_vocab_head import EndogenousVocabHead
+from core.brain.llm.endogenous_vocab_head import EARNED_ALPHA_FILE, EndogenousVocabHead
 
 VOCAB = 120
 DECLARED_VOCAB = VOCAB + 20
@@ -108,6 +110,11 @@ def head_on_disk(fitted, tmp_path, monkeypatch):
         trained_at=head.trained_at,
     )
     bound.save(tmp_path / "head")
+    # Installed and earned: the alpha the head's paired trial earned, on these weights.
+    manifest = json.loads((tmp_path / "head" / "vocab_head.json").read_text())
+    (tmp_path / "head" / EARNED_ALPHA_FILE).write_text(
+        json.dumps({"alpha": 0.6, "weights_sha256": manifest["weights_sha256"]}))
+    monkeypatch.delenv("AURA_ENDOGENOUS_ALPHA", raising=False)
     reset_head_cache()
     yield tmp_path / "head", tokenizer
     reset_head_cache()

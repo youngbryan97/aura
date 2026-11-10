@@ -4574,10 +4574,19 @@ needs her 27B free (her app down, or her app's own influence trials).
   the installed basis `e267aa76` changed the words on 6 of 8 prompts and held
   five of five, her voice +0.111 nats a token against −0.0025 for a random
   direction. [Evidence](evidence/F01_STEERING_ON_USER_TURNS_2026-11-10.md).
-- [ ] F02 Endogenous language pathway. Live: bound at boot, head over 248,320
+- [x] F02 Endogenous language pathway. Live: bound at boot, head over 248,320
   tokens, α 0.60. Left: the 18 October refit (content-bearing, not installed)
   installed after a voice check, and a paired trial that the pathway changes
   the words. Lane: yes.
+  CLOSED 10 November 2026. The refit had been live since 20 October (6,787
+  applications) at α 0.6, the flag's default, with no voice check; at 0.6 her
+  own replies were 0.057 nats a token less likely under it. By F01's rule (the
+  largest α of a sweep at which every criterion holds) it earned 0.05, the α it
+  was evaluated at, and a fresh seed confirmed it: the words change on 6 of 8
+  prompts and with her state on 6 of 8, her replies not less likely. The head
+  runs at its earned α now and is shut without one. Her own state does no
+  better for her words than a borrowed one.
+  [Evidence](evidence/F02_ENDOGENOUS_PATHWAY_PAIRED_TRIAL_2026-11-10.md).
 - [x] F03 One-shot kNN memory. On: the store opens at boot, 48,764 of 50,000
   entries recallable since bc4315573. Left: a paired trial, store against no
   store, on questions whose answers only the store holds. Lane: yes.
