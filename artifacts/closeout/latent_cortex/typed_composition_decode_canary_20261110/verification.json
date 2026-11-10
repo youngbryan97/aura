@@ -1,0 +1,67 @@
+{
+  "censored_decodes": 0,
+  "claim_boundary": "resident-model serialization of fresh family-neutral typed-operation composition from authenticated learned tissue under matched causal controls; not hidden-state internalization, open-domain reasoning gain, unrestricted serving, static fusion, or frontier performance",
+  "composition_basis": {
+    "path": "/Users/bryan/.aura/live-source/artifacts/closeout/latent_cortex/typed_composition_canary_20260831",
+    "result_receipt_sha256": "fd1b7ab94fb064f03a569c94d46f246f0b57a5084b95b86c1dfcbe1cc50ac7ec",
+    "task_count": 96,
+    "task_set_sha256": "967a4635c23b09034eb420d73099a228f0b556cdc43467c88e83723e5f49302b",
+    "verification_receipt_sha256": "1f3a39675d77e7caf327d35e96b4ef748fc821e7348b3612a0800995c7cd3d04"
+  },
+  "decode_policy": "native_public_channel_v1",
+  "gain_count": 8,
+  "independent_exact_by_arm": {
+    "additive_lesion": 0,
+    "matched_wire_base": 0,
+    "matched_wrong_state": 0,
+    "multiplicative_lesion": 0,
+    "ordinary_base": 0,
+    "treatment": 8
+  },
+  "input_receipt_sha256": "e03c81c33d79839ca843e1e2fa7d6e67cc5d82eefc7a8a03ec00f0dec8eeaa8a",
+  "journal_identity": {
+    "decode_count": 48,
+    "event_count": 50,
+    "final_receipt_sha256": "61d4e2dd81443b330387c23c1183e2d4c9f02e2b9c6234b40b707a00d5b03320",
+    "path": "/Users/bryan/.aura/live-source/.claude/worktrees/day4-faults/artifacts/closeout/latent_cortex/typed_composition_decode_canary_20261110/result.json.journal.jsonl",
+    "sha256": "95e3a22a6a9456f938fca86b0d9b2a1cdc55bc3042ff4e4011bebdcbf105f71d"
+  },
+  "model_identity": {
+    "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+    "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+  },
+  "paired_one_sided_exact_p": 0.00390625,
+  "regression_count": 0,
+  "resident_manifest_identity": {
+    "active_model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "base_model": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+    "fused_at": 1787550884,
+    "path": "/Users/bryan/.aura/live-source/training/fused-model/active.json",
+    "schema_version": 3,
+    "sha256": "fca2011ce004b9eb30e2a9e7012bd230b7aaf097572da895beac2efb8e008d42",
+    "tag": "cp954-27b-resident"
+  },
+  "schema": "aura.rlc.semantic_neural_composition_decode_verification.v1",
+  "source_commit": "22d45aad9fc966cb2c1f82d1c9c5955f6bd85fe6",
+  "source_sha256s": {
+    "core/brain/llm/chat_format.py": "57d214a45bf38f268dac56a1b8ba7352b0595ed88803b0cc5ae075630456deea",
+    "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/manifest.json": "00c9d18cb25f7687eecac7389236d0a40e8ff798b428c7497242638591ec1769",
+    "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/weights.safetensors": "059e811c0d9e1fbfd76f1a513636c713962a500f5692d4e914bd96d1372405b7",
+    "core/brain/llm/latent_cortex/semantic_neural_composition_decode.py": "c33eb6f6d1a7ae39bdca03731cb6a17bcf9074960f24a6290d59ed032eb7eaef",
+    "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
+    "core/brain/llm/public_channel_decode.py": "71082c56ca7107d3974dee4e79ac74dfbf8074797039dac0033e1ff96f70b6eb",
+    "core/brain/llm/unified_recurrent_transfer_decode.py": "7bc2d7e0fe741b0760775a39449b33db506b0a6fd76cb9e3667951d9a67b4a78",
+    "core/learning/public_decode_evidence.py": "4d16ce89b8886462c4e6412cf8701d62db94b80123bdd074f891a97cd9671cdd",
+    "core/learning/semantic_neural_composition.py": "7dd66cdd3afcd912507f4dc88fc49a43a3d53c3895f34fde7b7bb1d0895c75ba",
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+    "tools/run_semantic_neural_composition_canary.py": "7fe4d3ff42c476f483786db182cac318a578341f8f7114faffb2c5a76c82af48",
+    "tools/run_semantic_neural_composition_decode_canary.py": "42d135b5eb873a65535936fee89e60501a25a8569f96c385f86be7784560e07e",
+    "tools/verify_semantic_neural_composition_canary.py": "5484ab1d33f5623329e2bbe1a14195a43596bdeef31dd302958b3168128cd7cf",
+    "tools/verify_semantic_neural_composition_decode_canary.py": "d8e0e4c27b341139d7006ca2b221434a29f47c7b1d58324bcefe69164f25e4ba"
+  },
+  "task_count": 8,
+  "verification_receipt_sha256": "8e320f98ab435ad87b6e95a0a36beee99fe3ac3d7a45335811b2936cb15c85e4",
+  "verified": true,
+  "verifier_source_sha256": "d8e0e4c27b341139d7006ca2b221434a29f47c7b1d58324bcefe69164f25e4ba"
+}
