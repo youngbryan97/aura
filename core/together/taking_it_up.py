@@ -23,7 +23,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 from core.together.a_with import HER, THEM, Together, get_together
@@ -68,7 +67,13 @@ class TakingItUp:
         try:
             path = _file()
             path.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_text_behind(path, json.dumps(self._reader.held()), encoding="utf-8")
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import write_text_behind
+
+            with local_internal_governed_scope("taking_it_up.keep", domain="state_mutation",
+                                               receipt_prefix="taking-it-up",
+                                               constraints={"artifact": "aura.taking_it_up.v1", "operation": "replace"}):
+                write_text_behind(path, json.dumps(self._reader.held()), encoding="utf-8", source="taking_it_up")
         except (OSError, TypeError, ValueError) as exc:
             record_degradation(
                 "together", exc, severity="warning",

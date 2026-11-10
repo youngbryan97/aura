@@ -262,12 +262,17 @@ class VerifiedFacts:
                 self._facts[key_of(fact.claim)] = fact
 
     def _save(self) -> None:
-        from core.runtime.atomic_writer import atomic_write_text
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
 
         rows = [{"claim": f.claim, "status": f.status, "attestations": [asdict(a) for a in f.attestations]}
                 for f in self._facts.values()]
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(self.path, json.dumps(rows, indent=1, ensure_ascii=False))
+        with local_internal_governed_scope("what_she_has_verified.save", domain="memory_write",
+                                           receipt_prefix="verified-facts",
+                                           constraints={"artifact": "aura.verified_facts.v1", "operation": "replace"}):
+            get_file_write_gateway().write_text(self.path, json.dumps(rows, indent=1, ensure_ascii=False),
+                                                source="what_she_has_verified")
 
     def attest(self, claim: str, url: str, verdict: str, quote: str = "") -> Fact | None:
         """Keep what a source said of a checkable claim; a program's own reading is attested with it where it can."""

@@ -83,7 +83,8 @@ def save(path: Any) -> int:
     """Write the fixed axes, so another process reads K along the same ones. Returns how many."""
     import io
 
-    from core.runtime.atomic_writer import atomic_write_bytes
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
 
     sources = sorted(_AXES)
     arrays: dict[str, np.ndarray] = {"sources": np.asarray(sources, dtype=str)}
@@ -92,7 +93,9 @@ def save(path: Any) -> int:
         arrays[f"centre_{index}"], arrays[f"vectors_{index}"] = centre, vectors
     buffer = io.BytesIO()
     np.savez(buffer, **arrays)
-    atomic_write_bytes(path, buffer.getvalue())
+    with local_internal_governed_scope("calibrated_axes.save", domain="file_write", receipt_prefix="calibrated-axes",
+                                       constraints={"artifact": "aura.calibrated_axes.v1", "operation": "replace"}):
+        get_file_write_gateway().write_bytes(path, buffer.getvalue(), source="calibrated_axes")
     return len(sources)
 
 

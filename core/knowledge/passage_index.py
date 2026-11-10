@@ -34,7 +34,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.flags import FlagKind, declare
 
 _FLAG_PASSAGE_INDEX = declare("AURA_PASSAGE_INDEX", kind=FlagKind.STRING, default='',
@@ -112,8 +111,15 @@ def build(corpus_db: Path, index_dir: Path, *, until: int | None = None, commit_
     last = after
 
     def commit() -> None:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         writer.commit()
-        atomic_write_text(progress, json.dumps({"last_doc": last}))
+        with local_internal_governed_scope("passage_index.progress", domain="file_write",
+                                           receipt_prefix="passage-index",
+                                           constraints={"artifact": "aura.passage_index.progress.v1",
+                                                        "operation": "replace"}):
+            get_file_write_gateway().write_text(progress, json.dumps({"last_doc": last}), source="passage_index")
 
     try:
         for doc_id, title, body in _articles(corpus_db, after):

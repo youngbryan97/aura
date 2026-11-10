@@ -21,7 +21,6 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.runtime_settings import get_runtime_setting
 from core.runtime.state_ownership import state_root
@@ -394,11 +393,17 @@ Respond with JSON only:
         # record_drift_score, and the fsync ran on the event loop on both day
         # runs (response_processing._finalize_response).
         try:
-            atomic_write_text_behind(self._state_path, json.dumps({
-                "current_level": int(self._current_level),
-                "level_start_times": self._level_start_times,
-                "drift_history": self._drift_history[-50:],
-            }, indent=2))
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import write_text_behind
+
+            with local_internal_governed_scope("growth_ladder.save", domain="state_mutation",
+                                               receipt_prefix="growth-ladder",
+                                               constraints={"artifact": "aura.growth_ladder.v1", "operation": "replace"}):
+                write_text_behind(self._state_path, json.dumps({
+                    "current_level": int(self._current_level),
+                    "level_start_times": self._level_start_times,
+                    "drift_history": self._drift_history[-50:],
+                }, indent=2), source="growth_ladder")
         except (json.JSONDecodeError, TypeError, ValueError) as e: logger.debug("[GrowthLadder] Save failed: %s", e)
 
     def _load(self):

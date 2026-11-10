@@ -3832,6 +3832,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   stay silent until that measurement is re-run. The gate skips them by name
   and prints that number on every run — "13 files skipped" reads like
   nothing is owed, and the handlers are the debt.
+  2026-11-10. The effect-ownership gate is red because the code carries more
+  effect calls than its baseline: 194 new buckets and 8 stale. It cannot be
+  closed by recording them. tests/test_effect_ownership_tiers.py holds raw,
+  ungoverned calls at 828 and all effect debt at 1,913, and the code now
+  carries 1,012 raw and about 2,140 in all, so recording them would be the
+  normalizing the baseline forbids. Moved today: six direct atomic writes onto
+  the file gateway, each in a governed scope of its own, and a list named
+  `requests` that read as an HTTP call. Owed, by owner: 19 raw subprocess
+  calls (opening apps and AppleScript on the desktop gateway; Swift builds,
+  codesign, C under sanitizers, `node --check`, ruff, pytest in her draft
+  checks and git in her goal workspaces on the subprocess gateway under a
+  scope; ffmpeg and the voice worker on its spawn API); 65 raw browser calls,
+  for which no owner exists yet beyond two perception modules, so a browser
+  effect owner comes first; 61 raw file mutations; and the new gateway calls,
+  which count against the total until raw debt falls by more. Each move
+  changes a live path, and a gateway that refuses a live call is how day run 4
+  lost three of its starts, so each goes with a test of the path it serves.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.

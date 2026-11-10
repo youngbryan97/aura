@@ -495,14 +495,14 @@ def induce(
         active = [k for k in lineage if k not in finished]
         if not active:
             break
-        requests, shown_sets = [], []
+        asks, shown_sets = [], []
         for name, line in active:
             previous, attempt = lineage[(name, line)]
             request, shown = request_for(state[name], line, previous, attempt, shots=shots,
                                          mechanisms=mechanisms, steps=steps)
-            requests.append(request)
+            asks.append(request)
             shown_sets.append(shown)
-        texts = propose(requests)
+        texts = propose(asks)
         for (name, line), shown, text in zip(active, shown_sets, texts, strict=True):
             family = state[name]
             _previous, attempt = lineage[(name, line)]

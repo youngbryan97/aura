@@ -81,7 +81,6 @@ from typing import Any
 from core.conation.state import Incentive
 from core.conation.what_her_talk_is_about import WhatHerTalkIsAbout, terms_of
 from core.conation.what_she_cares_about import WhatSheCaresAbout
-from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
 from core.runtime.state_ownership import state_root
@@ -1132,8 +1131,14 @@ def _save(self, payload: dict[str, Any]) -> None:
     try:
         path = _file(self)
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Behind the loop: a turn ends inside the kernel's async tick.
-        atomic_write_text_behind(path, json.dumps(payload), encoding="utf-8")
+        # Behind the loop: a turn ends inside the kernel's async tick. Through the gateway, in a scope of its own.
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import write_text_behind
+
+        with local_internal_governed_scope("what_she_wants.save", domain="state_mutation",
+                                           receipt_prefix="what-she-wants",
+                                           constraints={"artifact": "aura.what_she_wants.v1", "operation": "replace"}):
+            write_text_behind(path, json.dumps(payload), encoding="utf-8", source="what_she_wants")
     except (OSError, TypeError, ValueError) as exc:
         record_degradation(
             "what_she_wants", exc, severity="warning",

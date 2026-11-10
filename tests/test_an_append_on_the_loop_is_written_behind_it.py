@@ -76,7 +76,7 @@ def test_the_gateway_checks_governance_before_it_defers(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("module", "function", "writer"),
     [
-        ("core.self_modification.growth_ladder", "GrowthLadder._save", "atomic_write_text_behind("),
+        ("core.self_modification.growth_ladder", "GrowthLadder._save", "write_text_behind("),
         ("core.verify.why_the_campaign_did_not_run", "_write", "write_text_behind("),
         ("core.brain.reasoning_memory", "ReasoningMemory.record", "atomic_append_text_behind("),
         ("core.runtime.oom_policy", "_append_shed_log", "append_text_behind("),
