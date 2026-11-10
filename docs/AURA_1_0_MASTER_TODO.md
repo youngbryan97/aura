@@ -4578,9 +4578,20 @@ needs her 27B free (her app down, or her app's own influence trials).
   tokens, α 0.60. Left: the 18 October refit (content-bearing, not installed)
   installed after a voice check, and a paired trial that the pathway changes
   the words. Lane: yes.
-- [ ] F03 One-shot kNN memory. On: the store opens at boot, 48,764 of 50,000
+- [x] F03 One-shot kNN memory. On: the store opens at boot, 48,764 of 50,000
   entries recallable since bc4315573. Left: a paired trial, store against no
   store, on questions whose answers only the store holds. Lane: yes.
+  CLOSED 10 November 2026. Her store had never been consulted on a reply: the
+  worker's job named nobody, and recall refuses a job that names nobody
+  (130618ba2, with the GPU copy following the store's mean); a full store's
+  eviction also misnamed every later row's owner (2be1156d0). Through her
+  worker's decode the trial then failed twice (9 of 40, 8 of 80): an exact
+  match weighed 0.29 and lost to any model more than 40% sure of something
+  else. A memory of the very context now decides the next token, by the
+  store's own measured exact-repeat tolerance, and any other informs it
+  (a11ff7479). Confirmed on a fresh seed: 79 of 80 invented facts with the
+  store, 0 without, p 1.7e-24, 0 of 24 controls changed. A fact asked in other
+  words is not recalled by this. [Evidence](evidence/F03_ONE_SHOT_MEMORY_PAIRED_TRIALS_2026-11-10.md).
 - [ ] F04 Amplifier deep modes, courtroom, System-2, proof kernel. They reach
   typed turns (fd899b8b1); no deep mode has run in her log. The courtroom is
   role scripts and stays off. Left: deep modes without roles (more samples, a
