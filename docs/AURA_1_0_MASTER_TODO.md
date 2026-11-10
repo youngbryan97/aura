@@ -769,6 +769,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   that in-process Metal was off on purpose (790846ec0); and her sleep
   cycle's integrity audit skipped on every cycle, because the dreamer was
   built before boot registered her belief graph and kept None (55b067f05).
+  Live the same afternoon, her app restarted on main: the survival line,
+  now named, said ENERGY_DEPLETED at boot with energy=-2.29. The fitness
+  reads the substrate's energy slot as 0 to 1 (x100); the slot is also a
+  neuron of the liquid network, whose update drove it from 1.0 at boot to
+  -0.02 thirty seconds later, past the psych maintenance that holds it
+  between 0 and its target. Two writers of one value disagree, so the
+  crisis stands from boot: a decision about the substrate, not a log level.
+  A lane never started (no process) was reported at warning as "recovering
+  stuck for 120s" and reset to cold, naming no model.
   2026-09-30, evening. The next by count of the same class: StabilityGuardian
   warned "DEGRADED" and recorded a degraded event on every check interval for
   as long as one check stayed unhealthy, 249 times for a slow tick rate and
@@ -1480,6 +1489,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   zero (`tests/test_a_turn_says_where_its_time_went.py`). What remains is
   reading all five off a live turn and removing the waste they show, which
   needs the cortex to itself.
+  2026-11-10, read live: a turn typed into her chat ("Is it true that the
+  speed of light ... Can you check that?") took 62 s question to reply, and
+  the health route served the split as an empty block: the read model the
+  route curates does not carry the receipts. Each turn now says its split in
+  her log as it closes (5bfaa8ce8), so the five are read off a live turn
+  from her own log; the next turn after a restart is the first to say it.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
@@ -3215,6 +3230,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   found, so the claim is kept unsettled; the search now asks a second engine
   (f8360f433) and passes over dictionary entries (7040e22ff). Open: a second
   publisher found, and day 2.
+  10 November, day 2 asked in her app with the same words: "Asked to check
+  ... nothing read", no source searched or read in 1.5 s, and she answered
+  from what she knows and said she could not run a lookup. Her app's .env
+  has no AURA_REACH_READ_HOSTS; the 19 and 20 October runs set it for that
+  session only, so in her ordinary app she reads nothing on the web. Day 2
+  needs that standing yes, which is Bryan's to give.
 
 ## 4. User-facing capability acceptance
 
