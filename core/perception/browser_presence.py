@@ -117,8 +117,14 @@ async def without_presence(page: Any, clip: dict | None = None):
 
     ``clip`` is the part of the window the picture takes, in CSS pixels; only what of the mark falls inside it is
     hidden, so a picture of the video she is watching does not make her hue blink. None hides the whole mark."""
-    # Most play frames have no mark to hide. They need no extra browser round trips.
-    if _VISIBLE_UNTIL.get(page, 0.0) < time.monotonic():
+    # Most play frames have no mark to hide. They need no extra browser round trips. A page that cannot be weakly
+    # referenced never had a mark set on it (the same map holds the marks), so it has none to hide; asked anyway, the
+    # lookup raised and took the screenshot with it.
+    try:
+        visible_until = _VISIBLE_UNTIL.get(page, 0.0)
+    except TypeError:
+        visible_until = 0.0
+    if visible_until < time.monotonic():
         yield
         return
     suspended = False
