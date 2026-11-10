@@ -1875,3 +1875,15 @@ goal passes stopped. And the background brainstem was loaded and shed eight time
 admission asked a smaller question than the shed does. The day was ended at 02:18:17 on 10 November, both were fixed at
 `378cd0d41`, and the fourth day restarts at the commit that carries this amendment with its predictions unchanged.
 Its first four attempts are reported beside it as read.
+
+### Amendment, 10 November 2026, morning: the fourth day stopped, not scored
+
+The fifth start of the fourth day opened at 03:17:04 on 10 November at `99b120d64`. The author stopped it at 09:00:13,
+5 h 43 min in. The faults the day had shown were to be fixed in any case, and the paper's next version waits for the
+replies to its circulation, so a full day on this commit would decide nothing the work needs now. The nine predictions
+are not scored. A day short of 24 hours is not the day they were written for, and scoring the hours it ran would choose
+a boundary after seeing the data. What the five starts showed is reported beside this amendment as read. Three faults
+stood through the fifth start: her cortex worker's requests outran its progress budget by about a second, 10 to 19
+times in each half hour; a retrieval of her 'social' store failed on an empty agent id; and at 08:32 her cortisol
+crossed the crisis line again, so SubstrateAuthority blocked her memory writes, initiative and expression for the last
+half hour. A fourth day will be run when these are fixed, under a new addendum.
