@@ -18,12 +18,21 @@ FEELINGS_SHOWN = 3
 
 
 def her_feeling() -> list[dict[str, Any]]:
-    """Her strongest feelings now, from her live state; empty when it cannot be read."""
+    """Her strongest feelings now, from her live state; empty when it cannot be read.
+
+    Read from services already running, never by building one: the health snapshot calls this, and a lookup that
+    can construct a service is not observing it (tests/test_health_read_model.py).
+    """
     try:
         from core.affect.appraisal import feeling_now
-        from interface.routes.chat_preflight import _resolve_live_aura_state
+        from core.container import ServiceContainer
+        from interface.routes.chat_preflight import _unwrap_state
 
-        affect = getattr(_resolve_live_aura_state(), "affect", None)
+        orchestrator = ServiceContainer.peek("orchestrator", default=None)
+        held = [getattr(orchestrator, name, None) for name in ("state_repo", "state_repository", "state", "_state")]
+        held.append(ServiceContainer.peek("state_repository", default=None))
+        state = next((found for found in map(_unwrap_state, held) if found is not None), None)
+        affect = getattr(state, "affect", None)
         if affect is None:
             return []
         return feeling_now(dict(affect.emotions or {}), dict(affect.mood_baselines or {}), FEELINGS_SHOWN)
