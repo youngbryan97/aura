@@ -290,16 +290,22 @@ class BackupManager:
         repo_root = Path(__file__).resolve().parents[2]
         tool = repo_root / "tools" / "state_backup.py"
         python = os.environ.get("AURA_PYTHON") or sys.executable
+        from core.governance_context import local_internal_governed_scope
+
         gateway = get_subprocess_gateway()
-        created = gateway.run(
-            [python, str(tool), "create", "--root", str(repo_root), "--out", str(self.backup_dir),
-             "--keep", str(self.max_backups)],
-            capture_output=True,
-            text=True,
-            timeout=3600.0,
-            source="ops.backup.create",
-            accelerator_capability="none",
-        )
+        # It writes an archive, so it is an effect, and outside a governed scope the live runtime refused it: every
+        # backup from 13 September 2026 to 10 November failed this way, 19 times in the last log alone.
+        with local_internal_governed_scope("ops.backup.create", domain="file_write", receipt_prefix="state-backup",
+                                           constraints={"artifact": "aura.state_backup.v1", "operation": "create"}):
+            created = gateway.run(
+                [python, str(tool), "create", "--root", str(repo_root), "--out", str(self.backup_dir),
+                 "--keep", str(self.max_backups)],
+                capture_output=True,
+                text=True,
+                timeout=3600.0,
+                source="ops.backup.create",
+                accelerator_capability="none",
+            )
         if created.returncode != 0:
             _record_backup_degradation(
                 RuntimeError(str(created.stderr or created.stdout or "backup tool failed")[-500:]),

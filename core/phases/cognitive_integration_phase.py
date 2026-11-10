@@ -156,6 +156,18 @@ def _record_cognitive_degradation(
         logger.debug("CognitiveIntegration degradation capture failed: %s", capture_exc)
 
 
+
+def _the_crisis_named(value: object) -> str:
+    """A survival crisis by name, from the enum value endogenous fitness reports, or "" for none."""
+    if value in (None, "", 0):
+        return ""
+    try:
+        from core.consciousness.endogenous_fitness import CrisisReason
+
+        return CrisisReason(value).name
+    except (ImportError, ValueError):
+        return str(value)
+
 class CognitiveIntegrationPhase(Phase):
     """Runs all learned cognitive subsystems once per tick.
 
@@ -757,13 +769,23 @@ class CognitiveIntegrationPhase(Phase):
             )
             return
         state.response_modifiers["survival_watch"] = watch
-        if watch.get("crisis"):
-            logger.warning(
-                "Endogenous fitness: %s (measured %s, defaulted %s).",
-                watch["crisis"],
-                ",".join(watch.get("measured", ())) or "nothing",
-                ",".join(watch.get("defaulted", ())) or "nothing",
-            )
+        # Said as it starts and as it ends, by name and with the readings: it was "Endogenous fitness: 1" on 59 of
+        # about 69 ticks of day run 4's fifth start (10 November 2026), the enum's value of ENERGY_DEPLETED, and
+        # nobody could tell from the line which crisis it was or how far past the line it stood.
+        named = _the_crisis_named(watch.get("crisis"))
+        said = getattr(self, "_survival_crisis_said", "")
+        if named != said:
+            readings = ", ".join(f"{name}={value:g}" for name, value in sorted((watch.get("readings") or {}).items()))
+            if named:
+                logger.warning(
+                    "Endogenous fitness: %s began (%s; measured %s, defaulted %s).",
+                    named, readings or "no readings",
+                    ",".join(watch.get("measured", ())) or "nothing",
+                    ",".join(watch.get("defaulted", ())) or "nothing",
+                )
+            else:
+                logger.info("Endogenous fitness: %s ended (%s).", said, readings or "no readings")
+            self._survival_crisis_said = named
 
     async def _run_autopoiesis(self, state: AuraState) -> None:
         if not self._autopoiesis:

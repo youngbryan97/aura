@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 18 outbound edges when this was generated.
+# 19 outbound edges when this was generated.
 
 description = "core.ops: may import only what it already imports; every new edge is an edit here."
 
@@ -19,6 +19,7 @@ include_rules = [
     "+core.container",
     "+core.conversation",
     "+core.coordinators",
+    "+core.governance_context",
     "+core.kernel",
     "+core.managers",
     "+core.observability",

@@ -750,6 +750,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  2026-11-10, day run 4's fifth start, 499 warning-or-worse lines in 48
+  kinds. 372 were one cause, her background work on the 1.5B model on the
+  CPU (stalls, cancels, the incidents counting them), fixed in 046ad1764.
+  Of the rest, by cause: her state backup refused as ungoverned on every try
+  since 13 September, her last archive (now run in a governed scope); the
+  outcome simulator holding her read-only find_in_source at worst-case harm
+  0.80 for the words in her search (advisory for her reads of her own
+  source, still a hold on her edits); the commitment engine's fsync on the
+  event loop (written behind it now); and "Endogenous fitness: 1" on 59 of
+  about 69 ticks, which was ENERGY_DEPLETED by its enum value, now said by
+  name with its readings as it starts and as it ends. Still to read on the
+  next run: whether her substrate energy truly sits below 15, the anomaly
+  detector's sustained threat of 0.98 to 1.00, and managed memory rising 2
+  to 7 GB an hour in stretches.
   2026-09-30, evening. The next by count of the same class: StabilityGuardian
   warned "DEGRADED" and recorded a degraded event on every check interval for
   as long as one check stayed unhealthy, 249 times for a slow tick rate and

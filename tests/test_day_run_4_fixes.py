@@ -98,3 +98,42 @@ def test_her_goal_tools_work_through_the_engine_from_her_goal_pass_and_from_nowh
     assert [result.get("ok") for result in made] == [True, True, True, True], made
     assert (workspace / "core" / "more.py").read_text() == "X = 1\n"
     assert elsewhere.get("ok") is False and not (workspace / "core" / "x.py").exists()
+
+
+def test_a_simulator_hold_on_her_read_of_her_own_source_is_advisory_and_on_her_edit_still_holds(tmp_path, monkeypatch):
+    """10 November 2026: the outcome simulator held her find_in_source at worst-case harm 0.80 and 1.00, scoring a
+    search pattern of hers as harm. A read of her own source changes nothing; a hold on her edit still stands."""
+    import subprocess
+    from types import SimpleNamespace
+
+    from core.container import ServiceContainer
+
+    workspace = tmp_path / "ws"
+    (workspace / "core").mkdir(parents=True)
+    (workspace / "core" / "notes.py").write_text("def evict():\n    return 0\n")
+    for args in (["init", "-q", "-b", "main"], ["add", "."], ["commit", "-q", "-m", "start"]):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=workspace, check=True)
+    monkeypatch.setattr(work, "workspaces_dir", lambda: tmp_path)
+    context = {"origin": work.ORIGIN, "her_goal": "probe", "her_goal_workspace": str(workspace), "requested_by": "aura"}
+
+    class HoldsEverything:
+        def assess_fast(self, description, context=None):
+            return SimpleNamespace(recommendation="hold", worst_case_harm=0.8)
+
+    original = ServiceContainer.get
+
+    def get(name, default=None):
+        return HoldsEverything() if name == "culture_mind" else original(name, default=default)
+
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(get))
+
+    async def calls():
+        engine = CapabilityEngine()
+        found = await engine.execute("find_in_source", {"pattern": "evict|forget", "where": "core"}, dict(context))
+        edited = await engine.execute("edit_draft", {"path": "core/more.py", "old_text": "", "new_text": "X = 1\n"},
+                                      dict(context))
+        return found, edited
+
+    found, edited = asyncio.run(calls())
+    assert found.get("ok") is True, found
+    assert edited.get("ok") is False and "Outcome simulator held" in str(edited.get("error")), edited

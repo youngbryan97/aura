@@ -1532,6 +1532,17 @@ def _declared_text_fields(meta: Any) -> frozenset[str]:
         logger.debug("no declared text fields for a skill (%s)", exc)
         return frozenset()
 
+
+def _her_own_read_of_her_own_source(skill_name: str, effect_scope: str, origin: str) -> bool:
+    """Whether a call is her goal pass reading her own source: read_source or find_in_source, read-only, from her goal
+    origin. The outcome simulator scores an action's description, and a search pattern of hers with "evict" or
+    "forget" in it read as harm: it held her find_in_source at worst-case harm 0.80 and 1.00 on 10 November 2026.
+    Inside her workspace the worst case of a read is what she reads."""
+    from core.executive.standing_authority import OWN_GOAL_ORIGIN, OWN_GOAL_TOOLS
+
+    return (str(origin or "") == OWN_GOAL_ORIGIN and str(effect_scope or "") == "read_only"
+            and skill_name in OWN_GOAL_TOOLS and skill_name in {"read_source", "find_in_source"})
+
 class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
     """Unified engine for Aura's capabilities (skills).
 
@@ -5676,6 +5687,13 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                             self.logger.info(
                                 "🌀 Outcome simulation advisory for autonomous read-only web search '%s' "
                                 "(worst-case harm %.2f); continuing under bounded research policy.",
+                                skill_name,
+                                float(getattr(_sim, "worst_case_harm", 0.0) or 0.0),
+                            )
+                        elif _her_own_read_of_her_own_source(skill_name, effect_scope, exec_source):
+                            self.logger.info(
+                                "🌀 Outcome simulation advisory for her read-only '%s' of her own source "
+                                "(worst-case harm %.2f); a read changes nothing.",
                                 skill_name,
                                 float(getattr(_sim, "worst_case_harm", 0.0) or 0.0),
                             )

@@ -27,7 +27,6 @@ Commitments are distinct from HierarchicalPlanner goals:
 from __future__ import annotations
 from core.runtime.errors import record_degradation
 
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -437,7 +436,15 @@ class CommitmentEngine:
                     for c_id, c in self._commitments.items()
                 },
             }
-            atomic_write_text(PERSIST_PATH, json.dumps(data, indent=2))
+            # Behind the loop when on it, through the gateway in a scope of its own: the resource governor's sweep
+            # reaches this inside a coroutine, and lockdep saw the fsync on the event loop (10 November 2026).
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import write_text_behind
+
+            with local_internal_governed_scope("commitment_engine.save", domain="state_mutation",
+                                               receipt_prefix="commitments",
+                                               constraints={"artifact": "aura.commitments.v1", "operation": "replace"}):
+                write_text_behind(PERSIST_PATH, json.dumps(data, indent=2), source="commitment_engine")
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('commitment_engine', e)
             logger.debug("CommitmentEngine save failed: %s", e)
