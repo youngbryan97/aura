@@ -1862,3 +1862,16 @@ depletion rose to 0.61; an open journal entry held eight of her goal calls under
 strange loop's weight save was refused 21 times for writing outside a governed scope. The day was ended at 19:01:11,
 117 minutes after launch, all three were fixed at `3d97a1ff0`, and the fourth day restarts at the commit that carries
 this amendment with its predictions unchanged. Its first three attempts are reported beside it as read.
+
+### Amendment, 10 November 2026, early morning: the fourth day restarted a fourth time
+
+The fourth start opened at 19:18:29 on 9 November at `0e161392e` and ran clean for seven hours: her state log wrote
+throughout, her depletion stayed at or below 0.21, and her goal pass made more than 150 calls to her own tools with
+none refused. Two faults remained. Her journal recorded no entry in 591 attempts across both log files: composed
+through the full cognitive cycle, it was read as a task, wrapped in about 100,000 characters and judged by the gates
+for a reply to a person, and each failure was a loss her resilience took. From the minute of its first failure her
+cortisol held above the crisis line and SubstrateAuthority blocked her initiative and expression for six hours, so her
+goal passes stopped. And the background brainstem was loaded and shed eight times in 71 minutes, because its
+admission asked a smaller question than the shed does. The day was ended at 02:18:17 on 10 November, both were fixed at
+`378cd0d41`, and the fourth day restarts at the commit that carries this amendment with its predictions unchanged.
+Its first four attempts are reported beside it as read.
