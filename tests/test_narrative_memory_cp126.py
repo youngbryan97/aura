@@ -39,9 +39,13 @@ class _Brain:
         self.prompts: list[str] = []
 
     async def think(self, objective, context=None, mode=None, origin=None):
-        self.prompts.append(objective)
+        raise AssertionError("a journal is composed by generate(), not the full cognitive cycle")
+
+    # Her journals compose through the direct generation path since day run 4 (narrative_memory._composed).
+    async def generate(self, prompt, origin=None, **kwargs):
+        self.prompts.append(prompt)
         self.origins = [*getattr(self, "origins", []), origin]
-        return SimpleNamespace(content=self._content)
+        return self._content
 
 
 def _memory(episodic, *, brain=None):

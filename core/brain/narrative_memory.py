@@ -2,6 +2,7 @@ import asyncio
 import logging
 import re as _re
 import time
+from typing import Any
 
 from core.memory.episodic_memory import get_episodic_memory
 from core.runtime.errors import record_degradation
@@ -105,6 +106,29 @@ logger = logging.getLogger("Cognition.Narrative")
 # or not) depended on whichever turn had run last: on the third day run that was
 # her terminal monitor's self-repair, and from 03:15 every journal was refused.
 JOURNAL_ORIGIN = "narrative_journal"
+
+
+async def _composed(brain: Any, prompt: str) -> Any:
+    """A journal, arc or record composed by her cortex through the direct generation path.
+
+    Not the full cognitive cycle: through think() a journal prompt was read as a task (an open
+    "temporal_obligation_active: You are writing Aura's internal journal" that held her other background work), wrapped
+    in about 100,000 characters of turn context and cut to the prefill ceiling, and judged by the gates for a reply to a
+    person. On day run 4 (9 and 10 November 2026) "Journal Entry recorded." appeared 0 times in 591 attempts, and each
+    failure was a loss her resilience took, holding her cortisol above its crisis line for six hours. The web
+    interlocutor composes the same way for the same reason.
+    """
+    from types import SimpleNamespace
+
+    text = await brain.generate(
+        prompt,
+        origin=JOURNAL_ORIGIN,
+        purpose="journal",
+        use_strategies=False,
+        is_background=True,
+        prefer_tier="primary",
+    )
+    return SimpleNamespace(content=str(text or "").strip(), metadata={}, reasoning=[])
 
 class NarrativeEngine:
     """Consolidates episodic fragments into a continuous autobiographical narrative."""
@@ -251,16 +275,11 @@ class NarrativeEngine:
         )
 
         try:
-            from core.brain.types import ThinkingMode
             brain = self.orchestrator.cognitive_engine
             if not brain: return
 
-            journal_entry = await brain.think(
-                objective=prompt,
-                context={"mode": "introspection", "tier": "journal"},
-                mode=ThinkingMode.SLOW,
-                origin=JOURNAL_ORIGIN,
-            )
+            # Through the direct generation path; see _composed.
+            journal_entry = await _composed(brain, prompt)
             if not (journal_entry and journal_entry.content):
                 self._say_journal_held(journal_entry)
 
@@ -369,8 +388,7 @@ class NarrativeEngine:
             f"\n\nJournals:\n{journal_text}"
         )
         
-        from core.brain.types import ThinkingMode
-        arc = await brain.think(objective=prompt, mode=ThinkingMode.SLOW, origin=JOURNAL_ORIGIN)
+        arc = await _composed(brain, prompt)
         if arc and arc.content:
             await vector_mem.add_memory(
                 text=arc.content,
@@ -446,16 +464,10 @@ class NarrativeEngine:
         )
 
         try:
-            from core.brain.types import ThinkingMode
             brain = self.orchestrator.cognitive_engine
             if not brain: return None
 
-            record = await brain.think(
-                objective=prompt,
-                context={"mode": "final_synthesis"},
-                mode=ThinkingMode.SLOW,
-                origin=JOURNAL_ORIGIN,
-            )
+            record = await _composed(brain, prompt)
 
             if record and record.content:
                 # Store as the 'Eternal Record' in the Knowledge Graph

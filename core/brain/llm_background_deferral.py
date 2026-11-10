@@ -54,7 +54,30 @@ def _floor_for_the_model_on_this_lane() -> float:
         return _BRAINSTEM_FLOOR_IF_UNREADABLE_GB
     if not (math.isfinite(projected) and projected > 0.0):
         return _BRAINSTEM_FLOOR_IF_UNREADABLE_GB
-    return projected * 1.5
+    return max(projected * 1.5, projected + _what_the_shed_keeps_free())
+
+
+def _what_the_shed_keeps_free() -> float:
+    """The free memory below which the inference gate sheds background workers, in GB.
+
+    Admission and the shed asked different questions: admission wanted the brainstem's footprint and half again (about
+    10 GB), and the gate sheds background workers when free memory falls below the cortex's load reserve plus the
+    fallback reserve (InferenceGate._shed_background_workers_for_memory_pressure). Between the two, a brainstem was
+    loaded and then shed minutes later, over and over: day run 4, 10 November 2026, eight loads in 71 minutes and swap
+    from 1.9 to 6.5 GB. Loading it now needs room for it above the line the shed keeps. Unreadable, it adds nothing,
+    and the footprint rule alone holds.
+    """
+    try:
+        from core.runtime.service_access import resolve_inference_gate
+
+        gate = resolve_inference_gate()
+        cortex = float(gate._primary_load_required_gb()) if gate is not None else 0.0
+        fallback = float(os.environ.get("AURA_FALLBACK_RESIDENT_RESERVE_GB", "8.0"))
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        _module_logger.debug("the shed's line is unreadable, the footprint floor holds: %s", exc)
+        return 0.0
+    line = cortex + fallback
+    return line if math.isfinite(line) and line > 0.0 else 0.0
 
 
 

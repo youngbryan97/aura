@@ -82,10 +82,10 @@ async def test_her_journal_gives_its_own_origin_and_says_when_it_is_held(monkeyp
     calls = []
 
     class Brain:
-        async def think(self, objective=None, context=None, mode=None, origin=None, **kwargs):
+        # Composed through generate() since day run 4 (core/brain/narrative_memory.py, _composed).
+        async def generate(self, prompt, origin=None, **kwargs):
             calls.append(origin)
-            return SimpleNamespace(content="", reasoning=["background_deferred"],
-                                   metadata={"suppressed": True, "deferred_reason": "memory_pressure_88.0"})
+            return ""
 
     monkeypatch.setattr(narrative_memory, "get_episodic_memory", lambda: Episodic())
     engine = narrative_memory.NarrativeEngine(SimpleNamespace(cognitive_engine=Brain()))
@@ -94,7 +94,7 @@ async def test_her_journal_gives_its_own_origin_and_says_when_it_is_held(monkeyp
         await engine.consolidate_episodes()
     assert calls == ["narrative_journal", "narrative_journal"]
     held = [r for r in caplog.records if "Journal held back" in r.getMessage()]
-    assert len(held) == 1 and "memory_pressure_88.0" in held[0].getMessage()
+    assert len(held) == 1 and "empty content" in held[0].getMessage()
 
 
 def test_a_refused_thought_is_said_at_info_once_per_reason(caplog):
