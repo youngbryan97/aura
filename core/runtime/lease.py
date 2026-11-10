@@ -307,18 +307,24 @@ class LeaderElector:
             return False
 
     async def _write(self, record: LeaseRecord) -> bool:
-        """Async lane: the fsync happens on a worker thread, never on the loop."""
+        """Async lane: the fsync happens on a worker thread, never on the loop.
+
+        Each write is authorized as it is asked for. LIVE 10 November 2026 her event loop stopped for 67 s inside
+        the first await, the 30-second grant opened before it ran out, and the lease file's write was refused as
+        ungoverned.
+        """
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
 
         path = _lease_path(self.name)
         try:
+            gateway = get_file_write_gateway()
             with local_internal_governed_scope(f"lease.{self.name}"):
-                gateway = get_file_write_gateway()
                 await gateway.ensure_directory_async(
                     path.parent,
                     source=f"lease.{self.name}",
                 )
+            with local_internal_governed_scope(f"lease.{self.name}"):
                 await gateway.write_text_async(
                     path,
                     json.dumps(record.to_dict(), indent=2, sort_keys=True),
