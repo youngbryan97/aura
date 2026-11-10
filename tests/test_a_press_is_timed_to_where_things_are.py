@@ -83,8 +83,10 @@ async def test_where_the_mouse_is_how_it_is_played_and_nothing_follows_it_a_clic
     clicks, said = [], []
     hands = SimpleNamespace(click=lambda x, y: _record(clicks, (x, y)))
     run = _Run(keys=[], began=0.0)
+    # As a new WhenAPressPays stands: nothing has paid yet (pays() came with the body-control rule of 13 October).
     run.timing = SimpleNamespace(press_now=lambda things, at, ahead: True, credit=lambda gains, losses: None,
-                                 pressed=lambda things, at, ahead: None, has_something_to_time=lambda things: True)
+                                 pressed=lambda things, at, ahead: None, has_something_to_time=lambda things: True,
+                                 pays=lambda: False)
     moves = SimpleNamespace(things={})
     assert await _press_in_time(hands, run, moves, 3.0, said.append)
     assert clicks == [(0.5, 0.5)] and run.last_click == 3.0
