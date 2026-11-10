@@ -4156,6 +4156,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     were checked for a dropped update and had none. On the way the lift
     tool wrote over `screen_pursuit_steps`, an existing module; it now
     refuses before writing.
+  2026-11-10. What was red on main, by cause. The size ratchet: 761 lines
+  over its budget, four new modules past 2,000 lines and five classes past
+  their method ceilings, mended by ten lifts and the budget re-recorded
+  down (on its way to main after its tests). The claim lexicon at 36
+  against 35 (22d45aad9). Six resident decode canary tests: the verifiers
+  hashed the whole resident manifest, which a governed install annotated on
+  23 October, and the certificates were sealed over source that had since
+  changed; bound by what names the model and re-sealed on the source that
+  runs, with the same results as on 30 September (22d45aad9, 92b8a4d5e).
+  Thirteen more in five files: seven tests read the pursuit's observing
+  wrapper instead of its body (22e8b0054); a timing stand-in had no pays()
+  (fad14d4b6); a page with no weak reference could not be photographed
+  (edcf4a66c); and, bisected to 911ee48d0, eleven tests of objects reaching
+  her body failed because the capture after a pointer sweep was taken
+  unsettled and drawn objects are measured only on settled ones
+  (e65075717). Still red: the governance gate (Q06 says what it owes), and
+  one timing game that scored 4 against the 5 it needs while the machine
+  was busy, to be run again on a quiet one.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
