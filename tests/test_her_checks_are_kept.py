@@ -219,3 +219,14 @@ def test_a_dictionarys_entry_for_a_word_of_the_claim_is_not_read_for_it():
     assert _a_words_entry("https://dictionary.cambridge.org/dictionary/english/exactly", claim)
     assert not _a_words_entry("https://physics.nist.gov/cgi-bin/cuu/Value?c", claim)
     assert not _a_words_entry("https://www.merriam-webster.com/dictionary/exactly", "'exactly' means precisely")
+
+
+def test_her_ordinary_app_reads_the_reputable_sources():
+    """Bryan's standing yes, 10 November 2026: launched as he launches her, she may read the reputable list, its
+    search engines among them. With Wikipedia alone, asked to check a claim she searched nothing and read nothing."""
+    import re
+    from pathlib import Path
+
+    launcher = (Path(__file__).resolve().parents[1] / "launch_aura.sh").read_text(encoding="utf-8")
+    default = re.search(r': "\$\{AURA_REACH_READ_HOSTS:=([^}]*)\}"', launcher)
+    assert default is not None and "@reputable" in default.group(1).split(",")

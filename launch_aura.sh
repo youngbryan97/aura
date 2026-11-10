@@ -278,7 +278,10 @@ export TRANSFORMERS_OFFLINE=1
 # ── Substrate interoception + epistemic reach (felt thought) ─────────────────
 : "${AURA_INTEROCEPTION:=1}"             # Feel the decode: per-token surprisal/entropy tap
 : "${AURA_EPISTEMIC_REACH:=1}"           # Felt doubt may verify claims externally (governed)
-: "${AURA_REACH_READ_HOSTS:=en.wikipedia.org}"  # Operator READ allowlist for governed reach
+# Operator READ allowlist for governed reach. Bryan's standing yes, 10 November 2026: her ordinary app reads the
+# reputable sources (config/reputable_sources.json, its search engines among them). With Wikipedia alone she had no
+# engine to search and read nothing when asked to check a claim.
+: "${AURA_REACH_READ_HOSTS:=@reputable}"
 : "${AURA_EPISTEMIC_REACH_PER_HOUR:=6}"  # Hard hourly budget for external verifications
 export AURA_INTEROCEPTION
 export AURA_EPISTEMIC_REACH
