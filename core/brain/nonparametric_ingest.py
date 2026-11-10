@@ -444,6 +444,19 @@ class NonParametricIngestor:
         if should_continue is not None and not should_continue():
             return 0
 
+        # How far the decode's keys for these very positions sit from the ones stored: the store's exact-repeat
+        # tolerance, which decides when a memory of the very context a reply is in chooses its next token.
+        decode_path = getattr(encoder, "encode_decode_path_sequence_ids", None)
+        observe = getattr(self._mem, "observe_exact_repeat", None)
+        if callable(batch_encoder) and callable(decode_path) and callable(observe):
+            try:
+                decoded = np.asarray(decode_path(full_ids, start), dtype=np.float32)
+                if decoded.shape[0] == len(prepared):
+                    observe(np.stack([key for key, _token, _text in prepared]), decoded)
+            except (RuntimeError, AttributeError, TypeError, ValueError, IndexError) as exc:
+                record_degradation("nonparametric_ingest_exact_repeat", exc, severity="info",
+                                   action="this pair's exact-repeat tolerance was not measured")
+
         added = 0
         complete = True
         for key, token_id, token_text in prepared:

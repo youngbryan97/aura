@@ -253,6 +253,11 @@ class NonParametricMemory:
         #: Moves whenever the mean does. A copy of the store kept elsewhere (core/brain/recall_on_the_gpu.py) is
         #: refreshed by the content generation, which a query does not move, so it needs this to see the mean change.
         self._mean_generation = 0
+        #: How far, in the similarity the gate uses, a query can sit from the entry stored for its very context: the
+        #: widest gap measured between a key as ingest computes it and the same position as her worker's decode
+        #: computes it (``observe_exact_repeat``). None until measured; nothing chooses before then.
+        self._exact_tolerance: float | None = None
+        self._exact_observations = 0
         #: Per-entry provenance, parallel to the key rows. Nothing could say
         #: why an entry was admitted or drop every entry from a discredited
         #: source (CP126 ``ff3a4505``), and no entry named a principal, so
@@ -300,6 +305,7 @@ class NonParametricMemory:
                 "mu": (self._query_mu if centered else np.zeros(self._dim, dtype=np.float32)).copy(),
                 "gate": float(self.MIN_SIM_CENTERED if centered else self.MIN_SIM_RAW),
                 "mean_generation": int(self._mean_generation),
+                "exact_tolerance": self._exact_tolerance if centered else None,
                 "dist_scale": float(self._dist_scale),
                 "max_lambda": float(self._max_lambda),
             }
@@ -313,7 +319,48 @@ class NonParametricMemory:
                 "mean_generation": int(self._mean_generation),
                 "mu": (self._query_mu if centered else np.zeros(self._dim, dtype=np.float32)).copy(),
                 "gate": float(self.MIN_SIM_CENTERED if centered else self.MIN_SIM_RAW),
+                "exact_tolerance": self._exact_tolerance if centered else None,
             }
+
+    def exact_tolerance(self) -> float | None:
+        """The measured exact-repeat tolerance, when the store judges by centred similarity and has measured one."""
+        with self._lock:
+            return self._exact_tolerance if self._query_mu_n >= self.MU_READY_N else None
+
+    def holds_this_context(self, similarity: float) -> bool:
+        """Whether a neighbour this similar is the entry stored for the query's very context.
+
+        A memory of the very context a reply is in was stored with the token that came next there, and it decides
+        that token; any other memory may only inform it. MEASURED 10 November 2026 on her 27B among her 50,000
+        entries: every exact repeat of a stored position came back at centred similarity 0.999474 or above, the
+        nearest different context ever came was 0.998833 (a fact of the same template), and no step of an
+        ordinary prompt came nearer than 0.885. Before that, an exact match weighed 0.29 against the model, and
+        lost to any model more than about 40% sure of something else.
+        """
+        tolerance = self.exact_tolerance()
+        return tolerance is not None and float(similarity) >= 1.0 - tolerance
+
+    def observe_exact_repeat(self, stored: Any, decoded: Any) -> float | None:
+        """Widen the exact-repeat tolerance to cover these pairs: keys as ingest stored them, and the same positions
+        as the decode computes them. Measured in the similarity the gate uses, so only once the mean is ready."""
+        a = np.asarray(stored, dtype=np.float32).reshape(-1, self._dim)
+        b = np.asarray(decoded, dtype=np.float32).reshape(-1, self._dim)
+        if a.shape != b.shape or not a.size or not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
+            return None
+        with self._lock:
+            if self._query_mu_n < self.MU_READY_N:
+                return None
+            ac, bc = a - self._query_mu, b - self._query_mu
+            norms = np.linalg.norm(ac, axis=1) * np.linalg.norm(bc, axis=1)
+            if np.any(norms <= 1e-12):
+                return None
+            gap = float(np.max(1.0 - np.sum(ac * bc, axis=1) / norms))
+            gap = max(0.0, gap)
+            if self._exact_tolerance is None or gap > self._exact_tolerance:
+                self._exact_tolerance = gap
+                self._mean_generation += 1
+            self._exact_observations += int(a.shape[0])
+            return self._exact_tolerance
 
     def took_queries(self, queries: Any, *, interpolated: int = 0, fallthrough: int = 0) -> None:
         """Queries made elsewhere, taken in as ``query`` takes each of its own: into the running mean (cumulative to
@@ -1137,6 +1184,13 @@ class NonParametricMemory:
             ]
 
 
+            saved_tolerance = meta.get("exact_tolerance")
+            try:
+                new_tolerance = float(saved_tolerance) if saved_tolerance is not None else None
+            except (TypeError, ValueError):
+                new_tolerance = None
+            if new_tolerance is not None and not (math.isfinite(new_tolerance) and 0.0 <= new_tolerance < 1.0):
+                new_tolerance = None
             saved_mu = meta.get("query_mu")
             new_mu = None
             new_mu_n = 0
@@ -1160,6 +1214,8 @@ class NonParametricMemory:
                     self._query_mu = new_mu
                     self._query_mu_n = new_mu_n
                     self._mean_generation += 1
+                self._exact_tolerance = new_tolerance
+                self._exact_observations = int(meta.get("exact_observations", 0) or 0) if new_tolerance is not None else 0
                 self._reindex_content_keys()
                 self._content_generation += 1
                 self._identity_cache = None
@@ -1231,6 +1287,8 @@ class NonParametricMemory:
                     "provenance": [record.to_dict() for record in self._provenance],
                     "query_mu": [float(v) for v in self._query_mu],
                     "query_mu_n": int(self._query_mu_n),
+                    "exact_tolerance": self._exact_tolerance,
+                    "exact_observations": int(self._exact_observations),
                 }
             keys_path = self._path.with_suffix(".keys.npy")
             meta_path = self._path.with_suffix(".meta.json")

@@ -48,7 +48,8 @@ def _with_the_mean(on: dict[str, Any], view: dict[str, Any]) -> dict[str, Any]:
     mm = mx.sum(mu * mu)
     out = {**on, "mu": mu, "km": km, "mm": mm,
            "key_centered": mx.sqrt(mx.maximum(on["key_norms"] - 2.0 * km + mm, 0.0)),
-           "gate": float(view["gate"]), "mean_generation": int(view.get("mean_generation", -1))}
+           "gate": float(view["gate"]), "mean_generation": int(view.get("mean_generation", -1)),
+           "exact_tolerance": view.get("exact_tolerance")}
     mx.eval(out["km"], out["key_centered"])
     return out
 
@@ -146,6 +147,14 @@ class RecallOnTheGpu:
         total = mx.sum(mass)
         fires = fires & (total > 0) & (lam > 1e-6)
         lam = mx.where(fires, lam, 0.0)
+        # The entry stored for this very context decides the token; any other only informs it
+        # (NonParametricMemory.holds_this_context).
+        tolerance = on.get("exact_tolerance")
+        chosen = on["token_ids"][first]
+        exact = (q_centered > _DEGENERATE) & (best >= 1.0 - float(tolerance)) & (chosen < logits.shape[-1]) \
+            if tolerance is not None else mx.array(False)
+        if self.last_fired is not None:
+            exact = exact & (first != self.last_fired)
         vocabulary = logits.shape[-1]
         ids = on["token_ids"][nearest]
         p_knn = mx.zeros((vocabulary,), dtype=mx.float32).at[mx.clip(ids, 0, vocabulary - 1)].add(
@@ -153,12 +162,15 @@ class RecallOnTheGpu:
         raw = logits.astype(mx.float32)
         normaliser = mx.logsumexp(raw, axis=-1, keepdims=True)
         blended = mx.logaddexp(mx.log(1.0 - lam) + raw - normaliser, mx.log(lam) + mx.log(p_knn).reshape(raw.shape))
-        self.last_fired = first if self.last_fired is None else mx.where(fires, first, self.last_fired)
+        moved = fires | exact
+        self.last_fired = first if self.last_fired is None else mx.where(moved, first, self.last_fired)
         self.queries.append(q)
-        self.fired.append(fires)
+        self.fired.append(moved)
+        one_entry = mx.zeros((vocabulary,), dtype=mx.float32).at[mx.clip(chosen, 0, vocabulary - 1)].add(1.0)
+        decided = mx.log(mx.maximum(one_entry, 1e-30)).reshape(raw.shape) + normaliser
         # Where it fires, the blend at the scale of the model's own logits; where it does not, those logits untouched,
         # for whatever processes them next (a repetition penalty treats a positive logit and a negative one apart).
-        return mx.where(fires, blended + normaliser, raw).astype(logits.dtype)
+        return mx.where(exact, decided, mx.where(fires, blended + normaliser, raw)).astype(logits.dtype)
 
     def processor(self, tap: Any) -> Any:
         """The logits processor for a generation, reading ``tap.last_hidden``."""

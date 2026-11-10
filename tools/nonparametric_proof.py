@@ -229,10 +229,15 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         for suffix in (".keys.npy", ".meta.json"):
             shutil.copy2(background_store + suffix, str(store) + suffix)
         background_entries = len(NonParametricMemory(dim=encoder.dim, path=store, max_entries=10_000_000))
+    # Room for every position the facts will add, so the store evicts nothing the trial asks about. It held the
+    # background and 64 more, and on 10 November twelve facts needed 84 positions: the first facts ingested were
+    # evicted before they were asked, and among her 50,000 the oldest few hundred of hers went instead.
+    needed = sum(max(1, len(tokenizer.encode(f"{prompt} {answer.strip()}")) - len(tokenizer.encode(prompt)) + 1)
+                 for prompt, answer in facts)
     memory = NonParametricMemory(
         dim=encoder.dim,
         path=store,
-        max_entries=max(64, background_entries + 64),
+        max_entries=max(64, background_entries + needed),
     )
 
     heard: list = []
@@ -307,6 +312,7 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         "datastore_entries": len(memory),
         "background_entries": background_entries,
         "ingested_positions": ingested_positions,
+        "evicted": int(memory._stats.get("evicted", 0)),
         "similarity_mode": "centered" if memory.similarity_ready() else "raw_fallback",
         "decode": ("her worker's: generate_step, hidden-state tap, recall_on_the_gpu" if facts_count
                    else "cached_generate_with_memory"),

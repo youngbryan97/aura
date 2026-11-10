@@ -606,6 +606,15 @@ def make_tapped_nonparametric_processor(
             if nearest_index == state["last_fired_index"]:
                 return logits
             state["last_fired_index"] = nearest_index
+            holds = getattr(memory, "holds_this_context", None)
+            if callable(holds) and holds(sim):
+                # The entry stored for this very context decides the token (as recall_on_the_gpu does).
+                lg = as_float32_numpy(logits).reshape(-1)
+                chosen = int(neighbors[0].token_id)
+                if 0 <= chosen < lg.shape[0]:
+                    out = np.full_like(lg, float(lg.max()) - 69.0)
+                    out[chosen] = float(lg.max())
+                    return mx.array(out).reshape(logits.shape)
             fe = 0.5 if free_energy is None else float(free_energy)
             lam = base_lam * ((sim - gate) / max(1e-6, 1.0 - gate)) * (0.6 + 0.8 * fe)
             lam = min(float(max_lam), max(0.0, float(lam)))
@@ -710,7 +719,14 @@ def cached_generate_with_memory(
                     # Anti-stutter: a chain walks DIFFERENT entries each
                     # step; the same nearest entry twice in a row means the
                     # chain ended and the stale tail is re-firing.
-                    if sim >= gate and nearest_index != last_fired_index:
+                    holds = getattr(memory, "holds_this_context", None)
+                    if (sim >= gate and nearest_index != last_fired_index and callable(holds) and holds(sim)):
+                        # The entry stored for this very context decides the token.
+                        memory_choice = int(neighbors[0].token_id)
+                        if memory_choice != next_id:
+                            last_fired_index = nearest_index
+                        next_id = memory_choice
+                    elif sim >= gate and nearest_index != last_fired_index:
                         fe = 0.5 if free_energy is None else float(free_energy)
                         lam = base_lam * max(0.0, (sim - gate) / max(1e-6, 1.0 - gate)) * (0.6 + 0.8 * fe)
                         from core.brain.nonparametric_generation import _topk_probs

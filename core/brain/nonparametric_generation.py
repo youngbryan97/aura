@@ -84,6 +84,27 @@ class MLXEncoder:
     def encode_hidden_ids(self, ids: list[int]) -> np.ndarray:
         return normalize(self._hidden_from_ids(list(ids)))
 
+    def encode_decode_path_sequence_ids(self, ids: list[int], start: int) -> np.ndarray:
+        """The keys of positions ``start`` to the second last as her worker's decode computes them: everything before
+        ``start`` prefilled into a cache, then one token a step, the way mlx_lm's ``generate_step`` prefills all of a
+        prompt but its last token and then steps. Ingest computes its keys in one forward over the whole sequence;
+        the two agree to within the arithmetic's noise, and the store measures that noise from these."""
+        import mlx.core as mx
+        from mlx_lm.models.cache import make_prompt_cache
+
+        ids = [int(i) for i in ids]
+        start = max(0, int(start))
+        cache = make_prompt_cache(self.model)
+        if start:
+            mx.eval(self._hidden_model(mx.array([ids[:start]]), cache=cache))
+        rows = []
+        for position in range(start, len(ids) - 1):
+            hidden = self._hidden_model(mx.array([[ids[position]]]), cache=cache)
+            rows.append(np.asarray(hidden[0, -1].astype(mx.float32)))
+        if not rows:
+            return np.zeros((0, self.dim), dtype=np.float32)
+        return self._normalize_hidden_rows(np.stack(rows))
+
     def encode_hidden_sequence_ids(self, ids: list[int]) -> np.ndarray:
         """Encode every prefix position with one causal model forward."""
 
