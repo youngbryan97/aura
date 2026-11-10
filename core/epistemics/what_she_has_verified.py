@@ -29,6 +29,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
+
 from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Epistemics.Verified")
@@ -214,6 +215,21 @@ class Fact:
         return self.dated and self.last_read < (today or time.strftime("%Y-%m-%d"))
 
 
+def _keep_once(fact: Fact, reading: Attestation) -> None:
+    """One page read on one day is one attestation; the later reading's quote stands for it.
+
+    LIVE 20 October 2026 her check read Wikipedia's page twice for one claim, and her store kept it twice: her
+    evidence then listed the same source twice beside one claim. A reading on a later day is kept beside the earlier
+    one, since a dated claim is read again for that.
+    """
+    for index, earlier in enumerate(fact.attestations):
+        if (earlier.url, earlier.verdict, earlier.read_at) == (reading.url, reading.verdict, reading.read_at):
+            if reading.quote:
+                fact.attestations[index] = reading
+            return
+    fact.attestations.append(reading)
+
+
 def standing(attestations: list[Attestation]) -> str:
     """A claim's standing from everything read of it (the module's rules)."""
     if any(a.tier == "computed" for a in attestations):
@@ -257,7 +273,9 @@ class VerifiedFacts:
         except (OSError, ValueError):
             return
         for row in rows if isinstance(rows, list) else []:
-            fact = Fact(claim=str(row.get("claim") or ""), attestations=[Attestation(**a) for a in row.get("attestations") or []])
+            fact = Fact(claim=str(row.get("claim") or ""))
+            for kept in row.get("attestations") or []:
+                _keep_once(fact, Attestation(**kept))
             if fact.claim:
                 self._facts[key_of(fact.claim)] = fact
 
@@ -282,7 +300,7 @@ class VerifiedFacts:
             return None
         with self._lock:
             fact = self._facts.setdefault(key_of(claim), Fact(claim=" ".join(claim.split())))
-            fact.attestations.append(Attestation(url=url, verdict=verdict, quote=" ".join(str(quote).split())[:300]))
+            _keep_once(fact, Attestation(url=url, verdict=verdict, quote=" ".join(str(quote).split())[:300]))
             reckoned = computed(claim)
             if reckoned and not any(a.tier == "computed" for a in fact.attestations):
                 fact.attestations.append(Attestation(url="program:arithmetic", verdict=reckoned))

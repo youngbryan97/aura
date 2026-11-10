@@ -147,3 +147,30 @@ def test_the_store_is_written_after_its_lock_is_let_go(tmp_path, monkeypatch):
                  "SUPPORTED", "opened in 1889")
     assert held and all("what_she_has_verified.facts" not in names for names in held)
     assert json.loads((tmp_path / "verified_facts.json").read_text())[0]["claim"].startswith("The Eiffel Tower")
+
+
+def test_one_page_read_twice_on_one_day_is_one_reading(tmp_path):
+    """LIVE 2026-10-20: her check read Wikipedia's page twice for one claim and her store kept both, so her evidence
+    named the same source twice. A later day's reading is kept beside it."""
+    import json
+
+    from core.epistemics.what_she_has_verified import (
+        SUPPORTED,
+        Attestation,
+        VerifiedFacts,
+        as_evidence,
+    )
+
+    path = tmp_path / "verified_facts.json"
+    claim = "The speed of light in a vacuum is exactly 299,792,458 metres per second."
+    page = "https://en.wikipedia.org/wiki/Speed_of_light"
+    kept = {"url": page, "verdict": SUPPORTED, "quote": "exactly equ", "read_at": "2026-10-20"}
+    path.write_text(json.dumps([{"claim": claim, "attestations": [kept, kept]}]))
+    store = VerifiedFacts(path)
+    assert len(store.get(claim).attestations) == 1  # the record she already holds reads as one reading
+    store.attest(claim, page, SUPPORTED, "exactly equal to 299792458 m/s")
+    store.attest(claim, page, SUPPORTED, "exactly equal to 299792458 m/s, the later quote")
+    readings = store.get(claim).attestations
+    assert [a.read_at for a in readings] == ["2026-10-20", Attestation(url=page, verdict=SUPPORTED).read_at]
+    assert readings[-1].quote.endswith("the later quote")
+    assert as_evidence([store.get(claim)]).count("2026-10-20") == 1
