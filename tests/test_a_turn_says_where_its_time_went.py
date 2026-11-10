@@ -158,3 +158,33 @@ def test_a_finished_turn_says_its_split_in_her_log(caplog) -> None:
     assert len(said) == 1
     assert "decode=3.50s prefill=1.25s" in said[0]
     assert "unmeasured: delivery,queue,retrieval,tool" in said[0]
+
+
+def test_her_desktop_turn_records_its_retrieval_and_not_a_tool_twice(monkeypatch) -> None:
+    """LIVE 2026-11-10: every turn on her desktop lane, which runs no retrieval phase, said "unmeasured: retrieval" with
+    nine to thirteen seconds unattributed, two of them her web check. A search run as a tool keeps its own seconds."""
+    import asyncio
+
+    import core.conversation.what_the_world_says as world
+    import interface.routes.chat_desktop_evidence as evidence_route
+
+    async def gathered(*_a, **_k):
+        await asyncio.sleep(0.05)
+        record_latency("tool", 0.03)  # a search the gathering ran as a tool
+        return world.WorldEvidence()
+
+    async def checked(*_a, **_k):
+        await asyncio.sleep(0.05)
+        return []
+
+    async def nothing_earlier(**_k):
+        return []
+
+    monkeypatch.setattr(world, "gather_world_evidence", gathered)
+    monkeypatch.setattr(world, "her_check_reads", checked)
+    monkeypatch.setattr(evidence_route._chat_memory_state, "_recent_completed_conversation_exchanges", nothing_earlier)
+    monkeypatch.setattr(evidence_route, "_should_collect_desktop_required_search_evidence", lambda _m: (False, "", None))
+    with recording_turn("t-desktop", phases_available=()) as receipt:
+        asyncio.run(evidence_route._what_the_world_says_for_the_turn("Is that true?", "Is that true?", session_id="s"))
+    assert receipt.latency_s["tool"] == pytest.approx(0.03)
+    assert 0.07 <= receipt.latency_s["retrieval"] < 0.5

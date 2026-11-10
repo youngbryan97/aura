@@ -1114,8 +1114,14 @@ async def _what_the_world_says_for_the_turn(
     completed-search evidence when a web search ran.
     """
     from core.conversation.what_the_world_says import answer_from_earlier_reading, gather_world_evidence, remember_reading
+    from core.verify.turn_receipt import current_receipt, record_latency
 
     turn_began = time.time()
+    # This is the turn's retrieval on her desktop lane, which runs no retrieval phase: LIVE 10 November 2026 every
+    # turn's split said "unmeasured: retrieval" with nine to thirteen seconds unattributed, two of them her web check.
+    # A search run as a tool records its own time, which is not counted twice.
+    receipt, looking_began = current_receipt(), time.monotonic()
+    tool_before = receipt.latency_s.get("tool", 0.0) if receipt is not None else 0.0
     should_collect, _query, contract = _should_collect_desktop_required_search_evidence(user_message)
     # Her view is not research (core/language/her_view.py): the contract's
     # search stands down unless sources were asked for. Something current
@@ -1210,6 +1216,8 @@ async def _what_the_world_says_for_the_turn(
         evidence.saved = evidence.saved or bool(ran["result"].get("retained"))
     if not answer_from_earlier_reading(evidence, user_message, session_id):
         remember_reading(session_id, evidence)
+    tool_during = (receipt.latency_s.get("tool", 0.0) if receipt is not None else 0.0) - tool_before
+    record_latency("retrieval", max(0.0, time.monotonic() - looking_began - tool_during))
     rendered = evidence.render()
     logger.info("🌍 What the world says for this turn: %s", evidence.to_dict())
     if not rendered:
