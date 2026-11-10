@@ -78,7 +78,10 @@ async def cursor_materials_after_inspection(page: Any, seen: dict, places: tuple
             target = await sample_cursor_target(page, point, bounds)
             if target is not None:
                 sampled.append(target)
-    latest = await look_at_a_page(page, over, name=name, wait_for_stillness=False)
+    # At rest, as the reading it replaces was taken: drawn objects are measured only on a settled capture, and an
+    # unsettled replacement dropped every object she had seen after each pointer sweep (the click that opened a
+    # library answered with nothing, on main from 15 October).
+    latest = await look_at_a_page(page, over, name=name)
     if (not isinstance(latest, ScreenReading) or latest.get('ok', True) is not True
             or scope != _scope(page)):
         return _unavailable(seen)
