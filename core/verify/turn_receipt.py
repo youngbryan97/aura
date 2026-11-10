@@ -31,6 +31,7 @@ other's receipts.
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -131,6 +132,7 @@ class TurnReceipt:
         return round(max(0.0, total - sum(self.latency_s.values())), 4)
 
 
+logger = logging.getLogger("Aura.TurnReceipt")
 _CURRENT: ContextVar[TurnReceipt | None] = ContextVar("aura_turn_receipt", default=None)
 _RECENT: list[TurnReceipt] = []
 _RECENT_LOCK = checked_lock("turn_receipt.recent")
@@ -162,6 +164,21 @@ def recording_turn(
             _RECENT.append(receipt)
             if len(_RECENT) > _RECENT_LIMIT:
                 del _RECENT[: len(_RECENT) - _RECENT_LIMIT]
+        _say_where_the_time_went(receipt)
+
+
+def _say_where_the_time_went(receipt: TurnReceipt) -> None:
+    """One line per turn in her log: each component's seconds as its recorder measured them, and the rest.
+
+    R11 asks for the five read off a live turn. They were recorded, and the health route's read model served them
+    as an empty block, so on 10 November a 62-second turn typed into her chat could not be split from outside. A
+    component nobody measured is said as unmeasured, not as zero.
+    """
+    measured = " ".join(f"{name}={receipt.latency_s[name]:.2f}s" for name in sorted(receipt.latency_s))
+    unmeasured = ",".join(sorted(LATENCY_COMPONENTS - set(receipt.latency_s))) or "none"
+    total = (receipt.finished_at or receipt.started_at) - receipt.started_at
+    logger.info("⏱️ turn %s took %.2fs: %s; unattributed %.2fs; unmeasured: %s", receipt.turn_id[:12], total,
+                measured or "nothing measured", receipt.unattributed_s or 0.0, unmeasured)
 
 
 def record_phase(name: str) -> None:

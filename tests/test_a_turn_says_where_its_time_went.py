@@ -142,3 +142,19 @@ def test_the_health_payload_carries_the_split() -> None:
 
     block = inspect.getsource(health_contract._integrity_of_taint_locks_and_custody)
     assert "latency_by_component" in block
+
+
+def test_a_finished_turn_says_its_split_in_her_log(caplog) -> None:
+    """R11: the five read off a live turn. The health route served them as an empty block on 10 November."""
+    import logging
+
+    from core.verify.turn_receipt import record_latency, recording_turn
+
+    with caplog.at_level(logging.INFO, logger="Aura.TurnReceipt"):
+        with recording_turn("turn-r11-0001", phases_available=()):
+            record_latency("prefill", 1.25)
+            record_latency("decode", 3.5)
+    said = [r.getMessage() for r in caplog.records if "took" in r.getMessage()]
+    assert len(said) == 1
+    assert "decode=3.50s prefill=1.25s" in said[0]
+    assert "unmeasured: delivery,queue,retrieval,tool" in said[0]
