@@ -764,6 +764,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   next run: whether her substrate energy truly sits below 15, the anomaly
   detector's sustained threat of 0.98 to 1.00, and managed memory rising 2
   to 7 GB an hour in stretches.
+  Also that day: "MLX not found. Hardware binding impossible" at error on
+  every boot, because the check that mlx was imported ran before the check
+  that in-process Metal was off on purpose (790846ec0); and her sleep
+  cycle's integrity audit skipped on every cycle, because the dreamer was
+  built before boot registered her belief graph and kept None (55b067f05).
   2026-09-30, evening. The next by count of the same class: StabilityGuardian
   warned "DEGRADED" and recorded a degraded event on every check interval for
   as long as one check stayed unhealthy, 249 times for a slow tick rate and
