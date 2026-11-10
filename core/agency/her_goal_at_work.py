@@ -229,6 +229,7 @@ def ensure_workspace(record: GoalRecord) -> Path:
     """Her worktree for the goal, made from the source she runs on when it does not exist yet."""
     path = record.workspace
     if (path / ".git").exists():
+        _bring_it_up_to_the_source(record)
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     root = source_root()
@@ -239,6 +240,39 @@ def ensure_workspace(record: GoalRecord) -> Path:
     record.base = base
     logger.info("🛠️ her workspace for '%s': %s on %s from %s", record.goal[:60], path, branch_of(record.slug), base[:9])
     return path
+
+
+def _bring_it_up_to_the_source(record: GoalRecord) -> None:
+    """Her workspace moved to the commit her source is at, carrying her uncommitted edits where git can.
+
+    A workspace was made once, from her source as it was then, and her own yes takes a draft only by fast-forward,
+    so a draft made on a base her source had since moved past could never be taken: her workspaces of 9 November sat
+    under a source that moved forty commits on 10 November. A check passed on the old base no longer counts. Where
+    her edits cannot be carried the workspace stays where it is and she is told why.
+    """
+    if record.status != WORKING:
+        return
+    head = source_head()
+    if not head or head == record.base:
+        return
+    ahead = _git("rev-list", "--count", f"{head}..HEAD", cwd=record.workspace).stdout.strip()
+    if ahead not in ("", "0"):
+        # Commits of hers on the branch (a draft Bryan declined): replayed onto the new source, never dropped. A
+        # rebase needs a clean tree, and an autostash would use the stash this checkout shares, so a branch that is
+        # both ahead and dirty stays where it is.
+        moved = _git("rebase", head, cwd=record.workspace, effect="workspace")
+        if moved.returncode != 0:
+            _git("rebase", "--abort", cwd=record.workspace, effect="workspace")
+    else:
+        moved = _git("checkout", "-B", branch_of(record.slug), head, cwd=record.workspace, effect="workspace")
+    if moved.returncode != 0:
+        record.said.append({"words": f"My workspace could not be brought up to my source ({head[:9]}): "
+                                     f"{moved.stderr.strip()[:300]}", "at": time.time()})
+        logger.info("🛠️ her workspace for '%s' stays at %s: %s", record.goal[:60], record.base[:9],
+                    moved.stderr.strip()[:160])
+        return
+    logger.info("🛠️ her workspace for '%s' brought up from %s to %s", record.goal[:60], record.base[:9], head[:9])
+    record.base, record.last_check = head, {}
 
 
 def turns_from(steps: list[dict[str, Any]], room: int) -> list[dict[str, Any]]:
