@@ -1852,3 +1852,13 @@ The day was ended at 16:51:27, 91 minutes after launch, under Bryan's word of th
 and making changes"); autopoiesis now tries only a repair it has a handler for (`91c144472`). The fourth day restarts
 at the commit that carries this amendment, with its predictions unchanged; its first two attempts are reported beside
 it as read.
+
+### Amendment, 9 November 2026, night: the fourth day restarted a third time
+
+The third start opened at 17:04:15 at `7469a9a94`. Her goal pass worked her goals through her own tools and no call
+was refused by her executive. Three faults remained: the adaptive immune system asked autopoiesis for a repair with no
+handler (reduce_load/global) 188 times through `request_repair`, which the fix at `91c144472` did not cover, and her
+depletion rose to 0.61; an open journal entry held eight of her goal calls under the executive's temporal rule; and the
+strange loop's weight save was refused 21 times for writing outside a governed scope. The day was ended at 19:01:11,
+117 minutes after launch, all three were fixed at `3d97a1ff0`, and the fourth day restarts at the commit that carries
+this amendment with its predictions unchanged. Its first three attempts are reported beside it as read.
