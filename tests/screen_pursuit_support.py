@@ -80,7 +80,9 @@ def pursuit_loop_source() -> str:
     siblings = tuple(sorted(here.glob("screen_pursuit_*.py")))
     for module_name, function_name in (
         ("screen_pursuit", "pursue_on_screen"),
-        ("screen_pursuit_observing", "observe_the_screen"),
+        # The observing body; observe_the_screen became a wrapper that keeps the latest reading at handoff
+        # (b76c34b020, 15 October 2026), and a test of the loop asks about the body.
+        ("screen_pursuit_observing", "_observe_the_screen"),
         ("screen_pursuit_blockers", "clear_what_blocks_the_run"),
         ("screen_pursuit_decision", "decide_the_next_move"),
         ("screen_pursuit_acting", "carry_out_the_move"),
