@@ -3886,6 +3886,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in (watching, rebuilding from a page). Moving them is a decision about that
   rule, not a move. The fifth is her voice worker, a long-lived process that
   loads a speech model, whose spawn has to declare the model it loads.
+  The voice worker's loader is synchronous and the gateway starts a
+  model-loading child only through spawn_async, so its lane reservation
+  follows the child; moving it is a change to the voice session's
+  lifecycle (U02), not to one call.
+  The 65 raw browser calls sit in 27 files, most of them `page.evaluate` of
+  a script the module itself defines, in her watching, browsing and
+  rebuilding; the rest are keys, clicks, a fill and navigation. The two
+  accepted owners qualify by taking no caller's script and sending no
+  input. The move is one owner for her page: a read that runs only a script
+  registered by the module that defines it, and governed key, click, type
+  and go-to beside it, with the 27 files calling those. Declaring each file
+  an owner of its own would name a dozen owners where the rule wants one.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
