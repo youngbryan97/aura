@@ -33,7 +33,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.state_ownership import state_root
@@ -749,9 +748,17 @@ class AestheticEngine:
         try:
             # Keep only the most recent entries
             trimmed = self._journal[-_MAX_JOURNAL_ENTRIES:]
-            atomic_write_text(self._journal_path, 
-                json.dumps(trimmed, indent=2, default=str)
-            )
+            # Behind the loop when on it, through the gateway in a scope of its own: stop() is a coroutine, and
+            # lockdep saw this fsync on the event loop as her app shut down (10 November 2026).
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import write_text_behind
+
+            with local_internal_governed_scope("aesthetic_engine.journal", domain="state_mutation",
+                                               receipt_prefix="aesthetic-journal",
+                                               constraints={"artifact": "aura.aesthetic_journal.v1",
+                                                            "operation": "replace"}):
+                write_text_behind(self._journal_path, json.dumps(trimmed, indent=2, default=str),
+                                  source="aesthetic_engine")
             logger.debug("Aesthetic journal saved (%d entries)", len(trimmed))
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('aesthetic_engine', e)
