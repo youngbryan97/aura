@@ -9660,7 +9660,10 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         # and still refuses anything that is not a complete object.
         native = re.search(r"<tool_call>", stripped)
         if native:
-            body = _balanced_json_object(stripped, native.end())
+            from .tool_result_room import past_every_opening_tag
+
+            begins = past_every_opening_tag(stripped, native.end())
+            body = _balanced_json_object(stripped, begins)
             call = None
             why = ""
             if not body:
@@ -9683,7 +9686,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             if call is None:
                 xml_payload, xml_error = _native_xml_tool_payload(
                     stripped,
-                    start=native.end(),
+                    start=begins,
                     tool_definitions=tool_definitions,
                 )
                 if xml_payload is not None:
@@ -12438,6 +12441,11 @@ def _truncate_tool_result(result: Any, *, limit: int = 4000) -> str:
             # Not a failure: a tool result that is not JSON is not JSON, which is what this is deciding.
             parsed = None
         if parsed is not None:
+            from .tool_result_room import cut_the_longest_values
+
+            fitted = cut_the_longest_values(parsed, original_chars=len(text), limit=limit)
+            if fitted is not None:
+                return fitted
             # Re-emit a VALID, explicitly-marked truncation envelope instead
             # of a broken fragment.
             preview = json.dumps(

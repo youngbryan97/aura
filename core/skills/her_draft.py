@@ -7,6 +7,7 @@ she runs on until Bryan takes it. A path outside the workspace, inside its .git,
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import sys
@@ -22,9 +23,24 @@ from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 #: Names a draft may not read or write, whatever directory they are in.
 _SECRET = re.compile(r"(^|/)(\.env[^/]*|.*\.pem|.*\.key|id_rsa[^/]*|id_ed25519[^/]*|\.netrc|credentials[^/]*)$", re.I)
-#: The most lines one read returns, and the most matches one search returns: what fits one tool result
-#: (core/brain/llm/mlx_client.py truncates a result at 4,000 characters).
-READ_LINES, FOUND_LINES = 120, 60
+#: What one read or one search may give back: the room of one tool result, less what the gateway's receipt on it takes
+#: (214 characters measured on 10 November 2026) and as much again for whatever is added to it later. At a fixed 120
+#: lines a read of real source ran to 5,000 to 7,000 characters and came back cut and escaped twice; 80 of one goal's
+#: 161 calls did.
+def _room_for_what_she_reads() -> int:
+    from core.brain.llm.tool_result_room import TOOL_RESULT_CHARS
+
+    return TOOL_RESULT_CHARS - 2 * 214
+
+
+def _what_fits(rows: list[str], fields: dict[str, Any]) -> list[str]:
+    """The first rows that fit, with the result's other fields, in what one read may give back."""
+    room, shown = _room_for_what_she_reads(), []
+    for row in rows:
+        if shown and len(json.dumps({**fields, "text": "\n".join([*shown, row])})) > room:
+            break
+        shown.append(row)
+    return shown
 #: How long one check may take, in seconds: a focused pytest file runs in well under this on her machine; the smoke
 #: suite of 164 tests took 47 s on 8 November 2026.
 CHECK_SECONDS = 300.0
@@ -89,7 +105,8 @@ class ReadSourceInput(BaseModel):
 class ReadSourceSkill(BaseSkill):
     result_schema = THE_SHARED_RESULT
     name = "read_source"
-    description = "Read up to 120 lines of a file in her source, numbered, from a given line."
+    description = ("Read a file in her source, numbered, from a given line: as many lines as one result holds, "
+                   "and the line to read on from.")
     input_model = ReadSourceInput
     effect_scope = "read_only"
     timeout_seconds = 30.0
@@ -102,12 +119,13 @@ class ReadSourceSkill(BaseSkill):
         except (Refused, OSError) as why:
             return {"ok": False, "error": str(why)}
         start = max(1, int(asked.from_line or 1))
-        shown = lines[start - 1:start - 1 + READ_LINES]
-        text = "\n".join(f"{start + offset}: {line}" for offset, line in enumerate(shown))
-        more = len(lines) - (start - 1 + len(shown))
-        return {"ok": True, "path": asked.path, "lines": len(lines), "text": text,
-                "summary": f"{asked.path} has {len(lines)} lines; {more} more after these" if more > 0 else
-                f"{asked.path} has {len(lines)} lines"}
+        numbered = [f"{start + offset}: {line}" for offset, line in enumerate(lines[start - 1:])]
+        summary = f"{asked.path} has {len(lines)} lines; read on from line {len(lines)}"
+        shown = _what_fits(numbered, {"ok": True, "path": asked.path, "lines": len(lines), "summary": summary})
+        after = start + len(shown)
+        return {"ok": True, "path": asked.path, "lines": len(lines), "text": "\n".join(shown),
+                "summary": f"{asked.path} has {len(lines)} lines; read on from line {after}" if after <= len(lines)
+                else f"{asked.path} has {len(lines)} lines, and these are the last"}
 
 
 class FindInSourceInput(BaseModel):
@@ -118,7 +136,8 @@ class FindInSourceInput(BaseModel):
 class FindInSourceSkill(BaseSkill):
     result_schema = THE_SHARED_RESULT
     name = "find_in_source"
-    description = "Find lines in her source matching a regular expression; up to 60, as path:line: text."
+    description = ("Find lines in her source matching a regular expression, as path:line: text: as many as one "
+                   "result holds, and how many there were.")
     input_model = FindInSourceInput
     effect_scope = "read_only"
     timeout_seconds = 60.0
@@ -136,8 +155,11 @@ class FindInSourceSkill(BaseSkill):
         if code not in (0, 1):
             return {"ok": False, "error": out.strip()[:500]}
         found = [line[:200] for line in out.splitlines() if not _SECRET.search(line.split(":", 1)[0])]
-        return {"ok": True, "matches": len(found), "text": "\n".join(found[:FOUND_LINES]),
-                "summary": f"{len(found)} line(s) match" + (f"; the first {FOUND_LINES} shown" if len(found) > FOUND_LINES else "")}
+        summary = f"{len(found)} line(s) match; the first {len(found)} shown"
+        shown = _what_fits(found, {"ok": True, "matches": len(found), "summary": summary})
+        return {"ok": True, "matches": len(found), "text": "\n".join(shown),
+                "summary": f"{len(found)} line(s) match" + (f"; the first {len(shown)} shown" if len(shown) < len(found)
+                                                             else "")}
 
 
 class EditDraftInput(BaseModel):

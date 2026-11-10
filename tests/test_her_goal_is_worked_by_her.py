@@ -160,8 +160,8 @@ def test_the_task_engine_hands_her_own_unplanned_goal_to_her():
 
 
 def test_her_tools_say_their_limits_as_they_are():
-    assert str(her_draft.READ_LINES) in her_draft.ReadSourceSkill.description
-    assert str(her_draft.FOUND_LINES) in her_draft.FindInSourceSkill.description
+    assert "as many lines as one result holds" in her_draft.ReadSourceSkill.description
+    assert "as many as one result holds" in her_draft.FindInSourceSkill.description
     assert her_draft.CheckDraftSkill.timeout_seconds > her_draft.CHECK_SECONDS
 
 
