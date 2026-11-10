@@ -562,8 +562,20 @@ def bind_turn_evidence_custody(
     session_id: str,
     turn_id: str,
 ) -> Iterator[TurnEvidenceCustody]:
-    """Own evidence for exactly one conversation turn and close it on exit."""
+    """Own evidence for exactly one conversation turn and close it on exit.
 
+    Its time is evidence of it too: the turn's receipt is opened here, from the person's message to delivery, and her
+    thinking joins it (core/verify/turn_receipt.py, R11).
+    """
+    from core.verify.turn_receipt import recording_turn
+
+    with recording_turn(str(turn_id), phases_available=()):
+        with _bound_custody(session_id=session_id, turn_id=turn_id) as custody:
+            yield custody
+
+
+@contextmanager
+def _bound_custody(*, session_id: str, turn_id: str) -> Iterator[TurnEvidenceCustody]:
     custody = TurnEvidenceCustody(session_id=session_id, turn_id=turn_id)
     session_token = conversation_session_var.set(custody.session_id)
     turn_token = conversation_turn_var.set(custody.turn_id)

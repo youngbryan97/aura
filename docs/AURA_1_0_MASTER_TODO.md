@@ -1495,6 +1495,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   route curates does not carry the receipts. Each turn now says its split in
   her log as it closes (5bfaa8ce8), so the five are read off a live turn
   from her own log; the next turn after a restart is the first to say it.
+  Later the same day: the receipt timed her thinking, not the person's wait.
+  It opened when `think` did, so her web check before it and the gates and
+  shaping after it were outside the split. It now opens where the chat
+  route binds the turn's evidence (`bind_turn_evidence_custody`), `think`
+  joins it, and `delivery`, declared beside the five and never recorded, is
+  the time from her answer to the route's return. Work that ends after the
+  turn closes adds nothing to it. The one stretch still before the receipt
+  is the transcript entry the route writes first; `Aura.Chat.TurnMs` times
+  from before it. `tests/test_a_turn_says_where_its_time_went.py`.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source

@@ -72,6 +72,8 @@ class TurnReceipt:
     model_generation: bool = False
     started_at: float = field(default_factory=lambda: time.time())
     finished_at: float | None = None
+    #: When the thinking that joined this turn returned its answer; what follows is delivery.
+    answered_at: float | None = None
     notes: list[str] = field(default_factory=list)
     #: Where the turn's time went, in seconds, each from the thing that
     #: measured it: queue (admission to the first worker activity), retrieval
@@ -145,8 +147,24 @@ def recording_turn(
     *,
     phases_available: Sequence[str],
 ) -> Iterator[TurnReceipt]:
-    """Record what one turn does, for the duration of the turn."""
+    """Record what one turn does, for the duration of the turn.
 
+    A turn already being recorded is THE turn, and a recording opened inside it joins it, as her thinking joins the
+    turn the chat route opened when the person's message arrived: LIVE 10 November 2026 the receipt began when her
+    thinking did, so what the route read before it (her web check among it) and everything after it to delivery was
+    outside the split, and the person's wait was longer than the turn the receipt timed. The joined scope's end is when
+    the answer existed; the owner's end, the turn's, and the stretch between them is delivery.
+    """
+
+    existing = _CURRENT.get()
+    if existing is not None and existing.finished_at is None:
+        if not existing.phases_available:
+            existing.phases_available = tuple(str(p) for p in phases_available)
+        try:
+            yield existing
+        finally:
+            existing.answered_at = time.time()
+        return
     receipt = TurnReceipt(
         turn_id=str(turn_id),
         phases_available=tuple(str(p) for p in phases_available),
@@ -156,6 +174,9 @@ def recording_turn(
         yield receipt
     finally:
         receipt.finished_at = time.time()
+        if receipt.answered_at is not None and "delivery" not in receipt.latency_s:
+            receipt.latency_s["delivery"] = max(0.0, receipt.finished_at - receipt.answered_at)
+            receipt.latency_samples["delivery"] = 1
         try:
             _CURRENT.reset(token)
         except ValueError:
@@ -223,8 +244,8 @@ def record_latency(component: str, seconds: float) -> None:
     if not (span >= 0.0) or span != span:
         return
     receipt = _CURRENT.get()
-    if receipt is None:
-        return
+    if receipt is None or receipt.finished_at is not None:
+        return  # work that outlives its turn is not the turn's time
     receipt.latency_s[name] = receipt.latency_s.get(name, 0.0) + span
     receipt.latency_samples[name] = receipt.latency_samples.get(name, 0) + 1
 

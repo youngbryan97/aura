@@ -184,7 +184,32 @@ def test_her_desktop_turn_records_its_retrieval_and_not_a_tool_twice(monkeypatch
     monkeypatch.setattr(world, "her_check_reads", checked)
     monkeypatch.setattr(evidence_route._chat_memory_state, "_recent_completed_conversation_exchanges", nothing_earlier)
     monkeypatch.setattr(evidence_route, "_should_collect_desktop_required_search_evidence", lambda _m: (False, "", None))
-    with recording_turn("t-desktop", phases_available=()) as receipt:
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-desktop"):  # as her chat route binds a turn
+        receipt = current_receipt()
         asyncio.run(evidence_route._what_the_world_says_for_the_turn("Is that true?", "Is that true?", session_id="s"))
     assert receipt.latency_s["tool"] == pytest.approx(0.03)
     assert 0.07 <= receipt.latency_s["retrieval"] < 0.5
+
+
+def test_her_thinking_joins_the_turn_from_message_to_delivery() -> None:
+    """LIVE 2026-11-10: the receipt began when her thinking did; her web check before it and the gates and shaping after
+    it were outside the turn it timed. One receipt now, and what follows her answer is delivery."""
+    import time
+
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-whole"):
+        outer = current_receipt()
+        record_latency("retrieval", 0.02)
+        with recording_turn("think-1", phases_available=("Retrieval", "Response")) as joined:
+            record_latency("prefill", 0.01)
+            record_latency("decode", 0.03)
+        time.sleep(0.05)
+    assert joined is outer and outer.turn_id == "t-whole"
+    assert outer.phases_available == ("Retrieval", "Response")
+    assert set(outer.latency_s) == {"retrieval", "prefill", "decode", "delivery"}
+    assert 0.05 <= outer.latency_s["delivery"] < 0.5
+    record_latency("decode", 9.0)  # after the turn: not its time
+    assert outer.latency_s["decode"] == pytest.approx(0.03)
