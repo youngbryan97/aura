@@ -895,13 +895,22 @@ class StrangeLoop:
                 "current_state": self._current_state.tolist(),
                 "previous_state": self._previous_state.tolist(),
             }
+            from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            get_file_write_gateway().write_text(
-                path,
-                json.dumps(payload),
-                source="strange_loop.persist_weights",
-            )
+            # An internal maintenance write, so it says so: outside a governed
+            # scope the gateway refuses it, 21 times on day run 4 (9 November 2026).
+            with local_internal_governed_scope(
+                "strange_loop.persist_weights",
+                domain="state_mutation",
+                receipt_prefix="strange-loop-weights",
+                constraints={"artifact": "aura.strange_loop.rls_weights.v1", "operation": "replace"},
+            ):
+                get_file_write_gateway().write_text(
+                    path,
+                    json.dumps(payload),
+                    source="strange_loop.persist_weights",
+                )
             logger.debug(
                 "StrangeLoop: persisted weights at tick %d", self._tick_count,
             )

@@ -556,6 +556,15 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         tool_name = str(intent.payload.get("tool_name", "") or "").strip()
         if tool_name == "process_supervisor":
             return {"timeout_s": 45, "read_only": True}
+        # Her goal tools work a goal she set herself, in a workspace of her own:
+        # unfinished work being done, which is what this rule asks of her, not
+        # more work started. LIVE, day run 4 (9 November 2026): her journal's
+        # open entry held every one of them ("temporal_obligation_active: You
+        # are writing Aura's internal journal"), eight in an hour.
+        from core.executive.standing_authority import OWN_GOAL_TOOLS
+
+        if tool_name in OWN_GOAL_TOOLS:
+            return {"timeout_s": 600}
         if tool_name == "subconscious_sandbox_probe":
             args = intent.payload.get("args", {}) or {}
             valid, _reason = validate_idle_sandbox_probe_arguments(args)

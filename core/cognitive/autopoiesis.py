@@ -268,6 +268,8 @@ class AutopoiesisEngine:
         self._repair_handlers: dict[
             RepairStrategy, dict[str, Callable[[], Any]]
         ] = {s: {} for s in RepairStrategy}
+        # Repairs asked for that no handler can run, each recorded once.
+        self._repairs_with_no_handler: set[tuple[str, str]] = set()
 
         # -- Energy / metabolism --
         self._energy: float = self._ENERGY_MAX
@@ -817,6 +819,34 @@ class AutopoiesisEngine:
         """
         health_before = self.get_component_health(component)
         t0 = time.time()
+
+        # -- Nothing to run --
+        # A repair nobody registered a handler for is not attempted and not put
+        # to the Will. It is a gap in what can be repaired, recorded once per
+        # (strategy, component); counted as a fresh failure each time, it was a
+        # loss her resilience took every few seconds. LIVE, day run 4 (9 November
+        # 2026): the adaptive immune system asked for reduce_load/global through
+        # request_repair 188 times in 37 minutes, and her depletion rose to 0.61.
+        if self._repair_handlers.get(strategy, {}).get(component) is None:
+            gap = (strategy.value, component)
+            if gap not in self._repairs_with_no_handler:
+                self._repairs_with_no_handler.add(gap)
+                _record_autopoiesis_degradation(
+                    RuntimeError(f"No repair handler registered for {strategy.value}/{component}"),
+                    action="recorded once: no handler is registered for this repair, so it is not attempted",
+                    severity="warning",
+                    extra={"component": component, "strategy": strategy.value},
+                )
+            return RepairResult(
+                component=component,
+                strategy=strategy,
+                success=False,
+                health_before=health_before,
+                health_after=health_before,
+                governance_approved=False,
+                error_message=f"No repair handler registered for {strategy.value}/{component}",
+                duration_ms=0.0,
+            )
 
         # -- Governance gate --
         approved = self._request_governance_approval(component, strategy)
