@@ -67,15 +67,17 @@ class PlatformRoot:
 
     def _connect_hardware(self):
         """Establish the direct link to the Metal device."""
-        if mx is None:
-            logger.error("❌ [PLATFORM ROOT] MLX not found. Hardware binding impossible.")
-            return
+        # The deliberate skip first: with in-process Metal off, mlx is not imported on purpose, and asked the other
+        # way round this said "MLX not found" at error on every boot (day run 4, 10 November 2026).
         if not self._metal_allowed:
             logger.info(
                 "🛡️ [PLATFORM ROOT] Skipping Metal hardware binding (%s).",
                 self._metal_reason,
             )
             self.device_active = False
+            return
+        if mx is None:
+            logger.error("❌ [PLATFORM ROOT] MLX not found. Hardware binding impossible.")
             return
 
         try:
