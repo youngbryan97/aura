@@ -68,7 +68,12 @@ def _manifest(identity: dict[str, Any], model_path: Path) -> None:
         "tag": str(value.get("tag") or ""),
         "fused_at": value.get("fused_at"),
     }
-    if identity != expected or active != model_path:
+    # What names the resident model, not the file's bytes. The model is bound by its own config and weights index
+    # above; the manifest also carries description a governed install adds to (artifact_descriptor, evaluation,
+    # serving_profile), and on 23 October 2026 one did, so a whole-file hash refused evidence measured on the same
+    # model with the same tag and fuse time.
+    names_the_model = ("path", "active_model_path", "schema_version", "base_model", "tag", "fused_at")
+    if any(identity.get(key) != expected[key] for key in names_the_model) or active != model_path:
         raise RuntimeError("induced decode resident manifest mismatch")
 
 

@@ -7,6 +7,9 @@ momentum. The mark is kept on the intention, so the phase writes `cognition.pend
 Its contract did not declare that. On her day runs of 1 and 3 November the write was charged as a violation on every
 turn with an initiative open, once every five minutes, and the failures pinned her depletion at 1.00 within two hours.
 Her list held at 7 on both days, so no trim was involved: the saved states differ only in `anticipated`.
+
+Operationally: this measures whether the phase named ConsciousnessPhase declares the state field it writes, so the
+contract check does not charge that write as a violation.
 """
 
 from __future__ import annotations

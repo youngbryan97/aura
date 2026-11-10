@@ -198,8 +198,29 @@ def _induced_neural_procedure_certificate_holds() -> bool:
     )
 
 
+def _the_resident_manifest_still_names_the_model(recorded: dict) -> bool:
+    """Whether the resident manifest on disk names the model the evidence was measured on.
+
+    The fields that name it, not the file's bytes: a governed install adds description to the manifest
+    (artifact_descriptor, evaluation, serving_profile), and on 23 October 2026 one did, so a whole-file hash refused
+    evidence measured on the same model with the same tag and fuse time. The model itself is bound by its config and
+    weights index in the verifier.
+    """
+    import json
+
+    path = pathlib.Path(str(recorded["path"]))
+    value = json.loads(path.read_text(encoding="utf-8"))
+    now = {
+        "active_model_path": str(pathlib.Path(str(value["active_model_path"])).expanduser().resolve(strict=True)),
+        "schema_version": value["schema_version"],
+        "base_model": str(value.get("base_model") or ""),
+        "tag": str(value.get("tag") or ""),
+        "fused_at": value.get("fused_at"),
+    }
+    return all(recorded.get(key) == expected for key, expected in now.items())
+
+
 def _induced_neural_procedure_decode_certificate_holds() -> bool:
-    import hashlib
     import json
 
     bundle = _canary_artifact_bundle(
@@ -211,8 +232,7 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
     result, verification, current_hashes, verifier_sha, artifact_root = bundle
     source_hashes = result["source_sha256s"]
     try:
-        manifest_path = pathlib.Path(result["resident_manifest_identity"]["path"])
-        manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        still_the_model = _the_resident_manifest_still_names_the_model(result["resident_manifest_identity"])
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         logger.debug("Induced procedure certificate unreadable, claim unverified: %s", exc)
         return False
@@ -257,7 +277,7 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
         and result.get("verifier_trace_available_to_generation") is False
         and result.get("claim_boundary") == expected_boundary
         and current_hashes == source_hashes
-        and manifest_sha == result["resident_manifest_identity"]["sha256"]
+        and still_the_model
         and verification.get("schema")
         == "aura.rlc.induced_neural_procedure_decode_verification.v1"
         and verification.get("verified") is True
