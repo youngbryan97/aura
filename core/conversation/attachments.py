@@ -130,8 +130,12 @@ def _converted_by_textutil(data: bytes, suffix: str) -> str:
     with tempfile.TemporaryDirectory() as folder:
         source = Path(folder) / f"attached{suffix}"
         source.write_bytes(data)
-        done = subprocess.run(["/usr/bin/textutil", "-convert", "txt", "-stdout", str(source)],
-                              capture_output=True, timeout=120, check=False)
+        from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+        # Read-only: the converter writes to its output and nowhere else.
+        done = get_subprocess_gateway().run(["/usr/bin/textutil", "-convert", "txt", "-stdout", str(source)],
+                                            timeout=120, read_only=True, text=False, source="attachments.textutil",
+                                            accelerator_capability="none")
     return done.stdout.decode("utf-8", errors="replace") if done.returncode == 0 else ""
 
 

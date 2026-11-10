@@ -404,8 +404,9 @@ def _run_a_gate(argv: list[str], *, cwd: Path, env: dict[str, str]) -> tuple[boo
     with local_internal_governed_scope("her_goal_at_work.gate", domain="tool_execution",
                                        receipt_prefix="her-goal-gate",
                                        constraints={"artifact": "aura.her_goal_gate.v1", "operation": "check"}):
+        # The offline suite and the tree's gates load no model.
         done = get_subprocess_gateway().run(argv, cwd=cwd, env=env, timeout=GATE_SECONDS, capture_output=True,
-                                            source="her_goal_at_work.gate")
+                                            source="her_goal_at_work.gate", accelerator_capability="none")
     out = (done.stdout or "") + (done.stderr or "")
     return done.returncode == 0, out.strip()[-1500:]
 

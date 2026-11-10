@@ -633,7 +633,11 @@ def _the_tab_it_opened_in(bundle: str) -> dict[str, str] | None:
     if not script:
         return None
     try:
-        said = subprocess.run(["/usr/bin/osascript", "-e", script], capture_output=True, text=True, timeout=5.0)
+        from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+        # Read-only: the script asks the browser for its front tab and changes nothing.
+        said = get_subprocess_gateway().run(["/usr/bin/osascript", "-e", script], timeout=5.0, read_only=True,
+                                            source="watching_the_screen.front_tab", accelerator_capability="none")
     except (OSError, subprocess.SubprocessError) as why:
         logger.info("which tab it opened in could not be read: %s", why)
         return None

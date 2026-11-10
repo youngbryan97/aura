@@ -86,8 +86,12 @@ def _with_import(source: str, statement: str) -> str:
 
 def _ruff_fixed(source: str, path: str, repo: Path) -> str:
     try:
-        done = subprocess.run([sys.executable, "-m", "ruff", "check", "--fix-only", "--quiet", "--stdin-filename", path, "-"],
-                              input=source, capture_output=True, text=True, cwd=repo, timeout=60)
+        from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+        # Read-only: the source goes in on stdin and the fixed source comes out; no file is touched.
+        done = get_subprocess_gateway().run(
+            [sys.executable, "-m", "ruff", "check", "--fix-only", "--quiet", "--stdin-filename", path, "-"],
+            input=source, cwd=repo, timeout=60, read_only=True, source="proposals_without_a_model.ruff", accelerator_capability="none")
     except (OSError, subprocess.TimeoutExpired):
         return source
     return done.stdout if done.returncode == 0 and done.stdout else source

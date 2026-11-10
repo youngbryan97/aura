@@ -561,8 +561,12 @@ def _lines_read(program: str, drawn: Any) -> list[tuple[float, str, tuple[float,
     try:
         # One thread: left to itself the program spreads each reading over every core, and beside a game played on the
         # same cores a reading took 2.27 seconds instead of 0.21 (measured 2026-10-11, five readings each way).
-        done = subprocess.run([program, "stdin", "stdout", "--psm", "11", "tsv"], input=png.tobytes(), capture_output=True,
-                              timeout=_TESSERACT_TIMEOUT_S, check=False, env={**os.environ, "OMP_THREAD_LIMIT": "1"})
+        from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+        done = get_subprocess_gateway().run([program, "stdin", "stdout", "--psm", "11", "tsv"], input=png.tobytes(),
+                                            timeout=_TESSERACT_TIMEOUT_S, env={**os.environ, "OMP_THREAD_LIMIT": "1"},
+                                            read_only=True, text=False, source="what_the_pixels_show.tesseract",
+                                            accelerator_capability="none")
     except (OSError, subprocess.SubprocessError) as why:
         logger.debug("text recognition did not run: %s", why)
         return []

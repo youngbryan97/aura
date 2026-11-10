@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import subprocess
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
@@ -36,6 +37,10 @@ __all__ = ["Built", "FRAME_API", "SoFar", "WrittenPart", "so_far_in", "write_it"
 
 #: Tries at one part before the feature is left out.
 TRIES = 3
+
+#: The work one syntax check of a part may take, in seconds of its CPU, the bound the subprocess gateway keeps:
+#: node reads a part of a few thousand characters in well under one. These checks had no bound before.
+_A_SYNTAX_CHECK_S = 30.0
 
 #: Tries at the work area, which everything else is built on.
 WORK_AREA_TRIES = 5
@@ -202,15 +207,16 @@ async def _to_its_end(ask: Asker, code: str) -> str:
 
 async def _cut_off(code: str) -> bool:
     """Whether ``code`` stops before its end: compiled alone, with nothing around it to close what it left open, it runs out mid-way."""
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
     try:
-        process = await asyncio.create_subprocess_exec(
-            "node", "-e", "try { new (require('vm').Script)(require('fs').readFileSync(0, 'utf8')); } catch (e) { process.stdout.write(String(e.message)); }",
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
-    except OSError:
+        done = await get_subprocess_gateway().run_async(
+            ["node", "-e", "try { new (require('vm').Script)(require('fs').readFileSync(0, 'utf8')); } catch (e) { process.stdout.write(String(e.message)); }"],
+            input=code, timeout=_A_SYNTAX_CHECK_S, read_only=True, source="writing_it_part_by_part.cut_off", accelerator_capability="none")
+    except (OSError, subprocess.SubprocessError):
         return False
-    said, _err = await process.communicate(code.encode())
-    return "end of input" in said.decode("utf-8", "ignore").lower() or "unterminated" in said.decode("utf-8", "ignore").lower()
+    said = str(done.stdout or "").lower()
+    return "end of input" in said or "unterminated" in said
 
 
 def _past_the_overlap(code: str, more: str) -> str:
@@ -225,16 +231,17 @@ def _past_the_overlap(code: str, more: str) -> str:
 
 async def _does_not_parse(code: str) -> str:
     """What the browser would say of code that does not parse, checked before it is tried."""
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
     try:
-        process = await asyncio.create_subprocess_exec(
-            "node", "--check", "-", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
-    except OSError:
+        done = await get_subprocess_gateway().run_async(
+            ["node", "--check", "-"], input=f"(function (app) {{\n{code}\n}});", timeout=_A_SYNTAX_CHECK_S,
+            read_only=True, source="writing_it_part_by_part.does_not_parse", accelerator_capability="none")
+    except (OSError, subprocess.SubprocessError):
         return ""
-    _out, err = await process.communicate(f"(function (app) {{\n{code}\n}});".encode())
-    if process.returncode == 0:
+    if done.returncode == 0:
         return ""
-    lines = [line for line in err.decode("utf-8", "ignore").splitlines() if "Error" in line]
+    lines = [line for line in str(done.stderr or "").splitlines() if "Error" in line]
     return (lines[0] if lines else "it does not parse")[:300]
 
 

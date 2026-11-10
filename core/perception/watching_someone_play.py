@@ -287,8 +287,12 @@ def read_a_recording(path: str, *, per_second: float = 10.0, wide: int = 480, mo
     ``most_s`` seconds, by ffmpeg."""
     import subprocess
 
-    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
-                            "-of", "csv=p=0", path], capture_output=True, text=True, timeout=30, check=False)
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    probe = get_subprocess_gateway().run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                                          "stream=width,height", "-of", "csv=p=0", path],
+                                         timeout=30, read_only=True, source="watching_someone_play.ffprobe",
+                                         accelerator_capability="none")
     width, height = (int(v) for v in probe.stdout.strip().split(",")[:2])
     tall = max(2, int(round(height * wide / width / 2)) * 2)
     process = subprocess.Popen(["ffmpeg", "-v", "error", "-t", str(most_s), "-i", path, "-vf",

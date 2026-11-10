@@ -3849,6 +3849,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   which count against the total until raw debt falls by more. Each move
   changes a live path, and a gateway that refuses a live call is how day run 4
   lost three of its starts, so each goes with a test of the path it serves.
+  Same day, the read-only seven of the 19 subprocess calls moved onto the
+  subprocess gateway with a source label each: the document converter for
+  attachments, text recognition on her screen readings, ruff on a proposal's
+  source, ffprobe on a recording, the script asking a browser for its front
+  tab, and the two `node` syntax checks of a part she writes (which had no
+  bound at all). Twelve remain, each an effect: opening apps, closing a tab,
+  Swift builds and codesign, C under sanitizers, git and pytest in her goal
+  work, ffmpeg's stream and the voice worker.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
