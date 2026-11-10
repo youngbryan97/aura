@@ -28,6 +28,10 @@ the shared state, which is where the coupling being measured actually lives.
 
 from __future__ import annotations
 
+from .driver_parts import (  # noqa: F401  (re-exported: they were defined here)
+    _build_retriever,
+    _longest_phase_budget,
+)
 from .driver_host import _HeldHost
 import asyncio
 import copy
@@ -1776,20 +1780,6 @@ def release_declared_host(runtime: Any) -> None:
     release_the_entropy(runtime)
 
 
-def _longest_phase_budget(runtime: SubjectRuntime) -> float:
-    """The longest a phase may run before the harness abandons it."""
-    budget = PHASE_TIMEOUT
-    if getattr(runtime, "whole", False):
-        kernel = getattr(runtime, "kernel", None)
-        for phase in getattr(kernel, "_phases", []) or []:
-            for priority in (False, True):
-                try:
-                    budget = max(budget, float(kernel._phase_timeout_seconds(type(phase).__name__, priority=priority)))
-                except (AttributeError, TypeError, ValueError):
-                    continue
-    return budget
-
-
 async def calibrate_clock(
     runtime: SubjectRuntime, conditions: Sequence[Condition], *, turns: int = 3
 ) -> dict[str, float]:
@@ -1968,39 +1958,3 @@ async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dic
     return summary
 
 
-def _build_retriever(runtime: SubjectRuntime) -> Any:
-    """The real retriever, over adapters that read her own state.
-
-    The stores are her working memory, her retained long-term list and her
-    world facts, which is where the live stores get their contents from. What
-    is real here is the planning, the ontogenetic breadth decision and the
-    merge; what is scaffolding is the adapters.
-    """
-    try:
-        from core.memory.intentional_retrieval import IntentionalRetriever, MemoryStoreType
-    except ImportError:  # pragma: no cover - the retriever is optional to the rest
-        # not a failure: the comment says the retriever is optional, and
-        # the caller plans without one.
-        return None
-
-    retriever = IntentionalRetriever()
-
-    def working(query: str, limit: int) -> list[dict[str, Any]]:
-        del query
-        rows = runtime.state.cognition.working_memory[-limit:]
-        return [{"content": str(row)[:240], "score": 0.5} for row in rows]
-
-    def semantic(query: str, limit: int) -> list[dict[str, Any]]:
-        del query
-        rows = runtime.state.cold.long_term_memory[-limit:]
-        return [{"content": str(row)[:240], "score": 0.4} for row in rows]
-
-    def facts(query: str, limit: int) -> list[dict[str, Any]]:
-        del query
-        rows = list(runtime.state.world.facts.items())[-limit:]
-        return [{"content": f"{k}={v}"[:240], "score": 0.6} for k, v in rows]
-
-    retriever.register_store(MemoryStoreType.EPISODIC, working)
-    retriever.register_store(MemoryStoreType.SEMANTIC, semantic)
-    retriever.register_store(MemoryStoreType.RECEIPT, facts)
-    return retriever

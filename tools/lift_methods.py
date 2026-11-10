@@ -39,9 +39,11 @@ def module_bound_names(tree):
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             bound.add(n.name)
         elif isinstance(n, ast.Assign):
+            # Every name a target binds, unpacking included: `CARES_AT, FEELS_OVER = 0.3, 10` binds both, and a lift
+            # that read only plain names left four of what_moves_her's constants undefined in the moved code
+            # (10 November 2026).
             for t in n.targets:
-                if isinstance(t, ast.Name):
-                    bound.add(t.id)
+                bound.update(x.id for x in ast.walk(t) if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Store))
         elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
             bound.add(n.target.id)
         elif isinstance(n, (ast.Import, ast.ImportFrom)):
