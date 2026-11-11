@@ -760,6 +760,10 @@ class StreamingTts:
             if not release_deferred_to_native_completion:
                 self._finish_synthesis()
 
+    def making_speech(self) -> int:
+        """Clauses her voice is making now. Her thought holds while it is (core/brain/llm/speech_hold.py)."""
+        return self._active_syntheses
+
     def _forms_as_it_speaks(self) -> Any:
         """Her engine, when it can send a clause in pieces as it forms and nothing would need the whole clause."""
         engine = self._state.pocket

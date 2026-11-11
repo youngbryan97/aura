@@ -1284,7 +1284,7 @@ class DuplexVoiceSession:
         # back-pressure intact: the synthesiser's rate paces the release, so a
         # fast model can never build a backlog of audio nobody has heard yet.
         bridge: asyncio.Queue[str] = asyncio.Queue(maxsize=4)
-        turn.channel.heard_backlog(bridge.qsize)  # her thought waits while a clause of hers waits here (speech_hold.py)
+        turn.channel.heard_backlog(lambda: bridge.qsize() + int(getattr(self._tts, "making_speech", lambda: 0)()))
 
         async def _hand_to_synthesis(clause: str) -> None:
             await bridge.put(clause)

@@ -1,10 +1,12 @@
-"""Her thought waits for her voice: while a sentence she has said is still waiting to be spoken, her model holds.
+"""Her thought waits for her voice: while her voice is making speech or has her next sentence in hand, her model holds.
 
 Her reply's text comes about four times faster than she can speak it (15 tokens a second against about 3.6), and her
 voice model runs on the GPU her cortex is decoding on. LIVE 11 November 2026, while her cortex wrote a long reply her
 voice made speech at 0.42 to 0.5 of real time and fell silent mid-reply for up to 15 s; with her GPU to itself it ran
-at 1.06 to 1.64. So her voice says when it already has her next sentence in hand, and her model waits between tokens
-until it has taken it.
+at 1.06 to 1.64. So while her voice is making speech, or has her next sentence in hand, her model waits between
+tokens; when her voice runs out of text it goes on. Her voice makes a sentence faster than it plays, so what it has
+made covers her model writing the next one, and the two take turns on the GPU instead of sharing it. (Holding only
+while a sentence waited, her model wrote during her voice's work, and her voice still ran at 0.72 to 1.15.)
 
 The signal is one number in shared memory, "hold until" in seconds since the epoch: her voice's side writes it, her
 worker reads it between tokens. It lapses by itself if her voice's side stops writing it, and a single hold is never

@@ -122,3 +122,35 @@ def test_her_worker_waits_where_it_sends_her_sentences(monkeypatch):
     monkeypatch.setattr(speech_hold, "wait_for_her_voice", lambda job: asked.append(job.get("speech_hold")) or 0.0)
     reply_previews.ready_reply_preview({"speech_hold": "h"}, "Hello. More", thinking=False, attempt=0)
     assert asked == ["h"]
+
+
+@pytest.mark.asyncio
+async def test_her_voice_says_it_is_making_speech_for_exactly_as_long_as_it_is(monkeypatch):
+    """Her thought holds while her voice works, not only while a sentence waits: holding only then, her model wrote
+    during her voice's work and her voice ran at 0.72 to 1.15 of real time (11 November 2026)."""
+    import numpy as np
+
+    from core.voice.duplex.config import TtsConfig
+    from core.voice.duplex.prosody import ProsodySpec
+    from core.voice.duplex.tts_stream import CancellationToken, StreamingTts
+
+    tts = StreamingTts(TtsConfig(treatment="clean"))
+    seen = []
+
+    def synthesize_pieces(text, spec, deliver, stopped=None):
+        seen.append(tts.making_speech())
+        deliver(np.ones(480, np.float32), 24000, False)
+
+    tts._state.pocket = type("Voice", (), {"name": "voxcpm2", "streams": True,
+                                          "synthesize_pieces": staticmethod(synthesize_pieces)})()
+    tts._state.loaded = True
+    tts._accepting_synthesis = True
+    monkeypatch.setattr(tts, "ensure_loaded", lambda: asyncio.sleep(0, result=True))
+    try:
+        assert tts.making_speech() == 0
+        results = [r async for r in tts.synthesize_as_it_forms("A clause.", ProsodySpec(voice="aura_kiwi"),
+                                                               CancellationToken())]
+        assert seen == [1] and len(results) == 1
+        assert tts.making_speech() == 0
+    finally:
+        tts.shutdown()
