@@ -3415,6 +3415,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   not asking how it is doing — 1573a64f0.
 - [ ] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
+  10 November, 23:53, her app launched from Aura.app, Bryan's yes to the
+  microphone: "Hey Aura, what is two plus two?" spoken by `say` through the
+  laptop's speakers into its own microphone. At volume 45 it crossed her
+  voice gate and fell under her -35 dB utterance gate, and her log said
+  nothing (it says so now). At 70: "Hey, Aura, what is 2 plus 2?" (-30.4
+  dB) transcribed 2.8 s after the words ended, wake word, the command
+  taken, and "4" spoken through afplay. From the end of the words to her
+  voice, 46 s: recognition 2.8, wake and command 1.9, the chat route's
+  preparation 5.8 (it had the sum in 0.4 ms), her ear's one-token pass on
+  the cortex about 4, queue 6.5, prefill 22.9 for a 12,361-character
+  prompt with swap at 10.6 of 12 GB, decode 0.2. Startup, hearing,
+  turn-taking and speech hold live. Interruption, device changes and
+  recovery are not yet exercised, and 46 s for "4" is the item's failure.
 - [ ] U03 Vision/camera: permission, detailed perception, freshness, source
   attribution, and graceful device failure without invented observations.
   PARTIAL 2026-09-07. Graceful device failure holds: asked whether she could

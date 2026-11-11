@@ -550,26 +550,21 @@ class SovereignVoiceEngine:
                 # Use raw substrate activations for high-frequency bypass
                 x = substrate.x
                 v = substrate.v
-                
                 # Biometric Mapping Logic:
                 # - High Arousal (x[1]) -> Higher speed, slightly higher pitch
                 # - Low Valence (x[0]) -> Lower pitch (sadness/seriousness)
                 # - High Volatility (v) -> Voice instability / trembling
-                
                 arousal = float((x[1] + 1.0) / 2.0)  # 0 to 1
                 valence = float(x[0])               # -1 to 1
                 volatility = float(np.mean(np.abs(v)) * 10.0)
-                
                 prosody["speed"] *= (1.0 + (arousal - 0.5) * 0.4)  # Boost speed by up to 20%
                 prosody["pitch"] = 1.0 + (valence * 0.1) + (arousal * 0.05)
                 prosody["instability"] = min(1.0, volatility * 2.0)
-                
                 # Special Case: Microtubule Coherence (Focus)
                 if hasattr(substrate, 'microtubule_coherence'):
                     coherence = float(substrate.microtubule_coherence)
                     if coherence < 0.5:
                         prosody["instability"] = max(prosody["instability"], 0.5)
-                
             except (RuntimeError, AttributeError, TypeError) as e:
                 record_degradation('voice_engine', e)
                 capture_and_log(e, {'module': __name__})
@@ -1841,6 +1836,7 @@ class SovereignVoiceEngine:
         accumulated = b""
         last_voice_time = time.time()
         is_speaking = False
+        voiced = False  # whether anything in `accumulated` crossed the voice gate
 
         logger.info("🧵 STT worker thread started")
 
@@ -1876,6 +1872,7 @@ class SovereignVoiceEngine:
 
                 if rms > current_silence_threshold:
                     last_voice_time = time.time()
+                    voiced = True
                     if not is_speaking:
                         is_speaking = True
                         if self._on_vad_change:
@@ -1913,8 +1910,8 @@ class SovereignVoiceEngine:
                 if silence_detected or max_length_hit:
                     audio_seconds = len(accumulated) / (SAMPLE_RATE * 2)
                     if audio_seconds > MIN_AUDIO_LENGTH:
-                        self._process_transcript(accumulated)
-                    accumulated = b""
+                        self._process_transcript(accumulated, voiced=voiced)
+                    accumulated, voiced = b"", False
                     # Reset last_voice_time to prevent immediate re-trigger
                     last_voice_time = time.time()
 
@@ -1925,13 +1922,13 @@ class SovereignVoiceEngine:
                     if elapsed > SILENCE_TIMEOUT:
                         audio_seconds = len(accumulated) / (SAMPLE_RATE * 2)
                         if audio_seconds > MIN_AUDIO_LENGTH:
-                            self._process_transcript(accumulated)
-                        accumulated = b""
+                            self._process_transcript(accumulated, voiced=voiced)
+                        accumulated, voiced = b"", False
                 continue
 
         logger.info("🧵 STT worker thread exiting")
 
-    def _process_transcript(self, audio_bytes: bytes):
+    def _process_transcript(self, audio_bytes: bytes, *, voiced: bool = False):
         """Run Whisper on accumulated audio and dispatch the result.
         
         Multi-layer ambient audio filtering:
@@ -1953,7 +1950,9 @@ class SovereignVoiceEngine:
         # TV at room volume from 6ft away is typically -40 to -35 dB.
         min_rms_db = -35.0
         if rms_db < min_rms_db:
-            logger.debug("STT: rejected by volume gate (%.1f dB < %.1f dB threshold)", rms_db, min_rms_db)
+            # Speech the voice gate heard and this one drops is a person not answered (LIVE 2026-11-10: no line at all).
+            (logger.info if voiced else logger.debug)("🎙️ STT: heard %.1fs %s at %.1f dB, under the %.1f dB gate; "
+                                                      "not transcribed", audio_seconds, "of speech" if voiced else "of audio", rms_db, min_rms_db)
             return
 
         try:
