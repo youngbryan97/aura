@@ -32,7 +32,7 @@ _NEWEST_FIVE = [
 ]
 
 
-def _loop(monkeypatch, tmp_path, *, check, replies):
+def _loop(monkeypatch, tmp_path, *, check, replies, deferred_reads=()):
     """Her loop with a capability engine that answers ``check`` and reads each message from ``_NEWEST_FIVE``."""
     from core.autonomy.autonomous_initiative_loop import AutonomousInitiativeLoop
     from core.skills import her_replies_to_mail
@@ -47,6 +47,8 @@ def _loop(monkeypatch, tmp_path, *, check, replies):
             calls.append(dict(payload))
             if payload["mode"] == "check":
                 return check
+            if payload["uid"] in deferred_reads:
+                return {"ok": False, "status": "deferred", "reason": "foreground_quiet_window"}
             message = by_uid[payload["uid"]]
             return {"ok": True, **message, "body": f"body of {message['subject']}", "is_auto_reply": False}
 
@@ -96,6 +98,21 @@ def test_a_message_she_has_answered_is_not_answered_again_after_a_restart(monkey
     assert "62" not in [c.get("uid") for c in calls if c["mode"] == "read"]
     (held,) = her_replies_to_mail.drafts(tmp_path / "email" / "drafts.jsonl")
     assert held["message_id"] == "<62@gmail>" and held["sent"] is False
+
+
+def test_a_read_deferred_behind_her_reply_ends_the_round_and_waits_for_the_next(monkeypatch, tmp_path):
+    """LIVE 10 November 2026: her reply turn held the foreground, every read after it was deferred, and the round
+    went on through all forty-nine others, a feed card each, each put off for half an hour."""
+    replies: list[str] = []
+    check = {"ok": True, "unread": 57, "messages": _NEWEST_FIVE}
+    loop, calls = _loop(monkeypatch, tmp_path, check=check, replies=replies, deferred_reads={"61", "60", "59", "58"})
+    asyncio.run(loop._check_email_initiative())
+    assert [c.get("uid") for c in calls if c["mode"] == "read"] == ["62", "61"]
+    assert replies == ["Hey!"]
+    again, calls = _loop(monkeypatch, tmp_path, check=check, replies=replies)
+    again._recent_email_uids = loop._recent_email_uids
+    asyncio.run(again._check_email_initiative())
+    assert [c.get("uid") for c in calls if c["mode"] == "read"] == ["61", "60", "59"]
 
 
 def test_a_deferred_round_says_why_and_is_not_counted_as_a_check(monkeypatch, tmp_path, caplog):
@@ -218,3 +235,19 @@ def test_a_reply_is_not_sent_to_a_message_other_than_the_one_it_answers(monkeypa
     refused = asyncio.run(skill._handle_reply(EmailInput(mode="reply", uid="62", body="Hi", in_reply_to="<62@gmail>")))
     assert refused["status"] == "not_the_message_answered" and sent == []
     assert asyncio.run(skill._handle_reply(EmailInput(mode="reply", uid="62", body="Hi", in_reply_to="<61@google>")))["ok"]
+
+
+def test_fifty_headers_come_in_one_fetch():
+    from core.skills.email_adapter import headers_by_uid
+
+    asked: list = []
+
+    class Mail:
+        def uid(self, command, uids, spec):
+            asked.append((command, uids))
+            return "OK", [(b"1 (UID 61 BODY[HEADER.FIELDS (FROM)] {20}", b"From: a@example.org\r\n\r\n"), b")",
+                          (b"2 (UID 62 BODY[HEADER.FIELDS (FROM)] {20}", b"From: b@example.org\r\n\r\n"), b")"]
+
+    found = headers_by_uid(Mail(), [b"61", b"62"], "FROM")
+    assert asked == [("FETCH", b"61,62")]
+    assert {uid: header["From"] for uid, header in found.items()} == {b"61": "a@example.org", b"62": "b@example.org"}

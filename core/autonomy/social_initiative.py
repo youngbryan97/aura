@@ -316,6 +316,13 @@ class _StartsSomethingSocial:
                 read_result = await self._execute_email_adapter(
                     {"mode": "read", "uid": uid}, cap_engine=cap_engine
                 )
+                if tool_result_is_deferred(read_result):
+                    # Her reply turn holds the foreground for a while after it, and every read behind it was
+                    # deferred in turn: each went to her feed as a card and was not tried again for half an hour
+                    # (LIVE 10 November 2026). The round ends here and the message waits for the next one.
+                    self._recent_email_uids.pop(key, None)
+                    logger.info("📧 Her mail round stopped at UID %s, deferred: %s", uid, self._why_not(read_result))
+                    break
                 if not read_result.get("ok"):
                     self._emit_feed(
                         "Email Triage",

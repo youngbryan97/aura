@@ -50,6 +50,25 @@ from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 logger = logging.getLogger("Skills.Email")
 
 
+def headers_by_uid(mail: Any, uids: list[bytes], fields: str) -> dict[bytes, Any]:
+    """The headers of each message, by UID, in one UID FETCH.
+
+    LIVE 10 November 2026: one FETCH per message took her check of fifty 14 s.
+    """
+    if not uids:
+        return {}
+    status, data = mail.uid("FETCH", b",".join(uids), f"(BODY.PEEK[HEADER.FIELDS ({fields})])")
+    if status != "OK":
+        return {}
+    found: dict[bytes, Any] = {}
+    for part in data or []:
+        if isinstance(part, tuple) and len(part) == 2:
+            said = re.search(rb"\bUID (\d+)", part[0] or b"")
+            if said:
+                found[said.group(1)] = email.message_from_bytes(part[1])
+    return found
+
+
 def as_read(value: Any, default: str = "") -> str:
     """A header as a person reads it: encoded words decoded, folded lines joined.
 
@@ -524,12 +543,11 @@ class EmailAdapterSkill(BaseSkill):
 
                 # Get previews of most recent N
                 messages = []
-                for uid in uids[-limit:]:
-                    status, msg_data = mail.uid(
-                        "FETCH", uid, f"(BODY.PEEK[HEADER.FIELDS ({' '.join(HEADERS_READ)})])"
-                    )
-                    if status == "OK" and msg_data[0] is not None:
-                        header = email.message_from_bytes(msg_data[0][1])
+                newest = uids[-limit:]
+                headers = headers_by_uid(mail, newest, " ".join(HEADERS_READ))
+                for uid in newest:
+                    header = headers.get(uid)
+                    if header is not None:
                         messages.append(
                             {
                                 "uid": uid.decode(),
@@ -824,12 +842,11 @@ class EmailAdapterSkill(BaseSkill):
 
                 uids = data[0].split()
                 messages = []
-                for uid in uids[-limit:]:
-                    status, msg_data = mail.uid(
-                        "FETCH", uid, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])"
-                    )
-                    if status == "OK" and msg_data[0] is not None:
-                        header = email.message_from_bytes(msg_data[0][1])
+                newest = uids[-limit:]
+                headers = headers_by_uid(mail, newest, "FROM SUBJECT DATE")
+                for uid in newest:
+                    header = headers.get(uid)
+                    if header is not None:
                         messages.append(
                             {
                                 "uid": uid.decode(),
