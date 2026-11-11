@@ -328,8 +328,11 @@ class ContinuousRecurrentSelfModel:
         to 10 November 2026 it was not saved once, and every one of 122 starts resumed at tick 200.
         """
         if self._tick_count == self._saved_tick:
+            logger.info("CRSM: nothing learned since tick %d; not saved.", self._saved_tick)
             return False
+        before = self._saved_tick
         self._save()
+        logger.info("CRSM saved at tick %d (last saved at tick %d).", self._tick_count, before)
         return True
 
     def _load(self):
