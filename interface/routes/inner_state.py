@@ -205,6 +205,9 @@ async def get_inner_state() -> JSONResponse:
         if steering and hasattr(steering, "_vectors"):
             ncs = ServiceContainer.get("neurochemical_system", default=None)
             moods = ncs.get_mood_vector() if ncs else {}
+            # What moved her: the mood less the mood her resting chemistry gives. The page names feelings from
+            # this, never from the mood vector, which at rest is her configuration (L08).
+            departure = ncs.get_mood_departure() if ncs and hasattr(ncs, "get_mood_departure") else {}
             active_weights = {}
             for name, sv in steering._vectors.items():
                 try:
@@ -214,6 +217,7 @@ async def get_inner_state() -> JSONResponse:
                     logger.debug("Affective steering weight unavailable for %s: %s", name, exc)
             result["affective_steering"] = {
                 "current_mood_vector": {k: round(v, 4) for k, v in moods.items()},
+                "mood_departure_from_rest": {k: round(v, 4) for k, v in departure.items()},
                 "active_steering_weights": active_weights,
             }
         else:

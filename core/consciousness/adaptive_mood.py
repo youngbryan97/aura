@@ -185,6 +185,17 @@ class AdaptiveMoodCoefficients:
                 self._last_prediction[mood] = value
         return out
 
+    def departure(self, chemicals: Mapping[str, float], at_rest: Mapping[str, float]) -> dict[str, float]:
+        """The mood ``chemicals`` give less the mood ``at_rest`` gives, by the same learned formula.
+
+        Read only: ``predict`` keeps what it said for the next outcome update, and a resting mood asked for display
+        must not stand in for it.
+        """
+        x = np.array([float(chemicals.get(ch, 0.0)) for ch in self.chemicals], dtype=np.float64)
+        rest = np.array([float(at_rest.get(ch, 0.0)) for ch in self.chemicals], dtype=np.float64)
+        with self._lock:
+            return {mood: float(np.dot(self._weights[mood], x - rest)) for mood in self.moods}
+
     def update_from_outcome(
         self,
         chemicals: Mapping[str, float],

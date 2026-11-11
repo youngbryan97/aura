@@ -3194,7 +3194,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   yet measured.
 - [ ] L07 Verify skill invention, installation, execution, longitudinal benefit,
   recovery, and rollback on unseen tasks rather than installation counts.
-- [ ] L08 Audit affect, self-state, phi, and consciousness-related claims with
+- [x] L08 Audit affect, self-state, phi, and consciousness-related claims with
   causal controls; configured priors are not measured subjective experience.
   2026-09-30, the closed loop. 0.85 of her free energy was "physical"
   prediction error over a sensor dictionary in which the only readings that
@@ -3231,6 +3231,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   that was never appraised is shown as one she has. Still to audit: that
   surface's fix, and the phi and consciousness criteria, which are the ISC
   campaign's to measure with its nulls and lesions.
+  CLOSED 10 November 2026. The mind page's feelings come from what moved her:
+  her mood less the mood her chemistry gives at its setpoints, which is zero
+  at rest in all seven moods (the chips had named "calm" and "sociality" from
+  her configuration). The phi and consciousness criteria were measured by the
+  ISC battery with nulls, lesions and rescue: 24 of 24 on seed 97, an
+  operational criterion that measures no experience and claims none.
+  [Evidence](evidence/L08_AFFECT_AND_CONSCIOUSNESS_CLAIMS_2026-11-10.md).
 
 - [ ] L09 Show that what she learns improves her ordinary use: a kind of task she
   gets wrong, learned from answers a person gives her in chat, answered right

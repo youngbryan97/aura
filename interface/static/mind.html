@@ -350,7 +350,9 @@ function renderDrives(d){
       <div class="filline"><i style="width:${p}%"></i><b style="left:${p}%"></b></div></div>`;}).join('');
 }
 function renderMoodChips(d){
-  const m=(d.affective_steering&&d.affective_steering.current_mood_vector)||{};
+  // What moved her, not her mood at rest: at its setpoints her chemistry still reads "calm" and "sociality",
+  // and those are her configuration, not feelings.
+  const m=(d.affective_steering&&d.affective_steering.mood_departure_from_rest)||{};
   const t=Object.entries(m).filter(([,x])=>typeof x==='number'&&x>.05).sort((a,b)=>b[1]-a[1]).slice(0,5);
   $('moodChips').innerHTML=t.length?t.map(([k,x])=>
     `<span class="chip" style="opacity:${.4+Math.min(1,x)*.6}">${TitleCase(k)}</span>`).join('')

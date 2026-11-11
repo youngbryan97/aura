@@ -1040,24 +1040,37 @@ class NeurochemicalSystem(_AnswersOutcomes):
             logger.debug("Adaptive mood prediction failed, using legacy fallback: %s", exc)
             # Defensive fallback: degrade to legacy formula if adaptive layer
             # is unavailable (boot order, test isolation, etc.).
-            da = chem.get("dopamine", 0.0)
-            srt = chem.get("serotonin", 0.0)
-            ne = chem.get("norepinephrine", 0.0)
-            end = chem.get("endorphin", 0.0)
-            cort = chem.get("cortisol", 0.0)
-            gaba = chem.get("gaba", 0.0)
-            oxy = chem.get("oxytocin", 0.0)
-            glu = chem.get("glutamate", 0.0)
-            orx = chem.get("orexin", 0.0)
-            return {
-                "valence": (da * 0.25 + srt * 0.3 + end * 0.2 + oxy * 0.1) - (cort * 0.45 + 0.1),
-                "arousal": (ne * 0.3 + da * 0.15 + cort * 0.2 + glu * 0.15 + orx * 0.2) - (gaba * 0.4 + srt * 0.1),
-                "motivation": da * 0.4 + ne * 0.15 + orx * 0.2 - gaba * 0.25,
-                "sociality": oxy * 0.6 + srt * 0.2 + end * 0.1,
-                "stress": cort * 0.5 + ne * 0.3 - srt * 0.2 - gaba * 0.2,
-                "calm": gaba * 0.35 + srt * 0.3 + end * 0.1 - ne * 0.2 - cort * 0.25 - glu * 0.1,
-                "wakefulness": orx * 0.5 + ne * 0.2 + glu * 0.15 - gaba * 0.3,
-            }
+            return _legacy_mood(chem)
+
+    def chemistry_at_rest(self) -> dict[str, float]:
+        """Each chemical's effective level at its configured setpoint, with receptors neither tolerant nor sensitized."""
+        self._repair_missing_chemicals()
+        return {name: max(0.0, min(1.0, float(c.baseline) * float(c.proximity_weight)))
+                for name, c in self.chemicals.items()}
+
+    def get_mood_departure(self) -> dict[str, float]:
+        """How far her mood stands from where her resting chemistry alone would put it.
+
+        A mood read off chemistry at its setpoints is the configuration speaking: at rest the formula still gives
+        "calm" and "sociality" their resting values, and the mind page showed those as "the feelings alive in her
+        right now" before anything had happened to her (L08, 29 September 2026). What something moved is the
+        difference, and at rest it is zero in every mood.
+        """
+        self._repair_missing_chemicals()
+        now = {name: float(c.effective) for name, c in self.chemicals.items()}
+        rest = self.chemistry_at_rest()
+        try:
+            from core.consciousness.adaptive_mood import get_adaptive_mood
+
+            return get_adaptive_mood().departure(now, rest)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_neurochemical_degradation(
+                exc,
+                action="read the mood's departure by the legacy formula when the adaptive mood failed",
+                severity="warning",
+            )
+            moved, resting = _legacy_mood(now), _legacy_mood(rest)
+            return {mood: moved[mood] - resting[mood] for mood in moved}
 
     def get_snapshot(self) -> dict[str, dict[str, float]]:
         """Full chemical state for telemetry/diagnostics."""
@@ -1095,6 +1108,28 @@ class NeurochemicalSystem(_AnswersOutcomes):
             else 0,
             "uptime_s": round(time.monotonic() - self._start_time, 1) if self._start_time else 0,
         }
+
+
+def _legacy_mood(chem: dict[str, float]) -> dict[str, float]:
+    """The fixed formula the adaptive mood was seeded from."""
+    da = chem.get("dopamine", 0.0)
+    srt = chem.get("serotonin", 0.0)
+    ne = chem.get("norepinephrine", 0.0)
+    end = chem.get("endorphin", 0.0)
+    cort = chem.get("cortisol", 0.0)
+    gaba = chem.get("gaba", 0.0)
+    oxy = chem.get("oxytocin", 0.0)
+    glu = chem.get("glutamate", 0.0)
+    orx = chem.get("orexin", 0.0)
+    return {
+        "valence": (da * 0.25 + srt * 0.3 + end * 0.2 + oxy * 0.1) - (cort * 0.45 + 0.1),
+        "arousal": (ne * 0.3 + da * 0.15 + cort * 0.2 + glu * 0.15 + orx * 0.2) - (gaba * 0.4 + srt * 0.1),
+        "motivation": da * 0.4 + ne * 0.15 + orx * 0.2 - gaba * 0.25,
+        "sociality": oxy * 0.6 + srt * 0.2 + end * 0.1,
+        "stress": cort * 0.5 + ne * 0.3 - srt * 0.2 - gaba * 0.2,
+        "calm": gaba * 0.35 + srt * 0.3 + end * 0.1 - ne * 0.2 - cort * 0.25 - glu * 0.1,
+        "wakefulness": orx * 0.5 + ne * 0.2 + glu * 0.15 - gaba * 0.3,
+    }
 
 
 def _how_long_an_event_moves_cortisol(system: object) -> float:
