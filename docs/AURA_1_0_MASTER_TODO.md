@@ -3422,6 +3422,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   persistent feed and only gets a snapshot when asked, and invented no
   observation. Detailed perception is untested — the camera is disabled by
   default on this host for Metal-conflict safety.
+  10 November, 23:25, asked in her chat "Can you look through the camera and
+  tell me what you see right now?": launched from this session's shell, her
+  window sent no frame, the turn waited out its 6 s, and she said the camera
+  was switched off, which was not the recorded cause. macOS charges a camera
+  request to the app that launched the process, and that launch was not
+  hers. Launched from /Applications/Aura.app, as Bryan launches her, the same
+  words at 23:28: one frame taken for the turn, read by Qwen3-VL-4B in 6.7 s
+  with its cold start, and "I can see a ceiling and a wall. There is a
+  curtain on the right side of the image, a light switch on the wall, and a
+  red object on the left side." Her window now says why it cannot look
+  (NotAllowedError, NotFoundError, NotReadableError, the camera switched
+  off), and the turn ends on that reason with what can be done about it,
+  not on a timeout. Open: Bryan to say whether that is the room, and a
+  failure seen live with its true cause.
 - [ ] U04 Companion mode: bubble, hide/clear, notifications, restrained chat,
   proactive observation, and continuity with full mode.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,

@@ -117,6 +117,38 @@ class Frame:
 
 
 @dataclass(slots=True)
+class CaptureRefusal:
+    """Why the window could not look, in its own terms: the browser's error name and message.
+
+    LIVE 10 November 2026, asked to look, her window sent nothing back; the turn waited out its deadline, recorded that
+    no frame came, and she told him the camera was switched off. The window knew why and said nothing. It says so now,
+    and the turn ends on that instead of on a timeout.
+    """
+
+    name: str
+    message: str = ""
+
+
+#: The window's refusals, by what the person can do about each (core/conversation/failure_context.py CAUSES).
+_REFUSAL_CAUSES = {
+    "NotAllowedError": "unauthorized",
+    "SecurityError": "unauthorized",
+    "camera_off": "unauthorized",
+    "NotFoundError": "unavailable",
+    "OverconstrainedError": "unavailable",
+    "NotReadableError": "unavailable",
+    "AbortError": "unavailable",
+    "no_media_api": "unavailable",
+}
+
+#: What each refusal leaves her able to suggest.
+_REFUSAL_REMEDIES = {
+    "unauthorized": ("turning on Aura's camera permission in System Settings, Privacy & Security, Camera",),
+    "unavailable": ("closing whatever else is using the camera, or checking that one is connected",),
+}
+
+
+@dataclass(slots=True)
 class Look:
     """What she got when she tried to look, and why if she did not."""
 
@@ -148,7 +180,7 @@ class CaptureBroker:
     """
 
     def __init__(self) -> None:
-        self._pending: dict[str, asyncio.Future[Frame]] = {}
+        self._pending: dict[str, asyncio.Future[Frame | CaptureRefusal]] = {}
         self._one_shot_authorized: set[str] = set()
         # Checked rather than raw: lockdep only sees the locks it wraps, and
         # a lock it cannot see is one that cannot be ordered against the rest
@@ -161,11 +193,11 @@ class CaptureBroker:
         *,
         timeout_s: float = CAPTURE_TIMEOUT_S,
         explicit_user_consent: bool = False,
-    ) -> Frame | None:
-        """Ask the surface for a fresh frame. None if none arrived in time."""
+    ) -> Frame | CaptureRefusal | None:
+        """Ask the surface for a fresh frame: the frame, the surface's reason it has none, or None if neither came."""
         request_id = uuid.uuid4().hex[:16]
         loop = asyncio.get_running_loop()
-        future: asyncio.Future[Frame] = loop.create_future()
+        future: asyncio.Future[Frame | CaptureRefusal] = loop.create_future()
         async with self._lock:
             self._pending[request_id] = future
             if explicit_user_consent:
@@ -227,8 +259,8 @@ class CaptureBroker:
         async with self._lock:
             return str(request_id or "") in self._one_shot_authorized
 
-    async def deliver(self, request_id: str, frame: Frame) -> bool:
-        """Hand a captured frame to whoever asked for it."""
+    async def deliver(self, request_id: str, frame: Frame | CaptureRefusal) -> bool:
+        """Hand a captured frame, or the window's reason it has none, to whoever asked for it."""
         async with self._lock:
             future = self._pending.pop(str(request_id or ""), None)
             self._one_shot_authorized.discard(str(request_id or ""))
@@ -387,6 +419,17 @@ async def look(
         timeout_s=timeout_s,
         explicit_user_consent=explicit_user_consent,
     )
+    if isinstance(frame, CaptureRefusal):
+        cause = _REFUSAL_CAUSES.get(frame.name, "failed")
+        detail = f"her window could not open the camera: {frame.name}" + (f" ({frame.message[:200]})" if frame.message else "")
+        record_capability_failure(
+            "camera",
+            intent=f"capture a frame to answer: {question[:120]}",
+            cause=cause,
+            detail=detail,
+            still_possible=_REFUSAL_REMEDIES.get(cause, ()),
+        )
+        return Look(ok=False, cause=f"window_refused:{frame.name}", detail=detail)
     if frame is None:
         record_capability_failure(
             "camera",

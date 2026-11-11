@@ -490,6 +490,17 @@ function stopCameraSignals() {
  * because starting a second one on the same device fails on most platforms
  * and would be slower even where it does not.
  */
+// Why this window could not look, sent back to the turn that asked, so it ends on the reason and not a timeout.
+// LIVE 10 November 2026 every way out of the capture below was silent: the turn waited six seconds, recorded that
+// no frame came, and she told him the camera was switched off.
+function refuseCaptureForAura(requestId, name, message) {
+    return postInteractionSignal('/api/signals/camera_capture', {
+        request_id: requestId,
+        error_name: String(name || 'Error').slice(0, 64),
+        error: String(message || '').slice(0, 300),
+    }, { quiet: true });
+}
+
 async function captureFrameForAura(request) {
     const requestId = request && request.request_id;
     if (!requestId) return;
@@ -499,8 +510,14 @@ async function captureFrameForAura(request) {
     // the request id against its pending one-shot lease before accepting the
     // frame, so this client flag is not the authority boundary.
     const oneShotAuthorized = !!request.one_shot_authorized;
-    if (!state.cameraSignalWanted && !oneShotAuthorized) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    if (!state.cameraSignalWanted && !oneShotAuthorized) {
+        refuseCaptureForAura(requestId, 'camera_off', 'the camera is switched off in this window');
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        refuseCaptureForAura(requestId, 'no_media_api', 'this window has no camera interface');
+        return;
+    }
 
     const width = Number(request.width) || 1280;
     const height = Number(request.height) || 720;
@@ -523,13 +540,19 @@ async function captureFrameForAura(request) {
             // dark.
             await new Promise((resolve) => setTimeout(resolve, 320));
         }
-        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+            refuseCaptureForAura(requestId, 'NotReadableError', 'the camera opened and gave no picture');
+            return;
+        }
 
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || width;
         canvas.height = video.videoHeight || height;
         const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        if (!ctx) {
+            refuseCaptureForAura(requestId, 'no_canvas', 'this window could not draw the picture');
+            return;
+        }
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         await postInteractionSignal('/api/signals/camera_capture', {
@@ -540,6 +563,7 @@ async function captureFrameForAura(request) {
         }, { quiet: true });
     } catch (err) {
         console.warn('[sight] capture failed', err);
+        refuseCaptureForAura(requestId, err && err.name, err && err.message);
     } finally {
         // Only tear down a stream this function opened. The presence lane
         // owns its own and is still using it.

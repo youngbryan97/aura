@@ -1,17 +1,16 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
-import logging
 import binascii
+import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from core.senses.interaction_signals import decode_data_url_image
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
+from core.senses.interaction_signals import decode_data_url_image
 from interface.auth import _require_internal
 from interface.routes.privacy import get_browser_camera_privacy
 
@@ -111,9 +110,12 @@ async def api_signal_vision(payload: VisionSignalPayload, _: None = Depends(_req
 
 class CameraCapturePayload(BaseModel):
     request_id: str
-    frame_data_url: str
+    frame_data_url: str = ""
     width: int = 0
     height: int = 0
+    #: When the window could not capture: the browser's error name ("NotAllowedError") and its message.
+    error_name: str = ""
+    error: str = ""
 
 
 @router.post("/signals/camera_capture")
@@ -128,9 +130,14 @@ async def api_camera_capture(
     right now. This is the reply to a specific request, correlated by id, and
     the turn holding that id is blocked on it.
     """
-    from core.senses.sight import decode_frame, get_capture_broker
+    from core.senses.sight import CaptureRefusal, decode_frame, get_capture_broker
 
     broker = get_capture_broker()
+    if payload.error_name:
+        # Why the window has no frame. It carries no image, so it needs no camera permission; the pending request id
+        # is what makes it this turn's answer, and one that is not pending is dropped.
+        refusal = CaptureRefusal(name=str(payload.error_name)[:64], message=str(payload.error or "")[:300])
+        return JSONResponse({"ok": True, "delivered": await broker.deliver(payload.request_id, refusal)})
     one_shot_authorized = await broker.one_shot_authorized(payload.request_id)
     if not _camera_signal_allowed() and not one_shot_authorized:
         raise HTTPException(status_code=409, detail="Camera privacy is disabled")

@@ -319,6 +319,7 @@ async def test_capture_api_accepts_only_a_live_correlated_one_shot_lease(monkeyp
     import base64
 
     from fastapi import HTTPException
+
     from interface.routes import interaction_signals as routes
 
     class Broker:
@@ -458,7 +459,11 @@ def test_the_client_will_not_capture_without_the_users_camera_switch() -> None:
     ).read_text(encoding="utf-8")
     capture = client[client.index("async function captureFrameForAura") :]
     capture = capture[: capture.index("\nfunction captureCameraSignalFrame")]
-    assert "if (!state.cameraSignalWanted && !oneShotAuthorized) return;" in capture
+    # It declines, and says why, before any device is touched (refused, not timed out, since 10 November 2026).
+    declined = capture[capture.index("if (!state.cameraSignalWanted && !oneShotAuthorized) {"):]
+    declined = declined[: declined.index("}") + 1]
+    assert "refuseCaptureForAura(requestId, 'camera_off'" in declined and "return;" in declined
+    assert capture.index("if (!state.cameraSignalWanted && !oneShotAuthorized)") < capture.index("getUserMedia(")
     assert "request.one_shot_authorized" in capture
     # A stream this function opened is torn down; the presence lane's is not.
     assert "if (ownStream) ownStream.getTracks()" in capture
@@ -722,3 +727,59 @@ async def test_inference_refuses_a_false_ready_worker(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="init_failed:bad checkpoint"):
         await client.see_async("what is here", "ZmFrZQ==")
+
+
+# ── when the window cannot look ─────────────────────────────────────────
+
+
+def _refusing_broker(monkeypatch, name: str, message: str):
+    """The broker's surface answers at once with the window's own refusal, as aura.js now sends it."""
+    from core.senses import sight as sight_module
+
+    broker = sight_module.get_capture_broker()
+
+    async def publish(request_id: str, *, explicit_user_consent: bool = False) -> bool:
+        asyncio.get_running_loop().call_soon(
+            lambda: asyncio.ensure_future(broker.deliver(request_id, sight_module.CaptureRefusal(name, message)))
+        )
+        return True
+
+    monkeypatch.setattr(broker, "_publish_request", publish)
+    monkeypatch.setattr(sight_module, "sight_dependency_gap", lambda: "")
+    return sight_module
+
+
+@pytest.mark.parametrize("name, cause", [
+    ("NotAllowedError", "unauthorized"),
+    ("NotFoundError", "unavailable"),
+    ("NotReadableError", "unavailable"),
+    ("SomethingNew", "failed"),
+])
+def test_the_windows_reason_ends_the_turn_and_is_what_she_is_told(monkeypatch, name, cause) -> None:
+    """LIVE 2026-11-10: her window sent nothing back, the turn waited out six seconds, and she said the camera was
+    switched off. The window's own reason ends the turn at once and is the cause she has to speak from."""
+    import time
+
+    sight_module = _refusing_broker(monkeypatch, name, "Permission denied by the system")
+
+    async def exercise():
+        with bind_failure_ledger():
+            began = time.monotonic()
+            result = await sight_module.look("what do you see", timeout_s=5.0, explicit_user_consent=True)
+            return result, time.monotonic() - began, pending_failure_context()
+
+    result, took, block = asyncio.run(exercise())
+    assert not result.ok and result.cause == f"window_refused:{name}"
+    assert took < 1.0
+    assert cause in block and name in block and "Permission denied by the system" in block
+
+
+def test_a_refusal_needs_no_camera_permission_and_only_answers_a_pending_request(monkeypatch) -> None:
+    from interface.routes import interaction_signals as routes
+
+    sight_module = _refusing_broker(monkeypatch, "NotAllowedError", "")
+    monkeypatch.setattr(routes, "_camera_signal_allowed", lambda: False)
+    refusal = routes.CameraCapturePayload(request_id="nobody-asked", error_name="NotAllowedError", error="denied")
+    response = asyncio.run(routes.api_camera_capture(refusal, None))
+    assert response.status_code == 200 and b'"delivered":false' in response.body
+    assert sight_module.get_capture_broker()._pending == {}
