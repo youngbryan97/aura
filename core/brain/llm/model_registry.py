@@ -69,6 +69,12 @@ from .model_registry_deep_solver import (  # noqa: F401  (re-exported: they were
     get_deep_specialist_certificate_path,  # noqa: F401  (read at call time by the lifted module)
     get_deep_specialist_trust_root_path,  # noqa: F401  (read at call time by the lifted module)
 )
+from .model_registry_personality_adapter import (  # noqa: F401  (re-exported: they were defined here)
+    _default_personality_lora_enabled,
+    _env_truthy,
+    _personality_lora_disabled,
+    resolve_personality_adapter,
+)
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
 # inventoried and reportable). STRING kind with the original literal
@@ -204,6 +210,12 @@ _active_cortex_spec_cache: (
 #: served from the last validation and the refresh runs on a worker.
 _active_cortex_spec_refreshing = False
 _active_cortex_spec_lock = checked_lock("model_registry.active_cortex_refresh")
+#: How long the last full validation took, and the share of one thread it may take: an unchanged manifest is re-validated
+#: no sooner than this cost over this share. LIVE 11 November 2026: in 30 stall captures in a row, two threads at once
+#: were inside the validation's path resolution; at a five-second TTL every status read past it validated afresh, and
+#: her event loop starved (rate groups of one second taking eight to eleven, her runtime lease lost again and again).
+_active_cortex_spec_validation_s = 0.0
+_VALIDATION_SHARE = 0.01
 _DEEP_SPECIALIST_STATUS_TTL_S = 30.0
 _deep_specialist_status_cache: dict[
     str,
@@ -461,15 +473,32 @@ def get_active_cortex_spec(
     now = time.monotonic()
     cached = _active_cortex_spec_cache
     same_manifest = cached is not None and cached[1] == manifest and cached[2] == signature
-    if not force_refresh and same_manifest and (now - cached[0]) < _ACTIVE_CORTEX_SPEC_TTL_S:
+    fresh_for = max(_ACTIVE_CORTEX_SPEC_TTL_S, _active_cortex_spec_validation_s / _VALIDATION_SHARE)
+    if not force_refresh and same_manifest and (now - cached[0]) < fresh_for:
         return cached[3]
     if not force_refresh and same_manifest and _refresh_active_cortex_spec_off_loop(manifest):
         # The manifest has not moved since the last validation; the loop
         # gets that answer now and a worker re-validates the evidence.
         return cached[3]
-    observed = _read_active_cortex_spec(manifest)
+    if not force_refresh and same_manifest and _active_cortex_spec_refreshing:
+        return cached[3]  # another thread is validating this manifest now, and its answer replaces this one
+    observed = _validated_spec(manifest)
     _active_cortex_spec_cache = (now, manifest, signature, observed)
     return observed
+
+
+def _validated_spec(manifest: Path) -> ActiveCortexSpec | None:
+    """One full validation, timed, with every other caller served the last answer while it runs."""
+    global _active_cortex_spec_refreshing, _active_cortex_spec_validation_s
+    with _active_cortex_spec_lock:
+        _active_cortex_spec_refreshing = True
+    started = time.monotonic()
+    try:
+        return _read_active_cortex_spec(manifest)
+    finally:
+        _active_cortex_spec_validation_s = time.monotonic() - started
+        with _active_cortex_spec_lock:
+            _active_cortex_spec_refreshing = False
 
 
 def _refresh_active_cortex_spec_off_loop(manifest: Path) -> bool:
@@ -486,9 +515,12 @@ def _refresh_active_cortex_spec_off_loop(manifest: Path) -> bool:
 
     def refresh() -> None:
         global _active_cortex_spec_cache, _active_cortex_spec_refreshing
+        global _active_cortex_spec_validation_s
         try:
             signature = _active_cortex_manifest_signature(manifest)
+            started = time.monotonic()
             observed = _read_active_cortex_spec(manifest)
+            _active_cortex_spec_validation_s = time.monotonic() - started
             _active_cortex_spec_cache = (time.monotonic(), manifest, signature, observed)
         finally:
             with _active_cortex_spec_lock:
@@ -1931,61 +1963,3 @@ def _audit_lane_assignments_uncached() -> dict[str, Any]:
 def get_adapter_path() -> Path:
     """Return the LoRA adapter directory."""
     return ADAPTER_PATH
-
-
-def _env_truthy(name: str) -> bool:
-    return str(os.getenv(name, "")).strip().lower() in {"1", "true", "yes", "on", "enabled"}
-
-
-def _personality_lora_disabled(backend: str) -> bool:
-    backend_key = "AURA_DISABLE_MLX_LORA"
-    return _env_truthy("AURA_DISABLE_PERSONALITY_LORA") or _env_truthy(backend_key)
-
-
-def _default_personality_lora_enabled(backend: str) -> bool:
-    backend_key = "AURA_ENABLE_MLX_LORA"
-    return _env_truthy("AURA_ENABLE_PERSONALITY_LORA") or _env_truthy(backend_key)
-
-
-def resolve_personality_adapter(
-    target_model: str | None,
-    *,
-    backend: str = "mlx",
-) -> str | None:
-    """Return a compatible Aura personality adapter for the requested model.
-
-    MLX overrides are supported:
-      - `AURA_LORA_PATH`, `AURA_LORA_TARGET_MODEL`
-
-    The bundled personality adapter is opt-in. It has historically been useful
-    for experiments, but live Cortex already runs against Aura-tuned/fused
-    weights and the extra adapter can pollute user-visible prose. Explicit
-    adapter paths still work; the default adapter only loads when an enable env
-    flag is set.
-    """
-    normalized_backend = str(backend or "mlx").strip().lower()
-    if normalized_backend != "mlx":
-        return None
-    target_model = str(target_model or "").strip()
-
-    if _personality_lora_disabled(normalized_backend):
-        return None
-
-    adapter_dir = _FLAG_LORA_PATH.value().strip()
-    if not adapter_dir:
-        if not _default_personality_lora_enabled(normalized_backend):
-            return None
-        default_dir = model_paths.BASE_DIR / "training" / "adapters" / "aura-personality"
-        if (default_dir / "adapters.safetensors").exists():
-            adapter_dir = str(default_dir)
-    if not adapter_dir or not Path(adapter_dir).is_dir():
-        return None
-
-    configured_target = (
-        _FLAG_LORA_TARGET_MODEL.value().strip()
-        or _read_adapter_target_model(Path(adapter_dir))
-        or ACTIVE_MODEL
-    )
-    if target_model and configured_target and not model_identities_compatible(configured_target, target_model):
-        return None
-    return adapter_dir

@@ -25,6 +25,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from core.brain.llm.her_pinned_weights import a_voice_session_closed, a_voice_session_opened
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.voice.duplex.config import DuplexConfig
@@ -526,9 +527,13 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             name=f"VoiceAuthorization:{session_id}",
         )
 
+        pinned = False
         try:
             await session.start()
             logger.info("Voice session %s opened from %s", session_id, host)
+            # Her cortex's weights stay resident while voice mode is open (core/brain/llm/her_pinned_weights.py).
+            pinned = True
+            await asyncio.to_thread(a_voice_session_opened)
 
             connected = True
             while connected and not authorization_revoked.is_set():
@@ -585,6 +590,8 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             microphone_lease = None
             _release_voice_session(session_id)
             reserved_session_id = ""
+            if pinned:
+                await asyncio.to_thread(a_voice_session_closed)
             logger.info("Voice session %s closed", session_id)
 
     except WebSocketDisconnect as exc:

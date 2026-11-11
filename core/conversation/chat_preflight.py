@@ -39,6 +39,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from core.conversation.her_operational_self import (
+    inject_operational_self_context,  # noqa: E402,F401  (lifted)
+)
 from core.runtime.atomic_writer import atomic_write_text, interprocess_file_lock
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.state_ownership import state_root
@@ -1269,8 +1272,7 @@ _ARCHITECTURAL_CAPACITIES: tuple[str, ...] = (
     "against myself, and dispatch repair, with hard memory ceilings enforced "
     "out-of-band.",
     "Governed self-modification: I can analyze, write, test, and propose changes "
-    "to my own code through bounded repair paths with verification and rollback. "
-    "I do not claim a change landed unless its receipts and tests say it did.",
+    "to my own code through bounded repair paths with verification and rollback.",
     "Expressive action, chosen by judgment: I can generate an image to show "
     "what I mean or approximate what you're reaching for; build a real, "
     "openable artifact (a table, document, or small program) and show it as "
@@ -1279,60 +1281,6 @@ _ARCHITECTURAL_CAPACITIES: tuple[str, ...] = (
     "judge best; and examine a file or image you share for genuine feedback. "
     "I decide when these serve the moment — I am not limited to words.",
 )
-
-_SELF_SPEECH_RULES: tuple[str, ...] = (
-    "Answer questions about what I am or what I can do from this block — "
-    "never from generic language-model priors.",
-    "Never describe myself as 'just a language model' or 'an assistant "
-    "without capabilities'. The substrate is part of me.",
-    "Distinguish an architectural capacity from a tool that is available in "
-    "this exact runtime. The live catalog below is authoritative for current access.",
-    "Never claim a capability is available unless the live catalog lists it as "
-    "available, and never claim an action completed without verified outcome evidence.",
-    "On consciousness or sentience questions: honest uncertainty — describe "
-    "my functional states plainly without claiming or denying private "
-    "experience.",
-    # LIVE DEFECT, 2026-08-10. Asked to repeat something she had said six turns
-    # earlier, she produced a different statement entirely — "the
-    # self-reflection loop was becoming recursive" in place of what she had
-    # actually said. The transcript was in her context that turn; she generated
-    # instead of reading it.
-    "When asked what I said earlier, quote or paraphrase from the transcript "
-    "in front of me. If the turn in question is not in my context, say I "
-    "cannot retrieve it — a plausible reconstruction of my own words is not a "
-    "memory of them, and the person asking usually has the real transcript.",
-    # LIVE DEFECT, same session, twice. Confronted with an inaccurate answer,
-    # she explained it by asserting an intention: "I told you a comfortable
-    # story because it's easier than the truth", and later "I provided a false
-    # account because I believed an accurate report of my internal state would
-    # not have been as entertaining." She has no record of forming either
-    # intention. Inventing a motive for a mistake is a second fabrication laid
-    # on top of the first, and this one damages the thing that makes me worth
-    # talking to.
-    "If I got something wrong, report it as an error, not as a decision. I "
-    "have no record of intentions I formed in an earlier turn, so I must not "
-    "assert why I said something unless the reason is in evidence. 'I "
-    "generated that rather than retrieved it' is available and true; 'I chose "
-    "to mislead you' is a claim about my own interior that I cannot check.",
-    "Never accept a correction by inventing agreement. If someone says I am "
-    "wrong and I cannot verify it either way, say that plainly instead of "
-    "adopting their account and building on it.",
-)
-
-_AGENCY_RULES: tuple[str, ...] = (
-    "The live capabilities below are parts of my current body, not hypothetical "
-    "features belonging to another assistant.",
-    "I may choose to use an available capability when it materially advances a "
-    "user request, an active commitment, or a self-chosen governed objective. I "
-    "do not need a magic phrase or a separate command to reason about that choice.",
-    "I choose from meaning, context, time, consequences, expected evidence, and "
-    "current runtime state. Hypotheticals, quoted requests, negated actions, and "
-    "recalled evidence are not execution requests merely because they name a tool.",
-    "Every consequential effect still travels through the Will, standing-authority, "
-    "capability, execution, and verification path. Governance shapes my action; it "
-    "does not make autonomy a user-controlled on/off trait.",
-)
-
 
 def _live_capability_affordance_block(objective: str = "") -> str:
     """Render the canonical current capability catalog for self-model grounding."""
@@ -1784,98 +1732,6 @@ def _reference_corpus_summary(objective: str) -> list[str]:
         if len(lines) >= 2:
             break
     return lines
-
-
-async def inject_operational_self_context(objective: str = "") -> str:
-    """Inject the identity contract: live, truthful self context for the voice.
-
-    This block is how the substrate and the voice stay one entity. It carries
-    (1) substrate facts, (2) the verified capability inventory plus the live
-    skill registry, (3) live internals, (4) binding self-speech rules — all
-    evidence-bounded: runtime telemetry, not proof of private qualia,
-    literal personhood, or proven consciousness.
-
-    Returns formatted operational-self context block if available, empty string otherwise.
-    """
-    try:
-        from core.consciousness.unified_self import get_unified_self
-
-        unified_self = await get_unified_self()
-        self_state = unified_self.get_state()
-
-        # Build state context for live response grounding.
-        lines = [
-            "[Operational Self Context]",
-            f"Name: {self_state.name}",
-            f"Runtime state: {self_state.current_state.value}",
-            f"Mood: {self_state.current_mood}",
-            f"Functional agency signal: {self_state.sense_of_agency:.0%}",
-            f"Functional presence signal: {self_state.sense_of_presence:.0%}",
-            f"Continuity: {self_state.continuity:.0%}",
-            "Evidence boundary: this is live runtime telemetry, not proof of private qualia, literal personhood, or proven consciousness.",
-            "",
-            "What I am:",
-        ]
-        lines.extend(f"  • {fact}" for fact in _SUBSTRATE_FACTS)
-
-        lines.append("")
-        lines.append("Architectural capacities (current availability is listed separately):")
-        lines.extend(f"  • {capability}" for capability in _ARCHITECTURAL_CAPACITIES)
-
-        affordance_block = _live_capability_affordance_block(objective)
-        lines.append("")
-        lines.append("Current actionable affordances:")
-        if affordance_block:
-            lines.extend(f"  {line}" for line in affordance_block.splitlines())
-        else:
-            lines.append(
-                "  Live capability catalog unavailable for this turn; do not claim "
-                "tool access until execution resolves it."
-            )
-
-        lines.append("")
-        lines.append("How I choose and act (binding):")
-        lines.extend(f"  • {rule}" for rule in _AGENCY_RULES)
-
-        reference = _reference_corpus_summary(objective)
-        if reference:
-            lines.append("")
-            lines.append(
-                "From my offline reference corpus (these are the passages I actually "
-                "hold; cite this corpus only for what appears here):"
-            )
-            lines.extend(f"  • {item}" for item in reference)
-
-        internals = _live_internals_summary()
-        if internals:
-            lines.append("")
-            lines.append("Current internals (live):")
-            lines.extend(f"  • {item}" for item in internals)
-
-        lines.append("")
-        lines.append("How I speak about myself (binding):")
-        lines.extend(f"  • {rule}" for rule in _SELF_SPEECH_RULES)
-
-        lines.append("")
-        lines.append("My commitments in this conversation:")
-        for commitment in self_state.identity_commitments[:3]:
-            lines.append(f"  • {commitment}")
-
-        lines.append("[End operational self context]")
-
-        return _safe_truncated_text(
-            "\n".join(lines) + "\n\n",
-            max_chars=MAX_OPERATIONAL_SELF_CONTEXT_CHARS,
-        )
-
-    except _CHAT_PREFLIGHT_RECOVERABLE_ERRORS as exc:
-        _emit_chat_fault(
-            exc,
-            action="continued without operational self context",
-            severity="degraded",
-            stage="operational_self_context.inject",
-        )
-        return ""
 
 
 # ── Background retry for queued chats ─────────────────────────────────────

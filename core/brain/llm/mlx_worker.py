@@ -50,6 +50,7 @@ from .mlx_worker_loop_steps import (  # noqa: F401  (re-exported: they were defi
     _take_the_repaired_user_surface,
     _take_the_restored_newlines,
 )
+from .mlx_worker_pinned_weights import her_weights_pinned
 from .mlx_worker_recurrent_adapters import (  # noqa: F401  (re-exported: they were defined here)
     _attach_certified_recurrent_adapter,
     _handle_unified_recurrent_qualified_decode,
@@ -9733,6 +9734,8 @@ def _mlx_worker_loop(
 
             elif action == "clear_cache":
                 _mlx_worker_loop_clear_both_metal(device, ipc_writer, job, logger, mx, prompt_cache_lru)
+            elif action in ("pin_weights", "release_weights"):  # while voice mode is open (mlx_worker_pinned_weights)
+                her_weights_pinned(action == "pin_weights", device=device, ipc_writer=ipc_writer, job=job, mx=mx, model=model)
 
             elif action == "set_expert_adapter":
                 # Swap a domain-specialist LoRA onto the RESIDENT model —

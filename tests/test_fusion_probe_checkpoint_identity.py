@@ -30,8 +30,10 @@ def test_probe_load_and_certificate_share_resolved_checkpoint(tmp_path, monkeypa
     model, tokenizer = object(), object()
     loaded, described, measured = [], [], []
     monkeypatch.setattr("mlx_lm.load", lambda path: (loaded.append(path) or model, tokenizer))
+    # The voice reading's arguments (028fbd1aa): no recorded replies here, so it reads none.
     args = SimpleNamespace(model="some/default-model", model_path=str(checkpoint) if explicit else "",
-                           sweep="0.05", steps=2, seed=5, no_write=True)
+                           sweep="0.05", steps=2, seed=5, no_write=True,
+                           replies=str(tmp_path / "no-replies.jsonl"), voice=0)
     def descriptor(path, **kwargs):
         described.append((path, kwargs))
         return {"descriptor_sha256": "actual-basis"}

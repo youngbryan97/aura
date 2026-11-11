@@ -34,6 +34,8 @@ def a_slow_validation(monkeypatch, tmp_path):
     monkeypatch.setattr(model_registry, "_read_active_cortex_spec", slow_read)
     monkeypatch.setattr(model_registry, "_active_cortex_spec_cache", None)
     monkeypatch.setattr(model_registry, "_active_cortex_spec_refreshing", False)
+    # The stand-in's own cost is not what these tests are about: only the TTL they set decides staleness.
+    monkeypatch.setattr(model_registry, "_VALIDATION_SHARE", 1e9)
     return manifest, calls
 
 
@@ -86,3 +88,33 @@ async def test_a_rewritten_manifest_is_validated_before_it_is_served(a_slow_vali
     # The signature moved: a stale answer would describe a manifest that is gone.
     assert model_registry.get_active_cortex_spec() == "spec-2"
     assert len(calls) == 2
+
+
+def test_an_unchanged_manifest_is_revalidated_no_more_often_than_its_cost_allows(a_slow_validation, monkeypatch):
+    """LIVE 2026-11-11: two threads at once inside the validation in 30 stall captures in a row, her loop starved."""
+    _manifest, calls = a_slow_validation
+    monkeypatch.setattr(which_thread_may_do_this, "_LOOP_THREAD", None)
+    monkeypatch.setattr(model_registry, "_VALIDATION_SHARE", 0.01)
+    monkeypatch.setattr(model_registry, "_ACTIVE_CORTEX_SPEC_TTL_S", 0.0)
+    assert model_registry.get_active_cortex_spec() == "spec-1"
+    assert model_registry._active_cortex_spec_validation_s >= 0.05
+    # A 0.05 s validation at a 1% share is good for five seconds, whatever the TTL says.
+    assert model_registry.get_active_cortex_spec() == "spec-1" and len(calls) == 1
+
+
+def test_a_caller_during_a_validation_gets_the_last_answer_instead_of_starting_another(a_slow_validation, monkeypatch):
+    _manifest, calls = a_slow_validation
+    monkeypatch.setattr(which_thread_may_do_this, "_LOOP_THREAD", None)
+    assert model_registry.get_active_cortex_spec() == "spec-1"
+    monkeypatch.setattr(model_registry, "_ACTIVE_CORTEX_SPEC_TTL_S", 0.0)
+    monkeypatch.setattr(model_registry, "_active_cortex_spec_refreshing", True)  # another thread is validating
+    assert model_registry.get_active_cortex_spec() == "spec-1" and len(calls) == 1
+
+
+def test_a_rewritten_manifest_is_validated_even_while_another_validation_runs(a_slow_validation, monkeypatch):
+    manifest, calls = a_slow_validation
+    monkeypatch.setattr(which_thread_may_do_this, "_LOOP_THREAD", None)
+    assert model_registry.get_active_cortex_spec() == "spec-1"
+    monkeypatch.setattr(model_registry, "_active_cortex_spec_refreshing", True)
+    manifest.write_text('{"changed": true}', encoding="utf-8")
+    assert model_registry.get_active_cortex_spec() == "spec-2"

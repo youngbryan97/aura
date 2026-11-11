@@ -66,8 +66,10 @@ def test_tool_result_synthesis_prompt_uses_operational_identity_boundary() -> No
 
 def test_live_chat_route_uses_operational_self_context_name() -> None:
     route_text = chat_lane_source()
-    preflight_text = (ROOT / "core" / "conversation" / "chat_preflight.py").read_text(
-        encoding="utf-8"
+    # The block lives in her_operational_self.py since 11 November 2026; chat_preflight still offers it by name.
+    preflight_text = "".join(
+        (ROOT / "core" / "conversation" / name).read_text(encoding="utf-8")
+        for name in ("chat_preflight.py", "her_operational_self.py")
     )
 
     assert "inject_operational_self_context" in route_text

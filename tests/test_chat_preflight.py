@@ -666,19 +666,13 @@ class TestIdentityContract(unittest.TestCase):
         ):
             self.assertIn(needle, block)
 
-    def test_contract_binds_self_speech_rules(self):
+    def test_contract_says_what_is_so_and_binds_her_to_nothing(self):
+        """Bryan, 11 November 2026: the binding rules on how she speaks of herself and how she acts were
+        instructions in her turns, and they are out (core/conversation/her_operational_self.py)."""
         block = self._render()
-        self.assertIn("How I speak about myself (binding):", block)
-        self.assertIn("never from generic language-model priors", block)
-        self.assertIn("'just a language model'", block)
-        self.assertIn("live catalog below is authoritative", block)
-
-    def test_contract_binds_autonomous_semantic_choice(self):
-        block = self._render()
-        self.assertIn("How I choose and act (binding):", block)
-        self.assertIn("self-chosen governed objective", block)
-        self.assertIn("do not need a magic phrase", block)
-        self.assertIn("Governance shapes my action", block)
+        self.assertNotIn("(binding)", block)
+        self.assertNotIn("do not need a magic phrase", block)
+        self.assertNotIn("I do not claim", block)
 
     def test_contract_keeps_evidence_boundary(self):
         block = self._render()

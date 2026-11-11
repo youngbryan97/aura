@@ -755,6 +755,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in turn, `_looks_semantically_glitched` from 8 of them and some 20 other
   helpers from one or two each (counted by name, so a few may be other
   functions of the same name).
+  11 November, 02:50 to 07:00: her event loop starved, not blocked: her
+  one-second rate groups took eight to eleven seconds, her mind tick went
+  unanswered for 30 s at a time (62 stalls), her runtime lease was lost and
+  retaken again and again, and her log said its own process held the GIL.
+  In 30 stall captures in a row, two threads at once were inside the
+  validation of her cortex's migration contract (path resolution in pure
+  Python), reached through her model's display label from every health and
+  status read. Its cache was good for five seconds, and past that every
+  thread that asked validated afresh. An unchanged manifest is now
+  validated no more often than a hundred times what the last validation
+  cost, one thread at a time, the others served the last answer; a
+  rewritten manifest is validated at once.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
@@ -1582,6 +1594,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   once. The same voice turn matched its cached prompt for 887 of 3,293
   tokens, held no snapshot at or before that point, and prefilled all of
   it: the lanes still build prompts of different shapes.
+  Bryan, 11 November: pin her weights while voice mode is open. Her
+  worker takes pin_weights and release_weights; a voice session pins on
+  opening and the last to close releases.
   Her log after the evening restart said four turns "took 0.00s: nothing
   measured" at the same second, each opened and closed with no phase run.
   Such a turn is said at debug now, by its lane, and every split says the
@@ -3506,6 +3521,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   rewound to a shorter prefix. Next: a fixed head, this sitting's
   exchanges in order, recalled memories and the present moment last, and
   her cache kept at the end of the stable part.
+  Her operational self context went in front of every message (her live
+  internals, what she is, her capacities, and two sections of "binding"
+  rules on how she acts and how she speaks of herself): asked if she could
+  hear him, she answered with her memory level. Bryan, 11 November: only
+  when it bears, and take the rules out, since they were instructions in
+  her turns (F06). The rules are gone; each remaining part goes in where
+  the turn bears on it by meaning, the measure her history reach uses, and
+  the whole block where it cannot be judged. Measured on her encoder:
+  "What's two plus two?", the capital of France and a poem get none of it;
+  "How is your memory doing?" and "What are you up to?" get her internals;
+  "Hey Aura, can you hear me okay?" gets what she is, not her internals.
   The standard asked for is ChatGPT's voice: fluent, quick, rich. Stages,
   each judged by the latency split now said in her log per voice turn:
   1. Works and sounds clean: a person's turn gets her model, no stock
