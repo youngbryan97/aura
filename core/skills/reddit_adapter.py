@@ -47,10 +47,10 @@ from core.being.welfare_transaction import WelfareTransaction
 from core.capabilities.phantom_browser import PhantomBrowser
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.page_gateway import get_page_gateway, page_script
 from core.runtime.state_ownership import state_root
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
-from core.runtime.page_gateway import get_page_gateway, page_script
 
 #: A subreddit's rules, from Reddit's own JSON for them, read from her page.
 _SUBREDDIT_RULES = page_script("""async (subreddit) => {

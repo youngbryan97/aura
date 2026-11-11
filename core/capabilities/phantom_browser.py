@@ -41,11 +41,11 @@ from core.runtime.errors import (
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare
 from core.runtime.lockdep import checked_async_lock
+from core.runtime.page_gateway import get_page_gateway, page_script
 from core.runtime.runtime_hygiene import get_runtime_hygiene
 
 from .phantom_browser_frames import _ReadsItsFrames
 from .phantom_browser_interaction import _ActsOnThePage
-from core.runtime.page_gateway import get_page_gateway, page_script
 
 try:
     from playwright.async_api import Error as PlaywrightError
