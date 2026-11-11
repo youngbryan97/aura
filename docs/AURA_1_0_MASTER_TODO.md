@@ -3186,7 +3186,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   found on the way are listed there with their commits. Not shown: claims
   without a year are not checked, and the check has not yet met a live
   disagreement since its two fixes.
-- [ ] L06 Close action outcome, selfhood reinforcement, prediction resolution,
+- [x] L06 Close action outcome, selfhood reinforcement, prediction resolution,
   and CRSM feedback edges where advertised; measure what actually updates.
   PARTIAL 2026-09-07. The action-outcome edge now fires. `IntentionLoop.revise`
   pushes into BeliefRevisionEngine and writes a ledger transition, all of it
@@ -3197,6 +3197,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and "New belief [intention_loop]: code_repl does what I intend when I use it"
   — d5f5ea43b. Selfhood reinforcement, prediction resolution and CRSM are not
   yet measured.
+  CLOSED 10 November 2026. Measured in her logs from 20 October: 1,295
+  intentions, every one "0 self-model updates"; her minimal selfhood's
+  reinforcement never called (TRICHOPLAX on all 122 starts); agency never
+  read; the CRSM's checkpoint last written 3 May. Each edge now carries what
+  happened (1347a8c3d, b2346faa0, 8a8598efc, bd8b15f1b), and in her app the
+  same night: a lesson learned from a tool use (field 0.013, her first), agency
+  read at 0.636 from outcomes compared, and the CRSM saved at tick 202 with its
+  state moved 0.47, resumed there on the next start. Her selfhood ticks only
+  with the full pipeline, a few times an hour, so lessons land minutes late.
+  [Evidence](evidence/L06_FEEDBACK_EDGES_2026-11-10.md).
 - [ ] L07 Verify skill invention, installation, execution, longitudinal benefit,
   recovery, and rollback on unseen tasks rather than installation counts.
 - [x] L08 Audit affect, self-state, phi, and consciousness-related claims with
