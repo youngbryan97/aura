@@ -3137,7 +3137,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 ## 3. Unified learning, knowledge, and agency
 
-- [ ] L01 Verify persona fusion/continuity and regenerate incompatible steering.
+- [x] L01 Verify persona fusion/continuity and regenerate incompatible steering.
   2026-09-30. The integrity audit reported "CAA steering at 30.0%
   (bootstrap)" for the resident cortex, Aura-Qwen3.8-27B-persona-crsm. Its
   migration contract qualifies a signed steering generation of 80 vectors,
@@ -3151,6 +3151,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   are the incompatible set this item names; nothing loads them for this
   cortex. Whether the attached tissue helps is G10's question, and G10's
   public comparison is still negative.
+  CLOSED 10 November 2026. Her cortex's weights and behaviour bundle hash to
+  the descriptor written at its fusion (52d313c2), so the persona she runs is
+  the persona fused; her logs from 20 October to 10 November name that cortex
+  9,681 times and no other. Its steering is production, 80 of 80 vectors bound
+  to it, the five dimensions the 32B set carried at its own sixteen layers,
+  and the 32B set is skipped by digest; F01's certificate showed the same day
+  that the steering keeps her voice. Recurrent tensors, which the fusion also
+  made incompatible, were never remade and are not this item.
+  [Evidence](evidence/L01_PERSONA_FUSION_AND_STEERING_2026-11-10.md).
 - [ ] L02 Close experience-to-dataset-to-training-to-evaluation-to-publication
   loops; reconcile marker formats, quality metadata, and active model identity.
 - [ ] L03 Use independent correctness/preference evidence, not fluency proxies,
