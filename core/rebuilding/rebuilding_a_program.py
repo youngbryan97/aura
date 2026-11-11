@@ -78,7 +78,7 @@ async def checks_that_mean_something(checks: list[Check], scratch: Path, *, brow
     """Only the checks that fail on the frame with nothing in it: one that holds on nothing checks nothing."""
     empty = await asyncio.to_thread(ProgramAsBuilt("Empty").write, scratch)
     runs = await run_checks(empty, checks, browser=browser)
-    await asyncio.to_thread(scratch.unlink, missing_ok=True)
+    await asyncio.to_thread(_governed, "delete_file", scratch)
     return [r.check for r in runs if not r.held]
 
 
@@ -100,8 +100,28 @@ def _recorded(ask: Asker, where: list[Path]) -> Asker:
 
 
 def _append(path: Path, line: str) -> None:
-    with path.open("a", encoding="utf-8") as out:
-        out.write(line + "\n")
+    _governed("append_text", path, line + "\n")
+
+
+def _governed(how: str, path: Path, *payload: Any) -> Any:
+    """One of her build's writes through the file gateway, in a governed scope of its own (Master Todo Q06): the
+    records beside a build, its log, its folder and its scratch files are hers to keep, in her state."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    source = "rebuilding_a_program"
+    # Each call by name, so the effect inventory (tools/lint_governance.py) sees it as the gateway's.
+    with local_internal_governed_scope(f"rebuilding.{how}", domain="file_write", receipt_prefix="rebuilding",
+                                       constraints={"artifact": "aura.rebuilt_program.v1", "operation": how}):
+        if how == "write_text":
+            return get_file_write_gateway().write_text(path, *payload, source=source)
+        if how == "append_text":
+            return get_file_write_gateway().append_text(path, *payload, source=source)
+        if how == "ensure_directory":
+            return get_file_write_gateway().ensure_directory(path, source=source)
+        if how == "delete_file":
+            return get_file_write_gateway().delete_file(path, source=source)
+    raise ValueError(f"no governed write named {how!r}")
 
 
 def _folder_name(name: str) -> str:
@@ -177,8 +197,9 @@ async def rebuild(
                 await _say(tell, line)
         else:
             await _say(tell, f"{program or genome.name} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
-        folder = _a_new_folder(Path(where), genome.name)
-        await asyncio.to_thread((folder / "what_it_does.json").write_text, json.dumps(genome.model_dump(), indent=1), "utf-8")
+        folder = await asyncio.to_thread(_a_new_folder, Path(where), genome.name)  # its directory is made durably
+        await asyncio.to_thread(_governed, "write_text", folder / "what_it_does.json",
+                                json.dumps(genome.model_dump(), indent=1))
         await asyncio.to_thread(_the_build_is, folder, program, asked, finished=False)
         return await _building(program, ask, folder, record, sources, named, began, tell=tell, browser=browser, deadline_s=deadline_s, asked=asked)
     except HerModelIsAwayError as why:
@@ -223,7 +244,8 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
         for at in range(0, len(asked_of_her), FEATURES_AT_ONCE):
             written.extend(await checks_for(genome, asked_of_her[at : at + FEATURES_AT_ONCE], ask, sources=sources, asked=asked))
         checks = await checks_that_mean_something(written, folder / "empty.html", browser=browser)
-        await asyncio.to_thread((folder / "checks.json").write_text, json.dumps([c.model_dump() for c in checks], indent=1), "utf-8")
+        await asyncio.to_thread(_governed, "write_text", folder / "checks.json",
+                                json.dumps([c.model_dump() for c in checks], indent=1))
         await _say(tell, f"Before any code, I wrote {len(written)} checks a person would make of it; "
                          + ("all of them" if len(checks) == len(written) else f"{len(checks)} of them")
                          + " fail on an empty program, so each tests something real.")
@@ -261,7 +283,7 @@ async def _what_is_known(program: str, sources: list[Any], genome: Genome, ask: 
         logger.info("rebuilding: her model is away (%s); reading on from what is written alone", why)
         names = []
     known = await asyncio.to_thread(deepened, known, names)
-    await asyncio.to_thread(kept.write_text, json.dumps(as_kept(known), indent=1), "utf-8")
+    await asyncio.to_thread(_governed, "write_text", kept, json.dumps(as_kept(known), indent=1))
     on = [title for title in known.rests_on]
     unborne = f"My model named {', '.join(known.unborne[:5])}{' and more' if len(known.unborne) > 5 else ''}, which nothing I keep bears out."
     if on:
@@ -294,7 +316,7 @@ async def _its_libraries(genome: Genome, known: Any, ask: Asker, folder: Path, b
         return []
     rows = [{"plan": b.plan.model_dump(), "code": b.code, "held": b.held, "failed": b.failed, "tries": b.tries,
              "from_her_store": b.from_her_store, "doubted": b.doubted} for b in built]
-    await asyncio.to_thread(kept.write_text, json.dumps(rows, indent=1), "utf-8")
+    await asyncio.to_thread(_governed, "write_text", kept, json.dumps(rows, indent=1))
     return built
 
 
@@ -305,13 +327,14 @@ def _a_new_folder(where: Path, name: str) -> Path:
     while folder.exists() and any(folder.iterdir()):
         n += 1
         folder = base.with_name(f"{base.name}-{n}")
-    folder.mkdir(parents=True, exist_ok=True)
+    _governed("ensure_directory", folder)
     return folder
 
 
 def _the_build_is(folder: Path, program: str, asked: str, *, finished: bool) -> None:
     """What the build in ``folder`` is of, and whether it was finished: how a build cut short is found again."""
-    (folder / "build.json").write_text(json.dumps({"program": program, "asked": asked, "finished": finished}, indent=1), "utf-8")
+    _governed("write_text", folder / "build.json",
+              json.dumps({"program": program, "asked": asked, "finished": finished}, indent=1))
 
 
 def _on_a_page_of_its_own(folder: Path) -> bool:
@@ -428,8 +451,8 @@ def keep_the_record(folder: Path, built: Built) -> None:
     from core.rebuilding.writing_it_part_by_part import what_works
 
     built.program.keep(folder)
-    (folder / "what_works.json").write_text(json.dumps(what_works(built.outcomes), indent=1), "utf-8")
-    (folder / "holding.json").write_text(json.dumps([c.model_dump() for c in built.holding], indent=1), "utf-8")
+    _governed("write_text", folder / "what_works.json", json.dumps(what_works(built.outcomes), indent=1))
+    _governed("write_text", folder / "holding.json", json.dumps([c.model_dump() for c in built.holding], indent=1))
 
 
 def the_build_meant(asked: str, roots: list[Path]) -> Path | None:
