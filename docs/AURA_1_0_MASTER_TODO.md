@@ -4797,6 +4797,12 @@ needs her 27B free (her app down, or her app's own influence trials).
   refuses a message whose Message-ID is not the one it answers); a read
   deferred behind her reply went on through every other message; subjects
   reached her as encoded words; her check took 14 s and takes 1.9 s.
+  Her next round answered his 8 September "Wanted to know how you're doing"
+  with "I'll check what I know about Bryan before responding.", and it was
+  held. Her chat replies pass `assess_user_facing_reply`, which names that
+  `promise_without_answer`; her mail replies did not, and now do
+  (9a89beaac). That draft is withdrawn (`her_email_drafts.py withdraw`), so
+  the message is unanswered again and comes up in her next round.
   Left: her first reply reaching Bryan. He sends it with
   `tools/her_email_drafts.py send d952c7b65b`, or sets
   `AURA_EMAIL_SENDS_WITHOUT_ASKING=1` and she sends her own.
