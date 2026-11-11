@@ -29,6 +29,28 @@ def her_weights_pinned(pinned: bool, *, device: str, ipc_writer: Any, job: Any, 
                 weights = 0  # the size is said when it can be read; the pin does not depend on it
             reply.update(status="ok", pinned=bool(pinned), wired_limit=limit, previous_wired_limit=previous,
                          model_bytes=weights)
+            if pinned:
+                reply["memory_entries"] = _her_memory_store_opened(model)
     except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
         reply.update(status="error", error=f"{type(exc).__name__}: {exc}")
     ipc_writer.put(reply)
+
+
+def _her_memory_store_opened(model: Any) -> int | None:
+    """Her non-parametric memory store, opened when voice mode opens rather than inside a person's first turn.
+
+    Her worker opens it on its first foreground generation and keeps it open after, so opening it here costs no more
+    memory, only sooner. LIVE 11 November 2026, it took 2.7 s of the first voice turn's 4.5 s to her first sound.
+    """
+    try:
+        from core.brain.nonparametric_worker import foreground_enabled
+
+        if not foreground_enabled():
+            return None
+        from core.brain.llm.decoder_topology import decoder_hidden_size
+        from core.brain.nonparametric_memory import get_nonparametric_memory
+
+        memory = get_nonparametric_memory(decoder_hidden_size(model))
+        return len(memory) if memory is not None else None
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return None  # her first turn opens it then, as before

@@ -86,3 +86,19 @@ def test_nothing_her_worker_answers_is_awaited_before_the_socket_is_read():
     assert "await " not in between, between
     worker = (_ROOT / "core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
     assert 'elif action in ("pin_weights", "release_weights"):' in worker
+
+
+def test_voice_mode_opening_opens_her_memory_store_so_her_first_turn_does_not(monkeypatch):
+    """LIVE 11 November 2026: opening it took 2.7 s of the first voice turn's 4.5 s to her first sound."""
+    import core.brain.llm.decoder_topology as topology
+    import core.brain.nonparametric_memory as store
+    import core.brain.nonparametric_worker as worker
+
+    opened = []
+    monkeypatch.setattr(worker, "foreground_enabled", lambda: True)
+    monkeypatch.setattr(topology, "decoder_hidden_size", lambda model: 5120)
+    monkeypatch.setattr(store, "get_nonparametric_memory", lambda dim: opened.append(dim) or [0] * 50000)
+    assert _replies(True, _Mx())["memory_entries"] == 50000 and opened == [5120]
+    assert "memory_entries" not in _replies(False, _Mx()) and opened == [5120]
+    monkeypatch.setattr(worker, "foreground_enabled", lambda: False)
+    assert _replies(True, _Mx())["memory_entries"] is None and opened == [5120]
