@@ -154,3 +154,24 @@ async def test_her_voice_says_it_is_making_speech_for_exactly_as_long_as_it_is(m
         assert tts.making_speech() == 0
     finally:
         tts.shutdown()
+
+
+def test_her_thought_is_released_early_enough_for_her_next_clause_to_be_heard_on_time():
+    """LIVE 11 November 2026: released only once her voice had nothing left to make, a long reply went silent between
+    sentences for up to 6.0 s. She is released once the audio queued is no longer than her measured lead."""
+    from core.voice.duplex.her_turn_taking import TurnTaking
+
+    now = [0.0]
+    taking = TurnTaking(clock=lambda: now[0])
+    assert taking.backlog(waiting=1, making=1, ahead_s=9.0) == 1  # a clause waits: hold
+    assert taking.backlog(waiting=0, making=1, ahead_s=9.0) == 1  # nothing learned yet: held while her voice works
+    assert taking.backlog(waiting=0, making=0, ahead_s=1.0) == 0  # her voice has nothing to make: released
+    now[0] = 2.5
+    taking.first_sound_of_a_clause()  # her next clause was heard 2.5 s after the release
+    assert taking.lead_s == 2.5
+    assert taking.backlog(waiting=0, making=1, ahead_s=6.0) == 1  # 6 s queued covers her lead: hold
+    assert taking.backlog(waiting=0, making=1, ahead_s=2.4) == 0  # no longer does: released in time
+    now[0] = 4.0
+    taking.first_sound_of_a_clause()
+    assert taking.lead_s == pytest.approx(0.7 * 2.5 + 0.3 * 1.5)
+    assert taking.backlog(waiting=0, making=0, ahead_s=20.0) == 0  # her voice has nothing to make: released
