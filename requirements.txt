@@ -6,6 +6,7 @@ mlx-lm-lora==2.1.0
 # whisper-small.en it replaces on partials (166 ms vs 193 ms on 12.4 s of
 # speech, M5 Pro). faster-whisper stays as the CPU fallback.
 parakeet-mlx>=0.5.2
+livekit==1.2.1  # WebRTC audio processing: her own echo canceller (core/voice/duplex/her_echo_canceller.py)
 faster-whisper
 webrtcvad
 pywebview>=5.0

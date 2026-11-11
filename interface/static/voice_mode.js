@@ -8,11 +8,13 @@
  * native rate and resampling her voice down to 16 k audibly dulls it. A
  * single context cannot have two rates.
  *
- * Echo cancellation is requested explicitly and is not optional. Without it,
- * on speakers, her own voice re-enters the microphone, trips barge-in, and
- * she interrupts herself — which looks exactly like a model failure. The
- * server has a transcript-level echo guard as the last line, but the browser's
- * WebRTC canceller is what does the real work.
+ * Echo cancellation is not optional. Without it, on speakers, her own voice
+ * re-enters the microphone, trips barge-in, and she interrupts herself. Where
+ * the server says "hers" in voice.ready she cancels it herself against what
+ * she played (core/voice/duplex/her_echo_canceller.py), and the browser's
+ * own processing stays off: on a Mac it is Apple's voice processing, which
+ * turns down and thins every other app's sound. Otherwise the browser's
+ * canceller does the work, and the transcript-level echo guard is the last line.
  *
  * The client reports playback position continuously. The server needs it to
  * know what the user actually heard before an interruption, which is what
@@ -381,10 +383,10 @@
         try {
             stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    // Not optional. See the note at the top of this file.
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
+                    // Hers when she cancels her own echo; the browser's otherwise. See the note at the top.
+                    echoCancellation: !state.herOwnEchoCancellation,
+                    noiseSuppression: !state.herOwnEchoCancellation,
+                    autoGainControl: !state.herOwnEchoCancellation,
                     channelCount: 1,
                     sampleRate: CAPTURE_RATE,
                 },
@@ -729,6 +731,10 @@
                 // server-side microphone lease admission, and ASR/TTS warmup.
                 // Before this event getUserMedia is never called.
                 state.serverReady = true;
+                // "hers": she takes her own voice out of the microphone against what she played, so the
+                // browser's echo cancellation stays off. On a Mac that is Apple's voice processing, which turns
+                // down and thins every other app's sound while the microphone is open (11 November 2026).
+                state.herOwnEchoCancellation = msg.echo_cancellation === 'hers';
                 void activateAudioAfterReady(msg);
                 break;
 

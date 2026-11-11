@@ -270,7 +270,7 @@ class DuplexVoiceSession:
         self._endpointer = Endpointer(self._config.endpoint)
         self._backchannel = BackchannelReflex(self._config.backchannel)
         self._filler = FillerReflex()
-        self._echo = EchoGuard()
+        self._echo = EchoGuard(acoustic=True)
         self._style = StyleController()
         self._overlap = OverlapArbiter()
         self._overlap_audio: list[np.ndarray] = []
@@ -407,6 +407,7 @@ class DuplexVoiceSession:
                 "asr_available": self._asr.available,
                 "sample_rate_in": CAPTURE_RATE,
                 "sample_rate_out": OUTPUT_RATE,
+                "echo_cancellation": "hers" if self._echo.cancels_acoustically else "browser",
             }
         )
         await self._set_state(SessionState.LISTENING)
@@ -449,8 +450,7 @@ class DuplexVoiceSession:
     async def feed_audio(self, data: bytes) -> None:
         """Handle one arbitrary-sized PCM16 buffer from the client.
 
-        Must stay bounded. Anything that could take longer than a frame
-        period is dispatched to a task instead of awaited here.
+        Must stay bounded: anything that could take longer than a frame period goes to a task, not awaited here.
         """
         if self._closed or self._muted or not self._capture_available:
             return
@@ -459,7 +459,7 @@ class DuplexVoiceSession:
                 f"voice audio message exceeds {MAX_AUDIO_MESSAGE_BYTES} bytes"
             )
         try:
-            samples = pcm16_to_float32(data)
+            samples = pcm16_to_float32(self._echo.clean(data))
         except (ValueError, TypeError) as exc:
             record_degradation(
                 "voice_duplex.session",
@@ -1615,7 +1615,7 @@ class DuplexVoiceSession:
                 track.sent_duration_s += result.duration_s
                 # Register the words so that if they come back through the
                 # microphone a moment later, the echo guard recognises them.
-                self._echo.note_spoken(result.text)
+                self._echo.note_spoken(result.text, result.samples, OUTPUT_RATE)
 
                 await self._send_json(
                     {
@@ -1808,7 +1808,7 @@ class DuplexVoiceSession:
             return
         if result is None or self._closed:
             return
-        self._echo.note_spoken(result.text)
+        self._echo.note_spoken(result.text, result.samples, OUTPUT_RATE)
         await self._send_binary(
             protocol.encode_audio(
                 float32_to_pcm16(result.samples),
@@ -1820,10 +1820,10 @@ class DuplexVoiceSession:
         )
 
     def _cancel_playback(self) -> None:
-        track = self._speaking
-        if track is not None:
-            track.token.cancel()
+        if self._speaking is not None:
+            self._speaking.token.cancel()
         self._speaking = None
+        self._echo.stopped_playing()
 
     # ── client commands ──────────────────────────────────────────────────
 

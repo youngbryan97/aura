@@ -3483,6 +3483,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   already runs server-side; then macOS is never asked to.
   Bryan chose the fully cleaned voice; it is data/voice_models/aura-kiwi-c,
   and the original stays as aura-kiwi-a.
+  Her own echo canceller is built: WebRTC's AEC3 (LiveKit's build) in the
+  echo guard, fed each clause as it leaves to be played and cleaning each
+  microphone buffer before her voice detector; an interruption drops what
+  was still to play. Her ready event says "hers", and her window then opens
+  the microphone with no echo cancellation, noise suppression or gain
+  control of its own. Proved on speech before it was wired: her voice
+  through a simulated room 30 to 40 dB quieter, and a person talking over
+  her about 38 dB above what was left of her.
   The standard asked for is ChatGPT's voice: fluent, quick, rich. Stages,
   each judged by the latency split now said in her log per voice turn:
   1. Works and sounds clean: a person's turn gets her model, no stock

@@ -26,8 +26,19 @@ import re
 import time
 from collections import deque
 from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger("Aura.Voice.EchoGuard")
+
+
+def _her_canceller() -> Any:
+    """Her acoustic canceller where WebRTC's audio processing is installed; None, and said once, where it is not."""
+    from core.voice.duplex.her_echo_canceller import HerEchoCanceller, cancels_acoustically
+
+    if not cancels_acoustically():
+        logger.info("her own echo canceller is not installed (livekit); her window cancels echo as before")
+        return None
+    return HerEchoCanceller()
 
 
 def _tokens(text: str) -> list[str]:
@@ -50,17 +61,35 @@ class EchoGuard:
         window_s: float = 12.0,
         overlap_threshold: float = 0.62,
         min_tokens: int = 3,
+        acoustic: bool = False,
     ) -> None:
         self._window_s = window_s
         self._threshold = overlap_threshold
         self._min_tokens = min_tokens
         self._recent: deque[tuple[float, list[str]]] = deque(maxlen=16)
+        self._acoustic = _her_canceller() if acoustic else None
 
-    def note_spoken(self, text: str) -> None:
-        """Register text she has just said aloud."""
+    @property
+    def cancels_acoustically(self) -> bool:
+        """Whether her own canceller takes her voice out of the microphone, so her window need not."""
+        return self._acoustic is not None
+
+    def note_spoken(self, text: str, samples: Any = None, rate: int = 0) -> None:
+        """Register text she has just said aloud, and the audio of it as it leaves to be played."""
         toks = _tokens(text)
         if toks:
             self._recent.append((time.monotonic(), toks))
+        if self._acoustic is not None and samples is not None and rate:
+            self._acoustic.sent_to_be_played(samples, rate)
+
+    def stopped_playing(self) -> None:
+        """Her speech was cut off: what was still to play will not reach the microphone."""
+        if self._acoustic is not None:
+            self._acoustic.stopped_playing()
+
+    def clean(self, data: bytes) -> bytes:
+        """The microphone's PCM16 with her own voice taken out, where her canceller runs."""
+        return self._acoustic.clean(data) if self._acoustic is not None else data
 
     def _live_tokens(self) -> set[str]:
         cutoff = time.monotonic() - self._window_s
