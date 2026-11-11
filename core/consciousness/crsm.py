@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -147,7 +147,10 @@ class ContinuousRecurrentSelfModel:
         self._tick_count: int = 0
         self._history: list[dict] = []          # rolling history for consolidator
         self._max_history: int = 200
+        self._saved_tick: int = 0
         self._load()
+        self._saved_tick = self._tick_count
+        _save_at_shutdown(self)
         logger.info("CRSM online — bidirectional self-model initialized.")
 
     # ── Public API ────────────────────────────────────────────────────────
@@ -312,10 +315,22 @@ class ContinuousRecurrentSelfModel:
                 "tick_count": self._tick_count,
                 "error_ema": self._error_ema,
             }
-            atomic_write_text(PERSIST_PATH, json.dumps(data))
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            atomic_write_text_behind(PERSIST_PATH, json.dumps(data))
+            self._saved_tick = self._tick_count
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('crsm', e)
             logger.debug("CRSM save failed: %s", e)
+
+    def save_if_advanced(self) -> bool:
+        """Keep what it learned since the last save, if anything.
+
+        It saved every 200 updates and nowhere else, and a session of hers advanced it fewer times than that: from 3 May
+        to 10 November 2026 it was not saved once, and every one of 122 starts resumed at tick 200.
+        """
+        if self._tick_count == self._saved_tick:
+            return False
+        self._save()
+        return True
 
     def _load(self):
         try:
@@ -329,6 +344,17 @@ class ContinuousRecurrentSelfModel:
         except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('crsm', e)
             logger.debug("CRSM load failed (starting fresh): %s", e)
+
+
+def _save_at_shutdown(model: ContinuousRecurrentSelfModel) -> None:
+    """Ask the shutdown coordinator to keep what the model learned before the process leaves."""
+    try:
+        from core.runtime.shutdown_coordinator import get_shutdown_coordinator
+
+        get_shutdown_coordinator().register(model.save_if_advanced, phase="memory_commit", name="crsm.save_if_advanced")
+    # not a failure: teardown already started, or no coordinator in this process; the 200-update save still runs.
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("CRSM: no shutdown save registered (%s: %s)", type(exc).__name__, exc)
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────

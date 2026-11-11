@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
 from pathlib import Path
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Conversation.OurSharedPast")
 
@@ -35,7 +36,7 @@ MOST_WATCHINGS = 100
 #: How long what was read stands before it is read again, in seconds.
 READ_AGAIN_AFTER_S = 60.0
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("our_shared_past.store")
 _KEPT: dict[str, Any] = {}
 
 

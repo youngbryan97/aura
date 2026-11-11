@@ -13,8 +13,9 @@ A name and a longer name it is part of are one person ("Allen" is Allen Pan once
 from __future__ import annotations
 
 import logging
-import threading
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Perception.WhoIsInIt")
 
@@ -28,7 +29,7 @@ SURE_OF_A_PERSON = 0.6
 #: and it is tried again later.
 ROOM_NEEDED = 3 * 1024**3
 
-_LOCK = threading.RLock()
+_LOCK = checked_lock("who_is_in_it.registry", reentrant=True)
 _READER: dict[str, Any] = {}
 
 

@@ -176,6 +176,9 @@ class MinimalSelfhood:
 
         # Pending action-categories awaiting reinforcement (pre-state snapshot).
         self._pending: Dict[str, Tuple[float, np.ndarray]] = {}
+        # Actions that have ended and wait for a tick to read her after them: token -> when it ended.
+        self._finished: dict[str, float] = {}
+        self._reinforcements: int = 0
 
         logger.info(
             "MinimalSelfhood initialized: mode=%s, %d categories, %d deficits",
@@ -195,6 +198,8 @@ class MinimalSelfhood:
 
         # 1. Build deficit vector from body budget + affect + cognition.
         deficit = self._build_deficit_vector(body_budget, affect, cognitive_state)
+        # Actions that ended before this reading learn from it.
+        self._settle_finished(deficit)
 
         # 2. Speed scalar (chemotaxis rule): high deficit → high speed.
         #    L2 norm of deficit divided by sqrt(len).  Clipped [0, 1].
@@ -318,6 +323,67 @@ class MinimalSelfhood:
             self._pending[token] = (time.time(), deficit_snapshot.copy())
         return token
 
+    def action_started(self, category: str) -> str | None:
+        """Tag an action of ``category`` with her deficits as the last tick read them, or None with no reading yet.
+
+        ``tag_action`` and ``reinforce`` had no caller anywhere (L06, 10 November 2026): her learned gradient field
+        stayed all zeros and she never left TRICHOPLAX in 122 starts. The intention loop calls this as she sets out.
+        """
+        if category not in ACTION_CATEGORIES:
+            return None
+        with self._lock:
+            last = self._last_state
+        if last is None:
+            return None
+        return self.tag_action(category, last.deficit_vector)
+
+    def action_finished(self, token: str | None) -> dict[str, float] | None:
+        """The action ``token`` names has ended; learn what it did to her deficits.
+
+        Against the latest tick that read her after she set out, when one has: that reading spans the action. When none
+        has, against the next tick. Returns what it taught, by deficit, when it learned now, else None.
+        """
+        if not token:
+            return None
+        with self._lock:
+            entry = self._pending.get(token)
+            if entry is None:
+                return None
+            last = self._last_state
+            if last is None or last.ts <= entry[0]:
+                self._finished[token] = time.time()
+                return None
+        return self._reinforce_reporting(token, last.deficit_vector)
+
+    def action_abandoned(self, token: str | None) -> None:
+        """An action given up teaches nothing; its tag is let go."""
+        if not token:
+            return
+        with self._lock:
+            self._pending.pop(token, None)
+            self._finished.pop(token, None)
+
+    def _reinforce_reporting(self, token: str, post_deficit: np.ndarray) -> dict[str, float] | None:
+        with self._lock:
+            entry = self._pending.get(token)
+        if entry is None:
+            return None
+        reward = np.clip((entry[1] - post_deficit).astype(np.float32), 0.0, 1.0)
+        if not self.reinforce(token, post_deficit):
+            return None
+        with self._lock:
+            self._reinforcements += 1
+        return {DEFICIT_KEYS[i]: round(float(reward[i]), 4) for i in range(len(DEFICIT_KEYS)) if reward[i] > 0.0}
+
+    def _settle_finished(self, deficit: np.ndarray) -> None:
+        """Reinforce every action that ended before this tick, against what this tick read."""
+        with self._lock:
+            ready = [token for token, ended in self._finished.items() if ended <= time.time()]
+            for token in ready:
+                self._finished.pop(token, None)
+        for token in ready:
+            self._reinforce_reporting(token, deficit)
+
     def reinforce(self, token: str, post_deficit: np.ndarray) -> bool:
         """Apply a Hebbian update based on how the deficit changed.
 
@@ -393,6 +459,7 @@ class MinimalSelfhood:
                 "dominant_deficit": s.dominant_deficit if s else None,
                 "learned_weight_norm": round(float(np.sum(np.abs(self._W))), 3),
                 "pending_reinforcement": len(self._pending),
+                "reinforcements": self._reinforcements,
                 "action_priority_peak": (
                     ACTION_CATEGORIES[int(np.argmax(s.action_priority))]
                     if s is not None else None

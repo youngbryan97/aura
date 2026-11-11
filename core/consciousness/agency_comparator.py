@@ -291,6 +291,19 @@ class AgencyComparator:
         traces = list(self._traces)
         return traces[-limit:]
 
+    def agency_reading(self) -> float | None:
+        """The agency score when there is something to read, else None: no trace yet, or every trace decayed.
+
+        ``get_agency_score`` answers 0.5 in both cases, which a reader cannot tell from a measured even split.
+        """
+        if not self._traces:
+            return None
+        now = time.time()
+        if all(trace.agency_confidence * math.exp(-(now - trace.timestamp) / 300.0) < 1e-10
+               for trace in list(self._traces)[-20:]):
+            return None
+        return self.get_agency_score()
+
     def get_agency_score(self) -> float:
         """
         Compute a running agency score (0-1) from recent traces.
@@ -399,6 +412,11 @@ class AgencyComparator:
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
 _instance: Optional[AgencyComparator] = None
+
+
+def peek_agency_comparator() -> AgencyComparator | None:
+    """The comparator if one exists; never builds one."""
+    return _instance
 
 
 def get_agency_comparator() -> AgencyComparator:

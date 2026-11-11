@@ -162,6 +162,8 @@ class IntentionLoop:
         self._active_intentions: Dict[str, IntentionRecord] = {}
         #: What each intention came to the last time, oldest first.
         self._last_outcome_of: Dict[str, str] = {}
+        # Each open intention's tag in her minimal selfhood, so its end can teach it.
+        self._selfhood_tokens: dict[str, str | None] = {}
         self._completed_intentions: deque[IntentionRecord] = deque(maxlen=self.COMPLETED_HISTORY)
         self._persist_count: int = 0
 
@@ -269,6 +271,7 @@ class IntentionLoop:
 
         with self._lock:
             self._active_intentions[intention_id] = rec
+        self._selfhood_tokens[intention_id] = self._selfhood_started()
 
         # Emit the efference copy: what she expects this to do, recorded before
         # she does it. The comparator was built for exactly this moment — "call
@@ -504,6 +507,30 @@ class IntentionLoop:
 
         return rec.surprise
 
+    @staticmethod
+    def _selfhood_started() -> str | None:
+        """Tag this intention in her minimal selfhood as a tool use; None where there is no selfhood reading yet."""
+        try:
+            from core.consciousness.minimal_selfhood import get_minimal_selfhood
+
+            return get_minimal_selfhood().action_started("tool_use")
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("selfhood not tagged: %s", exc)
+            return None
+
+    @staticmethod
+    def _selfhood_finished(token: str | None) -> dict[str, float] | None:
+        """End the tagged action; what it taught when a tick has read her since it ended."""
+        if not token:
+            return None
+        try:
+            from core.consciousness.minimal_selfhood import get_minimal_selfhood
+
+            return get_minimal_selfhood().action_finished(token)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("selfhood not reinforced: %s", exc)
+            return None
+
     def _emit_efference(self, rec: IntentionRecord) -> None:
         """Predict the outcome before acting. Never raises into intend()."""
         try:
@@ -684,7 +711,7 @@ class IntentionLoop:
                 if belief_updates is not None
                 else self._beliefs_this_cycle_established(rec)
             )
-            rec.self_model_updates = self_model_updates or []
+            rec.self_model_updates = list(self_model_updates or [])
             rec.tension_created = tension_created
             rec.tension_resolved = tension_resolved
             if status is not None:
@@ -696,6 +723,14 @@ class IntentionLoop:
             # Move from active to completed
             del self._active_intentions[intention_id]
             self._completed_intentions.append(rec)
+
+        # What this intention taught her selfhood: which of her deficits fell while she did it. The loop logged "0
+        # self-model updates" on all 1,295 intentions of 20 October to 10 November because nothing ever told it.
+        taught = self._selfhood_finished(self._selfhood_tokens.pop(intention_id, None))
+        if taught:
+            rec.self_model_updates.append(
+                "minimal_selfhood tool_use reduced " + ", ".join(f"{k} {v:.3f}" for k, v in sorted(taught.items()))
+            )
 
         self._persist(rec)
 
@@ -768,6 +803,15 @@ class IntentionLoop:
 
             del self._active_intentions[intention_id]
             self._completed_intentions.append(rec)
+
+        token = self._selfhood_tokens.pop(intention_id, None)
+        if token:
+            try:
+                from core.consciousness.minimal_selfhood import get_minimal_selfhood
+
+                get_minimal_selfhood().action_abandoned(token)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("selfhood tag not released: %s", exc)
 
         self._persist(rec)
 

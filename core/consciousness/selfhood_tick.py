@@ -113,7 +113,7 @@ def read_affect(state: Any) -> dict[str, float]:
 
 
 def read_cognition(state: Any) -> dict[str, float]:
-    """Social hunger and prediction error, as the tick measured them."""
+    """Social hunger and prediction error, as the tick measured them, and agency as her outcomes showed it."""
     found: dict[str, float] = {}
     hunger = _number(getattr(getattr(state, "affect", None), "social_hunger", None))
     if hunger is not None:
@@ -122,9 +122,18 @@ def read_cognition(state: Any) -> dict[str, float]:
     error = _number(getattr(unity, "prediction_error", None))
     if error is not None:
         found["prediction_error"] = max(0.0, min(1.0, error))
-    # agency_score is deliberately absent: there is no reading of it on the
-    # state, and a default dressed as a measurement is the defect this module
-    # exists to stop.
+    # Agency is read from what her actions did: the comparator's score over the
+    # outcomes it compared with what she expected. With nothing compared it is
+    # absent, never the even split the comparator would otherwise answer.
+    try:
+        from core.consciousness.agency_comparator import peek_agency_comparator
+
+        comparator = peek_agency_comparator()
+        agency = comparator.agency_reading() if comparator is not None else None
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        agency = None
+    if agency is not None:
+        found["agency_score"] = max(0.0, min(1.0, float(agency)))
     return found
 
 
@@ -197,7 +206,7 @@ def drive_selfhood(state: Any) -> SelfhoodReading:
     readings = {**body, **affect, **cognitive}
     wanted = (
         "energy_reserves", "resource_pressure", "thermal_stress", "coherence",
-        "curiosity", "social_hunger", "prediction_error",
+        "curiosity", "social_hunger", "prediction_error", "agency_score",
     )
     missing = tuple(name for name in wanted if name not in readings)
     if len(readings) < _MINIMUM_REAL_READINGS:
