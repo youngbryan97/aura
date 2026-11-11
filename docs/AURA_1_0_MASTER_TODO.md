@@ -3981,6 +3981,32 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   registered by the module that defines it, and governed key, click, type
   and go-to beside it, with the 27 files calling those. Declaring each file
   an owner of its own would name a dozen owners where the rule wants one.
+  2026-11-10, night: one owner for her page, built. `core/runtime/page_gateway.py`
+  takes the 143 page calls of 35 modules. A script runs in a page only if its
+  module declared it with `page_script` (a literal, or the module's own text
+  where the module or a class is defined, which tests/test_her_page_owner.py
+  reads in every file), and a value it needs goes in as an argument: a
+  script built at the call is a plain string and is refused. One was a
+  real opening: Reddit's rules were read with the subreddit's name written
+  into the script's text. An address is a web page, a file of hers or a
+  blank page, and `javascript:` is refused. Keys, clicks, typing and fills
+  are named by their source and counted. Five raw browser calls are left,
+  each named in that test: three open the system browser for the person
+  (the desktop gateway's, with the Rule of Two question above) and two are
+  Selenium's own navigation in skills/browser_action.py.
+  With them, 37 `mkdir` calls of a directory that the atomic or gateway write
+  right after makes itself came out, the same finding as the 69 and the 12
+  recorded in tests/test_effect_ownership_tiers.py; four that look the same
+  stay (a fresh `0o700` directory twice, `exist_ok=False` as a uniqueness
+  check, and one followed by a raw `shutil.copy2`).
+  Raw debt 998 -> 818 against its ceiling of 828, which now reads
+  818. The total is 2,100: the rise over 1,913 is governed calls
+  (her page owner's, and the gateway writes of her goals, attachments, mail
+  drafts and learning since 13 September), so the total follows the
+  measurement as it did then. The effect baseline is refreshed with every new
+  bucket reviewed. Still raw and new since September, and owed: the file
+  writes of her rebuilt programs (`core/rebuilding/`, 40 calls), her ear's
+  log, her watching's kept frames, and the stand-ins' trial files.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.

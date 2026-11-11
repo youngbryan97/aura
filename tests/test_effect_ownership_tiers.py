@@ -69,8 +69,19 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: never counted as a primitive, so a raw archive becoming a governed one
 #: reads as +2 governed and -0 raw. The raw tier is the safety claim and it
 #: did not move. The total follows the measurement.
-TOTAL_CEILING = 1913
-RAW_CEILING = 828
+#:
+#: 2026-11-10: raw 818, total 2,100. Raw had reached 998 on main: 148 browser
+#: calls in 35 modules went to Playwright directly, and the new work since
+#: September wrote files raw. The browser calls moved onto her page owner
+#: (core/runtime/page_gateway.py), which runs only a script its module
+#: declared and checks an address before going to it, and 37 `mkdir` calls of
+#: a directory the gateway or atomic write after them makes came out. Raw is
+#: under its old ceiling and the ceiling follows it down. The total is over
+#: 1913 by governed calls only: her page owner's 143, which were raw, and the
+#: gateway writes of her goals, attachments, mail drafts and learning added
+#: since 13 September. The total follows the measurement, as it did then.
+TOTAL_CEILING = 2100
+RAW_CEILING = 818
 
 
 def _split() -> tuple[int, int]:
