@@ -10,7 +10,15 @@ from types import SimpleNamespace
 
 import pytest
 
+from core.utils.injected_blocks import stamp_runtime_payload
 from core.voice.duplex import live_context as lc
+
+
+def _said(user, aura, at=None):
+    """An exchange as her runtime records it: stamped as its own, with when it was completed."""
+    import time
+
+    return stamp_runtime_payload({"user": user, "aura": aura, "timestamp": time.time() if at is None else at})
 
 
 def _a_context(replies=("Four.",)):
@@ -38,7 +46,7 @@ def test_the_conversation_is_read_once_and_each_turn_only_adds_to_it(monkeypatch
 
     async def scenario():
         live, read, generated, recorded = _a_context(replies=("Four.", "Six."))
-        await live.open([{"user": "Hi.", "aura": "Hello."}])
+        await live.open([_said("Hi.", "Hello.")])
         head = live.text
         assert head == "<|im_start|>user\nHi.<|im_end|>\n<|im_start|>assistant\nHello.<|im_end|>\n"
         assert read == [(head, "voice_live:session-1")] and live.ready
@@ -98,7 +106,7 @@ def test_a_context_that_could_not_be_read_stays_closed():
             return {"status": "error", "error": "no worker"}
 
         live = lc.HerLiveContext("s", read=refused)
-        await live.open([{"user": "Hi.", "aura": "Hello."}])
+        await live.open([_said("Hi.", "Hello.")])
         assert live.ready is False
 
     asyncio.run(scenario())
@@ -185,3 +193,21 @@ def test_a_lease_for_a_person_s_turn_is_a_foreground_lease(monkeypatch):
                                                                       wait_s=0.1, foreground=True))
     assert lease in router._GENERATION_GATE_FOREGROUND_LEASES
     router.release_external_generation_gate_lease(lease)
+
+
+def test_a_session_opens_on_this_sitting_and_the_last_exchange_not_every_exchange_there_is():
+    """LIVE 11 November 2026: opening on the forty most recent exchanges read 12,326 tokens before her first turn."""
+    import time
+
+    now = time.time()
+    earlier = [_said(f"Earlier question {n}?", "An earlier answer. " * 40, at=now - 2 * 86400 + n) for n in range(30)]
+    this_sitting = [_said("Hey, are you there?", "I'm here.", at=now - 120), _said("Good.", "Good.", at=now - 60)]
+    read = lc.what_she_reads_first([*earlier, *this_sitting], now=now)
+    assert [pair["user"] for pair in read] == ["Hey, are you there?", "Good."]
+    # After a break, the last exchange alone: a new turn answers into it.
+    assert [pair["user"] for pair in lc.what_she_reads_first(earlier, now=now)] == ["Earlier question 29?"]
+    # A sitting too long to read whole: the last exchange alone, as her governed turns read it.
+    long_sitting = [_said(f"Question {n}?", "A long answer. " * 400, at=now - 600 + n) for n in range(5)]
+    assert [pair["user"] for pair in lc.what_she_reads_first(long_sitting, now=now)] == ["Question 4?"]
+    # What her runtime did not record as delivered is not read at all.
+    assert lc.what_she_reads_first([{"user": "Hi.", "aura": "Hello.", "timestamp": now}], now=now) == []

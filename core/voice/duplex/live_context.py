@@ -36,6 +36,27 @@ def rendered(exchanges: Sequence[dict[str, Any]]) -> str:
     return "".join(turns)
 
 
+def what_she_reads_first(exchanges: Sequence[dict[str, Any]], now: float | None = None) -> list[dict[str, Any]]:
+    """The conversation a voice session opens on: the sitting going on now while it is short enough to be read whole,
+    and always the last exchange, which a new turn answers into.
+
+    It is what her governed turns read of history before the request bears on anything (history_reach.measure_reach):
+    earlier sittings reach her as memory, and what is read whole is bounded by A_SITTING_READ_WHOLE_CHARS. LIVE 11
+    November 2026, opening on the forty most recent exchanges whole read 12,326 tokens and held her worker for the
+    first minute of the session; her first spoken turn waited behind it and took 69 s.
+    """
+    from core.conversation.delivered_history import _attested_pairs
+    from core.conversation.history_reach import A_SITTING_READ_WHOLE_CHARS, _exchange_chars, _this_sitting
+
+    pairs = _attested_pairs(exchanges)
+    if not pairs:
+        return []
+    sitting = list(_this_sitting(pairs, now) or [])
+    if sum(_exchange_chars(pairs[index]) for index in sitting) > A_SITTING_READ_WHOLE_CHARS:
+        sitting = []
+    return [pairs[index] for index in sorted({*sitting, len(pairs) - 1})]
+
+
 def the_turns_evidence() -> str:
     """What is so at the moment the person begins: read while they speak, so it must not depend on their words."""
     try:
@@ -81,7 +102,7 @@ class HerLiveContext:
 
     async def open(self, exchanges: Sequence[dict[str, Any]]) -> None:
         """Read the conversation so far, once; until it is read, every turn takes her governed route."""
-        self.text = rendered(exchanges)
+        self.text = rendered(what_she_reads_first(exchanges))
         if self.text:
             held = await self._read(self.text, self.scope)
             if not held or held.get("status") != "ok":

@@ -190,6 +190,28 @@ SANCTIONED_BLOCKING_LOCKS: dict[str, str] = {
         "asyncio.to_thread from the autonomy conductor and from the end of a "
         "screen run, never on the loop."
     ),
+    "voice.asr.lane": (
+        "The same admission as vector_memory_engine.lifecycle_lock, for her "
+        "voice mode's speech recognizer: held across model-lane admission, "
+        "whose ledger write fsyncs, so two decodes cannot each admit the "
+        "recognizer's lane. Off the loop on every path: decodes and warm-up "
+        "run on executor threads (StreamingAsr), eviction and compensation "
+        "through asyncio.to_thread."
+    ),
+    "voice.asr.usage": (
+        "Held for a whole decode so the recognizer's weights cannot be evicted "
+        "while it reads them; the lane's preemptible flag is set inside it, "
+        "and that ledger write fsyncs. Released between them, an eviction "
+        "could free the weights a decode is still using. Every decode runs on "
+        "an executor thread, and eviction takes it without blocking."
+    ),
+    "voice.asr.warm": (
+        "Makes warm-up single-flight: a warm decodes a second of silence, "
+        "which admits the lane (voice.asr.lane) and fsyncs its ledger. "
+        "Released early, two sessions opening together would each warm and "
+        "admit. Warm-up runs on an executor thread (StreamingAsr.warm_up) or "
+        "through asyncio.to_thread when the lane is compensated."
+    ),
     "endogenous_pair_recorder.store": (
         "Rotation and append form one bounded corpus commit: releasing the lock "
         "between them lets concurrent turns rotate the same generation or append "
