@@ -1055,7 +1055,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
             }
             return attributed_text(kept.answer, kept.generation_metadata)
 
-        task_type = is_amplifiable(objective)
+        task_type = await asyncio.to_thread(is_amplifiable, objective)
         if task_type is None:
             return _the_amplifier_stood_down(draft, "question_is_not_a_checkable_one")
 

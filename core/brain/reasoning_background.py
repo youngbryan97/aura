@@ -21,6 +21,7 @@ this lands without entangling concurrent edits there.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from collections.abc import Mapping
@@ -156,7 +157,7 @@ async def _check_one_she_answered(router: Any) -> dict[str, Any]:
     if item is None:
         return {"status": "nothing_to_check"}
     objective = str(item["problem"])
-    task_type = is_amplifiable(objective)
+    task_type = await asyncio.to_thread(is_amplifiable, objective)
     if task_type is None or not should_use_executable_reasoning(objective, task_type=task_type):
         await mark_programs_checked(item["key"], "not_settled_by_programs")
         return {"status": "not_settled_by_programs"}

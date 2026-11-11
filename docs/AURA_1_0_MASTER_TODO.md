@@ -727,6 +727,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   252 ms of it on the CPU). Ten coroutines built the contract on
   the loop; all ten now hand it to a thread, and
   `tests/test_the_contract_is_built_off_the_loop.py` fails on an eleventh.
+  The amplifier's check, `is_amplifiable`, reads with an entailment model
+  loaded on first use (562 ms on the CPU, 1,652 ms held, from her reasoning
+  background); its five coroutine callers hand it to a thread as well, under
+  the same test.
   Next of the same class, measured smaller: the reply assessor reaches the
   encoder from 37 coroutines (55 ms on 10 November, from the inference
   gate's draft repair). The same stall showed a second defect: the lease

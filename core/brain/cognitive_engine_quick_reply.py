@@ -748,7 +748,7 @@ class _AnswersTheDesktopDirectly:
         # person's next request waited 35 seconds for it.
         if is_her_own_turn():
             return False
-        task_type = is_amplifiable(request)
+        task_type = await asyncio.to_thread(is_amplifiable, request)
         if task_type is None or not should_use_executable_reasoning(request, task_type=task_type):
             return False
         try:
@@ -831,7 +831,7 @@ class _AnswersTheDesktopDirectly:
             search_allowance,
         )
 
-        task_type = is_amplifiable(request)
+        task_type = await asyncio.to_thread(is_amplifiable, request)
         if task_type is None:
             return None
         try:

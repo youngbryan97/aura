@@ -94,7 +94,7 @@ class _AmplifiesTheDraft:
             logger.info("🧠 [AmplifyV2-live/phase] kept procedure answered (%s)",
                         (receipt.get("cognitive_operations") or [{}])[0].get("family"))
             return kept.answer
-        task_type = is_amplifiable(objective)
+        task_type = await asyncio.to_thread(is_amplifiable, objective)
         if task_type is None:
             return draft
         from core.brain.executable_reasoning import should_use_executable_reasoning
