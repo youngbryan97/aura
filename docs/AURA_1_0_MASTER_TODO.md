@@ -3491,6 +3491,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   control of its own. Proved on speech before it was wired: her voice
   through a simulated room 30 to 40 dB quieter, and a person talking over
   her about 38 dB above what was left of her.
+  11 November 02:20, her app restarted on 9b62ce4c0, two turns spoken to
+  her voice mode by tools/voice/a_spoken_turn.py (macOS `say` streamed in
+  real time to /ws/voice from her window's origin, her speech played back
+  on a clock). Ready in 6.5 s with "hers" for echo cancellation. "Hey
+  Aura, can you hear me okay?": "Yes. I hear you clearly..." in the clean
+  voice; cognition 31.0 s with her cortex loading. "What's two plus two?":
+  "Four." Endpoint 0.66 s after the words, first sound of her answer 0.55 s
+  after it formed, and her mind 18.4 s: prefill 10.94 s for a 7,745-
+  character prompt, queue 1.74 s, a one-token pass 1.3 s, preparation 1.6
+  s, decode 0.11 s. Her prompt cache missed: the prompt begins with
+  history chosen by meaning, which changes from question to question
+  (matched 3 tokens of 2,354), and her model's recurrent state cannot be
+  rewound to a shorter prefix. Next: a fixed head, this sitting's
+  exchanges in order, recalled memories and the present moment last, and
+  her cache kept at the end of the stable part.
   The standard asked for is ChatGPT's voice: fluent, quick, rich. Stages,
   each judged by the latency split now said in her log per voice turn:
   1. Works and sounds clean: a person's turn gets her model, no stock

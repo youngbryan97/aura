@@ -195,12 +195,14 @@ class _WhisperBackend:
         self._cache: dict[str, Any] = {}
         # Taken in this order: warming holds `warm` across a whole decode, a decode holds `usage` while it takes the
         # model lane and reads the model cache, and `cache` and `lane` are never held together. All four were declared
-        # innermost, so every warm-up was four lock-order violations in her stream (11 November 2026).
+        # innermost, so every warm-up was four lock-order violations in her stream (11 November 2026). `lane` is held
+        # while her model-lane controller takes its own locks (a CPU sampler among them), so it is left unranked and
+        # watched for cycles.
         self._cache_lock = checked_lock("voice.asr.cache", rank=LockRank.LEAF)
         self._usage_lock = checked_lock("voice.asr.usage", rank=LockRank.RESOURCE)
         self._warm_lock = checked_lock("voice.asr.warm", rank=LockRank.LANE)
         self._warmed_repos: set[str] = set()
-        self._lane_lock = checked_lock("voice.asr.lane", rank=LockRank.LEAF)
+        self._lane_lock = checked_lock("voice.asr.lane")
         self._lane_lease: Any = None
         self._model_lane_controller = model_lane_controller
         self._parakeet: Any = None

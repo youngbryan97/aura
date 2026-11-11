@@ -1989,11 +1989,14 @@ def test_her_recognizer_s_locks_nest_in_the_order_they_are_taken():
 
     reset_lockdep_for_test()
     backend = _WhisperBackend(AsrConfig())
+    from core.runtime.lockdep import LockRank, checked_lock
+
+    sampler = checked_lock("test.cpu_sampler_inside_the_lane", rank=LockRank.LEAF)
     with backend._warm_lock, backend._usage_lock:
-        with backend._lane_lock:
+        with backend._lane_lock, sampler:  # her model-lane controller samples the CPU while the lane is held
             pass
         with backend._cache_lock:
             pass
-    names = {"voice.asr.warm", "voice.asr.usage", "voice.asr.lane", "voice.asr.cache"}
+    names = {"voice.asr.warm", "voice.asr.usage", "voice.asr.lane", "voice.asr.cache", "test.cpu_sampler_inside_the_lane"}
     found = [s for s in get_validator().splats() if any(name in s.signature for name in names)]
     assert found == [], [s.signature for s in found]
