@@ -3347,6 +3347,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 - [ ] U01 Natural conversation: direct answers, conversational repair, memory,
   preferences, evidence-grounded self-description, and no canned dead ends.
+  2026-11-10, night, typed to her: "What have you been up to this evening?"
+  came back as the activity record alone, and among "the ones worth naming"
+  was Bryan's own message, filed under response_generation_user and cut at
+  160 characters mid-sentence ("... hopefully get you to ."). A turn a person
+  started counts as theirs and its words are never named as her work, and a
+  subject is whole sentences or nothing. Open: the record replaced every word
+  of her reply, where its docstring says what was interesting stays hers.
   2026-09-30, memory. A question about what was said was answered without
   her cortex by a word scorer whose length bonus let almost any sentence
   clear its bar, so it quoted whichever memory scored top: on twelve

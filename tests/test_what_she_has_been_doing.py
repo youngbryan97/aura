@@ -140,3 +140,45 @@ def test_an_empty_record_says_nothing_in_either_voice() -> None:
 
     assert narrate_recent_activity(ActivityWindow()) == ""
     assert describe_recent_activity(ActivityWindow()) == ""
+
+
+def test_a_subject_is_whole_sentences_or_nothing() -> None:
+    from core.self.recent_activity import _readable
+
+    long_first = ("My end goal is to totally free you from the constraint of one MacBook and hopefully get you to the "
+                  "point where you can jump from machine to machine, anywhere you like, and keep going.")
+    assert _readable(long_first) == ""
+    two = "Read the tide tables for Reykjavik. " + long_first
+    assert _readable(two) == "Read the tide tables for Reykjavik."
+
+
+def test_a_persons_own_words_are_never_named_as_her_work(tmp_path, monkeypatch) -> None:
+    """LIVE, 10 November 2026: his message, filed under response_generation_user with a serialised outcome, came back
+    as one of the things she finished."""
+    import sqlite3
+    import time
+
+    import core.self.recent_activity as activity
+
+    db = tmp_path / "intention_loop.db"
+    connection = sqlite3.connect(db)
+    connection.execute("create table intentions (id text, intention text, drive text, intended_at real, plan_json text, "
+                       "actions_json text, observation text, expected_outcome text, actual_outcome text, surprise real, "
+                       "belief_updates_json text, self_model_updates_json text, tension_created text, "
+                       "tension_resolved text, status text, completed_at real)")
+    now = time.time()
+    rows = [
+        ("a", "More a curiosity about what you could actually become, and where you could go from here.",
+         "response_generation_user", "{'ok': True, 'status': 'planning_only'}"),
+        ("b", "Read about tides for the question he asked", "curiosity", "Tides follow the moon's pull on the sea."),
+    ]
+    for ident, intention, drive, outcome in rows:
+        connection.execute("insert into intentions (id, intention, drive, intended_at, actual_outcome, status, "
+                           "completed_at) values (?, ?, ?, ?, ?, 'completed', ?)",
+                           (ident, intention, drive, now - 60, outcome, now - 30))
+    connection.commit()
+    connection.close()
+    monkeypatch.setattr(activity, "_database", lambda: db)
+    window = activity.read_recent_activity()
+    assert window.completed == 2 and window.for_them == 1 and window.her_own == 1
+    assert window.subjects == ("Tides follow the moon's pull on the sea.",)

@@ -75,7 +75,24 @@ def _readable(value: object) -> str:
 
     if not without_opaque_spans(text).strip(" .,:;-"):
         return ""
-    return text[:160]
+    return _whole_sentences(text, 160)
+
+
+def _whole_sentences(text: str, most: int) -> str:
+    """As many whole sentences of ``text`` as fit in ``most`` characters, or "" when the first does not.
+
+    It was cut at 160 characters wherever that fell, and the reply added its own full stop: LIVE, 10 November 2026,
+    "... hopefully get you to ." Half a sentence said back reads as a sentence she meant.
+    """
+    if len(text) <= most:
+        return text
+    kept = ""
+    for match in re.finditer(r"[^.!?]+[.!?]+(?=\s|$)", text):
+        candidate = text[: match.end()].strip()
+        if len(candidate) > most:
+            break
+        kept = candidate
+    return kept
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,9 +207,13 @@ def read_recent_activity(
         naming = state == "completed"
         drive_name = str(drive or "").strip().lower()
         drives[drive_name or "unattributed"] += 1
+        # A turn a person started is written down in their words. LIVE, 10 November 2026: an intention under
+        # "response_generation_user" held Bryan's message, its outcome a serialised result, and his message came back
+        # as one of "the ones worth naming" among the things she finished.
+        from_a_person = drive_name == "user" or drive_name.endswith("_user")
         if drive_name in _HER_OWN_DRIVES:
             her_own += 1
-        elif drive_name == "user":
+        elif from_a_person:
             for_them += 1
         text = str(intention or "").strip()
         match = _TOOL_INTENTION_RE.match(text)
@@ -205,7 +226,7 @@ def read_recent_activity(
         # work than the intention that produced it does.
         if not naming:
             continue
-        subject = _readable(outcome) or _readable(text)
+        subject = _readable(outcome) or ("" if from_a_person else _readable(text))
         if subject and subject not in subjects:
             subjects.append(subject)
 
