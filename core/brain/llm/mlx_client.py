@@ -3014,7 +3014,7 @@ def _tools_can_carry_a_document(tools: Any) -> bool:
         if not isinstance(properties, Mapping):
             continue
         for name, spec in properties.items():
-            if str(name).strip().lower() not in _DOCUMENT_ARGUMENT_NAMES:
+            if str(name).strip().lower().split("_")[-1] not in _DOCUMENT_ARGUMENT_NAMES:  # new_text: a file, as text
                 continue
             declared = spec.get("type") if isinstance(spec, Mapping) else None
             if declared in (None, "string") or declared == ["string"]:

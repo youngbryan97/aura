@@ -113,3 +113,13 @@ def test_the_loop_uses_it() -> None:
 
     source = inspect.getsource(MLXLocalClient.think_and_act)
     assert "_tool_call_budget(" in source
+
+
+def test_her_draft_edit_carries_a_document_by_its_last_word() -> None:
+    """LIVE 2026-11-10: edit_draft's `new_text` is a file's text, and read as a phrase the pressure cap took her goal
+    pass to 978 tokens. Twice she reasoned her way to a fix of cold_store.py and was cut off before the call."""
+    from core.skills.her_draft import tool_definitions
+
+    assert carries({name: d for name, d in tool_definitions().items() if name == "edit_draft"})
+    assert carries({name: d for name, d in tool_definitions().items() if name == "find_in_source"}) is False
+    assert carries({"t": {"parameters": {"properties": {"search_query": {"type": "string"}}}}}) is False

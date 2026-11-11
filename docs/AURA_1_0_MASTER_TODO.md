@@ -4841,6 +4841,14 @@ needs her 27B free (her app down, or her app's own influence trials).
   Open: a call of hers that names a tool not offered (`find_inegrity`, once
   in her whole log) is refused and dropped, and the pass ends there without
   her being told the name was wrong.
+  After the 22:02 restart, "Find something productive to work on" found a
+  defect of its own choosing: cold_store.py opens a SQLite connection per
+  call and never closes one. Two passes in a row she reasoned her way to
+  a context manager that closes each, and was cut off at 978 tokens before
+  the call, so the goal stalled. The memory-pressure cap lets a tool turn
+  past it only when a tool carries a document, read from argument names;
+  edit_draft's file text is `new_text`, which the exact-name list did not
+  have. An argument is read by its last word now.
 - [ ] F06 Her state reaches her words through the model, not as instructions.
   Done: instructions out of her turns, canned answers out, her model answers
   identity and capability turns. Left: the prompts still in background loops
