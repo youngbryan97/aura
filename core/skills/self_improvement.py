@@ -43,7 +43,6 @@ class SelfImprovementSkill(BaseSkill):
         super().__init__()
         from core.config import config
         self.learning_log_path = Path(config.paths.data_dir) / "learning_history.json"
-        self.learning_log_path.parent.mkdir(parents=True, exist_ok=True)
         
     def _append_to_log(self, entry: dict[str, Any]):
         history = self._get_learning_history()

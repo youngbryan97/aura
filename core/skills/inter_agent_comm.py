@@ -32,7 +32,6 @@ class InterAgentCommSkill(BaseSkill):
     def __init__(self):
         # Ensure we have a place to store these outbound messages
         self.comm_log_path = Path("data/comm_logs.jsonl")
-        self.comm_log_path.parent.mkdir(parents=True, exist_ok=True)
         logger.info("✅ InterAgentComm initialized (v3.4 Patch Applied)")
 
     async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:

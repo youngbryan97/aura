@@ -48,9 +48,7 @@ class SelfEvolutionSkill(BaseSkill):
 
     @staticmethod
     def _evolution_dir() -> Path:
-        path = config.paths.data_dir / "evolution"
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        return config.paths.data_dir / "evolution"  # made by the gateway's first write into it
 
     def _load_error_registry(self) -> dict:
         """Load or initialize error registry for self-correction."""

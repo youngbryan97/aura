@@ -414,6 +414,7 @@ async def test_code_repl_subprocess_fallback_uses_file_gateway_and_action_execut
 ) -> None:
     file_calls: list[tuple[str, str]] = []
     action_calls: list[dict[str, object]] = []
+    deleted: list[tuple[str, str]] = []
 
     class FakeFileWriteGateway:
         def write_text(self, path, text, *, encoding="utf-8", source="unknown") -> None:
@@ -426,6 +427,12 @@ async def test_code_repl_subprocess_fallback_uses_file_gateway_and_action_execut
         # must mirror the gateway surface or every governed write breaks.
         async def write_text_async(self, *args, **kwargs):
             return self.write_text(*args, **kwargs)
+
+        def delete_file(self, path, *, source="unknown") -> bool:
+            # The temporary script is taken away through the gateway too.
+            deleted.append((Path(path).name, source))
+            Path(path).unlink(missing_ok=True)
+            return True
 
     class FakeActionExecutor:
         @classmethod
@@ -458,6 +465,7 @@ async def test_code_repl_subprocess_fallback_uses_file_gateway_and_action_execut
     temp_name, source = file_calls[0]
     assert source == "core.skills.code_repl.temp_script"
     assert not (tmp_path / temp_name).exists()
+    assert deleted == [(temp_name, "core.skills.code_repl.temp_script")]
     assert action_calls
     params = action_calls[0]["params"]
     assert isinstance(params, dict)

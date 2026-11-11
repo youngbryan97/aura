@@ -23,9 +23,7 @@ from core.thought_stream import get_emitter
 logger = logging.getLogger("Skills.ToggleSenses")
 
 def _sense_state_dir() -> Path:
-    path = config.paths.data_dir / "senses"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return config.paths.data_dir / "senses"  # made by the gateway's first write into it
 
 def _get_pid_file(sense_name: str) -> str:
     return str(_sense_state_dir() / f"{sense_name}.pid")
@@ -51,7 +49,7 @@ def _load_pid(sense_name: str) -> Optional[int]:
 def _clear_pid(sense_name: str):
     path = _get_pid_file(sense_name)
     if os.path.exists(path):
-        try: os.remove(path)
+        try: get_file_write_gateway().delete_file(path, source="skills.toggle_senses.pid")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('toggle_senses', e)
             from core.sovereign.errors import SensesError

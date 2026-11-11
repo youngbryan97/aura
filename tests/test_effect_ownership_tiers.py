@@ -86,9 +86,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: rebuilds through the file gateway in a scope: 806 and 2,093. Later, her
 #: ear's log and hold, her record of a watching, the pages and records of a
 #: program she builds or changes and the stand-ins' trial files: 781 and
-#: 2,072.
-TOTAL_CEILING = 2072
-RAW_CEILING = 781
+#: 2,072. Then six skills' folders a gateway write after them makes anyway,
+#: and four of their deletes and writes onto the gateway: 770 and 2,065.
+TOTAL_CEILING = 2065
+RAW_CEILING = 770
 
 
 def _split() -> tuple[int, int]:

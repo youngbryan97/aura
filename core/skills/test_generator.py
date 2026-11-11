@@ -61,7 +61,9 @@ async def _read_text(path: Path) -> str:
 
 
 async def _write_text(path: Path, content: str) -> None:
-    await asyncio.to_thread(path.write_text, content, encoding="utf-8")
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    await get_file_write_gateway().write_text_async(path, content, source="skills.test_generator")
 
 
 class TestGeneratorParams(BaseModel):

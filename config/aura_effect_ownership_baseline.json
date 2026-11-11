@@ -6857,6 +6857,14 @@
       "scope": "<module>.BuildDocumentSkill.execute"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/skills/code_repl.py",
+      "scope": "<module>.CodeREPLSkill._execute_via_subprocess"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6935,6 +6943,14 @@
       "count": 1,
       "path": "core/skills/listen.py",
       "scope": "<module>.AudioListenerSkill.execute"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/skills/listen.py",
+      "scope": "<module>._record_sync"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
@@ -7039,6 +7055,22 @@
       "count": 1,
       "path": "core/skills/sovereign_browser_conversation.py",
       "scope": "<module>._keep"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/skills/test_generator.py",
+      "scope": "<module>._write_text"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/skills/toggle_senses.py",
+      "scope": "<module>._clear_pid"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -14745,14 +14777,6 @@
       "scope": "<module>.BranchingFuturesSkill.execute"
     },
     {
-      "callee": "os.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/code_repl.py",
-      "scope": "<module>.CodeREPLSkill._execute_via_subprocess"
-    },
-    {
       "callee": "path.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -14793,28 +14817,12 @@
       "scope": "<module>.FileOperationSkill.execute._patch"
     },
     {
-      "callee": "self.comm_log_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/inter_agent_comm.py",
-      "scope": "<module>.InterAgentCommSkill.__init__"
-    },
-    {
       "callee": "os.unlink",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/skills/internal_sandbox.py",
       "scope": "<module>.SandboxSkill.execute_code_safely"
-    },
-    {
-      "callee": "pathlib.Path().unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/listen.py",
-      "scope": "<module>._record_sync"
     },
     {
       "callee": "artifacts_dir.mkdir",
@@ -14841,14 +14849,6 @@
       "scope": "<module>.ManimRendererSkill.execute"
     },
     {
-      "callee": "self.mem_fs_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/memory_ops.py",
-      "scope": "<module>.MemoryOpsSkill.__init__"
-    },
-    {
       "callee": "os.makedirs",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -14857,68 +14857,12 @@
       "scope": "<module>.PluginManager.__init__"
     },
     {
-      "callee": "path.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/self_evolution.py",
-      "scope": "<module>.SelfEvolutionSkill._evolution_dir"
-    },
-    {
-      "callee": "self.learning_log_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/self_improvement.py",
-      "scope": "<module>.SelfImprovementSkill.__init__"
-    },
-    {
       "callee": "patch_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/skills/self_repair.py",
       "scope": "<module>.SelfRepairSkill.execute"
-    },
-    {
-      "callee": "path.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/test_generator.py",
-      "scope": "<module>._write_text"
-    },
-    {
-      "callee": "os.remove",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/toggle_senses.py",
-      "scope": "<module>._clear_pid"
-    },
-    {
-      "callee": "path.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/toggle_senses.py",
-      "scope": "<module>._sense_state_dir"
-    },
-    {
-      "callee": "self.dataset_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/train_self.py",
-      "scope": "<module>.TrainSelfSkill.__init__"
-    },
-    {
-      "callee": "knowledge_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/train_self.py",
-      "scope": "<module>.TrainSelfSkill._trigger_finetuning"
     },
     {
       "callee": "self._output_dir.mkdir",
@@ -17634,6 +17578,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "f5254c5d0f064f616d12ed2bca7d9b5895c6d43dd2dca9bac7d7df696e181ed5",
+  "inventory_sha256": "f591b4b63fa78aa67a7f91ead425f66dac24e35126fe0399d00994f7ef8c4d20",
   "schema_version": 1
 }

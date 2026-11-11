@@ -40,7 +40,6 @@ class TrainSelfSkill(BaseSkill):
         super().__init__()
         # Issue 86: Use config.paths for dataset location
         self.dataset_path = config.paths.data_dir / "training" / "dataset.jsonl"
-        self.dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         action = goal.get("action", "collect_memories")
@@ -127,7 +126,6 @@ class TrainSelfSkill(BaseSkill):
                 return {"ok": False, "error": "No memories to consolidate."}
                 
             knowledge_path = config.paths.project_root / "core" / "knowledge" / "self_learned.md"
-            knowledge_path.parent.mkdir(parents=True, exist_ok=True)
             
             # 2. Distill memories using the actual LLM (Cognitive Engine)
             new_knowledge = []

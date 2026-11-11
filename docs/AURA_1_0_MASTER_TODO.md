@@ -4050,6 +4050,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   which writes to a buffer in memory that the inventory counts as a file.
   Her voice models' folder waits for room: the voice engine is over its
   size and the six lines a governed folder takes are over the budget.
+  Then her skills: six made a folder that the gateway or atomic write
+  after it makes anyway (memory blocks, the agents' log, her learning log,
+  her training set and knowledge file, her evolution records, her senses'
+  pid files), and those lines came out; the pid file's removal, a failed
+  recording's removal, the code REPL's temporary script and the test
+  generator's files go through the gateway. Raw 770, total 2,065.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.

@@ -55,7 +55,6 @@ class MemoryOpsSkill(BaseSkill):
         super().__init__()
         # Initialize MemFS (Memory File System) in the workspace
         self.mem_fs_dir = Path(getattr(config.paths, "base_dir", ".")) / ".aura" / "memfs"
-        self.mem_fs_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize default blocks if missing
         self.core_blocks = ["persona", "user", "system"]

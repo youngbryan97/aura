@@ -126,7 +126,7 @@ def _record_sync(duration: float, fs: int = 16000) -> str:
             return temp_path
         except OSError as e:
             record_degradation('listen', e)
-            Path(temp_path).unlink(missing_ok=True)
+            get_file_write_gateway().delete_file(temp_path, source="skills.listen.recording")
             raise e
 
 

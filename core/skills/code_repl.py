@@ -1042,7 +1042,8 @@ class CodeREPLSkill(BaseSkill):
         finally:
             if temp_path:
                 try:
-                    os.unlink(temp_path)
+                    await asyncio.to_thread(get_file_write_gateway().delete_file, temp_path,
+                                            source="core.skills.code_repl.temp_script")
                 except OSError as _exc:
                     logger.debug("Suppressed %s in core.skills.code_repl: %s", type(_exc).__name__, _exc)
 
