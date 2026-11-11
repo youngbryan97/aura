@@ -150,6 +150,8 @@ class ContinuousRecurrentSelfModel:
         self._saved_tick: int = 0
         self._load()
         self._saved_tick = self._tick_count
+        #: The hidden state as last saved; what an update or a reply's nudge moved since is what a save keeps.
+        self._saved_h: np.ndarray = self._h.copy()
         _save_at_shutdown(self)
         logger.info("CRSM online — bidirectional self-model initialized.")
 
@@ -317,6 +319,7 @@ class ContinuousRecurrentSelfModel:
             }
             atomic_write_text_behind(PERSIST_PATH, json.dumps(data))
             self._saved_tick = self._tick_count
+            self._saved_h = self._h.copy()
         except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('crsm', e)
             logger.debug("CRSM save failed: %s", e)
@@ -325,14 +328,17 @@ class ContinuousRecurrentSelfModel:
         """Keep what it learned since the last save, if anything.
 
         It saved every 200 updates and nowhere else, and a session of hers advanced it fewer times than that: from 3 May
-        to 10 November 2026 it was not saved once, and every one of 122 starts resumed at tick 200.
+        to 10 November 2026 it was not saved once, and every one of 122 starts resumed at tick 200. Her replies nudge
+        its hidden state without advancing a tick (``post_inference_update``), so a change is read off the state.
         """
-        if self._tick_count == self._saved_tick:
+        moved = float(np.linalg.norm(self._h - self._saved_h))
+        if self._tick_count == self._saved_tick and moved == 0.0:
             logger.info("CRSM: nothing learned since tick %d; not saved.", self._saved_tick)
             return False
         before = self._saved_tick
         self._save()
-        logger.info("CRSM saved at tick %d (last saved at tick %d).", self._tick_count, before)
+        logger.info("CRSM saved at tick %d (last saved at tick %d; hidden state moved %.4f).",
+                    self._tick_count, before, moved)
         return True
 
     def _load(self):

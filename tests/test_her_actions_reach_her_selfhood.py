@@ -123,3 +123,14 @@ def test_what_her_selfhood_learned_is_kept_on_her_state_and_said_in_her_log(monk
         reading = _drive_minimal_selfhood(RESTED, {"coherence": 0.6, "curiosity": 0.5}, {})
     assert reading["reinforcements"] == 1 and reading["learned_norm"] > 0.0
     assert any("learned from tool_use" in record.getMessage() for record in caplog.records)
+
+
+def test_a_reply_that_nudged_her_recurrent_self_model_is_kept(tmp_path, monkeypatch):
+    path = tmp_path / "crsm_state.json"
+    monkeypatch.setattr(crsm, "PERSIST_PATH", path)
+    monkeypatch.setattr(crsm, "_save_at_shutdown", lambda model: None)
+    model = crsm.ContinuousRecurrentSelfModel()
+    model.post_inference_update("that was a good and wonderful afternoon")
+    assert model._tick_count == 0
+    assert model.save_if_advanced(), "her reply moved it, and that is kept"
+    assert np.allclose(np.array(json.loads(path.read_text())["h"]), model.hidden_state)
