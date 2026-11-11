@@ -282,6 +282,18 @@ def coerce_authority_origin(value: Any) -> str:
     return normalized
 
 
+def authority_origin_of(context: Mapping[str, Any] | None) -> str:
+    """The origin a skill asks authority under: the turn's authority origin, else its origin, else who called.
+
+    Her chat's tool loop forwards the turn's origin and names itself the source ("think_and_act"), which is no route a
+    person comes in on. LIVE 10 November 2026, "Can you check your email" reached her mail, which asked under the
+    source and was refused, "signed_standing_authority_lease_missing", on a turn the owner's foreground grant covers.
+    Her browser already asked in this order.
+    """
+    ctx = dict(context or {})
+    return str(ctx.get("authority_origin") or ctx.get("origin") or ctx.get("source") or "")
+
+
 def context_has_user_authority(origin: Any, context: Mapping[str, Any] | None = None) -> bool:
     ctx = dict(context or {})
     normalized = coerce_authority_origin(origin)
@@ -1825,6 +1837,7 @@ __all__ = [
     "StandingAuthorityLeaseRecord",
     "StandingAuthorityManager",
     "USER_FACING_AUTHORITY_ORIGINS",
+    "authority_origin_of",
     "canonical_arguments_digest",
     "coerce_authority_origin",
     "context_has_user_authority",

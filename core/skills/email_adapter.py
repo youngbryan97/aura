@@ -332,6 +332,7 @@ class EmailAdapterSkill(BaseSkill):
         gateway = None
         try:
             from core.executive.authority_gateway import get_authority_gateway
+            from core.executive.standing_authority import authority_origin_of
 
             payload = params.model_dump() if hasattr(params, "model_dump") else params.dict()
             priority = 0.9 if params.mode in {"send", "reply"} else 0.6
@@ -339,7 +340,8 @@ class EmailAdapterSkill(BaseSkill):
             auth = await gateway.authorize_tool_execution(
                 "email_adapter",
                 payload,
-                source=str(context.get("source") or context.get("origin") or "skills.email_adapter"),
+                # The turn's origin, as her browser asks: her chat's tool loop names itself the source.
+                source=str(authority_origin_of(context) or "skills.email_adapter"),
                 priority=priority,
                 is_critical=False,
                 context=dict(context or {}),

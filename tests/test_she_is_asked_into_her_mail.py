@@ -69,3 +69,33 @@ def test_her_mail_is_offered_when_asked_into_it_and_reddit_s_inbox_only_when_mai
     assert chosen("Any new emails?") == ["email_adapter"]
     assert set(chosen("What's in your inbox?")) == {"email_adapter", "reddit_adapter"}
     assert chosen("What is email, really?") == []
+
+
+@pytest.mark.parametrize("module, skill_class, payload", [
+    ("core.skills.email_adapter", "EmailAdapterSkill", {"mode": "check", "limit": 5}),
+    ("core.skills.reddit_adapter", "RedditAdapterSkill", {"mode": "browse", "subreddit": "aww"}),
+])
+def test_her_accounts_ask_authority_under_the_turns_origin_not_the_tool_loop(monkeypatch, module, skill_class, payload):
+    """LIVE 2026-11-10: her chat's tool loop names itself the source; her mail asked under it and was refused
+    "signed_standing_authority_lease_missing" on a turn the owner's foreground grant covers."""
+    import asyncio
+    import importlib
+
+    import core.executive.authority_gateway as gateways
+    from core.executive.standing_authority import context_has_user_authority
+
+    asked: list[str] = []
+
+    class _Gateway:
+        async def authorize_tool_execution(self, tool, args, *, source, **_kwargs):
+            asked.append(source)
+            from types import SimpleNamespace
+
+            return SimpleNamespace(approved=False, reason="probe", capability_token_id=None)
+
+    monkeypatch.setattr(gateways, "get_authority_gateway", lambda: _Gateway())
+    skill = getattr(importlib.import_module(module), skill_class)()
+    context = {"source": "think_and_act", "origin": "desktop_quick_user"}
+    asyncio.run(skill.execute(payload, context))
+    assert asked == ["desktop_quick_user"]
+    assert context_has_user_authority(asked[0], {}) and not context_has_user_authority("think_and_act", {})
