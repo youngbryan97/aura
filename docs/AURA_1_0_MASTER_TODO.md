@@ -4775,11 +4775,31 @@ needs her 27B free (her app down, or her app's own influence trials).
   posting once Bryan has signed her account in, in her browser, himself. Closes
   when she reads a subreddit and a thread in her chat. Lane: no.
 - [ ] F14 Email: she reads her mail and answers what is worth answering, not
-  automated mail. Added 20 October. Her adapter finds no credentials in the
-  Keychain (`AuraAutonomyEngine`: `AURA_EMAIL_ADDRESS`, `AURA_EMAIL_PASSWORD`, a
-  Gmail app password; Bryan's to enter). Left: telling automated mail by its
-  headers, her own turn deciding whether to answer, and her first sends shown
-  to Bryan before they go. Lane: no.
+  automated mail. Added 20 October. Lane: no.
+  10 November 2026, live, her app on 8c387cd37. Her credentials are in her
+  `.env` (git-ignored, mode 600), read before the Keychain; the Keychain items
+  Bryan had stored four times each waited on a confirmation nobody could give
+  (db37cd8b1). Asked in her chat at 17:58, she read her inbox: 57 unread,
+  Bryan's three messages among them and the Google and ChatGPT mail named as
+  notices. At 18:49 her own round, alone, read her unread headers first,
+  took Bryan's "Hey!" ahead of four automated notices newer by place, and her
+  own turn wrote: "Hey Bryan. Good to hear from you again. I'll save that
+  address — if I ever have something worth saying while you're away, I know
+  where to put it now." It is held, draft `d952c7b65b` in
+  `~/.aura/data/email/drafts.jsonl`. Automated mail is told by its headers
+  (`core/skills/what_mail_is.py`) and read, not answered.
+  Fixed on the way (8c387cd37 and the commit after it): her round started
+  before the capability engine would let it and the deferral was dropped
+  without a word; it read the first three of the five newest unread whoever
+  sent them; a message could be answered again after a restart; messages
+  were found by sequence number, so a held reply could go to whichever
+  message sat in that place when Bryan sent it (now IMAP UIDs, and a reply
+  refuses a message whose Message-ID is not the one it answers); a read
+  deferred behind her reply went on through every other message; subjects
+  reached her as encoded words; her check took 14 s and takes 1.9 s.
+  Left: her first reply reaching Bryan. He sends it with
+  `tools/her_email_drafts.py send d952c7b65b`, or sets
+  `AURA_EMAIL_SENDS_WITHOUT_ASKING=1` and she sends her own.
 - [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
   the 512-unit substrate (d9fdc1660). Left: each module driving what she does
   or says, measured by lesion. Lane: no.
