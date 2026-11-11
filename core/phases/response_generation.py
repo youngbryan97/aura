@@ -1566,8 +1566,8 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         runtime_context.get("recent_completed_exchanges"),
                     )
                 messages = _assemble(delivered_history, delivered_note)
-            contract = build_response_contract(
-                state,
+            contract = await asyncio.to_thread(
+                build_response_contract, state,
                 objective,
                 is_user_facing=not is_background and not is_test_run,
             )
@@ -1582,8 +1582,8 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                 )
                 if search_executed:
                     messages = _assemble(delivered_history, delivered_note)
-                    contract = build_response_contract(
-                        state,
+                    contract = await asyncio.to_thread(
+                        build_response_contract, state,
                         objective,
                         is_user_facing=True,
                     )

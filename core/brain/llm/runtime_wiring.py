@@ -585,8 +585,8 @@ async def prepare_runtime_payload(
                 logger.debug("Runtime memory hydration skipped: %s", _exc)
 
         try:
-            contract = build_response_contract(
-                payload_state,
+            contract = await asyncio.to_thread(
+                build_response_contract, payload_state,
                 objective,
                 is_user_facing=not is_background and is_user_facing_origin(origin),
             )

@@ -718,6 +718,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   a fatal path left through sys.exit and the interpreter joined an executor
   thread for forty minutes; every path leaves through the finalizer's
   os._exit.
+  2026-11-10, 14:58, live: her event loop stopped for 67 s and her runtime
+  lost its lease. The loop thread was in `build_response_contract`, called
+  from the unitary response phase, waiting on the encoder lock while a
+  worker thread encoded the same request for routing (which had moved its
+  own build off the loop on 21 September). The kernel timed the phase at
+  67,185 ms; on 9 November the same call held the loop 265,846 ms (lockdep,
+  252 ms of it on the CPU). Ten coroutines built the contract on
+  the loop; all ten now hand it to a thread, and
+  `tests/test_the_contract_is_built_off_the_loop.py` fails on an eleventh.
+  Next of the same class, measured smaller: the reply assessor reaches the
+  encoder from 37 coroutines (55 ms on 10 November, from the inference
+  gate's draft repair). The same stall showed a second defect: the lease
+  writer's 30-second governed scope spanned both its awaits, ran out in the
+  first, and the lease file's write was refused as ungoverned. Each write
+  is now authorized as it is made (7db175630). 39 other maintenance scopes
+  span two or more awaits and can lose their grant the same way under a
+  long stall; whether a grant should outlive 30 s while its scope is still
+  open is a governance question, left open here.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;

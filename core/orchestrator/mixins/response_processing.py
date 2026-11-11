@@ -755,8 +755,8 @@ class ResponseProcessingMixin:
         contract = None
         if current_state is not None:
             try:
-                contract = build_response_contract(
-                    current_state,
+                contract = await asyncio.to_thread(
+                    build_response_contract, current_state,
                     message,
                     is_user_facing=origin in ("user", "voice", "admin"),
                 )

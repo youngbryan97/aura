@@ -3929,7 +3929,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 is_user_facing = True
             is_background = not is_user_facing
             new_state.cognition.current_origin = routing_origin
-            contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing)
+            contract = await asyncio.to_thread(build_response_contract, new_state, objective, is_user_facing=is_user_facing)
             new_state.response_modifiers["response_contract"] = contract.to_dict()
             exact_format_required = bool(
                 self._response_contract_attr(contract, "requires_exact_format", False)
@@ -4512,8 +4512,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             self._objective_fingerprint(objective)
                         )
                         new_state.response_modifiers["last_skill_result_payload"] = grounded_payload
-                        contract = build_response_contract(
-                            new_state, objective, is_user_facing=is_user_facing
+                        contract = await asyncio.to_thread(
+                            build_response_contract, new_state, objective, is_user_facing=is_user_facing
                         )
                         new_state.response_modifiers["response_contract"] = contract.to_dict()
                     if grounded_search_reply:
@@ -4553,8 +4553,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             ):
                 direct_contract = contract
                 if not contract.requires_live_aura_voice():
-                    direct_contract = build_response_contract(
-                        new_state,
+                    direct_contract = await asyncio.to_thread(
+                        build_response_contract, new_state,
                         objective,
                         is_user_facing=True,
                     )
@@ -6645,8 +6645,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             fallback_contract = locals().get("contract")
             if fallback_contract is None:
                 try:
-                    fallback_contract = build_response_contract(
-                        new_state,
+                    fallback_contract = await asyncio.to_thread(
+                        build_response_contract, new_state,
                         objective,
                         is_user_facing=bool(
                             priority

@@ -508,8 +508,8 @@ class StateMachine:
                 logger.debug("StateMachine runtime state lookup skipped: %s", exc)
 
             if runtime_state is not None:
-                governed_contract = build_response_contract(
-                    runtime_state,
+                governed_contract = await asyncio.to_thread(
+                    build_response_contract, runtime_state,
                     user_input,
                     is_user_facing=is_user_facing_origin(origin),
                 )

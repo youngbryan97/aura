@@ -1358,8 +1358,8 @@ class GodModeToolPhase(Phase):
             return state
 
         try:
-            contract = build_response_contract(
-                state,
+            contract = await asyncio.to_thread(
+                build_response_contract, state,
                 skill_objective,
                 is_user_facing=str(getattr(state.cognition, "current_origin", "") or "").lower()
                 in {
