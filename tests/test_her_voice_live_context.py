@@ -271,3 +271,28 @@ def test_a_turn_after_an_opening_that_failed_takes_her_governed_route():
         assert await live.answer("Are you there?") is None
 
     asyncio.run(scenario())
+
+
+def test_her_reply_asks_a_background_holder_to_stop_until_it_has_her_model(monkeypatch):
+    """LIVE 11 November 2026: her narrative took the gate after the turn's one ask, and her reply waited 84 s."""
+    from core.brain import llm_health_router as router
+    from core.brain import llm_health_router_gate_owners as owners
+
+    asked, attempts, released = [], [], []
+    monkeypatch.setattr(owners, "_background_stands_aside", lambda reason: asked.append(reason))
+
+    async def acquire(**kwargs):
+        attempts.append(kwargs["wait_s"])
+        return 7 if len(attempts) == 3 else None  # the holder lets go on the third ask
+
+    monkeypatch.setattr(router, "acquire_external_generation_gate_lease", acquire)
+    monkeypatch.setattr(router, "release_external_generation_gate_lease", released.append)
+
+    class Client:
+        async def generate(self, prompt, **kwargs):
+            return "I'm here."
+
+    monkeypatch.setattr(lc, "_her_cortex_client", Client)
+    reply = asyncio.run(lc._generate_on_her_cortex("prompt", scope="voice_live:s", words="Hi?", reply_stream=None,
+                                                   timeout_s=30.0))
+    assert reply == "I'm here." and len(asked) == 3 and all(wait <= 1.0 for wait in attempts) and released == [7]

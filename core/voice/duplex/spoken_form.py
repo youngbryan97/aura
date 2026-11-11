@@ -210,8 +210,10 @@ def _url(match: re.Match[str]) -> str:
 _MONEY_RE = re.compile(
     r"(?P<symbol>[$£€])(?P<amount>\d[\d,]*(?:\.\d+)?)(?P<suffix>[kKmMbBtT])?\b"
 )
+# The space before a.m. or p.m. belongs to it: matched on its own, it was eaten when none followed, and LIVE 11 November
+# 2026 "just past 9:45 on Wednesday" was spoken "nine forty-fiveon Wednesday". "am" must also end there ("9:45 amazing").
 _CLOCK_RE = re.compile(
-    r"\b(?P<hour>[01]?\d|2[0-3]):(?P<minute>[0-5]\d)\s*(?P<meridiem>[ap]\.?m\.?)?",
+    r"\b(?P<hour>[01]?\d|2[0-3]):(?P<minute>[0-5]\d)(?:\s*(?P<meridiem>[ap]\.?m\.?)(?![a-z]))?",
     re.IGNORECASE,
 )
 _ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")

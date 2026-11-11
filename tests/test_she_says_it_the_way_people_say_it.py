@@ -83,6 +83,16 @@ def test_a_clock_time_is_spoken() -> None:
     assert "ten fifty-two" in to_spoken_form("it's 10:52 AM")
 
 
+@pytest.mark.parametrize("text,expected", [
+    # LIVE 11 November 2026: the space after a time with no a.m. or p.m. was eaten.
+    ("It is just past 9:45 on Wednesday.", "It is just past nine forty-five on Wednesday."),
+    ("Meet at 10:30am tomorrow.", "Meet at ten thirty a.m. tomorrow."),
+    ("At 9:45 amazing things happened.", "At nine forty-five amazing things happened."),
+])
+def test_the_words_around_a_clock_time_keep_their_spaces(text: str, expected: str) -> None:
+    assert prepare_for_speech(text) == expected
+
+
 def test_an_iso_date_becomes_a_date() -> None:
     spoken = to_spoken_form("on 2026-07-27")
     assert "twenty-seventh of July" in spoken

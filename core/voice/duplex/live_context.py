@@ -19,6 +19,7 @@ import asyncio
 import contextlib
 import inspect
 import logging
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
@@ -215,14 +216,24 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
         acquire_external_generation_gate_lease,
         release_external_generation_gate_lease,
     )
+    from core.brain.llm_health_router_gate_owners import _background_stands_aside
     from core.conversation.reply_stream import bind_reply_stream
 
     client = _her_cortex_client()
     if client is None or not hasattr(client, "generate"):
         return None
+    lease = None
+    deadline = time.monotonic() + max(0.0, float(timeout_s))
     with _a_person_waits():
-        lease = await acquire_external_generation_gate_lease(owner="voice_live:reply", timeout_s=timeout_s,
-                                                             wait_s=timeout_s, foreground=True)
+        # What of her background work holds her model is asked to stop now, and again each second she waits: one
+        # that took the gate after the turn began was never asked. LIVE 11 November 2026, her narrative on her CPU
+        # model took it while its worker was still starting, the turn's one ask found nothing to cancel, and her
+        # reply waited 84 s behind it.
+        while lease is None and time.monotonic() < deadline:
+            _background_stands_aside("voice_live: a person is waiting for her reply")
+            lease = await acquire_external_generation_gate_lease(
+                owner="voice_live:reply", timeout_s=timeout_s,
+                wait_s=min(1.0, max(0.0, deadline - time.monotonic())), foreground=True)
     if lease is None:
         return None
     try:
