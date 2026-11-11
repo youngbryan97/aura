@@ -127,10 +127,24 @@ def _live_pool(kind: str) -> ThreadPoolExecutor:
     return pool
 
 
+#: The lanes that have refused work since shutdown began, each said once with who asked.
+_REFUSED_AT_SHUTDOWN: set[str] = set()
+
+
 def _register_pool(pool: ThreadPoolExecutor, *, name: str) -> None:
     from core.runtime.shutdown_coordinator import is_shutdown_requested
 
     if is_shutdown_requested():
+        if name not in _REFUSED_AT_SHUTDOWN:
+            # LIVE 10 November 2026: two of her saves as her app shut down
+            # (the aesthetic journal, the router's history) failed with this
+            # error and nothing else, and no probe off her runtime refused.
+            # The first refusal on each lane says what asked for it.
+            import traceback
+
+            _REFUSED_AT_SHUTDOWN.add(name)
+            asked = "".join(traceback.format_stack(limit=14)[:-1])
+            logger.info("%s refused new work: shutdown has begun. Asked by:\n%s", name, asked)
         raise RuntimeError("runtime_shutdown")
     from core.runtime.runtime_hygiene import get_runtime_hygiene
 
