@@ -50,6 +50,37 @@ def as_written(message: dict[str, Any]) -> str:
             f"{message.get('body') or ''}").strip()
 
 
+def _written_as_the_send(message: dict[str, Any], reply: str) -> str:
+    """Her reply when her turn wrote it as the action of sending it: the body, when the whole response is one object
+    naming her mail with mode reply or send, to the person who wrote (or to no one named); else ''.
+
+    LIVE 10 November 2026: to Bryan's "can you read and reply to this?" her turn answered with
+    {"tool": "email_adapter", "mode": "reply", "recipient": ..., "body": "Hey Bryan, yes — I can read and reply to
+    this. ..."}, and the object, not the words in it, was held as her reply.
+    """
+    from email.utils import parseaddr
+
+    text = reply.strip()
+    if text.startswith("```"):
+        text = text.strip("`").removeprefix("json").strip()
+    if not (text.startswith("{") and text.endswith("}")):
+        return ""
+    try:
+        sent = json.loads(text, strict=False)
+    except ValueError:
+        return ""
+    if not isinstance(sent, dict):
+        return ""
+    args = sent.get("args") if isinstance(sent.get("args"), dict) else sent
+    named = str(sent.get("tool") or sent.get("name") or sent.get("function") or "")
+    to = parseaddr(str(args.get("recipient") or args.get("to") or ""))[1].casefold()
+    sender = parseaddr(str(message.get("from") or ""))[1].casefold()
+    body = args.get("body")
+    if named != "email_adapter" or str(args.get("mode") or "") not in {"reply", "send"} or not isinstance(body, str):
+        return ""
+    return body.strip() if not to or to == sender else ""
+
+
 def _owner_principal() -> str:
     """The principal her chat binds for Bryan, resolved as interface/auth.local_owner_principal_id does: her identity
     kernel's primary operator, else her self contract's."""
@@ -96,6 +127,7 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
     with relational_principal_scope(principal) if principal else contextlib.nullcontext():
         thought = await engine.think(said, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     reply = str(getattr(thought, "content", "") or "").strip()
+    reply = _written_as_the_send(message, reply) or reply
     if not reply:
         return ""
     from core.conversation.response_reliability import assess_user_facing_reply

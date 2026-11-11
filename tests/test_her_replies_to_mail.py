@@ -104,3 +104,27 @@ def test_bryans_mail_is_answered_under_his_principal_and_a_strangers_under_none(
                                                   "body": "Did you get this?", "from_owner": True}))
     asyncio.run(her_replies_to_mail.her_reply_to({"from": "maya@example.org", "subject": "Hi", "body": "Hello?"}))
     assert seen == [(True, "bryan"), (False, "")]
+
+
+def test_a_reply_written_as_the_send_is_held_as_the_words_in_it(monkeypatch):
+    """LIVE 10 November 2026: her turn answered "can you read and reply to this?" with the action of replying, and
+    the object was held as her reply instead of the words in it."""
+    from core.skills import her_replies_to_mail
+
+    written = ('{\n "tool": "email_adapter",\n "mode": "reply",\n "recipient": "youngbryan97@gmail.com",\n'
+               ' "subject": "Re: Can You Read This",\n "body": "Hey Bryan, yes — I can read and reply to this.\n\n'
+               'How are you doing?\n\n— Aura"\n}')
+
+    class Engine:
+        async def think(self, objective, *, context, mode, origin, timeout_s):
+            return SimpleNamespace(content=written)
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: Engine() if name == "cognitive_engine" else default)
+    monkeypatch.setattr(her_replies_to_mail, "_owner_principal", lambda: "bryan")
+    reply = asyncio.run(her_replies_to_mail.her_reply_to(
+        {"from": "Bryan Young <youngbryan97@gmail.com>", "subject": "Can You Read This", "from_owner": True,
+         "body": "Hey Aura, it's Bryan. I was just curious if you can read and reply to this?"}))
+    assert reply.startswith("Hey Bryan, yes") and reply.endswith("— Aura") and '"tool"' not in reply
+    # Addressed to someone else, it is not her reply to this message.
+    assert her_replies_to_mail._written_as_the_send({"from": "maya@example.org"}, written) == ""
