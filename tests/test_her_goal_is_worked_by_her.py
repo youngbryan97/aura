@@ -221,3 +221,17 @@ def test_without_her_cortex_there_is_no_pass(monkeypatch):
     monkeypatch.setattr(access, "resolve_inference_gate", lambda default=None: None)
     with pytest.raises(RuntimeError):
         asyncio.run(work.HerCortex().think_and_act(GOAL))
+
+
+def test_a_file_she_names_that_is_not_there_is_answered_with_where_that_name_is(her_source):
+    """LIVE 10 November 2026: her goal pass asked for core/governance/permission_model.py, which is in
+    core/capabilities, and it came back as a skill error, a warning in her stream and a surprise of 1.00."""
+    record = work.GoalRecord(goal=GOAL, slug=work.slug_of(GOAL))
+    workspace = work.ensure_workspace(record)
+    result = asyncio.run(her_draft.ReadSourceSkill().execute({"path": "lib/notes.py"},
+                                                             {"her_goal_workspace": str(workspace)}))
+    assert result["ok"] is True and result["exists"] is False and result["same_name"] == ["core/notes.py"]
+    assert result["summary"] == "lib/notes.py is not in her source; a file of that name is at core/notes.py"
+    none = asyncio.run(her_draft.ReadSourceSkill().execute({"path": "core/absent.py"},
+                                                           {"her_goal_workspace": str(workspace)}))
+    assert none["summary"].endswith("no file of that name is in it")

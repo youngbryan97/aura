@@ -116,6 +116,16 @@ def _params(model: type[BaseModel], params: Any) -> Any:
     return model.model_validate(params if isinstance(params, dict) else dict(params or {}))
 
 
+def _named(workspace: Path, name: str, most: int = 10) -> list[str]:
+    """The paths in her workspace of files called ``name``, nearest the top first."""
+    found = []
+    for path in workspace.rglob(name):
+        rel = path.relative_to(workspace)
+        if path.is_file() and not any(part.startswith(".") or part == "node_modules" for part in rel.parts):
+            found.append(rel.as_posix())
+    return sorted(found, key=lambda rel: (rel.count("/"), rel))[:most]
+
+
 class ReadSourceInput(BaseModel):
     path: str = Field(..., description="File path, from the top of her source, e.g. core/memory/cold_store.py.")
     from_line: int = Field(1, description="First line to read, counting from 1.")
@@ -133,8 +143,17 @@ class ReadSourceSkill(BaseSkill):
     async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
         try:
             asked = _params(ReadSourceInput, params)
-            path = _inside(_workspace(context), asked.path)
+            workspace = _workspace(context)
+            path = _inside(workspace, asked.path)
             lines = (await asyncio.to_thread(path.read_text, encoding="utf-8", errors="replace")).splitlines()
+        except FileNotFoundError:
+            # A file she names that is not there is an answer, as it is to a person: where files of that name are.
+            # LIVE 10 November 2026 her goal pass asked for core/governance/permission_model.py, which is in
+            # core/capabilities, and it came back as a skill error and a surprise of 1.00.
+            found = await asyncio.to_thread(_named, workspace, Path(asked.path).name)
+            where = f"; a file of that name is at {', '.join(found)}" if found else "; no file of that name is in it"
+            return {"ok": True, "path": asked.path, "exists": False, "same_name": found,
+                    "summary": f"{asked.path} is not in her source{where}"}
         except (Refused, OSError) as why:
             return {"ok": False, "error": str(why)}
         start = max(1, int(asked.from_line or 1))
