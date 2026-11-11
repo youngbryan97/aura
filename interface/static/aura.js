@@ -4098,6 +4098,10 @@ const PLAIN_LANGUAGE_RULES = [
      (m) => `In the shipping simulation she practises on, moved ${(+m[2]).toFixed(1)} of load from ${humanOrgan(m[3])} to ${humanOrgan(m[4])}.`],
     [/^Executed Actuator: reroute_vessel (\w+) to heading=([\d.-]+), speed=([\d.]+) in the simulated plant/i,
      (m) => `In the shipping simulation she practises on, turned ${humanOrgan(m[1])} to heading ${Math.round(+m[2])} at ${(+m[3]).toFixed(1)} knots.`],
+    // A move that does not say it was simulated is told as a move, and not as practice: from 30 September only
+    // the simulated one had a rule, and the rest reached the card raw.
+    [/^Executed Actuator: (\w+) transferred ([\d.]+) from (\w+) to (\w+)/i,
+     (m) => `Moved ${(+m[2]).toFixed(1)} of load from ${humanOrgan(m[3])} to ${humanOrgan(m[4])}.`],
     [/^Router: Queueing background inference until admission clears/i,
      () => 'Holding a background thought so the conversation keeps priority.'],
     [/Phase '([^']+)' timed out after (\d+)s/i,
