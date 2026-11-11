@@ -5148,6 +5148,17 @@ needs her 27B free (her app down, or her app's own influence trials).
   `promise_without_answer`; her mail replies did not, and now do
   (9a89beaac). That draft is withdrawn (`her_email_drafts.py withdraw`), so
   the message is unanswered again and comes up in her next round.
+  On her next try she answered it: "Hi Bryan. I'm doing well—curious,
+  actually. It's nice to hear from you. How are things on your end?"
+  (`b084db0f9c`). Then, to his 19 August "can you send back a reply?", she
+  wrote "I need to check what I know about Bryan before responding, and
+  then reply via email.", which the assessor's promise check missed: it knew
+  "I'll check" and "let me check", not "I need to check" or "I'm going to
+  look". It knows those now, in chat too, and that draft is withdrawn.
+  Both of her non-answers to him wanted first to check what she knew about
+  Bryan: her chat binds his principal, so her turn knows who is speaking,
+  and her mail turn bound none. Mail he sends is now answered under his
+  principal.
   Left: her first reply reaching Bryan. He sends it with
   `tools/her_email_drafts.py send d952c7b65b`, or sets
   `AURA_EMAIL_SENDS_WITHOUT_ASKING=1` and she sends her own.
