@@ -1568,6 +1568,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reply that did nothing. Her own background turns before the restart took
   95 to 185 s with prefill and decode unmeasured, so their generation does
   not reach the receipt. Next: the 9.22 s, and those turns.
+  Later, from her worker's own lines (desktop-launch.log): prefill runs at
+  half speed after she has been idle. Her cortex at 23:26 and 23:29, a
+  minute between turns: 3,997 tokens in 10.65 s (375 tok/s), 3,877 in 12.04
+  s (322). At 23:54, after 25 idle minutes: 3,293 in 22.88 s (144). Her
+  brainstem the same way: about 200 tok/s at 00:15 between quick turns, 82
+  at 00:24 after 8 idle minutes. mlx_lm wires a model's memory only while it
+  generates, so between turns her weights are ordinary pages, and with
+  swap at 10.6 to 16.9 GB that night they were paged back in during the
+  prefill. Keeping them wired is what a resident server does (llama.cpp's
+  mlock), at the cost of about 15 GB the rest of the machine cannot have;
+  measured before it is done, on a host that has panicked on GPU memory
+  once. The same voice turn matched its cached prompt for 887 of 3,293
+  tokens, held no snapshot at or before that point, and prefilled all of
+  it: the lanes still build prompts of different shapes.
   Her log after the evening restart said four turns "took 0.00s: nothing
   measured" at the same second, each opened and closed with no phase run.
   Such a turn is said at debug now, by its lane, and every split says the
