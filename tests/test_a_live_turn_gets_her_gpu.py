@@ -56,3 +56,46 @@ def test_background_generation_is_refused_while_a_live_turn_is_under_way(monkeyp
         "a background thought", origin="parallel_thought", purpose="background_probe", foreground_request=False))
     assert result["ok"] is False and result["deferred"] is True and "a live conversation turn" in result["error"]
     assert gate.acquire(False) is True  # nothing took the gate
+
+
+def _a_held_lease(monkeypatch, *, foreground=False):
+    gate = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(router_module, "_GENERATION_GATE", gate)
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_ACTIVE_LEASES", {})
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_LEASE_DEADLINES", {})
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_FOREGROUND_LEASES", set())
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_FORCED_LEASES", set())
+    assert gate.acquire(False)
+    return gate, router_module._mark_generation_gate_acquired("stream_narrative", foreground=foreground)
+
+
+class _LazyClient:
+    def __init__(self, device):
+        self.kwargs = {"device": device}
+
+
+def test_background_work_that_reaches_a_cpu_model_gives_the_gate_back(monkeypatch):
+    """LIVE 11 November 2026: her narrative held her GPU's gate for 80 s from her CPU model, and a voice reply waited."""
+    gate, lease = _a_held_lease(monkeypatch)
+    with owners.holding_the_gate(lease):
+        assert owners.a_cpu_client_gives_back_the_gate(_LazyClient("cpu")) is True
+        assert gate.acquire(False)  # her reply can have it now
+        gate.release()
+        assert owners.a_cpu_client_gives_back_the_gate(_LazyClient("cpu")) is False  # given back once
+    router_module._release_generation_gate_after_call(lease)  # the router's own release after the call is harmless
+    assert gate.acquire(False) and not gate.acquire(False)
+
+
+def test_a_gpu_model_or_a_persons_turn_keeps_the_gate(monkeypatch):
+    gate, lease = _a_held_lease(monkeypatch)
+    with owners.holding_the_gate(lease):
+        assert owners.a_cpu_client_gives_back_the_gate(_LazyClient("gpu")) is False
+        assert owners.a_cpu_client_gives_back_the_gate(object()) is False
+    assert not gate.acquire(False)
+    router_module._release_generation_gate_after_call(lease)
+    gate, lease = _a_held_lease(monkeypatch, foreground=True)
+    with owners.holding_the_gate(lease):
+        assert owners.a_cpu_client_gives_back_the_gate(_LazyClient("cpu")) is False
+    assert not gate.acquire(False)
+    router_module._release_generation_gate_after_call(lease)
+    assert owners.a_cpu_client_gives_back_the_gate(_LazyClient("cpu")) is False  # outside any held lease

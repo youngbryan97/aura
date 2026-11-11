@@ -87,12 +87,14 @@ from .llm_health_router_gate_owners import (  # noqa: F401  (re-exported: they w
     _a_person_waits,
     _background_generation_gate_deferred_result,
     _declared_background_deferral_reason,
+    _gate_budget_env_s,
     _generation_gate_busy_result,
     _generation_owner_is_user_foreground,
     _lease_is_user_foreground,
     a_live_turn_is_under_way,
     a_person_is_waiting_for_her_model,
     asks_for_a_reply,
+    holding_the_gate,
 )
 from .llm_health_router_gate_readings import (  # noqa: F401  (re-exported: they were defined here)
     _gate_clock,
@@ -159,22 +161,6 @@ _GENERATION_GATE_LAST_OWNER = ""
 # validation's third coding repair died exactly that way while holding
 # an unused 240s budget. 75s covers one slow turn plus margin; callers
 # with shorter deadlines still bail via their own timeouts.
-def _gate_budget_env_s(name: str, default: float) -> float:
-    """Parse a gate timing budget safely at import time.
-
-    A malformed value must not prevent the router module from importing,
-    and NaN/inf/negative budgets must not reach semaphore timeouts where
-    they disable or invert the wait semantics.
-    """
-    try:
-        value = float(os.environ.get(name, str(default)) or default)
-    except (TypeError, ValueError):
-        return float(default)
-    if not math.isfinite(value) or value < 0.0:
-        return float(default)
-    return value
-
-
 _GENERATION_GATE_WAIT_S = _gate_budget_env_s("AURA_GENERATION_GATE_WAIT_S", 75.0)
 # Background work never owns recovery authority over the serving lane. It may
 # wait briefly for naturally available capacity, then returns a retryable
@@ -2080,14 +2066,10 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                         "is_local": False,
                         "fallback_chain": [],
                     }
-            return await self._generate_with_metadata_gated(
-                prompt,
-                system_prompt=system_prompt,
-                timeout=remaining_budget,
-                prefer_tier=prefer_tier,
-                schema=schema,
-                **kwargs,
-            )
+            with holding_the_gate(lease_id):  # a CPU-only model gives it back (llm_health_router_gate_owners.py)
+                return await self._generate_with_metadata_gated(prompt, system_prompt=system_prompt,
+                                                                timeout=remaining_budget, prefer_tier=prefer_tier,
+                                                                schema=schema, **kwargs)
         finally:
             _release_generation_gate_after_call(lease_id)
 

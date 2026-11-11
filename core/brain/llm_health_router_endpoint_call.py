@@ -1324,6 +1324,9 @@ class _CallsTheEndpoint:
             if ep.client:
                 try:
                     client = ep.client
+                    from .llm_health_router_gate_owners import a_cpu_client_gives_back_the_gate
+
+                    a_cpu_client_gives_back_the_gate(client)
                     raw_text = None
                     token_count = 0
                     client_available = await self._probe_client_availability(client)

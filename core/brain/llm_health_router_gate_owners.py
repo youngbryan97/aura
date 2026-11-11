@@ -6,11 +6,75 @@ take from that module is imported at CALL time, for the same reason.
 """
 from __future__ import annotations
 
+import logging
+import math
+import os
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
+
+
+def _gate_budget_env_s(name: str, default: float) -> float:
+    """Parse a gate timing budget safely at import time.
+
+    A malformed value must not prevent the router module from importing,
+    and NaN/inf/negative budgets must not reach semaphore timeouts where
+    they disable or invert the wait semantics.
+    """
+    try:
+        value = float(os.environ.get(name, str(default)) or default)
+    except (TypeError, ValueError):
+        return float(default)
+    if not math.isfinite(value) or value < 0.0:
+        return float(default)
+    return value
+
+
+logger = logging.getLogger("Aura.LLMRouter.Gate")
+
+#: The generation-gate lease the request running in this context holds, while it holds it.
+_HELD_LEASE: ContextVar[int | None] = ContextVar("aura_generation_gate_lease", default=None)
+
+
+@contextmanager
+def holding_the_gate(lease_id: int) -> Iterator[None]:
+    token = _HELD_LEASE.set(int(lease_id))
+    try:
+        yield
+    finally:
+        _HELD_LEASE.reset(token)
+
+
+def a_cpu_client_gives_back_the_gate(client: Any) -> bool:
+    """A background generation that reaches a model on the CPU gives the generation gate back before it runs.
+
+    The gate keeps one generation at a time on her GPU, and a CPU model never touches it. LIVE 11 November 2026, her
+    narrative fell through to her CPU model holding the gate, prefilled 716 tokens there for 80 s without reaching a
+    cancel check, and her voice reply waited the whole time for a GPU nobody was using. A person's own turn keeps
+    its lease wherever it runs.
+    """
+    lease = _HELD_LEASE.get()
+    settings = getattr(client, "kwargs", None)
+    device = str((settings.get("device") if isinstance(settings, dict) else None) or getattr(client, "device", "") or "")
+    if lease is None or device.lower() != "cpu":
+        return False
+    from .llm_health_router import (
+        _GENERATION_GATE_FOREGROUND_LEASES,
+        _GENERATION_GATE_STATE_LOCK,
+        _release_generation_gate_after_call,
+    )
+
+    with _GENERATION_GATE_STATE_LOCK:
+        if lease in _GENERATION_GATE_FOREGROUND_LEASES:
+            return False
+    _release_generation_gate_after_call(lease)
+    _HELD_LEASE.set(None)
+    logger.info("🔓 a background generation on a CPU model gave back her GPU's generation gate (lease %s)", lease)
+    return True
+
 
 #: How many people's turns are waiting for her model's generation lane now.
 _PEOPLE_WAITING = 0
