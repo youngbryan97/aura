@@ -67,8 +67,10 @@ async def one_turn(args: argparse.Namespace) -> int:
         silence = np.zeros(step, dtype=np.int16)
         ended_at = 0.0
         played_s, utterance, drained_sent = 0.0, 0, False
-        playing_from = 0.0
         last_report = 0.0
+        # Playback as her window does it: the position moves only while audio is buffered. A stall that more audio
+        # follows is an underrun, and how long she went silent mid-reply is what a listener hears as a stumble.
+        last_tick, starved_s, underruns = 0.0, 0.0, []
 
         async def stream_words() -> None:
             nonlocal ended_at
@@ -94,7 +96,10 @@ async def one_turn(args: argparse.Namespace) -> int:
                     if opcode is AudioOpcode.SPEECH and payload:
                         if not heard:
                             events.append((now, "first audio", {}))
-                            playing_from = now
+                            last_tick = now
+                        elif starved_s > 0.0:
+                            underruns.append(round(starved_s, 3))
+                            starved_s = 0.0
                         utterance = utterance_id
                         heard.append(np.frombuffer(payload, dtype=np.int16))
                 elif isinstance(message, str):
@@ -104,9 +109,13 @@ async def one_turn(args: argparse.Namespace) -> int:
                     if kind == "voice.metrics":
                         break
                 # Played on a clock, as her window plays it.
-                if heard and now - last_report >= 0.1 and not drained_sent:
+                if heard:
                     total_s = sum(len(h) for h in heard) / rate_out
-                    played_s = min(total_s, now - playing_from)
+                    ahead = played_s + (now - last_tick)
+                    if ahead > total_s:
+                        starved_s += ahead - max(played_s, total_s)
+                    played_s, last_tick = min(total_s, ahead), now
+                if heard and now - last_report >= 0.1 and not drained_sent:
                     report = {"command": "playback", "played_ms": played_s * 1000.0, "utterance_id": utterance}
                     if played_s >= total_s and any(k == "voice.reply" for _t, k, _d in events):
                         report["drained"], drained_sent = True, True
@@ -118,6 +127,8 @@ async def one_turn(args: argparse.Namespace) -> int:
         since = f"{at - ended_at:+6.2f} s" if ended_at else "   before end"
         shown = {k: v for k, v in data.items() if k not in {"type"}}
         print(f"{since}  {kind}  {json.dumps(shown)[:200] if shown else ''}")
+    if heard:
+        print(f"underruns: {len(underruns)} (her voice went silent mid-reply for {underruns or 'no'} s)")
     if heard and args.out:
         import soundfile as sf
 

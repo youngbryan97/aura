@@ -177,6 +177,9 @@ class SpeechAsItForms:
         self.first_sent_at: float | None = None
         self.started = clock()
         self.decodes = 0
+        self.patches = 0
+        self.decode_s = 0.0
+        self.sent_s = 0.0
 
     def patch(self, feat: Any) -> None:
         """A patch the model just made, as generate collects it: (batch, patch, latent)."""
@@ -186,6 +189,7 @@ class SpeechAsItForms:
         if self._last_patch_at is not None:
             self._slowest_patch_s = max(self._slowest_patch_s, now - self._last_patch_at)
         self._last_patch_at = now
+        self.patches += 1
         self._pending.append(feat)
         if self._due(now):
             self._flush(last=False)
@@ -204,8 +208,9 @@ class SpeechAsItForms:
             window = self.mx.concatenate(context + self._pending, axis=1)
             started = self._clock()
             decoded = np.asarray(self._decode(window).flatten().astype(self.mx.float32))
-            self.decode_s_per_patch = max(self.decode_s_per_patch,
-                                          (self._clock() - started) / (len(context) + len(self._pending)))
+            spent = self._clock() - started
+            self.decode_s += spent
+            self.decode_s_per_patch = max(self.decode_s_per_patch, spent / (len(context) + len(self._pending)))
             self.decodes += 1
             skip = len(context) * self._patch_samples
             # A decode returns a few samples past its last patch; only the sentence's last keeps them, as whole does.
@@ -224,10 +229,22 @@ class SpeechAsItForms:
             out = np.concatenate([out, self._pace.finish()])
         now = self._clock()
         if len(out) or last:
-            self._send(out.astype(np.float32), not last)
+            self.sent_s += len(out) / self._out_rate
+            if last:
+                self._send(out.astype(np.float32), False, self.timing(now))
+            else:
+                self._send(out.astype(np.float32), True)
             if self.first_sent_at is None and len(out):
                 self.first_sent_at = now
             self._plays_until = max(self._plays_until or now, now) + len(out) / self._out_rate
+
+    def timing(self, now: float) -> dict[str, Any]:
+        """How the sentence was made, for her log: whether her voice kept ahead of the listener, and what it cost."""
+        made_s = now - self.started
+        return {"patches": self.patches, "audio_s": round(self.sent_s, 2), "made_s": round(made_s, 2),
+                "first_sound_s": round((self.first_sent_at or now) - self.started, 2),
+                "slowest_patch_s": round(self._slowest_patch_s, 3), "decode_s": round(self.decode_s, 2),
+                "windows": self.decodes, "real_time": round(self.sent_s / made_s, 2) if made_s > 0 else 0.0}
 
     def finish(self) -> None:
         self._flush(last=True)

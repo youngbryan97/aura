@@ -59,7 +59,7 @@ def test_a_sentence_sent_in_pieces_is_the_sentence_decoded_whole():
     clock = iter(np.arange(0, 1000, 1.0))  # every patch is due, so every window is as short as it can be
     sentence = SpeechAsItForms(model=_model(), decode=_causal_decode, mx=_FakeMx, prompt_context=[], lookback=LOOKBACK,
                                out_rate=48000, speed=1.0, level=Level(0.0), decode_s_per_patch=0.0,
-                               send=lambda audio, more: sent.append((audio, more)), clock=lambda: next(clock))
+                               send=lambda audio, more, timing=None: sent.append((audio, more)), clock=lambda: next(clock))
     for patch in patches:
         sentence.patch(patch)
     sentence.finish()
@@ -79,7 +79,7 @@ def test_a_window_that_cannot_see_far_enough_back_is_not_the_same_audio():
     clock = iter(np.arange(0, 1000, 1.0))  # each patch takes longer than the one before it plays: every one is due
     sentence = SpeechAsItForms(model=_model(), decode=_causal_decode, mx=_FakeMx, prompt_context=[], lookback=1,
                                out_rate=48000, speed=1.0, level=Level(0.0), decode_s_per_patch=0.0,
-                               send=lambda audio, more: sent.append(audio), clock=lambda: next(clock))
+                               send=lambda audio, more, timing=None: sent.append(audio), clock=lambda: next(clock))
     for patch in patches:
         sentence.patch(patch)
     sentence.finish()
@@ -93,7 +93,7 @@ def test_pieces_wait_while_the_listener_still_has_audio_to_hear():
     sent, now = [], [0.0]
     sentence = SpeechAsItForms(model=_model(), decode=_causal_decode, mx=_FakeMx, prompt_context=[], lookback=LOOKBACK,
                                out_rate=48000, speed=1.0, level=Level(0.0), decode_s_per_patch=0.0,
-                               send=lambda audio, more: sent.append(audio), clock=lambda: now[0])
+                               send=lambda audio, more, timing=None: sent.append(audio), clock=lambda: now[0])
     # Each patch plays for PATCH*FRAME / 48000 = 0.5 ms here and is made in 0.1 ms: the first goes at once, and the
     # next waits until what was sent is nearly heard.
     for patch in patches:
@@ -254,3 +254,19 @@ def test_a_clause_in_pieces_is_one_clause_to_whoever_listens():
         await session.close()
 
     asyncio.run(exercise())
+
+
+def test_the_sentences_last_piece_says_how_it_was_made():
+    """Her log says, sentence by sentence, whether her voice kept ahead of the listener (real_time at least 1)."""
+    timings = []
+    clock = iter(np.arange(0, 1000, 0.25))
+    sentence = SpeechAsItForms(model=_model(), decode=_causal_decode, mx=_FakeMx, prompt_context=[], lookback=LOOKBACK,
+                               out_rate=48000, speed=1.0, level=Level(0.0), decode_s_per_patch=0.0,
+                               send=lambda audio, more, timing=None: timings.append(timing), clock=lambda: next(clock))
+    for _ in range(6):
+        sentence.patch(np.ones((1, PATCH, 1), np.float32))
+    sentence.finish()
+    assert all(timing is None for timing in timings[:-1])
+    last = timings[-1]
+    assert last["patches"] == 6 and last["audio_s"] == round(6 * PATCH * FRAME / 48000, 2)
+    assert last["real_time"] < 1 and last["windows"] >= 1

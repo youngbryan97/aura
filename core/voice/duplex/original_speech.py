@@ -142,6 +142,8 @@ class OriginalSpeech:
                         asked_to_stop = True
                     result = self._receive(45)
                     more = result.get("more") is True
+                    if isinstance(result.get("timing"), dict):
+                        logger.info("🗣️ her voice made a sentence: %s", result["timing"])  # real_time < 1: it ran late
                     audio = np.frombuffer(base64.b64decode(result["audio"], validate=True), dtype="<f4").copy()
                     if not np.isfinite(audio).all():
                         raise ValueError("Original speech returned nonfinite audio")

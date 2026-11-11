@@ -204,7 +204,7 @@ def main() -> None:
             generate("I'm here.")
             if streams:
                 # Her first streamed sentence learns her decode cost and loudness before anyone hears one.
-                generate_as_it_forms("I'm here, and I can hear you.", 1.0, lambda audio, more: None)
+                generate_as_it_forms("I'm here, and I can hear you.", 1.0, lambda audio, more, timing=None: None)
         send({"ready": True, "streams": bool(streams)})
         for line in requests:
             try:
@@ -216,9 +216,12 @@ def main() -> None:
                 if message.get("stream") is True and streams:
                     rate = int(settings.get("output_sample_rate", model.sample_rate))
 
-                    def deliver(audio, more, rate=rate):
-                        send({"audio": base64.b64encode(np.asarray(audio, dtype='<f4').tobytes()).decode(),
-                              "sample_rate": rate, "more": bool(more)})
+                    def deliver(audio, more, timing=None, rate=rate):
+                        message = {"audio": base64.b64encode(np.asarray(audio, dtype='<f4').tobytes()).decode(),
+                                   "sample_rate": rate, "more": bool(more)}
+                        if timing:
+                            message["timing"] = timing
+                        send(message)
 
                     with contextlib.redirect_stdout(sys.stderr):
                         generate_as_it_forms(str(message["text"]), float(message.get("speed", 1.)), deliver)
