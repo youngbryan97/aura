@@ -3442,6 +3442,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   prompt with swap at 10.6 of 12 GB, decode 0.2. Startup, hearing,
   turn-taking and speech hold live. Interruption, device changes and
   recovery are not yet exercised, and 46 s for "4" is the item's failure.
+  The lane built for this (core/voice/duplex: Silero VAD, streaming ASR,
+  endpointing, clause-chunked streaming Kokoro, echo guard) is reached only
+  from her window's voice mode; the wake word still takes the legacy lane.
+  11 November 01:12, a voice session opened on /ws/voice with RAM at 88%
+  killed her runtime one second later: SIGSEGV in an MLX CPU multiply on
+  MLX's stream thread in her main process (crash report
+  ~/Library/Logs/DiagnosticReports/Python-2026-11-11-011243.ips); the
+  fault handler crashed writing the traceback. Her recognizer's warm-up had
+  just logged four lock-rank inversions and an fsync under its locks
+  (streaming_asr.py). Six sessions on 22 October closed cleanly. Next:
+  reproduce outside her app, then move the duplex recognizer out of her
+  main process, as her ear already is, and give the wake word the duplex
+  lane.
 - [x] U03 Vision/camera: permission, detailed perception, freshness, source
   attribution, and graceful device failure without invented observations.
   CLOSED 2026-11-11. Bryan: "yes that was the room! she was correct", of her
