@@ -29,8 +29,14 @@ def _ask(pinned: bool) -> dict[str, Any] | None:
         return None
     try:
         return send("pin_weights" if pinned else "release_weights", timeout_s=10.0)
-    except (OSError, RuntimeError, TimeoutError, ValueError) as exc:  # a voice session never fails for want of a pin
-        logger.info("📌 her cortex's weights were not %s: %s", "pinned" if pinned else "released", exc)
+    except TimeoutError:
+        # Her worker answers between jobs. The request stays in its queue and is acted on when it is reached.
+        logger.info("📌 her worker had not answered %s within 10 s (busy with a job); it acts on it when it gets there",
+                    "pin_weights" if pinned else "release_weights")
+        return None
+    except (OSError, RuntimeError, ValueError) as exc:  # a voice session never fails for want of a pin
+        logger.info("📌 her cortex's weights were not %s: %s: %s", "pinned" if pinned else "released",
+                    type(exc).__name__, exc)
         return None
 
 
@@ -43,7 +49,8 @@ def a_voice_session_opened() -> dict[str, Any] | None:
     if not first:
         return None
     reply = _ask(True)
-    logger.info("📌 her cortex's weights pinned for voice mode: %s", reply)
+    if reply is not None:
+        logger.info("📌 her cortex's weights pinned for voice mode: %s", reply)
     return reply
 
 
@@ -56,5 +63,6 @@ def a_voice_session_closed() -> dict[str, Any] | None:
     if not last:
         return None
     reply = _ask(False)
-    logger.info("📌 her cortex's weights released after voice mode: %s", reply)
+    if reply is not None:
+        logger.info("📌 her cortex's weights released after voice mode: %s", reply)
     return reply

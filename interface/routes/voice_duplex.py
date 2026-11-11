@@ -561,18 +561,25 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             name=f"VoiceAuthorization:{session_id}",
         )
 
-        pinned = False
-        try:
-            await session.start()
-            logger.info("Voice session %s opened from %s", session_id, host)
-            # Her cortex's weights stay resident while voice mode is open (core/brain/llm/her_pinned_weights.py).
-            pinned = True
-            await asyncio.to_thread(a_voice_session_opened)
+        async def her_live_context_opens() -> None:
             from interface.routes import chat_memory_state
 
             await live.open(await chat_memory_state._recent_completed_conversation_exchanges(
                 current_user_message="", session_id=conversation_key, limit=VISIBLE_CONVERSATION_EXCHANGES,
                 allow_cross_session=True))
+
+        pinning: asyncio.Task | None = None
+        opening: asyncio.Task | None = None
+        try:
+            await session.start()
+            logger.info("Voice session %s opened from %s", session_id, host)
+            # Her weights pinned while voice mode is open (core/brain/llm/her_pinned_weights.py), and her live context's
+            # first read. Both wait on her worker, which answers between jobs, so they run beside the receive loop: LIVE
+            # 11 November 2026, awaited before it, they left the socket unread while the browser streamed audio, and the
+            # client's keepalive ping went unanswered for 20 s and closed the session before its first turn.
+            pinning = get_task_tracker().create_task(asyncio.to_thread(a_voice_session_opened),
+                                                     name=f"VoicePinnedWeights:{session_id}")
+            opening = get_task_tracker().create_task(her_live_context_opens(), name=f"VoiceLiveContext:{session_id}")
 
             connected = True
             while connected and not authorization_revoked.is_set():
@@ -629,7 +636,12 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             microphone_lease = None
             _release_voice_session(session_id)
             reserved_session_id = ""
-            if pinned:
+            if opening is not None and not opening.done():
+                opening.cancel()
+            if pinning is not None:
+                # The release must follow the pin it undoes; the pin is bounded by its own wait on her worker.
+                with contextlib.suppress(*_VOICE_ERRORS, asyncio.CancelledError):
+                    await pinning
                 await asyncio.to_thread(a_voice_session_closed)
             a_live_turn(conversation_key, False)  # a socket that died mid-turn sent no last state
             logger.info("Voice session %s closed", session_id)

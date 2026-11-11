@@ -69,7 +69,20 @@ def test_a_worker_that_cannot_answer_never_fails_the_session(monkeypatch):
 
 def test_the_voice_route_pins_on_open_and_releases_on_close():
     route = (_ROOT / "interface/routes/voice_duplex.py").read_text(encoding="utf-8")
-    assert "await asyncio.to_thread(a_voice_session_opened)" in route
+    assert "asyncio.to_thread(a_voice_session_opened)" in route
     assert "await asyncio.to_thread(a_voice_session_closed)" in route
+    # The release waits for the pin it undoes, or a pin answered late would hold her weights after the last session.
+    closing = route[route.index("if pinning is not None:"):route.index("await asyncio.to_thread(a_voice_session_closed)")]
+    assert "await pinning" in closing
+
+
+def test_nothing_her_worker_answers_is_awaited_before_the_socket_is_read():
+    """LIVE 11 November 2026: the pin and her live context's first read were awaited between the session's start and
+    its receive loop. The browser streamed audio into a socket nobody read, the client's keepalive ping went
+    unanswered for 20 s, and the session closed before its first turn."""
+    route = (_ROOT / "interface/routes/voice_duplex.py").read_text(encoding="utf-8")
+    start = route.index("await session.start()") + len("await session.start()")
+    between = route[start:route.index("message = await ws.receive()", start)]
+    assert "await " not in between, between
     worker = (_ROOT / "core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
     assert 'elif action in ("pin_weights", "release_weights"):' in worker
