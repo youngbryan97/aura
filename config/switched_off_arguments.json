@@ -9,7 +9,8 @@
     "core.interiority.ledger:practice:blockers": "core/interiority/proving.py builds ledger fixtures for the proving harness, and a practice with no blockers is one of the states it is proving over. A fixture is entitled to be empty.",
     "core.connectome.gating:routing_change:baseline_state": "The empty baseline IS the comparison this caller wants: the ungated graph, so the report says how much the current state closes off. Reading it as 'no baseline' would be wrong — but it is passed explicitly rather than defaulted, which is why it reads as a switch and belongs on this list.",
     "core.learning.verified_token_trace:build_tokenizer_bundle_identity:encode_options": "The bundle identity is over the DEFAULT encode path; options that change it would change the identity, which is the point. Empty is the identity being computed.",
-    "core.learning.verified_token_trace:build_tokenizer_bundle_identity:decode_options": "Same as encode_options: the identity is of the default decode path."
+    "core.learning.verified_token_trace:build_tokenizer_bundle_identity:decode_options": "Same as encode_options: the identity is of the default decode path.",
+    "core.agency.the_controls_a_game_names:controls_named_in:keys_without_words": "Every caller in the runtime asks only for the keys a text itself names, because it adds what the game's guide, its program and its first frames say (core/cognition/a_guide_to_a_place.py, core/agency/how_a_game_works.py), and it must see when the words named none: the arrows and space as a default would read as keys the game had named. The default serves a tool or a test handed a game's rules alone."
   },
   "recorded_not_yet_reviewed": {
     "core.brain.llm.latent_cortex.commitment_ablations:_verdict:checks": "Three call sites, all with no checks. Whether a verdict with no checks is meaningful has not been established here.",

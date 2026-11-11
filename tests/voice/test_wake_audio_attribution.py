@@ -59,13 +59,21 @@ def test_playing_audio_assertion_is_parsed() -> None:
         returncode = 0
         stdout = sample
 
+    # pmset is run through the subprocess gateway, so the gateway is what is answered: patching subprocess.run left
+    # this test reading the real host's power assertions, which pass or fail by whatever is playing on the machine.
+    from core.runtime import subprocess_gateway
+
+    class _Gateway:
+        def run(self, *_args, **_kwargs):
+            return _Completed()
+
     audio_provenance._cached = None
-    original = audio_provenance.subprocess.run
-    audio_provenance.subprocess.run = lambda *a, **k: _Completed()
+    original = subprocess_gateway.get_subprocess_gateway
+    subprocess_gateway.get_subprocess_gateway = lambda: _Gateway()
     try:
         sources = audio_provenance.host_audio_sources(force_refresh=True)
     finally:
-        audio_provenance.subprocess.run = original
+        subprocess_gateway.get_subprocess_gateway = original
         audio_provenance._cached = None
 
     assert sources.playing is True
