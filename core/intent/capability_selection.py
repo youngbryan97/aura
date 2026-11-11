@@ -28,6 +28,7 @@ ask during its own construction and the contract can ask from anywhere.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -69,6 +70,12 @@ def _wants_more_than_an_answer(text: str) -> bool:
         return True
     try:
         from core.intent.artifact_request import asks_for_an_artifact
+        from core.intent.asks_to_go_online import asks_into_her_mail
+
+        # Her inbox is such a place: what is in it is known by looking (LIVE 2026-11-10, "tell me what's in your
+        # inbox" was read as a request for prose and no capability was offered).
+        if asks_into_her_mail(text):
+            return True
 
         return bool(asks_for_an_artifact(text))
     # not a failure: the reader could not be asked, so nothing here claims it holds.
@@ -312,6 +319,18 @@ def select_capabilities(
         for name in producing_capabilities(catalogue):
             if name not in ordered:
                 ordered.append(name)
+    from core.intent.asks_to_go_online import asks_into_her_mail
+
+    if asks_into_her_mail(text):
+        # Her inbox named is her mail asked for, as a site named is her browser. LIVE 2026-11-10 "Can you check your
+        # email and tell me what's in your inbox?" ranked nothing: her mail declares "email" among its acts, so the
+        # first clause held two acts and no object and the second an object and no act. The capability that declares
+        # the inbox is the one asked for; of several (Reddit has one too), those that share most of the request's words.
+        said = set(re.findall(r"[a-z]+", text.lower()))
+        shared = {name: len(said & (acts | things)) for name, (acts, things) in catalogue.items() if "inbox" in acts | things}
+        for name in sorted(name for name, count in shared.items() if count == max(shared.values())):
+            if name not in ordered:
+                ordered.insert(0, name)
     if not ordered and settles_by_computation(text):
         # A problem to work out asks for no capability by name, so the mood
         # gate above leaves it with nothing — and a finite constraint problem

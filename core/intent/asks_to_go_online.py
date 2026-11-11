@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["FRONT_PAGES", "acts_asked", "asks_to_go_online", "place_named", "site_named", "the_place_it_continues"]
+__all__ = [
+    "FRONT_PAGES", "acts_asked", "asks_into_her_mail", "asks_to_go_online", "place_named", "site_named",
+    "the_place_it_continues",
+]
 
 #: Sites people send her to by name rather than by address, at their front pages. LIVE 20 October 2026, the dress
 #: rehearsal: "Go to YouTube and find a random video from Allen Pan" named no address, so it reached neither the route an
@@ -119,3 +122,27 @@ def the_place_it_continues(message: object, earlier: list[str]) -> tuple[str, st
         if place:
             return (place, said) if acts & acts_asked(said) else ("", "")
     return "", ""
+
+
+#: Her own mail, named as people name it to her: her email, her inbox, her mail.
+_HER_MAIL = r"(?:your|her)\s+(?:e-?mails?|inbox|mail(?:box)?)"
+
+#: Looking in it, or asking what came: "check your email", "what's in your inbox", "did you get any mail".
+_INTO_HER_MAIL = re.compile(
+    rf"\b(?:check|read|open|see|look\s+(?:at|in|into|through)|go\s+(?:through|into)|scan|search)\s+{_HER_MAIL}\b|"
+    rf"\b(?:what(?:'s|\u2019s|\s+is)|anything)\s+(?:new\s+)?in\s+{_HER_MAIL}\b|"
+    r"\b(?:did|have)\s+you\s+(?:get|got|gotten|receive|received)\s+(?:an?\s+|any\s+)?(?:new\s+)?(?:e-?mails?|mail)\b|"
+    r"\b(?:any|got\s+any)\s+new\s+(?:e-?mails?|mail)\b",
+    re.IGNORECASE,
+)
+
+
+def asks_into_her_mail(message: object) -> bool:
+    """Whether ``message`` asks her to look in her own mail, or what came to it.
+
+    Her inbox is a place online that is hers, and asking her to look in it is asking for her mail as a site named is
+    asking for her browser. LIVE 10 November 2026, the first time her mail had credentials: "Can you check your email
+    and tell me what's in your inbox?" ran under the self-service ceiling, her mail was withheld as above it, and she
+    answered that she would check before telling him what was there, and did not.
+    """
+    return bool(_INTO_HER_MAIL.search(str(message or "")))

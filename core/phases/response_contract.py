@@ -1214,10 +1214,11 @@ def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
     if asks_for_an_artifact(str(objective or "")) or _orders_a_named_file_changed(str(objective or "")) or _asks_her_build_changed(str(objective or "")):
         return _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
     from core.conversation.page_interaction import the_conversations_place
-    from core.intent.asks_to_go_online import asks_to_go_online
+    from core.intent.asks_to_go_online import asks_into_her_mail, asks_to_go_online
 
-    # Going to a site is asking for her browser, as a deck is a file; so is going on with what was being done there.
-    if asks_to_go_online(str(objective or "")) or the_conversations_place(objective):
+    # Going to a site is asking for her browser, as a deck is a file; so is going on with what was being done there,
+    # and so is looking in her mail.
+    if asks_to_go_online(str(objective or "")) or asks_into_her_mail(objective) or the_conversations_place(objective):
         return _REQUESTED_BROWSING_CEILING, frozenset(_REQUESTED_BROWSING_SCOPES)
     return _SELF_SERVICE_CEILING, frozenset(_SELF_SERVICE_EFFECT_SCOPES)
 
