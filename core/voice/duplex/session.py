@@ -53,7 +53,6 @@ from core.voice.duplex.echo_guard import EchoGuard
 from core.voice.duplex.endpointing import Completeness, Endpointer
 from core.voice.duplex.fillers import FillerReflex, ThinkingCause
 from core.voice.duplex.governed_stream import stream_governed_reply
-from core.voice.duplex.her_turn_taking import TurnTaking
 from core.voice.duplex.mind_bridge import MindBridge, SpokenRecord, StreamingTurn
 from core.voice.duplex.overlap import OverlapArbiter, OverlapVerdict
 from core.voice.duplex.paralinguistics import (
@@ -1280,10 +1279,12 @@ class DuplexVoiceSession:
             track = self._speaking
             return not (track is not None and track.token.cancelled)
 
-        # stream_governed_reply pushes governed clauses and the synthesiser pulls; this queue's bound keeps back-pressure:
-        # the synthesiser's rate paces the release, so a fast model never builds a backlog of audio nobody has heard yet.
+        # stream_governed_reply pushes governed clauses; the synthesiser pulls.
+        # A small bounded queue bridges the two, and its bound is what keeps
+        # back-pressure intact: the synthesiser's rate paces the release, so a
+        # fast model can never build a backlog of audio nobody has heard yet.
         bridge: asyncio.Queue[str] = asyncio.Queue(maxsize=4)
-        self._turn_taking = (getattr(self, "_turn_taking", None) or TurnTaking()).hears(turn.channel, bridge, self)
+        turn.channel.heard_backlog(lambda: bridge.qsize() + int(getattr(self._tts, "making_speech", lambda: 0)()))
 
         async def _hand_to_synthesis(clause: str) -> None:
             await bridge.put(clause)
@@ -1575,12 +1576,11 @@ class DuplexVoiceSession:
                     first_audio = False
 
                 track.sent_piece(result.text, result.duration_s, continues_clause=clause_open)
-                # The words registered, so the echo guard knows them if they come back through the microphone.
+                # Register the words so that if they come back through the
+                # microphone a moment later, the echo guard recognises them.
                 self._echo.note_spoken("" if clause_open else result.text, result.samples, OUTPUT_RATE)
 
                 if not clause_open:
-                    if result.samples.size and getattr(self, "_turn_taking", None) is not None:
-                        self._turn_taking.first_sound_of_a_clause()  # how soon her next clause is heard
                     await self._send_json(
                         {
                             "type": protocol.EVT_SPEAKING_CHUNK,
