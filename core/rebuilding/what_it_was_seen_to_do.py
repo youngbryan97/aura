@@ -124,7 +124,9 @@ def seen(command: str, ways: list[Way]) -> list[Seen]:
     found: list[Seen] = []
     with tempfile.TemporaryDirectory(prefix="aura-seen-") as scratch:
         profile = Path(scratch) / "profile.sb"
-        profile.write_text(_profile(command))
+        from core.rebuilding.her_build_writes import governed
+
+        governed("write_text", profile, _profile(command), source="what_it_was_seen_to_do")
         for way in ways:
             try:
                 run = get_subprocess_gateway().run(["sandbox-exec", "-f", str(profile), command, *way.args], input=way.stdin,

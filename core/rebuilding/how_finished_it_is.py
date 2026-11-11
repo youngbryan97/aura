@@ -193,6 +193,8 @@ async def finishing(
         if after.count() < now.count():
             program, now = candidate, after
             logger.info("finishing: %d left unfinished", now.count())
-    await asyncio.to_thread(scratch.unlink, missing_ok=True)
+    from core.rebuilding.her_build_writes import governed
+
+    await asyncio.to_thread(governed, "delete_file", scratch)
     return program, now
 

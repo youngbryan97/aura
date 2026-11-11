@@ -132,11 +132,15 @@ def _ear_log() -> Any:
     """The file the ear's process writes what it says of itself to, appended to; None where it cannot be opened."""
     try:
         from core.config import config
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
 
-        path = Path(config.paths.data_dir).parent / "logs" / "her_ear.log"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path.open("a")
-    except (ImportError, AttributeError, OSError) as why:
+        # The gateway makes the folder and owns the handle the ear's process writes to.
+        with local_internal_governed_scope("core.senses.her_ear", domain="file_write",
+                                           constraints={"effect": "the ear's own log, opened to append"}):
+            return get_file_write_gateway().open_owned_binary(
+                Path(config.paths.data_dir).parent / "logs" / "her_ear.log", mode="a+b", source="core.senses.her_ear")
+    except (ImportError, AttributeError, OSError, RuntimeError, PermissionError) as why:
         logger.debug("the ear's own log could not be opened: %s", why)
         return None
 
@@ -244,13 +248,24 @@ class HerEar:
         """Keep what is heard without writing it down while her voice uses the GPU, or go on writing it down."""
         if not self.hold:
             return
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         try:
-            if to_her_voice:
-                Path(self.hold).touch()
-            else:
-                Path(self.hold).unlink(missing_ok=True)
-        except OSError as why:
+            with local_internal_governed_scope("core.senses.her_ear", domain="file_write",
+                                               constraints={"effect": "the ear's hold, set or lifted",
+                                                            "user_visible": False}):
+                if to_her_voice:
+                    get_file_write_gateway().write_bytes_if_absent(self.hold, b"", source="core.senses.her_ear",
+                                                                   durable=False)
+                else:
+                    get_file_write_gateway().delete_file(self.hold, source="core.senses.her_ear")
+        except (OSError, RuntimeError, PermissionError) as why:
             logger.debug("the ear's hold could not be changed: %s", why)
+
+    async def yields_async(self, to_her_voice: bool) -> None:
+        """The same, off the event loop: lifting the hold syncs its folder to disk."""
+        await asyncio.to_thread(self.yields, to_her_voice)
 
     async def start(self, *, ready_s: float = 60.0) -> bool:
         """Start listening; True once the ear reports it hears the application."""
@@ -323,7 +338,7 @@ class HerEar:
         return came
 
     async def stop(self) -> None:
-        self.yields(False)
+        await self.yields_async(False)
         if self.process is not None and self.process.returncode is None:
             self.process.terminate()
             try:

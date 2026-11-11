@@ -97,7 +97,11 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
 
     if not a_writing_task(task):
         return None
-    await asyncio.to_thread(folder.mkdir, parents=True, exist_ok=True)
+    if not folder.is_dir():
+        # Made only when it is not there: the folder a person's files go to is theirs, and the gateway's is private.
+        from core.rebuilding.her_build_writes import governed
+
+        await asyncio.to_thread(governed, "ensure_directory", folder)
     kept: list[Path] = []
     command: str | None = None
 

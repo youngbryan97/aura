@@ -17,7 +17,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,6 +25,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.rebuilding.checks_a_person_makes import Check, run_checks
+from core.rebuilding.her_build_writes import governed
 from core.rebuilding.her_model import HerModelIsAwayError, patiently
 from core.rebuilding.the_program_as_built import ProgramAsBuilt
 from core.rebuilding.what_a_program_does import Asker, Feature, Genome, checks_for
@@ -124,9 +124,9 @@ async def change_it(folder: Path, asked: str, ask: Asker, *, tell: Teller | None
         checks = [r.check for r in runs if not r.held]
         # A change every check of which holds on the program as it is was made already: it does that now.
         already = {r.check.feature for r in runs} - {c.feature for c in checks}
-        await asyncio.to_thread(now.unlink, missing_ok=True)
+        await asyncio.to_thread(governed, "delete_file", now)
         await _say(tell, f"Wrote {len(written)} checks for it before changing anything; {len(checks)} fail on the program as it is.")
-        await asyncio.to_thread(shutil.copyfile, folder / "index.html", folder / "index.before-change.html")
+        await asyncio.to_thread(governed, "copy_path", folder / "index.html", folder / "index.before-change.html")
         for feature in change.features:
             if feature.name in already:
                 held_now = [r.check for r in runs if r.check.feature == feature.name]
@@ -154,7 +154,7 @@ async def change_it(folder: Path, asked: str, ask: Asker, *, tell: Teller | None
 def _keep(folder: Path, program: ProgramAsBuilt, genome: Genome, holding: list[Check], tried: _Trying) -> None:
     program.write(folder / "index.html")
     program.keep(folder)
-    (folder / "what_it_does.json").write_text(json.dumps(genome.model_dump(), indent=1), "utf-8")
-    (folder / "holding.json").write_text(json.dumps([c.model_dump() for c in holding], indent=1), "utf-8")
-    tried.trial.unlink(missing_ok=True)
+    governed("write_text", folder / "what_it_does.json", json.dumps(genome.model_dump(), indent=1))
+    governed("write_text", folder / "holding.json", json.dumps([c.model_dump() for c in holding], indent=1))
+    governed("delete_file", tried.trial)
 

@@ -4010,6 +4010,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The same night her static check's ruff moved onto the subprocess gateway,
   reading the code on stdin instead of a temporary file: raw 816, total
   2,099, and both ceilings follow.
+  10 November, later. What she keeps of a program she rebuilds (its
+  records, log, new folder and scratch file) went through the file gateway
+  in a scope of its own: raw 806, total 2,093. Then the rest of that list.
+  Her ear's log is a handle the gateway opens and owns, and its hold file is
+  set and lifted through the gateway, off the event loop. Her record of a
+  watching is made and appended through it, a line at a time queued off the
+  loop. The page, parts and records of a program she builds or changes, its
+  copy from before a change, and her scratch pages go through one helper,
+  `core/rebuilding/her_build_writes.py`, which makes a folder only when it
+  is not there: the gateway makes a folder private, and a page may be
+  written into the person's own. The stand-ins' trial files go into their
+  scratch folder the same way. Raw 781, total 2,072, and both ceilings
+  follow. Left raw on purpose: her app builder's folders (they are
+  ~/Applications and the apps in it) and the voice engine's wave writer,
+  which writes to a buffer in memory that the inventory counts as a file.
+  Her voice models' folder waits for room: the voice engine is over its
+  size and the six lines a governed folder takes are over the budget.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.

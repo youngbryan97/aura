@@ -1138,13 +1138,22 @@ async def into_her_memory(watching: Watching, *, url: str = "") -> None:
 def kept_at(title: str, url: str = "") -> Callable[[dict[str, Any]], None]:
     """Each row of a watching, kept in her data as it happens: what she saw, read and said, when, and where it played."""
     from core.config import config
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import append_text_behind, get_file_write_gateway
+
+    def her_record_of_it() -> Any:
+        return local_internal_governed_scope("core.skills.watching_along", domain="memory_write",
+                                             constraints={"effect": "her record of a watching", "title": title[:120]})
 
     folder = Path(config.paths.data_dir) / "watched"
-    folder.mkdir(parents=True, exist_ok=True)
+    with her_record_of_it():
+        get_file_write_gateway().ensure_directory(folder, source="core.skills.watching_along")
     path = folder / f"{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
 
     def keep(row: dict[str, Any]) -> None:
-        with path.open("a", encoding="utf-8") as sink:
-            sink.write(json.dumps({**row, "title": title, "url": url}, ensure_ascii=False) + "\n")
+        # Called from the watching's coroutine: on the loop the line is appended soon and off it, in order.
+        with her_record_of_it():
+            append_text_behind(path, json.dumps({**row, "title": title, "url": url}, ensure_ascii=False) + "\n",
+                               source="core.skills.watching_along")
 
     return keep

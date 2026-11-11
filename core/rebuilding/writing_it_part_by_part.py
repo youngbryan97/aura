@@ -342,8 +342,10 @@ def _kept_so_far(folder: Path, program: ProgramAsBuilt, outcomes: list[FeatureOu
     import json
 
     program.keep(folder)
-    (folder / "what_works.json").write_text(json.dumps(what_works(outcomes), indent=1), "utf-8")
-    (folder / "holding.json").write_text(json.dumps([c.model_dump() for c in holding], indent=1), "utf-8")
+    from core.rebuilding.her_build_writes import governed
+
+    governed("write_text", folder / "what_works.json", json.dumps(what_works(outcomes), indent=1))
+    governed("write_text", folder / "holding.json", json.dumps([c.model_dump() for c in holding], indent=1))
 
 
 def so_far_in(folder: Path, genome: Genome) -> SoFar | None:
@@ -485,6 +487,8 @@ async def write_it(
     await _say(tell, "Every feature written; now measuring how finished it looks and handles, and mending what is not.")
     program, unfinished = await finishing(program, holding, ask, tried, out.with_name(out.stem + ".finishing.html"), browser=browser)
     await asyncio.to_thread(program.write, out)
-    await asyncio.to_thread(tried.trial.unlink, missing_ok=True)
+    from core.rebuilding.her_build_writes import governed
+
+    await asyncio.to_thread(governed, "delete_file", tried.trial)
     left = [*unfinished.found, *(f'using "{d}" changes nothing' for d in unfinished.dead), *unfinished.errors]
     return Built(program, out, outcomes, holding, time.monotonic() - began, left)

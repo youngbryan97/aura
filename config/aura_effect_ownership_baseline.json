@@ -5705,6 +5705,38 @@
       "scope": "<module>.RealityMiddlewareRuntime._persist"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/rebuilding/her_build_writes.py",
+      "scope": "<module>.governed"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/rebuilding/her_build_writes.py",
+      "scope": "<module>.governed"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/rebuilding/her_build_writes.py",
+      "scope": "<module>.governed"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/rebuilding/her_build_writes.py",
+      "scope": "<module>.governed"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -5719,38 +5751,6 @@
       "count": 2,
       "path": "core/rebuilding/her_libraries.py",
       "scope": "<module>.keep"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/rebuilding/rebuilding_a_program.py",
-      "scope": "<module>._governed"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/rebuilding/rebuilding_a_program.py",
-      "scope": "<module>._governed"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/rebuilding/rebuilding_a_program.py",
-      "scope": "<module>._governed"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/rebuilding/rebuilding_a_program.py",
-      "scope": "<module>._governed"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -6745,6 +6745,22 @@
       "scope": "<module>.StructuralImprover._write_source"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/senses/her_ear.py",
+      "scope": "<module>.HerEar.yields"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().open_owned_binary",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/senses/her_ear.py",
+      "scope": "<module>._ear_log"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -7065,6 +7081,14 @@
       "scope": "<module>.UplinkSkill._check_disk_round_trip"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/skills/watching_along.py",
+      "scope": "<module>.kept_at"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -7199,6 +7223,14 @@
       "count": 1,
       "path": "core/sovereignty/wallet.py",
       "scope": "<module>._save_cap"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/stand_ins/a_device_on_paper.py",
+      "scope": "<module>._written_in_the_sandbox"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
@@ -12817,126 +12849,6 @@
       "scope": "<module>.where_applications_go"
     },
     {
-      "callee": "tried.trial.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/changing_what_was_built.py",
-      "scope": "<module>._keep"
-    },
-    {
-      "callee": "write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 2,
-      "path": "core/rebuilding/changing_what_was_built.py",
-      "scope": "<module>._keep"
-    },
-    {
-      "callee": "now.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/changing_what_was_built.py",
-      "scope": "<module>.change_it"
-    },
-    {
-      "callee": "shutil.copyfile",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/changing_what_was_built.py",
-      "scope": "<module>.change_it"
-    },
-    {
-      "callee": "scratch.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/how_finished_it_is.py",
-      "scope": "<module>.finishing"
-    },
-    {
-      "callee": "out.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/programs_in_code.py",
-      "scope": "<module>.ProgramInCode.keep"
-    },
-    {
-      "callee": "<pathlib.Path>.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/programs_in_code.py",
-      "scope": "<module>.ProgramInCode.write"
-    },
-    {
-      "callee": "<pathlib.Path>.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/programs_in_code.py",
-      "scope": "<module>.ProgramInCode.write"
-    },
-    {
-      "callee": "out.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/the_program_as_built.py",
-      "scope": "<module>.ProgramAsBuilt.keep"
-    },
-    {
-      "callee": "<pathlib.Path>.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/the_program_as_built.py",
-      "scope": "<module>.ProgramAsBuilt.write"
-    },
-    {
-      "callee": "<pathlib.Path>.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/the_program_as_built.py",
-      "scope": "<module>.ProgramAsBuilt.write"
-    },
-    {
-      "callee": "folder.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/using_it_by_its_controls.py",
-      "scope": "<module>.write_it_in"
-    },
-    {
-      "callee": "profile.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/what_it_was_seen_to_do.py",
-      "scope": "<module>.seen"
-    },
-    {
-      "callee": "write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 2,
-      "path": "core/rebuilding/writing_it_part_by_part.py",
-      "scope": "<module>._kept_so_far"
-    },
-    {
-      "callee": "tried.trial.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/rebuilding/writing_it_part_by_part.py",
-      "scope": "<module>.write_it"
-    },
-    {
       "callee": "self.ref_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -14761,38 +14673,6 @@
       "scope": "<module>.StructuralMutator.__init__"
     },
     {
-      "callee": "pathlib.Path().touch",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/senses/her_ear.py",
-      "scope": "<module>.HerEar.yields"
-    },
-    {
-      "callee": "pathlib.Path().unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/senses/her_ear.py",
-      "scope": "<module>.HerEar.yields"
-    },
-    {
-      "callee": "path.open",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/senses/her_ear.py",
-      "scope": "<module>._ear_log"
-    },
-    {
-      "callee": "path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/senses/her_ear.py",
-      "scope": "<module>._ear_log"
-    },
-    {
       "callee": "self.data_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -15049,22 +14929,6 @@
       "scope": "<module>.VoiceOutputSkill.__init__"
     },
     {
-      "callee": "folder.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/watching_along.py",
-      "scope": "<module>.kept_at"
-    },
-    {
-      "callee": "path.open",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/watching_along.py",
-      "scope": "<module>.kept_at.keep"
-    },
-    {
       "callee": "<pathlib.Path>.unlink",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -15135,14 +14999,6 @@
       "count": 1,
       "path": "core/sovereignty/wallet.py",
       "scope": "<module>"
-    },
-    {
-      "callee": "write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 2,
-      "path": "core/stand_ins/a_device_on_paper.py",
-      "scope": "<module>.tried_on_paper"
     },
     {
       "callee": "pathlib.Path().mkdir",
@@ -17778,6 +17634,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "ba0ab325ea779e32bd1b199336f2cc3fe96a752b4573f6ac909d0ce487c34155",
+  "inventory_sha256": "f5254c5d0f064f616d12ed2bca7d9b5895c6d43dd2dca9bac7d7df696e181ed5",
   "schema_version": 1
 }

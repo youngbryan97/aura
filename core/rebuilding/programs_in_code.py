@@ -93,14 +93,18 @@ class ProgramInCode:
         return ProgramInCode(self.title, parts)
 
     def write(self, path: str | Path) -> Path:
+        from core.rebuilding.her_build_writes import a_folder_for, governed
+
         out = Path(path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(self.source(), "utf-8")
+        a_folder_for(out)
+        governed("write_text", out, self.source())
         return out
 
     def keep(self, folder: str | Path) -> Path:
+        from core.rebuilding.her_build_writes import governed
+
         out = Path(folder) / "program.json"
-        out.write_text(json.dumps({"kind": "code", **asdict(self)}, indent=1), "utf-8")
+        governed("write_text", out, json.dumps({"kind": "code", **asdict(self)}, indent=1))
         return out
 
 

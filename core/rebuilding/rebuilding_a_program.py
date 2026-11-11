@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from core.rebuilding.checks_a_person_makes import Check, run_checks
+from core.rebuilding.her_build_writes import governed as _governed
 from core.rebuilding.her_model import HerModelIsAwayError, patiently
 from core.rebuilding.parts_a_maker_knows import what_she_knows_how_to_make
 from core.rebuilding.the_program_as_built import ProgramAsBuilt
@@ -101,27 +102,6 @@ def _recorded(ask: Asker, where: list[Path]) -> Asker:
 
 def _append(path: Path, line: str) -> None:
     _governed("append_text", path, line + "\n")
-
-
-def _governed(how: str, path: Path, *payload: Any) -> Any:
-    """One of her build's writes through the file gateway, in a governed scope of its own (Master Todo Q06): the
-    records beside a build, its log, its folder and its scratch files are hers to keep, in her state."""
-    from core.governance_context import local_internal_governed_scope
-    from core.runtime.file_write_gateway import get_file_write_gateway
-
-    source = "rebuilding_a_program"
-    # Each call by name, so the effect inventory (tools/lint_governance.py) sees it as the gateway's.
-    with local_internal_governed_scope(f"rebuilding.{how}", domain="file_write", receipt_prefix="rebuilding",
-                                       constraints={"artifact": "aura.rebuilt_program.v1", "operation": how}):
-        if how == "write_text":
-            return get_file_write_gateway().write_text(path, *payload, source=source)
-        if how == "append_text":
-            return get_file_write_gateway().append_text(path, *payload, source=source)
-        if how == "ensure_directory":
-            return get_file_write_gateway().ensure_directory(path, source=source)
-        if how == "delete_file":
-            return get_file_write_gateway().delete_file(path, source=source)
-    raise ValueError(f"no governed write named {how!r}")
 
 
 def _folder_name(name: str) -> str:

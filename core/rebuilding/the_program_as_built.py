@@ -81,8 +81,10 @@ class ProgramAsBuilt:
 
     def keep(self, folder: str | Path) -> Path:
         """Its parts kept beside it, so it can be opened again and changed part by part."""
+        from core.rebuilding.her_build_writes import governed
+
         out = Path(folder) / "program.json"
-        out.write_text(json.dumps(asdict(self), indent=1), "utf-8")
+        governed("write_text", out, json.dumps(asdict(self), indent=1))
         return out
 
     @classmethod
@@ -92,9 +94,11 @@ class ProgramAsBuilt:
         return cls(**data, parts=parts)
 
     def write(self, path: str | Path) -> Path:
+        from core.rebuilding.her_build_writes import a_folder_for, governed
+
         out = Path(path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(self.page(), "utf-8")
+        a_folder_for(out)
+        governed("write_text", out, self.page())
         return out
 
 

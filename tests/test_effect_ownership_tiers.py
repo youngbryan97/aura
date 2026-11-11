@@ -83,9 +83,12 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: The same night her static check's ruff ran on stdin through the
 #: subprocess gateway instead of a temporary file and a raw run: 816 and 2,099.
 #: 10 November, the records, log, folder and scratch file of a program she
-#: rebuilds through the file gateway in a scope: 806 and 2,093.
-TOTAL_CEILING = 2093
-RAW_CEILING = 806
+#: rebuilds through the file gateway in a scope: 806 and 2,093. Later, her
+#: ear's log and hold, her record of a watching, the pages and records of a
+#: program she builds or changes and the stand-ins' trial files: 781 and
+#: 2,072.
+TOTAL_CEILING = 2072
+RAW_CEILING = 781
 
 
 def _split() -> tuple[int, int]:

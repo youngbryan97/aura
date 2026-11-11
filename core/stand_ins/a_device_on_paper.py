@@ -217,8 +217,8 @@ def tried_on_paper(spec: DeviceSpec, driver: str, scenarios: dict[str, str], *, 
                      f'if (failures == before) printf("PASSED %s\\n", current); }}')
     with tempfile.TemporaryDirectory(prefix="aura-device-") as scratch:
         folder = Path(scratch)
-        (folder / "device.c").write_text(the_model_in_c(spec), "utf-8")
-        (folder / "test.c").write_text(_HARNESS % {"driver": driver, "scenarios": "\n".join(functions), "calls": "\n".join(calls)}, "utf-8")
+        _written_in_the_sandbox(folder / "device.c", the_model_in_c(spec))
+        _written_in_the_sandbox(folder / "test.c", _HARNESS % {"driver": driver, "scenarios": "\n".join(functions), "calls": "\n".join(calls)})
         built = _in_the_sandbox([compiler, "-std=c11", "-g", "-O1", "-Wall", "-fsanitize=address,undefined",
                                  "-fno-omit-frame-pointer", "-o", str(folder / "tried"), str(folder / "device.c"),
                                  str(folder / "test.c")], timeout=timeout_s, what="compile")
@@ -239,6 +239,17 @@ def tried_on_paper(spec: DeviceSpec, driver: str, scenarios: dict[str, str], *, 
         found = next((line.strip() for line in ran.stderr.splitlines() if "ERROR: AddressSanitizer" in line or "runtime error:" in line), ran.stderr[:300])
     ok = not failed and not broke and not found and ran.returncode == 0 and len(passed) == len(scenarios)
     return Tried(ok, passed, failed, broke, found)
+
+
+def _written_in_the_sandbox(path: Path, text: str) -> None:
+    """One source file of the trial written into its scratch folder through the file gateway, in a governed scope."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    with local_internal_governed_scope("a_device_on_paper.write", domain="tool_execution",
+                                       receipt_prefix="device-on-paper",
+                                       constraints={"artifact": "aura.device_on_paper.v1", "operation": "write"}):
+        get_file_write_gateway().write_text(path, text, source="a_device_on_paper.write", durable=False)
 
 
 def _in_the_sandbox(argv: list[str], *, timeout: float, what: str, cwd: str | None = None,
