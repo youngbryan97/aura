@@ -242,7 +242,8 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
             from core.brain.llm.speech_hold import SpeechHold
 
             hold = SpeechHold()
-            pacing = asyncio.ensure_future(_her_thought_waits_for_her_voice(hold, reply_stream))
+            paced = {"holds": 0, "held_s": 0.0, "most_waiting": 0}
+            pacing = asyncio.ensure_future(_her_thought_waits_for_her_voice(hold, reply_stream, paced))
         # The contracts a governed reply carries; with them her worker sends each checked sentence as it forms, and
         # her voice speaks it while the rest is still being made (core/brain/llm/reply_previews.py).
         kwargs = dict(foreground_request=True, stream_user_surface=reply_stream is not None, origin="voice_live",
@@ -258,6 +259,8 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
             pacing.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await pacing
+            logger.info("🗣️ her thought waited for her voice %d time(s), %.1f s; at most %d waiting to be spoken",
+                        paced["holds"], paced["held_s"], paced["most_waiting"])
         if hold is not None:
             hold.close()
         release_external_generation_gate_lease(lease)
@@ -274,12 +277,19 @@ async def _her_reply(client: Any, prompt: str, kwargs: dict[str, Any], timeout_s
     return await complete(prompt=prompt, deadline=Deadline(timeout=timeout_s), **kwargs)
 
 
-async def _her_thought_waits_for_her_voice(hold: Any, reply_stream: Any) -> None:
+async def _her_thought_waits_for_her_voice(hold: Any, reply_stream: Any, paced: dict[str, Any] | None = None) -> None:
     """While a sentence of hers waits to be spoken, her model holds; when her voice takes it, her model goes on. The
-    hold lapses by itself a second after this stops saying so."""
+    hold lapses by itself a second after this stops saying so. ``paced`` counts it for her log."""
+    paced = paced if paced is not None else {"holds": 0, "held_s": 0.0, "most_waiting": 0}
+    holding = False
     while True:
-        if reply_stream.backlog() > 0:
+        waiting = reply_stream.backlog()
+        paced["most_waiting"] = max(paced["most_waiting"], waiting)
+        if waiting > 0:
             hold.hold_for(1.0)
+            paced["holds"] += not holding
+            paced["held_s"] += 0.1
         else:
             hold.release()
+        holding = waiting > 0
         await asyncio.sleep(0.1)

@@ -179,6 +179,7 @@ class SpeechAsItForms:
         self._patch_audio_s = self._patch_samples / self._rate / max(self._pace.speed, 1e-6)
         self._held_back_s = self._pace.held_back / out_rate  # the first piece plays that much shorter
         self._decoding_since_patch = 0.0
+        self._gen_deviation_s = 0.0  # how far a patch's making strays from her pace (Jacobson's estimator, as TCP's)
         self._slowest_patch_s = 0.0
         self._last_patch_at: float | None = None
         self._plays_until: float | None = None  # when the audio already sent runs out, if it plays as it arrives
@@ -197,8 +198,12 @@ class SpeechAsItForms:
         if self._last_patch_at is not None:
             self._slowest_patch_s = max(self._slowest_patch_s, now - self._last_patch_at)
             made = max(0.0, now - self._last_patch_at - self._decoding_since_patch)
-            # Her own recent pace, not her first patch's: weighted to the last few.
-            self.gen_s_per_patch = made if not self.gen_s_per_patch else 0.7 * self.gen_s_per_patch + 0.3 * made
+            # Her own recent pace and how much it strays, weighted to the last few (Jacobson's estimator).
+            if not self.gen_s_per_patch:
+                self.gen_s_per_patch, self._gen_deviation_s = made, made / 2
+            else:
+                self._gen_deviation_s = 0.75 * self._gen_deviation_s + 0.25 * abs(made - self.gen_s_per_patch)
+                self.gen_s_per_patch = 0.875 * self.gen_s_per_patch + 0.125 * made
         self._decoding_since_patch = 0.0
         self._last_patch_at = now
         self.patches += 1
@@ -222,9 +227,11 @@ class SpeechAsItForms:
 
     def _due(self, now: float) -> bool:
         pending, window = len(self._pending), self.window()
-        # The window is sized on her average pace; the deadline on her slowest patch yet, so one slow patch is not a gap.
-        slowest = max(self.gen_s_per_patch, self._slowest_patch_s)
-        making = (slowest + self.decode_s_per_patch) * (window or pending) + self.decode_s_per_patch * self._lookback
+        # The window is sized on her average pace; the deadline on her pace plus four times how much it strays, as a
+        # retransmission timeout is: one slow patch is not a gap, and one spike does not hold back every sentence.
+        # (LIVE 11 November 2026, her slowest patch as the deadline held one sentence's first sound 9.99 s.)
+        expected = self.gen_s_per_patch + 4 * self._gen_deviation_s
+        making = (expected + self.decode_s_per_patch) * (window or pending) + self.decode_s_per_patch * self._lookback
         if self._plays_until is None:
             # Her first sound, once it plays as long as making the next window takes: sooner, and a gap follows it.
             if window is None:

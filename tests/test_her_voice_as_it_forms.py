@@ -297,8 +297,8 @@ def _a_sentence_at_her_pace(patches, made_s, decode_s_per_patch, *, carried=0.0,
                                gen_s_per_patch=carried, expected_patches=expected,
                                send=lambda audio, more, timing=None: pieces.append((now[0], len(audio) / 48000)),
                                clock=lambda: now[0])
-    for _ in range(patches):
-        now[0] += made_s
+    for index in range(patches):
+        now[0] += made_s[index] if isinstance(made_s, list) else made_s
         sentence.patch(np.zeros((1, PATCH, 1), np.float32))
     sentence.finish()
     return sentence, [piece for piece in pieces if piece[1] > 0]
@@ -322,3 +322,12 @@ def test_when_she_cannot_keep_up_the_silence_comes_before_the_sentence_not_insid
     assert _played(pieces) == []
     _sentence, unknown = _a_sentence_at_her_pace(60, 0.37, 0.009, carried=0.37)
     assert len(_played(unknown)) <= 60
+
+
+def test_one_slow_patch_does_not_hold_back_her_sentence():
+    """LIVE 11 November 2026: with her slowest patch as the deadline, one sentence's first sound waited 9.99 s. Her pace
+    plus four times its deviation, as a retransmission timeout is set, does not."""
+    made = [0.12, 0.6] + [0.12] * 58
+    sentence, pieces = _a_sentence_at_her_pace(60, made, 0.009, carried=0.12)
+    assert pieces[0][0] < 1.5
+    assert sum(gap for gap in _played(pieces)) < 0.6
