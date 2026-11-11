@@ -108,3 +108,18 @@ def test_her_recurrent_self_model_keeps_what_it_learned_when_she_stops(tmp_path,
     assert not model.save_if_advanced()
     again = crsm.ContinuousRecurrentSelfModel()
     assert again._tick_count == 7 and np.allclose(again.hidden_state, model.hidden_state)
+
+
+def test_what_her_selfhood_learned_is_kept_on_her_state_and_said_in_her_log(monkeypatch, caplog):
+    from core.consciousness.selfhood_tick import _drive_minimal_selfhood
+
+    selfhood = MinimalSelfhood()
+    monkeypatch.setattr(minimal_selfhood, "_INSTANCE", selfhood)
+    _drive_minimal_selfhood(TIRED, {"coherence": 0.6, "curiosity": 0.5}, {})
+    token = selfhood.action_started("tool_use")
+    selfhood.action_finished(token)
+    time.sleep(0.002)
+    with caplog.at_level("INFO", logger="Consciousness.MinimalSelfhood"):
+        reading = _drive_minimal_selfhood(RESTED, {"coherence": 0.6, "curiosity": 0.5}, {})
+    assert reading["reinforcements"] == 1 and reading["learned_norm"] > 0.0
+    assert any("learned from tool_use" in record.getMessage() for record in caplog.records)

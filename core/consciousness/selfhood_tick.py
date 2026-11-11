@@ -146,6 +146,7 @@ def _drive_minimal_selfhood(
 
         selfhood = get_minimal_selfhood()
         state = selfhood.update(body, affect, cognitive)
+        status = selfhood.get_status()
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         from core.runtime.errors import record_degradation
 
@@ -156,6 +157,8 @@ def _drive_minimal_selfhood(
         "speed_scalar": round(float(getattr(state, "speed_scalar", 0.0)), 4),
         "dominant_deficit": str(getattr(state, "dominant_deficit", "")),
         "n_updates": int(getattr(state, "n_updates", 0)),
+        "reinforcements": int(status.get("reinforcements", 0)),
+        "learned_norm": float(status.get("learned_norm", 0.0)),
     }
 
 

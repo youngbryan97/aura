@@ -373,7 +373,14 @@ class MinimalSelfhood:
             return None
         with self._lock:
             self._reinforcements += 1
-        return {DEFICIT_KEYS[i]: round(float(reward[i]), 4) for i in range(len(DEFICIT_KEYS)) if reward[i] > 0.0}
+            learned = float(np.sum(np.abs(self._W)))
+        taught = {DEFICIT_KEYS[i]: round(float(reward[i]), 4) for i in range(len(DEFICIT_KEYS)) if reward[i] > 0.0}
+        # Said where her log can be read: her ticks are minutes apart, so most lessons land after the intention that
+        # earned them has already been logged.
+        logger.info("🪞 MinimalSelfhood learned from %s over %.0fs: %s (field %.3f)", token.split(":", 1)[0],
+                    time.time() - entry[0],
+                    ", ".join(f"{k} -{v:.3f}" for k, v in sorted(taught.items())) or "nothing fell", learned)
+        return taught
 
     def _settle_finished(self, deficit: np.ndarray) -> None:
         """Reinforce every action that ended before this tick, against what this tick read."""
@@ -460,6 +467,7 @@ class MinimalSelfhood:
                 "learned_weight_norm": round(float(np.sum(np.abs(self._W))), 3),
                 "pending_reinforcement": len(self._pending),
                 "reinforcements": self._reinforcements,
+                "learned_norm": round(float(np.sum(np.abs(self._W))), 4),
                 "action_priority_peak": (
                     ACTION_CATEGORIES[int(np.argmax(s.action_priority))]
                     if s is not None else None
