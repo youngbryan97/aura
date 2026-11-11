@@ -2264,6 +2264,35 @@
         "name": "tests/test_a_stalled_pursuit_tries_something_different.py",
         "why": "Decides repair and continuation after a stall: the next attempt comes from a different approach, a repeated plan is refused, and a pursuit with nothing different left says so. Neither decides discovery, ambiguity, interruption, explanation and durable follow-through for every advertised capability, or the removal of task-specific scripts."
       }
+    ],
+    "CTX2-ONESHOT-004": [
+      {
+        "kind": "tool",
+        "name": "tools/nonparametric_proof.py",
+        "why": "With --facts N it is the paired trial against the no-memory control: invented facts no weights hold, asked without the store and once more after one ingestion, among the whole live store, with ordinary controls asked both ways. It fails unless the store alone answers more facts than the model alone at p below 0.001 and no control changes (10 November 2026: 79 of 80 against 0, no control moved)."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_one_shot_store_is_tried_against_no_store.py",
+        "why": "Decides that the trial's facts are invented, varied and reproducible, and that it holds only when the store alone answers and no control moves."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_memory_of_this_very_context_chooses.py",
+        "why": "Decides that a memory of the very context decides the next token while a near neighbour of another context only informs it, and that the store's exact-repeat tolerance survives a restart. Not decided by any of the three: associations, routines, corrections, conflicting or corrupted memories, forgetting, deletion, model migration, a retrieval-only control and the latency cap."
+      }
+    ],
+    "ADAPT-001": [
+      {
+        "kind": "tool",
+        "name": "tools/nonparametric_proof.py",
+        "why": "Decides that one-shot hidden-state adaptation is enabled correctly where it serves her: through her worker's own decode, one ingestion recalls what the model lacks and leaves ordinary controls unchanged."
+      },
+      {
+        "kind": "tool",
+        "name": "tools/measure_fusion_channel.py",
+        "why": "Decides CAA steering on her cortex with a held-out behavioural reading: the words change, a random direction of the same length does less, forced-choice accuracy does not drop, and her own recorded replies are not made less likely. The channel opens only at an alpha that holds all five. Not decided: LoRA, compounding, calibration and rollback."
+      }
     ]
   }
 }
