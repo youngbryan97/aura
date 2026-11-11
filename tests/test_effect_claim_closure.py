@@ -164,6 +164,8 @@ _LIVE_FALSE_COMPLETIONS = [
     "The text ORION-7 is now on your clipboard.",
     "The file is now on your Desktop.",
     "It has been written to disk.",
+    # A date inside a name is not the time the sentence is set at.
+    "I saved the file in 2026-11-10/notes.txt for you.",
 ]
 
 
@@ -202,6 +204,13 @@ _INNOCENT_REPLIES = [
         "The invariant holds once the vertices with minimum tentative distance "
         "have been finalized; no shorter path can reach them later."
     ),
+    # LIVE 2026-11-10, a turn that asked her to check a fact: history is not a report of what she did.
+    (
+        "Since 1983 the metre has been defined in terms of how far light travels in a specified "
+        "fraction of a second, which pins c to that integer with zero uncertainty."
+    ),
+    "The file format was standardized in 1998 and has been extended twice since.",
+    "That setting has been the default for years, so most people never see it.",
 ]
 
 

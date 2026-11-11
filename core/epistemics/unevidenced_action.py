@@ -234,6 +234,19 @@ _NEGATED_RE = re.compile(
 )
 
 
+#: A time before this turn, named in the sentence: a year, or years ago. What happened then is history, and nothing
+#: done on this turn could have done it. LIVE 10 November 2026, asked "Can you check that?" of the speed of light, she
+#: wrote "Since 1983 the metre has been defined in terms of how far light travels ..." and was given a correction that
+#: it reported something finished with no tool run. A year written into a name or a date ("notes-2026-11-10.txt") is
+#: not a time the sentence is set at.
+_SET_BEFORE_THIS_TURN_RE = re.compile(
+    r"\b(?:since|in|until|by|from|as\s+of|back\s+in|before|circa)\s+(?:the\s+)?(?:1\d{3}|20\d{2})s?\b(?![-/.]\d)"
+    r"|\b\d+\s+(?:years|decades|centuries)\s+ago\b"
+    r"|\bfor\s+(?:years|decades|centuries)\b",
+    re.IGNORECASE,
+)
+
+
 @dataclass(frozen=True, slots=True)
 class UnevidencedAction:
     """A completed action asserted on a turn that produced no receipts."""
@@ -279,6 +292,8 @@ def find_unevidenced_action_claims(
         if _METATEXTUAL_RE.search(sentence):
             continue
         if _NEGATED_RE.search(sentence):
+            continue
+        if _SET_BEFORE_THIS_TURN_RE.search(sentence):
             continue
         has_referent = bool(_WORLD_REFERENT_RE.search(sentence))
 
