@@ -71,6 +71,7 @@ async def one_turn(args: argparse.Namespace) -> int:
         # Playback as her window does it: the position moves only while audio is buffered. A stall that more audio
         # follows is an underrun, and how long she went silent mid-reply is what a listener hears as a stumble.
         last_tick, starved_s, underruns = 0.0, 0.0, []
+        new_clause = False  # a caption arrived and its audio has not yet: the next audio begins a clause
 
         async def stream_words() -> None:
             nonlocal ended_at
@@ -98,14 +99,16 @@ async def one_turn(args: argparse.Namespace) -> int:
                             events.append((now, "first audio", {}))
                             last_tick = now
                         elif starved_s > 0.0:
-                            underruns.append(round(starved_s, 3))
+                            underruns.append((round(starved_s, 3), "between clauses" if new_clause else "mid-clause"))
                             starved_s = 0.0
+                        new_clause = False
                         utterance = utterance_id
                         heard.append(np.frombuffer(payload, dtype=np.int16))
                 elif isinstance(message, str):
                     data = json.loads(message)
                     kind = data.get("type", "")
                     events.append((now, kind, data))
+                    new_clause = new_clause or kind == "voice.chunk"
                     if kind == "voice.metrics":
                         break
                 # Played on a clock, as her window plays it.
@@ -128,7 +131,11 @@ async def one_turn(args: argparse.Namespace) -> int:
         shown = {k: v for k, v in data.items() if k not in {"type"}}
         print(f"{since}  {kind}  {json.dumps(shown)[:200] if shown else ''}")
     if heard:
-        print(f"underruns: {len(underruns)} (her voice went silent mid-reply for {underruns or 'no'} s)")
+        between = [gap for gap, where in underruns if where == "between clauses"]
+        within = [gap for gap, where in underruns if where == "mid-clause"]
+        print(f"underruns: {len(underruns)}; between clauses {len(between)} ({sum(between):.1f} s, longest "
+              f"{max(between, default=0):.1f}), mid-clause {len(within)} ({sum(within):.1f} s, longest "
+              f"{max(within, default=0):.1f})")
     if heard and args.out:
         import soundfile as sf
 

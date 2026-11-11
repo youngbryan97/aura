@@ -767,8 +767,9 @@ class StreamingTts:
         """A new clause's first sound went out with ``queued_s`` of audio still to play: at none, the listener waited,
         and the rest of this reply is made at her busy steps (LIVE 11 November 2026: a long reply went silent 6.0 s
         between two sentences, her voice waiting on her thought)."""
-        if queued_s <= 0:
+        if queued_s <= 0 and not self.behind:
             self.behind = True
+            logger.info("🗣️ her listener waited between sentences; the rest of this reply is made at her busy steps")
 
     def making_speech(self) -> int:
         """Clauses her voice is making now. Her thought holds while it is (core/brain/llm/speech_hold.py)."""
