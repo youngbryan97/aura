@@ -49,15 +49,19 @@ def test_she_sends_without_asking_only_when_bryan_has_said_so(monkeypatch):
     assert sends_without_asking()
 
 
-def test_a_reply_her_assessor_does_not_pass_is_not_held(monkeypatch, caplog):
-    """LIVE 10 November 2026: "I'll check what I know about Bryan before responding." was held as her answer."""
+@pytest.mark.parametrize("written", [
+    "I'll check what I know about Bryan before responding.",
+    "I need to check what I know about Bryan before responding, and then reply via email.",
+])
+def test_a_reply_her_assessor_does_not_pass_is_not_held(monkeypatch, caplog, written):
+    """LIVE 10 November 2026: both of these were held as her answer to Bryan."""
     import logging
 
     from core.skills import her_replies_to_mail
 
     class Engine:
         async def think(self, objective, *, context, mode, origin, timeout_s):
-            return SimpleNamespace(content="I'll check what I know about Bryan before responding.")
+            return SimpleNamespace(content=written)
 
     monkeypatch.setattr("core.container.ServiceContainer.get",
                         lambda name, default=None: Engine() if name == "cognitive_engine" else default)
@@ -78,3 +82,25 @@ def test_a_withdrawn_draft_answers_nothing(tmp_path, monkeypatch):
     assert her_replies_to_mail.answered(path) == {"<54@gmail>"}
     path.open("a").write(f'{{"id": "{held}", "withdrawn": true}}\n')
     assert her_replies_to_mail.answered(path) == set()
+
+
+def test_bryans_mail_is_answered_under_his_principal_and_a_strangers_under_none(monkeypatch):
+    """Both of her replies to Bryan that were not answers wanted first to "check what I know about Bryan": her chat
+    knows who is writing through his principal, and her mail turn had none."""
+    from core.runtime.principal_context import current_relational_principal, relational_principal_scope_is_bound
+    from core.skills import her_replies_to_mail
+
+    seen: list[tuple[bool, str]] = []
+
+    class Engine:
+        async def think(self, objective, *, context, mode, origin, timeout_s):
+            seen.append((relational_principal_scope_is_bound(), current_relational_principal()))
+            return SimpleNamespace(content="Yes, it reached me. Hello, Bryan.")
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: Engine() if name == "cognitive_engine" else default)
+    monkeypatch.setattr(her_replies_to_mail, "_owner_principal", lambda: "bryan")
+    asyncio.run(her_replies_to_mail.her_reply_to({"from": "Bryan <youngbryan97@gmail.com>", "subject": "Hi",
+                                                  "body": "Did you get this?", "from_owner": True}))
+    asyncio.run(her_replies_to_mail.her_reply_to({"from": "maya@example.org", "subject": "Hi", "body": "Hello?"}))
+    assert seen == [(True, "bryan"), (False, "")]

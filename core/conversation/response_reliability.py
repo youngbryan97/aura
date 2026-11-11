@@ -6401,6 +6401,11 @@ _PROMISE_ONLY_REPLY_RE = re.compile(
     r"(?:i(?:'m| am)\s+(?:currently\s+)?(?:working|thinking|looking|considering|processing)"
     r"|let me\s+(?:consider|think|look|check|work)"
     r"|i(?:'ll| will)\s+(?:consider|think|look|check|work|get)"
+    # The same promise with a modal or "going to": LIVE 10 November 2026 her
+    # mail reply "I need to check what I know about Bryan before responding,
+    # and then reply via email." passed, and was held as her answer.
+    r"|i\s+(?:need|have|want|ought)\s+to\s+(?:consider|think|look|check|work|get)"
+    r"|i(?:'m| am)\s+going\s+to\s+(?:consider|think|look|check|work|get)"
     r"|give me a (?:moment|second|minute)"
     r"|one (?:moment|second))"
     r"[^.!?\n]{0,80}[.!?]?\s*$",

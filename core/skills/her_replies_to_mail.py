@@ -11,6 +11,7 @@ AURA_EMAIL_SENDS_WITHOUT_ASKING.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
@@ -49,6 +50,27 @@ def as_written(message: dict[str, Any]) -> str:
             f"{message.get('body') or ''}").strip()
 
 
+def _owner_principal() -> str:
+    """The principal her chat binds for Bryan, resolved as interface/auth.local_owner_principal_id does: her identity
+    kernel's primary operator, else her self contract's."""
+    try:
+        from core.container import ServiceContainer
+
+        kernel = ServiceContainer.get("identity_kernel", default=None)
+        current = kernel.get_current_identity() if kernel is not None and hasattr(kernel, "get_current_identity") else None
+        if isinstance(current, dict) and str(current.get("primary_operator") or "").strip():
+            return " ".join(str(current["primary_operator"]).split()).casefold()[:160]
+        from core.identity.self_contract import SelfContract
+
+        named = SelfContract().get_relationship_constraints().get("primary_operator")
+        return " ".join(str(named or "").split()).casefold()[:160]
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("her_replies_to_mail", exc, action="answered without knowing it was Bryan who wrote")
+        return ""
+
+
 async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> str:
     """Her answer to a person's message, by her own turn on her model; '' when she has none.
 
@@ -56,6 +78,9 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
     and a reply it does not pass is not a reply. LIVE 10 November 2026: to Bryan's "Wanted to know how you're doing"
     her turn wrote "I'll check what I know about Bryan before responding.", and it was held as her answer. Nothing is
     held then, and her round comes back to the message in half an hour.
+
+    Mail Bryan sent is answered as his chat is, under his principal, so her turn knows who is writing. Both of her
+    replies that were not answers to him wanted first to "check what I know about Bryan".
     """
     from core.brain.types import ThinkingMode
     from core.container import ServiceContainer
@@ -65,7 +90,11 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
         return ""
     said = as_written(message)
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": said, "allow_tools": False}
-    thought = await engine.think(said, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
+    from core.runtime.principal_context import relational_principal_scope
+
+    principal = _owner_principal() if message.get("from_owner") else ""
+    with relational_principal_scope(principal) if principal else contextlib.nullcontext():
+        thought = await engine.think(said, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     reply = str(getattr(thought, "content", "") or "").strip()
     if not reply:
         return ""
