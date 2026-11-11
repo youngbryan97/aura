@@ -9292,8 +9292,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         final_text,
                         recent_user_messages=recent_user_messages,
                     )
-                    semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
-                        _semantic_user_message, final_text
+                    semantic_glitch, semantic_glitch_reason = await asyncio.to_thread(
+                        _looks_semantically_glitched, _semantic_user_message, final_text
                     )
                     assess_user_facing_reply = None
                     try:
@@ -9347,8 +9347,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         )
                         if repaired and repaired_text != final_text:
                             final_text = repaired_text
-                            semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
-                                _semantic_user_message, final_text
+                            semantic_glitch, semantic_glitch_reason = await asyncio.to_thread(
+                                _looks_semantically_glitched, _semantic_user_message, final_text
                             )
                             try:
                                 # Imported, not guarded. Assigning to a name
@@ -11379,8 +11379,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             if repaired and repaired_reply != reply_text:
                 reply_text = repaired_reply
-                semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
-                    _semantic_user_message,
+                semantic_glitch, semantic_glitch_reason = await asyncio.to_thread(
+                    _looks_semantically_glitched, _semantic_user_message,
                     reply_text,
                 )
                 try:

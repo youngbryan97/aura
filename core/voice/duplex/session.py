@@ -1737,6 +1737,7 @@ class DuplexVoiceSession:
             # with her feels like one rather than like a series of commands.
             self._last_reply_ended_at = time.monotonic()
             await self._send_json({"type": protocol.EVT_METRICS, **self._metrics.as_dict()})
+            logger.info("🗣️ voice turn spoken: %s", self._metrics.as_dict())  # the split, readable in her log (U02)
             await self._mind.publish(
                 "spoke",
                 {

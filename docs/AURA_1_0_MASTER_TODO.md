@@ -3455,6 +3455,51 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reproduce outside her app, then move the duplex recognizer out of her
   main process, as her ear already is, and give the wake word the duplex
   lane.
+  11 November 01:16, Bryan in voice mode: "just utters the same 'hmm',
+  'let me think about that' and 'give me a moment'... doesnt actually
+  talk." Three turns reached her mind and each closed with nothing
+  generated ("turn ended without establishing what happened"); the fillers
+  covered the silence. A goal pass of hers held the generation lease for
+  its whole pass (up to ten minutes, twelve generations), so the router's
+  soft cancel stopped one generation and the pass began the next on the
+  same lease. Her pass now takes the lease for one generation at a time
+  and stops at a gap while a person's turn waits at the gate (the router
+  counts them), keeping the calls it made. Stock fillers are off: they are
+  words her mind did not produce, and they hid a failure.
+  The fuzz in her voice is the car scene her clone was taken from: the
+  3-second reference (Kiwi, a car scene) has speech 10 dB over road and
+  engine noise, 74% of it under 200 Hz, and VoxCPM2 reproduces it (12 dB
+  between her words). DeepFilterNet on the reference: 54 dB, and her
+  speech 68 dB; a gentler setting gives 31 dB. Before and after are with
+  Bryan to choose (~/.aura/voice-lab/kiwi-reference/clean-2026-11-11).
+  Her voice model makes speech at 0.59 of real time but returns each
+  sentence whole, about 2.2 s for one; streaming decode is the next step
+  for first sound.
+  Bryan's speakers sounded tinny on every app while her app ran and not
+  after it quit. Her voice mode opens the microphone with the browser's
+  echo cancellation, which on macOS is Apple's voice processing, and it
+  turns down and thins all other audio. She plays her own voice, so she
+  can cancel it herself against what she played, from the capture she
+  already runs server-side; then macOS is never asked to.
+  Bryan chose the fully cleaned voice; it is data/voice_models/aura-kiwi-c,
+  and the original stays as aura-kiwi-a.
+  The standard asked for is ChatGPT's voice: fluent, quick, rich. Stages,
+  each judged by the latency split now said in her log per voice turn:
+  1. Works and sounds clean: a person's turn gets her model, no stock
+     fillers, the clean voice, her own echo cancellation against what she
+     played instead of the browser's.
+  2. Fast. First sound under a second after the person stops. The cost
+     is reading: a voice turn re-reads 25,000 to 30,000 characters of
+     prompt. With the conversation she has read kept in her model's cache
+     between turns, a turn reads only the new words. Her voice model
+     decodes as it generates instead of after the sentence, so sound
+     starts with her first clause. The recognizer moves out of her main
+     process, and the wake word takes the duplex lane.
+  3. Speech from her own state: a small talker model driven by her
+     language model's hidden states as she thinks (the thinker and talker
+     design of the open speech-native models), trained on her own speech,
+     so her tone follows what she means and sound begins with her first
+     tokens.
 - [x] U03 Vision/camera: permission, detailed perception, freshness, source
   attribution, and graceful device failure without invented observations.
   CLOSED 2026-11-11. Bryan: "yes that was the room! she was correct", of her

@@ -251,7 +251,9 @@ class FillerConfig:
     so it can never be wrong about content.
     """
 
-    enabled: bool = field(default_factory=lambda: _env_flag("AURA_VOICE_FILLERS", True))
+    # Off unless asked for. LIVE 11 November 2026 they were all Bryan heard: "hmm", "let me think about that" and
+    # "give me a moment" over three turns her mind never answered. Words her mind did not produce, covering a failure.
+    enabled: bool = field(default_factory=lambda: _env_flag("AURA_VOICE_FILLERS", False))
     # Under this, silence reads as "instant" and a filler would be noise.
     first_delay_ms: float = field(
         default_factory=lambda: _env_float("AURA_VOICE_FILLER_FIRST_MS", 380.0)

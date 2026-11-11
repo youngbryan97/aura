@@ -549,8 +549,8 @@ async def _measure_reply_quality_candidate(
         reply,
         recent_user_messages=list(recent),
     )
-    semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
-        user,
+    semantic_glitch, semantic_glitch_reason = await asyncio.to_thread(
+        _looks_semantically_glitched, user,
         reply,
     )
     try:

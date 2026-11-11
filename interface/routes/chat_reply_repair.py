@@ -710,8 +710,8 @@ async def _stabilize_user_facing_reply(
 
             operational_grounded = grounded_operational_status_reply(user_message, text)
             if operational_grounded:
-                still_glitched, _still_reason = _looks_semantically_glitched(
-                    user_message,
+                still_glitched, _still_reason = await asyncio.to_thread(
+                    _looks_semantically_glitched, user_message,
                     operational_grounded,
                 )
                 if not still_glitched:
@@ -735,8 +735,8 @@ async def _stabilize_user_facing_reply(
                 user_message
             ):
                 subjective = _build_subjective_self_reflex(frame, user_message)
-                subjective_glitch, _subjective_reason = _looks_semantically_glitched(
-                    user_message, subjective
+                subjective_glitch, _subjective_reason = await asyncio.to_thread(
+                    _looks_semantically_glitched, user_message, subjective
                 )
                 if subjective and not subjective_glitch:
                     logger.info(
@@ -951,7 +951,7 @@ async def _stabilize_user_facing_reply(
                         corrected_text
                     )
                     corrected_semantic_glitch, _corrected_semantic_reason = (
-                        _looks_semantically_glitched(user_message, corrected_text)
+                        await asyncio.to_thread(_looks_semantically_glitched, user_message, corrected_text)
                     )
                     try:
                         from core.conversation.response_reliability import assess_user_facing_reply

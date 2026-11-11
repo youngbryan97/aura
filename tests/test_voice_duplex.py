@@ -1978,3 +1978,22 @@ def test_voice_cognition_has_no_ungoverned_streaming_bypass():
     assert "stream_reply" not in DuplexConfig.__dataclass_fields__
     assert not hasattr(MindBridge, "stream_response")
     assert "think_stream" not in inspect.getsource(MindBridge)
+
+
+def test_her_recognizer_s_locks_nest_in_the_order_they_are_taken():
+    """LIVE 2026-11-11: each voice session's warm-up logged four rank inversions among the recognizer's four locks,
+    all declared innermost though warming holds one across a decode that takes the others."""
+    from core.runtime.lockdep import get_validator, reset_lockdep_for_test
+    from core.voice.duplex.config import AsrConfig
+    from core.voice.duplex.streaming_asr import _WhisperBackend
+
+    reset_lockdep_for_test()
+    backend = _WhisperBackend(AsrConfig())
+    with backend._warm_lock, backend._usage_lock:
+        with backend._lane_lock:
+            pass
+        with backend._cache_lock:
+            pass
+    names = {"voice.asr.warm", "voice.asr.usage", "voice.asr.lane", "voice.asr.cache"}
+    found = [s for s in get_validator().splats() if any(name in s.signature for name in names)]
+    assert found == [], [s.signature for s in found]

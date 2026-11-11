@@ -196,7 +196,9 @@ def test_a_pass_runs_on_her_cortex_s_own_tool_loop_under_the_lane_s_lease(monkey
     monkeypatch.setattr(router, "acquire_external_generation_gate_lease", acquire)
     monkeypatch.setattr(router, "release_external_generation_gate_lease", given_back.append)
     asyncio.run(work.HerCortex().think_and_act(GOAL, tools={}))
-    assert taken == [f"{work.ORIGIN}:her_goal"] and given_back == [7] and asked[0][0] == GOAL
+    # An empty generation is tried once more: one lease each, each handed back.
+    assert taken == [f"{work.ORIGIN}:her_goal"] * 2 and given_back == [7, 7] and asked[0][0] == GOAL
+    assert all(kwargs["max_turns"] == 1 for _goal, kwargs in asked)
 
 
 def test_a_pass_the_lane_cannot_admit_now_is_not_now(monkeypatch):

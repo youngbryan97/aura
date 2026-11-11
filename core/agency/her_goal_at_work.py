@@ -77,24 +77,64 @@ class HerCortex:
     """
 
     async def think_and_act(self, objective: str, **kwargs: Any) -> dict[str, Any]:
+        """Her pass, one generation at a time: the lease is taken for each and handed back between them, and the pass
+        stops at a gap when a person's turn is waiting for her model. The calls she made so far go into the turns
+        before the next generation, so a pass stopped early keeps what it did.
+
+        LIVE 11 November 2026: one lease held for the whole pass (up to ten minutes, twelve generations). Bryan spoke
+        to her three times in voice mode while a pass read her source; each turn waited at the gate, the router's soft
+        cancel stopped one generation and the pass began the next, and each turn ended with nothing said.
+        """
         from core.brain.llm_health_router import (
             _BACKGROUND_GENERATION_GATE_WAIT_S,
+            a_person_is_waiting_for_her_model,
             acquire_external_generation_gate_lease,
             release_external_generation_gate_lease,
         )
         from core.runtime.service_access import resolve_inference_gate
+        from core.runtime.wall_clock import monotonic_time
 
         client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
         if client is None or not hasattr(client, "think_and_act"):
             raise RuntimeError("her cortex's tool loop is not available")
-        lease = await acquire_external_generation_gate_lease(owner=f"{ORIGIN}:her_goal", timeout_s=PASS_SECONDS,
-                                                             wait_s=_BACKGROUND_GENERATION_GATE_WAIT_S)
-        if lease is None:
+        turns_left = max(1, int(kwargs.pop("max_turns", CALLS_A_PASS) or CALLS_A_PASS))
+        prior = list(kwargs.pop("prior_turns", None) or [])
+        ends_at = monotonic_time() + PASS_SECONDS
+        calls: list[dict[str, Any]] = []
+        content, generations, empty = "", 0, 0
+        while turns_left > 0 and empty < 2:
+            if a_person_is_waiting_for_her_model():
+                logger.info("🛠️ her pass stands aside after %d generation(s): a person is talking with her", generations)
+                break
+            left_s = ends_at - monotonic_time()
+            if left_s <= 0.0:
+                break
+            lease = await acquire_external_generation_gate_lease(owner=f"{ORIGIN}:her_goal", timeout_s=left_s,
+                                                                 wait_s=_BACKGROUND_GENERATION_GATE_WAIT_S)
+            if lease is None:
+                break
+            try:
+                step = await asyncio.wait_for(
+                    client.think_and_act(objective, max_turns=1, prior_turns=list(prior), **kwargs), timeout=left_s)
+            finally:
+                release_external_generation_gate_lease(lease)
+            generations += 1
+            turns_left -= 1
+            made = list((step or {}).get("tool_calls") or [])
+            if not made:
+                content = str((step or {}).get("content") or "")
+                if content.strip():
+                    break  # she answered in words, which ends a pass as it always did
+                empty += 1  # nothing came back; once more, then the pass ends
+                continue
+            empty = 0
+            calls += made
+            for n, call in enumerate(made):  # each as the loop's own turns, the way her earlier passes go in
+                step_id = call.get("id") or f"pass_call_{generations}_{n}"
+                prior += turns_from([{**call, "id": step_id, "at": time.time()}], 0)
+        if not generations:
             return {"content": "", "turns": 0, "tool_calls": [], "deferred": True}
-        try:
-            return await asyncio.wait_for(client.think_and_act(objective, **kwargs), timeout=PASS_SECONDS)
-        finally:
-            release_external_generation_gate_lease(lease)
+        return {"content": content, "turns": generations, "tool_calls": calls}
 
 
 def slug_of(goal: str) -> str:

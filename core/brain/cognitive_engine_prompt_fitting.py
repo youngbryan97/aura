@@ -136,8 +136,8 @@ def _record_the_capability_inventory_miss(
                 # of reasoning about why a fix "did not work" when it had
                 # simply never run.
                 logger.info(
-                    "🧭 [GROUNDING] present-moment prepended to the desktop "
-                    "system prompt (+%d chars, total %d).",
+                    "🧭 [GROUNDING] present moment (%d chars) reaches her as its own message before the person's "
+                    "turn, not in the system prompt (%d chars).",
                     len(present),
                     len(system_prompt),
                 )

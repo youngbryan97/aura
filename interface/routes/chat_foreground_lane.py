@@ -1173,8 +1173,8 @@ async def _protected_foreground_reply(
         stabilized,
         recent_user_messages=recent_user_messages,
     )
-    semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
-        _semantic_user_message, stabilized
+    semantic_glitch, semantic_glitch_reason = await asyncio.to_thread(
+        _looks_semantically_glitched, _semantic_user_message, stabilized
     )
     if is_stale or is_same_diff or is_off_topic or semantic_glitch:
         logger.warning(

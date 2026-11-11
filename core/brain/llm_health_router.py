@@ -84,7 +84,10 @@ from core.utils.task_tracker import (
 
 from .llm_health_router_endpoint_call import _CallsTheEndpoint
 from .llm_health_router_gate_owners import (  # noqa: F401  (re-exported: they were defined here)
+    a_person_is_waiting_for_her_model,
     asks_for_a_reply,
+    _a_person_waits,
+    _generation_gate_busy_result,
     _generation_owner_is_user_foreground,
     _lease_is_user_foreground,
 )
@@ -226,16 +229,6 @@ def _generation_gate_lease_has_time(
         return None
     current = _gate_clock() if now is None else float(now)
     return current < float(deadline)
-
-
-def _generation_gate_busy_result(owner: str) -> dict[str, Any]:
-    result = dict(_GATE_SATURATION_RESULT)
-    result["endpoint"] = "generation_gate_busy_foreground"
-    result["error"] = (
-        "local generation lane is busy with an active foreground user generation; "
-        f"refusing to force-release owner={str(owner or 'unknown')[:120]}"
-    )
-    return result
 
 
 def _background_generation_gate_deferred_result(owner: str) -> dict[str, Any]:
@@ -1950,40 +1943,41 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 else min(_GENERATION_GATE_WAIT_S, _BACKGROUND_GENERATION_GATE_WAIT_S)
             )
         else:
-            # Foreground preemption ladder. A user turn must not sit the full
-            # gate window behind a BACKGROUND generation and then pay a
-            # worker-kill + model reload (observed live: conversation lane
-            # cold for 75s, then force-abort). Rung 1: short grace. Rung 2:
-            # cooperative soft-cancel of a background holder — the worker
-            # yields between tokens and stays warm, freeing the gate in
-            # about one decode step. Rung 3: the remaining wait and the
-            # existing force-abort escalation below, unchanged.
-            acquired = await _acquire_generation_gate_slot(_FOREGROUND_GATE_GRACE_S)
-            if not acquired:
-                holder = _oldest_generation_gate_lease()
-                holder_owner = holder[2] if holder is not None else ""
-                if holder is not None and _lease_is_user_foreground(
-                    holder[0], holder_owner
-                ):
-                    holder_age_s = max(0.0, _gate_clock() - float(holder[1]))
-                    holder_has_time = _generation_gate_lease_has_time(holder[0])
-                    if holder_has_time is True or (
-                        holder_has_time is None
-                        and holder_age_s < max(30.0, _GENERATION_GATE_WAIT_S)
-                    ):
-                        return _generation_gate_busy_result(holder_owner)
-                elif holder is not None:
-                    if self._soft_cancel_local_generations(
-                        reason=f"foreground_preempts_background:{holder_owner[:80]}"
-                    ):
-                        acquired = await _acquire_generation_gate_slot(
-                            _FOREGROUND_SOFT_CANCEL_WAIT_S
-                        )
+            with _a_person_waits():  # her own background work reads it and stands aside
+                # Foreground preemption ladder. A user turn must not sit the full
+                # gate window behind a BACKGROUND generation and then pay a
+                # worker-kill + model reload (observed live: conversation lane
+                # cold for 75s, then force-abort). Rung 1: short grace. Rung 2:
+                # cooperative soft-cancel of a background holder — the worker
+                # yields between tokens and stays warm, freeing the gate in
+                # about one decode step. Rung 3: the remaining wait and the
+                # existing force-abort escalation below, unchanged.
+                acquired = await _acquire_generation_gate_slot(_FOREGROUND_GATE_GRACE_S)
                 if not acquired:
-                    remaining_wait = max(
-                        1.0, _GENERATION_GATE_WAIT_S - _FOREGROUND_GATE_GRACE_S
-                    )
-                    acquired = await _acquire_generation_gate_slot(remaining_wait)
+                    holder = _oldest_generation_gate_lease()
+                    holder_owner = holder[2] if holder is not None else ""
+                    if holder is not None and _lease_is_user_foreground(
+                        holder[0], holder_owner
+                    ):
+                        holder_age_s = max(0.0, _gate_clock() - float(holder[1]))
+                        holder_has_time = _generation_gate_lease_has_time(holder[0])
+                        if holder_has_time is True or (
+                            holder_has_time is None
+                            and holder_age_s < max(30.0, _GENERATION_GATE_WAIT_S)
+                        ):
+                            return _generation_gate_busy_result(holder_owner)
+                    elif holder is not None:
+                        if self._soft_cancel_local_generations(
+                            reason=f"foreground_preempts_background:{holder_owner[:80]}"
+                        ):
+                            acquired = await _acquire_generation_gate_slot(
+                                _FOREGROUND_SOFT_CANCEL_WAIT_S
+                            )
+                    if not acquired:
+                        remaining_wait = max(
+                            1.0, _GENERATION_GATE_WAIT_S - _FOREGROUND_GATE_GRACE_S
+                        )
+                        acquired = await _acquire_generation_gate_slot(remaining_wait)
         if not acquired:
             if request_is_background:
                 holder = _oldest_generation_gate_lease()

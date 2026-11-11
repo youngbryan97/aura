@@ -32,6 +32,8 @@ _REACH_A_MODEL = frozenset({
     "is_amplifiable",
     "assess_user_facing_reply",
     "_repairable_user_facing_draft_for_downstream",
+    # The chat route's glitch check, which asks the reply assessor first.
+    "_looks_semantically_glitched",
 })
 
 
