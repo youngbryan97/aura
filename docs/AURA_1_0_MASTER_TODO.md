@@ -3442,8 +3442,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   prompt with swap at 10.6 of 12 GB, decode 0.2. Startup, hearing,
   turn-taking and speech hold live. Interruption, device changes and
   recovery are not yet exercised, and 46 s for "4" is the item's failure.
-- [ ] U03 Vision/camera: permission, detailed perception, freshness, source
+- [x] U03 Vision/camera: permission, detailed perception, freshness, source
   attribution, and graceful device failure without invented observations.
+  CLOSED 2026-11-11. Bryan: "yes that was the room! she was correct", of her
+  answer to "Can you look through the camera and tell me what you see right
+  now?" (23:28, 10 November, her app launched from Aura.app): one frame taken
+  for that turn under her own camera permission, read by Qwen3-VL-4B, and
+  told as what she saw in the image. Failure without invention held live on
+  7 September and on 10 November at 23:25; the cause she gave that night was
+  wrong, and her window now sends its own reason, which ends the turn and
+  is what she is told (98e0e9f94).
   PARTIAL 2026-09-07. Graceful device failure holds: asked whether she could
   see through the camera, she said no, named the likely causes, said she has no
   persistent feed and only gets a snapshot when asked, and invented no
@@ -3461,8 +3469,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   red object on the left side." Her window now says why it cannot look
   (NotAllowedError, NotFoundError, NotReadableError, the camera switched
   off), and the turn ends on that reason with what can be done about it,
-  not on a timeout. Open: Bryan to say whether that is the room, and a
-  failure seen live with its true cause.
+  not on a timeout.
 - [ ] U04 Companion mode: bubble, hide/clear, notifications, restrained chat,
   proactive observation, and continuity with full mode.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
