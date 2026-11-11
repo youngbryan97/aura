@@ -14,6 +14,7 @@ from typing import Any
 from core.runtime.service_access import (
     optional_service,
 )
+from core.runtime.tool_result_contracts import tool_result_is_deferred
 
 
 class _StartsSomethingSocial:
@@ -206,14 +207,14 @@ class _StartsSomethingSocial:
 
                 due = self._social_due_actions(now)
 
-                # Check Email every 15 minutes
-                if due["email"]:
-                    await self._check_email_initiative()
+                # Email every 15 minutes, Reddit every 45. A round the
+                # capability engine deferred never reached her inbox or Reddit,
+                # so it is not counted as one: she tries again the next minute
+                # she is let through.
+                if due["email"] and not await self._check_email_initiative():
                     self._last_email_check = time.time()
 
-                # Check Reddit every 45 minutes
-                if due["reddit"]:
-                    await self._check_reddit_initiative()
+                if due["reddit"] and not await self._check_reddit_initiative():
                     self._last_reddit_check = time.time()
 
             except asyncio.CancelledError:
@@ -228,8 +229,34 @@ class _StartsSomethingSocial:
 
             await asyncio.sleep(60)
 
-    async def _check_email_initiative(self) -> None:
-        """Check for unread emails and potentially initiate a response."""
+    @staticmethod
+    def _why_not(result: dict[str, Any]) -> str:
+        """Why a skill call did not do its work. The capability engine refuses, defers and rate-limits with `reason`,
+        `status` and `message` rather than `error`; every one of those read "unknown error" in the feed (live,
+        2026-09-15, four cards in one tick)."""
+        return next((str(result.get(key)) for key in ("error", "message", "reason", "status") if result.get(key)),
+                    "no reason given")
+
+    @staticmethod
+    def _hers_to_answer(sender: str, addressed: str) -> bool:
+        """A message Bryan sent her, or one sent to her address (not a copy, a list or a forward)."""
+        return "youngbryan97" in str(sender or "").lower() or addressed == "to"
+
+    @classmethod
+    def _mail_in_reading_order(cls, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Her unread, a person's mail to her first, each kind newest first.
+
+        LIVE 10 November 2026: the check lists her unread oldest first and her round read the first three of the five
+        newest. Bryan's "Hey!" was the fifth, behind three automated notices, and was never read.
+        """
+        order = list(enumerate(messages))
+        order.sort(key=lambda pair: (
+            bool(pair[1].get("automated")) or not cls._hers_to_answer(pair[1].get("from"), pair[1].get("addressed")),
+            -pair[0]))
+        return [message for _place, message in order]
+
+    async def _check_email_initiative(self) -> str:
+        """Read her unread mail and answer what is hers to answer: why the round was deferred, or "" when it ran."""
         from .autonomous_initiative_loop import (
             _record_initiative_degradation,
             logger,
@@ -242,15 +269,23 @@ class _StartsSomethingSocial:
         # came back "credentials not found" (34 warnings in two days).
         if not await asyncio.to_thread(EmailAdapterSkill.configured):
             logger.debug("📧 Email not configured; no inbox to check.")
-            return
+            return ""
         logger.info("📧 Checking email for autonomous initiatives...")
         try:
             cap_engine = optional_service("capability_engine", default=None)
+            # Headers only, as many as one check returns (email_adapter._bounded_limit), so who sent each message is
+            # known before any body is read.
             result = await self._execute_email_adapter(
-                {"mode": "check", "limit": 5}, cap_engine=cap_engine
+                {"mode": "check", "limit": 50}, cap_engine=cap_engine
             )
             if not result.get("ok"):
-                return
+                # This returned without a word, and the round counted as a check (LIVE 10 November 2026).
+                why = self._why_not(result)
+                if tool_result_is_deferred(result):
+                    logger.info("📧 Her mail round was deferred before it reached her inbox: %s", why)
+                    return why
+                logger.info("📧 Her mail round could not read her inbox: %s", why)
+                return ""
 
             unread_count = result.get("unread", 0)
             if unread_count > 0:
@@ -260,51 +295,49 @@ class _StartsSomethingSocial:
                     category="Social",
                 )
 
+            from core.skills.her_replies_to_mail import answered, answers, hold_for_bryan, mark_sent, sends_without_asking
+
+            # What she has answered already, held or sent, from her drafts: a restart does not forget it.
+            already = await asyncio.to_thread(answered)
             triaged: list[dict[str, Any]] = []
             now = time.time()
-            for msg in list(result.get("messages") or [])[:3]:
+            for msg in self._mail_in_reading_order(list(result.get("messages") or [])):
+                if len(triaged) >= 3:
+                    break
                 uid = str(msg.get("uid") or "")
-                if not uid:
+                key = answers(msg)
+                if not uid or key in already:
                     continue
-                # Avoid hot-looping the same unread item every social tick, while
-                # still rechecking it later if it remains relevant.
-                if now - float(self._recent_email_uids.get(uid, 0.0) or 0.0) < 1800.0:
+                # A message read and left is not read again this run; one that was hers to answer and got no reply
+                # (her turn found nothing to say, or did not finish) is tried again after half an hour.
+                if now - float(self._recent_email_uids.get(key, 0.0) or 0.0) < 1800.0:
                     continue
-                self._recent_email_uids[uid] = now
+                self._recent_email_uids[key] = now
                 read_result = await self._execute_email_adapter(
                     {"mode": "read", "uid": uid}, cap_engine=cap_engine
                 )
                 if not read_result.get("ok"):
-                    # The capability engine refuses, defers and rate-limits
-                    # with `reason`, `status` and `message` rather than
-                    # `error`; every one of those read "unknown error" in the
-                    # feed (live, 2026-09-15, four cards in one tick).
-                    why = next(
-                        (
-                            str(read_result.get(key))
-                            for key in ("error", "message", "reason", "status")
-                            if read_result.get(key)
-                        ),
-                        "no reason given",
-                    )
                     self._emit_feed(
                         "Email Triage",
-                        f"Could not read UID {uid}: {why}",
+                        f"Could not read UID {uid}: {self._why_not(read_result)}",
                         category="Social",
                     )
                     continue
                 triage = self._classify_email_message(msg, read_result)
                 triage["draft_reply"] = await self._draft_email_response(triage)
                 if triage["draft_reply"]:
-                    from core.skills.her_replies_to_mail import hold_for_bryan, sends_without_asking
-
+                    triage["draft_id"] = await hold_for_bryan(triage, triage["draft_reply"])
                     if sends_without_asking():
                         sent = await self._execute_email_adapter(
-                            {"mode": "reply", "uid": uid, "body": triage["draft_reply"]}, cap_engine=cap_engine
+                            {"mode": "reply", "uid": uid, "body": triage["draft_reply"],
+                             "in_reply_to": triage.get("message_id") or None},
+                            cap_engine=cap_engine,
                         )
                         triage["sent"] = bool(sent.get("ok"))
-                    else:
-                        triage["draft_id"] = await hold_for_bryan(triage, triage["draft_reply"])
+                        if triage["sent"]:
+                            await mark_sent(triage["draft_id"])
+                if triage["action"] != "hers_to_answer" or triage["draft_reply"]:
+                    self._recent_email_uids[key] = float("inf")
                 triaged.append(triage)
 
                 action_label = str(triage.get("action") or "watch")
@@ -332,7 +365,7 @@ class _StartsSomethingSocial:
                     importance=0.65 if triage.get("action") == "hers_to_answer" else 0.45,
                 )
 
-            held = [item for item in triaged if item.get("draft_id")]
+            held = [item for item in triaged if item.get("draft_id") and not item.get("sent")]
             if held:
                 first = held[0]
                 self._queue_visible_update(
@@ -352,9 +385,10 @@ class _StartsSomethingSocial:
                 action="skipped email initiative tick after mail adapter transient failure",
                 severity="warning",
             )
+        return ""
 
-    async def _check_reddit_initiative(self) -> None:
-        """Browse Reddit and potentially find something to engage with."""
+    async def _check_reddit_initiative(self) -> str:
+        """Browse Reddit and potentially find something to engage with: why the round was deferred, or "" when it ran."""
         from .autonomous_initiative_loop import (
             _record_initiative_degradation,
             logger,
@@ -375,6 +409,10 @@ class _StartsSomethingSocial:
                 {"mode": "browse", "subreddit": sub, "limit": 5},
                 cap_engine=cap_engine,
             )
+            if tool_result_is_deferred(result):
+                why = self._why_not(result)
+                logger.info("📱 Her Reddit round was deferred before it reached Reddit: %s", why)
+                return why
             if result.get("ok") and result.get("posts"):
                 posts = result.get("posts")
                 top_post = posts[0]
@@ -487,3 +525,4 @@ class _StartsSomethingSocial:
                 action="skipped reddit initiative tick after adapter failure",
                 severity="warning",
             )
+        return ""

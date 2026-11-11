@@ -147,11 +147,6 @@
       "_save_last_activity"
     ],
     [
-      "core/creativity/aesthetic_engine.py",
-      "stop",
-      "_save_journal"
-    ],
-    [
       "core/embodiment/world_bridge.py",
       "_execute_handler",
       "revoke"

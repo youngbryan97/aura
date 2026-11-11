@@ -39,7 +39,8 @@ def main() -> int:
         return 1
     from core.skills.email_adapter import EmailAdapterSkill, EmailInput
 
-    sent = asyncio.run(EmailAdapterSkill()._handle_reply(EmailInput(mode="reply", uid=chosen["uid"], body=chosen["reply"])))
+    sent = asyncio.run(EmailAdapterSkill()._handle_reply(EmailInput(mode="reply", uid=chosen["uid"], body=chosen["reply"],
+                                                                  in_reply_to=chosen.get("message_id") or None)))
     print(json.dumps({k: v for k, v in sent.items() if k in ("ok", "error", "status")}))
     if sent.get("ok"):
         with _drafts_path().open("a", encoding="utf-8") as kept:

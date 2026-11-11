@@ -19,7 +19,7 @@ from typing import Any
 
 logger = logging.getLogger("Skills.Email")
 
-__all__ = ["DRAFTS", "drafts", "her_reply_to", "hold_for_bryan", "sends_without_asking"]
+__all__ = ["DRAFTS", "answered", "answers", "drafts", "her_reply_to", "hold_for_bryan", "mark_sent", "sends_without_asking"]
 
 #: The origin her reply turns carry: a turn on her desktop lane, answering what a person wrote her.
 ORIGIN = "desktop_email_reply"
@@ -90,3 +90,25 @@ def drafts(path: Path | None = None) -> list[dict[str, Any]]:
             continue
         latest[str(row.get("id"))] = {**latest.get(str(row.get("id")), {}), **row}
     return list(latest.values())
+
+
+def answers(message: dict[str, Any]) -> str:
+    """Which message a reply answers: its Message-ID, or its UID where it has none."""
+    return str(message.get("message_id") or "").strip() or (f"uid:{message['uid']}" if message.get("uid") else "")
+
+
+def answered(path: Path | None = None) -> set[str]:
+    """The messages she has written a reply to, held or sent, by ``answers``: a message is answered once, and a
+    restart does not forget it."""
+    return {key for key in (answers(draft) for draft in drafts(path)) if key}
+
+
+async def mark_sent(draft_id: str) -> None:
+    """Her held reply went out."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    with local_internal_governed_scope("her_replies_to_mail.sent", domain="file_write"):
+        await get_file_write_gateway().append_text_async(
+            _drafts_path(), json.dumps({"id": draft_id, "sent": True, "sent_at": time.time()}) + "\n",
+            source="her_replies_to_mail.sent")

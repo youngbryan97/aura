@@ -8,7 +8,11 @@ from typing import Any
 from core.container import ServiceContainer as ServiceContainer  # noqa: F401
 from core.health.degraded_events import get_unified_failure_state, record_degraded_event
 from core.runtime import resource_psutil as psutil
-from core.runtime.background_policy import background_activity_allowed, background_activity_reason
+from core.runtime.background_policy import (
+    HEAVY_SKILL_PREFLIGHT_BACKGROUND_POLICY,
+    background_activity_allowed,
+    background_activity_reason,
+)
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.service_access import (
     optional_service,
@@ -114,8 +118,8 @@ def _self_development_blocker(orchestrator=None) -> str:
     return ""
 
 
-#: How long she has been alone before her email and Reddit are read: the idle time below, counted for a shared watching
-#: from its end.
+#: How long after a shared watching ends before her email and Reddit are read. Her idle time otherwise comes from the
+#: capability engine's profile for those skills, below.
 _SOCIAL_IDLE_S = 120.0
 
 
@@ -129,14 +133,18 @@ def _watching_with_someone() -> str:
 
 
 def _passive_social_allowed(orchestrator=None) -> bool:
+    """Whether her email and Reddit rounds may start: by the profile the capability engine defers those skills on.
+
+    LIVE 10 November 2026: this gate opened after two minutes idle and under 78% memory, and the engine deferred
+    email_adapter until ten minutes idle and under 72%. Every round in between was spent on a deferral that nobody
+    saw, and the next one waited fifteen minutes.
+    """
     if _watching_with_someone():
         return False
     return background_activity_allowed(
         orchestrator,
-        min_idle_seconds=_SOCIAL_IDLE_S,
-        max_memory_percent=78.0,
+        profile=HEAVY_SKILL_PREFLIGHT_BACKGROUND_POLICY,
         max_failure_pressure=0.15,
-        require_conversation_ready=False,
         allow_no_user_anchor=True,
     )
 
@@ -147,10 +155,8 @@ def _passive_social_blocker(orchestrator=None) -> str:
         return f"watching something with {who}"
     return background_activity_reason(
         orchestrator,
-        min_idle_seconds=_SOCIAL_IDLE_S,
-        max_memory_percent=78.0,
+        profile=HEAVY_SKILL_PREFLIGHT_BACKGROUND_POLICY,
         max_failure_pressure=0.15,
-        require_conversation_ready=False,
         allow_no_user_anchor=True,
     )
 

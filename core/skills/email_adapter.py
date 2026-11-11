@@ -26,6 +26,8 @@ HARDENING (2026-05):
 import asyncio
 import base64
 import email
+import email.errors
+import email.header
 import email.mime.multipart
 import email.mime.text
 import email.utils
@@ -46,6 +48,21 @@ from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 logger = logging.getLogger("Skills.Email")
+
+
+def as_read(value: Any, default: str = "") -> str:
+    """A header as a person reads it: encoded words decoded, folded lines joined.
+
+    LIVE 10 November 2026: her inbox gave her subjects such as
+    ``=?UTF-8?Q?"Even_this_was_generated_by?=`` as written on the wire.
+    """
+    if not value:
+        return default
+    try:
+        text = str(email.header.make_header(email.header.decode_header(str(value))))
+    except (UnicodeError, LookupError, email.errors.HeaderParseError):
+        text = str(value)
+    return " ".join(text.split()) or default
 
 _EMAIL_RECOVERABLE_ERRORS = (
     ImportError,
@@ -145,7 +162,7 @@ class EmailInput(BaseModel):
     to: str | None = Field(None, description="Recipient email address (for 'send' mode)")
     subject: str | None = Field(None, description="Email subject (for 'send' mode)")
     body: str | None = Field(None, description="Email body (for 'send' / 'reply' mode)")
-    uid: str | None = Field(None, description="Email UID (for 'read' / 'reply' mode)")
+    uid: str | None = Field(None, description="Email IMAP UID (for 'read' / 'reply' mode)")
     query: str | None = Field(None, description="IMAP search query (for 'search' mode)")
     limit: int = Field(10, description="Max results for 'check' / 'search'")
     in_reply_to: str | None = Field(None, description="Message-ID to reply to (internal use)")
@@ -493,8 +510,10 @@ class EmailAdapterSkill(BaseSkill):
                 mail.login(addr, pwd)
                 mail.select("INBOX")
 
-                # Search for unseen messages
-                status, data = mail.search(None, "UNSEEN")
+                # Search for unseen messages, by UID: a sequence number is a
+                # place in the mailbox and moves when any message before it
+                # leaves, and a reply held for Bryan was sent by it.
+                status, data = mail.uid("SEARCH", None, "UNSEEN")
                 if status != "OK":
                     return {"unread": 0, "messages": []}
 
@@ -506,17 +525,18 @@ class EmailAdapterSkill(BaseSkill):
                 # Get previews of most recent N
                 messages = []
                 for uid in uids[-limit:]:
-                    status, msg_data = mail.fetch(
-                        uid, f"(BODY.PEEK[HEADER.FIELDS ({' '.join(HEADERS_READ)})])"
+                    status, msg_data = mail.uid(
+                        "FETCH", uid, f"(BODY.PEEK[HEADER.FIELDS ({' '.join(HEADERS_READ)})])"
                     )
                     if status == "OK" and msg_data[0] is not None:
                         header = email.message_from_bytes(msg_data[0][1])
                         messages.append(
                             {
                                 "uid": uid.decode(),
-                                "from": header.get("From", "Unknown"),
-                                "subject": header.get("Subject", "(no subject)"),
+                                "from": as_read(header.get("From"), "Unknown"),
+                                "subject": as_read(header.get("Subject"), "(no subject)"),
                                 "date": header.get("Date", ""),
+                                "message_id": header.get("Message-ID", ""),
                                 # Who sent it, from its headers (core/skills/what_mail_is.py): '' for a person.
                                 "automated": who_sent_it(dict(header.items())),
                                 "addressed": addressed_to(dict(header.items()), addr),
@@ -541,7 +561,7 @@ class EmailAdapterSkill(BaseSkill):
                 mail.login(addr, pwd)
                 mail.select("INBOX")
 
-                status, msg_data = mail.fetch(params.uid.encode(), "(BODY.PEEK[])")
+                status, msg_data = mail.uid("FETCH", params.uid, "(BODY.PEEK[])")
                 if status != "OK" or msg_data[0] is None:
                     return None
 
@@ -595,9 +615,9 @@ class EmailAdapterSkill(BaseSkill):
 
                 return {
                     "uid": params.uid,
-                    "from": msg.get("From", "Unknown"),
-                    "to": msg.get("To", ""),
-                    "subject": msg.get("Subject", "(no subject)"),
+                    "from": as_read(msg.get("From"), "Unknown"),
+                    "to": as_read(msg.get("To")),
+                    "subject": as_read(msg.get("Subject"), "(no subject)"),
                     "date": msg.get("Date", ""),
                     "message_id": msg.get("Message-ID", ""),
                     "body": clean_body[:10000],  # Cap at 10k chars
@@ -749,6 +769,17 @@ class EmailAdapterSkill(BaseSkill):
                 "error": "Refusing to reply to an automated email thread to prevent loops.",
             }
 
+        # A reply answers one message. When the caller names it by Message-ID
+        # (a held draft does), the message at this UID must be that one, or
+        # nothing is sent.
+        expected = str(params.in_reply_to or "").strip()
+        if expected and str(original.get("message_id") or "").strip() != expected:
+            return {
+                "ok": False,
+                "status": "not_the_message_answered",
+                "error": f"UID {params.uid} is not the message this reply answers ({expected}); nothing was sent.",
+            }
+
         # Build reply
         reply_to = original.get("from", "")
         reply_subject = original.get("subject", "")
@@ -787,23 +818,23 @@ class EmailAdapterSkill(BaseSkill):
                 else:
                     criteria = "(ALL)"
 
-                status, data = mail.search(None, criteria)
+                status, data = mail.uid("SEARCH", None, criteria)
                 if status != "OK":
                     return {"results": [], "query": query}
 
                 uids = data[0].split()
                 messages = []
                 for uid in uids[-limit:]:
-                    status, msg_data = mail.fetch(
-                        uid, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])"
+                    status, msg_data = mail.uid(
+                        "FETCH", uid, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])"
                     )
                     if status == "OK" and msg_data[0] is not None:
                         header = email.message_from_bytes(msg_data[0][1])
                         messages.append(
                             {
                                 "uid": uid.decode(),
-                                "from": header.get("From", "Unknown"),
-                                "subject": header.get("Subject", "(no subject)"),
+                                "from": as_read(header.get("From"), "Unknown"),
+                                "subject": as_read(header.get("Subject"), "(no subject)"),
                                 "date": header.get("Date", ""),
                             }
                         )
