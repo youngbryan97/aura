@@ -114,3 +114,72 @@ def _serialize_tool_result_for_model(
     return _truncate_tool_result(serialized, limit=limit)
 
 
+
+
+def _prior_tool_turns(turns: Any) -> list[dict[str, Any]]:
+    """Earlier turns of hers as the loop's own messages: each call with the tool turn that answered it, and what she
+    said in words between them. A call without its answer is left out, since a template renders a call left
+    unanswered as one still waiting, and so is anything else.
+
+    Walked in order, not in pairs: her words are a single assistant message, and pairing every two turns by position
+    misaligned every call after the first thing she said (10 November 2026, her goal pass given her own words).
+    """
+    if not isinstance(turns, (list, tuple)):
+        return []
+    kept: list[dict[str, Any]] = []
+    at = 0
+    while at < len(turns):
+        turn = turns[at]
+        if not isinstance(turn, Mapping):
+            at += 1
+            continue
+        calls = turn.get("tool_calls")
+        if turn.get("role") == "assistant" and not calls:
+            words = turn.get("content")
+            if isinstance(words, str) and words.strip():
+                kept.append({"role": "assistant", "content": words})
+            at += 1
+            continue
+        answer = turns[at + 1] if at + 1 < len(turns) else None
+        if (turn.get("role") == "assistant" and isinstance(calls, list) and len(calls) == 1
+                and isinstance(answer, Mapping) and answer.get("role") == "tool"
+                and answer.get("tool_call_id") == calls[0].get("id")):
+            kept.extend([dict(turn), dict(answer)])
+            at += 2
+            continue
+        at += 1
+    return kept
+
+
+def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
+    """Grounding blocks the turn already holds, as messages the loop can read.
+
+    Only blocks a skill actually produced are carried: the conversational
+    scaffold belongs to the reply, and wrapping a tool call in it produced an
+    immediate end-of-turn. Bounded, because a document can be large and a tool
+    prompt that outgrows its deadline answers nothing.
+    """
+    if not isinstance(evidence, (list, tuple)):
+        return []
+    try:
+        from core.utils.injected_blocks import carries_read_evidence, stamp_grounding
+    except ImportError:  # pragma: no cover - the module ships with the runtime
+        return []
+    from .mlx_client import _TOOL_LOOP_EVIDENCE_CHARS
+
+    carried: list[dict[str, Any]] = []
+    budget = _TOOL_LOOP_EVIDENCE_CHARS
+    for item in evidence:
+        if not isinstance(item, Mapping):
+            continue
+        if not carries_read_evidence(dict(item)):
+            continue
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        content = content[:budget]
+        budget -= len(content)
+        carried.append(stamp_grounding({"role": "system", "content": content}))
+        if budget <= 0:
+            break
+    return carried

@@ -235,3 +235,32 @@ def test_a_file_she_names_that_is_not_there_is_answered_with_where_that_name_is(
     none = asyncio.run(her_draft.ReadSourceSkill().execute({"path": "core/absent.py"},
                                                            {"her_goal_workspace": str(workspace)}))
     assert none["summary"].endswith("no file of that name is in it")
+
+
+def test_her_own_words_reach_her_next_pass_with_her_calls_in_order():
+    """From 9 November her goal "Find something productive" read its way to one gap pass after pass and never edited:
+    each pass was given her calls and their results and not what she had concluded of them."""
+    steps = [{"id": "c1", "tool": "read_source", "args": {"path": "core/memory/cold_store.py"}, "result": "1: class",
+              "at": 10.0},
+             {"id": "c2", "tool": "find_in_source", "args": {"pattern": "evict"}, "result": "0 line(s) match",
+              "at": 20.0}]
+    said = [{"words": "The cold store has no way to forget an entry.", "at": 15.0},
+            {"words": "So I will add a forget method. <tool_call> <function=read_source> <parameter=path> core/",
+             "at": 25.0},
+            {"words": "<tool_call> <function=find_in_source>", "at": 26.0}]
+    turns = work.turns_from(steps, room=10_000, said=said)
+    shown = [turn.get("content") if turn["role"] == "assistant" and not turn.get("tool_calls") else turn["role"]
+             for turn in turns]
+    assert shown == ["assistant", "tool", "The cold store has no way to forget an entry.", "assistant", "tool",
+                     "So I will add a forget method."], shown
+    assert work.turns_from(steps, room=40, said=said)[-1]["content"] == "So I will add a forget method.", (
+        "the room keeps the latest first")
+
+
+def test_her_words_between_her_calls_reach_her_model_and_every_call_after_them_does_too():
+    from core.brain.llm.mlx_client import _prior_tool_turns
+
+    steps = [{"id": "a", "tool": "read_source", "args": {"path": "x.py"}, "result": "1: x", "at": 1.0},
+             {"id": "b", "tool": "read_source", "args": {"path": "y.py"}, "result": "1: y", "at": 3.0}]
+    turns = work.turns_from(steps, room=10_000, said=[{"words": "x.py has no forget.", "at": 2.0}])
+    assert _prior_tool_turns(turns) == turns, "pairing by position dropped every call after her words"

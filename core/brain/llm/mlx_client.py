@@ -36,7 +36,9 @@ from .mlx_client_artifacts import (  # noqa: F401  (re-exported: they were defin
 )
 from .mlx_client_recording import _RecordsWhatTheWorkerDid
 from .mlx_client_tool_results import (  # noqa: F401  (re-exported: they were defined here)
+    _prior_tool_turns,
     _serialize_tool_result_for_model,
+    _tool_loop_evidence_messages,
     _truncate_tool_result,
 )
 from .mlx_client_waiting import _WaitsForTheResult
@@ -12568,57 +12570,6 @@ def _in_the_background(kwargs: Mapping[str, Any]) -> dict[str, Any]:
     if not kwargs.get("work_in_background"):
         return {}
     return {"origin": str(kwargs.get("origin") or "background"), "is_background": True}
-
-
-def _prior_tool_turns(turns: Any) -> list[dict[str, Any]]:
-    """Earlier calls of hers and their results, as the loop's own messages: an assistant turn naming one call, then
-    the tool turn that answered it. Anything else is left out, and a call without its answer is too, since a template
-    renders a call left unanswered as one still waiting."""
-    if not isinstance(turns, (list, tuple)):
-        return []
-    kept: list[dict[str, Any]] = []
-    for call, answer in zip(turns[::2], turns[1::2], strict=False):  # an odd last call has no answer yet
-        if not (isinstance(call, Mapping) and isinstance(answer, Mapping)):
-            continue
-        calls = call.get("tool_calls")
-        if call.get("role") != "assistant" or not isinstance(calls, list) or len(calls) != 1:
-            continue
-        if answer.get("role") != "tool" or answer.get("tool_call_id") != calls[0].get("id"):
-            continue
-        kept.extend([dict(call), dict(answer)])
-    return kept
-
-
-def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
-    """Grounding blocks the turn already holds, as messages the loop can read.
-
-    Only blocks a skill actually produced are carried: the conversational
-    scaffold belongs to the reply, and wrapping a tool call in it produced an
-    immediate end-of-turn. Bounded, because a document can be large and a tool
-    prompt that outgrows its deadline answers nothing.
-    """
-    if not isinstance(evidence, (list, tuple)):
-        return []
-    try:
-        from core.utils.injected_blocks import carries_read_evidence, stamp_grounding
-    except ImportError:  # pragma: no cover - the module ships with the runtime
-        return []
-    carried: list[dict[str, Any]] = []
-    budget = _TOOL_LOOP_EVIDENCE_CHARS
-    for item in evidence:
-        if not isinstance(item, Mapping):
-            continue
-        if not carries_read_evidence(dict(item)):
-            continue
-        content = str(item.get("content") or "").strip()
-        if not content:
-            continue
-        content = content[:budget]
-        budget -= len(content)
-        carried.append(stamp_grounding({"role": "system", "content": content}))
-        if budget <= 0:
-            break
-    return carried
 
 
 def _code_execution_tool(allowed_tools: set[str] | None) -> str | None:

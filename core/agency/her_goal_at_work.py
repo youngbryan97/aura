@@ -275,22 +275,49 @@ def _bring_it_up_to_the_source(record: GoalRecord) -> None:
     record.base, record.last_check = head, {}
 
 
-def turns_from(steps: list[dict[str, Any]], room: int) -> list[dict[str, Any]]:
-    """Her calls and what came back, as the loop's own messages, the latest that fit ``room`` characters."""
+#: Where a call written out as text begins: what follows did not run, so it is not something she did.
+_A_CALL_WRITTEN_OUT = re.compile(r"<tool_call>|<function=")
+
+
+def _what_she_said(words: str) -> str:
+    """Her words at a pass's end, up to any call she wrote out that the pass ended before running."""
+    found = _A_CALL_WRITTEN_OUT.search(words or "")
+    return (words[:found.start()] if found else words or "").strip()
+
+
+def turns_from(steps: list[dict[str, Any]], room: int, said: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """Her calls, what came back and what she said of them, as the loop's own messages, the latest that fit ``room``.
+
+    What she said at a pass's end is her own reasoning about what she had read. Given only her calls and their results,
+    each pass began without the conclusion of the last: from 9 November her goal "Find something productive" read its
+    way to the same gap in her cold store pass after pass, reconsidered its scope, and read again, 175 calls and no
+    edit. Her words go in at the time she said them, and a call she wrote out as text that never ran does not.
+    """
+    timeline = [("step", float(step.get("at") or 0.0), index, step) for index, step in enumerate(steps)]
+    timeline += [("said", float(entry.get("at") or 0.0), index, entry) for index, entry in enumerate(said or ())
+                 if _what_she_said(str(entry.get("words") or ""))]
+    timeline.sort(key=lambda item: (item[1], item[0] == "said", item[2]))
     kept: list[dict[str, Any]] = []
     used = 0
-    for step in reversed(steps):
-        result = str(step.get("result") or "")
-        size = len(result) + len(json.dumps(step.get("args") or {}, default=str))
+    for kind, _at, index, item in reversed(timeline):
+        if kind == "said":
+            words = _what_she_said(str(item.get("words") or ""))
+            if kept and used + len(words) > room:
+                break
+            used += len(words)
+            kept[:0] = [{"role": "assistant", "content": words}]
+            continue
+        result = str(item.get("result") or "")
+        size = len(result) + len(json.dumps(item.get("args") or {}, default=str))
         if kept and used + size > room:
             break
         used += size
-        call_id = str(step.get("id") or f"call_{len(steps) - len(kept) // 2}")
+        call_id = str(item.get("id") or f"call_{index}")
         kept[:0] = [
             {"role": "assistant", "content": "",
              "tool_calls": [{"id": call_id, "type": "function",
-                             "function": {"name": str(step.get("tool") or ""), "arguments": dict(step.get("args") or {})}}]},
-            {"role": "tool", "tool_call_id": call_id, "name": str(step.get("tool") or ""), "content": result},
+                             "function": {"name": str(item.get("tool") or ""), "arguments": dict(item.get("args") or {})}}]},
+            {"role": "tool", "tool_call_id": call_id, "name": str(item.get("tool") or ""), "content": result},
         ]
     return kept
 
@@ -334,7 +361,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         max_turns=CALLS_A_PASS,
         context={"origin": ORIGIN, "her_goal": slug, "her_goal_workspace": str(workspace), "requested_by": "aura"},
         origin=ORIGIN,
-        prior_turns=turns_from(record.steps, _what_she_reads_of_before()),
+        prior_turns=turns_from(record.steps, _what_she_reads_of_before(), record.said),
         work_in_background=True,
         native_tools_only=True,
     )
