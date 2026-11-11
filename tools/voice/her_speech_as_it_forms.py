@@ -88,10 +88,12 @@ class Pace:
     def __init__(self, speed: float) -> None:
         self.speed = max(.85, min(1.15, float(speed)))  # the whole-sentence path's own bounds
         self._tsm = None
+        self.held_back = 0  # output samples WSOLA keeps until more input follows: its frame
         if abs(self.speed - 1.) > .01:
             import audiotsm
 
             self._tsm = audiotsm.wsola(1, speed=self.speed)
+            self.held_back = int(self._tsm._frame_length)
 
     def _drain(self, reader: Any) -> np.ndarray:
         from audiotsm.io.array import ArrayWriter
@@ -153,7 +155,8 @@ class SpeechAsItForms:
     def __init__(self, *, model: Any, decode: Callable[[Any], Any], mx: Any, prompt_context: list[Any],
                  lookback: int, out_rate: int, speed: float, level: Level, decode_s_per_patch: float,
                  send: Callable[[np.ndarray, bool], None], clock: Callable[[], float] = time.perf_counter,
-                 should_stop: Callable[[], bool] = lambda: False) -> None:
+                 should_stop: Callable[[], bool] = lambda: False, gen_s_per_patch: float = 0.0,
+                 expected_patches: int = 0) -> None:
         self.model, self._decode, self.mx = model, decode, mx
         self._history = list(prompt_context)[-lookback:] if lookback else []
         self._lookback = lookback
@@ -171,6 +174,11 @@ class SpeechAsItForms:
         self._should_stop = should_stop
         self.stopped = False
         self.decode_s_per_patch = float(decode_s_per_patch)
+        self.gen_s_per_patch = float(gen_s_per_patch)  # making one patch, decoding apart; carried between sentences
+        self.expected_patches = int(expected_patches)  # from the text, at her own patches per character
+        self._patch_audio_s = self._patch_samples / self._rate / max(self._pace.speed, 1e-6)
+        self._held_back_s = self._pace.held_back / out_rate  # the first piece plays that much shorter
+        self._decoding_since_patch = 0.0
         self._slowest_patch_s = 0.0
         self._last_patch_at: float | None = None
         self._plays_until: float | None = None  # when the audio already sent runs out, if it plays as it arrives
@@ -188,18 +196,54 @@ class SpeechAsItForms:
         now = self._clock()
         if self._last_patch_at is not None:
             self._slowest_patch_s = max(self._slowest_patch_s, now - self._last_patch_at)
+            made = max(0.0, now - self._last_patch_at - self._decoding_since_patch)
+            # Her own recent pace, not her first patch's: weighted to the last few.
+            self.gen_s_per_patch = made if not self.gen_s_per_patch else 0.7 * self.gen_s_per_patch + 0.3 * made
+        self._decoding_since_patch = 0.0
         self._last_patch_at = now
         self.patches += 1
         self._pending.append(feat)
         if self._due(now):
             self._flush(last=False)
 
+    def window(self) -> int | None:
+        """The fewest new patches a window can hold and still play at least as long as making the next one takes.
+
+        A window of n patches costs n patches made plus a decode of n and the lookback before them, and plays for n
+        patches. None when no window can keep up (her GPU is shared and slow): then each goes out when the listener
+        has run dry. LIVE 11 November 2026, a decode for every patch made each one 0.18 s against 0.16 s of audio.
+        """
+        spare = self._patch_audio_s - self.gen_s_per_patch - self.decode_s_per_patch
+        if not self.gen_s_per_patch:
+            return 1
+        if spare <= 0:
+            return None
+        return max(1, math.ceil(self.decode_s_per_patch * self._lookback / spare))
+
     def _due(self, now: float) -> bool:
+        pending, window = len(self._pending), self.window()
+        # The window is sized on her average pace; the deadline on her slowest patch yet, so one slow patch is not a gap.
+        slowest = max(self.gen_s_per_patch, self._slowest_patch_s)
+        making = (slowest + self.decode_s_per_patch) * (window or pending) + self.decode_s_per_patch * self._lookback
         if self._plays_until is None:
-            return True  # her first sound waits for nothing
-        # Decode now if waiting for one more patch would let what was sent run out first.
-        next_decode = self.decode_s_per_patch * (self._lookback + len(self._pending) + 1)
-        return self._plays_until - now < self._slowest_patch_s + next_decode
+            # Her first sound, once it plays as long as making the next window takes: sooner, and a gap follows it.
+            if window is None:
+                return self._the_rest_is_made_in_time(-self._held_back_s)
+            return pending * self._patch_audio_s - self._held_back_s >= making
+        left = self._plays_until - now
+        if window is None:
+            return self._the_rest_is_made_in_time(left)
+        return pending >= window and left < making
+
+    def _the_rest_is_made_in_time(self, left: float) -> bool:
+        """When she cannot keep up, what is sent waits until it will play for as long as making the rest takes, so the
+        silence comes before her sentence and not as a stumble inside it. Without a length to expect, it goes when
+        the listener has run dry."""
+        pending = len(self._pending)
+        if not self.expected_patches:
+            return left <= 0
+        rest = max(0, self.expected_patches - self.patches)
+        return max(0.0, left) + pending * self._patch_audio_s >= rest * (self.gen_s_per_patch + self.decode_s_per_patch)
 
     def _flush(self, *, last: bool) -> None:
         audio = np.zeros(0, np.float32)
@@ -210,7 +254,9 @@ class SpeechAsItForms:
             decoded = np.asarray(self._decode(window).flatten().astype(self.mx.float32))
             spent = self._clock() - started
             self.decode_s += spent
-            self.decode_s_per_patch = max(self.decode_s_per_patch, spent / (len(context) + len(self._pending)))
+            self._decoding_since_patch += spent
+            per = spent / (len(context) + len(self._pending))
+            self.decode_s_per_patch = per if not self.decode_s_per_patch else 0.7 * self.decode_s_per_patch + 0.3 * per
             self.decodes += 1
             skip = len(context) * self._patch_samples
             # A decode returns a few samples past its last patch; only the sentence's last keeps them, as whole does.
@@ -244,7 +290,9 @@ class SpeechAsItForms:
         return {"patches": self.patches, "audio_s": round(self.sent_s, 2), "made_s": round(made_s, 2),
                 "first_sound_s": round((self.first_sent_at or now) - self.started, 2),
                 "slowest_patch_s": round(self._slowest_patch_s, 3), "decode_s": round(self.decode_s, 2),
-                "windows": self.decodes, "real_time": round(self.sent_s / made_s, 2) if made_s > 0 else 0.0}
+                "windows": self.decodes, "real_time": round(self.sent_s / made_s, 2) if made_s > 0 else 0.0,
+                "gen_s_per_patch": round(self.gen_s_per_patch, 3), "decode_s_per_patch": round(self.decode_s_per_patch, 4),
+                "window": self.window()}
 
     def finish(self) -> None:
         self._flush(last=True)
@@ -260,12 +308,14 @@ class SpeechAsItForms:
 def speak_as_it_forms(model: Any, text: str, options: dict[str, Any], *, mx: Any, prompt_context: list[Any],
                       lookback: int, out_rate: int, speed: float, level: Level, decode_s_per_patch: float,
                       send: Callable[[np.ndarray, bool], None],
-                      should_stop: Callable[[], bool] = lambda: False) -> SpeechAsItForms:
+                      should_stop: Callable[[], bool] = lambda: False,
+                      gen_s_per_patch: float = 0.0, expected_patches: int = 0) -> SpeechAsItForms:
     """Generate ``text`` and send its audio in pieces as it forms. Returns the sentence's record (timings)."""
     decode = model.audio_vae.decode
     sentence = SpeechAsItForms(model=model, decode=decode, mx=mx, prompt_context=prompt_context, lookback=lookback,
                                out_rate=out_rate, speed=speed, level=level, decode_s_per_patch=decode_s_per_patch,
-                               send=send, should_stop=should_stop)
+                               send=send, should_stop=should_stop, gen_s_per_patch=gen_s_per_patch,
+                               expected_patches=expected_patches)
     sample = model.feat_decoder.sample
 
     def sampled(*args: Any, **kwargs: Any) -> Any:

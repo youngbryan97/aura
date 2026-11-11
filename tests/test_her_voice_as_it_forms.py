@@ -270,3 +270,55 @@ def test_the_sentences_last_piece_says_how_it_was_made():
     last = timings[-1]
     assert last["patches"] == 6 and last["audio_s"] == round(6 * PATCH * FRAME / 48000, 2)
     assert last["real_time"] < 1 and last["windows"] >= 1
+
+
+def _played(pieces):
+    """Underruns of pieces played as they arrive, as her window plays them: (arrival time, seconds of audio)."""
+    plays_until, gaps = None, []
+    for at, seconds in pieces:
+        if plays_until is not None and at > plays_until + 1e-9:
+            gaps.append(round(at - plays_until, 3))
+        plays_until = max(plays_until or at, at) + seconds
+    return gaps
+
+
+def _a_sentence_at_her_pace(patches, made_s, decode_s_per_patch, *, carried=0.0, expected=0):
+    """Her measured pace, 11 November 2026: a patch made in 0.129 s, decoded at 9 ms a patch, playing 0.16 s."""
+    now = [0.0]
+    model = SimpleNamespace(patch_size=PATCH, sample_rate=48000, audio_vae=SimpleNamespace(decode_chunk_size=1920))
+
+    def decode(window):
+        now[0] += decode_s_per_patch * window.shape[1] / PATCH
+        return np.zeros((1, window.shape[1] * 1920), np.float32)
+
+    pieces = []
+    sentence = SpeechAsItForms(model=model, decode=decode, mx=_FakeMx, prompt_context=[], lookback=5, out_rate=48000,
+                               speed=1.0, level=Level(0.0), decode_s_per_patch=decode_s_per_patch,
+                               gen_s_per_patch=carried, expected_patches=expected,
+                               send=lambda audio, more, timing=None: pieces.append((now[0], len(audio) / 48000)),
+                               clock=lambda: now[0])
+    for _ in range(patches):
+        now[0] += made_s
+        sentence.patch(np.zeros((1, PATCH, 1), np.float32))
+    sentence.finish()
+    return sentence, [piece for piece in pieces if piece[1] > 0]
+
+
+def test_at_her_quiet_pace_a_sentence_plays_without_a_gap():
+    """LIVE 11 November 2026: a decode for every patch made each one 0.18 s against 0.16 s of audio, and a long reply
+    went silent 220 to 393 times. Windows sized to her pace keep ahead of the listener."""
+    sentence, pieces = _a_sentence_at_her_pace(60, 0.129, 0.009, carried=0.129)
+    assert sentence.window() == 3
+    assert _played(pieces) == []
+    assert sentence.decodes < 60 / 2
+    assert pieces[0][0] < 4 * 0.129 + 0.2  # her first sound still comes within a few patches
+
+
+def test_when_she_cannot_keep_up_the_silence_comes_before_the_sentence_not_inside_it():
+    """Her GPU shared with her cortex's decoding: 0.37 s a patch, and no window keeps up. Knowing the sentence's length,
+    she starts once the rest will be made before what she has runs out; not knowing it, at worst a gap per patch."""
+    sentence, pieces = _a_sentence_at_her_pace(60, 0.37, 0.009, carried=0.37, expected=60)
+    assert sentence.window() is None
+    assert _played(pieces) == []
+    _sentence, unknown = _a_sentence_at_her_pace(60, 0.37, 0.009, carried=0.37)
+    assert len(_played(unknown)) <= 60

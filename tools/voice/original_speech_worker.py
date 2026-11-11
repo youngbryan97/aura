@@ -184,7 +184,7 @@ def main() -> None:
                 lookback = receptive_patches(model.audio_vae.decoder, model.patch_size)
                 context = prompt_patches(model, options["prompt_audio"])
                 level = Level(float(settings.get("output_rms", 0.)))
-                timing = {"decode_s_per_patch": 0.0}
+                timing = {"decode_s_per_patch": 0.0, "gen_s_per_patch": 0.0, "patches_per_char": 0.0}
 
             def generate_as_it_forms(text, speed, deliver):
                 if seed is not None:
@@ -192,9 +192,15 @@ def main() -> None:
                 sentence = speak_as_it_forms(
                     model, text, options, mx=mx, prompt_context=context, lookback=lookback,
                     out_rate=int(settings.get("output_sample_rate", model.sample_rate)), speed=speed, level=level,
-                    decode_s_per_patch=timing["decode_s_per_patch"], send=deliver,
+                    decode_s_per_patch=timing["decode_s_per_patch"], gen_s_per_patch=timing["gen_s_per_patch"],
+                    expected_patches=round(len(text) * timing["patches_per_char"]), send=deliver,
                     should_stop=requests.stop_asked)
                 timing["decode_s_per_patch"] = sentence.decode_s_per_patch
+                timing["gen_s_per_patch"] = sentence.gen_s_per_patch
+                if text and sentence.patches and not sentence.stopped:
+                    per_char = sentence.patches / len(text)  # her own pace of speech, sentence by sentence
+                    known = timing["patches_per_char"]
+                    timing["patches_per_char"] = per_char if not known else 0.7 * known + 0.3 * per_char
                 return sentence
 
             mx.random.seed(73619)
