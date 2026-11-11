@@ -29,6 +29,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -256,17 +257,23 @@ class _WhisperBackend:
 
     def _ensure_impl_loaded(self) -> None:
         """Import native ASR code only on the off-event-loop decode thread."""
-        if self._impl == "parakeet" and self._parakeet is not None:
+        if self._impl == "parakeet" and self._parakeet is not None and self._parakeet.alive:
             return
         if self._impl == "parakeet":
+            # In its own process (parakeet_process.py): two segmentation faults of her runtime on 11 November 2026
+            # were Parakeet decodes inside mx.eval on a thread of her main process.
+            from core.voice.duplex.parakeet_process import ParakeetProcess
+
+            process = ParakeetProcess((self._config.partial_model, self._config.final_model))
             try:
-                self._parakeet = importlib.import_module("parakeet_mlx")
+                process.start()
+                self._parakeet = process
                 return
-            except (ImportError, OSError, RuntimeError, AttributeError) as exc:
+            except (OSError, RuntimeError, ValueError, TimeoutError) as exc:
                 record_degradation(
                     "voice_duplex.asr",
                     exc,
-                    action="parakeet-mlx unavailable; falling back to whisper",
+                    action="her recognizer's process could not start; falling back to whisper",
                     severity="warning",
                 )
                 self._parakeet = None
@@ -371,13 +378,14 @@ class _WhisperBackend:
                 holder.model = None
                 holder.model_path = None
             self._mlx_models.clear()
-            # Parakeet handles are plain MLX modules with no global holder,
-            # but they hold weights just the same — an eviction that released
-            # the lane while leaving these resident would hand back memory it
-            # was still using.
-            retained = retained + tuple(self._parakeet_models.values())
+            # Parakeet's weights are held by its own process: an eviction that
+            # released the lane while leaving it running would hand back memory
+            # it was still using, so the process goes with the lane.
             self._parakeet_models.clear()
+            recognizer, self._parakeet = self._parakeet, None
             self._warmed_repos.clear()
+        if recognizer is not None:
+            recognizer.close()
         if retained:
             gc.collect()
             try:
@@ -500,19 +508,11 @@ class _WhisperBackend:
         weight load plus Metal kernel compilation must never land inside a
         live turn.
         """
-        import mlx.core as mx
-        from parakeet_mlx import from_pretrained
-        from parakeet_mlx.audio import get_logmel
-
+        text, tokens = self._parakeet.decode(audio, repo)
         with self._cache_lock:
-            model = self._parakeet_models.get(repo)
-            if model is None:
-                model = from_pretrained(repo)
-                self._parakeet_models[repo] = model
-
-        mel = get_logmel(mx.array(np.asarray(audio, dtype=np.float32)), model.preprocessor_config)
-        results = model.generate(mel)
-        return results[0] if results else None
+            self._parakeet_models[repo] = True  # held by her recognizer's process
+        return SimpleNamespace(text=text, tokens=tuple(SimpleNamespace(text=piece, start=start, end=end)
+                                                       for piece, start, end in tokens))
 
     def _transcribe_mlx(
         self, audio: np.ndarray, repo: str, *, word_timestamps: bool = False
