@@ -144,3 +144,16 @@ async def test_client_captures_the_callers_channel_and_releases_it_with_request_
     assert owner.stats.published == 1
     owner.close()
     another_turn.close()
+
+
+@pytest.mark.parametrize('prompt,ready', [
+    # Her voice mode's live context renders its own prompt with thinking closed (core/voice/duplex/live_context.py).
+    ('<|im_start|>user\nHello?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n', True),
+    # A rendered prompt whose thinking is open, or that does not say, stays buffered as before.
+    ('<|im_start|>user\nHello?<|im_end|>\n<|im_start|>assistant\n<think>\nI should greet', False),
+    ('<|im_start|>user\nHello?<|im_end|>\n<|im_start|>assistant\n', False),
+])
+def test_a_prompt_sent_rendered_says_itself_whether_thinking_was_closed(validator, prompt, ready):
+    """LIVE 11 November 2026: the live context's first reply sent no preview, so it was spoken only when whole."""
+    preview = ready_reply_preview(dict(JOB, prompt=prompt), 'Hello. Still composing', thinking=None, attempt=0)
+    assert (preview == 'Hello. ') is ready

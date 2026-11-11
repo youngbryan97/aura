@@ -96,6 +96,7 @@ class HerLiveContext:
         self.ready = False
         self._opening = ""
         self._reading: asyncio.Task | None = None
+        self._speaking = False  # a person began a turn that has not been answered yet
         self._read = read or _read_ahead_on_her_cortex
         self._generate = generate or _generate_on_her_cortex
         self._record = record
@@ -110,9 +111,13 @@ class HerLiveContext:
                 return
         self.ready = True
         logger.info("🗣️ her live context is open: %d characters of this conversation read once", len(self.text))
+        if self._speaking:
+            # They began before it opened (LIVE 11 November 2026, 0.45 s before): their turn's evidence is read now.
+            self.a_person_began_to_speak()
 
     def a_person_began_to_speak(self) -> None:
         """Read the turn's evidence while they talk."""
+        self._speaking = True
         if not self.ready:
             return
         self._opening = f"<|im_start|>user\n{the_turns_evidence()}"
@@ -138,7 +143,7 @@ class HerLiveContext:
         prompt = self.text + opening + words + _ANSWER_OPENS
         reply = await self._generate(prompt, scope=self.scope, words=words, reply_stream=reply_stream,
                                      timeout_s=timeout_s)
-        self._opening, self._reading = "", None
+        self._opening, self._reading, self._speaking = "", None, False
         if not reply or not reply.strip():
             return None
         # What she said goes in as she said it, so the next turn's prompt begins with exactly what her model holds.
@@ -153,7 +158,7 @@ class HerLiveContext:
         said, answered = " ".join(str(words or "").split()), str(reply or "").strip()
         if self.ready and said and answered:
             self.text += rendered([{"user": said, "aura": answered}])
-        self._opening, self._reading = "", None
+        self._opening, self._reading, self._speaking = "", None, False
 
 
 def _her_cortex_client() -> Any:
@@ -198,9 +203,12 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
     if lease is None:
         return None
     try:
+        # The contracts a governed reply carries; with them her worker sends each checked sentence as it forms, and
+        # her voice speaks it while the rest is still being made (core/brain/llm/reply_previews.py).
         kwargs = dict(foreground_request=True, stream_user_surface=reply_stream is not None, origin="voice_live",
                       purpose="reply", prompt_cache_scope=scope, clean_user_surface_contract=True,
-                      user_surface_validation_prompt=words, max_tokens=1024, timeout=timeout_s)
+                      semantic_completion_contract=True, user_surface_validation_prompt=words, max_tokens=1024,
+                      timeout=timeout_s)
         if reply_stream is None:
             return await client.generate(prompt, **kwargs)
         with bind_reply_stream(reply_stream):

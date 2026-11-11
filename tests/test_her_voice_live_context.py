@@ -211,3 +211,20 @@ def test_a_session_opens_on_this_sitting_and_the_last_exchange_not_every_exchang
     assert [pair["user"] for pair in lc.what_she_reads_first(long_sitting, now=now)] == ["Question 4?"]
     # What her runtime did not record as delivered is not read at all.
     assert lc.what_she_reads_first([{"user": "Hi.", "aura": "Hello.", "timestamp": now}], now=now) == []
+
+
+def test_a_person_who_began_before_the_context_opened_still_has_their_turn_read_ahead(monkeypatch):
+    """LIVE 11 November 2026: the person began 0.45 s before the context opened, and nothing of their turn was read
+    while they spoke."""
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "[EVIDENCE]\n")
+
+    async def scenario():
+        live, read, generated, _recorded = _a_context()
+        live.a_person_began_to_speak()  # before open: nothing to read into yet
+        await live.open([_said("Hi.", "Hello.")])
+        await asyncio.sleep(0)
+        assert [text for text, _scope in read][-1].endswith("<|im_start|>user\n[EVIDENCE]\n")
+        await live.answer("Are you there?")
+        assert live._speaking is False
+
+    asyncio.run(scenario())

@@ -7,9 +7,26 @@ from typing import Any
 from core.voice.duplex.clause_chunker import completed_sentence_prefix
 
 
+def thinking_of_a_rendered_prompt(job: dict) -> bool | None:
+    """Whether a prompt sent already rendered opened her thinking channel: False when her answer begins after an
+    empty think block, which is how a template renders thinking turned off; None when the prompt does not say.
+
+    Her voice mode's live context sends its prompt rendered (core/voice/duplex/live_context.py), so no template ran
+    to say. LIVE 11 November 2026, its first streamed reply sent no preview and was spoken only when whole: 105
+    tokens at 12 a second, 12 s before her first word.
+    """
+    prompt = str(job.get('prompt') or '').rstrip()
+    if job.get('messages') or not prompt.endswith('</think>'):
+        return None
+    opened = prompt.rfind('<think>')
+    return False if opened >= 0 and not prompt[opened + len('<think>'):-len('</think>')].strip() else None
+
+
 def ready_reply_preview(job: dict, text: str, *, thinking: Any, attempt: int,
                         previous: str = '') -> str:
     """Return a checked sentence prefix; private and corrective passes stay buffered."""
+    if thinking is None:
+        thinking = thinking_of_a_rendered_prompt(job)
     if not (
         job.get('stream_user_surface') is True
         and job.get('clean_user_surface_contract') is True
