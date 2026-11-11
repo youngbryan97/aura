@@ -216,3 +216,34 @@ def test_default_conductor_schedules_bounded_internal_deliberation(tmp_path):
     assert job.policy == "research"
     assert job.run_immediately is False
     assert job.interval_s == 30 * 60.0
+
+
+def test_the_conductor_beats_while_a_long_job_of_its_sweep_runs(tmp_path, monkeypatch, caplog):
+    """LIVE 2026-11-10: her goal pass, a job of the sweep, took three to four minutes. One heartbeat a sweep read as
+    a dead conductor at 150 s; the watchdog restarted it three times and then sent the module to be rewritten."""
+    import logging
+    import time
+
+    monkeypatch.setattr(conductor_module, "_A_SWEEP_EVERY_S", 0.02)
+
+    async def scenario():
+        conductor = AutonomyConductor(tmp_path / "autonomy.jsonl")
+        beats = []
+        monkeypatch.setattr(conductor, "_beat", lambda: beats.append(time.monotonic()))
+
+        async def her_goal_pass():
+            await asyncio.sleep(0.2)
+            conductor._stop.set()
+            return {"ok": True}
+
+        conductor.register("her_goal_pass", 0.05, her_goal_pass, run_immediately=True)
+        conductor._stop = asyncio.Event()
+        await asyncio.wait_for(conductor._run(), timeout=5)
+        return beats, conductor.jobs["her_goal_pass"].last_status
+
+    with caplog.at_level(logging.WARNING, logger=conductor_module.logger.name):
+        beats, status = asyncio.run(scenario())
+    assert status == "ok", "the long job ran to its end"
+    assert len(beats) >= 5, "a beat at the sweep's start, then one each 0.02 s of the job's 0.2 s"
+    said = [r.getMessage() for r in caplog.records if "her_goal_pass" in r.getMessage()]
+    assert len(said) == 1 and "past its interval" in said[0], "a job past its interval is said once, by name"

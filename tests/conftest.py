@@ -1525,6 +1525,13 @@ _TEST_SCOPED_RESET_FUNCTIONS = (
     ("core.affect.what_it_was_worth", "reset_for_test"),
     ("core.soma.good_news", "reset_for_test"),
     ("core.brain.llm.thinking_reserve", "reset_for_test"),
+    # The other four her choice of an act reads (core/subject/choosing.py): her habits, her fatigue, how she feels
+    # about each act, and her confidence in it from her own attempts. With these left over, the subject-core tests
+    # taught a later choice test to `write_notes` where her most depleted drive says `make_room` (Q09, 10 November).
+    ("core.agency.habits_are_hers", "reset_for_test"),
+    ("core.soma.fatigue", "reset_for_test"),
+    ("core.affect.feelings_about", "reset_for_test"),
+    ("core.agency.authorship", "reset_agency_ledger_for_test"),
 )
 
 

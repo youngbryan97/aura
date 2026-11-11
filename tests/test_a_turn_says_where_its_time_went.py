@@ -213,3 +213,17 @@ def test_her_thinking_joins_the_turn_from_message_to_delivery() -> None:
     assert 0.05 <= outer.latency_s["delivery"] < 0.5
     record_latency("decode", 9.0)  # after the turn: not its time
     assert outer.latency_s["decode"] == pytest.approx(0.03)
+
+
+def test_a_turn_that_ran_nothing_is_not_said_as_a_split(caplog) -> None:
+    """LIVE 2026-11-10: four turns closed at once, each "took 0.00s: nothing measured"."""
+    import logging
+
+    from core.verify.turn_receipt import recording_turn
+
+    with caplog.at_level(logging.DEBUG, logger="Aura.TurnReceipt"):
+        with recording_turn("turn-r11-0002", phases_available=()):
+            pass
+    said = [(r.levelno, r.getMessage()) for r in caplog.records if "turn-r11-000" in r.getMessage()]
+    assert said == [(logging.DEBUG, said[0][1])]
+    assert "without running a phase" in said[0][1]

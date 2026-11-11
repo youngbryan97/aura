@@ -253,6 +253,23 @@ class TestStaleLaneWorkerTerminationNeedsAPositiveVerdict:
         assert client._process is None
         assert client._lane_state == "cold"
 
+    def test_a_lane_reset_for_a_dead_worker_names_its_model(
+        self,
+        client: MLXLocalClient,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """LIVE 2026-11-10: two of these named only "recovering" and a dead process, and no model."""
+        self._make_stale(client, None)
+        monkeypatch.setattr(client, "_classify_worker_liveness", lambda _now: SimpleNamespace(kill_justified=True))
+
+        with caplog.at_level(logging.WARNING, logger="LLM.MLX"):
+            client._check_lane_state_staleness()
+
+        said = [r.getMessage() for r in caplog.records if "Force-resetting" in r.getMessage()]
+        assert len(said) == 1 and pathlib.Path(TEST_MODEL).name in said[0]
+        assert client._lane_state == "cold"
+
     def test_positive_kill_verdict_retains_an_unproven_survivor(
         self,
         client: MLXLocalClient,

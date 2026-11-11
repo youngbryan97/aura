@@ -648,7 +648,11 @@ def reset_for_test() -> None:
     """
 
     global _restored, _last_seen_store_mtime, _since_write
-    target = _store_path()
+    try:
+        target = _store_path()
+    except RuntimeError:
+        # A test that made the runtime profile unreadable is torn down with it still so: no root, no stamp to take.
+        target = None
     try:
         stamp = target.stat().st_mtime_ns if target is not None else -1
     except OSError:

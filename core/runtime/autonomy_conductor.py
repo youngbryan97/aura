@@ -98,6 +98,10 @@ def _normalize_job_result(result: Any) -> dict[str, Any]:
     return {"value": result}
 
 
+#: How long the conductor waits between sweeps, and between heartbeats while a sweep runs.
+_A_SWEEP_EVERY_S = 30.0
+
+
 @dataclass
 class ConductedJob:
     name: str
@@ -375,15 +379,43 @@ class AutonomyConductor:
                 results[job.name] = await self._run_job(job)
         return results
 
+    def _beat(self) -> None:
+        from core.container import ServiceContainer
+
+        healer = ServiceContainer.get("self_healing", default=None)
+        if healer is not None:
+            healer.heartbeat("autonomy_conductor")
+
+    def _say_a_job_past_its_interval(self, now: float) -> None:
+        """A job still running past its own interval is said once per run, by name. It is the job that is slow; the
+        conductor waiting on it is alive."""
+        for job in self.jobs.values():
+            running_for = now - job.last_started_at
+            if job.last_started_at > job.last_finished_at and running_for > job.interval_s:
+                if self._said_overrun.get(job.name) != job.last_started_at:
+                    self._said_overrun[job.name] = job.last_started_at
+                    logger.warning("⏳ autonomy job '%s' has run %.0fs, past its interval of %.0fs", job.name,
+                                   running_for, job.interval_s)
+
     async def _run(self) -> None:
+        self._said_overrun: dict[str, float] = {}
         while not self._stop.is_set():
             try:
-                from core.container import ServiceContainer
-
-                healer = ServiceContainer.get("self_healing", default=None)
-                if healer is not None:
-                    healer.heartbeat("autonomy_conductor")
-                await self.run_due_once()
+                self._beat()
+                # The heartbeat goes on while the sweep's jobs run. LIVE 10 November 2026: her goal pass, a job of
+                # this sweep, takes three to four minutes of her model's turns; with one beat a sweep the watchdog
+                # read the conductor as dead at 150 s, restarted it three times, cancelling what was running, and
+                # then sent this file to be rewritten.
+                sweep = create_tracked_task(self.run_due_once(), name="Aura.AutonomyConductor.sweep")
+                try:
+                    while not sweep.done():
+                        await asyncio.wait({sweep}, timeout=_A_SWEEP_EVERY_S)
+                        self._beat()
+                        self._say_a_job_past_its_interval(time.time())
+                finally:
+                    if not sweep.done():
+                        sweep.cancel()  # the conductor stopped: what it was running stops with it, as before
+                sweep.result()
             except _AUTONOMY_RECOVERABLE_ERRORS as exc:
                 _record_autonomy_degradation(
                     exc,
@@ -392,7 +424,7 @@ class AutonomyConductor:
                     severity="degraded",
                 )
             try:
-                await asyncio.wait_for(self._stop.wait(), timeout=30.0)
+                await asyncio.wait_for(self._stop.wait(), timeout=_A_SWEEP_EVERY_S)
             except TimeoutError as _exc:
                 logger.debug(
                     "Suppressed %s in core.runtime.autonomy_conductor: %s",

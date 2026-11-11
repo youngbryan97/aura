@@ -7699,9 +7699,9 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             return
 
         logger.warning(
-            "🔧 [STABILITY] Lane state '%s' stuck for %.0fs with no activity "
+            "🔧 [STABILITY] Lane state '%s' of %s stuck for %.0fs with no activity "
             "(%s). Force-resetting to 'cold' for clean recovery.",
-            self._lane_state,
+            self._lane_state, os.path.basename(str(getattr(self, "model_path", "") or "")) or "no model",
             stuck_duration,
             verdict,
         )

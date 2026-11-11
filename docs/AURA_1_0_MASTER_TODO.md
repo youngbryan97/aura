@@ -810,6 +810,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   crisis stands from boot: a decision about the substrate, not a log level.
   A lane never started (no process) was reported at warning as "recovering
   stuck for 120s" and reset to cold, naming no model.
+  The reset names the lane's model now: two more that evening (159 and
+  422 s, a dead process) could not say which of her three lanes it was.
+  Her cortisol crossed the crisis line again at 21:17 local, and the line
+  that now says why named it: 50 novelty events (15.0), 29 prediction
+  errors (6.81) and 16 threats still moving her, with norepinephrine at 1.0
+  (the two raise each other in her chemistry). The novelty was her body's:
+  interoception called each acceleration of a body channel a novelty at
+  full size, and the load was a test run of mine beside her, jittering for
+  thirteen minutes. A surprise of her body's that keeps coming is now felt
+  as a 1/n share, n counting those of its kind still moving her cortisol.
+  Autopoiesis then escalated itself to a person as having "exhausted all
+  automated repair strategies"; it has none registered, and says so now.
+  At 21:40 "Deep repair triggered for autonomy_conductor": the watchdog
+  had read the conductor as dead at 150 s three times, restarted it each
+  time, and then sent its file to the reimplementation lab to be rewritten.
+  The conductor beat once a sweep, and her goal pass is a job of its sweep
+  that takes three to four minutes of her model's turns. It beats on while
+  a sweep runs now, and a job still running past its own interval is said
+  once, by name.
   2026-09-30, evening. The next by count of the same class: StabilityGuardian
   warned "DEGRADED" and recorded a degraded event on every check interval for
   as long as one check stayed unhealthy, 249 times for a slow tick rate and
@@ -1544,6 +1563,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reply that did nothing. Her own background turns before the restart took
   95 to 185 s with prefill and decode unmeasured, so their generation does
   not reach the receipt. Next: the 9.22 s, and those turns.
+  Her log after the evening restart said four turns "took 0.00s: nothing
+  measured" at the same second, each opened and closed with no phase run.
+  Such a turn is said at debug now, by its lane, and every split says the
+  lane that answered it.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
@@ -4709,6 +4732,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   (`boot_autonomy_salvage`); and the cold-cortex branch is searched for in
   the module and its lifted sibling. The reader is `module_family_sources`,
   written once.
+  2026-11-10: `test_attention_decides_before_the_drives_do` passed alone
+  and failed after the subject-core tests, `write_notes` where her most
+  depleted drive says `make_room`. Her choice of an act reads six reasons
+  (core/subject/choosing.py), and four of them came from ledgers no test
+  cleared: her habits, her fatigue, how she feels about each act, and her
+  confidence in it from her own attempts. The organism the subject-core
+  tests run taught every later test all four. The conftest clears them
+  between tests beside the consequence model it already cleared; the same
+  three files in the same order now pass.
+  The same night, the batch that checked it turned up one more of the
+  shape: `test_it_fails_closed_when_the_profile_cannot_be_read` errored at
+  teardown when anything before it had imported `thinking_reserve`. The
+  sandbox fixture shares the test's monkeypatch, so the reset of the
+  reserve ran with the runtime profile still made unreadable, and asked it
+  for the state root. With no root there is no stamp to take back; the
+  reset says so, and the pair that errored passes.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.
@@ -4787,6 +4826,15 @@ needs her 27B free (her app down, or her app's own influence trials).
   "Find something productive to work on" holds 161 calls, every one a read
   or a search, and several of her goals ("Drive alert: social is depleted",
   "thermal_spike") are not work on source at all.
+  Evening, 10 November, her app at b9a856acc: a pass of hers now carries
+  what she said in the passes before it, and runs to its twelve calls where
+  it made one or two (60 calls of "Running a self-integrity scan" by 20:57,
+  all reads and searches). Each result she read opened with 200 characters
+  of authority receipt; what her model is handed is now what the tool found
+  and whether it went, and the gateway that wrote the receipts keeps them.
+  Open: a call of hers that names a tool not offered (`find_inegrity`, once
+  in her whole log) is refused and dropped, and the pass ends there without
+  her being told the name was wrong.
 - [ ] F06 Her state reaches her words through the model, not as instructions.
   Done: instructions out of her turns, canned answers out, her model answers
   identity and capability turns. Left: the prompts still in background loops

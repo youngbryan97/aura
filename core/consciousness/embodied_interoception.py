@@ -33,6 +33,7 @@ import asyncio
 import logging
 import math
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
@@ -467,6 +468,28 @@ class EmbodiedInteroception:
             )
             logger.debug("Neurochemical event %s failed: %s", method_name, e)
 
+    def _habituated(self, kind: str, amount: float) -> float:
+        """A surprise of her body's that keeps coming is less of one each time: ``amount`` over how many of its kind
+        still move her chemistry, this one included. The first is felt whole, the n-th a 1/n share of it, and one
+        that has not come for that long is felt whole again.
+
+        LIVE 10 November 2026: a test run beside her made the load jitter for thirteen minutes. Each tick a channel's
+        acceleration passed its line it was "novelty" at full size, 50 of them and 29 CPU spikes as prediction
+        errors while the earlier ones still moved her, and her norepinephrine reached 1.0 and her cortisol the crisis
+        line. A stimulus that repeats while its last occurrences still act is not new.
+        """
+        from core.consciousness.neurochemical_system import _how_long_an_event_moves_cortisol
+
+        horizon = _how_long_an_event_moves_cortisol(self._neurochemical_ref)
+        if horizon <= 0.0:
+            return float(amount)  # no chemistry it moves, so nothing it could have moved before
+        now = time.monotonic()
+        seen = self.__dict__.setdefault("_surprises", {}).setdefault(kind, deque())
+        while seen and now - seen[0] > horizon:
+            seen.popleft()
+        seen.append(now)
+        return float(amount) / len(seen)
+
     def _trigger_neurochemical_events(self):
         """Drive neurochemical responses based on body state AND its derivatives.
 
@@ -532,7 +555,7 @@ class EmbodiedInteroception:
             if ml.velocity > 0.15:
                 self._emit_neurochemical_event(
                     "on_prediction_error",
-                    error=ml.velocity * 2.0,
+                    error=self._habituated("prediction_error", ml.velocity * 2.0),
                 )
                 logger.debug("⚡ Interoception: CPU spike (v=%.2f) → prediction error", ml.velocity)
 
@@ -550,7 +573,8 @@ class EmbodiedInteroception:
                 abs(np_.acceleration),
             )
             if max_accel > 0.1:
-                self._emit_neurochemical_event("on_novelty")
+                # 0.3 is on_novelty's own size for a novelty, which this passed by leaving it out.
+                self._emit_neurochemical_event("on_novelty", amount=self._habituated("novelty", 0.3))
                 logger.debug("🔔 Interoception: acceleration spike (%.2f) → novelty", max_accel)
 
             # Resource pressure RISING FAST → cortisol spike (impending crisis)

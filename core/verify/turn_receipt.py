@@ -195,11 +195,17 @@ def _say_where_the_time_went(receipt: TurnReceipt) -> None:
     as an empty block, so on 10 November a 62-second turn typed into her chat could not be split from outside. A
     component nobody measured is said as unmeasured, not as zero.
     """
+    total = (receipt.finished_at or receipt.started_at) - receipt.started_at
+    if not receipt.latency_s and not receipt.phases_executed:
+        # Opened and closed with no phase run and nothing measured: four at once on 10 November, each "took 0.00s".
+        logger.debug("⏱️ turn %s closed in %.2fs without running a phase (%s)", receipt.turn_id[:12], total,
+                     receipt.response_path)
+        return
     measured = " ".join(f"{name}={receipt.latency_s[name]:.2f}s" for name in sorted(receipt.latency_s))
     unmeasured = ",".join(sorted(LATENCY_COMPONENTS - set(receipt.latency_s))) or "none"
-    total = (receipt.finished_at or receipt.started_at) - receipt.started_at
-    logger.info("⏱️ turn %s took %.2fs: %s; unattributed %.2fs; unmeasured: %s", receipt.turn_id[:12], total,
-                measured or "nothing measured", receipt.unattributed_s or 0.0, unmeasured)
+    logger.info("⏱️ turn %s (%s) took %.2fs: %s; unattributed %.2fs; unmeasured: %s", receipt.turn_id[:12],
+                receipt.response_path, total, measured or "nothing measured", receipt.unattributed_s or 0.0,
+                unmeasured)
 
 
 def record_phase(name: str) -> None:

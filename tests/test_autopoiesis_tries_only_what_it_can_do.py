@@ -29,3 +29,17 @@ def test_the_gentlest_strategy_with_a_handler_comes_first():
     engine.register_repair_handler(RepairStrategy.HEAL, "memory", lambda: True)
     engine.register_repair_handler(RepairStrategy.CLEAR_CACHE, "memory", lambda: True)
     assert engine._choose_strategy("memory") is RepairStrategy.HEAL
+
+
+def test_an_escalation_says_whether_it_had_any_repair_to_try(caplog):
+    """LIVE 10 November 2026: 'autopoiesis', with no repair registered, "has exhausted all automated repair strategies"."""
+    import logging
+
+    engine = AutopoiesisEngine()
+    engine.register_repair_handler(RepairStrategy.HEAL, "memory", lambda: True)
+    with caplog.at_level(logging.CRITICAL, logger="Aura.Autopoiesis"):
+        engine._escalate_to_human("autopoiesis")
+        engine._escalate_to_human("memory")
+    said = [r.getMessage() for r in caplog.records if "HUMAN ESCALATION" in r.getMessage()]
+    assert "'autopoiesis' has no automated repair registered for it" in said[0]
+    assert "'memory' has exhausted the repairs registered for it (heal)" in said[1]

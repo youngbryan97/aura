@@ -81,3 +81,18 @@ def test_a_read_of_a_long_file_fits_one_result_and_says_where_to_read_on(her_sou
     assert f"read on from line {after}" in result["summary"]
     more = asyncio.run(her_draft.ReadSourceSkill().execute({"path": "core/long.py", "from_line": after}, context))
     assert more["text"].splitlines()[0].startswith(f"{after}: ")
+
+
+def test_her_model_reads_what_the_tool_found_and_not_the_receipts_of_its_going():
+    """LIVE 10 November 2026: each of her goal's read_source results opened with 200 characters of authority receipt."""
+    shown = json.loads(_serialize_tool_result_for_model(
+        "read_source", {**_RECEIPT, "ok": True, "path": "core/memory/cold_store.py", "text": "1: x = 1\n"}))
+    for receipt in ("authority_closure", "duration_ms", "retries"):
+        assert receipt not in shown
+    assert shown == {"ok": True, "path": "core/memory/cold_store.py", "skill": "read_source", "text": "1: x = 1\n"}
+
+
+def test_a_call_authority_refused_still_says_so():
+    shown = json.loads(_serialize_tool_result_for_model(
+        "read_source", {**_RECEIPT, "ok": False, "status": "authority_closure_failed", "error": "token not revoked"}))
+    assert shown["status"] == "authority_closure_failed" and shown["error"] == "token not revoked"

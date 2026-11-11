@@ -11,6 +11,16 @@ from collections.abc import Mapping
 from typing import Any
 
 
+#: What a result carries of the runtime's own receipts: whether authority closed after the call, the receipt ids, how
+#: long it took and how often it was tried. The gateway that wrote them keeps them. Each of her goal's read_source
+#: results opened with 200 characters of them, on every call of every pass (10 November 2026).
+_RECEIPT_FIELDS = frozenset({
+    "authority_closure", "authority_closure_effect_scope", "token_revoked", "standing_authority_closed",
+    "intent_closed", "governance_receipt_id", "agency_receipt_id", "expectation_receipt_id",
+    "deliberation_receipts", "duration_ms", "retries",
+})
+
+
 def _truncate_tool_result(result: Any, *, limit: int = 4000) -> str:
     """Bound a tool result WITHOUT cutting structured output mid-value.
 
@@ -103,6 +113,8 @@ def _serialize_tool_result_for_model(
             }
         return serialize_code_repl_model_result(raw_result, limit=limit)
     if isinstance(model_result, Mapping):
+        # What the tool found, and whether it went: not the receipts of its going.
+        model_result = {key: value for key, value in model_result.items() if key not in _RECEIPT_FIELDS}
         serialized = json.dumps(
             model_result,
             default=str,

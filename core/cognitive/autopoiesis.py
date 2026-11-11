@@ -1054,14 +1054,11 @@ class AutopoiesisEngine:
         count = self._human_escalation_count[component]
 
         if count <= self._HUMAN_ESCALATION_THRESHOLD:
-            logger.critical(
-                "HUMAN ESCALATION REQUIRED: component '%s' has exhausted all "
-                "automated repair strategies (%d/%d escalations). "
-                "Manual intervention needed.",
-                component,
-                count,
-                self._HUMAN_ESCALATION_THRESHOLD,
-            )
+            tried = [s.value for s in _ESCALATION_ORDER if self._repair_handlers.get(s, {}).get(component) is not None]
+            logger.critical(  # one with no repair registered said it had "exhausted" them (10 November 2026)
+                "HUMAN ESCALATION REQUIRED: component '%s' %s (%d/%d escalations). Manual intervention needed.",
+                component, f"has exhausted the repairs registered for it ({', '.join(tried)})" if tried
+                else "has no automated repair registered for it", count, self._HUMAN_ESCALATION_THRESHOLD)
         else:
             # After too many escalations, stop flooding logs -- just warn periodically.
             if count % 10 == 0:
