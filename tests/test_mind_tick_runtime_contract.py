@@ -771,7 +771,7 @@ def test_the_tick_uses_the_shared_gate_not_a_local_heuristic():
 
     assert "len(content.strip()) > 5 or any(c.isalpha()" not in source
     assert "_terminal_complete(stripped)" in source
-    assert "assess_user_facing_reply(\"\", content)" in source
+    assert "asyncio.to_thread(assess_user_facing_reply, \"\", content)" in source
 
 
 def test_a_cold_cortex_no_longer_abandons_the_tick():

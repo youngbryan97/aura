@@ -131,7 +131,8 @@ _RELATIONAL_PAST_RES: tuple[re.Pattern[str], ...] = (
         # generated rather than spelled out.
         r"(?i)\b(?:as\s+)?you\s*(?:['\u2019]\s*(?:re|ve)|\s+(?:are|have|just|also))?\s*"
         r"(?:point(?:ed|ing)?\s+out|"
-        r"(?:sa(?:y|ys|id|ying)|(?:ask|asks|asked|asking)(?!\s+me\b)|tell|tells|told|telling|mention|mentions|mentioned|"
+        r"(?:sa(?:y|ys|id|ying)|(?:ask|asks|asked|asking)\s+(?:him|her|them|us|someone|somebody|everyone|people)\b|"
+        r"tell|tells|told|telling|mention|mentions|mentioned|"
         r"mentioning|not(?:e|es|ed|ing)|notic(?:e|es|ed|ing)|observ(?:e|es|ed|ing)|"
         r"remark(?:s|ed|ing)?|state(?:s|d)?|stating|claim(?:s|ed|ing)?|"
         r"argu(?:e|es|ed|ing)|suggest(?:s|ed|ing)?|impl(?:y|ies|ied|ying)|"
@@ -175,10 +176,12 @@ _IRREALIS_SECOND_PERSON_RE = re.compile(
     r"(?:that\s+)?you\s+(?:were|had)\b"
 )
 
-# "Ask" counts only when the person is said to have asked someone other than her. "You asked me to ..." describes
-# their request to her in this conversation, and before 8 November no form of "ask" was checked; counting it made
-# her paraphrase of the question just put to her ("You asked me to identify the current request ...") an invented
-# past, and a status turn failed its recall contract on it.
+# "Ask" counts only when the person is said to have asked someone other than her, named as the one asked ("you ask
+# him", "you asked them"). "You asked me to ..." describes their request to her in this conversation, and before
+# 8 November no form of "ask" was checked; counting it made her paraphrase of the question just put to her ("You asked
+# me to identify the current request ...") an invented past, and a status turn failed its recall contract on it. With
+# nobody named it is the question itself: "it names what you asked" was read as an attribution, and the 120-turn
+# conversation contract failed on it (10 November 2026).
 # A speech act under a condition attributes nothing: "if you ask me", "unless you say otherwise". On 8 November 2026
 # "ask" joined the speech-act class for "And then you ask him, 'do you think this snake enjoys having legs?'", said of
 # a question asked in a video, and "if you ask me" is the commonest way that verb follows "you".

@@ -4187,14 +4187,15 @@ async def _run_cognitive_engine_chat_turn(
             if str(reason or "").strip()
         }
         retry_recent_user_messages = list(route_recent_user_messages)
-        retry_assessment = assess_user_facing_reply(
+        retry_assessment = (await asyncio.to_thread(
+            assess_user_facing_reply,
             visible,
             retry_text,
             recent_user_messages=retry_recent_user_messages,
             grounding=route_assessment_grounding,
             antecedent=route_assessment_antecedent,
             generation_stop_reason=retry_stop_reason,
-        )
+        ))
         retry_requires_repair = _reply_assessment_requires_repair_with_memory_evidence(
             retry_assessment,
             visible,
@@ -4380,13 +4381,14 @@ async def _run_cognitive_engine_chat_turn(
             session_id=session_id,
         )
         retry_recent_user_messages = list(route_recent_user_messages)
-        retry_assessment = assess_user_facing_reply(
+        retry_assessment = (await asyncio.to_thread(
+            assess_user_facing_reply,
             visible,
             retry_repaired,
             recent_user_messages=retry_recent_user_messages,
             grounding=route_assessment_grounding,
             antecedent=route_assessment_antecedent,
-        )
+        ))
         if not (
             retry_stale
             or retry_same_diff
@@ -4780,7 +4782,8 @@ async def _run_cognitive_engine_chat_turn(
             if runtime_fact_status_contract and not memory_state_contract
             else text
         )
-        assessment = assess_user_facing_reply(
+        assessment = (await asyncio.to_thread(
+            assess_user_facing_reply,
             visible,
             assessment_text,
             recent_user_messages=recent_user_messages,
@@ -4792,7 +4795,7 @@ async def _run_cognitive_engine_chat_turn(
             # and a memory she legitimately retrieved appears in neither the
             # visible request nor the recent turns, only here.
             grounding=route_assessment_grounding,
-        )
+        ))
         # Content, not form: a number where only a number answers, and dated
         # claims that agree with the turn's own sources (chat_reply_checks.py).
         text, assessment_text, assessment = await _chat_reply_checks.checked_reply(
@@ -4865,13 +4868,14 @@ async def _run_cognitive_engine_chat_turn(
                     session_id=session_id,
                 )
                 if grounded_self_process_reply:
-                    grounded_self_process_assessment = assess_user_facing_reply(
+                    grounded_self_process_assessment = (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         visible,
                         grounded_self_process_reply,
                         recent_user_messages=recent_user_messages,
                         grounding=route_assessment_grounding,
                         antecedent=route_assessment_antecedent,
-                    )
+                    ))
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         grounded_self_process_assessment,
                         visible,
@@ -4912,13 +4916,14 @@ async def _run_cognitive_engine_chat_turn(
                     record_degradation("chat.self_condition_completion", exc)
                     grounded_completion = text
                 if grounded_completion != text:
-                    grounded_assessment = assess_user_facing_reply(
+                    grounded_assessment = (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         visible,
                         grounded_completion,
                         recent_user_messages=recent_user_messages,
                         grounding=route_assessment_grounding,
                         antecedent=route_assessment_antecedent,
-                    )
+                    ))
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         grounded_assessment,
                         visible,
@@ -4973,13 +4978,14 @@ async def _run_cognitive_engine_chat_turn(
                         turn_trace,
                     )
                     if refreshed_condition_reply:
-                        condition_assessment = assess_user_facing_reply(
+                        condition_assessment = (await asyncio.to_thread(
+                            assess_user_facing_reply,
                             visible,
                             refreshed_condition_reply,
                             recent_user_messages=recent_user_messages,
                             grounding=route_assessment_grounding,
                             antecedent=route_assessment_antecedent,
-                        )
+                        ))
                         if not _reply_assessment_requires_repair_with_memory_evidence(
                             condition_assessment,
                             visible,
@@ -5038,13 +5044,14 @@ async def _run_cognitive_engine_chat_turn(
                     # after the question it was recalling. 411 seconds, two
                     # rejected drafts, and the apology — with a correct answer
                     # in hand the whole time.
-                    condition_assessment = assess_user_facing_reply(
+                    condition_assessment = (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         visible,
                         expected_recall_reply,
                         recent_user_messages=recent_user_messages,
                         grounding=route_assessment_grounding,
                         antecedent=route_assessment_antecedent,
-                    )
+                    ))
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         condition_assessment,
                         visible,
@@ -5094,13 +5101,14 @@ async def _run_cognitive_engine_chat_turn(
                 if context_challenge_context and _context_challenge_repair_has_evidence(
                     context_challenge_context
                 ):
-                    context_repair_assessment = assess_user_facing_reply(
+                    context_repair_assessment = (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         visible,
                         context_challenge_context,
                         recent_user_messages=recent_user_messages,
                         grounding=route_assessment_grounding,
                         antecedent=route_assessment_antecedent,
-                    )
+                    ))
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         context_repair_assessment,
                         visible,
@@ -5177,13 +5185,14 @@ async def _run_cognitive_engine_chat_turn(
                 protected_foreground_lane=bool(require_engine),
                 session_id=session_id,
             )
-            repaired_assessment = assess_user_facing_reply(
+            repaired_assessment = (await asyncio.to_thread(
+                assess_user_facing_reply,
                 visible,
                 repaired,
                 recent_user_messages=recent_user_messages,
                 grounding=route_assessment_grounding,
                 antecedent=route_assessment_antecedent,
-            )
+            ))
             if did_repair and not (
                 stale
                 or same_diff
@@ -5388,13 +5397,14 @@ async def _run_cognitive_engine_chat_turn(
             ):
                 from core.conversation.response_reliability import assess_user_facing_reply
 
-                context_repair_assessment = assess_user_facing_reply(
+                context_repair_assessment = (await asyncio.to_thread(
+                    assess_user_facing_reply,
                     visible,
                     context_challenge_context,
                     recent_user_messages=route_recent_user_messages,
                     grounding=route_assessment_grounding,
                     antecedent=route_assessment_antecedent,
-                )
+                ))
                 if not _reply_assessment_requires_repair_with_memory_evidence(
                     context_repair_assessment,
                     visible,
@@ -8608,10 +8618,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         assess_user_facing_reply,
                     )
 
-                    rejected_assessment = assess_user_facing_reply(
+                    rejected_assessment = (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         _semantic_user_message,
                         rejected_reply,
-                    )
+                    ))
                     assessed_reasons = tuple(
                         str(reason or "").strip()
                         for reason in getattr(rejected_assessment, "reasons", ())
@@ -8747,11 +8758,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 recovered_recent_user_messages = await _gather_recent_user_messages_for_relevance(
                     _semantic_user_message
                 )
-                recovered_assessment = assess_user_facing_reply(
+                recovered_assessment = (await asyncio.to_thread(
+                    assess_user_facing_reply,
                     _semantic_user_message,
                     recovered,
                     recent_user_messages=recovered_recent_user_messages,
-                )
+                ))
             except _CHAT_RECOVERABLE_ERRORS as assess_exc:
                 record_degradation("chat", assess_exc)
                 recovered_assessment = None
@@ -9290,11 +9302,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         )
 
                         assess_user_facing_reply = _assess_user_facing_reply
-                        fastpath_assessment = assess_user_facing_reply(
+                        fastpath_assessment = (await asyncio.to_thread(
+                            assess_user_facing_reply,
                             _semantic_user_message,
                             final_text,
                             recent_user_messages=recent_user_messages,
-                        )
+                        ))
                     except ImportError:
                         # not a failure: no assessor means no assessment,
                         # and the checks below treat None as "not judged".
@@ -10367,11 +10380,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     runtime_recent_user_messages = await _gather_recent_user_messages_for_relevance(
                         _semantic_user_message
                     )
-                    runtime_assessment = assess_user_facing_reply(
+                    runtime_assessment = (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         _semantic_user_message,
                         runtime_grounding,
                         recent_user_messages=runtime_recent_user_messages,
-                    )
+                    ))
                     runtime_grounding_ok = not _reply_assessment_requires_repair(runtime_assessment)
                 except _CHAT_RECOVERABLE_ERRORS as runtime_exc:
                     record_degradation("chat", runtime_exc)
@@ -10547,11 +10561,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     bounded_recent_user_messages = await _gather_recent_user_messages_for_relevance(
                         _semantic_user_message
                     )
-                    bounded_assessment = assess_user_facing_reply(
+                    bounded_assessment = (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         _semantic_user_message,
                         bounded_repair,
                         recent_user_messages=bounded_recent_user_messages,
-                    )
+                    ))
                     if _reply_assessment_requires_repair(bounded_assessment):
                         bounded_repair = ""
                 except _CHAT_RECOVERABLE_ERRORS as exc:
@@ -10570,11 +10585,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         minimal_recent_user_messages = (
                             await _gather_recent_user_messages_for_relevance(_semantic_user_message)
                         )
-                        minimal_assessment = assess_user_facing_reply(
+                        minimal_assessment = (await asyncio.to_thread(
+                            assess_user_facing_reply,
                             _semantic_user_message,
                             minimal_repair,
                             recent_user_messages=minimal_recent_user_messages,
-                        )
+                        ))
                         if not _reply_assessment_requires_repair(minimal_assessment):
                             bounded_repair = minimal_repair
                     except _CHAT_RECOVERABLE_ERRORS as exc:

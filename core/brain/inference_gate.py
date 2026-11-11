@@ -8001,13 +8001,14 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     for message in prior_messages
                     if message.get("role") == "assistant"
                 ]
-                assessment = assess_user_facing_reply(
+                assessment = (await asyncio.to_thread(
+                    assess_user_facing_reply,
                     user_input_for_eval,
                     cleaned,
                     recent_user_messages=recent_user_messages,
                     grounding=conversation_grounding,
                     generation_stop_reason=generation_stop_reason,
-                )
+                ))
                 if assessment.retryable:
                     reasons = set(assessment.reasons or ())
                     if _should_pass_user_facing_draft_downstream(
@@ -10023,10 +10024,11 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         time.monotonic() - primary_attempt_started,
                     )
                     if text:
-                        repairable_draft = self._repairable_user_facing_draft_for_downstream(
+                        repairable_draft = (await asyncio.to_thread(
+                            self._repairable_user_facing_draft_for_downstream,
                             text,
                             visible_user_prompt,
-                        ) if _is_user_facing else None
+                        )) if _is_user_facing else None
                         _left_ = _generate_with_metadata_sink_part_2_2(self, _is_user_facing, repairable_draft, text, visible_user_prompt)
                         if _left_ is not _FALL_THROUGH:
                             return _left_

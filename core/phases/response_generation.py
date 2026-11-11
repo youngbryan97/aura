@@ -2371,9 +2371,10 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     and not env_present("AURA_TESTING", description="presence marks a test run", owner="core.runtime")
                     and not env_present("AURA_PROOF_RUN", description="presence marks a proof run", owner="core.runtime")
                 ):
-                    reliability = assess_user_facing_reply(
+                    reliability = (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         user_surface_validation_prompt, response_text
-                    )
+                    ))
                     if reliability.retryable:
                         repaired_text, repaired_shape, repair_reasons = (
                             self._repair_substantive_instruction_shape_miss(
@@ -2396,9 +2397,10 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                                 authorship_effect="preserved",
                             )
                             response_text = repaired_text
-                            reliability = assess_user_facing_reply(
+                            reliability = (await asyncio.to_thread(
+                                assess_user_facing_reply,
                                 user_surface_validation_prompt, response_text
-                            )
+                            ))
                         reliability_reasons = set(reliability.reasons or ())
                         response_text_s = str(response_text or "").strip()
                         # One shared policy, not a third private opinion. A

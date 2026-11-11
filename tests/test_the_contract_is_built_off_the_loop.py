@@ -9,6 +9,10 @@ ms; on 9 November the same call held the loop 265,846 ms (lockdep, 252 ms of it 
 called the builder on the loop; none does now. The amplifier's check, is_amplifiable, reads with an entailment model
 loaded on first use (lockdep: 562 ms on the CPU and 1,652 ms held, from her reasoning background); its five coroutine
 callers hand it to a thread too.
+
+The reply assessor, assess_user_facing_reply, reaches the same encoder through thread continuity's "bears on the
+turn by meaning" (lockdep, 10 November: 55 ms held on the loop from the inference gate's draft repair). Its 37
+coroutine callers, and the gate's repairable-draft check on that route, hand it to a thread as well.
 """
 from __future__ import annotations
 
@@ -23,7 +27,12 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 
 #: Functions that reach a resident model (the encoder, an entailment reader): a coroutine hands them to a thread.
-_REACH_A_MODEL = frozenset({"build_response_contract", "is_amplifiable"})
+_REACH_A_MODEL = frozenset({
+    "build_response_contract",
+    "is_amplifiable",
+    "assess_user_facing_reply",
+    "_repairable_user_facing_draft_for_downstream",
+})
 
 
 def _called_on_the_loop(tree: ast.AST) -> list[int]:
@@ -61,8 +70,12 @@ def test_the_reader_finds_a_build_on_the_loop_and_passes_one_handed_to_a_thread(
     off_loop = ast.parse("async def f(s):\n    return await asyncio.to_thread(build_response_contract, s, 'x')\n")
     in_sync = ast.parse("def f(s):\n    return build_response_contract(s, 'x')\n")
     amplifier = ast.parse("async def f(s):\n    return is_amplifiable(s)\n")
+    assessor = ast.parse("async def f(p, r):\n    return assess_user_facing_reply(p, r).retryable\n")
+    assessor_off = ast.parse("async def f(p, r):\n    return (await asyncio.to_thread(assess_user_facing_reply, p, r)).retryable\n")
     assert _called_on_the_loop(on_loop) == [2]
     assert _called_on_the_loop(off_loop) == []
     assert _called_on_the_loop(in_sync) == []
     assert _called_on_the_loop(amplifier) == [2]
+    assert _called_on_the_loop(assessor) == [2]
+    assert _called_on_the_loop(assessor_off) == []
 

@@ -740,6 +740,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   span two or more awaits and can lose their grant the same way under a
   long stall; whether a grant should outlive 30 s while its scope is still
   open is a governance question, left open here.
+  UPDATE 2026-11-10, evening: the reply assessor's 37 coroutine callers, and
+  the gate's repairable-draft check on the route lockdep measured
+  (`_generate_with_metadata_sink` → `_repairable_user_facing_draft_for_downstream`
+  → `assess_user_facing_reply` → thread continuity → the encoder), hand it to
+  a thread; `tests/test_the_contract_is_built_off_the_loop.py` reads both
+  names and fails on main's 38 calls. Still on the loop, and next of the
+  class: coroutines that call a synchronous helper which calls the assessor
+  in turn, `_looks_semantically_glitched` from 8 of them and some 20 other
+  helpers from one or two each (counted by name, so a few may be other
+  functions of the same name).
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;

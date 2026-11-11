@@ -8,6 +8,7 @@ chat_reply_repair.py is written against one of these names.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # annotation only; chat.py imports this module
@@ -555,11 +556,12 @@ async def _measure_reply_quality_candidate(
     try:
         from core.conversation.response_reliability import assess_user_facing_reply
 
-        reply_assessment = assess_user_facing_reply(
+        reply_assessment = (await asyncio.to_thread(
+            assess_user_facing_reply,
             user,
             reply,
             recent_user_messages=recent,
-        )
+        ))
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         logger.debug("Conversation reliability assessment unavailable: %s", exc)

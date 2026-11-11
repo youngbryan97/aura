@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import ast
 import logging
 from pathlib import Path
@@ -78,6 +79,8 @@ async def test_recovery_continues_only_an_owned_generation(monkeypatch, owned):
         "_profile_user_id": "test-principal",
         "_CHAT_RECOVERABLE_ERRORS": (RuntimeError, TypeError, ValueError),
         "time": time,
+        # The reply assessment is handed to a thread from this coroutine (R06, 10 November 2026).
+        "asyncio": asyncio,
         "logger": logging.getLogger(__name__),
     }
     helper = _recovery_helper(namespace)

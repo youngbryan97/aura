@@ -1356,7 +1356,7 @@ class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
                                 # no-context-no-verdict rule), so completeness
                                 # is what carries the weight here and the
                                 # assessor's hard failures still apply on top.
-                                assessment = assess_user_facing_reply("", content)
+                                assessment = (await asyncio.to_thread(assess_user_facing_reply, "", content))
                                 stripped = content.strip()
                                 is_meaty = (
                                     not assessment.hard_failure

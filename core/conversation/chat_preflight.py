@@ -1942,7 +1942,7 @@ def schedule_background_retry(
                 try:
                     from core.conversation.response_reliability import assess_user_facing_reply
 
-                    assessment = assess_user_facing_reply(user_message, text)
+                    assessment = (await asyncio.to_thread(assess_user_facing_reply, user_message, text))
                 except _CHAT_PREFLIGHT_RECOVERABLE_ERRORS as assess_exc:
                     _emit_chat_fault(
                         assess_exc,

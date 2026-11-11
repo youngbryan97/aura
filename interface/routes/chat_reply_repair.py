@@ -9,6 +9,7 @@ is what all of these were written after.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi.responses import JSONResponse
@@ -955,11 +956,12 @@ async def _stabilize_user_facing_reply(
                     try:
                         from core.conversation.response_reliability import assess_user_facing_reply
 
-                        corrected_assessment = assess_user_facing_reply(
+                        corrected_assessment = (await asyncio.to_thread(
+                            assess_user_facing_reply,
                             user_message,
                             corrected_text,
                             recent_user_messages=recent_user_messages,
-                        )
+                        ))
                     # not a failure: the same, on the corrected text.
                     except _CHAT_RECOVERABLE_ERRORS:
                         corrected_assessment = None
@@ -1150,11 +1152,12 @@ async def _repair_final_degraded_reply_assessment_reasons(
         self_condition_repair = _build_grounded_self_condition_reply(user_message)
         if self_condition_repair:
             condition_assessment = (
-                assess_user_facing_reply(
+                (await asyncio.to_thread(
+                    assess_user_facing_reply,
                     user_message,
                     self_condition_repair,
                     recent_user_messages=recent_user_messages,
-                )
+                ))
                 if assess_user_facing_reply
                 else None
             )
@@ -1181,11 +1184,12 @@ async def _repair_final_degraded_reply_assessment_reasons(
                 user_message,
             )
             context_assessment = (
-                assess_user_facing_reply(
+                (await asyncio.to_thread(
+                    assess_user_facing_reply,
                     user_message,
                     context_challenge_repair,
                     recent_user_messages=recent_user_messages,
-                )
+                ))
                 if assess_user_facing_reply
                 else None
             )
@@ -1199,11 +1203,12 @@ async def _repair_final_degraded_reply_assessment_reasons(
             )
             if self_claim_repair:
                 self_claim_assessment = (
-                    assess_user_facing_reply(
+                    (await asyncio.to_thread(
+                        assess_user_facing_reply,
                         user_message,
                         self_claim_repair,
                         recent_user_messages=recent_user_messages,
-                    )
+                    ))
                     if assess_user_facing_reply
                     else None
                 )
@@ -1228,11 +1233,12 @@ async def _repair_final_degraded_reply_assessment_reasons(
                 user_message,
             )
             self_process_assessment = (
-                assess_user_facing_reply(
+                (await asyncio.to_thread(
+                    assess_user_facing_reply,
                     user_message,
                     self_process_repair,
                     recent_user_messages=recent_user_messages,
-                )
+                ))
                 if assess_user_facing_reply
                 else None
             )
@@ -1566,11 +1572,12 @@ async def _repair_final_degraded_reply(
 
     recent_user_messages = await _gather_recent_user_messages_for_relevance(user_message)
     assessment = (
-        assess_user_facing_reply(
+        (await asyncio.to_thread(
+            assess_user_facing_reply,
             user_message,
             reply_text,
             recent_user_messages=recent_user_messages,
-        )
+        ))
         if assess_user_facing_reply
         else None
     )

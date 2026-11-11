@@ -3979,7 +3979,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 objective,
                                 contract,
                             )
-                            if not assess_user_facing_reply(objective, direct_self_report).retryable:
+                            if not (await asyncio.to_thread(assess_user_facing_reply, objective, direct_self_report)).retryable:
                                 logger.info(
                                     "🗣️ UnitaryResponse: answered live self-reflection directly from grounded state."
                                 )
@@ -6159,8 +6159,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             "unsupported_biographical_claim",
                             "intra_response_repetition",
                         }
-                        pre_quality = assess_user_facing_reply(objective, pre_dialogue_response)
-                        post_quality = assess_user_facing_reply(objective, response_text)
+                        pre_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, pre_dialogue_response))
+                        post_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, response_text))
                         pre_words = len(pre_dialogue_response.split())
                         post_text = str(response_text or "").strip()
                         post_words = len(post_text.split())
@@ -6300,7 +6300,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     )
                     from core.conversation.style_judgments import only_style_judgments
 
-                    quality = assess_user_facing_reply(objective, response_text)
+                    quality = (await asyncio.to_thread(assess_user_facing_reply, objective, response_text))
                     if quality.retryable:
                         repairable_self_reflection_reasons = {
                             "off_topic_self_reflection_reply",
@@ -6323,7 +6323,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 contract,
                             )
                             shaped_repair = self._shape_user_facing_response(repair, objective)
-                            repair_quality = assess_user_facing_reply(objective, shaped_repair)
+                            repair_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, shaped_repair))
                             if not repair_quality.retryable:
                                 logger.warning(
                                     "🛡️ UnitaryResponse replaced repairable live self-reflection draft "
@@ -6341,7 +6341,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 response_text_s
                             )
                             if completed_response:
-                                completed_quality = assess_user_facing_reply(objective, completed_response)
+                                completed_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, completed_response))
                                 if "truncated_tail" not in set(completed_quality.reasons or ()):
                                     logger.warning(
                                         "🛡️ UnitaryResponse completed clipped foreground draft without another 32B retry (len=%d -> %d).",
@@ -6378,7 +6378,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 else ""
                             )
                             if retried_text:
-                                retried_quality = assess_user_facing_reply(objective, retried_text)
+                                retried_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, retried_text))
                                 if not retried_quality.retryable:
                                     logger.warning(
                                         "🛡️ UnitaryResponse regenerated unsafe final draft (%s -> clean, len=%d).",
@@ -6405,7 +6405,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                     or self._build_minimal_live_voice_reply(new_state, objective)
                                 )
                                 shaped_floor = self._shape_user_facing_response(floor, objective)
-                                floor_quality = assess_user_facing_reply(objective, shaped_floor)
+                                floor_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, shaped_floor))
                                 if not floor_quality.retryable:
                                     logger.warning(
                                         "🛡️ UnitaryResponse replaced unsafe final 32B draft (%s, len=%d).",

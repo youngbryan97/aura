@@ -60,7 +60,7 @@ def test_it_still_has_to_survive_the_reply_assessment() -> None:
     """Bounded is not exempt: a reconstruction that reads wrong is refused."""
 
     branch = _branch_source()
-    assert "assess_user_facing_reply(" in branch
+    assert "assess_user_facing_reply," in branch and "asyncio.to_thread(" in branch
     assert "_reply_assessment_requires_repair_with_memory_evidence(" in branch
     assert "return None" in branch, (
         "there must still be a path that refuses, for a reconstruction that "

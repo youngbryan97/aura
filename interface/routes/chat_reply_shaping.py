@@ -1502,7 +1502,7 @@ async def _grounded_competent_recovery(
     try:
         from core.conversation.response_reliability import assess_user_facing_reply
 
-        assessment = assess_user_facing_reply(user_message, reply)
+        assessment = (await asyncio.to_thread(assess_user_facing_reply, user_message, reply))
         hard = {
             "off_topic",
             "off_topic_self_reflection_reply",
