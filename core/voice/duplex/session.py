@@ -1284,6 +1284,7 @@ class DuplexVoiceSession:
         # back-pressure intact: the synthesiser's rate paces the release, so a
         # fast model can never build a backlog of audio nobody has heard yet.
         bridge: asyncio.Queue[str] = asyncio.Queue(maxsize=4)
+        turn.channel.heard_backlog(bridge.qsize)  # her thought waits while a clause of hers waits here (speech_hold.py)
 
         async def _hand_to_synthesis(clause: str) -> None:
             await bridge.put(clause)
@@ -1562,8 +1563,7 @@ class DuplexVoiceSession:
         seq = 0
         first_audio = True
         synthesis_failed = False
-        # A clause can arrive in pieces as her voice forms it (StreamingTts.synthesize_as_it_forms). It is still one
-        # clause: one caption, one record of words, its duration the sum of its pieces.
+        # A clause arriving in pieces as her voice forms it is one clause: one caption, its duration all of its pieces.
         clause_open = False
         try:
             async for result in self._tts.stream(_iter_chunks(), spec, track.token):

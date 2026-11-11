@@ -4906,6 +4906,7 @@ def _build_the_generation_request(
         "hard_output_token_ceiling": hard_output_token_ceiling, "private_channel_budget": kwargs.get("private_channel_budget"),
         "schema": kwargs.get("schema"),
         "prompt_cache_scope": str(kwargs.get("prompt_cache_scope") or "")[:80],
+        "speech_hold": str(kwargs.get("speech_hold") or "")[:64],  # her thought waits for her voice (speech_hold.py)
         "stop_sequences": list(kwargs.get("stop_sequences") or []),
         "strict_answer_contract": bool(kwargs.get("strict_answer_contract", False)),
         "strict_value_contract": bool(kwargs.get("strict_value_contract", False)),
@@ -9126,10 +9127,9 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                         )
                         continue
                 elif status == "ok" and req_id and req_id in self._pending_generations:
-                    # A control job's answer (clear_cache, read_ahead, pin_weights): correlated by the id its caller
-                    # waits on, whatever its action. LIVE 11 November 2026, these fell through here and were dropped,
-                    # so her voice context never opened, every weight pin "timed out", and the memory shed ladder's
-                    # clear_cache waited out 10 s and reported nothing freed.
+                    # A control job's answer (clear_cache, read_ahead, pin_weights), by its caller's id, whatever its
+                    # action. LIVE 11 November 2026 these were dropped: her voice context never opened, every pin "timed
+                    # out", and the memory shed ladder's clear_cache waited 10 s and reported nothing freed.
                     future = self._pending_generations.pop(req_id, None)
                     if future is not None and _set_shared_future_result(future, res):
                         self._mark_progress()

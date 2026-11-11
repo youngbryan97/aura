@@ -236,16 +236,50 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
                 wait_s=min(1.0, max(0.0, deadline - time.monotonic())), foreground=True)
     if lease is None:
         return None
+    hold = pacing = None
     try:
+        if reply_stream is not None and hasattr(reply_stream, "backlog"):
+            from core.brain.llm.speech_hold import SpeechHold
+
+            hold = SpeechHold()
+            pacing = asyncio.ensure_future(_her_thought_waits_for_her_voice(hold, reply_stream))
         # The contracts a governed reply carries; with them her worker sends each checked sentence as it forms, and
         # her voice speaks it while the rest is still being made (core/brain/llm/reply_previews.py).
         kwargs = dict(foreground_request=True, stream_user_surface=reply_stream is not None, origin="voice_live",
                       purpose="reply", prompt_cache_scope=scope, clean_user_surface_contract=True,
                       semantic_completion_contract=True, user_surface_validation_prompt=words, max_tokens=1024,
-                      timeout=timeout_s)
+                      timeout=timeout_s, speech_hold=hold.name if hold is not None else "")
         if reply_stream is None:
-            return await client.generate(prompt, **kwargs)
+            return await _her_reply(client, prompt, kwargs, timeout_s)
         with bind_reply_stream(reply_stream):
-            return await client.generate(prompt, **kwargs)
+            return await _her_reply(client, prompt, kwargs, timeout_s)
     finally:
+        if pacing is not None:
+            pacing.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await pacing
+        if hold is not None:
+            hold.close()
         release_external_generation_gate_lease(lease)
+
+
+async def _her_reply(client: Any, prompt: str, kwargs: dict[str, Any], timeout_s: float) -> str | None:
+    """Her reply, its completion owned by its progress as her governed turns' is: held for her voice, a long reply
+    outlasts any clock set before it began (inference_gate's foreground path does the same)."""
+    complete = getattr(client, "generate_text_to_completion", None)
+    if not callable(complete):
+        return await client.generate(prompt, **kwargs)
+    from core.utils.deadlines import Deadline
+
+    return await complete(prompt=prompt, deadline=Deadline(timeout=timeout_s), **kwargs)
+
+
+async def _her_thought_waits_for_her_voice(hold: Any, reply_stream: Any) -> None:
+    """While a sentence of hers waits to be spoken, her model holds; when her voice takes it, her model goes on. The
+    hold lapses by itself a second after this stops saying so."""
+    while True:
+        if reply_stream.backlog() > 0:
+            hold.hold_for(1.0)
+        else:
+            hold.release()
+        await asyncio.sleep(0.1)

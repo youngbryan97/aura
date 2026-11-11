@@ -25,6 +25,9 @@ def thinking_of_a_rendered_prompt(job: dict) -> bool | None:
 def ready_reply_preview(job: dict, text: str, *, thinking: Any, attempt: int,
                         previous: str = '') -> str:
     """Return a checked sentence prefix; private and corrective passes stay buffered."""
+    from core.brain.llm.speech_hold import wait_for_her_voice
+
+    wait_for_her_voice(job)  # between her tokens: while her voice has her next sentence in hand, her thought waits
     if thinking is None:
         thinking = thinking_of_a_rendered_prompt(job)
     if not (

@@ -39,7 +39,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -87,7 +87,7 @@ class ReplyStreamChannel:
     producer died would be a hang, so every path that binds one closes it.
     """
 
-    __slots__ = ("_queue", "_closed", "_stats", "_loop")
+    __slots__ = ("_queue", "_closed", "_stats", "_loop", "_backlog_probe")
 
     def __init__(self) -> None:
         self._queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=_MAX_PENDING_CHUNKS)
@@ -97,6 +97,16 @@ class ReplyStreamChannel:
         # thread (the state machine's telemetry hop is sync), and a Queue may
         # only be touched from its own loop.
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._backlog_probe: Callable[[], int] | None = None
+
+    def heard_backlog(self, probe: Callable[[], int]) -> None:
+        """Whoever speaks this stream says how much of it is still waiting to be spoken (core/brain/llm/speech_hold.py)."""
+        self._backlog_probe = probe
+
+    def backlog(self) -> int:
+        """Text published and not yet taken to be spoken: this queue and the speaker's own."""
+        probe = self._backlog_probe
+        return self._queue.qsize() + (int(probe()) if probe is not None else 0)
 
     # ── producer side ────────────────────────────────────────────────────
 
