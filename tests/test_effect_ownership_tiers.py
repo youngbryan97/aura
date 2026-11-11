@@ -80,8 +80,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: 1913 by governed calls only: her page owner's 143, which were raw, and the
 #: gateway writes of her goals, attachments, mail drafts and learning added
 #: since 13 September. The total follows the measurement, as it did then.
-TOTAL_CEILING = 2100
-RAW_CEILING = 818
+#: The same night her static check's ruff ran on stdin through the
+#: subprocess gateway instead of a temporary file and a raw run: 816 and 2,099.
+TOTAL_CEILING = 2099
+RAW_CEILING = 816
 
 
 def _split() -> tuple[int, int]:

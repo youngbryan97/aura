@@ -31,7 +31,6 @@ import json
 import shutil
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -96,29 +95,36 @@ def _names_that_are_not_defined(code: str) -> list[StaticFinding]:
     ruff = _ruff()
     if not ruff:
         return []
-    with tempfile.TemporaryDirectory(prefix="aura-static-check-") as directory:
-        written = Path(directory) / "candidate.py"
-        written.write_text(code, encoding="utf-8")
-        try:
-            finished = subprocess.run(  # noqa: S603 - fixed argv, no shell
-                [
-                    ruff,
-                    "check",
-                    "--no-cache",
-                    "--isolated",
-                    "--output-format",
-                    "json",
-                    "--select",
-                    ",".join(_NAME_RULES),
-                    str(written),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=_RUFF_SECONDS,
-            )
-            reported = json.loads(finished.stdout or "[]")
-        except (OSError, subprocess.SubprocessError, ValueError):
-            return []  # a checker that did not run has found nothing
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    # On stdin, through the subprocess gateway, read-only: it wrote the code to
+    # a temporary file and ran ruff outside the gateway (Master Todo Q06).
+    try:
+        finished = get_subprocess_gateway().run(
+            [
+                ruff,
+                "check",
+                "--no-cache",
+                "--isolated",
+                "--output-format",
+                "json",
+                "--select",
+                ",".join(_NAME_RULES),
+                "--stdin-filename",
+                "candidate.py",
+                "-",
+            ],
+            input=code,
+            capture_output=True,
+            text=True,
+            timeout=_RUFF_SECONDS,
+            read_only=True,
+            source="sandbox.static_check.ruff",
+            accelerator_capability="none",
+        )
+        reported = json.loads(finished.stdout or "[]")
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return []  # a checker that did not run has found nothing
     findings: list[StaticFinding] = []
     for item in reported if isinstance(reported, list) else []:
         if not isinstance(item, dict):

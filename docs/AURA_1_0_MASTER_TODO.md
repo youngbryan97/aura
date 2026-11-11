@@ -4007,6 +4007,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   bucket reviewed. Still raw and new since September, and owed: the file
   writes of her rebuilt programs (`core/rebuilding/`, 40 calls), her ear's
   log, her watching's kept frames, and the stand-ins' trial files.
+  The same night her static check's ruff moved onto the subprocess gateway,
+  reading the code on stdin instead of a temporary file: raw 816, total
+  2,099, and both ceilings follow.
 
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
