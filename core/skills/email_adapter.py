@@ -193,15 +193,20 @@ class EmailAdapterSkill(BaseSkill):
             return False
 
     def _get_creds(self) -> tuple[str, str]:
-        """Load email credentials from Keychain. Never logs them."""
+        """Load email credentials: her environment first (the git-ignored .env beside her code), then the Keychain.
+        Never logs them."""
         from core.security.zenith_secrets import get_credential
 
         addr = get_credential("email", "address")
         pwd = get_credential("email", "password")
         if not addr or not pwd:
+            # Said as it is to find them. LIVE 10 November 2026: this said to store them in the Keychain, where they
+            # had been stored four times; her runtime could not read those items without a confirmation nobody
+            # could give, and the address and an app password in her .env read at once.
+            missing = [name for name, value in (("AURA_EMAIL_ADDRESS", addr), ("AURA_EMAIL_PASSWORD", pwd)) if not value]
             raise RuntimeError(
-                "Email credentials not found in Keychain. "
-                "Store them with: zenith_secrets.store_credential('email', ...)"
+                f"Email credentials not found: {', '.join(missing)}. They are read from her environment, which "
+                "her .env (git-ignored, beside her code) fills at start, then from the Keychain."
             )
         return addr, pwd
 

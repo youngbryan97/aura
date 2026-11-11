@@ -24,6 +24,7 @@ _KEYCHAIN_SERVICE = "AuraAutonomyEngine"
 _NO_ERR = 0
 _ERR_SEC_ITEM_NOT_FOUND = -25300
 _ERR_SEC_DUPLICATE_ITEM = -25299
+_ERR_SEC_INTERACTION_NOT_ALLOWED = -25308
 _KEYCHAIN_UNAVAILABLE = object()
 _KEYCHAIN_BACKEND: "KeychainBackend | object | None" = None
 _DEFAULT_KEYCHAIN_CALL_TIMEOUT_S = 0.75
@@ -60,6 +61,11 @@ class _SecurityFrameworkKeychain:
         core_foundation_path = ctypes.util.find_library("CoreFoundation")
         self._core_foundation = ctypes.CDLL(core_foundation_path) if core_foundation_path else None
         self._configure_signatures()
+        # A read that needs someone at the screen to allow it fails at once instead of waiting for them. LIVE
+        # 10 November 2026: her mail items trusted her Python but carried the partition `security -U` gives them, so
+        # each read waited on a confirmation nobody could give; it was abandoned at the 0.75 s bound, the next read
+        # was refused behind it ("a previous native call is still in progress"), and her mail read as missing.
+        self._security.SecKeychainSetUserInteractionAllowed(False)
 
     def _configure_signatures(self) -> None:
         self._security.SecKeychainFindGenericPassword.argtypes = [
@@ -73,6 +79,9 @@ class _SecurityFrameworkKeychain:
             ctypes.POINTER(ctypes.c_void_p),
         ]
         self._security.SecKeychainFindGenericPassword.restype = ctypes.c_int32
+
+        self._security.SecKeychainSetUserInteractionAllowed.argtypes = [ctypes.c_bool]
+        self._security.SecKeychainSetUserInteractionAllowed.restype = ctypes.c_int32
 
         self._security.SecKeychainAddGenericPassword.argtypes = [
             ctypes.c_void_p,
@@ -114,6 +123,11 @@ class _SecurityFrameworkKeychain:
         )
         if status == _ERR_SEC_ITEM_NOT_FOUND:
             return None
+        if status == _ERR_SEC_INTERACTION_NOT_ALLOWED:
+            raise KeychainUnavailableError(
+                f"Keychain item {account} is there, but reading it needs someone to allow it at the screen; "
+                "kept in her environment instead (her .env), it reads without asking"
+            )
         if status != _NO_ERR:
             raise KeychainUnavailableError(f"Keychain read failed with status {status}")
         try:
