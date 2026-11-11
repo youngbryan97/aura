@@ -10,6 +10,7 @@ AURA_EMAIL_SENDS_WITHOUT_ASKING.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -49,7 +50,13 @@ def as_written(message: dict[str, Any]) -> str:
 
 
 async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> str:
-    """Her answer to a person's message, by her own turn on her model; '' when she has none."""
+    """Her answer to a person's message, by her own turn on her model; '' when she has none.
+
+    What she wrote is read by the same assessor her chat replies are (core/conversation/response_reliability.py),
+    and a reply it does not pass is not a reply. LIVE 10 November 2026: to Bryan's "Wanted to know how you're doing"
+    her turn wrote "I'll check what I know about Bryan before responding.", and it was held as her answer. Nothing is
+    held then, and her round comes back to the message in half an hour.
+    """
     from core.brain.types import ThinkingMode
     from core.container import ServiceContainer
 
@@ -59,7 +66,17 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
     said = as_written(message)
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": said, "allow_tools": False}
     thought = await engine.think(said, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
-    return str(getattr(thought, "content", "") or "").strip()
+    reply = str(getattr(thought, "content", "") or "").strip()
+    if not reply:
+        return ""
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = await asyncio.to_thread(assess_user_facing_reply, said, reply)
+    if not assessment.ok:
+        logger.info("📧 What she wrote to %s about %r is not held as a reply (%s): %r", message.get("from"),
+                    message.get("subject"), ", ".join(assessment.reasons), reply[:120])
+        return ""
+    return reply
 
 
 async def hold_for_bryan(message: dict[str, Any], reply: str) -> str:
@@ -99,8 +116,8 @@ def answers(message: dict[str, Any]) -> str:
 
 def answered(path: Path | None = None) -> set[str]:
     """The messages she has written a reply to, held or sent, by ``answers``: a message is answered once, and a
-    restart does not forget it."""
-    return {key for key in (answers(draft) for draft in drafts(path)) if key}
+    restart does not forget it. A withdrawn draft answers nothing."""
+    return {key for key in (answers(draft) for draft in drafts(path) if not draft.get("withdrawn")) if key}
 
 
 async def mark_sent(draft_id: str) -> None:

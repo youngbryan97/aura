@@ -47,3 +47,34 @@ def test_she_sends_without_asking_only_when_bryan_has_said_so(monkeypatch):
     assert not sends_without_asking()
     monkeypatch.setenv("AURA_EMAIL_SENDS_WITHOUT_ASKING", "1")
     assert sends_without_asking()
+
+
+def test_a_reply_her_assessor_does_not_pass_is_not_held(monkeypatch, caplog):
+    """LIVE 10 November 2026: "I'll check what I know about Bryan before responding." was held as her answer."""
+    import logging
+
+    from core.skills import her_replies_to_mail
+
+    class Engine:
+        async def think(self, objective, *, context, mode, origin, timeout_s):
+            return SimpleNamespace(content="I'll check what I know about Bryan before responding.")
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: Engine() if name == "cognitive_engine" else default)
+    with caplog.at_level(logging.INFO, logger="Skills.Email"):
+        reply = asyncio.run(her_replies_to_mail.her_reply_to(
+            {"from": "Bryan <youngbryan97@gmail.com>", "subject": "Hello - It's Bryan",
+             "body": "Can you respond to this? Wanted to know how you're doing."}))
+    assert reply == ""
+    assert any("promise_without_answer" in r.getMessage() for r in caplog.records)
+
+
+def test_a_withdrawn_draft_answers_nothing(tmp_path, monkeypatch):
+    from core.skills import her_replies_to_mail
+
+    path = tmp_path / "email" / "drafts.jsonl"
+    monkeypatch.setattr(her_replies_to_mail, "_drafts_path", lambda: path)
+    held = asyncio.run(her_replies_to_mail.hold_for_bryan({"uid": "54", "message_id": "<54@gmail>"}, "I'll check."))
+    assert her_replies_to_mail.answered(path) == {"<54@gmail>"}
+    path.open("a").write(f'{{"id": "{held}", "withdrawn": true}}\n')
+    assert her_replies_to_mail.answered(path) == set()

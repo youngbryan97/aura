@@ -3,6 +3,7 @@
 
     her_email_drafts.py list          the replies she wrote and has not sent, each with what it answers
     her_email_drafts.py send ID       send that reply, from her account, in the thread it answers
+    her_email_drafts.py withdraw ID   take back a reply that is not one; her round answers the message again
 
 Held by core/skills/her_replies_to_mail.py until AURA_EMAIL_SENDS_WITHOUT_ASKING=1 is in her launch environment.
 """
@@ -24,10 +25,10 @@ def main() -> int:
     from core.skills.her_replies_to_mail import _drafts_path, drafts
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=("list", "send"))
+    parser.add_argument("step", choices=("list", "send", "withdraw"))
     parser.add_argument("id", nargs="?")
     args = parser.parse_args()
-    waiting = [d for d in drafts() if not d.get("sent")]
+    waiting = [d for d in drafts() if not d.get("sent") and not d.get("withdrawn")]
     if args.step == "list":
         for draft in waiting:
             print(f"{draft['id']}  to {draft['to']}  re: {draft['subject']}\n{draft['reply']}\n")
@@ -37,6 +38,11 @@ def main() -> int:
     if chosen is None:
         print(f"no waiting reply {args.id}")
         return 1
+    if args.step == "withdraw":
+        with _drafts_path().open("a", encoding="utf-8") as kept:
+            kept.write(json.dumps({"id": chosen["id"], "withdrawn": True, "withdrawn_at": time.time()}) + "\n")
+        print(f"withdrew {chosen['id']}")
+        return 0
     from core.skills.email_adapter import EmailAdapterSkill, EmailInput
 
     sent = asyncio.run(EmailAdapterSkill()._handle_reply(EmailInput(mode="reply", uid=chosen["uid"], body=chosen["reply"],
