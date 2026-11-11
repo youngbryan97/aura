@@ -16,6 +16,8 @@ instead, where her tools and instruments are; so does any turn when the context 
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import inspect
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
@@ -46,7 +48,11 @@ def what_she_reads_first(exchanges: Sequence[dict[str, Any]], now: float | None 
     first minute of the session; her first spoken turn waited behind it and took 69 s.
     """
     from core.conversation.delivered_history import _attested_pairs
-    from core.conversation.history_reach import A_SITTING_READ_WHOLE_CHARS, _exchange_chars, _this_sitting
+    from core.conversation.history_reach import (
+        A_SITTING_READ_WHOLE_CHARS,
+        _exchange_chars,
+        _this_sitting,
+    )
 
     pairs = _attested_pairs(exchanges)
     if not pairs:
@@ -94,6 +100,8 @@ class HerLiveContext:
         self.scope = f"voice_live:{str(session_id or 'voice')[:40]}"
         self.text = ""
         self.ready = False
+        self.opening = False
+        self._opened = asyncio.Event()
         self._opening = ""
         self._reading: asyncio.Task | None = None
         self._speaking = False  # a person began a turn that has not been answered yet
@@ -101,15 +109,23 @@ class HerLiveContext:
         self._generate = generate or _generate_on_her_cortex
         self._record = record
 
-    async def open(self, exchanges: Sequence[dict[str, Any]]) -> None:
-        """Read the conversation so far, once; until it is read, every turn takes her governed route."""
-        self.text = rendered(what_she_reads_first(exchanges))
-        if self.text:
-            held = await self._read(self.text, self.scope)
-            if not held or held.get("status") != "ok":
-                logger.info("🗣️ her live context could not be read (%s); voice turns take her governed route", held)
-                return
-        self.ready = True
+    async def open(self, exchanges: Sequence[dict[str, Any]] | Awaitable[Sequence[dict[str, Any]]]) -> None:
+        """Read the conversation so far, once. A turn that ends while this is under way waits for it; one that
+        comes after it failed takes her governed route."""
+        self.opening = True
+        try:
+            if inspect.isawaitable(exchanges):
+                exchanges = await exchanges
+            self.text = rendered(what_she_reads_first(exchanges))
+            if self.text:
+                held = await self._read(self.text, self.scope)
+                if not held or held.get("status") != "ok":
+                    logger.info("🗣️ her live context could not be read (%s); voice turns take her governed route", held)
+                    return
+            self.ready = True
+        finally:
+            self.opening = False
+            self._opened.set()
         logger.info("🗣️ her live context is open: %d characters of this conversation read once", len(self.text))
         if self._speaking:
             # They began before it opened (LIVE 11 November 2026, 0.45 s before): their turn's evidence is read now.
@@ -129,11 +145,18 @@ class HerLiveContext:
                                                        name=f"VoiceLiveContext.read_ahead:{self.scope}")
 
     def answers(self, transcript: str) -> bool:
-        return self.ready and bool((transcript or "").strip()) and not goes_to_her_governed_route(transcript)
+        return ((self.ready or self.opening) and bool((transcript or "").strip())
+                and not goes_to_her_governed_route(transcript))
 
     async def answer(self, transcript: str, *, reply_stream: Any = None, timeout_s: float = 90.0) -> str | None:
         """Her answer on the live context, streamed into ``reply_stream`` as it forms; None when it did not form."""
         words = " ".join(str(transcript or "").split())
+        if not self.ready:
+            # LIVE 11 November 2026: the person stopped while it was opening, and the governed route took 16 s.
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._opened.wait(), timeout=timeout_s)
+            if not self.ready:
+                return None
         if self._reading is not None:
             try:
                 await asyncio.wait_for(asyncio.shield(self._reading), timeout=timeout_s)

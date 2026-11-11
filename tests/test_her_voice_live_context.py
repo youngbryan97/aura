@@ -228,3 +228,46 @@ def test_a_person_who_began_before_the_context_opened_still_has_their_turn_read_
         assert live._speaking is False
 
     asyncio.run(scenario())
+
+
+def test_a_turn_that_ends_while_the_context_opens_waits_for_it():
+    """LIVE 11 November 2026: the person stopped while it was opening, and her governed route took 16 s."""
+    async def scenario():
+        release = asyncio.Event()
+        read, generated = [], []
+
+        async def slow_read(text, scope):
+            read.append(text)
+            await release.wait()
+            return {"status": "ok"}
+
+        async def generate(prompt, **_kw):
+            generated.append(prompt)
+            return "I'm here."
+
+        live = lc.HerLiveContext("s", read=slow_read, generate=generate)
+        opening = asyncio.ensure_future(live.open([_said("Hi.", "Hello.")]))
+        await asyncio.sleep(0)
+        assert live.answers("Are you there?"), "an opening under way answers"
+        answering = asyncio.ensure_future(live.answer("Are you there?"))
+        await asyncio.sleep(0.01)
+        assert not generated, "nothing is generated before the context is read"
+        release.set()
+        assert await answering == "I'm here."
+        await opening
+        assert generated[0].startswith(read[0])
+
+    asyncio.run(scenario())
+
+
+def test_a_turn_after_an_opening_that_failed_takes_her_governed_route():
+    async def scenario():
+        async def refused(text, scope):
+            return {"status": "error"}
+
+        live = lc.HerLiveContext("s", read=refused)
+        await live.open([_said("Hi.", "Hello.")])
+        assert not live.answers("Are you there?")
+        assert await live.answer("Are you there?") is None
+
+    asyncio.run(scenario())

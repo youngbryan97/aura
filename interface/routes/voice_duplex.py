@@ -564,7 +564,8 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
         async def her_live_context_opens() -> None:
             from interface.routes import chat_memory_state
 
-            await live.open(await chat_memory_state._recent_completed_conversation_exchanges(
+            # The fetch goes in unawaited, so the context counts as opening from the start (a turn ending now waits).
+            await live.open(chat_memory_state._recent_completed_conversation_exchanges(
                 current_user_message="", session_id=conversation_key, limit=VISIBLE_CONVERSATION_EXCHANGES,
                 allow_cross_session=True))
 
@@ -577,9 +578,10 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             # first read. Both wait on her worker, which answers between jobs, so they run beside the receive loop: LIVE
             # 11 November 2026, awaited before it, they left the socket unread while the browser streamed audio, and the
             # client's keepalive ping went unanswered for 20 s and closed the session before its first turn.
+            # The context's read goes to her worker first: it is short, and a first turn waits on it.
+            opening = get_task_tracker().create_task(her_live_context_opens(), name=f"VoiceLiveContext:{session_id}")
             pinning = get_task_tracker().create_task(asyncio.to_thread(a_voice_session_opened),
                                                      name=f"VoicePinnedWeights:{session_id}")
-            opening = get_task_tracker().create_task(her_live_context_opens(), name=f"VoiceLiveContext:{session_id}")
 
             connected = True
             while connected and not authorization_revoked.is_set():
