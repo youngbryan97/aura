@@ -1306,13 +1306,10 @@ class DuplexVoiceSession:
         async def _next_clause() -> str | None:
             """The next governed clause, or None once there will not be one.
 
-            Deliberately not a sentinel value on the queue. A sentinel has to
-            be enqueued by the producer's ``finally``, and the producer can be
-            cancelled while blocked on a *full* queue — at which point the
-            sentinel cannot be enqueued either, and the consumer waits for a
-            message that will never come. Asking the producer task whether it
-            is finished has no such hole: a task that is done is done however
-            it ended.
+            Deliberately not a sentinel value on the queue. A sentinel has to be enqueued by the producer's
+            ``finally``, and the producer can be cancelled while blocked on a *full* queue — at which point the
+            sentinel cannot be enqueued either, and the consumer waits for a message that will never come. Asking
+            the producer task whether it is finished has no such hole: a task that is done is done however it ended.
             """
             while True:
                 try:
@@ -1581,6 +1578,8 @@ class DuplexVoiceSession:
                 self._echo.note_spoken("" if clause_open else result.text, result.samples, OUTPUT_RATE)
 
                 if not clause_open:
+                    if seq and result.samples.size and hasattr(self._tts, "heard_late"):
+                        self._tts.heard_late(track.sent_duration_s - self._client_played_s)
                     await self._send_json(
                         {
                             "type": protocol.EVT_SPEAKING_CHUNK,

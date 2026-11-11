@@ -760,6 +760,16 @@ class StreamingTts:
             if not release_deferred_to_native_completion:
                 self._finish_synthesis()
 
+    #: The listener of the reply being spoken already waited between two of its sentences (heard_late).
+    behind = False
+
+    def heard_late(self, queued_s: float) -> None:
+        """A new clause's first sound went out with ``queued_s`` of audio still to play: at none, the listener waited,
+        and the rest of this reply is made at her busy steps (LIVE 11 November 2026: a long reply went silent 6.0 s
+        between two sentences, her voice waiting on her thought)."""
+        if queued_s <= 0:
+            self.behind = True
+
     def making_speech(self) -> int:
         """Clauses her voice is making now. Her thought holds while it is (core/brain/llm/speech_hold.py)."""
         return self._active_syntheses
@@ -807,7 +817,8 @@ class StreamingTts:
             loop.call_soon_threadsafe(pieces.put_nowait, (samples, rate, more))
 
         def run() -> None:
-            engine.synthesize_pieces(text, spec, deliver, stopped=lambda: token.cancelled or abandoned.is_set())
+            engine.synthesize_pieces(text, spec, deliver, stopped=lambda: token.cancelled or abandoned.is_set(),
+                                     **({"behind": True} if self.behind else {}))
 
         def ended(future: asyncio.Future[Any]) -> None:
             error = None if future.cancelled() else future.exception()
@@ -908,6 +919,7 @@ class StreamingTts:
         # utterance, and every chunk after it is spoken from where it arrived.
         first = [True]
         source = aiter(chunks)
+        self.behind = False  # each reply starts at her full steps
         results: asyncio.Queue[SynthesisResult | BaseException | None] = asyncio.Queue()
 
         async def _produce() -> None:

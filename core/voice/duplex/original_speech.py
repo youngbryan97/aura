@@ -121,7 +121,7 @@ class OriginalSpeech:
             raise ValueError("Original speech returned nonfinite audio")
         return audio, int(result["sample_rate"])
 
-    def synthesize_pieces(self, text: str, spec: Any, deliver: Any, stopped: Any = None) -> None:
+    def synthesize_pieces(self, text: str, spec: Any, deliver: Any, stopped: Any = None, behind: bool = False) -> None:
         """Hand ``deliver(samples, rate, more)`` each piece of the sentence as her worker sends it.
 
         The pipe is held for the whole sentence, as for ``synthesize``: its pieces must all arrive before another
@@ -132,7 +132,8 @@ class OriginalSpeech:
         with self._lock:
             if self.process is None or self.process.stdin is None:
                 raise RuntimeError("Original speech worker is not loaded")
-            request = json.dumps({"text": text, "speed": float(spec.speed), "stream": True}) + "\n"
+            request = json.dumps({"text": text, "speed": float(spec.speed), "stream": True,
+                                  "behind": bool(behind)}) + "\n"
             try:
                 self.process.stdin.write(request.encode())
                 more, asked_to_stop = True, False

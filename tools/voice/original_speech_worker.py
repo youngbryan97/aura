@@ -196,7 +196,7 @@ def main() -> None:
                     busy_steps = None
                 steps = {"body": full_steps, "busy_per_full": None}
 
-            def generate_as_it_forms(text, speed, deliver):
+            def generate_as_it_forms(text, speed, deliver, behind=False):
                 if seed is not None:
                     mx.random.seed(seed)
                 sentence = speak_as_it_forms(
@@ -204,7 +204,10 @@ def main() -> None:
                     out_rate=int(settings.get("output_sample_rate", model.sample_rate)), speed=speed, level=level,
                     decode_s_per_patch=timing["decode_s_per_patch"], gen_s_per_patch=timing["gen_s_per_patch"],
                     expected_patches=round(len(text) * timing["patches_per_char"]), send=deliver,
-                    body_steps=steps["body"] if busy_steps else None, onset_steps=full_steps,
+                    # A reply whose listener already waited between sentences: her busy steps for the rest of it,
+                    # so her voice finishes each sooner and her thought gets the GPU back sooner (speech_hold.py).
+                    body_steps=(busy_steps if behind else steps["body"]) if busy_steps else None,
+                    onset_steps=full_steps,
                     should_stop=requests.stop_asked)
                 timing["decode_s_per_patch"] = sentence.decode_s_per_patch
                 timing["gen_s_per_patch"] = sentence.gen_s_per_patch
@@ -253,7 +256,8 @@ def main() -> None:
                         send(message)
 
                     with contextlib.redirect_stdout(sys.stderr):
-                        generate_as_it_forms(str(message["text"]), float(message.get("speed", 1.)), deliver)
+                        generate_as_it_forms(str(message["text"]), float(message.get("speed", 1.)), deliver,
+                                             behind=message.get("behind") is True)
                     continue
                 with contextlib.redirect_stdout(sys.stderr):
                     audio, rate = generate(str(message["text"]), float(message.get("speed", 1.)))

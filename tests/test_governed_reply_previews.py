@@ -157,3 +157,35 @@ def test_a_prompt_sent_rendered_says_itself_whether_thinking_was_closed(validato
     """LIVE 11 November 2026: the live context's first reply sent no preview, so it was spoken only when whole."""
     preview = ready_reply_preview(dict(JOB, prompt=prompt), 'Hello. Still composing', thinking=None, attempt=0)
     assert (preview == 'Hello. ') is ready
+
+
+def test_a_rejected_streamed_reply_is_retried_from_what_she_already_said(validator):
+    """LIVE 11 November 2026: a draft's checked sentences were spoken, a later one failed her self-claim check, and the
+    whole draft was rewritten from nothing with nothing streamed: 38.8 s and 46 s of silence, then a "correction"."""
+    from core.brain.llm.reply_previews import continuing_after, her_retry_continues
+
+    rendered = '<|im_start|>user\nHello?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n'
+    job = dict(JOB, prompt=rendered)
+    said = 'Hello there. I can hear you. '
+    assert her_retry_continues(job, rendered, None, said) == rendered + said
+    assert continuing_after(job) == said
+    # Her retry streams, and her voice is handed only what comes after what she said.
+    preview = ready_reply_preview(job, 'Good to hear you. More', thinking=None, attempt=1)
+    assert preview == said + 'Good to hear you. '
+    delivery = ReplyPreviewDelivery(SimpleNamespace(publish_threadsafe=lambda chunk: published.append(chunk)),
+                                    delivered=said)
+    published = []
+    delivery.publish(preview)
+    assert published == ['Good to hear you. ']
+
+
+@pytest.mark.parametrize('job,messages,sent', [
+    (dict(JOB, prompt='p'), [{'role': 'user', 'content': 'Hi'}], 'Said. '),  # a templated prompt: rebuilt, not continued
+    (dict(JOB, prompt='p'), None, ''),  # nothing was said yet
+    (dict(JOB, prompt='p', stream_user_surface=False), None, 'Said. '),  # nothing was streamed
+])
+def test_a_retry_with_nothing_spoken_or_no_rendered_prompt_starts_over(job, messages, sent):
+    from core.brain.llm.reply_previews import continuing_after, her_retry_continues
+
+    assert her_retry_continues(job, 'p', messages, sent) == 'p'
+    assert continuing_after(job) == ''

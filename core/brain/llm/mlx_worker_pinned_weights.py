@@ -37,7 +37,8 @@ def her_weights_pinned(pinned: bool, *, device: str, ipc_writer: Any, job: Any, 
 
 
 def _her_memory_store_opened(model: Any) -> int | None:
-    """Her non-parametric memory store, opened when voice mode opens rather than inside a person's first turn.
+    """Her non-parametric memory store, opened before a person's first turn needs it: when her worker has loaded her
+    model, and again (a no-op once open) when voice mode opens.
 
     Her worker opens it on its first foreground generation and keeps it open after, so opening it here costs no more
     memory, only sooner. LIVE 11 November 2026, it took 2.7 s of the first voice turn's 4.5 s to her first sound.

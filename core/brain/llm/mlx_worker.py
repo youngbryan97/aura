@@ -50,7 +50,7 @@ from .mlx_worker_loop_steps import (  # noqa: F401  (re-exported: they were defi
     _take_the_repaired_user_surface,
     _take_the_restored_newlines,
 )
-from .mlx_worker_pinned_weights import her_weights_pinned
+from .mlx_worker_pinned_weights import _her_memory_store_opened, her_weights_pinned
 from .mlx_worker_read_ahead import read_ahead as read_ahead_job
 from .mlx_worker_recurrent_adapters import (  # noqa: F401  (re-exported: they were defined here)
     _attach_certified_recurrent_adapter,
@@ -69,6 +69,7 @@ from .mlx_worker_surface_markers import (  # noqa: F401  (re-exported: they were
     _truncate_role_continuation,
 )
 from .model_registry import resolve_personality_adapter
+from .reply_previews import continuing_after, her_retry_continues
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
 # inventoried and reportable). STRING kind with the original literal
@@ -6423,6 +6424,7 @@ def _mlx_worker_loop(
             logger.info("Model loaded (no compatible LoRA adapter).")
 
         draft_model = _load_speculative_draft(model_path, tokenizer, model=model)
+        _her_memory_store_opened(model)  # now, while nobody waits; it was 2.7 s of a first voice turn (11 Nov 2026)
 
         # Both arrows of the substrate<->activation coupling.
         steering_attachment = _attach_affective_steering(
@@ -8130,12 +8132,10 @@ def _mlx_worker_loop(
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()
-                                        else current_response
+                                        else continuing_after(job) + current_response  # after what she already said
                                     )
                                     if operator_evidence_contract:
-                                        # Composition disclosure: downstream must see
-                                        # how much of the delivered evidence came from
-                                        # fixed scaffolding vs the model itself.
+                                        # Composition disclosure: how much of the delivered evidence is scaffolding.
                                         operator_evidence_receipt = {
                                             "prefix_chars": len(operator_response_prefix or ""),
                                             "model_chars": len(current_response or ""),
@@ -8772,7 +8772,7 @@ def _mlx_worker_loop(
                                                 if _self_claim_retry_uses_original_context(
                                                     rejection_reasons
                                                 ):
-                                                    prompt = original_prompt
+                                                    prompt = her_retry_continues(job, original_prompt, original_messages, emitted_reply_preview)
                                                 else:
                                                     prompt = (
                                                         _build_user_surface_quality_retry_prompt(

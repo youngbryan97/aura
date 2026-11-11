@@ -22,6 +22,30 @@ def thinking_of_a_rendered_prompt(job: dict) -> bool | None:
     return False if opened >= 0 and not prompt[opened + len('<think>'):-len('</think>')].strip() else None
 
 
+_SPOKEN = '_her_spoken_prefix'
+
+
+def continuing_after(job: Any) -> str:
+    """What she already said aloud of this reply when a retry continues it; empty otherwise."""
+    return str(job.get(_SPOKEN) or '') if isinstance(job, dict) else ''
+
+
+def her_retry_continues(job: Any, prompt: Any, messages: Any, sent: Any) -> Any:
+    """A streamed reply rejected after some of it was spoken: the retry goes on from what she said, not from nothing.
+
+    LIVE 11 November 2026, twice in her voice mode: a draft's sentences were checked one by one and spoken, a later
+    sentence failed her self-claim check, and the whole draft was rewritten from the start with nothing streamed.
+    She went silent 38.8 s and 46 s, and the rewrite began differently, so what she had said was then "corrected".
+    Only for a prompt sent rendered (her voice's live context), where what she said is simply the start of her answer.
+    The retry is checked again in full; her words already said are kept, not her rejected sentence.
+    """
+    sent = str(sent or '')
+    if not (isinstance(job, dict) and job.get('stream_user_surface') is True and not messages and sent.strip()):
+        return prompt
+    job[_SPOKEN] = sent
+    return str(job.get('prompt') or prompt) + sent
+
+
 def ready_reply_preview(job: dict, text: str, *, thinking: Any, attempt: int,
                         previous: str = '') -> str:
     """Return a checked sentence prefix; private and corrective passes stay buffered."""
@@ -34,7 +58,7 @@ def ready_reply_preview(job: dict, text: str, *, thinking: Any, attempt: int,
         job.get('stream_user_surface') is True
         and job.get('clean_user_surface_contract') is True
         and job.get('semantic_completion_contract') is True
-        and thinking is False and attempt == 0
+        and thinking is False and (attempt == 0 or bool(continuing_after(job)))
     ):
         return ''
     if any(job.get(key) for key in (
@@ -42,7 +66,7 @@ def ready_reply_preview(job: dict, text: str, *, thinking: Any, attempt: int,
         'proof_evaluation_contract', 'operator_evidence_contract', 'schema', 'tools',
     )):
         return ''
-    body = str(text or '').lstrip()
+    body = (continuing_after(job) + str(text or '')).lstrip()  # a retry's text, after what she already said
     # An opening control delimiter may still be incomplete. Buffer the whole
     # pass rather than guessing which bytes belong to a private channel.
     if '<' in body:

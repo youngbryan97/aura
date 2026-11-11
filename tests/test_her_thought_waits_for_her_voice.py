@@ -154,3 +154,45 @@ async def test_her_voice_says_it_is_making_speech_for_exactly_as_long_as_it_is(m
         assert tts.making_speech() == 0
     finally:
         tts.shutdown()
+
+
+def test_a_reply_whose_listener_waited_between_sentences_is_made_at_her_busy_steps(monkeypatch):
+    """LIVE 11 November 2026: a long reply went silent 6.0 s between two sentences, her voice waiting on her thought.
+    Once the listener has waited, the rest of that reply is made at her busy steps; the next reply starts at full."""
+    import numpy as np
+
+    from core.voice.duplex.config import TtsConfig
+    from core.voice.duplex.prosody import ProsodySpec
+    from core.voice.duplex.tts_stream import CancellationToken, StreamingTts
+
+    tts = StreamingTts(TtsConfig(treatment="clean"))
+    asked = []
+
+    def synthesize_pieces(text, spec, deliver, stopped=None, behind=False):
+        asked.append(behind)
+        deliver(np.ones(480, np.float32), 24000, False)
+
+    tts._state.pocket = type("Voice", (), {"name": "voxcpm2", "streams": True,
+                                          "synthesize_pieces": staticmethod(synthesize_pieces)})()
+    tts._state.loaded = True
+    tts._accepting_synthesis = True
+    monkeypatch.setattr(tts, "ensure_loaded", lambda: asyncio.sleep(0, result=True))
+
+    async def speak(clauses, late_after=None):
+        async def chunks():
+            for n, clause in enumerate(clauses):
+                if late_after is not None and n == late_after:
+                    tts.heard_late(0.0)  # the listener had nothing left to hear when this clause began
+                yield clause
+        return [r async for r in tts.stream(chunks(), ProsodySpec(voice="aura_kiwi"), CancellationToken())]
+
+    try:
+        tts.heard_late(1.5)
+        assert tts.behind is False  # audio still queued: not late
+        asyncio.run(speak(["One.", "Two.", "Three."], late_after=1))
+        assert asked == [False, True, True]
+        asked.clear()
+        asyncio.run(speak(["Next reply."]))
+        assert asked == [False]
+    finally:
+        tts.shutdown()
