@@ -64,6 +64,11 @@ from core.brain.llm.how_big_is_the_checkpoint import (  # noqa: F401 - re-export
 from core.brain.llm.measured_admission import (
     record_generation,  # noqa: F401  (re-exported: the lifted recorder reads it here)
 )
+from core.brain.llm.mlx_client_native_xml import (  # noqa: F401  (re-exported: they were defined here)
+    _coerce_native_xml_parameter,
+    _strip_native_xml_framing,
+    _tool_parameter_properties,
+)
 from core.brain.nonparametric_binding import principal_of_the_turn
 from core.conversation.continuation import continuation_state_text
 from core.runtime.atomic_writer import atomic_write_text
@@ -9120,6 +9125,15 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                             severity="warning",
                         )
                         continue
+                elif status == "ok" and req_id and req_id in self._pending_generations:
+                    # A control job's answer (clear_cache, read_ahead, pin_weights): correlated by the id its caller
+                    # waits on, whatever its action. LIVE 11 November 2026, these fell through here and were dropped,
+                    # so her voice context never opened, every weight pin "timed out", and the memory shed ladder's
+                    # clear_cache waited out 10 s and reported nothing freed.
+                    future = self._pending_generations.pop(req_id, None)
+                    if future is not None and _set_shared_future_result(future, res):
+                        self._mark_progress()
+                    continue
                 elif status == "degraded":
                     # Worker self-reported health frames (e.g. the memory
                     # sentinel going blind/recovering). Not terminal, never
@@ -12248,81 +12262,6 @@ def _native_xml_tool_payload(
     if len(arguments) > _TOOL_ARGS_MAX_KEYS:
         return None, "native XML function had too many parameters"
     return {"name": function_name, "arguments": arguments}, ""
-
-
-def _tool_parameter_properties(
-    tool_definitions: Mapping[str, Any] | None,
-    function_name: str,
-) -> dict[str, Any]:
-    if not isinstance(tool_definitions, Mapping):
-        return {}
-    definition = tool_definitions.get(function_name)
-    if not isinstance(definition, Mapping):
-        return {}
-    if isinstance(definition.get("function"), Mapping):
-        definition = definition["function"]
-    parameters = definition.get("parameters")
-    if not isinstance(parameters, Mapping):
-        return {}
-    properties = parameters.get("properties")
-    return dict(properties) if isinstance(properties, Mapping) else {}
-
-
-def _strip_native_xml_framing(value: str) -> str:
-    """Remove template framing newlines without changing parameter content."""
-
-    result = value
-    if result.startswith("\r\n"):
-        result = result[2:]
-    elif result.startswith("\n"):
-        result = result[1:]
-    if result.endswith("\r\n"):
-        result = result[:-2]
-    elif result.endswith("\n"):
-        result = result[:-1]
-    return result
-
-
-def _coerce_native_xml_parameter(value: str, property_schema: Any) -> Any:
-    """Convert one XML value only when the advertised schema names its type."""
-
-    schema = property_schema if isinstance(property_schema, Mapping) else {}
-    expected = schema.get("type")
-    if expected == "string" or not isinstance(expected, str):
-        return value
-    compact = value.strip()
-    if expected == "integer":
-        if re.fullmatch(r"[-+]?\d+", compact) is None:
-            raise ValueError("expected integer")
-        return int(compact)
-    if expected == "number":
-        if re.fullmatch(
-            r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?",
-            compact,
-        ) is None:
-            raise ValueError("expected number")
-        return float(compact) if any(char in compact for char in ".eE") else int(compact)
-    if expected == "boolean":
-        if compact.casefold() == "true":
-            return True
-        if compact.casefold() == "false":
-            return False
-        raise ValueError("expected boolean")
-    if expected in {"array", "object"}:
-        try:
-            parsed = json.loads(compact)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"expected JSON {expected}") from exc
-        if expected == "array" and not isinstance(parsed, list):
-            raise ValueError("expected JSON array")
-        if expected == "object" and not isinstance(parsed, dict):
-            raise ValueError("expected JSON object")
-        return parsed
-    if expected == "null":
-        if compact.casefold() != "null":
-            raise ValueError("expected null")
-        return None
-    return value
 
 
 def _json_depth(value: Any, *, _depth: int = 0) -> int:
