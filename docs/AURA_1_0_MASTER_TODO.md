@@ -3573,6 +3573,26 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the words against 5.4 and 6.7 s with the prompt rebuilt. A turn that asks
   her to act, or about what she can do or her runtime, still takes her
   governed route.
+  11 November, afternoon, measured live with tools/voice/a_spoken_turn.py
+  (which now plays as her window does and counts underruns). Fixed on the
+  way: her voice socket was not read while the session opened (closed by
+  keepalive); the live context opened on 12,326 tokens; her worker's
+  control answers (read_ahead, pin, clear_cache) were dropped by her
+  client; her recognizer segfaulted her runtime twice and now runs in its
+  own process; background work on her CPU model held her GPU's gate for
+  80 s; her live reply now soft-cancels background holders while it
+  waits. Her voice decodes in windows sized to her measured pace (one long
+  reply went from 393 underruns to 13), and her thought holds while her
+  voice makes speech, so the two take turns on the GPU: of fourteen
+  sentences, all at 10 steps, thirteen ran faster than real time and one at
+  0.99. First audio after the person stops, on an open session: 1.50 and
+  1.16 s; on the first turn after a restart, 4.87 s. Bryan chose adaptive
+  diffusion steps (10, and 6 for a sentence body that fell behind; 5 left
+  hiss in pauses, which he heard as a tick). Open: long replies still have
+  silences between sentences (the longest, 6.0 s); a draft her surface
+  check rejects after its sentences were spoken is rewritten silently
+  (38.8 s and 46 s silences, both self_claim_contradiction); the first turn
+  after a restart pays her opening work.
 - [x] U03 Vision/camera: permission, detailed perception, freshness, source
   attribution, and graceful device failure without invented observations.
   CLOSED 2026-11-11. Bryan: "yes that was the room! she was correct", of her
