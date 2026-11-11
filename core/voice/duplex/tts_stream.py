@@ -71,6 +71,8 @@ class SynthesisResult:
     text: str
     synth_ms: float
     engine: str
+    # False while more audio of this same clause follows: her voice as it forms (synthesize_as_it_forms).
+    ends_clause: bool = True
 
     @property
     def duration_s(self) -> float:
@@ -644,6 +646,13 @@ class StreamingTts:
         text = (text or "").strip()
         if not text or token.cancelled:
             return None
+        text = self._spoken_form(text)
+        if not await self.ensure_loaded():
+            return None
+        return await self._synthesize_whole(text, spec, token)
+
+    @staticmethod
+    def _spoken_form(text: str) -> str:
         # The synthesiser pronounces characters, not meaning: "$1.5B", "45%",
         # "2026-07-27" and "https://…" all reach the listener as noise unless
         # something turns them into the words a person would say. Kokoro takes
@@ -663,9 +672,11 @@ class StreamingTts:
                 severity="warning",
                 action="synthesised the raw clause without spoken-form normalisation",
             )
-        if not await self.ensure_loaded():
-            return None
+        return text
 
+    async def _synthesize_whole(
+        self, text: str, spec: ProsodySpec, token: CancellationToken,
+    ) -> SynthesisResult | None:
         started = time.perf_counter()
         loop = asyncio.get_running_loop()
         release_deferred_to_native_completion = False
@@ -749,6 +760,108 @@ class StreamingTts:
             if not release_deferred_to_native_completion:
                 self._finish_synthesis()
 
+    def _forms_as_it_speaks(self) -> Any:
+        """Her engine, when it can send a clause in pieces as it forms and nothing would need the whole clause."""
+        engine = self._state.pocket
+        if (self._state.clone is None and engine is not None and getattr(engine, "streams", False) is True
+                and callable(getattr(engine, "synthesize_pieces", None)) and self._config.treatment == "clean"):
+            return engine
+        return None
+
+    async def synthesize_as_it_forms(
+        self, text: str, spec: ProsodySpec, token: CancellationToken,
+    ) -> AsyncIterator[SynthesisResult]:
+        """One clause, its audio yielded as her voice forms it; one whole result where her engine cannot.
+
+        Her worker decodes and sends each stretch of a sentence while the rest is still being made
+        (tools/voice/her_speech_as_it_forms.py), so her first sound waits for her first patch, not her last. What
+        this side adds keeps to that: her gain on every piece, an onset bend on the opening stretch once it is long
+        enough to bend, the trailing pause on the last. A clause that failed before any of it was heard goes to the
+        next engine whole; one that failed after is ended where it was.
+        """
+        text = (text or "").strip()
+        if not text or token.cancelled:
+            return
+        engine = self._forms_as_it_speaks()
+        if engine is None:  # not loaded yet, or an engine that speaks a clause whole
+            result = await self.synthesize(text, spec, token)
+            if result is not None:
+                yield result
+            return
+        text = self._spoken_form(text)
+        if not await self.ensure_loaded():
+            return
+        loop = asyncio.get_running_loop()
+        with self._lifecycle_lock:
+            if not self._accepting_synthesis:
+                return
+            self._active_syntheses += 1
+        pieces: asyncio.Queue[tuple[np.ndarray, int, bool] | BaseException | None] = asyncio.Queue()
+        abandoned = threading.Event()
+
+        def deliver(samples: np.ndarray, rate: int, more: bool) -> None:
+            loop.call_soon_threadsafe(pieces.put_nowait, (samples, rate, more))
+
+        def run() -> None:
+            engine.synthesize_pieces(text, spec, deliver, stopped=lambda: token.cancelled or abandoned.is_set())
+
+        def ended(future: asyncio.Future[Any]) -> None:
+            error = None if future.cancelled() else future.exception()
+            loop.call_soon_threadsafe(pieces.put_nowait, error)
+
+        started = time.perf_counter()
+        synthesis = loop.run_in_executor(self._pool, run)
+        synthesis.add_done_callback(ended)
+        heard_any, held = False, []
+        glide = (int(round(OUTPUT_RATE * spec.glide_ms / 1000.0))
+                 if spec.onset_bend_cents > 0.0 and spec.glide_ms > 0.0 else 0)
+        try:
+            while True:
+                item = await pieces.get()
+                if item is None:
+                    break
+                if isinstance(item, BaseException):
+                    if not heard_any and not token.cancelled:
+                        record_degradation("voice_duplex.tts", item, severity="warning",
+                                           action=f"{engine.name} failed before the clause was heard; spoke it whole")
+                        result = await self._synthesize_whole(text, spec, token)
+                        if result is not None:
+                            yield result
+                    elif not token.cancelled:
+                        record_degradation("voice_duplex.tts", item, severity="warning",
+                                           action=f"{engine.name} failed mid-clause; ended the clause there")
+                    break
+                samples, rate, more = item
+                if token.cancelled:
+                    continue  # her worker is told to stop; its last message still has to be read
+                samples = _resample(samples, rate, OUTPUT_RATE)
+                if glide and not heard_any:
+                    held.append(samples)
+                    opening = np.concatenate(held)
+                    if opening.size <= glide and more:
+                        continue  # too short to arrive at the note across; wait for the next stretch
+                    from core.voice.duplex.pitch import bend_into
+
+                    samples, held = bend_into(opening, OUTPUT_RATE, spec.onset_bend_cents, spec.glide_ms), []
+                if spec.gain != 1.0:
+                    samples = samples * float(spec.gain)
+                if not more and spec.trailing_pause_ms > 0:
+                    pad = int(OUTPUT_RATE * spec.trailing_pause_ms / 1000.0)
+                    samples = np.concatenate((samples, np.zeros(max(0, pad), dtype=np.float32)))
+                if not samples.size and more:
+                    continue
+                heard_any = heard_any or bool(samples.size)
+                yield SynthesisResult(
+                    samples=samples.astype(np.float32, copy=False), sample_rate=OUTPUT_RATE, text=text,
+                    synth_ms=(time.perf_counter() - started) * 1000.0, engine=engine.name, ends_clause=not more)
+        finally:
+            abandoned.set()
+            if synthesis.done():
+                self._finish_synthesis()
+            else:
+                # Native code still holds the weights until her worker's last message is read.
+                synthesis.add_done_callback(self._cancelled_synthesis_done)
+
     def _finish_synthesis(self) -> None:
         detached = None
         with self._lifecycle_lock:
@@ -787,43 +900,49 @@ class StreamingTts:
         clause boundary, which is exactly the artefact that makes streaming
         TTS sound synthetic.
         """
-        pending: asyncio.Task[tuple[bool, SynthesisResult | None]] | None = None
         # A line is arrived at once. The bend belongs to the first chunk of the
         # utterance, and every chunk after it is spoken from where it arrived.
         first = [True]
-
         source = aiter(chunks)
+        results: asyncio.Queue[SynthesisResult | BaseException | None] = asyncio.Queue()
 
-        async def _next_result() -> tuple[bool, SynthesisResult | None]:
-            while not token.cancelled:
-                try:
-                    chunk = await anext(source)
-                except StopAsyncIteration:
-                    return False, None
-                text = (chunk or "").strip()
-                if not text:
-                    continue
-                chunk_spec = spec if first[0] else spec.without_bend()
-                first[0] = False
-                return True, await self.synthesize(text, chunk_spec, token)
-            return False, None
+        async def _produce() -> None:
+            # The next clause is fetched and synthesised while this one is sent, and a clause's pieces go out as
+            # they form, so a ready first clause never waits for another model token or for its own last patch.
+            try:
+                while not token.cancelled:
+                    try:
+                        chunk = await anext(source)
+                    except StopAsyncIteration:
+                        return
+                    text = (chunk or "").strip()
+                    if not text:
+                        continue
+                    chunk_spec = spec if first[0] else spec.without_bend()
+                    first[0] = False
+                    async for result in self.synthesize_as_it_forms(text, chunk_spec, token):
+                        results.put_nowait(result)
+            except asyncio.CancelledError:
+                raise
+            except (RuntimeError, ValueError, OSError, AttributeError, TypeError) as exc:
+                results.put_nowait(exc)  # raised where the clauses are consumed, as before
+            finally:
+                results.put_nowait(None)
 
+        producer = get_task_tracker().create_task(_produce(), name="VoiceTTSStream.synthesize_chunk")
         try:
-            pending = get_task_tracker().create_task(_next_result(), name="VoiceTTSStream.synthesize_chunk")
             while not token.cancelled:
-                more, result = await pending
-                if not more or token.cancelled:
+                result = await results.get()
+                if result is None or token.cancelled:
                     break
-                # Fetch and synthesise the next clause while this one is sent.
-                # A ready first clause must never wait for another model token.
-                pending = get_task_tracker().create_task(_next_result(), name="VoiceTTSStream.synthesize_chunk")
-                if result is not None:
-                    yield result
+                if isinstance(result, BaseException):
+                    raise result
+                yield result
         finally:
-            if pending is not None and not pending.done():
-                pending.cancel()
+            if not producer.done():
+                producer.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
-                    await pending
+                    await producer
 
     def shutdown(self) -> None:
         detached = None

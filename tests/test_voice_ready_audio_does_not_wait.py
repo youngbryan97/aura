@@ -12,6 +12,10 @@ from core.voice.duplex.tts_stream import CancellationToken, StreamingTts, Synthe
 
 class Synthesizer:
     stream = StreamingTts.stream
+    synthesize_as_it_forms = StreamingTts.synthesize_as_it_forms
+
+    def _forms_as_it_speaks(self):
+        return None  # a clause is synthesised whole here
 
     async def synthesize(self, text, spec, token):
         return SynthesisResult(np.ones(24, dtype=np.float32), 24000, text, 1.0, "test")

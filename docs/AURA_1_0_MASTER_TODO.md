@@ -3549,6 +3549,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
      design of the open speech-native models), trained on her own speech,
      so her tone follows what she means and sound begins with her first
      tokens.
+  11 November, stage 2, her voice as it forms: VoxCPM2's audio decoder is
+  causal, so her worker now decodes each new run of patches with the five
+  patches before it (its receptive field, read from its layers) and sends
+  it at once (tools/voice/her_speech_as_it_forms.py). Through her own
+  worker, the streamed sentence matched the whole one at 140.3, 84.6,
+  124.2 and 83.3 dB, which is the same audio. For a seventeen-word sentence
+  her first sound came 0.72 s after the request, and the whole sentence
+  took 11.73 s on a loaded machine (tools/voice/prove_speech_as_it_forms.py).
+  Her pace is WSOLA on the stream, which drops the last 80 ms of every
+  sentence unless silence follows it; it is given silence. A barge-in
+  tells her worker to stop making the sentence. What is still too slow
+  is the GPU it shares: one patch (160 ms of audio) took 117 ms with the
+  GPU quiet and 480 ms beside her goal pass reading a 32,383 character
+  prompt, so after the first piece every piece came late.
+  Next: her background generation stands aside during a live turn.
 - [x] U03 Vision/camera: permission, detailed perception, freshness, source
   attribution, and graceful device failure without invented observations.
   CLOSED 2026-11-11. Bryan: "yes that was the room! she was correct", of her

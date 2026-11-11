@@ -57,8 +57,58 @@ def prepare_model(model, settings: dict, mx, nn) -> None:
         mx.clear_cache()
 
 
+class _Requests:
+    """Her worker's stdin as lines, readable without waiting: a stop can arrive while a sentence is being made."""
+
+    def __init__(self, fd: int = 0) -> None:
+        self._fd, self._buffer, self._closed = fd, bytearray(), False
+
+    def _fill(self, timeout: float | None) -> None:
+        import os
+        import select
+
+        if self._closed or not select.select([self._fd], [], [], timeout)[0]:
+            return
+        data = os.read(self._fd, 65536)
+        if not data:
+            self._closed = True
+        self._buffer.extend(data)
+
+    def _take(self) -> str | None:
+        if b"\n" not in self._buffer:
+            return None
+        line, _, rest = self._buffer.partition(b"\n")
+        self._buffer = bytearray(rest)
+        return line.decode("utf-8", "replace") + "\n"
+
+    def __iter__(self):
+        while True:
+            line = self._take()
+            while line is None and not self._closed:
+                self._fill(None)
+                line = self._take()
+            if line is None:
+                return
+            yield line
+
+    def stop_asked(self) -> bool:
+        """A stop waiting in the pipe, taken from it; any other line stays for the main loop."""
+        self._fill(0)
+        if b"\n" not in self._buffer:
+            return False
+        line, _, rest = self._buffer.partition(b"\n")
+        try:
+            asked = json.loads(line).get("stop") is True
+        except (ValueError, AttributeError):
+            asked = False
+        if asked:
+            self._buffer = bytearray(rest)
+        return asked
+
+
 def main() -> None:
     output = sys.stdout
+    requests = _Requests()
 
     def send(message):
         output.write(json.dumps(message) + "\n")
@@ -99,6 +149,7 @@ def main() -> None:
                     raise ValueError("Speech output rate must be 24000 or 48000 Hz")
                 if output_rate != rate:
                     import math
+
                     from scipy.signal import resample_poly
 
                     divisor = math.gcd(rate, output_rate)
@@ -118,17 +169,60 @@ def main() -> None:
                     audio = librosa.effects.time_stretch(audio, rate=max(.85, min(1.15, speed)))
                 return audio, rate
 
+            # Her voice as it forms (her_speech_as_it_forms.py): VoxCPM2 only, whose decoder is causal.
+            streams = settings.get("engine") == "voxcpm2" and int(model.sample_rate) % int(
+                settings.get("output_sample_rate", model.sample_rate)) == 0
+            if streams:
+                sys.path.insert(0, str(Path(__file__).resolve().parent))
+                from her_speech_as_it_forms import (
+                    Level,
+                    prompt_patches,
+                    receptive_patches,
+                    speak_as_it_forms,
+                )
+
+                lookback = receptive_patches(model.audio_vae.decoder, model.patch_size)
+                context = prompt_patches(model, options["prompt_audio"])
+                level = Level(float(settings.get("output_rms", 0.)))
+                timing = {"decode_s_per_patch": 0.0}
+
+            def generate_as_it_forms(text, speed, deliver):
+                if seed is not None:
+                    mx.random.seed(seed)
+                sentence = speak_as_it_forms(
+                    model, text, options, mx=mx, prompt_context=context, lookback=lookback,
+                    out_rate=int(settings.get("output_sample_rate", model.sample_rate)), speed=speed, level=level,
+                    decode_s_per_patch=timing["decode_s_per_patch"], send=deliver,
+                    should_stop=requests.stop_asked)
+                timing["decode_s_per_patch"] = sentence.decode_s_per_patch
+                return sentence
+
             mx.random.seed(73619)
             import librosa
 
             librosa.effects.time_stretch(np.zeros(4096, dtype=np.float32), rate=1.01)
             generate("I'm here.")
-        send({"ready": True})
-        for line in sys.stdin:
+            if streams:
+                # Her first streamed sentence learns her decode cost and loudness before anyone hears one.
+                generate_as_it_forms("I'm here, and I can hear you.", 1.0, lambda audio, more: None)
+        send({"ready": True, "streams": bool(streams)})
+        for line in requests:
             try:
                 if len(line) > 32768:
                     raise ValueError("Speech request too large")
                 message = json.loads(line)
+                if message.get("stop") is True:
+                    continue  # a stop that came after its sentence had ended: nothing to answer
+                if message.get("stream") is True and streams:
+                    rate = int(settings.get("output_sample_rate", model.sample_rate))
+
+                    def deliver(audio, more, rate=rate):
+                        send({"audio": base64.b64encode(np.asarray(audio, dtype='<f4').tobytes()).decode(),
+                              "sample_rate": rate, "more": bool(more)})
+
+                    with contextlib.redirect_stdout(sys.stderr):
+                        generate_as_it_forms(str(message["text"]), float(message.get("speed", 1.)), deliver)
+                    continue
                 with contextlib.redirect_stdout(sys.stderr):
                     audio, rate = generate(str(message["text"]), float(message.get("speed", 1.)))
                 send({"audio": base64.b64encode(audio.astype('<f4').tobytes()).decode(),

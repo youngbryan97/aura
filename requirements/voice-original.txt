@@ -3,3 +3,5 @@
 mlx-audio==0.6.1
 librosa==0.11.0
 soundfile==0.14.0
+# Her pace as her voice forms, streamed (tools/voice/her_speech_as_it_forms.py).
+audiotsm==0.1.2

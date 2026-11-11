@@ -29,6 +29,7 @@ class OriginalSpeech:
         self.name = engine
         self.process: subprocess.Popen | None = None
         self.voices = frozenset({"aura_velvet"})
+        self.streams = False  # her worker sends a sentence in pieces as it forms (her_speech_as_it_forms.py)
         self._buffer = bytearray()
         self._lock = checked_lock("voice.tts.reference_worker", rank=LockRank.LEAF)
 
@@ -90,8 +91,10 @@ class OriginalSpeech:
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 bufsize=0, env=environment,
             )
-            if self._receive(90).get("ready") is not True:
+            ready = self._receive(90)
+            if ready.get("ready") is not True:
                 raise RuntimeError("Original speech worker did not become ready")
+            self.streams = ready.get("streams") is True
             self.voices = frozenset({voice_id})
             return True
         except (OSError, RuntimeError, ValueError, KeyError, TypeError) as exc:
@@ -117,6 +120,35 @@ class OriginalSpeech:
         if not np.isfinite(audio).all():
             raise ValueError("Original speech returned nonfinite audio")
         return audio, int(result["sample_rate"])
+
+    def synthesize_pieces(self, text: str, spec: Any, deliver: Any, stopped: Any = None) -> None:
+        """Hand ``deliver(samples, rate, more)`` each piece of the sentence as her worker sends it.
+
+        The pipe is held for the whole sentence, as for ``synthesize``: its pieces must all arrive before another
+        request can use the worker. Each piece has the per-response bound, so a worker that stops mid-sentence is
+        closed rather than left to send its tail into the next sentence. When ``stopped()`` turns true (she was cut
+        off) the worker is told to stop making the sentence, and its last message is still read.
+        """
+        with self._lock:
+            if self.process is None or self.process.stdin is None:
+                raise RuntimeError("Original speech worker is not loaded")
+            request = json.dumps({"text": text, "speed": float(spec.speed), "stream": True}) + "\n"
+            try:
+                self.process.stdin.write(request.encode())
+                more, asked_to_stop = True, False
+                while more:
+                    if not asked_to_stop and stopped is not None and stopped():
+                        self.process.stdin.write(b'{"stop": true}\n')
+                        asked_to_stop = True
+                    result = self._receive(45)
+                    more = result.get("more") is True
+                    audio = np.frombuffer(base64.b64decode(result["audio"], validate=True), dtype="<f4").copy()
+                    if not np.isfinite(audio).all():
+                        raise ValueError("Original speech returned nonfinite audio")
+                    deliver(audio, int(result["sample_rate"]), more)
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError):
+                self.close()
+                raise
 
     def close(self) -> None:
         process, self.process = self.process, None

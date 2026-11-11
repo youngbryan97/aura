@@ -24,7 +24,7 @@ import contextlib
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -74,6 +74,7 @@ from core.voice.duplex.prosody import (
     live_affect,
     live_speech_profile,
 )
+from core.voice.duplex.speaking_track import SpeakingTrack as _SpeakingTrack
 from core.voice.duplex.streaming_asr import StreamingAsr, looks_hallucinated
 from core.voice.duplex.style import StyleController
 from core.voice.duplex.tts_stream import CancellationToken, StreamingTts
@@ -164,46 +165,6 @@ class TurnMetrics:
             "tts_first_chunk_ms": round(self.tts_first_chunk_ms, 1),
             "time_to_first_audio_ms": round(ttfa, 1),
         }
-
-
-@dataclass(slots=True)
-class _SpeakingTrack:
-    """Bookkeeping for the utterance currently being played.
-
-    ``chunks`` records the text and duration of every chunk handed to the
-    client, so a barge-in can be mapped back to the exact words the user
-    actually heard rather than the whole reply she intended.
-    """
-
-    utterance_id: int = 0
-    intended: str = ""
-    chunks: list[tuple[str, float]] = field(default_factory=list)
-    sent_duration_s: float = 0.0
-    started_at: float = 0.0
-    token: CancellationToken = field(default_factory=CancellationToken)
-
-    def spoken_prefix(self, played_s: float) -> str:
-        """The text corresponding to ``played_s`` seconds of playback."""
-        if played_s <= 0:
-            return ""
-        out: list[str] = []
-        remaining = played_s
-        for text, duration in self.chunks:
-            if remaining <= 0:
-                break
-            if remaining >= duration:
-                out.append(text)
-                remaining -= duration
-                continue
-            # Partially played chunk: approximate by word fraction. Speech
-            # is not uniform in time, but for the purpose of "what did they
-            # hear" a proportional cut is far closer than all-or-nothing.
-            words = text.split()
-            if words:
-                take = max(1, int(len(words) * (remaining / max(duration, 1e-6))))
-                out.append(" ".join(words[:take]))
-            remaining = 0
-        return " ".join(out).strip()
 
 
 def _measure_cognition(metrics: Any, turn: Any, started: float) -> None:
@@ -1601,30 +1562,36 @@ class DuplexVoiceSession:
         seq = 0
         first_audio = True
         synthesis_failed = False
+        # A clause can arrive in pieces as her voice forms it (StreamingTts.synthesize_as_it_forms). It is still one
+        # clause: one caption, one record of words, its duration the sum of its pieces.
+        clause_open = False
         try:
             async for result in self._tts.stream(_iter_chunks(), spec, track.token):
                 if track.token.cancelled or self._speaking is not track:
                     break
-                if first_audio:
+                if first_audio and result.samples.size:
                     self._stop_fillers()
                     self._metrics.first_audio_at = time.monotonic()
                     self._metrics.tts_first_chunk_ms = result.synth_ms
                     first_audio = False
 
-                track.chunks.append((result.text, result.duration_s))
-                track.sent_duration_s += result.duration_s
+                track.sent_piece(result.text, result.duration_s, continues_clause=clause_open)
                 # Register the words so that if they come back through the
                 # microphone a moment later, the echo guard recognises them.
-                self._echo.note_spoken(result.text, result.samples, OUTPUT_RATE)
+                self._echo.note_spoken("" if clause_open else result.text, result.samples, OUTPUT_RATE)
 
-                await self._send_json(
-                    {
-                        "type": protocol.EVT_SPEAKING_CHUNK,
-                        "text": result.text,
-                        "seq": seq,
-                        "utterance_id": track.utterance_id,
-                    }
-                )
+                if not clause_open:
+                    await self._send_json(
+                        {
+                            "type": protocol.EVT_SPEAKING_CHUNK,
+                            "text": result.text,
+                            "seq": seq,
+                            "utterance_id": track.utterance_id,
+                        }
+                    )
+                clause_open = not result.ends_clause
+                if not result.samples.size:
+                    continue  # an empty frame would not advance the client's sequence, and the next would look lost
                 await self._send_binary(
                     protocol.encode_audio(
                         float32_to_pcm16(result.samples),
@@ -1633,6 +1600,8 @@ class DuplexVoiceSession:
                         utterance_id=track.utterance_id,
                     )
                 )
+                track.last_piece_s = result.duration_s
+                self._client_playback_drained = False  # more audio is on its way to be played
                 seq += 1
         except asyncio.CancelledError:
             raise
@@ -1766,6 +1735,9 @@ class DuplexVoiceSession:
             if (
                 self._client_playback_utterance_id == track.utterance_id
                 and self._client_playback_drained
+                # A piece that came late empties the client's buffer mid-reply; only a drain inside the last piece
+                # sent is the end of it.
+                and self._client_played_s > total - track.last_piece_s
             ):
                 return
             if self._client_played_s >= total - 0.05:
