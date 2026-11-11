@@ -51,6 +51,7 @@ from .mlx_worker_loop_steps import (  # noqa: F401  (re-exported: they were defi
     _take_the_restored_newlines,
 )
 from .mlx_worker_pinned_weights import her_weights_pinned
+from .mlx_worker_read_ahead import read_ahead as read_ahead_job
 from .mlx_worker_recurrent_adapters import (  # noqa: F401  (re-exported: they were defined here)
     _attach_certified_recurrent_adapter,
     _handle_unified_recurrent_qualified_decode,
@@ -512,6 +513,9 @@ def _prompt_cache_scope_for_job(job: dict[str, Any]) -> str:
     which is what a stateful conversation already is.
     """
 
+    scope = str(job.get("prompt_cache_scope") or "")  # a voice session's live context keeps its own (live_context.py)
+    if scope.startswith("voice_live:") and len(scope) <= 80:
+        return scope
     return "user_surface" if job.get("clean_user_surface_contract", False) else "default"
 
 
@@ -9734,6 +9738,8 @@ def _mlx_worker_loop(
 
             elif action == "clear_cache":
                 _mlx_worker_loop_clear_both_metal(device, ipc_writer, job, logger, mx, prompt_cache_lru)
+            elif action == "read_ahead":  # a voice session's live context, read while the person speaks
+                read_ahead_job(job, model=model, tokenizer=tokenizer, model_path=model_path, prompt_cache_lru=prompt_cache_lru, ipc_writer=ipc_writer, metal_semaphore=metal_semaphore, mx=mx)
             elif action in ("pin_weights", "release_weights"):  # while voice mode is open (mlx_worker_pinned_weights)
                 her_weights_pinned(action == "pin_weights", device=device, ipc_writer=ipc_writer, job=job, mx=mx, model=model)
 

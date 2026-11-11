@@ -3563,7 +3563,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   is the GPU it shares: one patch (160 ms of audio) took 117 ms with the
   GPU quiet and 480 ms beside her goal pass reading a 32,383 character
   prompt, so after the first piece every piece came late.
-  Next: her background generation stands aside during a live turn.
+  Her background generation now stands aside during a live turn, from the
+  person's first word until her last has played: what holds her model is
+  asked to stop when the turn begins, and background requests are deferred
+  until it ends. A voice session keeps one conversation her model has read
+  and only adds to it (core/voice/duplex/live_context.py): the turn's
+  evidence is read while the person is still speaking, so when they stop
+  only their words are new; on her cortex the first token came 0.32 s after
+  the words against 5.4 and 6.7 s with the prompt rebuilt. A turn that asks
+  her to act, or about what she can do or her runtime, still takes her
+  governed route.
 - [x] U03 Vision/camera: permission, detailed perception, freshness, source
   attribution, and graceful device failure without invented observations.
   CLOSED 2026-11-11. Bryan: "yes that was the room! she was correct", of her

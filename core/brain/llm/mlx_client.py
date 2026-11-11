@@ -4900,6 +4900,7 @@ def _build_the_generation_request(
         "semantic_output_token_cap": kwargs.get("semantic_output_token_cap"),
         "hard_output_token_ceiling": hard_output_token_ceiling, "private_channel_budget": kwargs.get("private_channel_budget"),
         "schema": kwargs.get("schema"),
+        "prompt_cache_scope": str(kwargs.get("prompt_cache_scope") or "")[:80],
         "stop_sequences": list(kwargs.get("stop_sequences") or []),
         "strict_answer_contract": bool(kwargs.get("strict_answer_contract", False)),
         "strict_value_contract": bool(kwargs.get("strict_value_contract", False)),

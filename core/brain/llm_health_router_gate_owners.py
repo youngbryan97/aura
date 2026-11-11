@@ -6,7 +6,7 @@ take from that module is imported at CALL time, for the same reason.
 """
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
@@ -36,10 +36,50 @@ def _a_person_waits() -> Iterator[None]:
             _PEOPLE_WAITING -= 1
 
 
+_LIVE_TURNS: set[str] = set()
+
+
+def a_live_turn(session: str, live: bool) -> None:
+    """A person and she are in a turn of a live conversation: voice mode, from their first word until her last has
+    played. Her background generation stands aside until it ends, and what of it holds her model now is asked to stop.
+
+    Her voice is made on the same GPU as her cortex's work. LIVE 11 November 2026: one patch of her voice (160 ms of
+    audio) took 122 ms to make with the GPU quiet and 415 ms beside her goal pass reading a 32,383-character prompt,
+    so every piece of a reply after the first arrived late
+    (~/.aura/voice-lab/kiwi-reference/clean-2026-11-11/patch_profile.py).
+    """
+    key = str(session or "voice")
+    with _PEOPLE_WAITING_LOCK:
+        began = live and key not in _LIVE_TURNS
+        if live:
+            _LIVE_TURNS.add(key)
+        else:
+            _LIVE_TURNS.discard(key)
+    if began:
+        _background_stands_aside(f"a live turn began: {key[:40]}")
+
+
+def a_live_turn_is_under_way() -> bool:
+    with _PEOPLE_WAITING_LOCK:
+        return bool(_LIVE_TURNS)
+
+
+def _background_stands_aside(reason: str) -> None:
+    """Ask what of her background work holds her model to stop; a person's own reply is never asked."""
+    from .llm_health_router import _oldest_generation_gate_lease
+
+    holder = _oldest_generation_gate_lease()
+    if holder is None or _lease_is_user_foreground(holder[0], holder[2]):
+        return
+    from core.brain.llm.mlx_client import soft_cancel_active_generations
+
+    soft_cancel_active_generations(reason=reason)
+
+
 def a_person_is_waiting_for_her_model() -> bool:
     """Whether a person's turn is waiting at the generation gate right now."""
     with _PEOPLE_WAITING_LOCK:
-        return _PEOPLE_WAITING > 0
+        return _PEOPLE_WAITING > 0 or bool(_LIVE_TURNS)
 
 
 def _generation_gate_busy_result(owner: str) -> dict[str, Any]:
@@ -52,6 +92,43 @@ def _generation_gate_busy_result(owner: str) -> dict[str, Any]:
         f"refusing to force-release owner={str(owner or 'unknown')[:120]}"
     )
     return result
+
+
+def _background_generation_gate_deferred_result(owner: str) -> dict[str, Any]:
+    from .llm_health_router import _GATE_SATURATION_RESULT
+
+    result = dict(_GATE_SATURATION_RESULT)
+    result.update(
+        {
+            "endpoint": "generation_gate_background_deferred",
+            "deferred": True,
+            "retryable": True,
+            "error": (
+                "background generation deferred while the local generation lane "
+                f"is owned by {str(owner or 'unknown')[:120]}"
+            ),
+        }
+    )
+    return result
+
+
+def _declared_background_deferral_reason(result: Mapping[str, Any]) -> str:
+    """Extract only explicit admission deferrals from a router result."""
+    error = str(result.get("error", "") or "").strip()
+    normalized = error.lower()
+    if normalized.startswith("background_deferred:"):
+        return error.split(":", 1)[1].strip() or "background_deferred"
+    if bool(result.get("deferred", False)):
+        return error or str(result.get("endpoint", "") or "background_deferred")
+    if normalized in {
+        "foreground_busy",
+        "foreground_quiet_window",
+        "desktop_background_local_disabled",
+    }:
+        return error
+    if normalized.startswith("desktop_background_headroom:"):
+        return error
+    return ""
 
 
 def _generation_owner_is_user_foreground(owner: str) -> bool:

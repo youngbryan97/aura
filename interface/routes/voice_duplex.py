@@ -26,9 +26,12 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from core.brain.llm.her_pinned_weights import a_voice_session_closed, a_voice_session_opened
+from core.brain.llm_health_router_gate_owners import a_live_turn
+from core.conversation.delivered_history import VISIBLE_CONVERSATION_EXCHANGES
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.voice.duplex.config import DuplexConfig
+from core.voice.duplex.live_context import HerLiveContext
 from core.voice.duplex.mind_bridge import MindBridge
 from core.voice.duplex.model_runtime import (
     get_voice_model_runtime,
@@ -423,6 +426,11 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
                 if not principal_authorized():
                     raise RuntimeError("voice_principal_authorization_revoked")
                 await ws.send_text(json.dumps(payload, default=str))
+            if payload.get("type") == "voice.state":
+                # A live turn runs from their first word to her last played (llm_health_router_gate_owners.py).
+                a_live_turn(conversation_key, payload.get("state") in ("user_speaking", "thinking", "speaking"))
+                if payload.get("state") == "user_speaking":
+                    live.a_person_began_to_speak()  # her live context reads the turn's evidence while they talk
 
         async def send_binary(payload: bytes) -> None:
             async with send_lock:
@@ -436,6 +444,32 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             device_session.device_id if device_session is not None else None,
             host,
         )
+
+        async def her_live_record(words: str, reply: str) -> None:
+            from interface.routes import chat_preflight
+
+            await chat_preflight._log_exchange(words, reply, session_id=conversation_key)
+
+        live = HerLiveContext(conversation_key, record=her_live_record)
+
+        async def responder(
+            transcript: str,
+            *,
+            effective_message: str,
+            session_id: str,
+            timeout_s: float,
+            reply_stream: Any = None,
+        ) -> str | None:
+            """Her live context answers a conversational turn; her governed route answers the rest, and any turn the
+            live context could not (core/voice/duplex/live_context.py)."""
+            if live.answers(transcript):
+                reply = await live.answer(transcript, reply_stream=reply_stream, timeout_s=timeout_s)
+                if reply is not None:
+                    return reply
+            reply = await governed_responder(transcript, effective_message=effective_message, session_id=session_id,
+                                             timeout_s=timeout_s, reply_stream=reply_stream)
+            live.heard_elsewhere(transcript, reply or "")
+            return reply
 
         async def governed_responder(
             transcript: str,
@@ -467,7 +501,7 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             send_json=send_json,
             send_binary=send_binary,
             config=session_config,
-            mind=MindBridge(session_id=session_id, responder=governed_responder),
+            mind=MindBridge(session_id=session_id, responder=responder),
             asr=model_runtime.new_asr(),
             tts=model_runtime.tts,
         )
@@ -534,6 +568,11 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             # Her cortex's weights stay resident while voice mode is open (core/brain/llm/her_pinned_weights.py).
             pinned = True
             await asyncio.to_thread(a_voice_session_opened)
+            from interface.routes import chat_memory_state
+
+            await live.open(await chat_memory_state._recent_completed_conversation_exchanges(
+                current_user_message="", session_id=conversation_key, limit=VISIBLE_CONVERSATION_EXCHANGES,
+                allow_cross_session=True))
 
             connected = True
             while connected and not authorization_revoked.is_set():
@@ -592,6 +631,7 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             reserved_session_id = ""
             if pinned:
                 await asyncio.to_thread(a_voice_session_closed)
+            a_live_turn(conversation_key, False)  # a socket that died mid-turn sent no last state
             logger.info("Voice session %s closed", session_id)
 
     except WebSocketDisconnect as exc:

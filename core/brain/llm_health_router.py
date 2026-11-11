@@ -84,12 +84,15 @@ from core.utils.task_tracker import (
 
 from .llm_health_router_endpoint_call import _CallsTheEndpoint
 from .llm_health_router_gate_owners import (  # noqa: F401  (re-exported: they were defined here)
-    a_person_is_waiting_for_her_model,
-    asks_for_a_reply,
     _a_person_waits,
+    _background_generation_gate_deferred_result,
+    _declared_background_deferral_reason,
     _generation_gate_busy_result,
     _generation_owner_is_user_foreground,
     _lease_is_user_foreground,
+    a_live_turn_is_under_way,
+    a_person_is_waiting_for_her_model,
+    asks_for_a_reply,
 )
 from .llm_health_router_gate_readings import (  # noqa: F401  (re-exported: they were defined here)
     _gate_clock,
@@ -231,22 +234,6 @@ def _generation_gate_lease_has_time(
     return current < float(deadline)
 
 
-def _background_generation_gate_deferred_result(owner: str) -> dict[str, Any]:
-    result = dict(_GATE_SATURATION_RESULT)
-    result.update(
-        {
-            "endpoint": "generation_gate_background_deferred",
-            "deferred": True,
-            "retryable": True,
-            "error": (
-                "background generation deferred while the local generation lane "
-                f"is owned by {str(owner or 'unknown')[:120]}"
-            ),
-        }
-    )
-    return result
-
-
 #: Work done inside a person's turn that the reply does not wait for: the
 #: InferencePhase's reading of the message's subtext is advice to the phases
 #: after it. A reply may preempt it; it may not preempt a reply.
@@ -348,6 +335,7 @@ async def acquire_external_generation_gate_lease(
     owner: str,
     timeout_s: float,
     wait_s: float = 5.0,
+    foreground: bool = False,
 ) -> int | None:
     """Admit direct resident-model work into the process-wide generation lane.
 
@@ -377,6 +365,7 @@ async def acquire_external_generation_gate_lease(
     return _mark_generation_gate_acquired(
         str(owner or "external_generation"),
         timeout_s=bounded_timeout,
+        foreground=bool(foreground),
     )
 
 
@@ -1221,25 +1210,6 @@ def _background_error_is_quiet(error: str) -> bool:
     ))
 
 
-def _declared_background_deferral_reason(result: Mapping[str, Any]) -> str:
-    """Extract only explicit admission deferrals from a router result."""
-    error = str(result.get("error", "") or "").strip()
-    normalized = error.lower()
-    if normalized.startswith("background_deferred:"):
-        return error.split(":", 1)[1].strip() or "background_deferred"
-    if bool(result.get("deferred", False)):
-        return error or str(result.get("endpoint", "") or "background_deferred")
-    if normalized in {
-        "foreground_busy",
-        "foreground_quiet_window",
-        "desktop_background_local_disabled",
-    }:
-        return error
-    if normalized.startswith("desktop_background_headroom:"):
-        return error
-    return ""
-
-
 def _consume_deliberate_no_text_reason(client: Any) -> str:
     """Why the client last returned no text ON PURPOSE, if it did.
 
@@ -1925,6 +1895,8 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             foreground_owner = _active_foreground_generation_owner()
             if foreground_owner:
                 return _generation_gate_busy_result(foreground_owner)
+            if a_live_turn_is_under_way():  # her voice needs the GPU her background work would take (gate_owners)
+                return _background_generation_gate_deferred_result("a live conversation turn")
 
         early_deferral = self._background_suppression_result(
             origin=origin,
