@@ -331,3 +331,53 @@ def test_one_slow_patch_does_not_hold_back_her_sentence():
     sentence, pieces = _a_sentence_at_her_pace(60, made, 0.009, carried=0.12)
     assert pieces[0][0] < 1.5
     assert sum(gap for gap in _played(pieces)) < 0.6
+
+
+def test_her_steps_drop_only_for_a_sentence_after_one_that_fell_behind_and_come_back():
+    """Bryan, 11 November 2026: adaptive. 10 steps while she keeps ahead; 5 after a sentence fell behind; 10 again once
+    a 5-step sentence ran fast enough that 10 would have kept ahead too."""
+    from tools.voice.her_speech_as_it_forms import next_body_steps
+
+    choose = lambda body, real_time: next_body_steps(body, full=10, busy=5, real_time=real_time,  # noqa: E731
+                                                     busy_per_full=0.66)
+    assert choose(10, 1.2) == 10
+    assert choose(10, 0.85) == 5
+    assert choose(5, 1.3) == 5  # at 10 steps that would have been 0.86 of real time
+    assert choose(5, 1.6) == 10  # at 10 steps, 1.06
+    assert next_body_steps(5, full=10, busy=5, real_time=3.0, busy_per_full=None) == 5  # nothing measured to return by
+
+
+def test_a_sentences_onset_is_made_at_full_steps_and_its_body_at_its_body_steps():
+    """At 5 steps Bryan heard noise at the beginning; it lies inside the first two patches, so those stay at full."""
+    from tools.voice import her_speech_as_it_forms as forms
+
+    asked = []
+
+    class _Decoder:
+        def sample(self, *, mu=None, n_timesteps=0, patch_size=PATCH, cond=None, cfg_value=1.0):
+            asked.append(n_timesteps)
+            return np.zeros((1, 1, PATCH), np.float32)
+
+    class _Model:
+        patch_size, sample_rate = PATCH, 48000
+        feat_decoder = _Decoder()
+        audio_vae = SimpleNamespace(decode_chunk_size=FRAME, decode=lambda window: np.zeros((1, window.shape[1] * FRAME),
+                                                                                              np.float32))
+
+        def generate(self, text, **options):
+            for _ in range(6):
+                self.feat_decoder.sample(mu=None, n_timesteps=options["inference_timesteps"], patch_size=PATCH)
+            yield SimpleNamespace(audio=np.zeros(1, np.float32))
+
+    mx = SimpleNamespace(float32=np.float32, eval=lambda *a: None, zeros=lambda shape: np.zeros(shape, np.float32),
+                         concatenate=lambda parts, axis: np.concatenate(parts, axis=axis))
+    model = _Model()
+    forms.speak_as_it_forms(model, "A sentence.", {"inference_timesteps": 10}, mx=mx, prompt_context=[], lookback=2,
+                            out_rate=48000, speed=1.0, level=Level(0.0), decode_s_per_patch=0.0,
+                            send=lambda audio, more, timing=None: None, body_steps=5, onset_steps=10)
+    assert asked == [10] * forms.ONSET_PATCHES + [5] * (6 - forms.ONSET_PATCHES)
+    asked.clear()
+    forms.speak_as_it_forms(model, "A sentence.", {"inference_timesteps": 10}, mx=mx, prompt_context=[], lookback=2,
+                            out_rate=48000, speed=1.0, level=Level(0.0), decode_s_per_patch=0.0,
+                            send=lambda audio, more, timing=None: None)
+    assert asked == [10] * 6  # without adaptive steps, the manifest's steps throughout

@@ -25,6 +25,10 @@ import numpy as np
 
 # The ceiling the whole-sentence path levels to (original_speech_worker.py): no peak above it.
 PEAK_CEILING = .85
+# A sentence's first patches are made at her full diffusion steps whatever its body is made at: at 5 steps, Bryan heard
+# "a little noise that isn't her voice at the beginning"; measured, it starts 80 ms in and is gone by 240 ms, inside
+# the first two patches (11 November 2026, ~/.aura/voice-lab/kiwi-reference/steps-2026-11-11).
+ONSET_PATCHES = 2
 
 
 def causal_lookback(conv: Any) -> int:
@@ -51,6 +55,17 @@ def receptive_patches(decoder: Any, patch_size: int) -> int:
             back += (causal_lookback(unit.conv1) + causal_lookback(unit.conv2)) / rate
     back += causal_lookback(decoder.conv_out) / rate
     return max(1, math.ceil(back / patch_size))
+
+
+def next_body_steps(body: int, *, full: int, busy: int, real_time: float, busy_per_full: float | None) -> int:
+    """The steps her next sentence's body is made at (Bryan, 11 November 2026: adaptive). Full while her voice keeps
+    ahead of the listener; busy for the next sentence once one at full fell behind; full again once one at busy ran
+    fast enough that full would have kept ahead too (its real time scaled by what busy steps cost against full)."""
+    if body == full and real_time < 1:
+        return busy
+    if body == busy and busy_per_full and real_time * busy_per_full >= 1:
+        return full
+    return body
 
 
 class Downsampler:
@@ -186,6 +201,8 @@ class SpeechAsItForms:
         self.first_sent_at: float | None = None
         self.started = clock()
         self.decodes = 0
+        self.real_time = 0.0
+        self.body_steps: int | None = None
         self.patches = 0
         self.decode_s = 0.0
         self.sent_s = 0.0
@@ -294,12 +311,13 @@ class SpeechAsItForms:
     def timing(self, now: float) -> dict[str, Any]:
         """How the sentence was made, for her log: whether her voice kept ahead of the listener, and what it cost."""
         made_s = now - self.started
+        self.real_time = self.sent_s / made_s if made_s > 0 else 0.0
         return {"patches": self.patches, "audio_s": round(self.sent_s, 2), "made_s": round(made_s, 2),
                 "first_sound_s": round((self.first_sent_at or now) - self.started, 2),
                 "slowest_patch_s": round(self._slowest_patch_s, 3), "decode_s": round(self.decode_s, 2),
                 "windows": self.decodes, "real_time": round(self.sent_s / made_s, 2) if made_s > 0 else 0.0,
                 "gen_s_per_patch": round(self.gen_s_per_patch, 3), "decode_s_per_patch": round(self.decode_s_per_patch, 4),
-                "window": self.window()}
+                "window": self.window(), "body_steps": self.body_steps}
 
     def finish(self) -> None:
         self._flush(last=True)
@@ -316,7 +334,8 @@ def speak_as_it_forms(model: Any, text: str, options: dict[str, Any], *, mx: Any
                       lookback: int, out_rate: int, speed: float, level: Level, decode_s_per_patch: float,
                       send: Callable[[np.ndarray, bool], None],
                       should_stop: Callable[[], bool] = lambda: False,
-                      gen_s_per_patch: float = 0.0, expected_patches: int = 0) -> SpeechAsItForms:
+                      gen_s_per_patch: float = 0.0, expected_patches: int = 0, body_steps: int | None = None,
+                      onset_steps: int | None = None) -> SpeechAsItForms:
     """Generate ``text`` and send its audio in pieces as it forms. Returns the sentence's record (timings)."""
     decode = model.audio_vae.decode
     sentence = SpeechAsItForms(model=model, decode=decode, mx=mx, prompt_context=prompt_context, lookback=lookback,
@@ -324,8 +343,11 @@ def speak_as_it_forms(model: Any, text: str, options: dict[str, Any], *, mx: Any
                                send=send, should_stop=should_stop, gen_s_per_patch=gen_s_per_patch,
                                expected_patches=expected_patches)
     sample = model.feat_decoder.sample
+    sentence.body_steps = body_steps
 
     def sampled(*args: Any, **kwargs: Any) -> Any:
+        if body_steps and onset_steps and "n_timesteps" in kwargs:
+            kwargs["n_timesteps"] = onset_steps if sentence.patches < ONSET_PATCHES else body_steps
         feat = sample(*args, **kwargs)
         mx.eval(feat)
         sentence.patch(feat.transpose(0, 2, 1))

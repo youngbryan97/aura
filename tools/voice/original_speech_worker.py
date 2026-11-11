@@ -5,6 +5,7 @@ import base64
 import contextlib
 import json
 import sys
+import time
 from pathlib import Path
 
 
@@ -176,6 +177,7 @@ def main() -> None:
                 sys.path.insert(0, str(Path(__file__).resolve().parent))
                 from her_speech_as_it_forms import (
                     Level,
+                    next_body_steps,
                     prompt_patches,
                     receptive_patches,
                     speak_as_it_forms,
@@ -185,6 +187,14 @@ def main() -> None:
                 context = prompt_patches(model, options["prompt_audio"])
                 level = Level(float(settings.get("output_rms", 0.)))
                 timing = {"decode_s_per_patch": 0.0, "gen_s_per_patch": 0.0, "patches_per_char": 0.0}
+                # Bryan, 11 November 2026: adaptive. Her full steps while her voice keeps ahead of the listener; the
+                # manifest's busy steps for a sentence's body when it measured that it could not (her GPU shared with
+                # her cortex writing a long reply). Without busy steps in the manifest, always full.
+                full_steps = int(options["inference_timesteps"])
+                busy_steps = settings.get("busy_inference_timesteps")
+                if type(busy_steps) is not int or not 1 <= busy_steps < full_steps:
+                    busy_steps = None
+                steps = {"body": full_steps, "busy_per_full": None}
 
             def generate_as_it_forms(text, speed, deliver):
                 if seed is not None:
@@ -194,9 +204,14 @@ def main() -> None:
                     out_rate=int(settings.get("output_sample_rate", model.sample_rate)), speed=speed, level=level,
                     decode_s_per_patch=timing["decode_s_per_patch"], gen_s_per_patch=timing["gen_s_per_patch"],
                     expected_patches=round(len(text) * timing["patches_per_char"]), send=deliver,
+                    body_steps=steps["body"] if busy_steps else None, onset_steps=full_steps,
                     should_stop=requests.stop_asked)
                 timing["decode_s_per_patch"] = sentence.decode_s_per_patch
                 timing["gen_s_per_patch"] = sentence.gen_s_per_patch
+                if busy_steps and not sentence.stopped and sentence.patches > 2:
+                    sentence.timing(time.perf_counter())
+                    steps["body"] = next_body_steps(steps["body"], full=full_steps, busy=busy_steps,
+                                                    real_time=sentence.real_time, busy_per_full=steps["busy_per_full"])
                 if text and sentence.patches and not sentence.stopped:
                     per_char = sentence.patches / len(text)  # her own pace of speech, sentence by sentence
                     known = timing["patches_per_char"]
@@ -209,8 +224,16 @@ def main() -> None:
             librosa.effects.time_stretch(np.zeros(4096, dtype=np.float32), rate=1.01)
             generate("I'm here.")
             if streams:
-                # Her first streamed sentence learns her decode cost and loudness before anyone hears one.
-                generate_as_it_forms("I'm here, and I can hear you.", 1.0, lambda audio, more, timing=None: None)
+                # Her first streamed sentence learns her decode cost and loudness before anyone hears one; with busy
+                # steps, one at each step count measures what the busy steps cost against the full.
+                paces = {}
+                for body in ((full_steps, busy_steps) if busy_steps else (full_steps,)):
+                    steps["body"] = body
+                    paces[body] = generate_as_it_forms("I'm here, and I can hear you.", 1.0,
+                                                       lambda audio, more, timing=None: None).gen_s_per_patch
+                if busy_steps and paces.get(full_steps):
+                    steps["busy_per_full"] = paces[busy_steps] / paces[full_steps]
+                steps["body"] = full_steps
         send({"ready": True, "streams": bool(streams)})
         for line in requests:
             try:
