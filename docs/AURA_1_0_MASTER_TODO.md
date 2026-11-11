@@ -1526,6 +1526,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turn closes adds nothing to it. The one stretch still before the receipt
   is the transcript entry the route writes first; `Aura.Chat.TurnMs` times
   from before it. `tests/test_a_turn_says_where_its_time_went.py`.
+  First live reading, 10 November 16:07, the L10 claim typed into her chat:
+  41.48 s by her log, 41.6 s by the person's clock. Decode 16.06, prefill
+  7.58, retrieval 4.96 (her web check is in it), queue 3.31, delivery 0.35,
+  9.22 unattributed; tool absent, because no skill ran. A mail request at
+  16:12 took 73.52 s with prefill at 26.52 and decode at 36.29, all of it a
+  reply that did nothing. Her own background turns before the restart took
+  95 to 185 s with prefill and decode unmeasured, so their generation does
+  not reach the receipt. Next: the 9.22 s, and those turns.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
@@ -3267,6 +3275,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   has no AURA_REACH_READ_HOSTS; the 19 and 20 October runs set it for that
   session only, so in her ordinary app she reads nothing on the web. Day 2
   needs that standing yes, which is Bryan's to give.
+  Bryan gave it the same afternoon (1d566bc8f), and day 2 was asked again at
+  16:06 on the build with the search fixes. She read Wikipedia and answered
+  "Yes, checked it just now". DuckDuckGo answered her with a challenge,
+  which is not read. Bing answered her requests with results for other
+  searches entirely: internet speed tests for the claim, Google Flights for
+  its figure in quotes, dictionary entries for "the" for the sentence in
+  quotes. The same requests made outside her app with the same headers
+  give the same pages. Engines that answer a program this way cannot give
+  her a second publisher, and nothing here tries to look like a person to
+  them. A search API made for programs can, and needs a key Bryan signs up
+  for. Her reply carried a correction that "Since 1983 the metre has been
+  defined ..." reported an action with no tool run; history is no longer
+  read as a report (74d23c94b).
 
 ## 4. User-facing capability acceptance
 
