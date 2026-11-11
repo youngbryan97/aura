@@ -8774,7 +8774,7 @@ def _mlx_worker_loop(
                                                 ):
                                                     prompt = her_retry_continues(job, original_prompt, original_messages, emitted_reply_preview)
                                                 else:
-                                                    prompt = (
+                                                    prompt = her_retry_continues(job, (
                                                         _build_user_surface_quality_retry_prompt(
                                                             tokenizer=tokenizer,
                                                             messages=original_messages,
@@ -8785,7 +8785,7 @@ def _mlx_worker_loop(
                                                             enable_thinking=native_thinking,
                                                             reasoning_effort=native_effort,
                                                         )
-                                                    )
+                                                    ), original_messages, emitted_reply_preview)
                                                 _prepare_clean_retry_kwargs(
                                                     kwargs,
                                                     structured=bool(

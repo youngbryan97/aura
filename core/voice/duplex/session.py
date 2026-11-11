@@ -1579,7 +1579,7 @@ class DuplexVoiceSession:
 
                 if not clause_open:
                     if seq and result.samples.size and hasattr(self._tts, "heard_late"):
-                        self._tts.heard_late(track.sent_duration_s - self._client_played_s)
+                        self._tts.heard_late(track.sent_duration_s - result.duration_s - self._client_played_s)
                     await self._send_json(
                         {
                             "type": protocol.EVT_SPEAKING_CHUNK,

@@ -33,9 +33,11 @@ def continuing_after(job: Any) -> str:
 def her_retry_continues(job: Any, prompt: Any, messages: Any, sent: Any) -> Any:
     """A streamed reply rejected after some of it was spoken: the retry goes on from what she said, not from nothing.
 
-    LIVE 11 November 2026, twice in her voice mode: a draft's sentences were checked one by one and spoken, a later
-    sentence failed her self-claim check, and the whole draft was rewritten from the start with nothing streamed.
-    She went silent 38.8 s and 46 s, and the rewrite began differently, so what she had said was then "corrected".
+    LIVE 11 November 2026, three times in her voice mode: a draft's sentences were checked one by one and spoken, a
+    later sentence failed (her self-claim check twice, fabricated shared history once), and the whole draft was
+    rewritten from the start with nothing streamed. She went silent 38.8, 46 and 39.0 s, and the rewrite began
+    differently, so what she had said was then "corrected". Whatever the reason, what she said had passed the same
+    checks sentence by sentence, so the retry goes on from it.
     Only for a prompt sent rendered (her voice's live context), where what she said is simply the start of her answer.
     The retry is checked again in full; her words already said are kept, not her rejected sentence.
     """

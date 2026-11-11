@@ -196,3 +196,55 @@ def test_a_reply_whose_listener_waited_between_sentences_is_made_at_her_busy_ste
         assert asked == [False]
     finally:
         tts.shutdown()
+
+
+def test_the_session_says_her_listener_waited_from_what_was_queued_before_the_new_clause():
+    """LIVE 11 November 2026: the queue was measured after the new clause's first piece was counted as sent, so it
+    never read empty and her busy steps never came on."""
+    import numpy as np
+
+    from core.voice.duplex.session import DuplexVoiceSession, MindBridge
+    from core.voice.duplex.tts_stream import SynthesisResult
+
+    heard = []
+
+    def piece(text, n, ends):
+        return SynthesisResult(samples=np.ones(n, np.float32) * .1, sample_rate=24000, text=text, synth_ms=1.0,
+                               engine="voxcpm2", ends_clause=ends)
+
+    class Tts:
+        def heard_late(self, queued_s):
+            heard.append(round(queued_s, 3))
+
+        async def stream(self, chunks, _spec, _token):
+            async for _ in chunks:
+                yield piece("First clause.", 2400, True)
+                session._client_played_s = 0.1  # the listener heard all of it (0.1 s) before the next began
+                yield piece("Second clause.", 2400, True)
+
+        def shutdown(self):
+            return None
+
+    async def exercise():
+        async def send_json(_payload):
+            return None
+
+        async def send_binary(_payload):
+            return None
+
+        nonlocal session
+        session = DuplexVoiceSession(session_id="late", send_json=send_json, send_binary=send_binary,
+                                     mind=MindBridge(session_id="late"))
+        session._tts = Tts()
+        task = asyncio.ensure_future(session._speak_text("First clause. Second clause.", cause=None))
+        await asyncio.sleep(0.2)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await session.close()
+
+    import contextlib
+
+    session = None
+    asyncio.run(exercise())
+    assert heard and heard[0] <= 0
