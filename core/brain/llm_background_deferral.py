@@ -23,6 +23,7 @@ from core.brain.llm.model_registry import (
     FALLBACK_ENDPOINT,
 )
 from core.runtime.desktop_boot_safety import desktop_resource_guard_enabled
+from core.runtime.flags import env_float
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,8 @@ def _what_the_shed_keeps_free() -> float:
 
         gate = resolve_inference_gate()
         cortex = what_the_cortex_still_needs_gb(gate) if gate is not None else 0.0
-        fallback = float(os.environ.get("AURA_FALLBACK_RESIDENT_RESERVE_GB", "8.0"))
+        fallback = env_float("AURA_FALLBACK_RESIDENT_RESERVE_GB", default=8.0, owner=__name__,
+                             description="GB the fallback model keeps resident above the cortex's need")
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         _module_logger.debug("the shed's line is unreadable, the footprint floor holds: %s", exc)
         return 0.0
