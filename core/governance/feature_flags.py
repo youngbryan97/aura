@@ -173,7 +173,6 @@ class FeatureFlags:
     def save(self) -> None:
         """Persist current flag state to config file."""
         try:
-            self._config_path.parent.mkdir(parents=True, exist_ok=True)
             current = self.get_all()
             get_file_write_gateway().write_text(
                 self._config_path,

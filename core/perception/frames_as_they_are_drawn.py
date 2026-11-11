@@ -28,6 +28,7 @@ from core.perception.a_clock_for_drawn_frames import DrawingClock, MeasuredFrame
 from core.perception.sampling_the_drawings_pace import DrawingCadence
 from core.runtime.executors import run_interactive_cpu
 from core.verify import invariant
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class PageFrames:
             # At the page's own size: a window on a high-density screen
             # otherwise sends each frame at twice that in each direction, and
             # encoding it is most of what a frame costs.
-            wide, tall = await picture_request(self.page.evaluate("[innerWidth, innerHeight]"))
+            wide, tall = await picture_request(get_page_gateway().read(self.page, page_script("[innerWidth, innerHeight]")))
             if not self._owns_session(session, generation):
                 return False
             self._options = _stream_options(int(wide), int(tall), self.every_nth_frame)
@@ -308,7 +309,7 @@ def _cropped(data: str, metadata: dict[str, Any], clip: dict[str, float]) -> Any
 #: the page: no window, compositor or screen is involved, so a window on screen
 #: gives it as fast as headless does (139 a second, LIVE-like 2026-10-04,
 #: against 18 streamed and 7 screenshots from the same window).
-_THE_CANVAS_NOW = """
+_THE_CANVAS_NOW = page_script("""
 ((clip) => {
   const fits = (c) => {
     if (!c || !c.isConnected) return false;
@@ -357,7 +358,7 @@ _THE_CANVAS_NOW = """
     sounds:window.__auraSoundsHeard?.take() ?? null};
   } catch (e) { return null; }
 })
-"""
+""")
 
 
 class CanvasFrameTime(MeasuredFrameTime):
@@ -438,11 +439,11 @@ class CanvasFrames:
 
                 self._observing = await picture_request(acquire(self.page))
                 # What the page plays is heard from here on, where it was not listened to from its first script.
-                await picture_request(self.page.evaluate(LISTEN))
+                await picture_request(get_page_gateway().read(self.page, LISTEN))
             # The request starts before the canvas is read. Its response can
             # arrive much later, so completion cannot make the picture new.
             began = time.monotonic()
-            data = await picture_request(self.page.evaluate(_THE_CANVAS_NOW, clip))
+            data = await picture_request(get_page_gateway().read(self.page, _THE_CANVAS_NOW, clip))
             finished = time.monotonic()
         except Exception as why:  # noqa: BLE001 - a page that cannot be asked has no canvas to read
             logger.debug("the canvas could not be read: %s", why)

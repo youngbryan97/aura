@@ -291,7 +291,6 @@ class VerifiedFacts:
         on a thread running an event loop it is written off that loop (core/runtime/atomic_writer.py)."""
         from core.runtime.atomic_writer import atomic_write_text_behind
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text_behind(self.path, text)
 
     def attest(self, claim: str, url: str, verdict: str, quote: str = "") -> Fact | None:

@@ -76,13 +76,13 @@ async def test_synthetic_events_cannot_claim_that_the_physical_press_reached_the
         assert await browser.ensure_ready(), browser.get_status()
         page = browser.page
         await page.set_content('<button style="width:200px;height:100px">Start</button>')
-        state = await page.evaluate(drawing._COVER_PRESS % (50., 50., 'true'))
+        state = await page.evaluate(drawing._COVER_PRESS, [50., 50., True])
         assert state['description'] and state['received'] is None
         await page.evaluate('''()=>{const button=document.querySelector('button');
           for(const kind of ['mousedown','click'])button.dispatchEvent(new MouseEvent(kind,
             {bubbles:true,composed:true,button:0,clientX:50,clientY:50}));}''')
-        assert (await page.evaluate(drawing._COVER_PRESS % (50., 50., 'false')))['received'] is None
+        assert (await page.evaluate(drawing._COVER_PRESS, [50., 50., False]))['received'] is None
         await page.mouse.click(50., 50.)
-        assert (await page.evaluate(drawing._COVER_PRESS % (50., 50., 'false')))['received'] is True
+        assert (await page.evaluate(drawing._COVER_PRESS, [50., 50., False]))['received'] is True
     finally:
         await browser.close()

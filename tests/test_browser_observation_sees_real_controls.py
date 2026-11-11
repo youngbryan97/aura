@@ -180,6 +180,7 @@ def test_the_click_path_falls_back_rather_than_giving_up():
     from core.capabilities.phantom_browser import PhantomBrowser
 
     source = inspect.getsource(PhantomBrowser.click)
-    ordinary = source.index("await element.click(timeout=")
+    # The ordinary click goes through her page owner (core/runtime/page_gateway.py, Q06).
+    ordinary = source.index("await get_page_gateway().click(element, ")
     forced = source.index('dispatch_event("click")')
     assert ordinary < forced

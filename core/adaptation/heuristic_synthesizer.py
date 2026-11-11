@@ -59,7 +59,6 @@ class HeuristicSynthesizer:
         """
         from core.governance_context import local_internal_governed_scope
 
-        self.heuristics_path.parent.mkdir(parents=True, exist_ok=True)
         with local_internal_governed_scope(
             "adaptation.heuristic_synthesizer.state",
             domain="file_write",

@@ -18,6 +18,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from core.runtime.page_gateway import get_page_gateway
 
 #: The selector the conversation is offered under. Not a CSS selector: a move on it is a hand-over, never a click.
 CONVERSATION = "::conversation"
@@ -73,7 +74,7 @@ async def with_the_conversation(browser: Any, observation: dict[str, Any]) -> di
         return observation
     await _after_the_conversation(observation)
     try:
-        look = await page.evaluate(LOOK) or {}
+        look = await get_page_gateway().read(page, LOOK) or {}
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         return observation  # a page going away while it was looked at: what it offered stands without a conversation
     # Open to her, or closed while the other side's turn runs: either way a place where the two sides write.

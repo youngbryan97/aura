@@ -659,7 +659,6 @@ class CausalWorldModel:
                     "nodes": {k: asdict(v) for k, v in self.nodes.items()},
                     "edges": [asdict(e) for e in self.edges],
                 }
-            self.data_path.parent.mkdir(parents=True, exist_ok=True)
             from core.runtime.file_write_gateway import get_file_write_gateway
 
             get_file_write_gateway().write_text(

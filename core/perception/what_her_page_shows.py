@@ -20,6 +20,7 @@ from __future__ import annotations
 import io
 import time
 from typing import Any
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["look_at_a_page", "the_page_size"]
 
@@ -29,7 +30,7 @@ async def the_page_size(page: Any) -> tuple[int, int]:
     size = getattr(page, "viewport_size", None)
     if isinstance(size, dict) and size.get("width") and size.get("height"):
         return int(size["width"]), int(size["height"])
-    wide, tall = await page.evaluate("[window.innerWidth, window.innerHeight]")
+    wide, tall = await get_page_gateway().read(page, page_script("[window.innerWidth, window.innerHeight]"))
     return int(wide), int(tall)
 
 

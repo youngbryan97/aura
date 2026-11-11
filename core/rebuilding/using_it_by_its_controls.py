@@ -26,6 +26,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.language.the_form_of_a_kind import fitted, the_form_for, with_the_part
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Rebuilding.UsingIt")
 
@@ -113,10 +114,10 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
             context = await chromium.new_context(accept_downloads=True, **({"viewport": {"width": 1280, "height": 860}} if visible else {}))
             page = await context.new_page()
             page.on("download", lambda d: asyncio.ensure_future(keep(d)))
-            await page.goto(await asyncio.to_thread(lambda: page_file.resolve().as_uri()))
+            await get_page_gateway().go_to(page, await asyncio.to_thread(lambda: page_file.resolve().as_uri()), source="using_it_by_its_controls.write_it_in")
             # A program of hers, with a command that keeps a file, before anything is written for it.
             try:
-                labels = [str(x) for x in await page.evaluate("[...app.commands.values()].map((c) => c.label)")]
+                labels = [str(x) for x in await get_page_gateway().read(page, page_script("[...app.commands.values()].map((c) => c.label)"))]
             except Exception:  # noqa: BLE001 - a page that is not one of her programs is used another way
                 return None
             command = the_command_that_saves(labels, task)
@@ -126,15 +127,15 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
             if not isinstance(writing, _Writing) or not any(p.strip() for p in writing.paragraphs):
                 return Used(False, why_not="the text to write could not be written")
             text = "\n".join(p.strip() for p in writing.paragraphs if p.strip())
-            await page.evaluate(_HELPERS)
+            await get_page_gateway().read(page, _HELPERS)
             if writing.title:
-                await page.evaluate("(name) => { app.name = name; }", writing.title)
+                await get_page_gateway().read(page, page_script("(name) => { app.name = name; }"), writing.title)
             if visible:
                 await page.bring_to_front()
                 await _said(tell, f"Writing it in {await page.title() or 'the program'}, in a window you can watch; then \"{command}\" saves it.")
             # The caret where writing goes on, in the page's own surface, and the page settled, before the first key: LIVE
             # 2026-10-06 the first keys typed in a window just brought to the front landed out of place ("Der Future Self").
-            await page.evaluate(_AT_THE_END)
+            await get_page_gateway().read(page, _AT_THE_END)
             await page.wait_for_timeout(600 if visible else 50)
             doing = _Doing(page, Check.model_validate({"feature": "use", "steps": [], "expect": [{"see": "text", "target": "x"}]}),
                            typing_ms=14 if visible else 4)
@@ -178,7 +179,7 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
 
 
 #: Focus a program's writing surface and put the caret at the end of what it holds.
-_AT_THE_END = """() => {
+_AT_THE_END = page_script("""() => {
   const s = (window.app && app.editing && app.editing.surface && app.editing.surface())
     || document.querySelector("[contenteditable=true], [contenteditable=''], textarea");
   if (!s) return false;
@@ -188,7 +189,7 @@ _AT_THE_END = """() => {
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
   } else if (typeof s.setSelectionRange === "function") { s.setSelectionRange(s.value.length, s.value.length); }
   return true;
-}"""
+}""")
 
 
 class _Part(BaseModel):

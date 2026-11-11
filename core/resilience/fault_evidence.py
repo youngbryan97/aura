@@ -281,7 +281,6 @@ class FaultEvidenceStore:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            self.path.parent.mkdir(parents=True, exist_ok=True)
             with local_internal_governed_scope(
                 "fault_evidence.flush",
                 constraints={"purpose": "persist cross-boot fault occurrence evidence"},

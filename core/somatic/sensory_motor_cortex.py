@@ -14,6 +14,7 @@ from core.runtime.permission_gates import camera_allowed
 from core.runtime.resource_observation import get_resource_observer
 from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Aura.SensoryMotor")
 _cv2 = None
@@ -445,8 +446,8 @@ class SensoryMotorCortex:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             try:
-                page = await browser.new_page()
-                await page.goto(search_url, timeout=15000)
+                page = await get_page_gateway().new_page(browser, source="sensory_motor_cortex.playwright_fetch")
+                await get_page_gateway().go_to(page, search_url, source="sensory_motor_cortex.playwright_fetch", timeout=15000)
                 # Grab first result link
                 first_link = await page.query_selector(".result__url")
                 href = None
@@ -454,13 +455,13 @@ class SensoryMotorCortex:
                     href = await first_link.get_attribute("href")
 
                 if href and href.startswith("http"):
-                    await page.goto(href, timeout=15000)
+                    await get_page_gateway().go_to(page, href, source="sensory_motor_cortex.playwright_fetch", timeout=15000)
                     # Extract visible text, skip nav/footer
-                    text = await page.evaluate("""() => {
+                    text = await get_page_gateway().read(page, page_script("""() => {
                         const skip = ['nav','footer','header','aside','script','style'];
                         skip.forEach(t => document.querySelectorAll(t).forEach(e => e.remove()));
                         return document.body ? document.body.innerText : '';
-                    }""")
+                    }"""))
                     return text[:6000] if text else ""
                 else:
                     # No link found — return search snippet text

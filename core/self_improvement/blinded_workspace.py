@@ -254,7 +254,6 @@ class BlindedWorkspaceFactory:
     def _copy_tests(self, workspace: BlindedWorkspace, spec: ModuleSpec) -> list[dict[str, str | int]]:
         """Copy test files into the workspace."""
         test_dir = workspace.test_dir
-        test_dir.mkdir(parents=True, exist_ok=True)
         get_file_write_gateway().write_text(
             test_dir / "__init__.py",
             "",

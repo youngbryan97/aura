@@ -12,6 +12,7 @@ import logging
 import re
 import urllib.parse
 from typing import Any
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["Where", "found_it_at", "the_same_thing_elsewhere", "where_i_found_it_before", "where_the_page_points",
            "where_to_go"]
@@ -81,7 +82,7 @@ async def the_archived_copy(skill: object, browser: object, url: str) -> str:
     if not copy or url.startswith("https://web.archive.org/") or not await skill._safe_browse(browser, copy):  # type: ignore[attr-defined]
         return ""
     page = getattr(browser, "page", None)
-    if page is None or refused(await page.title(), await page.evaluate("document.body ? document.body.innerText : ''")):
+    if page is None or refused(await page.title(), await get_page_gateway().read(page, page_script("document.body ? document.body.innerText : ''"))):
         return ""
     skill._say_out_loud(  # type: ignore[attr-defined]
         f"{url} refused my browser, so I am using the copy of it the Internet Archive keeps.",
@@ -158,7 +159,7 @@ SAME_THING = 0.75
 RUNS = re.compile(r"\b(play|run|launch|watch|listen|hear)\b", re.I)
 
 #: Whether a page has something in it that runs: an embedded program, an emulator, a game's canvas, a player.
-_SOMETHING_RUNS = r"""
+_SOMETHING_RUNS = page_script(r"""
 () => {
   const big = (el) => { const r = el.getBoundingClientRect(); return r.width >= 240 && r.height >= 160; };
   const found = [];
@@ -172,7 +173,7 @@ _SOMETHING_RUNS = r"""
   look(document);
   return found;
 }
-"""
+""")
 
 
 class Where(str):
@@ -203,7 +204,7 @@ async def the_same_thing_elsewhere(skill: object, browser: object, name: str, *,
 
 
 #: The links of a page, as their words and where they go.
-_LINKS = "() => Array.from(document.querySelectorAll('a[href]')).map((a) => [a.innerText || a.title || '', a.href]).slice(0, 400)"
+_LINKS = page_script("() => Array.from(document.querySelectorAll('a[href]')).map((a) => [a.innerText || a.title || '', a.href]).slice(0, 400)")
 
 
 _ARCHIVED = re.compile(r"^https?://web\.archive\.org/web/(\d+)[a-z_]*/(https?://.+)$")
@@ -232,7 +233,7 @@ async def where_the_page_points(skill: object, browser: object, name: str, *, ta
     if page is None:
         return ""
     try:
-        links = await page.evaluate(_LINKS)
+        links = await get_page_gateway().read(page, _LINKS)
     except Exception:  # noqa: BLE001 - a page that cannot list its links points nowhere
         return ""
     here = str(page.url).rstrip("/")
@@ -251,7 +252,7 @@ async def _something_runs_within(page: Any) -> bool:
 
     waited = 0.0
     while True:
-        if await page.evaluate(_SOMETHING_RUNS):
+        if await get_page_gateway().read(page, _SOMETHING_RUNS):
             return True
         if waited >= STARTS_WITHIN_S:
             return False
@@ -282,8 +283,8 @@ async def _the_first_that_serves(skill: object, browser: object, name: str, task
         if not await skill._safe_browse(browser, found.url):  # type: ignore[attr-defined]
             continue
         title = await page.title()
-        text = await page.evaluate("document.body ? document.body.innerText.slice(0, 4000) : ''")
-        heading = await page.evaluate("(() => { const h = document.querySelector('h1'); return h ? h.innerText : ''; })()")
+        text = await get_page_gateway().read(page, page_script("document.body ? document.body.innerText.slice(0, 4000) : ''"))
+        heading = await get_page_gateway().read(page, page_script("(() => { const h = document.querySelector('h1'); return h ? h.innerText : ''; })()"))
         if refused(title, text) or not _named_on_its_page(name, f"{title} {heading}", text):
             continue
         if runs and not await _something_runs_within(page):

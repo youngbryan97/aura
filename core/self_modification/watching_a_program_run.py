@@ -33,6 +33,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 from core.runtime.wall_clock import monotonic_time
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["Behaviour", "what_it_does"]
 
@@ -115,7 +116,7 @@ async def _start(page: Any, clip: dict[str, float], words: str) -> str:
     asked = keys_a_screen_asks_for(words)
     if asked:
         name = {"space": "Space", "return": "Enter"}.get(asked[0], asked[0])
-        await page.keyboard.press(name)
+        await get_page_gateway().press(page.keyboard, name, source="watching_a_program_run.start")
         return f"pressed {asked[0]}, as the screen asked"
     await page.mouse.click(clip["x"] + clip["width"] / 2, clip["y"] + clip["height"] / 2)
     return "clicked in the middle"
@@ -259,7 +260,7 @@ async def _play(page: Any, clip: dict[str, float], watch: _Watch, keys: list[str
             # A screen standing still that asks for a key is a game over or a
             # pause: pressed, the watch goes on watching play.
             if asks and at - watch.last_others_moving > 1.5:
-                await page.keyboard.press({"space": "Space", "return": "Enter"}.get(asks[0], asks[0]))
+                await get_page_gateway().press(page.keyboard, {"space": "Space", "return": "Enter"}.get(asks[0], asks[0]), source="watching_a_program_run.play")
                 watch.restarts += 1
         if watch.hers.lost() and at - watch.last_others_moving < 0.5 and at - found_again_at >= FIND_AGAIN_EVERY_S:
             # Hidden and drawn afresh (an end screen, a game begun again), her
@@ -558,12 +559,10 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
     page.on("response", lambda response: failed.append(response.url) if response.status >= 400 and response.url.startswith(folder) else None)
     await page.add_init_script(_SAME_DICE)
     await page.add_init_script(BOOTSTRAP)
-    await page.goto(address)
+    await get_page_gateway().go_to(page, address, source="watching_a_program_run.what_it_does")
     await page.wait_for_timeout(300)
-    clip = await page.evaluate(
-        "(() => { const c = document.querySelector('canvas'); if (!c) return null;"
-        " const r = c.getBoundingClientRect(); return {x: r.left, y: r.top, width: r.width, height: r.height}; })()"
-    )
+    clip = await get_page_gateway().read(page, page_script("(() => { const c = document.querySelector('canvas'); if (!c) return null;"
+        " const r = c.getBoundingClientRect(); return {x: r.left, y: r.top, width: r.width, height: r.height}; })()"))
     if not clip:
         # Not a moving picture: a page of controls, judged by using them.
         return await _used(page, behaviour, failed)

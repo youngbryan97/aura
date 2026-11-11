@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from core.self_modification.code_that_looks_wrong import _parser, _text, _walk, scripts_in
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 
 @dataclass(frozen=True)
@@ -97,7 +98,7 @@ async def check_code_paths(browser: Any, source: str, *, suffix: str = ".html",
     for check in checks[:8]:
         for label, location, sign in (("near", "-1", -1), ("inside", f"({check.limit}-{check.extent})/2", 1),
                                       ("far", f"{check.limit}-{check.extent}+1", 1)):
-            page = await browser.new_page()
+            page = await get_page_gateway().new_page(browser, source="checking_code_paths.check_code_paths")
             result: dict[str, Any] = {"check": asdict(check), "case": label, "verdict": "unmeasured"}
             numbers = ",".join(f"{json.dumps(n)}:typeof {n}==='number'?{n}:null" for n in mutable)
             root = check.position.split(".")[0]
@@ -119,7 +120,7 @@ try {{
                 async with asyncio.timeout(10):
                     await page.set_content(markup, timeout=5000)
                     await page.add_script_tag(content=declarations + "\n" + harness)
-                    measured = await page.evaluate("window.__auraCodeCheck || null")
+                    measured = await get_page_gateway().read(page, page_script("window.__auraCodeCheck || null"))
                 if isinstance(measured, dict):
                     result.update(measured)
             except (RuntimeError, TimeoutError, BrowserError) as exc:

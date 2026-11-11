@@ -356,7 +356,6 @@ class MycelialHypergraphAttractorField:
     def _save(self):
         """Checkpoint MHAF state to disk (Horcrux persistence)."""
         try:
-            _DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
             state = {
                 "nodes": {n: nd.to_dict() for n, nd in self._nodes.items()},
                 "edges": {k: e.to_dict() for k, e in self._edges.items()},

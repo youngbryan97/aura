@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+from core.runtime.page_gateway import get_page_gateway
 
 __all__ = ["RepairAProgramInput", "RepairAProgramSkill", "the_file_named_in"]
 
@@ -175,7 +176,7 @@ async def _play_it(address: str, request: str) -> dict[str, Any]:
     try:
         if not await browser.ensure_ready():
             return {"error": "her browser could not be opened"}
-        await browser.page.goto(address, wait_until="load")
+        await get_page_gateway().go_to(browser.page, address, source="repairing_a_program.play_it", wait_until="load")
         # In front, where the person watching can see it, and where the
         # system does not let it sleep.
         await browser.page.bring_to_front()

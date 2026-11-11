@@ -173,7 +173,6 @@ class NetworkSentinel:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            self._baseline_path.parent.mkdir(parents=True, exist_ok=True)
             with local_internal_governed_scope(
                 "security.network_sentinel.baseline",
                 domain="file_write",

@@ -37,6 +37,7 @@ from core.perception.recording_the_frames_and_inputs import (
 from core.runtime.what_stops_it import current
 from core.runtime.errors import record_degradation
 from core.verify import invariant
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["HER_OWN_PAGE", "OnAPage", "it_was_answered", "on_her_page"]
 
@@ -68,7 +69,7 @@ _KEY_NAMES = {
 #: Focus the thing the page draws, across shadow roots, so keys reach it. A
 #: player in a shadow root takes the keyboard only once it is focused (measured
 #: in the pane 2 October: after "Play Game" the focus stayed on the body).
-_FOCUS_THE_DRAWING = """
+_FOCUS_THE_DRAWING = page_script("""
 (function () {
   var best = null, area = 0;
   var walk = function (root, host) {
@@ -88,7 +89,7 @@ _FOCUS_THE_DRAWING = """
   best.focus();
   return document.activeElement === best;
 })()
-"""
+""")
 
 
 async def focus_drawing_for_input(page: Any) -> bool:
@@ -103,7 +104,7 @@ async def focus_drawing_for_input(page: Any) -> bool:
     began = time.monotonic()
     error = ''
     try:
-        reply = await page.evaluate(_FOCUS_THE_DRAWING)
+        reply = await get_page_gateway().read(page, _FOCUS_THE_DRAWING)
         status = 'focused' if reply is True else 'not_focused' if reply is False else 'unmeasured'
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as why:
         status, error = 'unavailable', type(why).__name__
@@ -443,7 +444,7 @@ class OnAPage:
                 from core.skills.keys_tapped_as_a_hand_taps import TAP_HELD_S
 
                 # Held a moment, as a hand presses one: a page that asks each frame which keys are down sees it.
-                await self.page.keyboard.press(_KEY_NAMES.get(name, name), delay=TAP_HELD_S * 1000.0)
+                await get_page_gateway().press(self.page.keyboard, _KEY_NAMES.get(name, name), source="screen_pursuit_on_a_page.press", delay=TAP_HELD_S * 1000.0)
             delivered = True
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False

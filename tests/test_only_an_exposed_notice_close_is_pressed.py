@@ -57,18 +57,18 @@ async def test_opted_in_cpu_browser_closes_only_the_current_exposed_notice(tmp_p
           <canvas width="320" height="200"></canvas><button aria-label="Dismiss notice"><svg width="20" height="20"></svg></button>`;
         s.querySelector('button').onclick=e=>{window.dismissed=(window.dismissed||0)+1;e.currentTarget.remove()};
         </script>''')
-        query = _CLOSES_OVER_IT % (0., 0., 320., 200.)
-        baseline = query.replace(r'\b', '\x08')
-        assert json.loads(await browser.page.evaluate(baseline)) == []
-        exposed = json.loads(await browser.page.evaluate(query))
+        band = [0., 0., 320., 200.]
+        baseline = str(_CLOSES_OVER_IT).replace(r'\b', '\x08')
+        assert json.loads(await browser.page.evaluate(baseline, band)) == []
+        exposed = json.loads(await browser.page.evaluate(_CLOSES_OVER_IT, band))
         assert exposed == [[280., 30.]]
         await browser.page.evaluate('''() => {const s=document.querySelector('#host').shadowRoot;
           const block=document.createElement('div');block.id='block';s.appendChild(block)}''')
-        assert json.loads(await browser.page.evaluate(query)) == []
+        assert json.loads(await browser.page.evaluate(_CLOSES_OVER_IT, band)) == []
         await browser.page.evaluate("document.querySelector('#host').shadowRoot.querySelector('#block').remove()")
         await browser.page.mouse.click(*exposed[0])
         assert await browser.page.evaluate('window.dismissed') == 1
-        assert json.loads(await browser.page.evaluate(query)) == []
+        assert json.loads(await browser.page.evaluate(_CLOSES_OVER_IT, band)) == []
         with local_internal_governed_scope('exposed_notice_verification'):
             gateway = get_file_write_gateway()
             await gateway.write_text_async(tmp_path / 'notice.json', json.dumps(dict(

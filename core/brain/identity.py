@@ -172,7 +172,6 @@ class IdentityService:
             data = asdict(self.state)
             data["last_updated"] = candidate_updated
 
-            self.data_path.parent.mkdir(parents=True, exist_ok=True)
             from core.runtime.file_write_gateway import get_file_write_gateway
 
             with local_internal_governed_scope("brain.identity.save", domain="file_write"):

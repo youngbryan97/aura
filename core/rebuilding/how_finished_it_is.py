@@ -22,6 +22,7 @@ from typing import Any
 
 from core.rebuilding.checks_a_person_makes import Check
 from core.rebuilding.the_program_as_built import Part, ProgramAsBuilt
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Rebuilding.Finish")
 
@@ -36,7 +37,7 @@ LEAST_CONTRAST = 4.5
 #: How many mends are tried before it is left as it is.
 MENDS = 2
 
-_MEASURED = r"""
+_MEASURED = page_script(r"""
 (() => {
   const shown = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
     return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none' && Number(s.opacity) > 0.05; };
@@ -75,11 +76,11 @@ _MEASURED = r"""
   }
   return [...new Set(found)].slice(0, 40);
 })()
-""".replace("%LEAST%", str(LEAST_CONTRAST))
+""".replace("%LEAST%", str(LEAST_CONTRAST)))
 
 #: Using each control once, after some text is typed and selected, and seeing
 #: whether the page changed, opened something, or saved something.
-_DOES_SOMETHING = r"""
+_DOES_SOMETHING = page_script(r"""
 async () => {
   const shown = (el) => { const r = el.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
   // What the program shows, not the frame's own "Edited" mark, which any command sets.
@@ -112,7 +113,7 @@ async () => {
   }
   return dead;
 }
-"""
+""")
 
 
 @dataclass
@@ -146,11 +147,11 @@ async def what_is_unfinished(path: Path, *, browser: Any = None) -> Unfinished:
             context = await browser.new_context(viewport={"width": wide, "height": tall}, accept_downloads=True)
             page = await context.new_page()
             page.on("pageerror", lambda why: seen.errors.append(str(why)[:200]))
-            await page.goto(url)
+            await get_page_gateway().go_to(page, url, source="how_finished_it_is.what_is_unfinished")
             await page.wait_for_timeout(300)
-            seen.found.extend(f for f in await page.evaluate(_MEASURED) if f not in seen.found)
+            seen.found.extend(f for f in await get_page_gateway().read(page, _MEASURED) if f not in seen.found)
             if wide == SIZES[0][0]:
-                seen.dead = list(await page.evaluate(_DOES_SOMETHING))
+                seen.dead = list(await get_page_gateway().read(page, _DOES_SOMETHING))
             await context.close()
     finally:
         if owned is not None:

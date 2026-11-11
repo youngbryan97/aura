@@ -20,13 +20,14 @@ from typing import Any
 
 from core.language.picking_by_a_rule import a_picking_rule
 from core.verify.invariants import invariant
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Skills.SovereignBrowser.Picking")
 
 __all__ = ["picked_by_the_rule", "pursued", "the_list_on_the_page", "the_task_for_each"]
 
 #: The page's list: its largest set of links that look alike (same tags and classes up to the content), in reading order.
-_THE_LIST = r"""
+_THE_LIST = page_script(r"""
 () => {
   const main = document.querySelector("main, [role=main], #content, #main, .content") || document.body;
   const shown = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== "hidden"; };
@@ -52,7 +53,7 @@ _THE_LIST = r"""
     return { text, href: a.href };
   });
 }
-"""
+""")
 
 
 async def the_list_on_the_page(browser: Any) -> list[dict[str, str]]:
@@ -61,7 +62,7 @@ async def the_list_on_the_page(browser: Any) -> list[dict[str, str]]:
     if page is None:
         return []
     try:
-        items = await page.evaluate(_THE_LIST)
+        items = await get_page_gateway().read(page, _THE_LIST)
     except Exception as why:  # noqa: BLE001 - a page that cannot be read has no list to pick from
         logger.info("the page's list could not be read: %s", why)
         return []
@@ -259,8 +260,8 @@ async def _where_it_serves(skill: Any, browser: Any, url: str, goal: str) -> str
     verdict = await whether_it_serves(page, goal)
     if verdict.ok is not False:
         return url
-    name = await page.evaluate(r"""() => { const h = document.querySelector('h1'); const t = (h && h.innerText.trim()) || document.title || '';
-        return t.split(/\s+[|\u2013\u2014-]\s+/)[0].trim(); }""")
+    name = await get_page_gateway().read(page, page_script(r"""() => { const h = document.querySelector('h1'); const t = (h && h.innerText.trim()) || document.title || '';
+        return t.split(/\s+[|\u2013\u2014-]\s+/)[0].trim(); }"""))
     line = (f"The page opens but does not work: {verdict.says()}. I look for “{name}” where it does." if name else
             f"The page opens but does not work: {verdict.says()}.")
     skill._say_out_loud(line, {"label": "Not working", "said": line})

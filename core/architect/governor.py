@@ -56,7 +56,6 @@ class AutonomousArchitectureGovernor:
             "top_smells": [asdict(smell) for smell in smells[:25]],
         }
         reports = self.config.artifacts / "reports"
-        reports.mkdir(parents=True, exist_ok=True)
         atomic_write_text(reports / "audit-latest.json", json.dumps(report, indent=2, sort_keys=True, default=str))
         return report
 
@@ -77,7 +76,6 @@ class AutonomousArchitectureGovernor:
             "high_risk_proposals": proposals,
         }
         reports = self.config.artifacts / "reports"
-        reports.mkdir(parents=True, exist_ok=True)
         atomic_write_text(reports / "boot-audit-latest.json", json.dumps(report, indent=2, sort_keys=True, default=str))
         return report
 
@@ -209,7 +207,6 @@ class AutonomousArchitectureGovernor:
     def proposal(self, target: str) -> RefactorPlan:
         plan = self.plan(target)
         proposals = self.config.artifacts / "proposals"
-        proposals.mkdir(parents=True, exist_ok=True)
         atomic_write_text(proposals / f"{plan.id}.json", json.dumps(plan_to_dict(plan), indent=2, sort_keys=True, default=str))
         return plan
 

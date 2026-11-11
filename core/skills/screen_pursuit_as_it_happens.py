@@ -35,6 +35,7 @@ from core.skills.games_on_her_record import (
 from core.skills.games_on_her_record import (
     _this_game as _this_game,
 )
+from core.runtime.page_gateway import get_page_gateway
 
 logger = logging.getLogger("Aura.ScreenPursuit.AsItHappens")
 
@@ -754,7 +755,7 @@ class PlayingAsItHappens:
 
     async def type_text(self, text: str) -> None:
         """Words typed as a person types them, a key at a time, into whatever has the focus."""
-        await self.page.keyboard.type(text, delay=40)
+        await get_page_gateway().type_text(self.page.keyboard, text, source="screen_pursuit_as_it_happens.type_text", delay=40)
 
     # -- the pursuit's hooks ---------------------------------------------------
 

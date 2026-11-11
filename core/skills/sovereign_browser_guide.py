@@ -17,6 +17,7 @@ import logging
 import re
 import time
 from typing import Any
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["guide_to_the_page", "how_this_place_works"]
 
@@ -25,7 +26,7 @@ logger = logging.getLogger("Skills.SovereignBrowser.Guide")
 #: The most of a page's own words read for how its thing is worked, in characters.
 MOST_PAGE_TEXT = 20_000
 
-_ITS_WORDS = f"(() => (document.body && document.body.innerText || '').slice(0, {MOST_PAGE_TEXT}))()"
+_ITS_WORDS = page_script(f"(() => (document.body && document.body.innerText || '').slice(0, {MOST_PAGE_TEXT}))()")
 
 
 async def guide_to_the_page(page: Any, thing: str) -> Any:
@@ -37,7 +38,7 @@ async def guide_to_the_page(page: Any, thing: str) -> Any:
     guide = Guide(place=thing)
     began = time.monotonic()
     try:
-        text = await page.evaluate(_ITS_WORDS)
+        text = await get_page_gateway().read(page, _ITS_WORDS)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         text = ""
     text = text if isinstance(text, str) else ""

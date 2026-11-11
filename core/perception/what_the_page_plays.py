@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from core.runtime.page_gateway import page_script
 
 __all__ = ["BOOTSTRAP", "TAKE", "Sound", "heard_with", "sounds_in"]
 
@@ -53,7 +54,7 @@ _LISTENER = r"""
 """
 
 #: Loaded before the page's own scripts, so its sounds are heard from the first.
-BOOTSTRAP = _LISTENER
+BOOTSTRAP = page_script(_LISTENER)
 
 #: What has been heard since last asked, with the page's clock now: an expression for a page's evaluate.
 TAKE = "window.__auraSoundsHeard?.take() ?? null"

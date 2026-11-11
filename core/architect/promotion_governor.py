@@ -216,5 +216,4 @@ class PromotionGovernor:
 
     def _persist_decision(self, decision: PromotionDecision) -> None:
         decisions = self.config.artifacts / "decisions"
-        decisions.mkdir(parents=True, exist_ok=True)
         atomic_write_text(decisions / f"{decision.run_id}.json", json.dumps(asdict(decision), indent=2, sort_keys=True, default=str))

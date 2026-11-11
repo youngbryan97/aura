@@ -12,12 +12,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.page_gateway import page_script
 
 __all__ = ["LOOK", "Conversation", "Line", "read_conversation"]
 
 #: What a page is asked for: each element with text of its own, where it is and under which parent; every element's
 #: place, so that one added can be told from one whose words changed; and the place to write in, if one is open.
-LOOK = r"""() => {
+LOOK = page_script(r"""() => {
   const pathOf = (el) => { const parts = []; for (let e = el; e && e !== document.body; e = e.parentElement) {
       let i = 1; for (let s = e.previousElementSibling; s; s = s.previousElementSibling) if (s.tagName === e.tagName) i++;
       parts.unshift(e.tagName.toLowerCase() + ":" + i); } return parts.join("/"); };
@@ -50,7 +51,7 @@ LOOK = r"""() => {
           says: box.placeholder || box.getAttribute("aria-label") || ""} : null,
           closed: shut ? {path: pathOf(shut), says: shut.placeholder || shut.getAttribute("aria-label") || ""} : null,
           width: innerWidth, height: innerHeight};
-}"""
+}""")
 
 
 @dataclass(frozen=True)

@@ -45,6 +45,7 @@ from core.runtime.runtime_hygiene import get_runtime_hygiene
 
 from .phantom_browser_frames import _ReadsItsFrames
 from .phantom_browser_interaction import _ActsOnThePage
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 try:
     from playwright.async_api import Error as PlaywrightError
@@ -896,7 +897,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         # LIVE 2026-10-06 the Internet Archive's page for a game was refused as
         # "captcha" for a script it carries for reviews.
         try:
-            content = str(await self.page.evaluate("document.body ? document.body.innerText.slice(0, 4000) : ''")).lower()
+            content = str(await get_page_gateway().read(self.page, page_script("document.body ? document.body.innerText.slice(0, 4000) : ''"))).lower()
         except (PlaywrightError, RuntimeError, AttributeError) as exc:
             logger.debug("Could not read what the page shows: %s", exc)
             content = ""
@@ -980,7 +981,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         logger.info("🌐 Navigating to: %s", url)
         await show_activity(self, "navigating")
         try:
-            response = await self.page.goto(url, timeout=30000, wait_until='domcontentloaded')
+            response = await get_page_gateway().go_to(self.page, url, source="phantom_browser.browse", timeout=30000, wait_until='domcontentloaded')
             await self._human_delay(1, 2)
         except (RuntimeError, AttributeError, TypeError, ValueError, PlaywrightError) as e:
             record_degradation('phantom_browser', e)
@@ -1072,7 +1073,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             title = await self.page.title()
             await show_activity(self, "reading")
 
-            candidate_blocks = await self.page.evaluate("""() => {
+            candidate_blocks = await get_page_gateway().read(self.page, page_script("""() => {
                 function isVisible(el) {
                     const style = window.getComputedStyle(el);
                     const rect = el.getBoundingClientRect();
@@ -1127,7 +1128,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 }
 
                 return collectCandidates();
-            }""")
+            }"""))
 
             best_text = ""
             best_score = float("-inf")
@@ -1143,7 +1144,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                     selected_label = str(block.get("selector") or block.get("tag") or "block")
 
             if len(best_text) < 200:
-                fallback_text = await self.page.evaluate("() => document.body.innerText")
+                fallback_text = await get_page_gateway().read(self.page, page_script("() => document.body.innerText"))
                 fallback_text = _clean_extracted_page_text(str(fallback_text or ""))
                 if len(fallback_text) > len(best_text):
                     best_text = fallback_text
@@ -1212,7 +1213,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
     #: Interactive roles worth offering as choices. Everything else on a page
     #: is scenery: it cannot be clicked, typed into, or toggled, so listing it
     #: only spends tokens and invites a decision that cannot be executed.
-    _OBSERVE_SCRIPT = r"""
+    _OBSERVE_SCRIPT = page_script(r"""
     (maxElements) => {
         // A form control styled transparent is still the real control.
         //
@@ -1633,7 +1634,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             elements: out,
         };
     }
-    """
+    """)
 
     async def observe(
         self, *, principal: str = "", max_elements: int | None = None
@@ -1677,9 +1678,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         # were never seen. What a decision is offered is ranked and bounded
         # downstream; what the page holds is not a choice to make here.
         try:
-            observation = await self.page.evaluate(
-                self._OBSERVE_SCRIPT, int(max_elements) if max_elements else 0
-            )
+            observation = await get_page_gateway().read(self.page, self._OBSERVE_SCRIPT, int(max_elements) if max_elements else 0)
         except (
             OSError,
             ConnectionError,
@@ -1719,12 +1718,12 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         try:
             if not self.page:
                 return []
-            links = await self.page.evaluate("""() => {
+            links = await get_page_gateway().read(self.page, page_script("""() => {
                 return Array.from(document.querySelectorAll('a')).map(a => ({
                     text: a.innerText.trim(),
                     url: a.href
                 })).filter(l => l.text && l.url)
-            }""")
+            }"""))
             # javascript:, data: and file: links are not destinations, and
             # handing them out invites a caller to follow one.
             safe = [

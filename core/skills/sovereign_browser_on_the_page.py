@@ -23,6 +23,7 @@ from .watching_along import (
     kept_at,
     watch_along,
 )
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Skills.SovereignBrowser")
 
@@ -56,7 +57,7 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
     if not observation or page is None:
         return observation
     try:
-        plays = await page.evaluate(WHAT_PLAYS)
+        plays = await get_page_gateway().read(page, WHAT_PLAYS)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         return observation  # a page going away while it was looked at plays nothing
     if not plays or not plays.get("w") or not plays.get("h"):
@@ -67,7 +68,7 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
     try:
         # A page for one video says which (its name and length, as schema.org gives them); a list of videos playing
         # a preview of one says nothing of its own.
-        its_own = bool((await page.evaluate(WHAT_THE_PAGE_SAYS) or {}).get("length"))
+        its_own = bool((await get_page_gateway().read(page, WHAT_THE_PAGE_SAYS) or {}).get("length"))
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         its_own = False
     # A video playing with its sound on is one somebody chose: pages play their previews and trailers muted, and a
@@ -145,7 +146,7 @@ def handed_over(moves: list[tuple[Any, Any]]) -> Callable[..., Awaitable[dict[st
 
 
 #: Every video on her own page paused and muted: what she watches with a person plays where they watch it.
-QUIET_HERE = "() => { for (const v of document.querySelectorAll('video')) { v.muted = true; v.pause(); } return true; }"
+QUIET_HERE = page_script("() => { for (const v of document.querySelectorAll('video')) { v.muted = true; v.pause(); } return true; }")
 
 
 #: How long a page is given to state its video's name and length before it is watched without them.
@@ -161,7 +162,7 @@ async def what_it_says_once_it_says_it(page: Any, *, within_s: float = STATES_IT
 
     deadline = monotonic_time() + within_s
     while True:
-        said = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
+        said = await get_page_gateway().read(page, WHAT_THE_PAGE_SAYS) or {}
         if said.get("length") or monotonic_time() >= deadline:
             return said
         await asyncio.sleep(1.0)
@@ -177,7 +178,7 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
         return {**step, "error": "her browser has no page to watch on"}
     try:
         said_of_itself = await what_it_says_once_it_says_it(page)
-        plays = await page.evaluate(WHAT_PLAYS) or {}
+        plays = await get_page_gateway().read(page, WHAT_PLAYS) or {}
         # Its length as the page states it before the player's, which is the advert's while one plays.
         duration = float(said_of_itself.get("length") or 0) or float(plays.get("duration") or 0)
         at_most = duration + 120.0 if duration else WATCHED_AT_MOST_S
@@ -192,7 +193,7 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
         if await asyncio.to_thread(lambda: bool(_their_browser(step["url"])[0])):
             # Watched together, beside the conversation (core/skills/watching_together.py): her answer to the
             # request goes first, then it opens on their screen; the turn ends with her answer, not the video.
-            await page.evaluate(QUIET_HERE)
+            await get_page_gateway().read(page, QUIET_HERE)
             # Who made it, as the page states it: LIVE 22 October 2026 she wondered aloud whose channel it was. The
             # watching is told too: knowing who made it is part of what she expects of it.
             by = " ".join(str(said_of_itself.get("by") or "").split())
@@ -204,7 +205,7 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
                     "watched": True, "where": "on their screen, together"}
         where = await on_their_screen(step["url"], title, duration, words)
         if where is not None:
-            await page.evaluate(QUIET_HERE)
+            await get_page_gateway().read(page, QUIET_HERE)
             step["where"] = f"on their screen, in {where.owner}"
         watching = await watch_along(where or page, goal, keep=kept_at(title, step["url"]),
                                      remember=partial(into_her_memory, url=step["url"]), at_most_s=at_most)

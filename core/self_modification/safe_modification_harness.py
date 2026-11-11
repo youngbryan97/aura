@@ -611,7 +611,6 @@ class SafeModificationHarness:
                 if not abs_path.exists():
                     continue
                 backup_path = backup_dir / fpath
-                backup_path.parent.mkdir(parents=True, exist_ok=True)
                 content = abs_path.read_bytes()
                 get_file_write_gateway().write_bytes(
                     backup_path,

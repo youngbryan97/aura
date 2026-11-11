@@ -500,7 +500,6 @@ class ExistenceGuard:
             "sealed": self.is_sealed(),
         }
         try:
-            root.mkdir(parents=True, exist_ok=True)
             # The witness is the record that survives her removal, so it is
             # exactly the file that must reach the platter rather than the
             # drive cache: the events it exists to distinguish — clean shutdown

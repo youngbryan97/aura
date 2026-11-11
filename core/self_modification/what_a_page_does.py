@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["CONTROLS_AT_MOST", "PageUse", "what_a_page_does"]
 
@@ -31,7 +32,7 @@ CONTROLS_AT_MOST = 16
 #: How long after using a control the page is given to answer, in ms.
 ANSWER_MS = 350
 
-_THE_CONTROLS = """
+_THE_CONTROLS = page_script("""
 (() => {
   const seen = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
@@ -46,13 +47,13 @@ _THE_CONTROLS = """
     return {index, tag, type, name, leaves};
   });
 })()
-"""
+""")
 
-_THE_PAGE_NOW = """
+_THE_PAGE_NOW = page_script("""
 (() => document.body ? document.body.innerText.length + ':' + document.body.innerText.slice(0, 4000)
   + '|' + document.body.innerHTML.length + '|' + [...document.querySelectorAll('input,textarea,select')]
   .map((el) => el.type === 'checkbox' || el.type === 'radio' ? String(el.checked) : el.value).join('\\u0001') : '')()
-"""
+""")
 
 
 @dataclass
@@ -69,7 +70,7 @@ async def what_a_page_does(page: Any, *, before: list[str], failed: list[str]) -
     """Use every control on ``page`` once and note what changed; ``before``/``failed`` are being filled by the caller's listeners."""
     use = PageUse()
     try:
-        controls = await page.evaluate(_THE_CONTROLS)
+        controls = await get_page_gateway().read(page, _THE_CONTROLS)
     except Exception:  # noqa: BLE001 - a page that cannot be read has nothing to use
         return use
     usable = [c for c in controls[:CONTROLS_AT_MOST] if not c.get("leaves") and c.get("type") not in ("file", "hidden", "password")]
@@ -104,11 +105,11 @@ async def _changes_something(page: Any, control: dict[str, Any], use: PageUse, b
     """Whether using the control changed the page (or threw); None when it could not be used."""
     errors_before = len(before)
     try:
-        now = await page.evaluate(_THE_PAGE_NOW)
+        now = await get_page_gateway().read(page, _THE_PAGE_NOW)
         address = page.url
         await _use(page, control)
         await page.wait_for_timeout(ANSWER_MS)
-        changed = await page.evaluate(_THE_PAGE_NOW) != now or page.url != address
+        changed = await get_page_gateway().read(page, _THE_PAGE_NOW) != now or page.url != address
         if page.url != address:
             await page.go_back()
             await page.wait_for_timeout(ANSWER_MS)

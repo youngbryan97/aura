@@ -257,7 +257,6 @@ class MindStateExporter:
         indistinguishable from a nine-component one.
         """
         path = Path(output_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
 
         manifest: Dict[str, Any] = {
             "version": "2.0",

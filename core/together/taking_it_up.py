@@ -66,7 +66,6 @@ class TakingItUp:
             return
         try:
             path = _file()
-            path.parent.mkdir(parents=True, exist_ok=True)
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import write_text_behind
 

@@ -121,6 +121,11 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
     ),
     "raw_desktop": frozenset({"core/runtime/desktop_action_gateway.py"}),
     "raw_browser": frozenset({
+        # Her page owner: a script runs only if its module declared it at
+        # import, values go in as arguments, an address is a web page, a file
+        # of hers or a blank page, and every key, click, fill and go-to is
+        # named by its source and counted (Q06, 10 November 2026).
+        "core/runtime/page_gateway.py",
         # This owner acquires and releases a fixed, bounded drawing observer.
         # It accepts no script payload, draws nothing and sends no input.
         "core/perception/the_drawing_as_objects.py",
@@ -509,6 +514,7 @@ _GATEWAY_FACTORIES = {
     "get_network_gateway": "network_gateway",
     "get_file_write_gateway": "file_write_gateway",
     "get_desktop_action_gateway": "desktop_action_gateway",
+    "get_page_gateway": "page_gateway",
     "get_memory_write_gateway": "memory_write_gateway",
     "get_state_gateway": "state_gateway",
     "get_will": "will_decision",
@@ -552,6 +558,7 @@ _GATEWAY_METHODS = {
         }
     ),
     "desktop_action_gateway": frozenset({"run_applescript", "run_applescript_async"}),
+    "page_gateway": frozenset({"click", "fill", "go_to", "new_page", "press", "read", "type_text"}),
     "memory_write_gateway": frozenset({"quarantine", "write"}),
     "state_gateway": frozenset({"mutate"}),
     "will_decision": frozenset({"decide", "decide_async"}),

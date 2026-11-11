@@ -71,7 +71,6 @@ class QuarantineManager:
         digest = hashlib.sha256(data).hexdigest()
         quarantine_id = hashlib.sha256(f"{path}:{digest}:{proof_run}".encode("utf-8")).hexdigest()[:16]
         item_dir = self.root / quarantine_id
-        item_dir.mkdir(parents=True, exist_ok=True)
         atomic_write_bytes(item_dir / "artifact.bin", data)
         receipt_hash = hashlib.sha256(json.dumps({
             "id": quarantine_id,

@@ -19,6 +19,7 @@ from core.runtime.service_registry import get_runtime_service
 from core.service_names import ServiceNames
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+from core.runtime.page_gateway import get_page_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -360,7 +361,7 @@ async def _open_for_the_person(path: Path) -> str:
         browser = PhantomBrowser(visible=True, browser_type="chromium", principal="owner")
         if not await browser.ensure_ready():
             return ""
-        await browser.page.goto(path.as_uri(), wait_until="load")
+        await get_page_gateway().go_to(browser.page, path.as_uri(), source="program_dna_reconstruct.open_for_the_person", wait_until="load")
         await browser.page.bring_to_front()
         await browser.come_forward()
         _LEFT_OPEN.append(browser)

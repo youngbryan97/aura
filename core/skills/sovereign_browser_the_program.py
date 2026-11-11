@@ -21,6 +21,7 @@ import re
 from typing import Any
 
 from core.verify import invariant
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["programs_of", "read_what_the_page_runs"]
 
@@ -37,18 +38,18 @@ MOST_SCRIPT_TEXT = 2_000_000
 
 #: The scripts written into the page itself (a game drawn on a canvas often keeps its whole world in one), and the
 #: size of the largest canvas's own drawing, which is the stage its code draws on.
-_ITS_OWN_SCRIPTS = """
+_ITS_OWN_SCRIPTS = page_script("""
 (most) => {
   const canvases = [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height);
   return {scripts: [...document.scripts].filter((s) => !s.src).map((s) => (s.text || '').slice(0, most)),
           stage: canvases.length ? [canvases[0].width, canvases[0].height] : null};
 }
-"""
+""")
 
 #: What a page loaded, from its own record, with the size the browser was given of each.
-_WHAT_IT_LOADED = """
+_WHAT_IT_LOADED = page_script("""
 (() => performance.getEntriesByType('resource').map(e => [e.name, e.initiatorType, e.transferSize || e.encodedBodySize || 0]))()
-"""
+""")
 
 #: A program the page runs, by its address: a Flash file, a script, a WebAssembly module.
 _A_PROGRAM = re.compile(r"\.(?:swf|js|mjs|wasm)(?:[?#]|$)", re.I)
@@ -61,7 +62,7 @@ _FURNITURE = re.compile(r"google|doubleclick|analytics|gtag|tagmanager|facebook|
 #: A file a player plays: the thing itself, where a page plays one.
 _PLAYED = re.compile(r"\.(?:swf|wasm)(?:[?#]|$)", re.I)
 
-_FETCH_IT = """
+_FETCH_IT = page_script("""
 async ([url, most]) => {
   try {
     const r = await fetch(url, {cache: 'force-cache'});
@@ -74,7 +75,7 @@ async ([url, most]) => {
     return btoa(s);
   } catch (e) { return null; }
 }
-"""
+""")
 
 
 def programs_of(loaded: list[Any]) -> list[str]:
@@ -99,14 +100,14 @@ async def read_what_the_page_runs(page: Any) -> Any:
     from core.runtime.what_she_learned import named, remember
 
     try:
-        loaded = await page.evaluate(_WHAT_IT_LOADED)
+        loaded = await get_page_gateway().read(page, _WHAT_IT_LOADED)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         return ProgramRead()
     reads: list[ProgramRead] = []
     scripts: list[str] = []
     for url in programs_of(list(loaded) if isinstance(loaded, list) else []):
         try:
-            got = await page.evaluate(_FETCH_IT, [url, MOST_BYTES])
+            got = await get_page_gateway().read(page, _FETCH_IT, [url, MOST_BYTES])
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             got = None
         data = _program_bytes(got)
@@ -157,7 +158,7 @@ async def _the_world_its_scripts_make(page: Any, scripts: list[str]) -> Any:
 
     address = str(getattr(page, "url", "") or "")
     try:
-        own = await page.evaluate(_ITS_OWN_SCRIPTS, MOST_SCRIPT_TEXT)
+        own = await get_page_gateway().read(page, _ITS_OWN_SCRIPTS, MOST_SCRIPT_TEXT)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         own = {}
     own = own if isinstance(own, dict) else {}

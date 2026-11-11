@@ -22,6 +22,7 @@ import urllib.parse
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Skills.WhereThingsAreKept")
 
@@ -122,7 +123,7 @@ async def _searched(skill: Any, browser: Any, name: str, kind: str) -> list[Cand
         if not await skill._safe_browse(browser, engine + urllib.parse.quote_plus(query)):
             continue
         title = await page.title()
-        text = await page.evaluate("document.body ? document.body.innerText.slice(0, 800) : ''")
+        text = await get_page_gateway().read(page, page_script("document.body ? document.body.innerText.slice(0, 800) : ''"))
         if refused(title, text):
             continue  # an engine that will not answer an automated browser is not argued with
         found = await the_list_on_the_page(browser)

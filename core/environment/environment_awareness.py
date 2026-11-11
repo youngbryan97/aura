@@ -424,7 +424,6 @@ class UserIdentityManager:
     def _save_known_fingerprints(self):
         """Persist fingerprint associations."""
         try:
-            self._data_path.parent.mkdir(parents=True, exist_ok=True)
             payload = json.dumps(self._known_fingerprints, ensure_ascii=False, indent=2)
             get_file_write_gateway().write_text(
                 self._data_path,

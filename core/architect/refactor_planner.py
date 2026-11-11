@@ -129,7 +129,6 @@ class RefactorPlanner:
         atomic_write_text(path, json.dumps(plan_to_dict(plan), indent=2, sort_keys=True, default=str))
         if plan.risk_tier >= MutationTier.T4_GOVERNANCE_SENSITIVE:
             proposals = self.config.artifacts / "proposals"
-            proposals.mkdir(parents=True, exist_ok=True)
             atomic_write_text(proposals / f"{plan.id}.json", json.dumps(plan_to_dict(plan), indent=2, sort_keys=True, default=str))
         return path
 

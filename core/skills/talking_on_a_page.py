@@ -16,6 +16,7 @@ from typing import Any
 
 from core.perception.a_conversation_on_a_page import LOOK, Line, read_conversation
 from core.runtime.wall_clock import monotonic_time
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 #: How often the page is looked at, and how long a conversation nobody has opened waits before she may open it.
 LOOK_EVERY_S = 0.5
@@ -27,7 +28,7 @@ SENT_SHOWS_S = 1.5
 ASKED_AT_MOST = 2
 
 #: Press the control nearest the place to write: what sends a line where Return does not.
-_PRESS_THE_SENDER = r"""(path) => {
+_PRESS_THE_SENDER = page_script(r"""(path) => {
   const at = (p) => { let el = document.body; for (const part of p.split("/")) { const [tag, n] = part.split(":");
       el = Array.from(el.children).filter(c => c.tagName.toLowerCase() === tag)[Number(n) - 1]; if (!el) return null; } return el; };
   const box = at(path); if (!box) return false; const b = box.getBoundingClientRect();
@@ -35,7 +36,7 @@ _PRESS_THE_SENDER = r"""(path) => {
       const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !e.disabled; })
     .map(e => { const r = e.getBoundingClientRect(); return [Math.hypot(r.left + r.width / 2 - (b.left + b.width), r.top + r.height / 2 - (b.top + b.height / 2)), e]; })
     .sort((x, y) => x[0] - y[0]);
-  if (!near.length) return false; near[0][1].click(); return true; }"""
+  if (!near.length) return false; near[0][1].click(); return true; }""")
 
 
 def css_of(path: str) -> str:
@@ -49,10 +50,10 @@ async def talk_on_the_page(page: Any, reply: Callable[[list[Line], list[str]], A
     sent: list[str] = []
     stream, before, answered, began, ended = "", None, 0, time.monotonic(), False
     asked_for, tries = -1, 0  # how many of their lines her reply was last asked for, and how many times
-    talk = read_conversation(await page.evaluate(LOOK), sent)
+    talk = read_conversation(await get_page_gateway().read(page, LOOK), sent)
     offered = set(talk.controls)  # what the page offered to press while she could write, or when she came
     while time.monotonic() < until:
-        look = await page.evaluate(LOOK)
+        look = await get_page_gateway().read(page, LOOK)
         talk = read_conversation(look, sent, before=before, stream=stream)
         stream, before = talk.stream or stream, look
         if talk.over:
@@ -83,17 +84,17 @@ async def talk_on_the_page(page: Any, reply: Callable[[list[Line], list[str]], A
 async def _say(page: Any, words: str) -> bool:
     """Write ``words`` where the page takes them and send them: Return, else the control beside the box. False where
     the place to write closed or went while she thought: what she would have said is not said."""
-    writing = (await page.evaluate(LOOK) or {}).get("writing")
+    writing = (await get_page_gateway().read(page, LOOK) or {}).get("writing")
     if not writing:
         return False
     path = writing["path"]
-    await page.fill(css_of(path), words)
-    await page.press(css_of(path), "Enter")
+    await get_page_gateway().fill(page, css_of(path), words, source="talking_on_a_page.say")
+    await get_page_gateway().press(page, css_of(path), "Enter", source="talking_on_a_page.say")
     gives_up_at = monotonic_time() + SENT_SHOWS_S
     while monotonic_time() < gives_up_at:
-        look = await page.evaluate(LOOK)
+        look = await get_page_gateway().read(page, LOOK)
         if any(" ".join(b["text"].lower().split()) == " ".join(words.lower().split()) for b in look.get("blocks") or ()):
             return True
         await asyncio.sleep(0.2)
-    await page.evaluate(_PRESS_THE_SENDER, path)
+    await get_page_gateway().read(page, _PRESS_THE_SENDER, path)
     return True

@@ -199,7 +199,6 @@ class DomainSpecialistTrainer:
 
             run_dir.mkdir(parents=True, exist_ok=True)
             data_dir = run_dir / "data"
-            data_dir.mkdir(exist_ok=True)
             split = max(2, len(rows) // 10)
             atomic_write_text(
                 data_dir / "train.jsonl",
@@ -367,7 +366,6 @@ class DomainSpecialistTrainer:
     def _persist_receipt(self, receipt: SpecialistReceipt) -> None:
         try:
             receipts = self.config.work_root / "receipts"
-            receipts.mkdir(parents=True, exist_ok=True)
             atomic_write_text(
                 receipts / f"{receipt.domain}-{int(receipt.created_at)}.json",
                 json.dumps(receipt.to_dict(), indent=2, sort_keys=True),

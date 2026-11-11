@@ -827,7 +827,6 @@ class SocialMediaEngine:
 
     def _save_state(self) -> None:
         try:
-            self.PERSIST_PATH.parent.mkdir(parents=True, exist_ok=True)
             payload = {
                 "relationships": {k: asdict(v) for k, v in self._relationships.items()},
                 "last_post_time": self._last_post_time,
@@ -835,7 +834,6 @@ class SocialMediaEngine:
             }
             atomic_write_text(self.PERSIST_PATH, json.dumps(payload, indent=2), encoding="utf-8")
 
-            self.INTERACTION_LOG.parent.mkdir(parents=True, exist_ok=True)
             log_raw = [asdict(i) for i in self._interaction_log[-600:]]
             atomic_write_text(self.INTERACTION_LOG, json.dumps(log_raw, indent=2), encoding="utf-8")
         except (OSError, TypeError, ValueError) as exc:

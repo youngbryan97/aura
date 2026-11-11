@@ -273,7 +273,6 @@ class EpistemicHumility:
 
     def _save(self):
         try:
-            self.data_path.parent.mkdir(parents=True, exist_ok=True)
             data = {
                 "heuristics": {k: asdict(v) for k, v in self.heuristics.items()}
             }

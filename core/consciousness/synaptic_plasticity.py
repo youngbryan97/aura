@@ -377,7 +377,6 @@ class SynapticPlasticityEngine:
     def _persist_state(self):
         """Save learnable weights to disk."""
         try:
-            PERSIST_PATH.parent.mkdir(parents=True, exist_ok=True)
             state = {
                 "W": self._W.tolist(),
                 "weight_variance": self._weight_variance.tolist(),

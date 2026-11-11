@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from core.runtime.wall_clock import monotonic_time, wall_time
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Aura.WatchingAlong")
 
@@ -72,7 +73,7 @@ WORDS_A_SECOND = 2.5
 #: line shown again with one more under it), so only what follows the overlap with the last reading is new. Read
 #: and emptied at each look (HEARD), so nothing said between two looks is missed (LIVE 19 October 2026: looking every
 #: five seconds caught one caption line in two).
-LISTEN = r"""() => {
+LISTEN = page_script(r"""() => {
   if (window.__auraListening) return true;
   window.__auraListening = true; window.__auraHeard = []; let last = [];
   const over = () => {
@@ -99,12 +100,12 @@ LISTEN = r"""() => {
     last = now.words;
   }, 250);
   return true;
-}"""
-HEARD = r"""() => { const h = window.__auraHeard || []; window.__auraHeard = []; return h; }"""
+}""")
+HEARD = page_script(r"""() => { const h = window.__auraHeard || []; window.__auraHeard = []; return h; }""")
 
 #: The largest video on the page (shadow roots walked), where it is, how far it has played, and the words shown over
 #: it that are not its controls: its captions, and whatever else the page writes on the picture.
-WHAT_PLAYS = r"""() => {
+WHAT_PLAYS = page_script(r"""() => {
   let best = null, area = 0;
   const walk = (root) => { for (const el of root.querySelectorAll('*')) {
     if (el.tagName === 'VIDEO') { const r = el.getBoundingClientRect(); if (r.width * r.height > area) { area = r.width * r.height; best = el; } }
@@ -124,10 +125,10 @@ WHAT_PLAYS = r"""() => {
   return {x: r.left, y: r.top, w: r.width, h: r.height, vw: innerWidth, vh: innerHeight, at: best.currentTime || 0,
           duration: isFinite(best.duration) ? best.duration : 0, paused: best.paused, ended: best.ended, muted: best.muted,
           words: words.join(' ').slice(0, 600)};
-}"""
+}""")
 
 #: Start the largest video if it is paused, and turn on captions where a control says it shows them.
-PLAY_WITH_CAPTIONS = r"""() => {
+PLAY_WITH_CAPTIONS = page_script(r"""() => {
   let best = null, area = 0;
   for (const v of document.querySelectorAll('video')) { const r = v.getBoundingClientRect(); if (r.width * r.height > area) { area = r.width * r.height; best = v; } }
   if (best && best.paused) best.play().catch(() => {});
@@ -136,23 +137,23 @@ PLAY_WITH_CAPTIONS = r"""() => {
     if (/subtit|caption/i.test(named(el)) && el.getAttribute('aria-pressed') === 'false' && el.getClientRects().length) { el.click(); break; }
   }
   return !!best;
-}"""
+}""")
 
 #: A control the page offers to skip what plays before the video (an advert), pressed as a person presses it.
-SKIP_WHAT_COMES_FIRST = r"""() => {
+SKIP_WHAT_COMES_FIRST = page_script(r"""() => {
   for (const el of document.querySelectorAll('button,[role=button]')) {
     const said = [el.getAttribute('aria-label'), el.textContent].join(' ').trim();
     if (/^skip\b/i.test(said) && el.getClientRects().length) { el.click(); return said.slice(0, 40); }
   }
   return '';
-}"""
+}""")
 
 #: What the page says of itself before it plays: its title and the words near the top of it.
 #: With the name and length the page gives what it plays, where it gives them in the web's standard ways (schema.org's
 #: VideoObject, in JSON-LD or microdata, and Open Graph). The video element says the length of what is in it now: LIVE
 #: 20 October 2026 that was a six-second advert, the watching took the video for six seconds long and ended it two
 #: minutes in.
-WHAT_THE_PAGE_SAYS = r"""() => {
+WHAT_THE_PAGE_SAYS = page_script(r"""() => {
   const meta = (sel) => { const m = document.querySelector(sel); return m ? (m.getAttribute('content') || '') : ''; };
   const seconds = (iso) => { const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/.exec(String(iso || ''));
     return m ? (+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0) : 0; };
@@ -167,7 +168,7 @@ WHAT_THE_PAGE_SAYS = r"""() => {
   by = by || meta('[itemprop="author"] [itemprop="name"]') || meta('meta[name="author"]');
   return {title: document.title, name: name, length: length, by: by,
           words: ((document.querySelector('main') || document.body).innerText || '').slice(0, 1500)};
-}"""
+}""")
 
 
 def clock(seconds: float) -> str:
@@ -360,24 +361,24 @@ class OnAPage:
         self.listening = False
 
     async def says(self) -> dict[str, Any]:
-        return await self.page.evaluate(WHAT_THE_PAGE_SAYS) or {}
+        return await get_page_gateway().read(self.page, WHAT_THE_PAGE_SAYS) or {}
 
     async def start(self) -> None:
-        await self.page.evaluate(PLAY_WITH_CAPTIONS)
-        self.listening = bool(await self.page.evaluate(LISTEN))
+        await get_page_gateway().read(self.page, PLAY_WITH_CAPTIONS)
+        self.listening = bool(await get_page_gateway().read(self.page, LISTEN))
 
     async def state(self) -> dict[str, Any] | None:
-        return await self.page.evaluate(WHAT_PLAYS)
+        return await get_page_gateway().read(self.page, WHAT_PLAYS)
 
     async def tend(self) -> str:
         """An advert's skip control pressed, and, every look, play and captions on again: after an advert the
         video's captions are off (LIVE 19 October 2026, a watch page after two adverts)."""
-        skipped = await self.page.evaluate(SKIP_WHAT_COMES_FIRST)
-        await self.page.evaluate(PLAY_WITH_CAPTIONS)
+        skipped = await get_page_gateway().read(self.page, SKIP_WHAT_COMES_FIRST)
+        await get_page_gateway().read(self.page, PLAY_WITH_CAPTIONS)
         return str(skipped or "")
 
     async def heard(self) -> list[dict[str, Any]] | None:
-        return await self.page.evaluate(HEARD) if self.listening else None
+        return await get_page_gateway().read(self.page, HEARD) if self.listening else None
 
     def eyes(self) -> Callable[[str], Awaitable[str]]:
         return her_eyes_on(self.page)
@@ -549,7 +550,7 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
     from core.perception.her_eyes import look_with_her_eyes, plainly
 
     async def look(when: str) -> str:
-        plays = await page.evaluate(WHAT_PLAYS) if when else None
+        plays = await get_page_gateway().read(page, WHAT_PLAYS) if when else None
         clip = ({"x": max(0.0, plays["x"]), "y": max(0.0, plays["y"]), "width": plays["w"], "height": plays["h"]}
                 if plays and plays.get("w") and plays.get("h") else None)
         try:

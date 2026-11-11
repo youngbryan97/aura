@@ -51,7 +51,6 @@ def unity_summary_payload(
 
 def write_unity_results_artifact(path: str | Path, payload: dict[str, Any]) -> Path:
     target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
     # Skip the write when only the timestamp moved: this artifact is
     # git-tracked, and every suite run used to dirty the working tree with
     # a timestamp-only rewrite (recurring rebase/stash friction).

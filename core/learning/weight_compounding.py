@@ -569,7 +569,6 @@ class WeightCompoundingLoop:
 
     @staticmethod
     def _export_sft_splits(rows: list[dict[str, Any]], data_dir: Path) -> dict[str, int]:
-        data_dir.mkdir(parents=True, exist_ok=True)
         valid_count = max(1, len(rows) // 12) if len(rows) >= 12 else 0
         train_rows = rows[: len(rows) - valid_count] if valid_count else rows
         valid_rows = rows[len(rows) - valid_count:] if valid_count else []

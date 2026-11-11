@@ -181,7 +181,6 @@ class UnifiedSelf:
     def _save_to_disk(self):
         """Persist identity state to disk (sync; for bare-thread callers)."""
         try:
-            self._storage_path.parent.mkdir(parents=True, exist_ok=True)
             from core.runtime.file_write_gateway import get_file_write_gateway
 
             with local_internal_governed_scope(

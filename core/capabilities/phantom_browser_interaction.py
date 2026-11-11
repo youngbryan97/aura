@@ -21,6 +21,7 @@ from core.runtime.errors import (
     record_degradation,
 )
 from core.utils.exceptions import capture_and_log
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("PhantomBrowser")
 
@@ -157,7 +158,7 @@ class _ActsOnThePage:
                 # click only when that times out, which is exactly the case
                 # where the "obstruction" is the control's own decoration.
                 try:
-                    await element.click(timeout=4000)
+                    await get_page_gateway().click(element, source="phantom_browser_interaction.click", timeout=4000)
                 except PlaywrightError as click_exc:
                     # `force=True` is NOT the answer here: it only skips the
                     # actionability checks and still clicks at a POINT, so the
@@ -206,9 +207,7 @@ class _ActsOnThePage:
         the click's ten seconds, and the browser was closed.
         """
         try:
-            return str(await element.evaluate(
-                "(el) => { const a = el.closest('a[href]'); return a ? a.href : ''; }"
-            ) or "")
+            return str(await get_page_gateway().read(element, page_script("(el) => { const a = el.closest('a[href]'); return a ? a.href : ''; }")) or "")
         except (PlaywrightError, RuntimeError, AttributeError, TypeError) as exc:
             logger.debug("Could not read where the link points: %s", exc)
             return ""
@@ -293,7 +292,7 @@ class _ActsOnThePage:
             logger.info("Typing %d characters into selector %s", len(text), selector)
             await show_activity(self, "typing")
             for char in text:
-                await self.page.keyboard.type(char)
+                await get_page_gateway().type_text(self.page.keyboard, char, source="phantom_browser_interaction.type")
                 # Random typing delay between keystrokes
                 await asyncio.sleep(random.uniform(0.05, 0.15))
 

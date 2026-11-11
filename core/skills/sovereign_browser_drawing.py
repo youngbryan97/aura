@@ -25,6 +25,7 @@ from typing import Any
 
 from core.verify import invariant
 from core.runtime.wall_clock import monotonic_time
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 #: The selector the observer gives what a page draws. Not a CSS selector: a move
 #: on it is a hand-over, never a click.
@@ -36,7 +37,7 @@ HER_BROWSER = "her own browser"
 
 #: Where the page draws, as shares of its viewport, after bringing the largest
 #: drawing into view. Shadow roots are walked: a player's canvas lives in one.
-_WHERE_IT_DRAWS = """
+_WHERE_IT_DRAWS = page_script("""
 (function () {
   var best = null, area = 0;
   var walk = function (root) {
@@ -62,7 +63,7 @@ _WHERE_IT_DRAWS = """
     bottom: Math.min(H, r.bottom) / H
   });
 })()
-"""
+""")
 
 
 #: What the page puts over the middle of its drawing, when that is something to
@@ -90,7 +91,7 @@ _PUT_OVER_IT = '(function (x, y) {' + _COVER_AT_POINT + 'return coverAtPoint(x, 
 # The physical press can meet a new overlay after the last hit test. Keep its
 # actual public event path, so a press on that overlay does not spend the
 # intended control's whole startup allowance.
-_COVER_PRESS = '(function (x, y, arm) {' + _COVER_AT_POINT + """
+_COVER_PRESS = page_script('([x, y, arm]) => (function (x, y, arm) {' + _COVER_AT_POINT + """
   var observed = coverAtPoint(x, y), previous = window.__auraCoverPress;
   if (arm && observed.element) {
     if (previous) previous.stop();
@@ -115,8 +116,8 @@ _COVER_PRESS = '(function (x, y, arm) {' + _COVER_AT_POINT + """
     previous = receipt;
   }
   return {description: observed.description, received: previous ? previous.received : null};
-})(%f, %f, %s)
-"""
+})(x, y, arm)
+""")
 
 
 def _cover_receipt(observation: Any) -> tuple[str, bool | None]:
@@ -137,8 +138,8 @@ def _cover_press_invariant() -> tuple:
 
 #: The close controls of notices laid over the drawing (a player's warning, a
 #: page's banner), by their own words or sign, as viewport points to click.
-_CLOSES_OVER_IT = r"""
-(function (l, t, r, b) {
+_CLOSES_OVER_IT = page_script(r"""
+([l, t, r, b]) => (function (l, t, r, b) {
   var found = [];
   var hitAt = function (x, y) {
     var hit = document.elementFromPoint(x, y);
@@ -169,8 +170,8 @@ _CLOSES_OVER_IT = r"""
   };
   walk(document);
   return JSON.stringify(found.slice(0, 3));
-})(%f, %f, %f, %f)
-"""
+})(l, t, r, b)
+""")
 
 @invariant('agency.notice_controls_keep_javascript_word_boundaries', scope='agency',
            owner='core/skills/sovereign_browser_drawing.py', observational=False)
@@ -184,7 +185,7 @@ def _notice_word_boundaries_invariant() -> tuple:
 #: archived game's page scrolled to its description under her keys and she read
 #: the description as the game. The page's default is held back only for those
 #: keys, after the game has had them, and only while she plays.
-_HOLD_IT_STILL = """
+_HOLD_IT_STILL = page_script("""
 (function () {
   if (window.__herPlay) return true;
   var stop = new AbortController(), x = window.scrollX, y = window.scrollY;
@@ -200,9 +201,9 @@ _HOLD_IT_STILL = """
   window.__herPlay = stop;
   return true;
 })()
-"""
+""")
 
-_LET_IT_GO = "(function () { if (window.__herPlay) { window.__herPlay.abort(); window.__herPlay = null; } return true; })()"
+_LET_IT_GO = page_script("(function () { if (window.__herPlay) { window.__herPlay.abort(); window.__herPlay = null; } return true; })()")
 
 #: How many times something put over the drawing is pressed, and how long the
 #: drawing is given to start after each.
@@ -223,7 +224,7 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
     for press in range(PRESSES_TO_START):
         wide, tall = await the_page_size(page)
         x, y = (band[0] + band[2]) / 2 * wide, (band[1] + band[3]) / 2 * tall
-        over, _received = _cover_receipt(await page.evaluate(_COVER_PRESS % (x, y, 'true')))
+        over, _received = _cover_receipt(await get_page_gateway().read(page, _COVER_PRESS, [x, y, True]))
         if not over:
             break
         if press == 0:  # said once: pressing it again is the same act, not news
@@ -233,14 +234,15 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
         missed = False
         while monotonic_time() - began < STARTS_WITHIN_S:
             await asyncio.sleep(0.1)
-            current, received = _cover_receipt(await page.evaluate(_COVER_PRESS % (x, y, 'false')))
+            current, received = _cover_receipt(await get_page_gateway().read(page, _COVER_PRESS, [x, y, False]))
             missed = received is False
             if current != over or missed:
                 break
         await asyncio.sleep(0.1 if missed else 2.0)
-        band = _the_band(await page.evaluate(_WHERE_IT_DRAWS)) or band
+        band = _the_band(await get_page_gateway().read(page, _WHERE_IT_DRAWS)) or band
     wide, tall = await the_page_size(page)
-    closes = json.loads(str(await page.evaluate(_CLOSES_OVER_IT % (band[0] * wide, band[1] * tall, band[2] * wide, band[3] * tall)) or "[]"))
+    closes = json.loads(str(await get_page_gateway().read(
+        page, _CLOSES_OVER_IT, [band[0] * wide, band[1] * tall, band[2] * wide, band[3] * tall]) or "[]"))
     for x, y in closes:
         _tell("A notice is over the game; closing it.")
         await page.mouse.click(float(x), float(y))
@@ -316,7 +318,7 @@ async def _where_it_draws(page: Any) -> tuple[float, float, float, float] | None
 
     gives_up_at = monotonic_time() + DRAWING_COMES_UP_S
     while True:
-        band = _the_band(await page.evaluate(_WHERE_IT_DRAWS))
+        band = _the_band(await get_page_gateway().read(page, _WHERE_IT_DRAWS))
         if band is not None or monotonic_time() >= gives_up_at:
             return band
         await asyncio.sleep(ASKED_EVERY_S)
@@ -369,7 +371,7 @@ async def _on_the_drawing(browser: Any, goal: str, observation: Mapping[str, Any
         return {**step, "error": "the page no longer says where it draws"}
     try:
         band = await _start_what_is_covered(page, band)
-        await page.evaluate(_HOLD_IT_STILL)
+        await get_page_gateway().read(page, _HOLD_IT_STILL)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="start the drawing and hold its page still")
     context, closing = getattr(page, "context", None), _Closing(page)
@@ -387,7 +389,7 @@ async def _on_the_drawing(browser: Any, goal: str, observation: Mapping[str, Any
         if context is not None:
             context.remove_listener("page", closing.opened)
         try:
-            await page.evaluate(_LET_IT_GO)
+            await get_page_gateway().read(page, _LET_IT_GO)
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             pass  # a page gone is a page that no longer needs letting go
 
@@ -1200,9 +1202,9 @@ async def _from_the_top(page: Any, band: tuple[float, float, float, float]) -> t
 
     try:
         await page.reload(wait_until="domcontentloaded")
-        band = _the_band(await page.evaluate(_WHERE_IT_DRAWS)) or band
+        band = _the_band(await get_page_gateway().read(page, _WHERE_IT_DRAWS)) or band
         band = await _start_what_is_covered(page, band)
-        await page.evaluate(_HOLD_IT_STILL)
+        await get_page_gateway().read(page, _HOLD_IT_STILL)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="begin the page's thing again")
         return None

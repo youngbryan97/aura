@@ -54,6 +54,7 @@ from .sovereign_browser_what_it_did import (
     where_she_is_going,
     with_what_was_seen_here,
 )
+from core.runtime.page_gateway import get_page_gateway
 
 #: Returned by an extracted block that did NOT return early. A unique
 #: object, so no value a block legitimately returns can be mistaken for it.
@@ -1316,19 +1317,12 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 try:
                     if action.type == "click":
                         success = await asyncio.wait_for(
-                            browser.click(
-                                selector=action.selector or "",
-                                lease_id=browser_lease.lease_id if browser_lease else "",
-                            ),
+                            get_page_gateway().click(browser, source="sovereign_browser.handle_interact", selector=action.selector or "", lease_id=browser_lease.lease_id if browser_lease else ""),
                             timeout=10.0,
                         )
                     elif action.type == "type":
                         success = await asyncio.wait_for(
-                            browser.type(
-                                action.selector or "",
-                                action.value or "",
-                                lease_id=browser_lease.lease_id if browser_lease else "",
-                            ),
+                            get_page_gateway().type_text(browser, action.selector or "", action.value or "", source="sovereign_browser.handle_interact", lease_id=browser_lease.lease_id if browser_lease else ""),
                             timeout=10.0,
                         )
                     elif action.type == "scroll":

@@ -372,7 +372,6 @@ class HobbyEngine:
 
     def _save_state(self) -> None:
         try:
-            self.PERSIST_PATH.parent.mkdir(parents=True, exist_ok=True)
             payload = {
                 "profiles": {n: asdict(p) for n, p in self._profiles.items()},
                 "saved_at": time.time(),
@@ -583,7 +582,6 @@ class HobbyEngine:
 
     def _save_entertainment_log(self) -> None:
         try:
-            self.ENTERTAINMENT_LOG.parent.mkdir(parents=True, exist_ok=True)
             raw = [asdict(i) for i in self._entertainment_queue[-100:]]
             atomic_write_text_behind(self.ENTERTAINMENT_LOG, json.dumps(raw, indent=2), encoding="utf-8")
         except (json.JSONDecodeError, TypeError, ValueError) as exc:

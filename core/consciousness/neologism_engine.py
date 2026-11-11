@@ -452,7 +452,6 @@ Only reply with the JSON, nothing else."""
 
     def _save_lexicon(self):
         try:
-            _LEXICON_PATH.parent.mkdir(parents=True, exist_ok=True)
             from core.runtime.file_write_gateway import get_file_write_gateway
 
             get_file_write_gateway().write_text(

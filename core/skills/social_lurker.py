@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from core.skills.base_skill import BaseSkill
 from pydantic import BaseModel, Field
 from core.config import config
+from core.runtime.page_gateway import get_page_gateway
 
 # Optional Playwright import
 try:
@@ -52,8 +53,8 @@ class LurkerSkill(BaseSkill):
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=headless)
                 try:
-                    page = await browser.new_page()
-                    await page.goto(url, timeout=15000)
+                    page = await get_page_gateway().new_page(browser, source="social_lurker.execute")
+                    await get_page_gateway().go_to(page, url, source="social_lurker.execute", timeout=15000)
                     
                     # Heuristic for HN/Reddit
                     if "ycombinator" in url:

@@ -23,6 +23,7 @@ from typing import Any
 from core.governance_context import GovernanceViolation
 from core.runtime.errors import record_degradation
 from core.runtime.network_gateway import get_network_gateway
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 try:
     from infrastructure import BaseSkill
@@ -35,7 +36,7 @@ logger = logging.getLogger("Skills.UnifiedBrowser")
 # ── Proxy-Select Script (from computer-use-preview) ─────────────────────────
 # Injects DOM-level select replacement to capture OS-native dropdown menus
 # which Playwright/screenshots cannot see.
-PROXY_SELECT_JS = """
+PROXY_SELECT_JS = page_script("""
 (function() {
   if (window.__proxySelectInjected) return;
   window.__proxySelectInjected = true;
@@ -84,7 +85,7 @@ PROXY_SELECT_JS = """
     sel.style.display = 'none';
   });
 })();
-"""
+""")
 
 # ── Rate Limiting (from gemini-cli/web-fetch.ts) ─────────────────────────────
 _RATE_LIMIT_WINDOW = 60  # seconds
@@ -434,9 +435,9 @@ class UnifiedBrowserSkill(BaseSkill):
             # Navigate
             if url:
                 logger.info("Navigating to %s", url)
-                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                await get_page_gateway().go_to(page, url, source="browser_action.run_playwright", wait_until="domcontentloaded", timeout=60000)
                 # Re-inject proxy-select after navigation (for dynamically loaded selects)
-                await page.evaluate(PROXY_SELECT_JS)
+                await get_page_gateway().read(page, PROXY_SELECT_JS)
             
             # Actions
             params = goal.get("params", {})
@@ -447,17 +448,17 @@ class UnifiedBrowserSkill(BaseSkill):
                 val = step.get("value")
                 try:
                     if stype == "click":
-                        await page.click(sel)
+                        await get_page_gateway().click(page, sel, source="browser_action.run_playwright")
                     elif stype == "type":
-                        await page.fill(sel, val)
+                        await get_page_gateway().fill(page, sel, val, source="browser_action.run_playwright")
                     elif stype == "scroll":
-                        await page.evaluate("window.scrollBy(0, 500)")
+                        await get_page_gateway().read(page, page_script("window.scrollBy(0, 500)"))
                     elif stype == "wait":
                         await asyncio.sleep(float(val))
                     elif stype == "get_html": 
                         params["html"] = await page.content()
                     # v2.0: Re-inject proxy-select after DOM mutations
-                    await page.evaluate(PROXY_SELECT_JS)
+                    await get_page_gateway().read(page, PROXY_SELECT_JS)
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     logger.warning("Action %s failed: %s", stype, e)
 

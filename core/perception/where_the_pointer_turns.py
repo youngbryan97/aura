@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.verify import invariant
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["places_the_pointer_turns", "shown_as_a_hand", "the_thing_there", "where_the_hand_is_now", "where_the_pointer_turns"]
 
@@ -203,7 +204,7 @@ MOST = 8
 _A_HAND = frozenset({"pointer", "hand"})
 
 #: What the pointer is shown as at a place of the page, looking into the player the game is drawn in.
-_SHOWN_AS = """(([x, y]) => {
+_SHOWN_AS = page_script("""(([x, y]) => {
   let e = document.elementFromPoint(x, y), shown = '';
   for (let i = 0; e && i < 6; i++) {
     shown = getComputedStyle(e).cursor;
@@ -212,7 +213,7 @@ _SHOWN_AS = """(([x, y]) => {
     e = inner;
   }
   return shown;
-})"""
+})""")
 
 
 def the_thing_there(place: tuple[float, float], regions: list[dict[str, Any]], across: int = ACROSS,
@@ -246,7 +247,7 @@ def the_thing_there(place: tuple[float, float], regions: list[dict[str, Any]], a
 
 #: The pointer moved over each of a list of places inside the page, as the page's own pointer moves, and what it is
 #: shown as at each: the whole sweep in one asking of the page.
-_SWEPT_IN_THE_PAGE = """(([points]) => {
+_SWEPT_IN_THE_PAGE = page_script("""(([points]) => {
   const at = (x, y) => {
     let e = document.elementFromPoint(x, y);
     for (let i = 0; e && i < 6; i++) {
@@ -267,7 +268,7 @@ _SWEPT_IN_THE_PAGE = """(([points]) => {
     shown.push(""" + _SHOWN_AS + """([x, y]));
   }
   return shown;
-})"""
+})""")
 
 
 async def _shown_at_each(page: Any, points: list[tuple[float, float]]) -> list[str]:
@@ -283,7 +284,7 @@ async def _shown_at_each(page: Any, points: list[tuple[float, float]]) -> list[s
         return []
     if page not in _NEEDS_THE_MOUSE:
         try:
-            shown = await page.evaluate(_SWEPT_IN_THE_PAGE, [[list(point) for point in points]])
+            shown = await get_page_gateway().read(page, _SWEPT_IN_THE_PAGE, [[list(point) for point in points]])
             if isinstance(shown, list) and len(shown) == len(points):
                 shown = [str(one or "") for one in shown]
                 if await _the_mouse_agrees(page, points, shown):
@@ -298,7 +299,7 @@ async def _shown_at_each(page: Any, points: list[tuple[float, float]]) -> list[s
     for i in _spatial_query_order(points):
         x, y = points[i]
         await page.mouse.move(x, y)
-        shown = str(await page.evaluate(_SHOWN_AS, [x, y]) or "")
+        shown = str(await get_page_gateway().read(page, _SHOWN_AS, [x, y]) or "")
         await _finished_sample(x, y, shown)
         out[i] = shown
     # Both survey implementations finish at the same requested location.
@@ -324,7 +325,7 @@ async def _the_mouse_agrees(page: Any, points: list[tuple[float, float]], shown:
     for i in [*hands, *spread]:
         x, y = points[i]
         await page.mouse.move(x, y)
-        physical = str(await page.evaluate(_SHOWN_AS, [x, y]) or "")
+        physical = str(await get_page_gateway().read(page, _SHOWN_AS, [x, y]) or "")
         await _finished_sample(x, y, physical)
         if (physical in _A_HAND) != (shown[i] in _A_HAND):
             return False
@@ -498,7 +499,7 @@ async def shown_as_a_hand(page: Any, x: float, y: float, *, move: bool = True) -
     """Read the current cursor; optionally move it to the supplied page pixels first."""
     if move:
         await page.mouse.move(x, y)
-    return str(await page.evaluate(_SHOWN_AS, [x, y]) or "") in _A_HAND
+    return str(await get_page_gateway().read(page, _SHOWN_AS, [x, y]) or "") in _A_HAND
 
 
 async def where_the_hand_is_now(page: Any, x: float, y: float, left: float, top: float, wide: float,

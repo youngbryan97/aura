@@ -50,6 +50,17 @@ from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+from core.runtime.page_gateway import get_page_gateway, page_script
+
+#: A subreddit's rules, from Reddit's own JSON for them, read from her page.
+_SUBREDDIT_RULES = page_script("""async (subreddit) => {
+    try {
+        const res = await fetch('/r/' + encodeURIComponent(subreddit) + '/about/rules.json');
+        return await res.json();
+    } catch (e) {
+        return {error: e.toString()};
+    }
+}""")
 
 logger = logging.getLogger("Skills.Reddit")
 
@@ -686,9 +697,9 @@ class RedditAdapterSkill(BaseSkill):
                 )
                 return False
 
-            await username_input.fill(username, timeout=5000)
-            await password_input.fill(password, timeout=5000)
-            await password_input.press("Enter")
+            await get_page_gateway().fill(username_input, username, source="reddit_adapter.ensure_logged_in", timeout=5000)
+            await get_page_gateway().fill(password_input, password, source="reddit_adapter.ensure_logged_in", timeout=5000)
+            await get_page_gateway().press(password_input, "Enter", source="reddit_adapter.ensure_logged_in")
             await asyncio.sleep(5)
             content = await page.content()
             if self._session_markers(content):
@@ -950,8 +961,7 @@ class RedditAdapterSkill(BaseSkill):
             return {"ok": False, "error": "No browser page available"}
 
         # Extract posts
-        posts = await page.evaluate(
-            """(limit) => {
+        posts = await get_page_gateway().read(page, page_script("""(limit) => {
             const posts = [];
             // Try new Reddit (shreddit-post)
             const shredditPosts = document.querySelectorAll('shreddit-post');
@@ -979,9 +989,7 @@ class RedditAdapterSkill(BaseSkill):
                 });
             }
             return posts;
-        }""",
-            params.limit,
-        )
+        }"""), params.limit)
 
         logger.info("📱 Found %d posts on r/%s", len(posts), subreddit)
         if not posts:
@@ -1124,27 +1132,27 @@ class RedditAdapterSkill(BaseSkill):
                 'shreddit-composer div[contenteditable="true"]'
             ).first
 
-            await comment_box.click()
+            await get_page_gateway().click(comment_box, source="reddit_adapter.handle_comment")
             await asyncio.sleep(1)
-            await comment_box.fill(body)
+            await get_page_gateway().fill(comment_box, body, source="reddit_adapter.handle_comment")
             await asyncio.sleep(1)
 
             # Submit
             submit_btn = page.locator(
                 'button:has-text("Comment"), button[type="submit"]:has-text("Comment")'
             ).first
-            await submit_btn.click()
+            await get_page_gateway().click(submit_btn, source="reddit_adapter.handle_comment")
             await asyncio.sleep(4)
 
             # Check for UI error banners
-            errors = await page.evaluate("""() => {
+            errors = await get_page_gateway().read(page, page_script("""() => {
                 const errs = [];
                 document.querySelectorAll('[role="alert"], .text-red-500, shreddit-banner[type="error"], shreddit-toast[type="error"], .error').forEach(el => {
                     const text = el.innerText.trim();
                     if (text && text.length > 5) errs.push(text);
                 });
                 return errs;
-            }""")
+            }"""))
 
             if errors:
                 err_text = " | ".join(errors)
@@ -1227,34 +1235,34 @@ class RedditAdapterSkill(BaseSkill):
                 'input[name="title"], '
                 'div[data-testid="post-title-input"] textarea'
             ).first
-            await title_input.fill(title)
+            await get_page_gateway().fill(title_input, title, source="reddit_adapter.handle_post")
             await asyncio.sleep(1)
 
             # Fill body
             body_input = page.locator(
                 'div[contenteditable="true"], textarea[name="selftext"]'
             ).first
-            await body_input.click()
+            await get_page_gateway().click(body_input, source="reddit_adapter.handle_post")
             await asyncio.sleep(0.5)
-            await body_input.fill(body)
+            await get_page_gateway().fill(body_input, body, source="reddit_adapter.handle_post")
             await asyncio.sleep(1)
 
             # Submit
             submit_btn = page.locator(
                 'button:has-text("Post"), button[type="submit"]:has-text("Post")'
             ).first
-            await submit_btn.click()
+            await get_page_gateway().click(submit_btn, source="reddit_adapter.handle_post")
             await asyncio.sleep(5)
 
             # Check for UI error banners
-            errors = await page.evaluate("""() => {
+            errors = await get_page_gateway().read(page, page_script("""() => {
                 const errs = [];
                 document.querySelectorAll('[role="alert"], .text-red-500, shreddit-banner[type="error"], shreddit-toast[type="error"], .error').forEach(el => {
                     const text = el.innerText.trim();
                     if (text && text.length > 5) errs.push(text);
                 });
                 return errs;
-            }""")
+            }"""))
 
             if errors:
                 err_text = " | ".join(errors)
@@ -1350,13 +1358,13 @@ class RedditAdapterSkill(BaseSkill):
 
         try:
             reply_box = page.locator('div[contenteditable="true"], textarea').first
-            await reply_box.click()
+            await get_page_gateway().click(reply_box, source="reddit_adapter.handle_reply_inbox")
             await asyncio.sleep(0.5)
-            await reply_box.fill(body)
+            await get_page_gateway().fill(reply_box, body, source="reddit_adapter.handle_reply_inbox")
             await asyncio.sleep(1)
 
             submit_btn = page.locator('button:has-text("Reply"), button[type="submit"]').first
-            await submit_btn.click()
+            await get_page_gateway().click(submit_btn, source="reddit_adapter.handle_reply_inbox")
             await asyncio.sleep(3)
 
             await self._save_session(browser)
@@ -1393,14 +1401,9 @@ class RedditAdapterSkill(BaseSkill):
             return {"ok": False, "error": "No browser page"}
 
         try:
-            rules_data = await page.evaluate(f"""async () => {{
-                try {{
-                    const res = await fetch('/r/{params.subreddit}/about/rules.json');
-                    return await res.json();
-                }} catch (e) {{
-                    return {{error: e.toString()}};
-                }}
-            }}""")
+            # The subreddit goes in as an argument: in the script's text, a name
+            # with a quote in it was a script of its own.
+            rules_data = await get_page_gateway().read(page, _SUBREDDIT_RULES, params.subreddit)
 
             rules = []
             if isinstance(rules_data, dict) and "rules" in rules_data:

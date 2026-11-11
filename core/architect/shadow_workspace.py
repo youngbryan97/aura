@@ -81,14 +81,12 @@ class ShadowWorkspaceManager:
                 changed.append(step.target_path)
             elif step.operation == "proposal":
                 proposals = shadow_root / ".aura_architect" / "proposals"
-                proposals.mkdir(parents=True, exist_ok=True)
                 atomic_write_text(proposals / f"{plan.id}.json", json.dumps(plan_to_dict(plan), indent=2, sort_keys=True, default=str))
             elif step.operation == "quarantine_symbol":
                 source = shadow_root / step.target_path
                 if not source.exists():
                     raise ShadowWorkspaceError(f"quarantine target missing: {step.target_path}")
                 manifest_dir = shadow_root / ".aura_architect" / "quarantine" / plan.id
-                manifest_dir.mkdir(parents=True, exist_ok=True)
                 atomic_write_bytes(manifest_dir / "original.py", source.read_bytes())
             else:
                 raise ShadowWorkspaceError(f"unsupported refactor operation: {step.operation}")

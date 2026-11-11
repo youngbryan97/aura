@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from core.self_modification.code_that_looks_wrong import Edit, Suspicion, applied, what_looks_wrong
+from core.runtime.page_gateway import get_page_gateway
 
 logger = logging.getLogger("SelfModification.RepairingByBehaviour")
 
@@ -116,7 +117,7 @@ async def _watched(browser: Any, html: str, words: str, keys: list[str], folder:
 
     copy = folder / f".trying-{abs(hash(html)) % 10**10}.html"
     await get_file_write_gateway().write_text_async(copy, html, source="repairing_by_behaviour")
-    page = await browser.new_page(viewport={"width": 900, "height": 700})
+    page = await get_page_gateway().new_page(browser, source="repairing_by_behaviour.watched", viewport={"width": 900, "height": 700})
     try:
         behaviour = await what_it_does(page, copy.resolve().as_uri(), words=words, keys=keys, seconds=seconds)
         evidence = getattr(behaviour, "evidence", {}) or {}

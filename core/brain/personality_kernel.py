@@ -55,7 +55,6 @@ class PersonalityKernel:
             return self._read_validated_key()
         key = os.urandom(_KEY_SIZE)
         try:
-            self.key_file.parent.mkdir(parents=True, exist_ok=True)
             from core.runtime.file_write_gateway import get_file_write_gateway
 
             get_file_write_gateway().write_bytes(

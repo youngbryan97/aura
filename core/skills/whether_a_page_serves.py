@@ -32,6 +32,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Skills.WhetherAPageServes")
 
@@ -59,7 +60,7 @@ _CONTENT = {"media": "a recording it plays", "object": "the program it embeds", 
 _A_THING = re.compile(r"\.(?:swf|wasm|unity3d|data|dcr|jar|xap|mp4|webm|ogg|ogv|mp3|m4a|wav|m3u8|mpd)(?:[?#]|$)", re.I)
 
 #: What a page's code embeds, what it is, and what runs it: the page reads its own markup for these.
-_EMBEDS = r"""
+_EMBEDS = page_script(r"""
 () => {
   const all = [];
   const look = (root) => { for (const el of root.querySelectorAll("*")) { all.push(el); if (el.shadowRoot) look(el.shadowRoot); } };
@@ -89,7 +90,7 @@ _EMBEDS = r"""
   const text = document.body ? document.body.innerText : "";
   return { plugin, players, runs, words: (text.match(/\S+/g) || []).length, text: text.slice(0, 3000) };
 }
-"""
+""")
 
 
 @dataclass
@@ -197,7 +198,7 @@ def what_the_task_needs(task: str) -> str:
 
 #: A control of the page's own that starts the thing it holds ("Play Game", "Click to play"), not a link away from it:
 #: the largest one seen, as a point to press.
-_WHAT_STARTS_IT = r"""
+_WHAT_STARTS_IT = page_script(r"""
 () => {
   const said = (el) => [el.innerText, el.getAttribute("aria-label"), el.getAttribute("title"), el.id, el.className && String(el.className)].join(" ");
   const away = (el) => el.tagName === "A" && el.getAttribute("href") && !/^(#|javascript:)/i.test(el.getAttribute("href"));
@@ -213,7 +214,7 @@ _WHAT_STARTS_IT = r"""
   const r = best.getBoundingClientRect();
   return [r.x + r.width / 2, r.y + r.height / 2, (best.innerText || best.getAttribute("aria-label") || "").trim().slice(0, 40)];
 }
-"""
+""")
 
 #: How long a thing is given to appear after its start control is pressed, in seconds.
 STARTS_WITHIN_S = 6.0
@@ -234,21 +235,21 @@ async def whether_it_serves(page: Any, task: str, *, look_for_s: float = 2.5) ->
     if tools.status is not None and tools.status >= 400:
         return Serves(False, [f"the page itself answered {tools.status}"])
     try:
-        seen = await page.evaluate(_EMBEDS)
+        seen = await get_page_gateway().read(page, _EMBEDS)
         waited = 0.0
-        while needs == "run" and not seen["runs"] and waited < STARTS_WITHIN_S and not await page.evaluate(_WHAT_STARTS_IT):
+        while needs == "run" and not seen["runs"] and waited < STARTS_WITHIN_S and not await get_page_gateway().read(page, _WHAT_STARTS_IT):
             # A page's player is made by its own scripts after it opens: given the time it takes before anything is
             # said of it.
             await asyncio.sleep(0.5)
             waited += 0.5
-            seen = await page.evaluate(_EMBEDS)
+            seen = await get_page_gateway().read(page, _EMBEDS)
         if needs == "run" and not seen["runs"]:
-            start = await page.evaluate(_WHAT_STARTS_IT)
+            start = await get_page_gateway().read(page, _WHAT_STARTS_IT)
             if start:
                 logger.info("nothing on the page runs yet; pressing its %r to see", start[2])
                 await page.mouse.click(float(start[0]), float(start[1]))
                 await asyncio.sleep(STARTS_WITHIN_S)
-                seen = await page.evaluate(_EMBEDS)
+                seen = await get_page_gateway().read(page, _EMBEDS)
     except Exception as error:  # noqa: BLE001 - a page that cannot be read cannot be told to work
         return Serves(None, [f"the page could not be read ({str(error)[:120]})"])
     if seen["plugin"] and not seen["players"]:

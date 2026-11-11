@@ -25,6 +25,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 from core.runtime.lockdep import checked_semaphore
+from core.runtime.page_gateway import get_page_gateway, page_script
+
+#: One of the checks' own finders, named by the call (find, label, ...), run on what it looks for.
+_MARK = page_script("([how, t]) => window.__checks[how](t)")
 
 logger = logging.getLogger("Rebuilding.Checks")
 
@@ -92,7 +96,7 @@ class CheckRun:
 
 #: In the page: finding things the way a person names them, selecting text,
 #: and reading styles the way they show.
-_HELPERS = r"""
+_HELPERS = page_script(r"""
 window.__checks = (() => {
   const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
   const visible = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
@@ -231,7 +235,7 @@ window.__checks = (() => {
     passing: () => [...document.querySelectorAll("[role=dialog], #app-notice.shown, [role=alert]")].filter(visible)
       .map((d) => norm((d.getAttribute("aria-label") || "") + " " + d.innerText)) };
 })();
-"""
+""")
 
 _KEY_NAMES = {"mod": "ControlOrMeta", "ctrl": "ControlOrMeta", "control": "ControlOrMeta", "cmd": "ControlOrMeta",
               "command": "ControlOrMeta", "meta": "ControlOrMeta", "alt": "Alt", "option": "Alt", "shift": "Shift",
@@ -287,13 +291,13 @@ class _Doing:
         self.downloads.append((download.suggested_filename, text))
 
     async def _mark(self, how: str, target: str) -> Any:
-        found = await self.page.evaluate(f"(t) => window.__checks.{how}(t)", target)
+        found = await get_page_gateway().read(self.page, _MARK, [how, target])
         if not found:
             return None
         if how == "find":
-            opener = await self.page.evaluate("(id) => window.__checks.opener(id)", found)
+            opener = await get_page_gateway().read(self.page, page_script("(id) => window.__checks.opener(id)"), found)
             if opener:
-                await self.page.click(f"[data-check='{opener}']", timeout=2000)
+                await get_page_gateway().click(self.page, f"[data-check='{opener}']", source="checks_a_person_makes.mark", timeout=2000)
         return self.page.locator(f"[data-check='{found}']")
 
     async def step(self, step: Step) -> str:
@@ -305,25 +309,25 @@ class _Doing:
                 return f"there is no control named {target!r}"
             await control.click(timeout=3000)
         elif step.do in ("type", "select_all"):
-            if not await page.evaluate("document.activeElement && document.activeElement !== document.body && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName))"):
+            if not await get_page_gateway().read(page, page_script("document.activeElement && document.activeElement !== document.body && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName))")):
                 place = await self._mark("editable", "")
                 if place is not None:
                     await place.click(timeout=3000)
             if step.do == "select_all":
-                await page.keyboard.press("ControlOrMeta+a")
+                await get_page_gateway().press(page.keyboard, "ControlOrMeta+a", source="checks_a_person_makes.step")
             else:
                 for n, line in enumerate((value or target).split("\n")):
                     if n:
-                        await page.keyboard.press("Enter")
+                        await get_page_gateway().press(page.keyboard, "Enter", source="checks_a_person_makes.step")
                     if line:
-                        await page.keyboard.type(line, delay=self.typing_ms)
+                        await get_page_gateway().type_text(page.keyboard, line, source="checks_a_person_makes.step", delay=self.typing_ms)
         elif step.do == "press":
-            await page.keyboard.press(_keys(value or target))
+            await get_page_gateway().press(page.keyboard, _keys(value or target), source="checks_a_person_makes.step")
         elif step.do in ("select_text", "click_text"):
-            if not await page.evaluate("(t) => window.__checks.selectText(t)", target or value):
+            if not await get_page_gateway().read(page, page_script("(t) => window.__checks.selectText(t)"), target or value):
                 return f"there is no text {target or value!r} to select"
             if step.do == "click_text":
-                await page.evaluate("() => getSelection().collapseToEnd()")
+                await get_page_gateway().read(page, page_script("() => getSelection().collapseToEnd()"))
         elif step.do in ("fill", "choose"):
             box = await self._mark("field", target)
             if box is None:
@@ -356,7 +360,7 @@ class _Doing:
         was left out of a program whose Bold button worked, its check naming
         the button in a form only the driver reads, and looking on the page alone.
         """
-        found = int(await self.page.evaluate("(s) => window.__checks.count(s)", selector))
+        found = int(await get_page_gateway().read(self.page, page_script("(s) => window.__checks.count(s)"), selector))
         if found > 0 or (found == 0 and not anywhere):
             return found, "the work area"
         try:
@@ -368,13 +372,13 @@ class _Doing:
     async def sees(self, expectation: Expectation, reopen: Any) -> tuple[bool, str]:
         page, e = self.page, expectation
         if e.see in ("text", "no_text"):
-            shown = await page.evaluate("window.__checks.bodyText()")
+            shown = await get_page_gateway().read(page, page_script("window.__checks.bodyText()"))
             want = " ".join((e.target or e.value).lower().split())
             # A message that came and went (a notice, a dialog) was shown.
             there = want in shown or (e.see == "text" and any(want in said for said in self.passing))
             return (there if e.see == "text" else not there), f"the page shows {shown[:200]!r}"
         if e.see == "style":
-            held, said = await page.evaluate("([t, p, v]) => window.__checks.style(t, p, v)", [e.target, e.property, e.value])
+            held, said = await get_page_gateway().read(page, page_script("([t, p, v]) => window.__checks.style(t, p, v)"), [e.target, e.property, e.value])
             return bool(held), said
         if e.see in ("element", "count"):
             found, where = await self._how_many(e.target, anywhere=e.see == "element")
@@ -394,7 +398,7 @@ class _Doing:
             return False, f"saved {[n for n, _ in self.downloads] or 'nothing'}"
         if e.see == "dialog":
             want = " ".join(str(e.target or e.value).lower().split())
-            if await page.evaluate("(t) => window.__checks.dialog(t)", e.target or e.value) or any(want in said for said in self.passing):
+            if await get_page_gateway().read(page, page_script("(t) => window.__checks.dialog(t)"), e.target or e.value) or any(want in said for said in self.passing):
                 return True, "a dialog saying it was seen"
             return False, f"dialogs seen: {self.passing[-3:] or 'none'}"
         if e.see == "value":
@@ -404,9 +408,9 @@ class _Doing:
             got = await box.evaluate("(el) => el.type === 'checkbox' ? String(el.checked) : el.value")
             return str(got).strip().lower() == e.value.strip().lower(), f"{e.target} is {got!r}"
         if e.see == "printed":
-            return bool(await page.evaluate("window.__appPrinted")), "print was asked for"
+            return bool(await get_page_gateway().read(page, page_script("window.__appPrinted"))), "print was asked for"
         if e.see == "name":
-            got = await page.evaluate("app.name")
+            got = await get_page_gateway().read(page, page_script("app.name"))
             return str(got).strip().lower() == e.value.strip().lower(), f"the document is named {got!r}"
         if e.see == "moving":
             first = await _a_picture_of(page, e.target)
@@ -421,14 +425,14 @@ class _Doing:
             # ("credited"), nothing escapes ("escaped"), the other side acts ("idle").
             from core.self_modification.watching_a_program_run import what_it_does
 
-            words = str(await page.evaluate("document.body.innerText") or "")
+            words = str(await get_page_gateway().read(page, page_script("document.body.innerText")) or "")
             keys = [k for k in ("up", "down", "left", "right", "space") if k in words.lower()] or ["up", "down", "left", "right"]
             seen = await what_it_does(page, page.url, words=words, keys=keys, seconds=8.0)
             wanted = e.target.strip().lower() or "controls"
             return wanted in seen.right, f"watched it play: right {sorted(seen.right)}, wrong {seen.findings}"
         if e.see == "text_after_reopen":
             await reopen()
-            shown = await page.evaluate("window.__checks.bodyText()")
+            shown = await get_page_gateway().read(page, page_script("window.__checks.bodyText()"))
             want = " ".join((e.target or e.value).lower().split())
             return want in shown, f"after reopening the page shows {shown[:200]!r}"
         return False, f"cannot look for {e.see}"
@@ -436,14 +440,11 @@ class _Doing:
 
 async def _a_picture_of(page: Any, target: str) -> str:
     """What ``target`` (else the largest canvas, else the work area) shows now, as a picture's bytes in text."""
-    shown = await page.evaluate(
-        """(t) => { let el = null; try { el = t ? document.querySelector(t) : null; } catch (e) { el = null; }
+    shown = await get_page_gateway().read(page, page_script("""(t) => { let el = null; try { el = t ? document.querySelector(t) : null; } catch (e) { el = null; }
           if (!el) { let area = 0; for (const c of document.querySelectorAll('canvas')) { const r = c.getBoundingClientRect();
             if (r.width * r.height > area) { area = r.width * r.height; el = c; } } }
           if (el && el.tagName === 'CANVAS') { try { return el.toDataURL('image/png'); } catch (e) { return ''; } }
-          return ''; }""",
-        target,
-    )
+          return ''; }"""), target)
     if shown:
         return str(shown)
     place = page.locator(target or "#app-work").first
@@ -460,8 +461,8 @@ async def _one(context: Any, url: str, check: Check) -> CheckRun:
     errors: list[str] = []
     page.on("pageerror", lambda why: errors.append(str(why)[:200]))
     try:
-        await page.goto(url)
-        await page.evaluate(_HELPERS)
+        await get_page_gateway().go_to(page, url, source="checks_a_person_makes.one")
+        await get_page_gateway().read(page, _HELPERS)
         doing = _Doing(page, check)
         # The file a check gives is ready before it starts, as a person has
         # it ready: "click Open, then give report.docx" opens the chooser on
@@ -472,13 +473,13 @@ async def _one(context: Any, url: str, check: Check) -> CheckRun:
 
         async def reopen() -> None:
             await page.reload()
-            await page.evaluate(_HELPERS)
+            await get_page_gateway().read(page, _HELPERS)
 
         for step in check.steps:
             wrong = await doing.step(step)
             if wrong:
                 return CheckRun(check, False, f"at {step.do} {step.target or step.value!r}: {wrong}", errors)
-            doing.passing.extend(await page.evaluate("window.__checks.passing()"))
+            doing.passing.extend(await get_page_gateway().read(page, page_script("window.__checks.passing()")))
         for expectation in check.expect:
             held, said = await doing.sees(expectation, reopen)
             if not held:

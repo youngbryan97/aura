@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+from core.runtime.page_gateway import get_page_gateway, page_script
 
 __all__ = ["FunctionPlan", "KeptLibrary", "LibraryPlan", "LibraryTest", "RunOfATest", "found_for", "keep", "kept",
            "run_tests", "giving_nothing", "the_tests_that_test"]
@@ -79,7 +80,7 @@ class KeptLibrary:
 
 
 #: Runs one test in the page: its call, the value compared to the one expected, numbers to a part in a billion.
-_ONE_TEST = r"""([call, expect]) => {
+_ONE_TEST = page_script(r"""([call, expect]) => {
   const same = (a, b) => {
     if (typeof a === "number" && typeof b === "number") return Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
     if (ArrayBuffer.isView(a)) a = Array.from(a);
@@ -91,7 +92,7 @@ _ONE_TEST = r"""([call, expect]) => {
         let shown; try { shown = JSON.stringify(ArrayBuffer.isView(got) ? Array.from(got) : got); } catch (e) { shown = String(got); }
         return {held: same(got, want), got: String(shown).slice(0, 300)}; }
   catch (e) { return {held: false, got: "threw " + String(e).slice(0, 300)}; }
-}"""
+}""")
 
 
 def giving_nothing(plan: LibraryPlan) -> str:
@@ -130,7 +131,7 @@ async def _in_a_page(browser: Any, code: str, tests: list[LibraryTest]) -> list[
             return [RunOfATest(t, False, f"the library did not load: {str(why)[:200]}") for t in tests]
         for test in tests:
             try:
-                result = await asyncio.wait_for(page.evaluate(_ONE_TEST, [test.call, test.expect]), timeout=TEST_S)
+                result = await asyncio.wait_for(get_page_gateway().read(page, _ONE_TEST, [test.call, test.expect]), timeout=TEST_S)
                 runs.append(RunOfATest(test, bool(result.get("held")), str(result.get("got") or "")))
             except TimeoutError:
                 runs.append(RunOfATest(test, False, f"ran past {TEST_S:.0f}s"))

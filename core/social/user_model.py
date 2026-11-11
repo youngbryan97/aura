@@ -38,7 +38,6 @@ class UserModel:
                 logger.error("Failed to load user model: %s", e)
 
     def save(self):
-        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             from core.runtime.file_write_gateway import get_file_write_gateway
 

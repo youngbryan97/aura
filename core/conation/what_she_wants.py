@@ -1130,7 +1130,6 @@ def _save(self, payload: dict[str, Any]) -> None:
     """Written after the lock is let go: a write can wait on the disk."""
     try:
         path = _file(self)
-        path.parent.mkdir(parents=True, exist_ok=True)
         # Behind the loop: a turn ends inside the kernel's async tick. Through the gateway, in a scope of its own.
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import write_text_behind
