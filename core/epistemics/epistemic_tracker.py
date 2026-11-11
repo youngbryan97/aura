@@ -29,7 +29,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
@@ -570,7 +570,9 @@ class EpistemicTracker:
                 "gaps":  [asdict(g) for g in self._gaps],
                 "resolved": self._resolved_gaps[-200:],
             }
-            atomic_write_text(self._db_path, json.dumps(data, indent=2, sort_keys=True))
+            # Behind the loop when on it: stop() is a coroutine, and lockdep saw
+            # this fsync on the event loop as her app shut down (10 November 2026).
+            atomic_write_text_behind(self._db_path, json.dumps(data, indent=2, sort_keys=True))
             return True
         except (OSError, TypeError, ValueError) as e:
             _record_epistemic_degradation(

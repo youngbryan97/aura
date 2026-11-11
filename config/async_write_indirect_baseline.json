@@ -117,11 +117,6 @@
       "add_memory"
     ],
     [
-      "core/cognition/paraconsistent_logic.py",
-      "stop",
-      "_save_graph"
-    ],
-    [
       "core/consciousness/neologism_engine.py",
       "synthesize",
       "_save_lexicon"
@@ -160,16 +155,6 @@
       "core/environment/environment_awareness.py",
       "get_full_context",
       "get_current_user_context"
-    ],
-    [
-      "core/epistemics/epistemic_tracker.py",
-      "_update_loop",
-      "_save"
-    ],
-    [
-      "core/epistemics/epistemic_tracker.py",
-      "stop",
-      "save"
     ],
     [
       "core/epistemics/inquiry_engine.py",

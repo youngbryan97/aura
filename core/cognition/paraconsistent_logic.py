@@ -27,7 +27,7 @@ from __future__ import annotations
 from core.runtime.errors import record_degradation
 
 
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 
 import enum
 import json
@@ -774,7 +774,9 @@ class ParaconsistentEngine:
                 "paradoxes": {pid: p.to_dict() for pid, p in self._paradoxes.items()},
                 "saved_at": time.time(),
             }
-            atomic_write_text(self._graph_path, json.dumps(data, indent=2, default=str))
+            # Behind the loop when on it: stop() is a coroutine, and lockdep saw
+            # this fsync on the event loop as her app shut down (10 November 2026).
+            atomic_write_text_behind(self._graph_path, json.dumps(data, indent=2, default=str))
             logger.debug("Belief graph saved (%d beliefs, %d paradoxes)",
                          len(self._beliefs), len(self._paradoxes))
         except (json.JSONDecodeError, TypeError, ValueError) as e:
