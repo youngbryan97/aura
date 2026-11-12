@@ -2293,6 +2293,33 @@
         "name": "tools/measure_fusion_channel.py",
         "why": "Decides CAA steering on her cortex with a held-out behavioural reading: the words change, a random direction of the same length does less, forced-choice accuracy does not drop, and her own recorded replies are not made less likely. The channel opens only at an alpha that holds all five. Not decided: LoRA, compounding, calibration and rollback."
       }
+    ],
+    "PERF-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_event_loop_lag_budget.py",
+        "why": "Decides the loop's lag budget at its mechanism: heavy CPU work leaves the event loop, executor pools stay bounded, and their timeouts hold."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_event_loop_stall_prevention.py",
+        "why": "Decides that the four multi-second stalls of July 2026 (a health read, goal snapshot SQLite, a numpy prediction step, a log sink blocking on disk) stay off the loop."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_async_write_lane_ratchet.py",
+        "why": "Fails on any new synchronous write inside an async function, the cause of all twelve recorded loop-wedge crashes; its allowlist only shrinks."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_boot_profile.py",
+        "why": "Decides that a slow boot names its slow phase and keeps a record of every phase's time, the startup half of the requirement as measurement."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_collector_is_timed.py",
+        "why": "Decides that every garbage collection is timed by generation and thread, and that what boot made is frozen out of later collections (12 November 2026: full collections held her loop up to 2.7 s before). Machine-readable end-to-end SLOs, thermal and memory envelopes, model-switch and queue-growth budgets, GUI frame proof and release enforcement are open: these decide the event loop's share only."
+      }
     ]
   }
 }
