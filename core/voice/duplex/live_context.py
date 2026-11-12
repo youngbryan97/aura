@@ -107,6 +107,7 @@ class HerLiveContext:
         self._reading: asyncio.Task | None = None
         self._speaking = False  # a person began a turn that has not been answered yet
         self._said_into = ""  # the text up to where her last reply begins, until her next turn
+        self._governed = ""  # the words of a turn her governed route is answering now
         self._read = read or _read_ahead_on_her_cortex
         self._generate = generate or _generate_on_her_cortex
         self._record = record
@@ -166,7 +167,7 @@ class HerLiveContext:
                 logger.debug("the read-ahead did not finish; the turn reads what is left itself")
         opening = self._opening or f"<|im_start|>user\n{the_turns_evidence()}"
         prompt = self.text + opening + words + _ANSWER_OPENS
-        self._said_into = prompt
+        self._said_into, self._governed = prompt, ""
         try:
             reply = await self._generate(prompt, scope=self.scope, words=words, reply_stream=reply_stream,
                                          timeout_s=timeout_s)
@@ -185,6 +186,7 @@ class HerLiveContext:
     def heard_elsewhere(self, words: str, reply: str) -> None:
         """A turn her governed route answered goes into the context too; the next read-ahead reads it."""
         said, answered = " ".join(str(words or "").split()), str(reply or "").strip()
+        self._governed = ""
         if self.ready and said and answered:
             self._said_into = self.text + f"<|im_start|>user\n{said}{_TURN_ENDS}<|im_start|>assistant\n"
             self.text = self._said_into + answered + _TURN_ENDS
@@ -196,8 +198,16 @@ class HerLiveContext:
         and "Wait, stop. Just tell me in one sentence." reached her with nothing before it, and she
         answered "I am an AI assistant here to help you with any questions or tasks you have."
         """
+        said = str(said or "").strip()
         if self._said_into:
-            self.text, self._said_into = self._said_into + str(said or "").strip() + _TURN_ENDS, ""
+            self.text, self._said_into = self._said_into + said + _TURN_ENDS, ""
+        elif self._governed and self.ready and said:  # her governed route was answering; its reply never returned
+            self.text += rendered([{"user": self._governed, "aura": said}])
+        self._governed = ""
+
+    def governed_turn(self, words: str) -> None:
+        """Her governed route takes this turn: if she is cut off before its reply returns, the turn still goes in."""
+        self._governed, self._said_into = " ".join(str(words or "").split()), ""
 
 
 def _her_cortex_client() -> Any:

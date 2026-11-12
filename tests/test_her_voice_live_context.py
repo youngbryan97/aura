@@ -351,3 +351,14 @@ def test_her_mind_bridge_says_what_she_got_out_loud_when_she_is_cut_off():
     bridge.record_spoken(SpokenRecord(intended="A. B.", spoken="A.", interrupted=True))
     bridge.record_spoken(SpokenRecord(intended="C.", spoken="C.", interrupted=False))
     assert told == ["A."]
+
+
+def test_a_governed_reply_cut_off_before_it_returned_still_goes_in():
+    """LIVE 11 November 2026: the first turn went to her governed route (her live context was not open yet), she was
+    cut off before its reply returned, and the context never had the turn."""
+    live, *_ = _a_context()
+    live.ready = True
+    live.governed_turn("Tell me about something you find beautiful.")
+    live.cut_off("Silence that holds a question.")
+    assert live.text.endswith("<|im_start|>user\nTell me about something you find beautiful.<|im_end|>\n"
+                              "<|im_start|>assistant\nSilence that holds a question.<|im_end|>\n")
