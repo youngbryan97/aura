@@ -347,12 +347,14 @@ def test_a_partial_task_still_reports_what_it_verified() -> None:
     from interface.routes import chat
 
     source = inspect.getsource(chat._execute_desktop_objective_from_chat)
-    marker = "but it did not complete:"
+    # The failure's own wording changed ("This did not complete:", "The rest did not complete:", 3ed4138b7); what is
+    # protected is that the verified part is read from the receipts and leads the reply.
+    marker = "partial = _desktop_deliverable_text(result)"
     assert marker in source
-    window = source[source.find(marker) : source.find(marker) + 1200]
+    window = source[source.find(marker) : source.find(marker) + 1600]
 
-    assert "_desktop_deliverable_text(result)" in window
     assert "That much is verified" in window
+    assert "did not complete:" in window
 
 
 # ── A path is a name, not prose ────────────────────────────────────────────

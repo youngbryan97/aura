@@ -153,7 +153,10 @@ def test_a_single_count_still_lists_the_directory():
         "how many python files are in core/agency", "roughly 40"
     )
     assert "listed the directory" in served
-    assert "agency_core.py" in served
+    # The listing is alphabetical and shortened, so the files it names first are the ones to look for: a fixed name,
+    # agency_core.py, fell out of what is shown when files named a_... were added to core/agency.
+    first = sorted(p.name for p in (ROOT / "core/agency").iterdir() if p.is_file() and p.name.endswith(".py"))[:3]
+    assert all(name in served for name in first), (first, served[:300])
 
 
 def test_a_reply_that_is_already_right_is_left_alone():
