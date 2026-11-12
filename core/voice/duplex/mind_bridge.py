@@ -182,8 +182,10 @@ class MindBridge:
         responder: Responder | None = None,
         cognition_timeout_s: float = 120.0,
         spoken_reply_words: int = 45,
+        on_cut_off: Callable[[str], None] | None = None,
     ) -> None:
         self._session_id = session_id
+        self._on_cut_off = on_cut_off  # told what she got out loud of a reply that was cut off
         self._responder = responder or _default_responder
         self._timeout_s = cognition_timeout_s
         self._spoken_reply_words = int(spoken_reply_words)
@@ -470,6 +472,8 @@ class MindBridge:
             self._history.pop(0)
         if record.interrupted or not record.delivery_complete:
             self._pending_interruption = record
+            if self._on_cut_off is not None:
+                self._on_cut_off(record.spoken)
             logger.info(
                 "Interrupted after %d of %d chars; %d chars never heard",
                 len(record.spoken),

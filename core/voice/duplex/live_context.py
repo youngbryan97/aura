@@ -106,6 +106,7 @@ class HerLiveContext:
         self._opening = ""
         self._reading: asyncio.Task | None = None
         self._speaking = False  # a person began a turn that has not been answered yet
+        self._said_into = ""  # the text up to where her last reply begins, until her next turn
         self._read = read or _read_ahead_on_her_cortex
         self._generate = generate or _generate_on_her_cortex
         self._record = record
@@ -165,10 +166,14 @@ class HerLiveContext:
                 logger.debug("the read-ahead did not finish; the turn reads what is left itself")
         opening = self._opening or f"<|im_start|>user\n{the_turns_evidence()}"
         prompt = self.text + opening + words + _ANSWER_OPENS
-        reply = await self._generate(prompt, scope=self.scope, words=words, reply_stream=reply_stream,
-                                     timeout_s=timeout_s)
-        self._opening, self._reading, self._speaking = "", None, False
+        self._said_into = prompt
+        try:
+            reply = await self._generate(prompt, scope=self.scope, words=words, reply_stream=reply_stream,
+                                         timeout_s=timeout_s)
+        finally:
+            self._opening, self._reading, self._speaking = "", None, False
         if not reply or not reply.strip():
+            self._said_into = ""
             return None
         # What she said goes in as she said it, so the next turn's prompt begins with exactly what her model holds.
         self.text = prompt + reply + _TURN_ENDS
@@ -181,8 +186,18 @@ class HerLiveContext:
         """A turn her governed route answered goes into the context too; the next read-ahead reads it."""
         said, answered = " ".join(str(words or "").split()), str(reply or "").strip()
         if self.ready and said and answered:
-            self.text += rendered([{"user": said, "aura": answered}])
+            self._said_into = self.text + f"<|im_start|>user\n{said}{_TURN_ENDS}<|im_start|>assistant\n"
+            self.text = self._said_into + answered + _TURN_ENDS
         self._opening, self._reading, self._speaking = "", None, False
+
+    def cut_off(self, said: str) -> None:
+        """She was cut off: her last reply goes into the conversation as far as she got out loud, whether it was still
+        being written or already whole. LIVE 11 November 2026, a reply cut off while it was written never went in,
+        and "Wait, stop. Just tell me in one sentence." reached her with nothing before it, and she
+        answered "I am an AI assistant here to help you with any questions or tasks you have."
+        """
+        if self._said_into:
+            self.text, self._said_into = self._said_into + str(said or "").strip() + _TURN_ENDS, ""
 
 
 def _her_cortex_client() -> Any:

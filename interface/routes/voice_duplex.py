@@ -501,7 +501,7 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             send_json=send_json,
             send_binary=send_binary,
             config=session_config,
-            mind=MindBridge(session_id=session_id, responder=responder),
+            mind=MindBridge(session_id=session_id, responder=responder, on_cut_off=live.cut_off),
             asr=model_runtime.new_asr(),
             tts=model_runtime.tts,
         )

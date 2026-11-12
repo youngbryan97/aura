@@ -296,3 +296,58 @@ def test_her_reply_asks_a_background_holder_to_stop_until_it_has_her_model(monke
     reply = asyncio.run(lc._generate_on_her_cortex("prompt", scope="voice_live:s", words="Hi?", reply_stream=None,
                                                    timeout_s=30.0))
     assert reply == "I'm here." and len(asked) == 3 and all(wait <= 1.0 for wait in attempts) and released == [7]
+
+
+def test_a_reply_cut_off_while_it_was_written_goes_in_as_far_as_she_said_it(monkeypatch):
+    """LIVE 11 November 2026: a reply cut off while it was written never went into her live context, and "Wait, stop.
+    Just tell me in one sentence." reached her with nothing before it; she answered "I am an AI assistant here to help
+    you with any questions or tasks you have.\""""
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "")
+
+    async def scenario():
+        started = asyncio.Event()
+
+        async def a_long_reply(prompt, **_):
+            started.set()
+            await asyncio.sleep(30)
+
+        live = lc.HerLiveContext("session-1", read=lambda *a: None, generate=a_long_reply)
+        await live.open([])
+        turn = asyncio.ensure_future(live.answer("Tell me about something you find beautiful."))
+        await started.wait()
+        live.cut_off("I find it beautiful when silence is active.")  # she got this far out loud
+        turn.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await turn
+        assert live.text.endswith("Tell me about something you find beautiful.<|im_end|>\n<|im_start|>assistant\n"
+                                  "<think>\n\n</think>\n\nI find it beautiful when silence is active.<|im_end|>\n")
+        live.cut_off("anything")  # once per reply
+        assert live.text.endswith("silence is active.<|im_end|>\n")
+
+    asyncio.run(scenario())
+
+
+def test_a_whole_reply_cut_off_while_it_was_spoken_keeps_only_what_was_heard(monkeypatch):
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "")
+
+    async def scenario():
+        live, *_ = _a_context(replies=("First part. Second part never heard.",))
+        await live.open([])
+        await live.answer("Tell me two things.")
+        live.cut_off("First part.")
+        assert live.text.endswith("<|im_start|>assistant\n<think>\n\n</think>\n\nFirst part.<|im_end|>\n")
+        live.heard_elsewhere("Open Safari.", "Opening it now, and then")
+        live.cut_off("Opening it now,")
+        assert live.text.endswith("<|im_start|>user\nOpen Safari.<|im_end|>\n<|im_start|>assistant\nOpening it now,<|im_end|>\n")
+
+    asyncio.run(scenario())
+
+
+def test_her_mind_bridge_says_what_she_got_out_loud_when_she_is_cut_off():
+    from core.voice.duplex.mind_bridge import MindBridge, SpokenRecord
+
+    told = []
+    bridge = MindBridge(session_id="s", on_cut_off=told.append)
+    bridge.record_spoken(SpokenRecord(intended="A. B.", spoken="A.", interrupted=True))
+    bridge.record_spoken(SpokenRecord(intended="C.", spoken="C.", interrupted=False))
+    assert told == ["A."]
