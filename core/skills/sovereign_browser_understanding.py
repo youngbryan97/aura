@@ -1174,9 +1174,14 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
             if not isinstance(item, dict):
                 continue
             try:
-                named = str(offered[int(item.get("index"))].get("name") or "")[:90]
+                control = offered[int(item.get("index"))]
+                # A control with no name is said by what it is and where it goes: LIVE 11 November 2026 "She chose
+                # click 0, because: The reCAPTCHA checkbox..." left nothing to tell what control 0 was.
+                named = str(control.get("name") or "").strip()[:90] or (
+                    f"an unnamed {control.get('role') or 'control'} "
+                    f"{str(control.get('href') or control.get('selector') or '')[:90]}").strip()
             except (TypeError, ValueError, IndexError):
-                named = ""
+                named = "" if offered else "a control she was not shown (none were offered)"
             chose.append(f"{item.get('type') or 'click'} {named or item.get('value') or item.get('index')}")
         logger.info("🌐 She chose %s, because: %s", "; ".join(chose) or "nothing", str(decision.get("why") or "")[:300])
 
