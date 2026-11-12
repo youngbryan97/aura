@@ -470,8 +470,12 @@ class TestAblation:
             f"Got phi_s={result.phi_s:.5f} over {result.tpm_n_samples} transitions. " \
             f"Unique states: {len(set(phi._affective_state_history))}. " \
             f"If zero, the affective subnet's dynamics are IIT-decomposable."
-        assert result.is_complex, \
-            "System must be a genuine IIT complex (phi_s > 0)"
+        # This asserted "a genuine IIT complex (phi_s > 0)", which memoryless noise also
+        # satisfies (arXiv:2610.41604, section 8). Whether it is one is its sampling null's
+        # answer; for these ODE transitions the fraction above the null is 0.000.
+        phi.attach_phi_null(result, phi._affective_state_history, phi._affective_bipartitions,
+                            phi._affective_bit_tables, surrogates=8)
+        assert result.is_complex is result.integration_is_significant
 
     def test_each_consciousness_module_changes_state(self):
         """Every consciousness module must produce different output when

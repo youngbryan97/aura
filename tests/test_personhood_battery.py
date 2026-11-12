@@ -139,10 +139,10 @@ class TestFullModelIntegration:
     """IIT phi computed on the live substrate must be genuinely nonzero,
     stable, and causally meaningful."""
 
-    def test_phi_is_nonzero_and_complex(self):
-        """Phi computation on a populated substrate produces a positive value
-        and reports is_complex=True, proving the system is an irreducible
-        complex under IIT 4.0."""
+    def test_phi_is_measured_and_whether_it_is_a_complex_is_the_nulls_answer(self):
+        """Phi computation on a populated substrate produces a positive value,
+        and whether that is a complex comes from its sampling null, not from
+        phi > 0."""
         sub = _make_substrate(seed=42)
         phi = PhiCore()
 
@@ -153,7 +153,14 @@ class TestFullModelIntegration:
         result = phi.compute_affective_phi()
         assert result is not None, "Affective phi computation must return a result"
         assert result.phi_s > 0, f"Phi must be positive, got {result.phi_s}"
-        assert result.is_complex, "Substrate must be a complex under IIT (phi > 0)"
+        # This asserted "a complex under IIT (phi > 0)", which memoryless noise also satisfies
+        # (arXiv:2610.41604, section 8). Against its sampling null this substrate's affective
+        # subnet does not integrate: fraction 0.000, p 1.00, at 200, 1,000 and 4,096 ticks
+        # (11 November 2026). Whether it is a complex is the null's answer, and here it is no.
+        phi.attach_phi_null(result, phi._affective_state_history, phi._affective_bipartitions,
+                            phi._affective_bit_tables, surrogates=8)
+        assert result.null_surrogates == 8 and result.integration_fraction is not None
+        assert result.is_complex is result.integration_is_significant
 
         # Also verify the main compute_phi pathway returns something
         main_result = phi.compute_phi()

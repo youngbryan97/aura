@@ -30,8 +30,11 @@ social, and predictive dimensions:
 
   Step 5: Exclusion postulate uses spectral approximation on the 16-node complex.
 
-  If φs > 0: this bounded model has non-zero estimated integration.
-  If φs = 0: the measured model decomposes under this estimator.
+  φs alone is not evidence of integration: at the history lengths this
+  runtime reaches, memoryless noise scores φs well above zero (0.89 on 4,096
+  steps of it, against 0.27 for a coupled ring). Integration is φs above its
+  sampling null, which permutes one side of the cut (``measure_phi_null``),
+  and ``is_complex`` is that verdict, False until the null is measured.
 
 This telemetry is not exact IIT 4.0 over Aura and is not a consciousness
 meter.  ``is_complex`` is retained as a compatibility name for an integration
@@ -436,17 +439,19 @@ class PhiResult:
 
     @property
     def is_complex(self) -> bool:
-        """Whether this is a complex — against the null when one was measured.
+        """Whether this is a complex, against its sampling null: False until one is measured.
 
         Raw ``phi_s > 0`` is not evidence at the sample sizes this runtime
-        reaches (see above). When a null has been measured, the answer comes
-        from it. When none has, this falls back to the raw test, and the caller
-        should read ``null_surrogates == 0`` as "unverified" rather than as
-        "verified negative".
+        reaches (see above), and this used to fall back to it when no null had
+        been measured. A third-party audit ran the runtime's own pre-committed
+        criteria (Chen, Zhang, Xu and Zhang, arXiv:2610.41604, section 8):
+        memoryless noise scored phi_s 0.42 to 0.46 and was called a complex,
+        because no null had reached the substrate that won. Unmeasured is not
+        a complex. ``null_surrogates == 0`` says it was not measured.
         """
-        if self.phi_null_mean is not None:
-            return self.integration_is_significant
-        return self.phi_s > 1e-6
+        if self.phi_null_mean is None:
+            return False
+        return self.integration_is_significant
 
     @property
     def mip_description(self) -> str:
@@ -641,6 +646,8 @@ class PhiCore:
         except (TypeError, ValueError):
             self._null_interval_s = 300.0
         self._null_surrogates: int = 8
+        #: Estimators that won with no null defined, each said once.
+        self._null_undefined_said: set[str] = set()
 
     # ── State Recording ────────────────────────────────────────────────────────
 
@@ -1746,24 +1753,45 @@ class PhiCore:
         now = time.time()
         if now - self._last_null_measured_at < self._null_interval_s:
             return
-        histories = {
-            "residual_stream_grassmann": self._grassmann_state_history,
-            "residual_stream": self._residual_state_history,
-        }
-        history = histories.get(selection.winner_name)
-        if history is None:
+        inputs = self._null_inputs(selection.winner_name)
+        if inputs is None:
+            if selection.winner_name not in self._null_undefined_said:
+                self._null_undefined_said.add(selection.winner_name)
+                logger.info(
+                    "PhiCore has no sampling null for the %s estimator; its is_complex stays "
+                    "False (unmeasured) while it wins.", selection.winner_name,
+                )
             return
+        history, bipartitions, bit_tables = inputs
         self._last_null_measured_at = now
         try:
             self.attach_phi_null(
                 winner,
                 history,
-                self._residual_bipartitions,
-                self._residual_bit_tables,
+                bipartitions,
+                bit_tables,
                 surrogates=self._null_surrogates,
             )
         except (ArithmeticError, AttributeError, LookupError, TypeError, ValueError) as exc:
             record_degradation("phi_core", exc, severity="warning")
+
+    def _null_inputs(self, name: str) -> tuple[deque, list, dict] | None:
+        """Each estimator's own history and 8-node partition tables, which its null permutes.
+
+        Only the two residual estimators were here, so when the affective or
+        the mesh estimator won (every CPU-only run, and every warm-up before
+        the residual histories fill) the winner never met its null. Found by
+        Chen, Zhang, Xu and Zhang (arXiv:2610.41604, section 8, 2026).
+        """
+        return {
+            "residual_stream_grassmann": (
+                self._grassmann_state_history, self._residual_bipartitions, self._residual_bit_tables),
+            "residual_stream": (
+                self._residual_state_history, self._residual_bipartitions, self._residual_bit_tables),
+            "affective": (
+                self._affective_state_history, self._affective_bipartitions, self._affective_bit_tables),
+            "mesh": (self._mesh_state_history, self._mesh_bipartitions, self._mesh_bit_tables),
+        }.get(name)
 
     def compute_full_kernel(self) -> PhiResult | None:
         """The winning complex. See ``compute_full_kernel_selection`` for why."""

@@ -3282,6 +3282,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   ISC battery with nulls, lesions and rescue: 24 of 24 on seed 97, an
   operational criterion that measures no experience and claims none.
   [Evidence](evidence/L08_AFFECT_AND_CONSCIOUSNESS_CLAIMS_2026-11-10.md).
+  11 November 2026, from outside. Chen, Zhang, Xu and Zhang ran the runtime's
+  own pre-committed phi criteria as a cross-check in "Real Computation or
+  Merely Naming?" (arXiv:2610.41604, section 8). On CPU-only runs the 8-node
+  affective estimator won the live selection, the hook that attaches the
+  sampling null knew only the two residual estimators, and `is_complex` fell
+  back to φs > 0, so memoryless noise was called a complex (their P1) and
+  coupled dynamics read no higher (P2). Their own run of the null alone was
+  right. Every estimator now meets its null with its own tables, and
+  `is_complex` is False until one is measured. On 4,096 steps through the
+  live selection, seeds 1, 2 and 3, noise reads φs 0.897, 0.893 and 0.890
+  with fractions 0.004, 0.002 and 0.001 above the null, and a coupled ring
+  reads φs 0.277, 0.270 and 0.271 with 0.695, 0.700 and 0.685. Two tests had
+  called a test substrate's affective subnet "a genuine IIT complex" from
+  φs > 0. Against its null it does not integrate (0.000 above it, p 1.00, at
+  200, 1,000 and 4,096 ticks), and they now check the null's verdict. None of
+  this touches the ISC lines, whose φ is the interventional one over ten
+  domains, which the ISC paper keeps apart from this runtime φ.
 
 - [ ] L09 Show that what she learns improves her ordinary use: a kind of task she
   gets wrong, learned from answers a person gives her in chat, answered right
