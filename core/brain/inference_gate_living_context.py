@@ -21,6 +21,7 @@ from core.brain.living_mind_context import PRIORITY_COLOUR, TRUST_LEARNED
 from core.conversation.surface_disposition import capabilities_run_this_turn
 from core.intent.capability_selection import the_one_asked_for
 from core.utils.completed_capability import remaining_capabilities
+from core.verify.turn_receipt import timed_as
 
 
 async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> dict[str, Any]:
@@ -69,6 +70,65 @@ async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> d
 
 class _BuildsTheLivingContext:
     """Lifted whole out of InferenceGate; see inference_gate.py."""
+
+    #: One budget for assembling live context, whichever shape it takes.
+    #: Only the FULL assembly was ever bounded; the compact builder — including
+    #: the one used as the full builder's timeout fallback — was awaited bare,
+    #: so a slow personality, phenomenology, goal or opinion service ate the
+    #: generation budget with nothing to stop it. Both are bounded now, and the
+    #: fallback gets what is left rather than a fresh full budget.
+    _LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S = 5.0
+
+    @timed_as("retrieval")
+    async def _assemble_live_context(self, prompt: str, origin: str, *, full: bool) -> str:
+        """Build live context under one deadline, falling back never past it.
+
+        Timed on the turn as retrieval: what she reads for it. Untimed, its seconds fell between her gate's entry and
+        her cortex's call and were reported as queue (R11: 4.87, 5.03 and 4.00 s of it on three chat turns, 12 November).
+        """
+        import time
+
+        from .inference_gate import _record_inference_degradation, logger
+
+        started = time.monotonic()
+        if full:
+            try:
+                return await asyncio.wait_for(
+                    self._build_living_mind_context(prompt, origin),
+                    timeout=self._LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "⚠️ [STABILITY] Full live context assembly exceeded %.0fs; "
+                    "using compact live context without downgrading the turn.",
+                    self._LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S,
+                )
+        remaining = self._LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S - (time.monotonic() - started)
+        if remaining <= 0.0:
+            # The full attempt spent the whole budget. A compact attempt now
+            # would spend it twice, which is what the deadline exists to stop.
+            _record_inference_degradation(
+                TimeoutError("live context assembly budget exhausted"),
+                action="sent the turn without live context after assembly used its whole budget",
+            )
+            return ""
+        try:
+            return await asyncio.wait_for(
+                # A full attempt that timed out has already advanced CRSM, the
+                # hedonic gradient, personality and circadian state for this
+                # turn. Advancing them again on the fallback would integrate
+                # the same axes twice for one turn.
+                self._build_compact_living_mind_context(
+                    prompt, origin, advance_state=not full
+                ),
+                timeout=remaining,
+            )
+        except TimeoutError:
+            _record_inference_degradation(
+                TimeoutError("compact live context assembly timed out"),
+                action="sent the turn without live context after compact assembly timed out",
+            )
+            return ""
 
     @staticmethod
     async def _tool_grounded_answer_part_1(

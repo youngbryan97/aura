@@ -16,6 +16,8 @@ lived in that one line of assembly:
 """
 from __future__ import annotations
 
+import textwrap
+
 import pytest
 
 from core.brain.living_mind_context import (
@@ -342,7 +344,7 @@ def test_both_assembly_paths_are_bounded_by_one_deadline():
     from core.brain.inference_gate import InferenceGate
 
     source = inspect.getsource(InferenceGate._assemble_live_context)
-    tree = ast.parse(source.lstrip())
+    tree = ast.parse(textwrap.dedent(source))
 
     waited = [
         call
@@ -565,7 +567,7 @@ def test_the_fallback_assembly_does_not_advance_state_twice():
     from core.brain.inference_gate import InferenceGate
 
     source = inspect.getsource(InferenceGate._assemble_live_context)
-    tree = ast.parse(source.lstrip())
+    tree = ast.parse(textwrap.dedent(source))
 
     compact_calls = [
         call

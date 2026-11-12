@@ -8065,56 +8065,6 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         "updated_at",
     )
 
-    #: One budget for assembling live context, whichever shape it takes.
-    #: Only the FULL assembly was ever bounded; the compact builder — including
-    #: the one used as the full builder's timeout fallback — was awaited bare,
-    #: so a slow personality, phenomenology, goal or opinion service ate the
-    #: generation budget with nothing to stop it. Both are bounded now, and the
-    #: fallback gets what is left rather than a fresh full budget.
-    _LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S = 5.0
-
-    async def _assemble_live_context(self, prompt: str, origin: str, *, full: bool) -> str:
-        """Build live context under one deadline, falling back never past it."""
-        started = time.monotonic()
-        if full:
-            try:
-                return await asyncio.wait_for(
-                    self._build_living_mind_context(prompt, origin),
-                    timeout=self._LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S,
-                )
-            except TimeoutError:
-                logger.warning(
-                    "⚠️ [STABILITY] Full live context assembly exceeded %.0fs; "
-                    "using compact live context without downgrading the turn.",
-                    self._LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S,
-                )
-        remaining = self._LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S - (time.monotonic() - started)
-        if remaining <= 0.0:
-            # The full attempt spent the whole budget. A compact attempt now
-            # would spend it twice, which is what the deadline exists to stop.
-            _record_inference_degradation(
-                TimeoutError("live context assembly budget exhausted"),
-                action="sent the turn without live context after assembly used its whole budget",
-            )
-            return ""
-        try:
-            return await asyncio.wait_for(
-                # A full attempt that timed out has already advanced CRSM, the
-                # hedonic gradient, personality and circadian state for this
-                # turn. Advancing them again on the fallback would integrate
-                # the same axes twice for one turn.
-                self._build_compact_living_mind_context(
-                    prompt, origin, advance_state=not full
-                ),
-                timeout=remaining,
-            )
-        except TimeoutError:
-            _record_inference_degradation(
-                TimeoutError("compact live context assembly timed out"),
-                action="sent the turn without live context after compact assembly timed out",
-            )
-            return ""
-
     def _living_mind_token_budget(self, prompt: str, explicit: int | None) -> int:
         """How much of the context window living-mind scaffold may occupy.
 

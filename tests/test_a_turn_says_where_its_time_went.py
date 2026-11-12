@@ -297,3 +297,36 @@ def test_work_inside_a_wait_is_counted_once_under_its_own_name() -> None:
         record_latency("decode", 6.0, ended_at=now)
     assert receipt.latency_s["queue"] == pytest.approx(3.31 - 1.2 - 0.4 - 0.1, abs=0.01)
     assert receipt.latency_s["prefill"] == pytest.approx(7.4) and receipt.latency_s["retrieval"] == 1.2
+
+
+def test_what_her_gate_reads_before_her_model_is_retrieval_not_queue() -> None:
+    """LIVE 12 November 2026: 4.87, 5.03 and 4.00 s of "queue" on three chat turns, from her gate's entry to her
+    cortex's call, while nothing was ahead of them."""
+    import asyncio
+    import time
+
+    from core.verify.turn_receipt import timed_as
+
+    @timed_as("retrieval")
+    async def read_her_context() -> str:
+        await asyncio.sleep(0.05)
+        return "what she reads"
+
+    async def a_turn() -> str:
+        entered = time.time()
+        said = await read_her_context()
+        record_latency("queue", time.time() - entered)  # the gate's measure: entry to its first call
+        return said
+
+    with recording_turn("t-prep", phases_available=()) as receipt:
+        assert asyncio.run(a_turn()) == "what she reads"
+    assert receipt.latency_s["retrieval"] >= 0.05
+    assert receipt.latency_s["queue"] < 0.02, "the reading is not counted as waiting too"
+    assert asyncio.run(read_her_context()) == "what she reads"  # outside a turn it records nothing and still runs
+
+
+def test_only_a_named_component_can_be_timed() -> None:
+    from core.verify.turn_receipt import timed_as
+
+    with pytest.raises(ValueError):
+        timed_as("thinking")

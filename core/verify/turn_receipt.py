@@ -31,9 +31,10 @@ other's receipts.
 
 from __future__ import annotations
 
+import functools
 import logging
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -289,6 +290,30 @@ def record_latency(component: str, seconds: float, *, ended_at: float | None = N
     receipt.latency_samples[name] = receipt.latency_samples.get(name, 0) + 1
     ended = time.time() if ended_at is None else float(ended_at)  # a span is recorded as it ends, unless told
     receipt.spans.append((name, ended - span, ended))
+
+
+def timed_as(component: str) -> Callable[[Callable[..., Awaitable[Any]]], Callable[..., Awaitable[Any]]]:
+    """Record a coroutine function's own duration on the turn it runs in, as ``component``.
+
+    For work whose seconds otherwise fall inside a wait: queue and delivery are counted net of the work recorded inside
+    them, so a step timed here leaves the wait it ran in. Outside a turn it records nothing.
+    """
+    if str(component or "").strip().lower() not in LATENCY_COMPONENTS:
+        raise ValueError(f"{component!r} is not a latency component: {sorted(LATENCY_COMPONENTS)}")
+
+    def wrap(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
+        @functools.wraps(fn)
+        async def timed(*args: Any, **kwargs: Any) -> Any:
+            began = time.time()
+            try:
+                return await fn(*args, **kwargs)
+            finally:
+                ended = time.time()
+                record_latency(component, ended - began, ended_at=ended)
+
+        return timed
+
+    return wrap
 
 
 def record_model_generation() -> None:

@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from core.verify.turn_receipt import timed_as
+
 
 class _ServesTheTurn:
     """Lifted whole out of InferenceGate; see inference_gate.py."""
@@ -55,6 +57,7 @@ class _ServesTheTurn:
         return provided_messages, use_compact_foreground_context
 
     @staticmethod
+    @timed_as("retrieval")  # what the turn reads; untimed it was counted as queue (R11)
     async def _generate_with_metadata_sink_task_grounding_blocks(
         context: dict[str, Any] | None,
         contract_grounding_blocks: list[str],
