@@ -466,6 +466,8 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
                 reply = await live.answer(transcript, reply_stream=reply_stream, timeout_s=timeout_s)
                 if reply is not None:
                     return reply
+            else:
+                logger.info("🗣️ her governed route takes this turn (live context ready=%s)", live.ready)
             live.governed_turn(transcript)
             reply = await governed_responder(transcript, effective_message=effective_message, session_id=session_id,
                                              timeout_s=timeout_s, reply_stream=reply_stream)

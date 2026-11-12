@@ -433,3 +433,22 @@ def test_while_her_gate_has_no_cortex_client_yet_the_running_one_answers(monkeyp
     held = SimpleNamespace(name="the gate's")
     monkeypatch.setattr(service_access, "resolve_inference_gate", lambda default=None: SimpleNamespace(_mlx_client=held))
     assert lc._her_cortex_client() is held
+
+
+
+def test_while_she_is_waking_a_turn_waits_a_few_seconds_for_her_cortex(monkeypatch):
+    """Bryan, 11 November 2026: "I can wait a few seconds." A cortex that comes up within them answers the turn."""
+    import time
+
+    cortex = SimpleNamespace(generate=lambda *a, **k: None)
+    appears = [time.monotonic() + 0.5]
+    monkeypatch.setattr(lc, "_her_cortex_client", lambda: cortex if time.monotonic() >= appears[0] else None)
+    monkeypatch.setattr(lc, "still_waking", lambda: "cold")
+    began = time.monotonic()
+    assert asyncio.run(lc._her_cortex_client_when_up()) is cortex
+    assert time.monotonic() - began < lc.WAKING_WAIT_S
+    appears[0] = time.monotonic() + 60.0  # not within a few seconds: the wait ends
+    assert asyncio.run(lc._her_cortex_client_when_up()) is None
+    monkeypatch.setattr(lc, "still_waking", lambda: "")  # awake and no client: no wait at all
+    began = time.monotonic()
+    assert asyncio.run(lc._her_cortex_client_when_up()) is None and time.monotonic() - began < 0.1

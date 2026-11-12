@@ -26,6 +26,9 @@ from typing import Any
 logger = logging.getLogger("Aura.Voice.LiveContext")
 
 _ANSWER_OPENS = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+#: While her runtime is still starting, how long a turn waits for her cortex to come up. Bryan, 11 November 2026, of
+#: her saying she is still waking up: "I can wait a few seconds."
+WAKING_WAIT_S = 3.0
 _TURN_ENDS = "<|im_end|>\n"
 
 
@@ -278,6 +281,16 @@ def _her_cortex_client() -> Any:
     return None
 
 
+async def _her_cortex_client_when_up() -> Any:
+    """Her cortex client; while her runtime is still starting, waited for up to WAKING_WAIT_S."""
+    client = _her_cortex_client()
+    waited_until = time.monotonic() + WAKING_WAIT_S
+    while (client is None or not hasattr(client, "generate")) and still_waking() and time.monotonic() < waited_until:
+        await asyncio.sleep(0.25)
+        client = _her_cortex_client()
+    return client
+
+
 async def _read_ahead_on_her_cortex(text: str, scope: str) -> dict[str, Any] | None:
     """Read while the person speaks, as a person's turn: background work on her model stops for it now."""
     from core.brain.llm.her_live_context import read_ahead
@@ -306,8 +319,10 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
     from core.brain.llm_health_router_gate_owners import _background_stands_aside
     from core.conversation.reply_stream import bind_reply_stream
 
-    client = _her_cortex_client()
+    client = await _her_cortex_client_when_up()
     if client is None or not hasattr(client, "generate"):
+        logger.info("🗣️ her cortex has no running client (her conversation lane reads %r); her governed route answers",
+                    still_waking() or "serving")
         return None
     lease = None
     deadline = time.monotonic() + max(0.0, float(timeout_s))
