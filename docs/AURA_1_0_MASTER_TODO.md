@@ -5259,12 +5259,45 @@ needs her 27B free (her app down, or her app's own influence trials).
 - [x] F11 The stale 46 GB `~/.aura/data/state/aura_state.db`. Nothing read it;
   moved to `~/.Trash/aura_state_orphan_20261017` on 17 October. Emptying the
   Trash is Bryan's.
-- [ ] F13 Reddit: she browses and reads it. Added 20 October. Her adapter signs
+- [x] F13 Reddit: she browses and reads it. Added 20 October. Her adapter signs
   in through a headless browser and is stopped by a CAPTCHA
   (`captcha_blocked`), which is not to be solved by her or for her. Left:
   reading through Reddit's public pages, with no sign-in; commenting and
   posting once Bryan has signed her account in, in her browser, himself. Closes
   when she reads a subreddit and a thread in her chat. Lane: no.
+  CLOSED 12 November 2026, live, in her chat, read by her own browser with no
+  sign-in and no CAPTCHA pressed. A subreddit: asked at 04:23 "Can you check
+  r/AskHistorians on Reddit and tell me what the top thread is asking right
+  now?", she answered from the page with the newest post, its title, poster,
+  age and argument (36 of 50 governors elected in midterms, 72%, "~24
+  standard errors"), each checked against r/AskHistorians/new. A thread:
+  asked at 06:09 "Can you open the r/AskHistorians thread about visiting
+  Nazi-occupied France as a tourist and tell me what the answers say?", she
+  opened it, read its answers and summarised them (the Neutrality Act and
+  passport validation, Vichy relations until November 1942, Alice-Leone
+  Moats's clandestine trip, Maxim's, the Guerlain perfume, *No Passport for
+  Paris*), checked against the thread's text. One misattribution: she gave
+  L6b1's point about currency to gerardmenfin.
+  What stood between the question and an answer, each fixed and pushed with
+  a test that fails without it: her browser chose to press the reCAPTCHA
+  (49a927e17, a challenge is never offered as a control); she reached the page
+  and was served her reason for stopping (1f724e9ca, the page goes to her
+  turn); the browsing used 186 s, her answer was skipped with "remaining
+  budget 2.0s", and a second door ran the objective again (4ee4e2147); her
+  browser started at Reddit's front page (831c00d97, a named subreddit is the
+  start page); her page readings were cut mid-JSON at 384 tokens under memory
+  pressure (a6873b411); the desktop lane served its promise to execute in
+  place of her turn (469dc1e4d); a later door served the empty result over
+  her reply (f17125370); Reddit's "Prove your humanity" page, which clears
+  when loaded again, is waited for and loaded again once (acdb2d5ab,
+  f724811c1); her prompt said her browser had yet to open the page she had
+  already read (4120f261c); the chat route's cancel notice was logged as her
+  reply 24 times and taught her to answer "I'm here. My response was
+  interrupted" (baf2c8fac's parent, U01, and f12da6e9d); a thread read until
+  her rounds ran out was served as the account of the rounds (072f61b73).
+  Open beside it, not part of this item: commenting and posting wait on
+  Bryan signing her account in; her Reddit API app waits on Reddit's
+  approval; a thread takes her many rounds to read.
 - [ ] F14 Email: she reads her mail and answers what is worth answering, not
   automated mail. Added 20 October. Lane: no.
   10 November 2026, live, her app on 8c387cd37. Her credentials are in her
