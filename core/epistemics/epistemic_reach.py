@@ -73,7 +73,12 @@ FELT_CONFIDENCE_GATE = 0.45
 AMBIVALENCE_GATE = 0.35
 
 _WORD_RE = re.compile(r"[a-zA-Z]{4,}")
-_NUM_RE = re.compile(r"\d[\d,]*\.?\d*")
+#: A figure. The SI writes 299 792 458 with its digits in threes and a space between (a thin or no-break space as
+#: often); LIVE 12 November 2026 NIST's page for the speed of light read as three numbers, and a passage her reader
+#: took as entailing the claim (0.92) failed on its figure. A run of four digits cannot start a group, so two years
+#: side by side stay two.
+_NUM_RE = re.compile(r"(?<![\d.,])\d{1,3}(?:[ \u2009\u202f\u00a0]\d{3})+(?:\.\d+)?(?!\d)|\d[\d,]*\.?\d*")
+_GROUPING = str.maketrans("", "", ", \u2009\u202f\u00a0")
 _INTERIOR_RE = re.compile(
     r"\b(?:i feel|i felt|i sense|my (?:felt|inner|internal)|it felt)\b", re.IGNORECASE
 )
@@ -169,7 +174,7 @@ _AS_HER_CHECK = {"User-Agent": "AuraFactCheck/1.0 (one person's research assista
 
 
 def _numbers(text: str) -> set[str]:
-    return {n.replace(",", "").rstrip(".") for n in _NUM_RE.findall(str(text or ""))}
+    return {n.translate(_GROUPING).rstrip(".") for n in _NUM_RE.findall(str(text or ""))}
 
 
 def _number_contexts(text: str) -> list[tuple[str, set[str]]]:
@@ -177,7 +182,7 @@ def _number_contexts(text: str) -> list[tuple[str, set[str]]]:
     value = str(text or "")
     contexts: list[tuple[str, set[str]]] = []
     for match in _NUM_RE.finditer(value):
-        number = match.group(0).replace(",", "").rstrip(".")
+        number = match.group(0).translate(_GROUPING).rstrip(".")
         window = value[max(0, match.start() - 80): min(len(value), match.end() + 80)]
         contexts.append((number, _content_words(window)))
     return contexts

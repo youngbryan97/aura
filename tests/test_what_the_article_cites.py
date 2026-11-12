@@ -81,3 +81,23 @@ def test_a_publisher_read_once_is_not_read_again():
     gateway = _Gateway({"http://physics.nist.gov/cgi-bin/cuu/Value?c": "<p>299 792 458 m s-1</p>"})
     _read(gateway)
     assert sum(1 for u in gateway.asked if "nist.gov" in u) == 1
+
+
+@pytest.mark.parametrize("text, figures", [
+    ("Numerical value 299 792 458 m s -1", {"299792458", "1"}),
+    ("1/299 792 458 of a second", {"1", "299792458"}),
+    ("299,792,458 metres per second", {"299792458"}),
+    ("between 1983 2019 and 25,300", {"1983", "2019", "25300"}),
+])
+def test_a_figure_written_the_si_way_is_one_figure(text, figures):
+    """LIVE 2026-11-12: NIST's page reads "299 792 458", her reader took the passage as entailing the claim (0.92),
+    and the figure check failed because it saw three numbers."""
+    from core.epistemics.epistemic_reach import _numbers
+
+    assert _numbers(text) == figures
+
+
+def test_nists_passage_bears_out_the_claims_figure():
+    from core.epistemics.epistemic_reach import _figures_borne_out
+
+    assert _figures_borne_out(CLAIM, "speed of light in vacuum Numerical value 299 792 458 m s -1 (exact)")
