@@ -4859,6 +4859,11 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                 (str(step.get("why") or "").strip() for step in reversed(steps) if step.get("done")),
                 "",
             ),
+            # Which of those it is. Her reason for stopping is not an answer to a question: LIVE 11 November 2026,
+            # asked what r/nosleep's top thread was about, she was served "The page loaded past the gate and I can
+            # already read the top thread's title and opening — no further navigation needed."
+            "concluded_from": "outcome" if str(report.get("concluded") or "").strip() else (
+                "stopping" if any(step.get("done") and str(step.get("why") or "").strip() for step in steps) else ""),
         }
 
     async def _execute_receipt(self, failures, index, objective, planner, receipts, reference_error, step, steps):

@@ -331,6 +331,9 @@ async def _execute_desktop_objective_from_chat(
             "result": result,
         }
 
+    if _the_page_goes_to_her_turn(result, objective):
+        # No reply from here: the turn goes on into her cognition, with the page beside it.
+        return {"ok": True, "status": "desktop_objective_page_read", "response": "", "result": result}
     status = "desktop_objective_completed" if result.get("ok") else "desktop_objective_failed"
     completed = int(result.get("steps_completed") or 0)
     requested = int(result.get("steps_requested") or 0)
@@ -694,6 +697,42 @@ def _asks_for_information(user_message: object) -> bool:
     if not text or not _ASKS_FOR_INFORMATION_RE.search(text):
         return False
     return not _ASKS_FOR_INFORMATION_EXCLUSION_RE.search(text)
+
+
+def _the_page_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
+    """When a page she worked through ends a question, it goes beside her turn as a source; whether it went.
+
+    LIVE 11 November 2026, asked "tell me what the top thread is about" on r/nosleep, she reached the subreddit and
+    stopped because she could read the thread, and her reason for stopping was the reply: "The page loaded past the
+    gate and I can already read the top thread's title and opening — no further navigation needed." Her reason for
+    stopping is not an answer. The page she ended on is given to her turn as what she read, labelled with where and
+    when, as a page fetched for her check is (core/conversation/what_the_world_says.py), and her own turn answers the
+    question. A pursuit that ended on a checked forecast keeps its verdict, and a task that asked nothing keeps its
+    account.
+    """
+    if not (result.get("ok") and result.get("planner") == "browser_pursuit"
+            and result.get("concluded_from") == "stopping" and _asks_for_information(objective)):
+        return False
+    text = str(result.get("result_text") or "").strip()
+    if not text:
+        return False
+    from core.conversation.turn_evidence_custody import (
+        record_turn_grounding,
+        record_turn_world_evidence,
+        record_turn_world_source,
+    )
+    from core.conversation.what_the_world_says import WorldEvidence, WorldSource
+
+    url = str(result.get("url") or "").strip()
+    source = WorldSource(origin=f"read in her browser at {time.strftime('%H:%M on %d %B %Y')}", title=url,
+                         location=url, text=text, full_text=text)
+    rendered = WorldEvidence(sources=[source], read=[url] if url else []).render()
+    if not record_turn_world_evidence(rendered):
+        return False
+    record_turn_grounding(rendered)
+    record_turn_world_source(source)
+    logger.info("🌐 The page she ended on (%s, %d chars) goes to her turn to answer from.", url, len(text))
+    return True
 
 
 def _desktop_effect_summary(result: Any) -> str:
