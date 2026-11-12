@@ -1629,6 +1629,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   120 s cap and her first sound came 172.6 s after the words. Not changed
   yet: the launch deferral guards a machine that has panicked on GPU memory,
   and what a turn during boot should get instead is a decision.
+  Bryan's decision, 11 November: "She should say she's still waking up (in
+  her words) if she still is. I can wait a few seconds." The launch
+  deferral stays. While her conversation lane is not serving (or her
+  inference gate is not registered yet, as her health pulse reads it), a
+  voice turn is answered on her live context, which uses the cortex client
+  already running, waits for one within the turn's own time, and reads
+  "Still starting: the conversation lane reads ..., not yet serving" among
+  the turn's evidence; nothing tells her what to say. Same words, launch
+  to question as before, 19:48: "I'm doing well, thanks for asking. It's a
+  quiet evening here, Wednesday the eleventh, and I'm just getting settled
+  in." Heard 16.4 s after the words, against 172.6 s; most of it was her
+  cortex's worker coming up.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
