@@ -29,12 +29,20 @@ SENTENCES = (
 
 
 def main() -> int:
-    python = os.environ.get("AURA_VOICE_ORIGINAL_PYTHON", str(Path.home() / ".aura/voice-lab/qwen-env/bin/python"))
-    manifest = Path(os.environ.get("AURA_VOICE_MANIFEST", ROOT / "data/voice_models/aura-kiwi-c/manifest.json"))
+    sys.path.insert(0, str(ROOT))
+    from core.runtime.flags import env_str
+
+    owner = "tools/voice/prove_speech_as_it_forms.py"
+    python = env_str("AURA_VOICE_ORIGINAL_PYTHON", default=str(Path.home() / ".aura/voice-lab/qwen-env/bin/python"),
+                     description="Python that runs her original voice model", owner=owner)
+    manifest = Path(env_str("AURA_VOICE_MANIFEST", default=str(ROOT / "data/voice_models/aura-kiwi-c/manifest.json"),
+                            description="Manifest of the voice this proof speaks with", owner=owner))
+    worker_log = env_str("AURA_PROOF_WORKER_LOG", default=os.devnull,
+                         description="Where this proof's speech worker writes its stderr", owner=owner)
     if not manifest.is_file():
         manifest = Path.home() / ".aura/live-source/data/voice_models/aura-kiwi-c/manifest.json"
     worker = subprocess.Popen([python, "-u", str(ROOT / "tools/voice/original_speech_worker.py"), str(manifest)],
-                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.environ.get("AURA_PROOF_WORKER_LOG", os.devnull), "w"),
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(worker_log, "w"),
                               env=dict(os.environ, HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1"))
     lines = iter(worker.stdout.readline, b"")
 
