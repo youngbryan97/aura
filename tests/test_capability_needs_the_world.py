@@ -129,15 +129,15 @@ class TestWhatSheIsToldAboutIt:
         block = capability_condition_evidence(
             "can you look up the weather", capability_engine=_Engine()
         )
-        assert "YOU HAVE THIS, BUT IT CANNOT WORK RIGHT NOW" in block
-        assert "The capability is intact" in block
+        assert "held, but it cannot work right now" in block
+        assert "intact" in block
         assert "no network connection" in block
 
     def test_it_is_still_facts_not_a_script(self, offline):
         block = capability_condition_evidence(
             "can you look up the weather", capability_engine=_Engine()
         )
-        assert "your own words" in block
+        assert "Say this" not in block and "Do not" not in block  # facts only (F06)
         for canned in ("I can't access", "I'm sorry", "Unfortunately"):
             assert canned not in block
 

@@ -87,19 +87,20 @@ class TestTheDistinctionThatMatters:
 class TestTheEvidenceReachesHerAsFacts:
     def test_transient_says_this_moment(self):
         block = capability_condition_evidence("look up the weather", capability_engine=DOWN)
-        assert "NOT AVAILABLE THIS MOMENT" in block
+        assert "held, not available this moment" in block
         assert "no network right now" in block
         assert "may work again shortly" in block
 
     def test_absent_says_it_is_not_an_outage(self):
         block = capability_condition_evidence("look up the weather", capability_engine=NOT_BUILT)
-        assert "NOT SOMETHING YOU HAVE" in block
+        assert "not held" in block
         assert "not a temporary outage" in block
 
     def test_the_evidence_is_not_a_script(self):
-        """Facts plus an instruction to speak — never a ready-made apology."""
+        """Facts only (F06): no ready-made apology, and no instruction on how to speak of it either."""
         block = capability_condition_evidence("look up the weather", capability_engine=DOWN)
-        assert "your own words" in block
+        for instruction in ("Say this", "Do not", "your own words", "Reason from"):
+            assert instruction not in block
         for canned in ("I can't access", "I'm sorry", "Unfortunately", "I apologize"):
             assert canned not in block
 

@@ -355,33 +355,16 @@ def capability_condition_evidence(
         if condition.standing is CapabilityStanding.READY:
             lines.append(f"- {name}: available right now")
         elif condition.standing is CapabilityStanding.BLOCKED_BY_PRECONDITION:
-            lines.append(
-                f"- {name}: YOU HAVE THIS, BUT IT CANNOT WORK RIGHT NOW — "
-                f"{condition.reason}. The capability is intact; what it needs "
-                f"is missing. Reason from that: it will work again when that "
-                f"comes back."
-            )
+            lines.append(f"- {name}: held, but it cannot work right now — {condition.reason}; intact, and working "
+                         "again when what it needs comes back.")
         elif condition.standing is CapabilityStanding.ABSENT:
-            lines.append(
-                f"- {name}: NOT SOMETHING YOU HAVE — {_fact_for(condition)}. "
-                f"This is not a temporary outage."
-            )
+            lines.append(f"- {name}: not held — {_fact_for(condition)}; not a temporary outage.")
         else:
-            lines.append(
-                f"- {name}: NOT AVAILABLE THIS MOMENT — {_fact_for(condition)}. "
-                f"You do have this capability; it may work again shortly."
-            )
+            lines.append(f"- {name}: held, not available this moment — {_fact_for(condition)}; it may work again "
+                         "shortly.")
     if not lines:
         return ""
 
-    return (
-        "[LIVE CAPABILITY CONDITION]\n"
-        + "\n".join(lines)
-        + "\n"
-        + "Say this in your own words, as part of your answer, the way you "
-        "would mention any other fact about your situation. Do not apologise "
-        "at length and do not treat it as a failure — it is information. Keep "
-        "'not right now' and 'not something I can do' clearly different, and "
-        "still answer whatever you can answer without it.\n"
-        "[END LIVE CAPABILITY CONDITION]"
-    )
+    # Readings only (F06): what she holds and what works now. How to speak of it is hers; her runtime's census on
+    # 11 November 2026 counted the paragraph that told her, eight times in a day on her chat's path.
+    return "[LIVE CAPABILITY CONDITION]\n" + "\n".join(lines) + "\n[END LIVE CAPABILITY CONDITION]"
