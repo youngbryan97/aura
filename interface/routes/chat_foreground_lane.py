@@ -834,6 +834,7 @@ async def _admit_to_foreground_lane(
     admission_reason = ""
     admission_override = "warming_failed"
     hard_lane_failure = False
+    waited_from = monotonic_time()
     if gate is None or not hasattr(gate, "ensure_foreground_ready"):
         admission_reason = "foreground_lane_unavailable"
         hard_lane_failure = True
@@ -924,6 +925,11 @@ async def _admit_to_foreground_lane(
                     admission_reason,
                     state="failed" if hard_lane_failure else "recovering",
                 )
+    from core.verify.turn_receipt import record_latency
+
+    # Waiting for her model is the turn's queue. LIVE 11 November 2026, voice turns during her boot took 168 s each
+    # with 0.3 s measured; the rest was this wait, recorded nowhere.
+    record_latency("queue", monotonic_time() - waited_from)
     return admission_override, admission_reason, hard_lane_failure, lane
 
 

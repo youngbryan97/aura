@@ -227,3 +227,22 @@ def test_a_turn_that_ran_nothing_is_not_said_as_a_split(caplog) -> None:
     said = [(r.levelno, r.getMessage()) for r in caplog.records if "turn-r11-000" in r.getMessage()]
     assert said == [(logging.DEBUG, said[0][1])]
     assert "without running a phase" in said[0][1]
+
+
+@pytest.mark.asyncio
+async def test_the_wait_for_her_model_is_the_turns_queue(monkeypatch) -> None:
+    """LIVE 11 November 2026: voice turns during her boot took 168 s each with 0.3 s measured; the rest was the wait
+    for her foreground lane, recorded nowhere."""
+    import asyncio
+
+    from interface.routes import chat_foreground_lane
+
+    class _Gate:
+        async def ensure_foreground_ready(self, timeout):
+            await asyncio.sleep(0.05)
+            return {"conversation_ready": True}
+
+    with recording_turn("t-admission", phases_available=()) as receipt:
+        await chat_foreground_lane._admit_to_foreground_lane(
+            _remaining_foreground_budget=lambda reserve: 30.0, gate=_Gate(), lane={})
+    assert receipt.latency_s.get("queue", 0.0) >= 0.05
