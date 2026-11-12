@@ -207,13 +207,13 @@ def main() -> None:
                     # A reply whose listener already waited between sentences: her busy steps for the rest of it,
                     # so her voice finishes each sooner and her thought gets the GPU back sooner (speech_hold.py).
                     body_steps=(busy_steps if behind else steps["body"]) if busy_steps else None,
-                    onset_steps=full_steps,
+                    onset_steps=full_steps, busy_steps=busy_steps,
                     should_stop=requests.stop_asked)
                 timing["decode_s_per_patch"] = sentence.decode_s_per_patch
                 timing["gen_s_per_patch"] = sentence.gen_s_per_patch
                 if busy_steps and not sentence.stopped and sentence.patches > 2:
                     sentence.timing(time.perf_counter())
-                    steps["body"] = next_body_steps(steps["body"], full=full_steps, busy=busy_steps,
+                    steps["body"] = next_body_steps(sentence.body_steps or steps["body"], full=full_steps, busy=busy_steps,
                                                     real_time=sentence.real_time, busy_per_full=steps["busy_per_full"])
                 if text and sentence.patches and not sentence.stopped:
                     per_char = sentence.patches / len(text)  # her own pace of speech, sentence by sentence

@@ -197,6 +197,7 @@ class SpeechAsItForms:
         self._gen_deviation_s = 0.0  # how far a patch's making strays from her pace (Jacobson's estimator, as TCP's)
         self._slowest_patch_s = 0.0
         self._last_patch_at: float | None = None
+        self._first_patch_at: float | None = None
         self._plays_until: float | None = None  # when the audio already sent runs out, if it plays as it arrives
         self.first_sent_at: float | None = None
         self.started = clock()
@@ -223,10 +224,18 @@ class SpeechAsItForms:
                 self.gen_s_per_patch = 0.875 * self.gen_s_per_patch + 0.125 * made
         self._decoding_since_patch = 0.0
         self._last_patch_at = now
+        if self._first_patch_at is None:
+            self._first_patch_at = now
         self.patches += 1
         self._pending.append(feat)
         if self._due(now):
             self._flush(last=False)
+
+    def falls_behind(self) -> bool:
+        """Whether this sentence's patches, since its first, have come slower than they play."""
+        if self._first_patch_at is None or self._last_patch_at is None or self.patches < 2:
+            return False
+        return (self._last_patch_at - self._first_patch_at) / (self.patches - 1) > self._patch_audio_s
 
     def window(self) -> int | None:
         """The fewest new patches a window can hold and still play at least as long as making the next one takes.
@@ -335,19 +344,26 @@ def speak_as_it_forms(model: Any, text: str, options: dict[str, Any], *, mx: Any
                       send: Callable[[np.ndarray, bool], None],
                       should_stop: Callable[[], bool] = lambda: False,
                       gen_s_per_patch: float = 0.0, expected_patches: int = 0, body_steps: int | None = None,
-                      onset_steps: int | None = None) -> SpeechAsItForms:
+                      onset_steps: int | None = None, busy_steps: int | None = None,
+                      clock: Callable[[], float] = time.perf_counter) -> SpeechAsItForms:
     """Generate ``text`` and send its audio in pieces as it forms. Returns the sentence's record (timings)."""
     decode = model.audio_vae.decode
     sentence = SpeechAsItForms(model=model, decode=decode, mx=mx, prompt_context=prompt_context, lookback=lookback,
                                out_rate=out_rate, speed=speed, level=level, decode_s_per_patch=decode_s_per_patch,
                                send=send, should_stop=should_stop, gen_s_per_patch=gen_s_per_patch,
-                               expected_patches=expected_patches)
+                               expected_patches=expected_patches, clock=clock)
     sample = model.feat_decoder.sample
     sentence.body_steps = body_steps
 
     def sampled(*args: Any, **kwargs: Any) -> Any:
         if body_steps and onset_steps and "n_timesteps" in kwargs:
-            kwargs["n_timesteps"] = onset_steps if sentence.patches < ONSET_PATCHES else body_steps
+            if (busy_steps and sentence.body_steps == onset_steps and sentence.patches >= ONSET_PATCHES
+                    and sentence.falls_behind()):
+                # LIVE 11 November 2026, a sentence at her full steps ran at 0.88 of real time and its listener heard
+                # ten gaps inside it, the next sentence going to her busy steps only after. Bryan heard 10 steps then
+                # 6 as clean as 10 throughout, so a sentence falling behind goes to her busy steps where it is.
+                sentence.body_steps = busy_steps
+            kwargs["n_timesteps"] = onset_steps if sentence.patches < ONSET_PATCHES else sentence.body_steps
         feat = sample(*args, **kwargs)
         mx.eval(feat)
         sentence.patch(feat.transpose(0, 2, 1))

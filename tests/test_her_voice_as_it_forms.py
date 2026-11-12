@@ -381,3 +381,44 @@ def test_a_sentences_onset_is_made_at_full_steps_and_its_body_at_its_body_steps(
                             out_rate=48000, speed=1.0, level=Level(0.0), decode_s_per_patch=0.0,
                             send=lambda audio, more, timing=None: None)
     assert asked == [10] * 6  # without adaptive steps, the manifest's steps throughout
+
+
+def test_a_sentence_falling_behind_at_full_steps_goes_to_her_busy_steps_where_it_is():
+    """LIVE 11 November 2026: a sentence at her full steps ran at 0.88 of real time, its listener heard ten gaps inside
+    it, and only the next sentence went to her busy steps. Bryan heard 10 steps then 6 as clean as 10 throughout."""
+    from tools.voice import her_speech_as_it_forms as forms
+
+    asked, now = [], [0.0]
+
+    def run(seconds_per_patch):
+        asked.clear()
+
+        class _Decoder:
+            def sample(self, *, mu=None, n_timesteps=0, patch_size=PATCH, cond=None, cfg_value=1.0):
+                asked.append(n_timesteps)
+                now[0] += seconds_per_patch
+                return np.zeros((1, 1, PATCH), np.float32)
+
+        class _Model:
+            patch_size, sample_rate = PATCH, 48000
+            feat_decoder = _Decoder()
+            audio_vae = SimpleNamespace(decode_chunk_size=FRAME,
+                                        decode=lambda window: np.zeros((1, window.shape[1] * FRAME), np.float32))
+
+            def generate(self, text, **options):
+                for _ in range(6):
+                    self.feat_decoder.sample(mu=None, n_timesteps=options["inference_timesteps"], patch_size=PATCH)
+                yield SimpleNamespace(audio=np.zeros(1, np.float32))
+
+        mx = SimpleNamespace(float32=np.float32, eval=lambda *a: None, zeros=lambda shape: np.zeros(shape, np.float32),
+                             concatenate=lambda parts, axis: np.concatenate(parts, axis=axis))
+        return forms.speak_as_it_forms(_Model(), "A sentence.", {"inference_timesteps": 10}, mx=mx, prompt_context=[],
+                                       lookback=2, out_rate=48000, speed=1.0, level=Level(0.0), decode_s_per_patch=0.0,
+                                       send=lambda audio, more, timing=None: None, body_steps=10, onset_steps=10,
+                                       busy_steps=6, clock=lambda: now[0])
+
+    patch_audio_s = PATCH * FRAME / 48000
+    slow = run(2 * patch_audio_s)
+    assert asked == [10] * forms.ONSET_PATCHES + [6] * (6 - forms.ONSET_PATCHES) and slow.body_steps == 6
+    quick = run(patch_audio_s / 2)
+    assert asked == [10] * 6 and quick.body_steps == 10
