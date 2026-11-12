@@ -415,3 +415,21 @@ def test_she_is_awake_when_her_conversation_lane_says_it_is_serving(monkeypatch)
     assert lc.still_waking() == ""
     monkeypatch.setattr(service_access, "resolve_inference_gate", lambda default=None: None)
     assert lc.still_waking() == ""
+
+
+def test_while_her_gate_has_no_cortex_client_yet_the_running_one_answers(monkeypatch):
+    """LIVE 11 November 2026: her cortex's worker was up 26 s after her app opened, but her gate takes its client only
+    after a warm-up it defers during launch, so her live context found none and her voice turns waited 170 s."""
+    from core.brain.llm import mlx_client
+    from core.runtime import service_access
+
+    monkeypatch.setattr(service_access, "resolve_inference_gate", lambda default=None: SimpleNamespace(_mlx_client=None))
+    cortex = SimpleNamespace(runtime_assignment=SimpleNamespace(lane="cortex"), is_alive=lambda: True)
+    brainstem = SimpleNamespace(runtime_assignment=SimpleNamespace(lane="brainstem"), is_alive=lambda: True)
+    monkeypatch.setattr(mlx_client, "clients_snapshot", lambda: [("b", brainstem), ("c", cortex)])
+    assert lc._her_cortex_client() is cortex
+    cortex.is_alive = lambda: False  # its worker is gone: nothing is started in its place
+    assert lc._her_cortex_client() is None
+    held = SimpleNamespace(name="the gate's")
+    monkeypatch.setattr(service_access, "resolve_inference_gate", lambda default=None: SimpleNamespace(_mlx_client=held))
+    assert lc._her_cortex_client() is held

@@ -255,9 +255,27 @@ class HerLiveContext:
 
 
 def _her_cortex_client() -> Any:
+    """Her inference gate's cortex client, or while her runtime is still starting, the cortex client already running.
+
+    LIVE 11 November 2026, her cortex's worker was up 26 s after her app opened, but her gate takes its client only
+    after its warm-up, which it defers during launch until memory settles: her live context found no client, and her
+    voice turns waited 170 s on her governed route. A running cortex client is used; none is started here.
+    """
     from core.runtime.service_access import resolve_inference_gate
 
-    return getattr(resolve_inference_gate(default=None), "_mlx_client", None)
+    client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
+    if client is not None:
+        return client
+    try:
+        from core.brain.llm.mlx_client import clients_snapshot
+    except ImportError:
+        return None
+    for _path, running in clients_snapshot():
+        assignment = getattr(running, "runtime_assignment", None)
+        if getattr(assignment, "lane", "") == "cortex" and callable(getattr(running, "is_alive", None)) \
+                and running.is_alive():
+            return running
+    return None
 
 
 async def _read_ahead_on_her_cortex(text: str, scope: str) -> dict[str, Any] | None:
