@@ -1,6 +1,7 @@
 """Carry checked public sentences from one governed generation to its surface."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -23,6 +24,22 @@ def thinking_of_a_rendered_prompt(job: dict) -> bool | None:
 
 
 _SPOKEN = '_her_spoken_prefix'
+_FAILED = '_her_sentence_failed'
+logger = logging.getLogger(__name__)
+
+# Checks that judge what one sentence claims. Text after it cannot take the claim back and no repair removes the
+# sentence, so a draft holding it is rejected whatever comes next. Checks that judge length, endings, loops or ratios
+# can change as the draft grows and are not here; nor is a reason with a removal repair in mlx_worker.
+_LASTING = frozenset({
+    'fabricated_shared_history', 'self_claim_contradiction', 'ungrounded_person_narrative',
+    'unsupported_affection_claim', 'unsupported_self_telemetry_claim', 'unsupported_context_continuation_claim',
+    'unexpected_cjk_intrusion',
+})
+
+
+def a_sentence_failed(job: Any) -> bool:
+    """Whether her newest checked sentence failed a check that will reject the whole draft; asked once."""
+    return bool(job.pop(_FAILED, None)) if isinstance(job, dict) else False
 
 
 def continuing_after(job: Any) -> str:
@@ -45,6 +62,7 @@ def her_retry_continues(job: Any, prompt: Any, messages: Any, sent: Any) -> Any:
     if not (isinstance(job, dict) and job.get('stream_user_surface') is True and not messages and sent.strip()):
         return prompt
     job[_SPOKEN] = sent
+    job.pop(_FAILED, None)
     return str(job.get('prompt') or prompt) + sent
 
 
@@ -84,7 +102,14 @@ def ready_reply_preview(job: dict, text: str, *, thinking: Any, attempt: int,
 
     if not _surface_quality_gate_enabled(job) or not _surface_prompt_resolution(job).valid:
         return ''
-    return '' if _surface_quality_failure_reasons(job, candidate.strip()) else candidate
+    reasons = _surface_quality_failure_reasons(job, candidate.strip())
+    lasting = sorted(_LASTING.intersection(map(str, reasons or ())))
+    if lasting:
+        # LIVE 11 November 2026: a sentence failed fabricated_shared_history at 16:01:06 and her draft went on for
+        # 20 s and 167 more failed checks before it was rejected, while she was silent. It ends at the sentence now.
+        job[_FAILED] = lasting
+        logger.info("🗣️ her draft ends at a sentence that failed %s; the retry goes on from what she said", lasting)
+    return '' if reasons else candidate
 
 
 @dataclass

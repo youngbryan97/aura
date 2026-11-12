@@ -189,3 +189,32 @@ def test_a_retry_with_nothing_spoken_or_no_rendered_prompt_starts_over(job, mess
 
     assert her_retry_continues(job, 'p', messages, sent) == 'p'
     assert continuing_after(job) == ''
+
+
+@pytest.mark.parametrize('reasons,ends', [
+    (['fabricated_shared_history'], True), (['self_claim_contradiction', 'too_short_for_user_turn'], True),
+    (['too_short_for_user_turn'], False), (['truncated_tail'], False),
+    (['unsupported_self_condition_operational_claim'], False),  # mlx_worker removes that sentence and keeps the rest
+])
+def test_a_draft_ends_at_a_sentence_no_later_text_can_save(monkeypatch, reasons, ends):
+    """LIVE 11 November 2026: a sentence failed fabricated_shared_history at 16:01:06; the draft went on 20 s and 167
+    more failed checks before its rejection, with her silent. A check that more text could still pass waits for it."""
+    from core.brain.llm.reply_previews import a_sentence_failed, her_retry_continues
+
+    monkeypatch.setattr('core.brain.llm.mlx_worker_surface_quality._surface_quality_failure_reasons',
+                        lambda *args: reasons)
+    job = dict(JOB, prompt='p')
+    assert not ready_reply_preview(job, 'We met last spring. And', thinking=False, attempt=0)
+    assert a_sentence_failed(job) is ends
+    assert a_sentence_failed(job) is False  # asked once: the retry does not end at the same sentence
+    ready_reply_preview(job, 'We met last spring. And', thinking=False, attempt=0)
+    her_retry_continues(job, 'p', None, 'Said. ')
+    assert a_sentence_failed(job) is False
+
+
+def test_the_token_loop_ends_the_draft_where_its_sentence_failed():
+    from pathlib import Path
+
+    loop = Path(__file__).resolve().parents[1].joinpath('core/brain/llm/mlx_worker.py').read_text()
+    published = loop.index("'status': 'progress', 'reply_preview': preview,")
+    assert loop.index('if a_sentence_failed(job):\n', published) - published < 400

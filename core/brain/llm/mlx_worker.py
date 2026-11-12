@@ -69,7 +69,7 @@ from .mlx_worker_surface_markers import (  # noqa: F401  (re-exported: they were
     _truncate_role_continuation,
 )
 from .model_registry import resolve_personality_adapter
-from .reply_previews import continuing_after, her_retry_continues
+from .reply_previews import a_sentence_failed, continuing_after, her_retry_continues
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
 # inventoried and reportable). STRING kind with the original literal
@@ -8029,9 +8029,7 @@ def _mlx_worker_loop(
                                             last_progress_emit_at = progress_now
 
                                         if job.get('stream_user_surface') is True and current_response.strip() != emitted_reply_preview:
-                                            from core.brain.llm.reply_previews import (
-                                                ready_reply_preview,
-                                            )
+                                            from .reply_previews import ready_reply_preview
 
                                             preview = ready_reply_preview(
                                                 job, current_response, thinking=native_thinking,
@@ -8046,6 +8044,8 @@ def _mlx_worker_loop(
                                                     'tokens_generated': decoded_before_attempt + token_count,
                                                     'timestamp': progress_now,
                                                 })
+                                            if a_sentence_failed(job):
+                                                break
 
                                         # [PERF] Mid-generation cache clearing removed — was forcing Metal to
                                         # reallocate GPU memory every 32 tokens, creating micro-stalls.
