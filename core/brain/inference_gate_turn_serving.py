@@ -96,9 +96,19 @@ class _ServesTheTurn:
         # remark read "WHAT HAPPENS AFTER THIS REPLY: your own browser opens youtube.com" and said so, mid-video).
         asked = "" if context.get("her_own_turn") else visible_user_prompt
         if asked and not isolated_generation_contract:
-            from core.conversation.turn_evidence_custody import turn_world_evidence
+            from core.conversation.turn_evidence_custody import current_turn_evidence_custody, turn_world_evidence
 
-            task_grounding_blocks.extend(turn_world_evidence())
+            given = turn_world_evidence()
+            task_grounding_blocks.extend(given)
+            custody = None if given else current_turn_evidence_custody()
+            withheld = custody.why_its_sources_are_withheld() if custody is not None else ""
+            if withheld:
+                # LIVE 12 November 2026 the page her browser read for the question was kept for her turn, and her reply
+                # was written without it, and nothing said why.
+                logger.warning("🌍 Her reply to a person is written without the sources read for it: %s.", withheld)
+            elif not given and custody is None:
+                logger.info("🌍 No turn's custody reaches this generation (origin=%s); nothing read for the turn can.",
+                            context.get("origin") or "")
         await _attach_the_present_moment(
             ambient_grounding_blocks=ambient_grounding_blocks,
             isolated_generation_contract=isolated_generation_contract,

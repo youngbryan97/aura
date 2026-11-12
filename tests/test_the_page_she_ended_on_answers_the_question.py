@@ -88,3 +88,16 @@ def test_with_the_page_in_hand_her_turn_does_not_go_searching():
     with bind_turn_evidence_custody(session_id="s", turn_id="t"):
         assert _the_page_goes_to_her_turn(_pursuit(), _ASKED)
         assert asyncio.run(_what_the_world_says_for_the_turn(_ASKED, _ASKED, session_id="s")) == (None, _ASKED)
+
+
+def test_a_reader_outside_the_turn_is_told_why_its_sources_are_withheld():
+    from core.conversation.session_scope import conversation_session_scope
+    from core.conversation.turn_evidence_custody import current_turn_evidence_custody
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        custody = current_turn_evidence_custody()
+        assert custody.why_its_sources_are_withheld() == ""          # nothing kept yet
+        assert _the_page_goes_to_her_turn(_pursuit(), _ASKED)
+        assert custody.why_its_sources_are_withheld() == ""          # kept, and readable here
+        with conversation_session_scope("another"):
+            assert "kept for session 's'" in custody.why_its_sources_are_withheld()

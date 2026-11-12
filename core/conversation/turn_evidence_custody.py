@@ -226,6 +226,22 @@ class TurnEvidenceCustody:
                 self._world_evidence.append(text[:24_000])
             return True
 
+    def why_its_sources_are_withheld(self) -> str:
+        """Why a reader in this execution is given none of the sources kept for the turn, or "" when it is not."""
+
+        with self._lock:
+            if not self._world_evidence:
+                return ""
+            held = len(self._world_evidence)
+            if self._closed:
+                return f"{held} kept, and the turn is closed"
+            session, turn = current_conversation_session(), current_conversation_turn()
+            if session != self.session_id:
+                return f"{held} kept for session {self.session_id!r}, and this execution runs under {session!r}"
+            if turn != self.turn_id:
+                return f"{held} kept for turn {self.turn_id!r}, and this execution runs under {turn!r}"
+            return ""
+
     def world_evidence(self) -> tuple[str, ...]:
         """The sources read for this turn, for her prompt; never the person's own words."""
 
