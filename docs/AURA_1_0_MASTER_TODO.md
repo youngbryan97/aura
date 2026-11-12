@@ -1655,6 +1655,28 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quiet evening here, Wednesday the eleventh, and I'm just getting settled
   in." Heard 16.4 s after the words, against 172.6 s; most of it was her
   cortex's worker coming up.
+  Same evening, typed turns to her chat route from this machine, read off
+  her log. Two defects in the split itself, fixed: a generation cut off or
+  out of time recorded nothing (her boot-time voice turns were 168 s
+  unattributed); and work inside a wait was counted twice, her gate's
+  queue holding a read of her local corpus and a one-token generation, and
+  delivery holding the generation that repaired her reply, each also
+  recorded as prefill and decode, so one turn's parts added up past its
+  52 s. Each span keeps its start and end now, and queue and delivery are
+  counted without the work inside them. Read again at 20:47: a first turn
+  of 29.57 s (decode 4.21, prefill 6.82, queue 3.99, delivery 0.71,
+  retrieval 0.35, 13.49 unattributed), and its follow-up "Why that, do you
+  think?" at 85.13 s (decode 27.84, prefill 17.68, delivery 32.91, queue
+  3.20, 3.48 unattributed). Where the follow-up went: her cortex's answer
+  was flagged as an unsupported claim to read the screen, its repair failed
+  stabilization on a control artifact, her stabilizer then asked her model
+  for a replacement through a prompt her own log marks as 648 characters
+  telling it who to be ([INSTRUCTED] api_stabilizer), that draft failed on
+  fabricated shared history and was written again, it was withheld, and her
+  brainstem wrote what was served. Prefill is her per-turn readings, about
+  3,000 new tokens each turn (subconscious temporal recall 3,001
+  characters, live mind context 2,621, grounding 1,273) after a prefix that
+  her cache does reuse whole.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
