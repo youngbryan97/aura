@@ -362,3 +362,29 @@ def test_a_governed_reply_cut_off_before_it_returned_still_goes_in():
     live.cut_off("Silence that holds a question.")
     assert live.text.endswith("<|im_start|>user\nTell me about something you find beautiful.<|im_end|>\n"
                               "<|im_start|>assistant\nSilence that holds a question.<|im_end|>\n")
+
+
+def test_an_opening_that_failed_is_read_again_when_the_person_next_speaks(monkeypatch):
+    """LIVE 11 November 2026: her cortex was still loading when her voice mode opened, the read failed, and every turn
+    of the session took her governed route; the second took 120 s and the third failed closed."""
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "")
+
+    async def scenario():
+        cortex_up = []
+
+        async def read_fn(text, scope):
+            return {"status": "ok"} if cortex_up else None
+
+        live = lc.HerLiveContext("session-1", read=read_fn, generate=lambda *a, **k: None)
+        await live.open([_said("Hi.", "Hello.")])
+        assert not live.ready
+        live.governed_turn("Tell me about something beautiful.")
+        live.heard_elsewhere("Tell me about something beautiful.", "Silence that holds a question.")
+        cortex_up.append(True)
+        live.a_person_began_to_speak()
+        await asyncio.sleep(0.05)
+        assert live.ready
+        assert live.text.endswith("<|im_start|>user\nTell me about something beautiful.<|im_end|>\n"
+                                  "<|im_start|>assistant\nSilence that holds a question.<|im_end|>\n")
+
+    asyncio.run(scenario())

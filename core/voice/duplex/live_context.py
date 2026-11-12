@@ -108,6 +108,8 @@ class HerLiveContext:
         self._speaking = False  # a person began a turn that has not been answered yet
         self._said_into = ""  # the text up to where her last reply begins, until her next turn
         self._governed = ""  # the words of a turn her governed route is answering now
+        self._exchanges: list[dict[str, Any]] | None = None  # what it opened on, kept to open again if the read failed
+        self._unread: list[dict[str, Any]] = []  # turns answered while it was not open
         self._read = read or _read_ahead_on_her_cortex
         self._generate = generate or _generate_on_her_cortex
         self._record = record
@@ -116,16 +118,19 @@ class HerLiveContext:
         """Read the conversation so far, once. A turn that ends while this is under way waits for it; one that
         comes after it failed takes her governed route."""
         self.opening = True
+        self._opened.clear()
         try:
             if inspect.isawaitable(exchanges):
                 exchanges = await exchanges
-            self.text = rendered(what_she_reads_first(exchanges))
+            self._exchanges = list(exchanges or [])
+            self.text = rendered(what_she_reads_first(self._exchanges)) + rendered(self._unread)
             if self.text:
                 held = await self._read(self.text, self.scope)
                 if not held or held.get("status") != "ok":
-                    logger.info("🗣️ her live context could not be read (%s); voice turns take her governed route", held)
+                    logger.info("🗣️ her live context could not be read (%s); her governed route answers until it is "
+                                "read when the person next speaks", held)
                     return
-            self.ready = True
+            self.ready, self._unread = True, []
         finally:
             self.opening = False
             self._opened.set()
@@ -138,6 +143,12 @@ class HerLiveContext:
         """Read the turn's evidence while they talk."""
         self._speaking = True
         if not self.ready:
+            if not self.opening and self._exchanges is not None:
+                # LIVE 11 November 2026, her cortex was still loading when her voice mode opened, the read failed, and
+                # every turn of the session took her governed route. It is read again as the person speaks.
+                from core.utils.task_tracker import get_task_tracker
+
+                get_task_tracker().create_task(self.open(self._exchanges), name=f"VoiceLiveContext.reopen:{self.scope}")
             return
         self._opening = f"<|im_start|>user\n{the_turns_evidence()}"
         if self._reading is not None and not self._reading.done():
@@ -187,6 +198,8 @@ class HerLiveContext:
         """A turn her governed route answered goes into the context too; the next read-ahead reads it."""
         said, answered = " ".join(str(words or "").split()), str(reply or "").strip()
         self._governed = ""
+        if not self.ready and said and answered:
+            self._unread.append({"user": said, "aura": answered})
         if self.ready and said and answered:
             self._said_into = self.text + f"<|im_start|>user\n{said}{_TURN_ENDS}<|im_start|>assistant\n"
             self.text = self._said_into + answered + _TURN_ENDS
@@ -201,8 +214,11 @@ class HerLiveContext:
         said = str(said or "").strip()
         if self._said_into:
             self.text, self._said_into = self._said_into + said + _TURN_ENDS, ""
-        elif self._governed and self.ready and said:  # her governed route was answering; its reply never returned
-            self.text += rendered([{"user": self._governed, "aura": said}])
+        elif self._governed and said:  # her governed route was answering; its reply never returned
+            if self.ready:
+                self.text += rendered([{"user": self._governed, "aura": said}])
+            else:
+                self._unread.append({"user": self._governed, "aura": said})
         self._governed = ""
 
     def governed_turn(self, words: str) -> None:
