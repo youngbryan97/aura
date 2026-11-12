@@ -201,6 +201,17 @@ class _CascadeCluster:
 # Core engine
 # ---------------------------------------------------------------------------
 
+def _read_health(health_fns: dict[str, Any]) -> dict[str, Any]:
+    """Every registered component's health function, called once: its reading, or the exception it raised."""
+    readings: dict[str, Any] = {}
+    for name, fn in list(health_fns.items()):
+        try:
+            readings[name] = fn()
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            readings[name] = exc
+    return readings
+
+
 class AutopoiesisEngine:
     """The self-maintenance engine for the Aura system.
 
@@ -539,7 +550,7 @@ class AutopoiesisEngine:
             # 1. Collect health snapshots. Each health function reads another organ under that organ's own lock, so
             # they run on a thread: LIVE 11 November 2026, lockdep measured this tick holding her event loop 19.6 s in
             # adaptive immunity's status and 2.7 s loading the capability catalog.
-            readings = await asyncio.to_thread(self._read_health)
+            readings = await asyncio.to_thread(_read_health, self._health_fns)
             snapshots = self._collect_snapshots(readings)
 
             # 2. Spend energy for this tick.
@@ -581,22 +592,12 @@ class AutopoiesisEngine:
     # 1. Health collection
     # ------------------------------------------------------------------
 
-    def _read_health(self) -> dict[str, Any]:
-        """Every registered component's health function, called once: its reading, or the exception it raised."""
-        readings: dict[str, Any] = {}
-        for name, fn in list(self._health_fns.items()):
-            try:
-                readings[name] = fn()
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                readings[name] = exc
-        return readings
-
     def _collect_snapshots(self, readings: dict[str, Any] | None = None) -> dict[str, ComponentSnapshot]:
         """Store a health snapshot of every registered component, from ``readings`` when given."""
         now = time.time()
         snapshots: dict[str, ComponentSnapshot] = {}
         if readings is None:
-            readings = self._read_health()
+            readings = _read_health(self._health_fns)
 
         for name in readings:  # a component registered since its reading waits for the next tick
             try:

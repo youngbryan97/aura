@@ -202,6 +202,8 @@ class _RecordsWhatTheWorkerDid:
         LIVE 11 November 2026, every voice turn spoken during her boot took 170 s with under 2 s measured: the rest
         was a generation that never finished, and only a finished one said what it cost.
         """
+        from .mlx_client import logger
+
         if getattr(self, "_latency_recorded_request", "") == request_id:
             return
         started = float(getattr(self, "_current_request_started_at", 0.0) or 0.0)
