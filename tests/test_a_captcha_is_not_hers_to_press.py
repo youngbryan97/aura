@@ -99,4 +99,14 @@ def test_her_browser_waits_for_a_check_to_go_on_and_reads_the_page_it_went_on_to
     skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
     went_on = asyncio.run(skill._look_again_once_it_has_checked(_Browser(clears=True)))
     assert went_on["url"].endswith("js_challenge=1")
-    assert asyncio.run(skill._look_again_once_it_has_checked(_Browser(clears=False))) == {}
+    # One that sits there is loaded again once, as a person refreshes it (LIVE 12 November 2026, Reddit).
+    sat_there = _Browser(clears=False)
+    loaded_again = []
+
+    async def browse(url, principal=""):
+        loaded_again.append(url)
+        return True
+
+    sat_there.browse = browse
+    assert asyncio.run(skill._look_again_once_it_has_checked(sat_there))["url"] == "https://www.reddit.com/r/nosleep/"
+    assert loaded_again == ["https://www.reddit.com/r/nosleep/"]

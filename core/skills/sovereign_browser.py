@@ -776,8 +776,12 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     async def _look_again_once_it_has_checked(self, browser: PhantomBrowser) -> dict[str, Any]:
         """A page checking whether a person is at the browser, once it has gone on to the page; {} when it does not.
 
-        Nothing on it is hers to press: such a page goes on by itself or not at all, and the wait is bounded by how
-        long a page is given to load. One that stays is read as refusing her browser (sovereign_browser_going).
+        Nothing on it is hers to press: such a page goes on by itself, or once loaded again, or not at all. The wait
+        is bounded by how long a page is given to load, and the address is loaded again once, as a person refreshes a
+        page that sits there. LIVE 12 November 2026 Reddit's check never went on by itself in her browser; each time
+        the subreddit was served when the address was loaded again, and the one time it was not loaded again it read
+        as a refusal and she went to an archived thread from 2021. One that stays is read as refusing her browser
+        (sovereign_browser_going).
         """
         page = getattr(browser, "page", None)
         if page is None:
@@ -786,9 +790,11 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         logger.info("🌐 %s is checking whether a person is at the browser; waiting for it to go on.", before[:80])
         try:
             await page.wait_for_url(lambda now: str(now) != before, timeout=self.BROWSE_TIMEOUT * 1000.0)
-        except Exception as exc:  # noqa: BLE001 - a check that does not clear is the case below
-            record_degradation("sovereign_browser", exc, severity="info", action="read a check that did not clear")
-            return {}
+        except Exception as exc:  # noqa: BLE001 - a check that does not go on by itself is loaded again, below
+            record_degradation("sovereign_browser", exc, severity="info", action="loaded a check that sat there again")
+            logger.info("🌐 The check did not go on by itself; loading %s again once.", before[:80])
+            if not await browser.browse(before, principal="owner"):
+                return {}
         return await self._look_again_once_loaded(browser)
 
     @staticmethod
