@@ -513,11 +513,13 @@ class IntentionalRetriever:
         """
         wired: list[str] = []
 
-        # SEMANTIC — distilled facts via the memory synthesizer.
+        # SEMANTIC — distilled facts via the memory synthesizer, read from its current worldview. The synthesizer has
+        # no get_relevant of its own; asked for one, every semantic query raised and came back empty (31 incidents in
+        # her log to 12 November 2026).
         try:
             from core.memory.memory_synthesizer import get_memory_synthesizer
             syn = get_memory_synthesizer()
-            self.register_store(_T.SEMANTIC, lambda q, n: syn.get_relevant(q, limit=n))
+            self.register_store(_T.SEMANTIC, lambda q, n: syn.get_worldview().get_relevant(q, limit=n))
             wired.append(_T.SEMANTIC.value)
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
             record_degradation("intentional_retrieval", exc, severity="debug",

@@ -173,3 +173,21 @@ def test_the_reference_corpus_searches_within_the_callers_deadline(monkeypatch):
     retriever.retrieve(RetrievalIntent(task="what the paper says", kind="recall_fact"))
     assert asked[:1] == [0.25]
     assert asked[1:] == [None]
+
+
+def test_the_semantic_store_reads_the_synthesizers_worldview(monkeypatch):
+    """LIVE to 2026-11-12: "'MemorySynthesizer' object has no attribute 'get_relevant'" on every semantic query."""
+    import core.memory.memory_synthesizer as synthesis
+    from core.memory.intentional_retrieval import IntentionalRetriever, MemoryStoreType
+
+    class Synthesizer:
+        def get_worldview(self):
+            return synthesis.WorldviewSnapshot(topics={"cold storage": "She keeps old sessions in a cold store."})
+
+    monkeypatch.setattr(synthesis, "get_memory_synthesizer", lambda: Synthesizer())
+    retriever = IntentionalRetriever()
+    retriever.wire_default_stores()
+    adapter = retriever._adapters[MemoryStoreType.SEMANTIC]
+    assert adapter("what about the cold storage of sessions", 3) == [
+        "[cold storage] She keeps old sessions in a cold store."
+    ]
