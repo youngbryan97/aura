@@ -18329,10 +18329,15 @@ async def test_stabilizer_skips_second_generation_under_critical_memory_pressure
         staticmethod(lambda name, default=None: inference_gate if name == "inference_gate" else default),
     )
 
-    result = await chat_routes._stabilize_user_facing_reply(
-        "How do you say all of that about yourself and still claim you have no opinions?",
-        "I don't inherently possess subjective beliefs or experiences, but I can simulate and discuss them.",
-    )
+    from core.brain.her_turn_as_asked import a_turn_is_asked, keep
+
+    with a_turn_is_asked():  # her turn as the chat route binds it, so the stabilizer reaches asking it again
+        keep(prompt="How do you say all of that?", messages=[{"role": "user", "content": "How do you say all of that?"}],
+             system_prompt="", max_tokens=566)
+        result = await chat_routes._stabilize_user_facing_reply(
+            "How do you say all of that about yourself and still claim you have no opinions?",
+            "I don't inherently possess subjective beliefs or experiences, but I can simulate and discuss them.",
+        )
 
     assert inference_gate.calls == []
     assert result == "I should not launch a second model pass while memory is unsafe."
@@ -18397,12 +18402,17 @@ async def test_desktop_required_stabilizer_uses_protected_primary_contract(monke
         staticmethod(lambda name, default=None: inference_gate if name == "inference_gate" else default),
     )
 
-    result = await chat_routes._stabilize_user_facing_reply(
-        "Live desktop path validation: are you on the protected CognitiveEngine lane and answering directly?",
-        "As an AI language model, I do not have feelings.",
-        desktop_cognitive_engine_required=True,
-        protected_foreground_lane=True,
-    )
+    from core.brain.her_turn_as_asked import a_turn_is_asked, keep
+
+    her_turn = [{"role": "user", "content": "Live desktop path validation: are you on the protected lane?"}]
+    with a_turn_is_asked():  # her turn as the chat route binds it: what is asked again, with nothing added (F06)
+        keep(prompt="Live desktop path validation", messages=her_turn, system_prompt="", max_tokens=566)
+        result = await chat_routes._stabilize_user_facing_reply(
+            "Live desktop path validation: are you on the protected CognitiveEngine lane and answering directly?",
+            "As an AI language model, I do not have feelings.",
+            desktop_cognitive_engine_required=True,
+            protected_foreground_lane=True,
+        )
 
     assert result.startswith("I'm on the protected desktop CognitiveEngine lane")
     assert inference_gate.calls
@@ -18415,7 +18425,8 @@ async def test_desktop_required_stabilizer_uses_protected_primary_contract(monke
     assert kwargs["allow_cloud_fallback"] is False
     assert kwargs["allow_deep_handoff"] is False
     assert kwargs["skip_runtime_payload"] is True
-    assert kwargs["disable_prompt_cache"] is True
+    assert kwargs["messages"] == her_turn and kwargs["system_prompt"] is None
+    assert not kwargs.get("disable_prompt_cache"), "her turn's own prefix is in her cache; asked again, it is reused"
 
 
 def test_same_worker_desktop_repair_allowed_on_ready_lane_without_env_flag(monkeypatch):

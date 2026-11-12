@@ -7422,12 +7422,12 @@ async def api_chat(
                 or _CHAT_DELIVERY_TURN_ID.get()
                 or uuid.uuid4().hex
             ).strip()
+            from core.brain.her_turn_as_asked import a_turn_is_asked
+
             with (
-                bind_turn_evidence_custody(
-                    session_id=conversation_session,
-                    turn_id=exact_turn_id,
-                ),
+                bind_turn_evidence_custody(session_id=conversation_session, turn_id=exact_turn_id),
                 bind_failure_ledger(),
+                a_turn_is_asked(),
             ):
                 tools_available = _chat_desktop_repair._runtime_tool_governance_available()
                 for capability in ("web", "desktop", "files"):
