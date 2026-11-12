@@ -186,7 +186,10 @@ def test_every_worker_action_that_answers_is_routed() -> None:
     handled = set(re.findall(r'elif action == "([a-z_]+)"', worker))
     # Actions that stream or acknowledge do not resolve a caller's future.
     streaming = {"stream", "ping", "clear_cache", "memory_fuse"}
-    for action in handled - streaming:
+    # A control job's answer reaches its caller by the caller's id, whatever its action, not through the terminal
+    # generation path (its ownership cleanup is a generation's): tests/test_a_control_jobs_answer_reaches_its_caller.py.
+    by_caller_id = {"read_ahead"}
+    for action in handled - streaming - by_caller_id:
         if action in {"nonparametric_ingest", "encode_hidden"} or action in _TERMINAL_WORKER_ACTIONS:
             continue
         assert action in _TERMINAL_WORKER_ACTIONS, f"{action} answers but is never routed"

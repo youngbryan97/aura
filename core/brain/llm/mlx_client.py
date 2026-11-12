@@ -7342,7 +7342,9 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             detached = detached_requests.pop(str(request_id), None)
             if detached is not None and detached[0] is future:
                 detached_owner = detached[1]
-            delivered = _set_shared_future_result(future, response)
+        # Delivered after the guard: a concurrent future runs its done-callbacks in the caller, and lockdep measured
+        # this guard holding her event loop up to 322 ms (1 ms of it on CPU) on 11 November 2026.
+        delivered = _set_shared_future_result(future, response)
 
         if not detached_owner:
             return delivered
@@ -7352,11 +7354,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             owner_label=detached_owner,
             owner_token=str(request_id),
         )
-        logger.info(
-            "🔤 [ENCODE] listener retired detached request %s (lane_released=%s).",
-            str(request_id)[:12],
-            released,
-        )
+        logger.info("🔤 [ENCODE] listener retired detached request %s (lane_released=%s).", str(request_id)[:12], released)
         return True
 
     def _release_request_lock_if_aborted(self, reason: str) -> None:

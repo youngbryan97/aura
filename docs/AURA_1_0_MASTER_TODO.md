@@ -767,6 +767,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   validated no more often than a hundred times what the last validation
   cost, one thread at a time, the others served the last answer; a
   rewritten manifest is validated at once.
+  11 November, evening, from lockdep's loop_blocking_hold lines in her log
+  for the day, grouped by lock and caller (52 distinct): almost every hold
+  was waiting, not working (adaptive immunity's lock held the loop 19.6 s
+  with 3 ms on CPU; the capability catalog, 2.7 s with none). The worst were
+  one tick: her autopoiesis organ called every organ's health function on
+  the loop, adaptive immunity's status and the catalog load among them;
+  they run on a thread now and the bookkeeping stays on the loop. Her state
+  registry's dispatcher took the state lock on the loop to read a queue
+  that is safe without it, and waited for writers up to 508 ms, ten times;
+  it no longer takes it, nor does ensure_dispatcher when the dispatcher is
+  running. Her MLX client delivered a generation's last frame under its
+  lane-state lock, where a concurrent future runs its callbacks (322 ms,
+  1 ms on CPU); it delivers after. Left: the holds under 250 ms, each with
+  a few milliseconds on CPU, which are her GIL, not a lock.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
