@@ -781,13 +781,6 @@ class ObservationMemory:
         rest = item.salient(section_only=bool(windows))[:max_elements]
         if rest:
             lines.append("Text read off the screen: " + "; ".join(rest) + ".")
-        lines.append(
-            "These are your notes on what you saw, not a draft answer. "
-            "Answer the question that was actually asked, in your own "
-            "words, using only what is relevant here. Do not read this "
-            "list back, and do not mention the screen if the question is "
-            "not about it."
-        )
         lines.append("[END YOUR OWN RECENT PERCEPTION]")
         brief = "\n".join(lines)
         return brief[:max_chars]

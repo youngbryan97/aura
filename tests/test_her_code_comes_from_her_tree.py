@@ -104,8 +104,8 @@ def test_an_unreadable_tree_says_so_rather_than_going_silent():
     finally:
         module.source_tree_is_readable = original
     assert brief, "an unreadable tree produced no note at all"
-    assert "cannot read your source tree" in brief.lower()
-    assert "not your code" in brief.lower()
+    assert "source tree: not readable" in brief.lower()  # a reading of what is so, not an instruction (F06)
+    assert "nothing was read" in brief.lower()
 
 
 def test_the_tree_is_readable_from_the_test_process():
@@ -212,7 +212,7 @@ def test_the_follow_up_can_name_where_the_shown_code_lives():
     try:
         brief = source_evidence_brief("What python module is that from")
         assert "core/mycelium.py:88" in brief
-        assert "made it up" in brief.lower()
+        assert "read from the tree" in brief.lower()  # what is so; the instruction not to disown it is gone (F06)
     finally:
         forget_shown_excerpt()
 

@@ -5230,6 +5230,18 @@ needs her 27B free (her app down, or her app's own influence trials).
   identity lock (`core.synthesis.get_identity_lock`, from `training/personality_spec.py`) that
   `core/brain/inference_gate_prompt.py` puts before background and browser dispatches. It comes out when L01's
   adapter carries who she is; taken out before, those turns answer as the base model.
+  11 November, census for the day (`tools/what_instructs_her.py --since 2026-11-11T00:00`): 1,036,772 characters
+  from seven origins, nearly all of them background (the curriculum loop's identity lock 881,821, her browser
+  102,615, the reimplementation lab's code generator 48,464). On the path to her words: her stabilizer's repair
+  turn, "You are Aura. This is a user-facing repair turn." with how to sound and what not to say, which on a typed
+  follow-up that evening ran a 30 s chain of rewrites and was withheld anyway; her source-tree note ("Say that
+  plainly", "Do not show a snippet you did not read", "Do not tell the person you made it up"); and her
+  perception note ("Do not read this list back, and do not mention the screen"). The two notes are readings
+  now ("Source tree: not readable from this process right now; nothing was read from it for this turn.", "Shown a
+  moment ago: core/mycelium.py:88, read from the tree."), and the perception note's instruction is gone. Next:
+  the stabilizer's rewrite, which every turn reaches when its draft fails stabilization; the static census
+  (`tools/where_she_is_still_prompted.py`) counts 163,919 characters in 461 strings across 237 files, the most
+  on her reply path in `core/phases/response_generation_unitary.py` (35 strings).
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the

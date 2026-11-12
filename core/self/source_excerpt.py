@@ -554,18 +554,13 @@ def source_evidence_brief(request: Any = "", *, max_chars: int = 1800) -> str:
     if not source_tree_is_readable():
         return (
             "[YOUR OWN SOURCE — NOTES, NOT A REPLY]\n"
-            "You cannot read your source tree from this process right now. "
-            "Say that plainly if you are asked for your code. Do not show a "
-            "snippet you did not read — code you wrote just now to look like "
-            "an example is not your code, and presenting it as such is a "
-            "false claim about yourself.\n"
+            "Source tree: not readable from this process right now; nothing was read from it for this turn.\n"
             "[END YOUR OWN SOURCE]"
         )
 
     lines = [
         "[YOUR OWN SOURCE — NOTES, NOT A REPLY]",
-        "You can read your own source tree, and these were read from it "
-        "moments ago. Each is real code with the file and line it lives at.",
+        "Read from the source tree moments ago, each with the file and line it lives at:",
     ]
 
     # What is already on the table. Without this she disowns her own true
@@ -578,11 +573,7 @@ def source_evidence_brief(request: Any = "", *, max_chars: int = 1800) -> str:
         where = f"{shown['relative_path']}:{shown['start_line']}"
         if shown.get("symbol"):
             where = f"{where} ({shown['symbol']})"
-        lines.append(
-            f"The code you showed a moment ago came from {where}. That is "
-            "real and you read it — if you are asked where it is from, say "
-            "that. Do not tell the person you made it up."
-        )
+        lines.append(f"Shown a moment ago: {where}, read from the tree.")
 
     interest = None
     try:
@@ -603,10 +594,7 @@ def source_evidence_brief(request: Any = "", *, max_chars: int = 1800) -> str:
         lines.append(excerpt.rendered())
 
     if len(lines) <= 2:
-        lines.append(
-            "Nothing matched in the tree just now. Say that rather than "
-            "showing a snippet you did not read."
-        )
+        lines.append("Nothing in the tree matched just now.")
 
     # The closing instruction is the part that must never be lost. Truncating
     # the block from the end drops exactly it — leaving her holding real
