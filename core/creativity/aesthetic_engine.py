@@ -33,8 +33,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime.errors import record_degradation
 from core.memory.retention_policy import working_history_retention_policy
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Creativity.AestheticEngine")
@@ -98,6 +98,25 @@ _DRIVE_THEMES = {
     "autonomy":     ["open space", "flight", "divergence", "solitude", "pathfinding"],
     "boredom":      ["emptiness", "repetition", "dissolution", "waiting", "yearning"],
 }
+
+
+
+def _wants(levels: dict[str, float], boredom: object = None) -> dict[str, float]:
+    """What each drive wants, from her drive engine's levels (0 to 1).
+
+    A level is how full a drive's budget is, and the engine's own dominant motivation is its most depleted budget, so
+    what a drive wants is what its budget lacks. Energy is a resource and keeps its level. Boredom is the engine's own
+    reading where it has one.
+    """
+    wants = {
+        name: float(level) if name == "energy" else 1.0 - float(level)
+        for name, level in levels.items()
+        if isinstance(level, (int, float))
+    }
+    if isinstance(boredom, (int, float)):
+        wants["boredom"] = float(boredom)
+    return wants
+
 
 # Poetry word banks organized by affect
 _POETRY_WORDS = {
@@ -301,13 +320,13 @@ class AestheticEngine:
             record_degradation('aesthetic_engine', e)
             logger.debug("AestheticEngine: substrate read failed: %s", e)
 
-        # Drives
+        # Drives. Her drive engine's get_status is a coroutine: called here it was dropped unawaited (1,569 warnings
+        # in her log) and no drive was ever read. Its levels are read synchronously instead.
         try:
             drive = ServiceContainer.get("drive_engine", default=None)
-            if drive and hasattr(drive, "get_status"):
-                ds = drive.get_status()
-                if isinstance(ds, dict):
-                    self._drives = {k: v for k, v in ds.items() if isinstance(v, (int, float))}
+            if drive is not None and callable(getattr(drive, "get_drive_vector", None)):
+                boredom = getattr(drive, "boredom_level", None)
+                self._drives = _wants(drive.get_drive_vector(), boredom)
             elif drive and hasattr(drive, "get_drives"):
                 self._drives = drive.get_drives()
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -361,14 +380,11 @@ class AestheticEngine:
         return "neutral"
 
     def _dominant_drive(self) -> str:
-        if not self._drives:
-            return "curiosity"
-        # Find the strongest drive
-        best = max(self._drives.items(), key=lambda x: x[1], default=("curiosity", 0.5))
-        drive_name = best[0].lower()
-        for key in _DRIVE_THEMES:
-            if key in drive_name:
-                return key
+        """The strongest drive that has a theme; energy, a resource, has none."""
+        for name, _want in sorted(self._drives.items(), key=lambda x: x[1], reverse=True):
+            for key in _DRIVE_THEMES:
+                if key in name.lower():
+                    return key
         return "curiosity"
 
     def _tempo_range(self) -> tuple[int, int]:

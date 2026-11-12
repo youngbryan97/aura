@@ -83,6 +83,20 @@ def _report_uninstrumented(instance: Any, reason: str) -> float:
     return _UNKNOWN_HEALTH_SCORE
 
 
+#: What a health probe reads, in the order it prefers them.
+_HEALTH_READINGS = ("health_score", "get_vitality", "get_status", "is_healthy")
+
+
+def _readable(instance: Any, name: str) -> bool:
+    """Whether a health probe, which runs synchronously, can read ``name``.
+
+    A coroutine function's call returns a coroutine, not a reading; the probe dropped it unawaited. LIVE: her drive
+    engine's async get_status, 620 "coroutine 'MotivationEngine.get_status' was never awaited" warnings in her log.
+    """
+    method = getattr(instance, name, None)
+    return callable(method) and not inspect.iscoroutinefunction(method)
+
+
 def _clamp01(value: float) -> float:
     return float(max(0.0, min(1.0, value)))
 
@@ -472,15 +486,18 @@ class IntegrationAuditor:
 
     @staticmethod
     def _health_probe_for(instance: Any) -> Callable[[], float] | None:
-        if hasattr(instance, "health_score") and callable(instance.health_score):
+        if _readable(instance, "health_score"):
             return lambda instance=instance: _clamp01(float(instance.health_score()))
 
-        if hasattr(instance, "get_vitality") and callable(instance.get_vitality):
+        if _readable(instance, "get_vitality"):
             return lambda instance=instance: _clamp01(float(instance.get_vitality()))
 
-        if hasattr(instance, "get_status") and callable(instance.get_status):
+        if _readable(instance, "get_status"):
             def _status_probe(instance: Any = instance) -> float:
                 status = instance.get_status()
+                if inspect.iscoroutine(status):
+                    status.close()
+                    return _report_uninstrumented(instance, "get_status returned a coroutine, which a probe cannot await")
                 if not isinstance(status, dict):
                     return _report_uninstrumented(instance, "get_status did not return a dict")
                 if "health_score" in status:
@@ -503,9 +520,11 @@ class IntegrationAuditor:
 
             return _status_probe
 
-        if hasattr(instance, "is_healthy") and callable(instance.is_healthy):
+        if _readable(instance, "is_healthy"):
             return lambda instance=instance: 1.0 if bool(instance.is_healthy()) else 0.30
 
+        if any(inspect.iscoroutinefunction(getattr(instance, name, None)) for name in _HEALTH_READINGS):
+            return lambda instance=instance: _report_uninstrumented(instance, "its health is read only by a coroutine")
         return None
 
     @staticmethod
