@@ -51,3 +51,52 @@ def test_an_article_that_mentions_captchas_is_not_a_challenge():
                "pointer moved before the tick.")
     assert not challenged(article, [{"role": "link", "name": "Next article"}])
     assert challenged(_RECAPTCHA_FRAME)
+
+
+@pytest.mark.parametrize("title, text, verifying", [
+    ("Reddit", "Prove your humanity\nReddit", True),                         # LIVE 12 November 2026
+    ("Just a moment...", "Checking if the site connection is secure", True),
+    ("nosleep", "Community highlights\nWe called it the Wishing Tree.", False),
+    ("How CAPTCHAs work", "A long article. " * 40 + "Sites ask you to verify you are human.", False),
+])
+def test_a_page_checking_for_a_person_is_known_by_its_heading(title, text, verifying):
+    from core.skills.sovereign_browser_going import still_verifying
+
+    assert still_verifying(title, text) is verifying
+
+
+def test_a_check_that_stays_reads_as_a_page_that_refused_her_browser():
+    from core.skills.sovereign_browser_going import refused
+
+    assert refused("Reddit", "Prove your humanity")
+
+
+def test_her_browser_waits_for_a_check_to_go_on_and_reads_the_page_it_went_on_to():
+    import asyncio
+
+    class _Page:
+        url = "https://www.reddit.com/r/nosleep/"
+
+        def __init__(self, clears: bool) -> None:
+            self.clears = clears
+
+        async def wait_for_url(self, matches, timeout):
+            if not self.clears:
+                raise TimeoutError("still checking")
+            self.url = "https://www.reddit.com/r/nosleep/?js_challenge=1"
+            assert matches(self.url)
+
+        async def wait_for_load_state(self, state, timeout):
+            return None
+
+    class _Browser:
+        def __init__(self, clears: bool) -> None:
+            self.page = _Page(clears)
+
+        async def observe(self, principal=""):
+            return {"url": self.page.url, "title": "nosleep", "elements": [{"role": "link", "name": "a thread"}]}
+
+    skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+    went_on = asyncio.run(skill._look_again_once_it_has_checked(_Browser(clears=True)))
+    assert went_on["url"].endswith("js_challenge=1")
+    assert asyncio.run(skill._look_again_once_it_has_checked(_Browser(clears=False))) == {}

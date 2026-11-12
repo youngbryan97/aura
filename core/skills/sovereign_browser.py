@@ -31,7 +31,7 @@ from core.runtime.skill_contract import ActionExpectation
 from core.runtime.still_getting_somewhere import it_got_somewhere
 from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
-from core.skills.sovereign_browser_going import as_its_fields_say, the_archived_copy
+from core.skills.sovereign_browser_going import as_its_fields_say, still_verifying, the_archived_copy
 from core.skills.sovereign_browser_picking import pursued
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
@@ -773,6 +773,24 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             return {}
         return await browser.observe(principal="owner") or {}
 
+    async def _look_again_once_it_has_checked(self, browser: PhantomBrowser) -> dict[str, Any]:
+        """A page checking whether a person is at the browser, once it has gone on to the page; {} when it does not.
+
+        Nothing on it is hers to press: such a page goes on by itself or not at all, and the wait is bounded by how
+        long a page is given to load. One that stays is read as refusing her browser (sovereign_browser_going).
+        """
+        page = getattr(browser, "page", None)
+        if page is None:
+            return {}
+        before = str(getattr(page, "url", "") or "")
+        logger.info("🌐 %s is checking whether a person is at the browser; waiting for it to go on.", before[:80])
+        try:
+            await page.wait_for_url(lambda now: str(now) != before, timeout=self.BROWSE_TIMEOUT * 1000.0)
+        except Exception as exc:  # noqa: BLE001 - a check that does not clear is the case below
+            record_degradation("sovereign_browser", exc, severity="info", action="read a check that did not clear")
+            return {}
+        return await self._look_again_once_loaded(browser)
+
     @staticmethod
     def _observed_url(browser: PhantomBrowser) -> str:
         try:
@@ -1506,6 +1524,8 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     # the step that started it: the Next of a finished screen,
                     # rehearsed on 27 Sep, sent the run back to the screen before.
                     observation = await self._look_again_once_loaded(browser) or observation
+                elif still_verifying(str(observation.get("title") or ""), str(observation.get("text") or "")):
+                    observation = await self._look_again_once_it_has_checked(browser) or observation
                 observation = await _go_back_to_the_last_good_page(
                     browser=browser,
                     last_good_url=last_good_url,

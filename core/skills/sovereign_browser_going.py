@@ -34,9 +34,29 @@ _REFUSALS = re.compile(
     r"you have been blocked|attention required|access (?:to this page has been )?denied|403 forbidden|"
     r"verify you are (?:a )?human|not a robot|unusual traffic|captcha|too many requests|"
     # LIVE 2026-11-10, DuckDuckGo: "Please complete the following challenge to confirm this search was made by a human."
-    r"complete the following challenge|confirm (?:that )?(?:this \w+ was made by|you are|you're) a human",
+    r"complete the following challenge|confirm (?:that )?(?:this \w+ was made by|you are|you're) a human|"
+    # LIVE 2026-11-12, Reddit: "Prove your humanity", and still there once the page had had its chance to clear it.
+    r"prove your humanity|prove (?:that )?you(?:'re| are) (?:a )?human",
     re.IGNORECASE,
 )
+
+#: What a page's heading says while it checks whether a person is at the browser, before it serves the page.
+_STILL_VERIFYING = re.compile(
+    r"prove your humanity|prove (?:that )?you(?:'re| are) (?:a )?human|verify(?:ing)? (?:that )?you(?:'re| are) "
+    r"(?:a )?human|confirm (?:that )?you(?:'re| are) (?:a )?human|checking (?:your browser|if the site connection)|"
+    r"just a moment\.\.\.|human verification",
+    re.IGNORECASE,
+)
+
+
+def still_verifying(title: str, text: str) -> bool:
+    """Whether a page is a check of whether a person is at the browser, by its title or its first words.
+
+    LIVE 12 November 2026, r/nosleep: Reddit's page said "Prove your humanity" while its own script checked her
+    browser, and cleared itself a few seconds later. Asked to act on it, she pressed Reddit's unnamed logo link
+    believing it was a reCAPTCHA. A person waits for a page like this; so does her browser (sovereign_browser).
+    """
+    return bool(_STILL_VERIFYING.search(f"{title} {str(text)[:300]}"))
 
 
 def refused(title: str, text: str) -> bool:
