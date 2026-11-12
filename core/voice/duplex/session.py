@@ -122,6 +122,10 @@ MAX_AUDIO_MESSAGE_BYTES = 128 * 1024
 MAX_TYPED_MESSAGE_BYTES = 64 * 1024
 TASK_QUIESCENCE_TIMEOUT_S = 3.0
 OVERLAP_PROBE_TIMEOUT_S = 1.0
+# A second burst this soon after one that was not yet heard as an acknowledgment is the person talking. LIVE 11
+# November 2026: "Wait, stop. Just tell me in one sentence." over her was judged two acknowledgments, the comma
+# pause falling at the decision; she talked on for 157 s. Said by `say`, the bursts' decisions were 0.64 s apart.
+SECOND_BURST_S = 1.2
 
 # Callbacks the transport supplies. Returning awaitables lets the session
 # apply backpressure if the socket is slow.
@@ -236,6 +240,7 @@ class DuplexVoiceSession:
         self._overlap = OverlapArbiter()
         self._overlap_audio: list[np.ndarray] = []
         self._overlap_epoch = 0
+        self._unheard_burst: tuple[float, np.ndarray] | None = None  # a short burst not yet heard as an acknowledgment
         self._voice_override = ""
         self._owns_tts = tts is None
         self._tts = tts or StreamingTts(self._config.tts)
@@ -767,40 +772,32 @@ class DuplexVoiceSession:
         )
 
         if self._overlap.should_duck():
-            await self._send_json(
-                {
-                    "type": protocol.EVT_DUCK,
-                    "gain": self._overlap.duck_gain,
-                    "ramp_ms": 60,
-                }
-            )
+            await self._send_json({"type": protocol.EVT_DUCK, "gain": self._overlap.duck_gain, "ramp_ms": 60})
 
         if verdict is OverlapVerdict.PENDING:
             return
-
+        overlap, earlier = self._overlap.state, self._unheard_burst
+        logger.info("🎙️ over her speech: %s after %.0f ms of speech, %.0f ms quiet at the decision", verdict.name,
+                    overlap.speech_ms, overlap.silence_ms)
+        if earlier is not None and time.monotonic() - earlier[0] < SECOND_BURST_S:
+            verdict = OverlapVerdict.BARGE_IN  # a second burst before the first was heard as "mhm": she is cut off
+            self._overlap_audio.insert(0, earlier[1])
+        self._unheard_burst = None
         if verdict is OverlapVerdict.BARGE_IN:
-            overlap_audio = (
-                np.concatenate(self._overlap_audio)
-                if self._overlap_audio
-                else np.zeros(0, dtype=np.float32)
-            )
+            overlap_audio = np.concatenate(self._overlap_audio) if self._overlap_audio else np.zeros(0, np.float32)
             self._overlap.reset()
             self._overlap_audio = []
-            await self._begin_user_turn(
-                captured_audio=overlap_audio,
-                reason="user_barge_in",
-            )
+            await self._begin_user_turn(captured_audio=overlap_audio, reason="user_barge_in")
             return
 
         # Timing says backchannel, but a short "no" has the same acoustic
         # shape. Keep playback ducked until a side-effect-free decode resolves
         # the ambiguity.
-        overlap_audio = (
-            np.concatenate(self._overlap_audio) if self._overlap_audio else None
-        )
+        overlap_audio = np.concatenate(self._overlap_audio) if self._overlap_audio else None
         overlap_epoch = self._overlap_epoch
         self._overlap.reset()
         self._overlap_audio = []
+        self._unheard_burst = (time.monotonic(), overlap_audio if overlap_audio is not None else np.zeros(0, np.float32))
         if overlap_audio is not None and overlap_audio.size:
             self._spawn(
                 self._verify_backchannel(
@@ -819,6 +816,7 @@ class DuplexVoiceSession:
         overlap_epoch: int,
     ) -> None:
         """Confirm a backchannel verdict against what was actually said."""
+        asked = time.monotonic()
         try:
             text = await asyncio.wait_for(
                 self._asr.probe(audio),
@@ -832,6 +830,7 @@ class DuplexVoiceSession:
                 severity="debug",
             )
             text = ""
+        logger.info("🎙️ what was said over her: %r, read in %.2f s", text[:50], time.monotonic() - asked)
         if (
             self._speaking is not track
             or self._closed
@@ -841,6 +840,8 @@ class DuplexVoiceSession:
 
         from core.voice.duplex.overlap import looks_like_backchannel
 
+        if text:  # heard: an acknowledgment, or words that cut her off
+            self._unheard_burst = None
         if not text or looks_like_backchannel(text):
             await self._resume_after_backchannel(track, text, overlap_epoch)
             return
@@ -866,9 +867,7 @@ class DuplexVoiceSession:
             or overlap_epoch != self._overlap_epoch
         ):
             return
-        await self._send_json(
-            {"type": protocol.EVT_DUCK, "gain": 1.0, "ramp_ms": 140}
-        )
+        await self._send_json({"type": protocol.EVT_DUCK, "gain": 1.0, "ramp_ms": 140})
         await self._mind.publish(
             "user_backchannel",
             {"transcript": transcript[:80]},
