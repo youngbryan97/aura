@@ -10124,10 +10124,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     }
                 )
                 status = "conversation_unavailable" if hard_lane_failure else "conversation_warming"
-                response_text = _conversation_lane_user_message(
-                    lane,
-                    status_override=admission_override,
-                )
+                # Bryan, 11 November: while she is still waking, she says it in her words (chat_while_waking.py).
+                from .chat_while_waking import her_reply_while_waking
+
+                waking_reply = None if hard_lane_failure else await her_reply_while_waking(
+                    _original_user_message, session_id=_chat_session_id, timeout_s=_remaining_foreground_budget())
+                response_text = waking_reply or _conversation_lane_user_message(lane, status_override=admission_override)
                 logger.warning(
                     "Required desktop CognitiveEngine turn was not admitted before generation: %s",
                     admission_reason,

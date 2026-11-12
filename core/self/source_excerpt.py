@@ -601,14 +601,9 @@ def source_evidence_brief(request: Any = "", *, max_chars: int = 1800) -> str:
     # excerpts with nothing telling her they are the only code she may show,
     # which is the condition that produced the invention in the first place.
     # So the excerpts are trimmed to fit around it, never the other way.
-    closing = (
-        "Any code you show must be one of these, quoted as it is, with its "
-        "path and line named — that is what lets the person check you. If "
-        "none of them fits what was asked, say so and name what you did "
-        "find. Do not compose an illustrative example: a snippet you wrote "
-        "to look like your code is not your code.\n"
-        "[END YOUR OWN SOURCE]"
-    )
+    # A reading only (F06): code she shows is checked against her tree after she speaks
+    # (tests/test_her_code_comes_from_her_tree.py); the paragraph that told her so is gone.
+    closing = "These are all the excerpts read for this turn.\n[END YOUR OWN SOURCE]"
     body = "\n".join(lines)
     room = max_chars - len(closing) - 1
     if len(body) > room:

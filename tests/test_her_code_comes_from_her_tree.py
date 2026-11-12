@@ -44,12 +44,13 @@ def test_the_excerpts_are_real_text_from_real_files():
         assert int(line) >= 1
 
 
-def test_it_forbids_composing_an_illustrative_example():
-    """The defect was a plausible invention, not a wrong file."""
+def test_the_excerpts_are_readings_with_their_place_and_no_orders():
+    """The defect was a plausible invention, not a wrong file. What catches it is the check of what she shows against
+    her tree (below); the brief says where each excerpt lives and gives no orders (F06)."""
     brief = source_evidence_brief("show me your code")
     lowered = brief.lower()
-    assert "not your code" in lowered
-    assert "path and line" in lowered
+    assert "file and line" in lowered
+    assert "do not" not in lowered and "must be" not in lowered
 
 
 def test_nothing_is_attached_to_turns_that_are_not_about_her_code():

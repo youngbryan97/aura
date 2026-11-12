@@ -54,3 +54,22 @@ def test_no_repair_turn_is_written_for_her_model_any_more():
 
     assert not hasattr(chat_reply_repair, "_stabilize_user_facing_reply_frame_lines"), \
         "the builder of the instructed repair turn is gone"
+
+
+def test_a_persons_turn_in_a_worded_lane_goes_without_the_identity_lock(monkeypatch):
+    """LIVE 12 November 2026: "What is on my screen right now?" took the desktop-execution lane, which keeps its
+    worded contract, and her cortex got 2,400 characters of "You are Aura Luna. Here's who you are" ahead of the
+    screen's reading. Who she is lives in her cortex's weights (L01)."""
+    from core.brain import what_she_is_given
+    from core.synthesis import get_identity_lock
+
+    lock = get_identity_lock().strip()
+    screen = "## WHAT IS ON THE SCREEN\\nFrontmost application: Claude"
+    messages = [{"role": "system", "content": f"{lock}\\n\\n{screen}"}, {"role": "user", "content": "What is on my screen?"}]
+    given, system = what_she_is_given.for_her_model(messages, f"{lock}\\n## RESPONSE CONTRACT\\n- shape: plain",
+                                                    {"origin": "response_generation_user",
+                                                     "desktop_execution_contract": True}, True)
+    assert lock not in str(given) and lock not in str(system)
+    assert screen in given[0]["content"] and "## RESPONSE CONTRACT" in system, "the contract and readings stay"
+    background, _system = what_she_is_given.for_her_model(messages, "", {"origin": "curriculum_loop"}, False)
+    assert lock in background[0]["content"], "a background turn to a model without her persona keeps it"

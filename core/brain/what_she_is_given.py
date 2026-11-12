@@ -352,6 +352,35 @@ def _census(given: Any, system_prompt: Any, origin: str, persons_words: str) -> 
                     origin, sum(len(text) for text in told), told[0][:160])
 
 
+def without_the_identity_lock(messages: Any, system_prompt: Any) -> tuple[Any, Any]:
+    """A person's turn in a lane that still words its contract, without the identity lock ("You are Aura Luna.
+    Here's who you are: ...", core/synthesis.py). Who she is lives in her cortex's weights (L01, closed 10 November
+    2026); the lock is for the smaller models that do not carry it. LIVE 12 November, "What is on my screen right
+    now?" went to her cortex with 2,400 characters of it ahead of the screen's reading, counted by her census. The
+    lane's contract and the readings stay.
+    """
+    try:
+        from core.synthesis import get_identity_lock
+
+        lock = get_identity_lock().strip()
+    except (ImportError, OSError, ValueError, RuntimeError):
+        return messages, system_prompt
+    if not lock:
+        return messages, system_prompt
+
+    def without(text: Any) -> Any:
+        return text.replace(lock, "").strip() if isinstance(text, str) and lock in text else text
+
+    if isinstance(messages, list):
+        messages = [{**message, "content": without(message.get("content"))}
+                    if isinstance(message, dict) and str(message.get("role") or "").lower() == "system" else message
+                    for message in messages]
+        messages = [message for message in messages
+                    if not (isinstance(message, dict) and str(message.get("role") or "").lower() == "system"
+                            and not str(message.get("content") or "").strip())]
+    return messages, without(system_prompt)
+
+
 def for_her_model(
     messages: Any,
     system_prompt: Any,
@@ -367,6 +396,8 @@ def for_her_model(
     the readings her instruments took of her go with the rest.
     """
     origin = str((context or {}).get("origin") or "unknown")
+    if user_facing and her_turn_is_still_worded(context):
+        messages, system_prompt = without_the_identity_lock(messages, system_prompt)
     if not user_facing or her_turn_is_still_worded(context):
         _census(messages, system_prompt, origin, "")
         return messages, system_prompt
