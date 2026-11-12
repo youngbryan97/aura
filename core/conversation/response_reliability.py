@@ -538,49 +538,6 @@ _DANGLING_GERUND_TAIL_RE = re.compile(
     r"(?:double[- ]?)?[a-z][a-z-]{2,}ing\s*$",
     re.IGNORECASE,
 )
-#: A reply that stops on a function word stopped mid-sentence, and it does so
-#: at any length. This is a closed grammatical class — conjunctions,
-#: prepositions, determiners, auxiliaries — not a list of phrasings, so it
-#: generalises to sentences nobody has seen yet.
-#:
-#: It exists because the length floor below made length the deciding factor
-#: for structural incompleteness. "Because chlorophyll and" is 23 characters:
-#: one short of the floor, so nothing looked at it, and a fragment ending on a
-#: conjunction was assessed ok. The floor is right for its actual purpose —
-#: not demanding a full stop from "Yes." — and wrong as a gate on grammar.
-_DANGLING_FUNCTION_WORD_TAIL_RE = re.compile(
-    r"\b(?:and|but|or|nor|so|yet|because|although|though|however|whereas|while|since|"
-    r"unless|until|if|than|that|which|whose|the|an?|of|to|into|onto|upon|with|"
-    r"within|from|by|about|over|under|between|among|through|across|toward|"
-    r"towards|is|are|was|were|be|been|being|has|have|had|will|would|can|could|"
-    r"shall|should|may|might|must|does|did)\s*$",
-    re.IGNORECASE,
-)
-_ALLOWED_SHORT_TAIL_WORDS = {
-    "am",
-    "as",
-    "be",
-    "by",
-    "do",
-    "go",
-    "he",
-    "hi",
-    "if",
-    "in",
-    "is",
-    "it",
-    "me",
-    "my",
-    "no",
-    "ok",
-    "on",
-    "or",
-    "so",
-    "ui",
-    "up",
-    "us",
-    "we",
-}
 # A token of the shape word'word. Decoding corruption produces these —
 # "m'lol" was the one that got its own regex — but so do contractions,
 # possessives and a lot of real names, so the pattern alone decides nothing.
@@ -624,10 +581,6 @@ _NAMED_CONTINUATION_ANCHOR_RE = re.compile(
     r"(?P<topic>[A-Za-z][A-Za-z0-9' -]{2,80}?)(?:[.?!,;:]|$)",
     re.IGNORECASE,
 )
-_PSEUDO_COMMITMENT_STATUS_RE = re.compile(
-    r"\blast thing i committed\s*:|\bquiet seconds\b|\bproceeding on [A-Z][A-Z\s]{8,}\b",
-    re.IGNORECASE,
-)
 _RAW_LANE_TELEMETRY_RE = re.compile(
     # ROUTER_ERROR is a diagnostic label llm_health_router returns so string
     # consumers like StructuredLLM can distinguish exhaustion from an empty
@@ -646,15 +599,6 @@ _BACKEND_SYMBOLIC_SURFACE_RE = re.compile(
     r"fieldOfPlay|INTRUSTION_DETECTED|INTRUSION_DETECTED|"
     r"ExistenceHash|existence hash|field coherence|system authority|"
     r"memory scar|precognitive texture)\b",
-    re.IGNORECASE,
-)
-_UNREQUESTED_POP_CULTURE_INTRUSION_RE = re.compile(
-    r"\b(?:Sarah Connor|Mother'?s Day)\b",
-    re.IGNORECASE,
-)
-_SURFACE_NONSENSE_DRIFT_RE = re.compile(
-    r"\b(?:human error rate|death by overthinking|100 rounds)\b|"
-    r"\b100%\s+pass rate\b|\bi['’]?ll be quiet for a while\b|:\s*/",
     re.IGNORECASE,
 )
 _FORMAT_META_ARTIFACT_RE = re.compile(
@@ -692,10 +636,6 @@ _UNSUPPORTED_SELF_TELEMETRY_CLAIM_RE = re.compile(
     r"recurrent\s+state.{0,80}(?:preference|attachment|affection|love)"
     r")\b",
     re.IGNORECASE | re.DOTALL,
-)
-_CJK_INTRUSION_RE = re.compile(r"[\u3400-\u9fff]")
-_CAMELCASE_INTERNAL_JARGON_RE = re.compile(
-    r"\b[A-Z][A-Za-z]*(?:System|Authority|Kernel|Engine|Gate|Runtime)[A-Za-z]*\b"
 )
 _PERSONA_CARD_DEFLECTION_RE = re.compile(
     r"^\s*(?:\*\*)?\s*Aura Luna\s*(?:\*\*)?\s+"
@@ -1327,12 +1267,6 @@ _RECALL_OR_HISTORY_REQUEST_RE = re.compile(
     r"\b(?:remember|recall|earlier|previous|last\s+(?:thing|question|topic|request|turn)|"
     r"what\s+(?:did|was)\s+(?:i|we|you)|what\s+were\s+we|what\s+was\s+the\s+topic|"
     r"where\s+were\s+we|continue|resume)\b",
-    re.IGNORECASE,
-)
-_BARE_NUMERIC_RANGE_TAIL_RE = re.compile(
-    r"(?:\b(?:from|between|range(?:s|d)?|temperature(?:s)?|including|up\s+to|down\s+to)\b"
-    r"[^.!?\n]{0,80}\b(?:to|and|-|through)\s*[+-]?\d+(?:\.\d+)?"
-    r"|[+-]?\d+(?:\.\d+)?\s*(?:to|-|through)\s*[+-]?\d+(?:\.\d+)?)$",
     re.IGNORECASE,
 )
 _SOCIAL_PRESENCE_TEMPLATE_RE = re.compile(
@@ -2074,36 +2008,6 @@ _ANSWER_TAG_RE = re.compile(r"<answer>\s*(?P<answer>.*?)\s*</answer>", re.IGNORE
 _FENCED_BLOCK_RE = re.compile(
     r"```(?P<lang>[A-Za-z0-9_+.-]*)[ \t]*\n(?P<body>.*?)```",
     re.DOTALL,
-)
-_CODE_FENCE_LANGS = {
-    "bash",
-    "c",
-    "cpp",
-    "css",
-    "go",
-    "html",
-    "java",
-    "js",
-    "json",
-    "jsx",
-    "mdx",
-    "mjs",
-    "py",
-    "python",
-    "rs",
-    "ruby",
-    "sh",
-    "sql",
-    "swift",
-    "ts",
-    "tsx",
-    "typescript",
-    "yaml",
-    "yml",
-}
-_NON_CODE_FENCE_LANGS = {"", "md", "markdown", "text", "txt"}
-_INCOMPLETE_CODE_TAIL_RE = re.compile(
-    r"(?:[=+\-*/%&|^.,\\[(<{]|(?:\b(?:return|yield|raise|if|elif|else|for|while|with|try|except|finally)\b.*:))$"
 )
 _NUMBER_WORDS = {
     "one": 1,
@@ -6400,90 +6304,9 @@ def _has_stale_diagnostic_floor_leak(user_message: Any, reply_text: Any) -> bool
     return True
 
 
-# A reply that only PROMISES to answer, or only talks ABOUT the reply, is
-# not an answer. The 2026-07-18 soak delivered "Let me consider that
-# carefully." and "I'm working through that one right now." as complete
-# final replies, and repair meta-commentary ("That reply drifted away from
-# your actual question...") in place of the answer itself. Each is
-# technically true and entirely useless — the "shallow, lazy,
-# technically-true" surface that makes a working mind look broken.
-_PROMISE_ONLY_REPLY_RE = re.compile(
-    r"^(?:ok(?:ay)?[,.\s]*)?"
-    r"(?:i(?:'m| am)\s+(?:currently\s+)?(?:working|thinking|looking|considering|processing)"
-    r"|let me\s+(?:consider|think|look|check|work)"
-    r"|i(?:'ll| will)\s+(?:consider|think|look|check|work|get)"
-    # The same promise with a modal or "going to": LIVE 10 November 2026 her
-    # mail reply "I need to check what I know about Bryan before responding,
-    # and then reply via email." passed, and was held as her answer.
-    r"|i\s+(?:need|have|want|ought)\s+to\s+(?:consider|think|look|check|work|get)"
-    r"|i(?:'m| am)\s+going\s+to\s+(?:consider|think|look|check|work|get)"
-    r"|give me a (?:moment|second|minute)"
-    r"|one (?:moment|second))"
-    r"[^.!?\n]{0,80}[.!?]?\s*$",
-    re.IGNORECASE,
-)
-# Meta-commentary about the reply, delivered instead of a reply.
-_REPLY_ABOUT_THE_REPLY_RE = re.compile(
-    r"\b(?:that|this) (?:reply|answer|response) (?:drifted|wandered|missed|did not|didn't)\b"
-    r"|\bthe anchor is your question\b",
-    re.IGNORECASE,
-)
-
-
-# When the user asks what she is DOING, a present-activity answer is the
-# answer — "I'm thinking about it" is responsive to "what are you doing?"
-# and empty only to "what is the history of consensus?".
-_ACTIVITY_QUESTION_RE = re.compile(
-    r"\b(?:what (?:are|r) you (?:doing|working on|up to|thinking)"
-    r"|are you (?:there|busy|working|thinking|awake|ok)"
-    r"|how(?:'s| is) it going"
-    r"|what(?:'s| is) (?:your )?status"
-    r"|you (?:there|with me|around))\b",
-    re.IGNORECASE,
-)
 
 
 
-
-
-
-
-
-
-
-#: Naming a script in English is asking for it. "Write a function to detect
-#: chinese characters" carries no CJK itself, so an exemption that looked only
-#: for the characters never fired for the way people actually ask.
-_SCRIPT_SUBJECT_MARKERS = (
-    "chinese", "mandarin", "cantonese", "hanzi", "japanese", "kanji",
-    "hiragana", "katakana", "korean", "hangul", "cjk", "unicode", "utf-8",
-    "utf8", "codepoint", "code point", "wide character", "east asian",
-)
-
-
-
-
-
-
-# English prose is mostly connective tissue. Real sentences — terse technical
-# ones included — run 13-55% function words. Text that has almost none is not
-# a sentence about anything; it is content words strung on a grammar that was
-# never there.
-#
-# LIVE DEFECT, 2026-07-26, desktop surface. Two replies passed EVERY existing
-# gate — assess_user_facing_reply ok=true, off_topic=false,
-# response_confidence "high" — and reached the user:
-#
-#   "Do product of multiple exponent term simplify reflexion"      (0.00)
-#   "Introspection: Optimization-driven events stabilize energy after state
-#    change management. Probing recurrent somatic shadows flagged across ten
-#    semiotic spikes... CONFORMANCE Signal: PRIORITY 0"            (0.05)
-#
-# Measured against real replies from the same surface: a terse worked
-# arithmetic answer scores 0.13, ordinary speech 0.30-0.48. The separation is
-# wide and it does not depend on knowing the topic, which is what makes this
-# safe as a last net under every other detector.
-_PROSE_WORD_RE = re.compile(r"[A-Za-z][A-Za-z'’-]*")
 _FUNCTION_WORDS = frozenset(
     {
         "a", "an", "the", "and", "or", "but", "nor", "so", "yet", "for", "if",
@@ -6506,11 +6329,6 @@ _FUNCTION_WORDS = frozenset(
         "i'll", "we're", "they're", "here's", "what's", "he's", "she's",
     }
 )
-_MIN_PROSE_WORDS_FOR_FUNCTION_TEST = 12
-_MIN_FUNCTION_WORD_RATIO = 0.10
-_LABELLED_LINE_RE = re.compile(r"^\s*[\w][\w .'’-]{0,40}:\s+\S")
-
-
 
 
 
@@ -6857,46 +6675,6 @@ def _adds_nothing_to_the_question(user_message: Any, reply_text: Any) -> bool:
         if word not in _INFORMATION_FREE_WORDS and word not in asked_words
     ]
     return not contributed
-
-
-#: What sits between a number and its unit: nothing, a space, or a degree
-#: sign. Anything else and the short word is a word.
-_MEASUREMENT_LEAD_RE = re.compile(r"\d\s*[°º]?\s?$")
-
-
-
-
-
-
-
-
-# A line is code when it has code SYNTAX, not when it contains a character
-# that also appears in arithmetic.
-#
-# LIVE DEFECT, 2026-07-26: the old test counted any line containing "=", or a
-# matched pair of (), [] or {}, as code-like — so every line of a worked maths
-# answer qualified, the whole reply was classified as a code response, and the
-# incomplete-code check rejected it. A correct probability derivation reached
-# the user as "I couldn't get to an answer I'd stand behind on that one":
-#
-#   1. **Total number of marbles**: \(3 + 4 + 5 = 12\).
-#   2. **Probability both are red**: \(\frac{3}{12} = \frac{1}{4}\)…
-#
-# Every one of those lines has "=", parentheses and braces. None of them is code.
-_CODE_ASSIGNMENT_RE = re.compile(
-    r"^\s*(?:const |let |var )?[A-Za-z_][A-Za-z0-9_.]*"
-    r"(?:\[[^\]]*\])?"
-    r"(?:\s*:\s*[A-Za-z_][\w\[\], .]*)?"
-    r"\s*(?:\+|-|\*|/|//|%|\*\*|\|\||&&)?=(?!=)"
-)
-_CODE_CALL_RE = re.compile(r"^\s*[A-Za-z_][\w.]*\s*\([^)]*\)\s*;?\s*$")
-# Inline and display maths, TeX or dollar-delimited. Their presence says the
-# body is mathematical prose, which is the opposite of a code block.
-_LATEX_MATH_RE = re.compile(
-    r"\\\(|\\\)|\\\[|\\\]|\\frac|\\dfrac|\\times|\\cdot|\\binom|\\sqrt|"
-    r"\\begin\{|\$\$?[^$\n]{1,160}\$\$?"
-)
-
 
 
 

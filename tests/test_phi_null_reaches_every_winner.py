@@ -73,5 +73,5 @@ def test_a_winner_not_yet_measured_is_not_a_complex():
 def test_every_estimator_the_selection_can_pick_has_a_null():
     core = PhiCore()
     for name in ("residual_stream_grassmann", "residual_stream", "affective", "mesh"):
-        history, bipartitions, bit_tables = core._null_inputs(name)
+        history, bipartitions, bit_tables = (getattr(core, attribute) for attribute in PhiCore._NULL_INPUTS[name])
         assert history is not None and bipartitions and bit_tables

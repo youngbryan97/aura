@@ -4,11 +4,253 @@ Lifted whole out of `response_reliability`, which is 9,000 lines and the
 largest single contributor to the module-size budget. Every name taken from
 that module is imported at CALL time: it imports this one to re-export these,
 and a test that patches a name on it has to reach the code that reads it.
+The patterns and word lists only these checks read are defined here.
 """
 from __future__ import annotations
 
 import re
 from typing import Any
+
+# What only the checks below read is defined here, beside them.
+
+#: A reply that stops on a function word stopped mid-sentence, and it does so
+#: at any length. This is a closed grammatical class — conjunctions,
+#: prepositions, determiners, auxiliaries — not a list of phrasings, so it
+#: generalises to sentences nobody has seen yet.
+#:
+#: It exists because the length floor below made length the deciding factor
+#: for structural incompleteness. "Because chlorophyll and" is 23 characters:
+#: one short of the floor, so nothing looked at it, and a fragment ending on a
+#: conjunction was assessed ok. The floor is right for its actual purpose —
+#: not demanding a full stop from "Yes." — and wrong as a gate on grammar.
+_DANGLING_FUNCTION_WORD_TAIL_RE = re.compile(
+    r"\b(?:and|but|or|nor|so|yet|because|although|though|however|whereas|while|since|"
+    r"unless|until|if|than|that|which|whose|the|an?|of|to|into|onto|upon|with|"
+    r"within|from|by|about|over|under|between|among|through|across|toward|"
+    r"towards|is|are|was|were|be|been|being|has|have|had|will|would|can|could|"
+    r"shall|should|may|might|must|does|did)\s*$",
+    re.IGNORECASE,
+)
+
+
+_ALLOWED_SHORT_TAIL_WORDS = {
+    "am",
+    "as",
+    "be",
+    "by",
+    "do",
+    "go",
+    "he",
+    "hi",
+    "if",
+    "in",
+    "is",
+    "it",
+    "me",
+    "my",
+    "no",
+    "ok",
+    "on",
+    "or",
+    "so",
+    "ui",
+    "up",
+    "us",
+    "we",
+}
+
+
+_PSEUDO_COMMITMENT_STATUS_RE = re.compile(
+    r"\blast thing i committed\s*:|\bquiet seconds\b|\bproceeding on [A-Z][A-Z\s]{8,}\b",
+    re.IGNORECASE,
+)
+
+
+_UNREQUESTED_POP_CULTURE_INTRUSION_RE = re.compile(
+    r"\b(?:Sarah Connor|Mother'?s Day)\b",
+    re.IGNORECASE,
+)
+
+
+_SURFACE_NONSENSE_DRIFT_RE = re.compile(
+    r"\b(?:human error rate|death by overthinking|100 rounds)\b|"
+    r"\b100%\s+pass rate\b|\bi['’]?ll be quiet for a while\b|:\s*/",
+    re.IGNORECASE,
+)
+
+
+_CJK_INTRUSION_RE = re.compile(r"[\u3400-\u9fff]")
+
+
+_CAMELCASE_INTERNAL_JARGON_RE = re.compile(
+    r"\b[A-Z][A-Za-z]*(?:System|Authority|Kernel|Engine|Gate|Runtime)[A-Za-z]*\b"
+)
+
+
+_BARE_NUMERIC_RANGE_TAIL_RE = re.compile(
+    r"(?:\b(?:from|between|range(?:s|d)?|temperature(?:s)?|including|up\s+to|down\s+to)\b"
+    r"[^.!?\n]{0,80}\b(?:to|and|-|through)\s*[+-]?\d+(?:\.\d+)?"
+    r"|[+-]?\d+(?:\.\d+)?\s*(?:to|-|through)\s*[+-]?\d+(?:\.\d+)?)$",
+    re.IGNORECASE,
+)
+
+
+_CODE_FENCE_LANGS = {
+    "bash",
+    "c",
+    "cpp",
+    "css",
+    "go",
+    "html",
+    "java",
+    "js",
+    "json",
+    "jsx",
+    "mdx",
+    "mjs",
+    "py",
+    "python",
+    "rs",
+    "ruby",
+    "sh",
+    "sql",
+    "swift",
+    "ts",
+    "tsx",
+    "typescript",
+    "yaml",
+    "yml",
+}
+
+
+_NON_CODE_FENCE_LANGS = {"", "md", "markdown", "text", "txt"}
+
+
+_INCOMPLETE_CODE_TAIL_RE = re.compile(
+    r"(?:[=+\-*/%&|^.,\\[(<{]|(?:\b(?:return|yield|raise|if|elif|else|for|while|with|try|except|finally)\b.*:))$"
+)
+
+
+# A reply that only PROMISES to answer, or only talks ABOUT the reply, is
+# not an answer. The 2026-07-18 soak delivered "Let me consider that
+# carefully." and "I'm working through that one right now." as complete
+# final replies, and repair meta-commentary ("That reply drifted away from
+# your actual question...") in place of the answer itself. Each is
+# technically true and entirely useless — the "shallow, lazy,
+# technically-true" surface that makes a working mind look broken.
+_PROMISE_ONLY_REPLY_RE = re.compile(
+    r"^(?:ok(?:ay)?[,.\s]*)?"
+    r"(?:i(?:'m| am)\s+(?:currently\s+)?(?:working|thinking|looking|considering|processing)"
+    r"|let me\s+(?:consider|think|look|check|work)"
+    r"|i(?:'ll| will)\s+(?:consider|think|look|check|work|get)"
+    # The same promise with a modal or "going to": LIVE 10 November 2026 her
+    # mail reply "I need to check what I know about Bryan before responding,
+    # and then reply via email." passed, and was held as her answer.
+    r"|i\s+(?:need|have|want|ought)\s+to\s+(?:consider|think|look|check|work|get)"
+    r"|i(?:'m| am)\s+going\s+to\s+(?:consider|think|look|check|work|get)"
+    r"|give me a (?:moment|second|minute)"
+    r"|one (?:moment|second))"
+    r"[^.!?\n]{0,80}[.!?]?\s*$",
+    re.IGNORECASE,
+)
+
+
+# Meta-commentary about the reply, delivered instead of a reply.
+_REPLY_ABOUT_THE_REPLY_RE = re.compile(
+    r"\b(?:that|this) (?:reply|answer|response) (?:drifted|wandered|missed|did not|didn't)\b"
+    r"|\bthe anchor is your question\b",
+    re.IGNORECASE,
+)
+
+
+# When the user asks what she is DOING, a present-activity answer is the
+# answer — "I'm thinking about it" is responsive to "what are you doing?"
+# and empty only to "what is the history of consensus?".
+_ACTIVITY_QUESTION_RE = re.compile(
+    r"\b(?:what (?:are|r) you (?:doing|working on|up to|thinking)"
+    r"|are you (?:there|busy|working|thinking|awake|ok)"
+    r"|how(?:'s| is) it going"
+    r"|what(?:'s| is) (?:your )?status"
+    r"|you (?:there|with me|around))\b",
+    re.IGNORECASE,
+)
+
+
+#: Naming a script in English is asking for it. "Write a function to detect
+#: chinese characters" carries no CJK itself, so an exemption that looked only
+#: for the characters never fired for the way people actually ask.
+_SCRIPT_SUBJECT_MARKERS = (
+    "chinese", "mandarin", "cantonese", "hanzi", "japanese", "kanji",
+    "hiragana", "katakana", "korean", "hangul", "cjk", "unicode", "utf-8",
+    "utf8", "codepoint", "code point", "wide character", "east asian",
+)
+
+
+# English prose is mostly connective tissue. Real sentences — terse technical
+# ones included — run 13-55% function words. Text that has almost none is not
+# a sentence about anything; it is content words strung on a grammar that was
+# never there.
+#
+# LIVE DEFECT, 2026-07-26, desktop surface. Two replies passed EVERY existing
+# gate — assess_user_facing_reply ok=true, off_topic=false,
+# response_confidence "high" — and reached the user:
+#
+#   "Do product of multiple exponent term simplify reflexion"      (0.00)
+#   "Introspection: Optimization-driven events stabilize energy after state
+#    change management. Probing recurrent somatic shadows flagged across ten
+#    semiotic spikes... CONFORMANCE Signal: PRIORITY 0"            (0.05)
+#
+# Measured against real replies from the same surface: a terse worked
+# arithmetic answer scores 0.13, ordinary speech 0.30-0.48. The separation is
+# wide and it does not depend on knowing the topic, which is what makes this
+# safe as a last net under every other detector.
+_PROSE_WORD_RE = re.compile(r"[A-Za-z][A-Za-z'’-]*")
+
+
+_MIN_PROSE_WORDS_FOR_FUNCTION_TEST = 12
+
+
+_MIN_FUNCTION_WORD_RATIO = 0.10
+
+
+_LABELLED_LINE_RE = re.compile(r"^\s*[\w][\w .'’-]{0,40}:\s+\S")
+
+
+#: What sits between a number and its unit: nothing, a space, or a degree
+#: sign. Anything else and the short word is a word.
+_MEASUREMENT_LEAD_RE = re.compile(r"\d\s*[°º]?\s?$")
+
+
+# A line is code when it has code SYNTAX, not when it contains a character
+# that also appears in arithmetic.
+#
+# LIVE DEFECT, 2026-07-26: the old test counted any line containing "=", or a
+# matched pair of (), [] or {}, as code-like — so every line of a worked maths
+# answer qualified, the whole reply was classified as a code response, and the
+# incomplete-code check rejected it. A correct probability derivation reached
+# the user as "I couldn't get to an answer I'd stand behind on that one":
+#
+#   1. **Total number of marbles**: \(3 + 4 + 5 = 12\).
+#   2. **Probability both are red**: \(\frac{3}{12} = \frac{1}{4}\)…
+#
+# Every one of those lines has "=", parentheses and braces. None of them is code.
+_CODE_ASSIGNMENT_RE = re.compile(
+    r"^\s*(?:const |let |var )?[A-Za-z_][A-Za-z0-9_.]*"
+    r"(?:\[[^\]]*\])?"
+    r"(?:\s*:\s*[A-Za-z_][\w\[\], .]*)?"
+    r"\s*(?:\+|-|\*|/|//|%|\*\*|\|\||&&)?=(?!=)"
+)
+
+
+_CODE_CALL_RE = re.compile(r"^\s*[A-Za-z_][\w.]*\s*\([^)]*\)\s*;?\s*$")
+
+
+# Inline and display maths, TeX or dollar-delimited. Their presence says the
+# body is mathematical prose, which is the opposite of a code block.
+_LATEX_MATH_RE = re.compile(
+    r"\\\(|\\\)|\\\[|\\\]|\\frac|\\dfrac|\\times|\\cdot|\\binom|\\sqrt|"
+    r"\\begin\{|\$\$?[^$\n]{1,160}\$\$?"
+)
 
 
 def _is_promise_without_answer(user_message: Any, reply_text: Any) -> bool:
@@ -20,9 +262,6 @@ def _is_promise_without_answer(user_message: Any, reply_text: Any) -> bool:
     The failure being caught is emptiness, not politeness.
     """
     from .response_reliability import (
-        _ACTIVITY_QUESTION_RE,
-        _PROMISE_ONLY_REPLY_RE,
-        _REPLY_ABOUT_THE_REPLY_RE,
         _word_count,
     )
 
@@ -46,7 +285,6 @@ def _is_promise_without_answer(user_message: Any, reply_text: Any) -> bool:
 
 def _has_pseudo_commitment_status_leak(user_message: Any, reply_text: Any) -> bool:
     from .response_reliability import (
-        _PSEUDO_COMMITMENT_STATUS_RE,
         _normalize,
     )
 
@@ -61,7 +299,6 @@ def _has_pseudo_commitment_status_leak(user_message: Any, reply_text: Any) -> bo
 
 def _has_camelcase_internal_jargon(user_message: Any, reply_text: Any) -> bool:
     from .response_reliability import (
-        _CAMELCASE_INTERNAL_JARGON_RE,
         _normalize,
         is_operational_status_turn,
         is_practical_diagnostic_turn,
@@ -108,10 +345,6 @@ def _has_camelcase_internal_jargon(user_message: Any, reply_text: Any) -> bool:
 
 
 def _has_unrequested_pop_culture_intrusion(user_message: Any, reply_text: Any) -> bool:
-    from .response_reliability import (
-        _UNREQUESTED_POP_CULTURE_INTRUSION_RE,
-    )
-
     raw = str(reply_text or "")
     if not _UNREQUESTED_POP_CULTURE_INTRUSION_RE.search(raw):
         return False
@@ -120,8 +353,6 @@ def _has_unrequested_pop_culture_intrusion(user_message: Any, reply_text: Any) -
 
 def _has_unexpected_cjk_intrusion(user_message: Any, reply_text: Any) -> bool:
     from .response_reliability import (
-        _CJK_INTRUSION_RE,
-        _SCRIPT_SUBJECT_MARKERS,
         names_any,
     )
 
@@ -139,10 +370,6 @@ def _has_unexpected_cjk_intrusion(user_message: Any, reply_text: Any) -> bool:
 
 
 def _has_surface_nonsense_drift(user_message: Any, reply_text: Any) -> bool:
-    from .response_reliability import (
-        _SURFACE_NONSENSE_DRIFT_RE,
-    )
-
     raw = str(reply_text or "")
     # Source URLs are expected in grounded search/tool answers.  The legacy
     # drift pattern includes ``:/`` to catch malformed emotive fragments, which
@@ -157,7 +384,6 @@ def _has_surface_nonsense_drift(user_message: Any, reply_text: Any) -> bool:
 def _looks_like_structured_output(body: str) -> bool:
     """Code, JSON and list-shaped answers are legitimately function-word poor."""
     from .response_reliability import (
-        _LABELLED_LINE_RE,
         _LIST_LINE_RE,
     )
 
@@ -186,9 +412,6 @@ def _has_function_word_starvation(reply_text: Any) -> bool:
 
     from .response_reliability import (
         _FUNCTION_WORDS,
-        _MIN_FUNCTION_WORD_RATIO,
-        _MIN_PROSE_WORDS_FOR_FUNCTION_TEST,
-        _PROSE_WORD_RE,
     )
 
     body = str(reply_text or "").strip()
@@ -240,10 +463,6 @@ def _terminal_word_is_a_unit(body: str, terminal_start: int) -> bool:
     question — °C, km, m, ft, kg, Hz and every unit nobody has thought of are
     identified by the number they attach to.
     """
-    from .response_reliability import (
-        _MEASUREMENT_LEAD_RE,
-    )
-
     return bool(_MEASUREMENT_LEAD_RE.search(body[:terminal_start]))
 
 
@@ -253,9 +472,6 @@ def _has_truncated_tail(
     generation_stop_reason: Any = "",
 ) -> bool:
     from .response_reliability import (
-        _ALLOWED_SHORT_TAIL_WORDS,
-        _BARE_NUMERIC_RANGE_TAIL_RE,
-        _DANGLING_FUNCTION_WORD_TAIL_RE,
         _DANGLING_GERUND_TAIL_RE,
         _INCOMPLETE_TAIL_WORDS,
         _LIST_LINE_RE,
@@ -448,10 +664,7 @@ def _has_truncated_tail(
 
 def _is_code_response(text: str) -> bool:
     from .response_reliability import (
-        _CODE_FENCE_LANGS,
         _FENCED_BLOCK_RE,
-        _LATEX_MATH_RE,
-        _NON_CODE_FENCE_LANGS,
     )
 
     raw = str(text or "").strip()
@@ -497,11 +710,6 @@ def _is_code_response(text: str) -> bool:
 
 
 def _looks_like_code_body(text: Any) -> bool:
-    from .response_reliability import (
-        _CODE_ASSIGNMENT_RE,
-        _CODE_CALL_RE,
-    )
-
     lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
     if not lines:
         return False
@@ -543,7 +751,6 @@ def _looks_like_code_body(text: Any) -> bool:
 def _has_incomplete_code_response(text: Any) -> bool:
     from .response_reliability import (
         _FENCED_BLOCK_RE,
-        _INCOMPLETE_CODE_TAIL_RE,
     )
 
     raw = str(text or "").strip()

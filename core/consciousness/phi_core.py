@@ -1753,7 +1753,8 @@ class PhiCore:
         now = time.time()
         if now - self._last_null_measured_at < self._null_interval_s:
             return
-        inputs = self._null_inputs(selection.winner_name)
+        attributes = self._NULL_INPUTS.get(selection.winner_name)
+        inputs = tuple(getattr(self, attribute) for attribute in attributes) if attributes else None
         if inputs is None:
             if selection.winner_name not in self._null_undefined_said:
                 self._null_undefined_said.add(selection.winner_name)
@@ -1775,23 +1776,16 @@ class PhiCore:
         except (ArithmeticError, AttributeError, LookupError, TypeError, ValueError) as exc:
             record_degradation("phi_core", exc, severity="warning")
 
-    def _null_inputs(self, name: str) -> tuple[deque, list, dict] | None:
-        """Each estimator's own history and 8-node partition tables, which its null permutes.
-
-        Only the two residual estimators were here, so when the affective or
-        the mesh estimator won (every CPU-only run, and every warm-up before
-        the residual histories fill) the winner never met its null. Found by
-        Chen, Zhang, Xu and Zhang (arXiv:2610.41604, section 8, 2026).
-        """
-        return {
-            "residual_stream_grassmann": (
-                self._grassmann_state_history, self._residual_bipartitions, self._residual_bit_tables),
-            "residual_stream": (
-                self._residual_state_history, self._residual_bipartitions, self._residual_bit_tables),
-            "affective": (
-                self._affective_state_history, self._affective_bipartitions, self._affective_bit_tables),
-            "mesh": (self._mesh_state_history, self._mesh_bipartitions, self._mesh_bit_tables),
-        }.get(name)
+    #: Each estimator's own history and 8-node partition tables, which its null permutes, by attribute. Only the two
+    #: residual estimators were here, so when the affective or the mesh estimator won (every CPU-only run, and every
+    #: warm-up before the residual histories fill) the winner never met its null. Found by Chen, Zhang, Xu and Zhang
+    #: (arXiv:2610.41604, section 8, 2026).
+    _NULL_INPUTS: dict[str, tuple[str, str, str]] = {
+        "residual_stream_grassmann": ("_grassmann_state_history", "_residual_bipartitions", "_residual_bit_tables"),
+        "residual_stream": ("_residual_state_history", "_residual_bipartitions", "_residual_bit_tables"),
+        "affective": ("_affective_state_history", "_affective_bipartitions", "_affective_bit_tables"),
+        "mesh": ("_mesh_state_history", "_mesh_bipartitions", "_mesh_bit_tables"),
+    }
 
     def compute_full_kernel(self) -> PhiResult | None:
         """The winning complex. See ``compute_full_kernel_selection`` for why."""
