@@ -74,13 +74,29 @@ class EchoGuard:
         """Whether her own canceller takes her voice out of the microphone, so her window need not."""
         return self._acoustic is not None
 
-    def note_spoken(self, text: str, samples: Any = None, rate: int = 0) -> None:
-        """Register text she has just said aloud, and the audio of it as it leaves to be played."""
+    def note_spoken(self, text: str, samples: Any = None, rate: int = 0, *, reported: bool = False) -> None:
+        """Register text she has just said aloud, and the audio of it as it leaves to be played. ``reported``: part
+        of a reply whose playing her window reports (``played``), so it is placed where it plays."""
         toks = _tokens(text)
         if toks:
             self._recent.append((time.monotonic(), toks))
         if self._acoustic is not None and samples is not None and rate:
-            self._acoustic.sent_to_be_played(samples, rate)
+            self._acoustic.sent_to_be_played(samples, rate, reported=reported)
+
+    def new_reply(self) -> None:
+        """A reply begins; its playing will be reported from its own start."""
+        if self._acoustic is not None:
+            self._acoustic.new_reply()
+
+    def ducked(self, gain: float) -> None:
+        """Her window's playback gain while someone talks over her."""
+        if self._acoustic is not None:
+            self._acoustic.ducked(gain)
+
+    def played(self, seconds: float) -> None:
+        """Her window's report of how much of the reply has played."""
+        if self._acoustic is not None:
+            self._acoustic.played(seconds)
 
     def stopped_playing(self) -> None:
         """Her speech was cut off: what was still to play will not reach the microphone."""

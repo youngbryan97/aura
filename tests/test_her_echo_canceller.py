@@ -82,14 +82,14 @@ def test_a_person_talking_over_her_still_comes_through():
 def test_her_speech_at_another_rate_is_taken_at_hers():
     canceller = HerEchoCanceller()
     canceller.sent_to_be_played(np.zeros(24000, np.float32), 24000)  # one second at her voice's rate
-    assert canceller._playing.size == RATE
+    assert canceller._paced.size == RATE
 
 
 def test_an_interruption_drops_what_was_still_to_play():
     canceller = HerEchoCanceller()
     canceller.sent_to_be_played(_speech_like(1.0, seed=1), RATE)
     canceller.stopped_playing()
-    assert canceller._playing.size == 0
+    assert canceller._paced.size == 0
 
 
 def test_a_partial_frame_waits_for_the_next_buffer():
@@ -111,9 +111,9 @@ def test_the_guard_with_her_canceller_says_so_and_feeds_it():
     guard = EchoGuard(acoustic=True)
     assert guard.cancels_acoustically is True
     guard.note_spoken("hello there friend", np.zeros(24000, np.float32), 24000)
-    assert guard._acoustic._playing.size == RATE
+    assert guard._acoustic._paced.size == RATE
     guard.stopped_playing()
-    assert guard._acoustic._playing.size == 0
+    assert guard._acoustic._paced.size == 0
 
 
 def test_her_window_turns_its_own_processing_off_only_when_she_cancels_echo_herself():
@@ -124,3 +124,51 @@ def test_her_window_turns_its_own_processing_off_only_when_she_cancels_echo_hers
     session = (_ROOT / "core/voice/duplex/session.py").read_text(encoding="utf-8")
     assert '"echo_cancellation": "hers" if self._echo.cancels_acoustically else "browser"' in session
     assert "pcm16_to_float32(self._echo.clean(data))" in session
+
+
+def test_her_speech_is_taken_out_where_her_window_says_it_is_playing(monkeypatch):
+    """LIVE 11 November 2026: her speech is sent ahead of playing, by seconds when a sentence is made faster than real
+    time; paced from when it was sent, the canceller's copy of her ran ahead of the room's."""
+    import core.voice.duplex.her_echo_canceller as module
+
+    now = [100.0]
+    monkeypatch.setattr(module.time, "monotonic", lambda: now[0])
+    canceller = HerEchoCanceller()
+    her = np.arange(3 * RATE, dtype=np.float32) / (3 * RATE)
+    canceller.sent_to_be_played(her, RATE, reported=True)  # three seconds sent at once
+    canceller.played(1.0)  # her window: one second of it has played
+    far = canceller._far(2)
+    assert np.allclose(far, her[RATE - 2 * FRAME:RATE])
+    canceller.played(1.0)  # the same report again (her window paused): nothing is played twice
+    assert not canceller._far(2).any()
+    now[0] += 0.5  # half a second later, no report: it moved on at real time
+    assert np.allclose(canceller._far(1), her[int(1.5 * RATE) - FRAME:int(1.5 * RATE)])
+    canceller.ducked(0.32)  # someone began talking over her, and her window turned her down
+    now[0] += 0.01
+    assert np.allclose(canceller._far(1), 0.32 * her[int(1.5 * RATE):int(1.5 * RATE) + FRAME])
+
+
+def test_a_microphone_her_voice_does_not_reach_passes_words_over_her_whole():
+    """LIVE 11 November 2026: with no echo to learn (headphones; a stream with no room) her canceller took the person
+    for her echo, and "Wait, stop. Just tell me in one sentence." lost every voiced frame of its first 0.6 s."""
+    canceller = HerEchoCanceller()
+    her, person = _speech_like(6.0, seed=1), _speech_like(2.0, seed=2)
+    quiet = np.zeros(2 * RATE, np.float32)
+    canceller.sent_to_be_played(np.concatenate([np.zeros(2 * RATE, np.float32), her]), RATE)
+    mic = np.concatenate([quiet, np.zeros(len(her), np.float32)]) + 0.001 * _speech_like(8.0, seed=4)  # the room
+    starts = len(quiet) + int(4.0 * RATE)
+    mic[starts:starts + len(person)] += person
+    out = _run(canceller, mic)
+    assert canceller.reaches_microphone is False
+    over = slice(starts, starts + len(person))
+    assert _db(mic[over]) - _db(out[over]) < 3.0, "the person comes through near their own level"
+
+
+def test_her_voice_in_the_room_keeps_her_canceller_on():
+    canceller = HerEchoCanceller()
+    her = _speech_like(6.0, seed=1)
+    canceller.sent_to_be_played(np.concatenate([np.zeros(2 * RATE, np.float32), her]), RATE)
+    mic = _a_room(np.concatenate([np.zeros(2 * RATE, np.float32), her]), delay_s=0.09, gain=0.5)
+    mic += 0.001 * _speech_like(len(mic) / RATE, seed=4)
+    _run(canceller, mic)
+    assert canceller.reaches_microphone is True

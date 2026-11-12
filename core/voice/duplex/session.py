@@ -784,6 +784,7 @@ class DuplexVoiceSession:
         )
 
         if self._overlap.should_duck():
+            self._echo.ducked(self._overlap.duck_gain)  # what plays is quieter now, and so is her echo
             await self._send_json({"type": protocol.EVT_DUCK, "gain": self._overlap.duck_gain, "ramp_ms": 60})
 
         if verdict is OverlapVerdict.PENDING:
@@ -879,6 +880,7 @@ class DuplexVoiceSession:
             or overlap_epoch != self._overlap_epoch
         ):
             return
+        self._echo.ducked(1.0)
         await self._send_json({"type": protocol.EVT_DUCK, "gain": 1.0, "ramp_ms": 140})
         await self._mind.publish(
             "user_backchannel",
@@ -1537,6 +1539,7 @@ class DuplexVoiceSession:
             started_at=time.monotonic(),
         )
         self._speaking = track
+        self._echo.new_reply()
         self._client_played_s = 0.0
         self._client_playback_utterance_id = track.utterance_id
         self._client_playback_drained = False
@@ -1572,7 +1575,7 @@ class DuplexVoiceSession:
                 track.sent_piece(result.text, result.duration_s, continues_clause=clause_open)
                 # Register the words so that if they come back through the
                 # microphone a moment later, the echo guard recognises them.
-                self._echo.note_spoken("" if clause_open else result.text, result.samples, OUTPUT_RATE)
+                self._echo.note_spoken("" if clause_open else result.text, result.samples, OUTPUT_RATE, reported=True)
 
                 if not clause_open:
                     if seq and result.samples.size and hasattr(self._tts, "heard_late"):
@@ -1854,19 +1857,11 @@ class DuplexVoiceSession:
                 )
                 return
             self._client_playback_utterance_id = track.utterance_id
-            self._client_played_s = max(
-                self._client_played_s,
-                self._bounded_nonnegative_float(
-                    message.get("played_ms"),
-                    maximum=3_600_000.0,
-                )
-                / 1000.0,
-            )
+            played_ms = self._bounded_nonnegative_float(message.get("played_ms"), maximum=3_600_000.0)
+            self._client_played_s = max(self._client_played_s, played_ms / 1000.0)
+            self._echo.played(self._client_played_s)
             self._client_playback_drained = bool(message.get("drained"))
-            overflow_samples = self._bounded_nonnegative_int(
-                message.get("overflow_samples"),
-                maximum=100_000_000,
-            )
+            overflow_samples = self._bounded_nonnegative_int(message.get("overflow_samples"), maximum=100_000_000)
             self._client_playback_overflow_samples += overflow_samples
             if overflow_samples:
                 # Once a ring-buffer segment is dropped, later audio is no
