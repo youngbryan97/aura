@@ -302,6 +302,19 @@ def quotes_screen_content(reply_text: Any, *, display_binding_required: bool = F
     return bool(_QUOTED_TEXT_RE.search(body) and _SCREEN_SUBJECT_RE.search(body))
 
 
+def what_reads_as_a_screen_reading(reply_text: Any, *, display_binding_required: bool = False) -> str:
+    """The words of the reply that ``quotes_screen_content`` took for a reading of the screen, for her log; empty
+    when it took none. LIVE 11 November 2026 the same typed follow-up failed this check twice, and her log said only
+    the check's name, so whether it read her reply right could not be told."""
+    body = str(reply_text or "")
+    if not quotes_screen_content(body, display_binding_required=display_binding_required):
+        return ""
+    patterns = ((_EXPLICIT_READING_RE, _BOUND_READING_RE, _DISPLAY_QUOTATION_RE) if display_binding_required
+                else (_ASSERTS_A_READING_RE, _QUOTED_TEXT_RE, _SCREEN_SUBJECT_RE))
+    found = [match.group(0) for pattern in patterns if (match := pattern.search(body))]
+    return " | ".join(text.strip()[:120] for text in found)
+
+
 @dataclass(frozen=True)
 class ScreenReadingEvidence:
     """What a capture actually produced on this turn."""

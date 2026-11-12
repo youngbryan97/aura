@@ -487,3 +487,12 @@ def test_a_reading_predicate_belongs_to_its_own_clause() -> None:
         'I can see the text in the visible part of System Settings.',
     ):
         assert quotes_screen_content(claimed, display_binding_required=True), claimed
+
+
+def test_her_log_can_say_which_words_read_as_a_screen_reading():
+    """LIVE 11 November 2026: a typed follow-up failed this check twice and her log said only the check's name."""
+    from core.conversation.screen_reading_claim import what_reads_as_a_screen_reading
+
+    said = what_reads_as_a_screen_reading('Your screen shows a window titled "Quarterly planning notes".')
+    assert "Quarterly planning notes" in said or "screen" in said.lower()
+    assert what_reads_as_a_screen_reading("I was thinking about the four last things.") == ""
