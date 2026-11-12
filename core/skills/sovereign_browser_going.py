@@ -10,6 +10,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 import re
+from collections.abc import Mapping
 import urllib.parse
 from typing import Any
 from core.runtime.page_gateway import get_page_gateway, page_script
@@ -41,6 +42,35 @@ _REFUSALS = re.compile(
 def refused(title: str, text: str) -> bool:
     """Whether a page is a refusal of her browser rather than the page asked for."""
     return bool(_REFUSALS.search(f"{title} {str(text)[:600]}"))
+
+
+#: A frame that holds a test of whether a person is at the browser, by where it is served from. Its words carry this
+#: on the page she reads ("(Shown in a frame on this page, from www.google.com/recaptcha/api2/anchor:)").
+_CHALLENGE_FRAME = re.compile(
+    r"\(Shown in a frame on this page, from [^)\n]*(?:/recaptcha/|recaptcha\.net|hcaptcha\.com|"
+    r"challenges\.cloudflare\.com|/turnstile/|captcha)",
+    re.IGNORECASE,
+)
+#: A control that is that test: its box, its button.
+_CHALLENGE_CONTROL = re.compile(
+    r"captcha|\bnot a robot\b|\bi am human\b|verify (?:that )?(?:you are|you're) (?:a )?human", re.IGNORECASE)
+
+
+def is_a_challenge(control: Any) -> bool:
+    """Whether a control is a test of whether a person is at the browser: never hers to press, nor anyone's for her.
+
+    LIVE 11 November 2026, asked to read r/nosleep, she chose to click reddit.com's reCAPTCHA checkbox "because it is
+    the only gate between me and the subreddit content".
+    """
+    if not isinstance(control, Mapping):
+        return False
+    said = " ".join(str(control.get(key) or "") for key in ("name", "label", "text", "title"))
+    return bool(_CHALLENGE_CONTROL.search(said))
+
+
+def challenged(text: str, controls: Any = ()) -> bool:
+    """Whether a page puts that test in front of her browser: a page that refused it, like any other refusal."""
+    return bool(_CHALLENGE_FRAME.search(str(text or ""))) or any(is_a_challenge(c) for c in controls or ())
 
 
 def its_archived_copy(url: str) -> str:

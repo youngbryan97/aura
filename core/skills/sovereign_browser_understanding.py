@@ -22,7 +22,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
 from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
-from .sovereign_browser_going import its_archived_copy, refused
+from .sovereign_browser_going import challenged, is_a_challenge, its_archived_copy, refused
 from .sovereign_browser_one_question import (  # noqa: F401  (re-exported: the pursuit and tests read them here)
     ASKED_AT,
     HER_MIND_THIS_PURSUIT,
@@ -227,6 +227,9 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
         held no test and no way to one. A control whose words answer the goal's
         words is the way in, wherever the document happens to put it.
         """
+        # A test of whether a person is at the browser is not a control of the page, and is never offered: not
+        # hers to answer, and not anyone's to answer for her (sovereign_browser_going.is_a_challenge).
+        elements = [element for element in elements if not is_a_challenge(element)]
         # A question that is answered offers nothing.
         #
         # Labelling the six unselected options of a finished question as
@@ -362,7 +365,8 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
             ),
             # A refusal is a page too, and the way on from it is somewhere else.
             *([f"This page refused your browser. The same address as the Internet Archive keeps it, to go to: {its_archived_copy(str(observation.get('url') or ''))}"]
-              if refused(str(observation.get("title") or ""), str(observation.get("text") or "")) else []),
+              if refused(str(observation.get("title") or ""), str(observation.get("text") or ""))
+              or challenged(str(observation.get("text") or ""), observation.get("elements") or ()) else []),
             *_how_it_works(observation, elements),
             "",
             "PAGE TEXT:",
