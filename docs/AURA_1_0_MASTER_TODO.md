@@ -781,6 +781,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   lane-state lock, where a concurrent future runs its callbacks (322 ms,
   1 ms on CPU); it delivers after. Left: the holds under 250 ms, each with
   a few milliseconds on CPU, which are her GIL, not a lock.
+  12 November: every garbage collection is timed now (43230a5a1). Her
+  first three hours on that build: 274 full collections held a thread for
+  over 50 ms, median 392 ms, worst 2.7 s, 126 s in all, 22 of them on her
+  event loop. A full collection walks every container the process holds,
+  and nearly all of hers are made at boot and kept until exit. Once boot
+  settles they are collected and frozen out of later collections
+  (91ac6f065, 1,111,395 objects). The first 30 minutes after boot, the
+  build before against the build with the freeze: 82 full collections
+  over 50 ms against 149, median 326 ms against 84, worst 562 against 193,
+  27.0 s in all against 12.9, three on her loop against eight, and four
+  lines of loop lag against none. The collector schedules a full pass by
+  how many long-lived objects are not frozen, so passes come more often,
+  and each costs about a quarter of what it did. The three-hour comparison
+  is next.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
@@ -1247,6 +1261,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in the scope a service's stop() runs in, work in that scope is given a
   lane, and the fallback thread starts as teardown work hygiene allows.
   tests/test_teardown_saves_pass_the_shutdown_fence.py.
+  12 November, her log since 8 November, by cause. 2,189 "coroutine
+  'MotivationEngine.get_status' was never awaited": her aesthetic engine,
+  and the health probe autopoiesis was given for the same engine, called
+  its async status from synchronous code, so the aesthetic engine never
+  read a drive (4075db82f). 145 "objective repeatedly unresolved", each a
+  fault that raised her frustration: the thinking loop took a turn's reply
+  only from past the length working memory had when the turn began, and
+  working memory is pruned while a turn runs. Her state log has 84 of
+  about 2,600 replies that landed at or before that mark (f73f11989). 61
+  "Failed to generate fix proposal": her self-repair kept targeting her
+  goal pass's wait_for, where the pass's own 600 s ran out mid-generation
+  and the timeout threw away the calls she had made that pass
+  (eac7c7ac9). Left as they are: the 1.5B worker refusing the endogenous
+  head fitted for her 27B's tokenizer, said once per worker by design; and
+  her will refusing sovereign_network for want of a signed lease, where
+  the refusal is right and the defect is her stability goal choosing a
+  stealth port scan.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
