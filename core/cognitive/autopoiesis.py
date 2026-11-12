@@ -536,8 +536,11 @@ class AutopoiesisEngine:
     async def _do_tick(self) -> None:
         """One full monitoring cycle."""
         async with self._lock:
-            # 1. Collect health snapshots.
-            snapshots = self._collect_snapshots()
+            # 1. Collect health snapshots. Each health function reads another organ under that organ's own lock, so
+            # they run on a thread: LIVE 11 November 2026, lockdep measured this tick holding her event loop 19.6 s in
+            # adaptive immunity's status and 2.7 s loading the capability catalog.
+            readings = await asyncio.to_thread(self._read_health)
+            snapshots = self._collect_snapshots(readings)
 
             # 2. Spend energy for this tick.
             self._energy = max(0.0, self._energy - self._ENERGY_PER_TICK)
@@ -578,14 +581,28 @@ class AutopoiesisEngine:
     # 1. Health collection
     # ------------------------------------------------------------------
 
-    def _collect_snapshots(self) -> dict[str, ComponentSnapshot]:
-        """Poll every registered component and store a health snapshot."""
+    def _read_health(self) -> dict[str, Any]:
+        """Every registered component's health function, called once: its reading, or the exception it raised."""
+        readings: dict[str, Any] = {}
+        for name, fn in list(self._health_fns.items()):
+            try:
+                readings[name] = fn()
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                readings[name] = exc
+        return readings
+
+    def _collect_snapshots(self, readings: dict[str, Any] | None = None) -> dict[str, ComponentSnapshot]:
+        """Store a health snapshot of every registered component, from ``readings`` when given."""
         now = time.time()
         snapshots: dict[str, ComponentSnapshot] = {}
+        if readings is None:
+            readings = self._read_health()
 
-        for name, fn in self._health_fns.items():
+        for name in readings:  # a component registered since its reading waits for the next tick
             try:
-                raw = fn()
+                raw = readings.get(name)
+                if isinstance(raw, Exception):
+                    raise raw
                 health = max(0.0, min(1.0, float(raw)))
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 _record_autopoiesis_degradation(

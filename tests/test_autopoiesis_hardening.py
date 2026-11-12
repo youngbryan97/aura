@@ -90,3 +90,28 @@ async def test_successful_repair_requires_actual_health_improvement():
     assert result.health_before == 0.2
     assert result.health_after == 0.9
     assert engine._repair_attempts["memory"] == 0
+
+
+@pytest.mark.asyncio
+async def test_a_tick_reads_component_health_off_her_event_loop():
+    """LIVE 11 November 2026: lockdep measured this tick holding her event loop 19.6 s inside adaptive immunity's
+    status and 2.7 s loading the capability catalog, both reached through health functions."""
+    import threading
+
+    loop_thread = threading.get_ident()
+    read_on = []
+
+    def health():
+        read_on.append(threading.get_ident())
+        return 0.8
+
+    def broken():
+        raise RuntimeError("its organ is down")
+
+    engine = AutopoiesisEngine()
+    engine.register_component("immunity", health)
+    engine.register_component("catalog", broken)
+    await engine._do_tick()
+    assert read_on and read_on[0] != loop_thread
+    assert engine._component_snapshots["immunity"][-1].health == 0.8
+    assert engine._component_snapshots["catalog"][-1].health == 0.0

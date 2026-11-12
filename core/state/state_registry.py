@@ -97,6 +97,9 @@ class UnifiedStateRegistry:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
+        task = self._dispatcher_task
+        if task is not None and not task.done():
+            return  # running already: no state lock taken on the loop for it (an update's writer may hold it)
         with self._sync_lock:
             if self._shutting_down:
                 return
@@ -140,15 +143,17 @@ class UnifiedStateRegistry:
             ready = self._notify_ready
         while True:
             try:
-                with self._sync_lock:
-                    try:
-                        snapshot = self._notify_queue.get_nowait()
-                    except queue.Empty:
-                        ready.clear()
-                        waiting = True
-                    else:
-                        waiting = False
-                    listeners = tuple(self._listeners)
+                # Not under the state lock: its writers hold it while they apply an update and build its snapshot, and
+                # LIVE 11 November 2026 this loop waited for them up to 508 ms, ten times in a day. The queue is safe
+                # across threads, and a wake-up a writer sends lands after the clear below, never before it.
+                try:
+                    snapshot = self._notify_queue.get_nowait()
+                except queue.Empty:
+                    ready.clear()
+                    waiting = True
+                else:
+                    waiting = False
+                listeners = tuple(self._listeners)
                 if waiting:
                     # Timed, so the one consumer wakes to look again: a set() that lands between the clear above
                     # and this wait is not lost, and a wedged loop shows on the watchdog instead of sleeping forever.
