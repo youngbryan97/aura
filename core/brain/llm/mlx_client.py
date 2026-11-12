@@ -11517,6 +11517,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
         self._active_generations = max(0, self._active_generations - 1)
         if was_current_request:
+            self._record_an_unfinished_generations_time(str(request_id))
             self._clear_active_generation_tracking()
         if release_lane and self._active_generations <= 0:
             # CP126 860036f2. The result used to be discarded. A failed

@@ -104,6 +104,7 @@ class _RecordsWhatTheWorkerDid:
                         record_latency("prefill", exact_prefill)
                     if exact_decode is not None:
                         record_latency("decode", exact_decode)
+                    self._latency_recorded_request = str(getattr(self, "_current_request_id", "") or "")
                 except (ImportError, ValueError) as exc:
                     logger.debug("Turn latency not recorded: %s", exc)
                 # The rate every deadline is built from. MLX timed this
@@ -193,6 +194,30 @@ class _RecordsWhatTheWorkerDid:
                 action="skipped one admission throughput sample",
                 severity="debug",
             )
+
+    def _record_an_unfinished_generations_time(self, request_id: str) -> None:
+        """A generation that ended without its worker's measurement (cancelled, out of time, no tokens): its time on
+        her model, on this client's clock, from the request to its first token as prefill and from there as decode.
+
+        LIVE 11 November 2026, every voice turn spoken during her boot took 170 s with under 2 s measured: the rest
+        was a generation that never finished, and only a finished one said what it cost.
+        """
+        if getattr(self, "_latency_recorded_request", "") == request_id:
+            return
+        started = float(getattr(self, "_current_request_started_at", 0.0) or 0.0)
+        first = float(getattr(self, "_current_first_token_at", 0.0) or 0.0)
+        if started <= 0.0:
+            return
+        now = time.time()
+        first = first if started < first <= now else 0.0
+        try:
+            from core.verify.turn_receipt import record_latency
+
+            record_latency("prefill", (first or now) - started)
+            if first:
+                record_latency("decode", now - first)
+        except (ImportError, ValueError) as exc:
+            logger.debug("An unfinished generation's time was not recorded: %s", exc)
 
     def _record_surface_control_receipt_from_response(self, response: dict[str, Any]) -> None:
         from .mlx_client import (

@@ -246,3 +246,30 @@ async def test_the_wait_for_her_model_is_the_turns_queue(monkeypatch) -> None:
         await chat_foreground_lane._admit_to_foreground_lane(
             _remaining_foreground_budget=lambda reserve: 30.0, gate=_Gate(), lane={})
     assert receipt.latency_s.get("queue", 0.0) >= 0.05
+
+
+def test_a_generation_that_never_finished_still_says_what_it_cost() -> None:
+    """LIVE 11 November 2026: voice turns during her boot took 170 s with under 2 s measured; the rest was a generation
+    that never finished, and only a finished one recorded its prefill and decode."""
+    import time
+    from types import SimpleNamespace
+
+    from core.brain.llm.mlx_client_recording import _RecordsWhatTheWorkerDid
+
+    now = time.time()
+    unfinished = SimpleNamespace(_current_request_started_at=now - 30.0, _current_first_token_at=now - 10.0)
+    with recording_turn("t-unfinished", phases_available=()) as receipt:
+        _RecordsWhatTheWorkerDid._record_an_unfinished_generations_time(unfinished, "r1")
+    assert receipt.latency_s["prefill"] == pytest.approx(20.0, abs=0.5)
+    assert receipt.latency_s["decode"] == pytest.approx(10.0, abs=0.5)
+
+    no_token = SimpleNamespace(_current_request_started_at=now - 5.0, _current_first_token_at=0.0)
+    with recording_turn("t-no-token", phases_available=()) as receipt:
+        _RecordsWhatTheWorkerDid._record_an_unfinished_generations_time(no_token, "r2")
+    assert receipt.latency_s["prefill"] == pytest.approx(5.0, abs=0.5) and "decode" not in receipt.latency_s
+
+    measured = SimpleNamespace(_current_request_started_at=now - 5.0, _current_first_token_at=now - 1.0,
+                               _latency_recorded_request="r3")
+    with recording_turn("t-measured", phases_available=()) as receipt:
+        _RecordsWhatTheWorkerDid._record_an_unfinished_generations_time(measured, "r3")
+    assert receipt.latency_s == {}, "a finished generation's worker already said it, once"
