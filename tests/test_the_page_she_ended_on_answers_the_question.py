@@ -47,3 +47,44 @@ def test_anything_else_keeps_the_reply_it_had(changes, asked):
 
 def test_with_no_turn_to_attach_it_to_the_reply_it_had_stands():
     assert not _the_page_goes_to_her_turn(_pursuit(), _ASKED)
+
+
+def test_a_turn_holding_the_page_she_read_is_hers_to_write_not_the_desktop_lanes():
+    """LIVE 11 November 2026, the same question after the page went to her turn: the desktop contract served its
+    promise to execute in place of her answer, the promise failed its authorship gate, and her background model
+    answered that Reddit had blocked her before she could read anything."""
+    from interface.routes.chat import _SEAM_FELL_THROUGH
+    from interface.routes.chat_desktop_objective import _a_page_she_read_awaits_her_answer
+    from interface.routes.chat_turn_steps import _the_desktop_contract_answers_for_itself
+
+    def served() -> object:
+        return _the_desktop_contract_answers_for_itself(
+            desktop_execution_contract=True, require_engine=True, turn_trace=None, visible=_ASKED)
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="before"):
+        assert not _a_page_she_read_awaits_her_answer()
+        assert served() is not _SEAM_FELL_THROUGH          # as before: nothing read yet, the lane carries it
+    with bind_turn_evidence_custody(session_id="s", turn_id="after"):
+        assert _the_page_goes_to_her_turn(_pursuit(), _ASKED)
+        assert _a_page_she_read_awaits_her_answer()
+        assert served() is _SEAM_FELL_THROUGH              # her turn goes on to her model
+
+
+def test_a_web_source_alone_is_not_a_page_she_read():
+    from core.conversation.turn_evidence_custody import record_turn_world_source
+    from core.conversation.what_the_world_says import WorldSource
+    from interface.routes.chat_desktop_objective import _a_page_she_read_awaits_her_answer
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        record_turn_world_source(WorldSource("web", "r/nosleep", "https://www.reddit.com/r/nosleep/", _PAGE))
+        assert not _a_page_she_read_awaits_her_answer()
+
+
+def test_with_the_page_in_hand_her_turn_does_not_go_searching():
+    import asyncio
+
+    from interface.routes.chat_desktop_evidence import _what_the_world_says_for_the_turn
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        assert _the_page_goes_to_her_turn(_pursuit(), _ASKED)
+        assert asyncio.run(_what_the_world_says_for_the_turn(_ASKED, _ASKED, session_id="s")) == (None, _ASKED)

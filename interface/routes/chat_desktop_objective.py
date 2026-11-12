@@ -699,6 +699,17 @@ def _asks_for_information(user_message: object) -> bool:
     return not _ASKS_FOR_INFORMATION_EXCLUSION_RE.search(text)
 
 
+#: Where a page she worked through for the question is said to come from, when it goes to her turn.
+_READ_IN_HER_BROWSER = "read in her browser at "
+
+
+def _a_page_she_read_awaits_her_answer() -> bool:
+    """Whether this turn holds a page her browser ended on for the question, which her own turn answers from."""
+    from core.conversation.turn_evidence_custody import turn_world_sources
+
+    return any(source.get("origin", "").startswith(_READ_IN_HER_BROWSER) for source in turn_world_sources())
+
+
 def _the_page_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
     """When a page she worked through ends a question, it goes beside her turn as a source; whether it went.
 
@@ -724,7 +735,7 @@ def _the_page_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
     from core.conversation.what_the_world_says import WorldEvidence, WorldSource
 
     url = str(result.get("url") or "").strip()
-    source = WorldSource(origin=f"read in her browser at {time.strftime('%H:%M on %d %B %Y')}", title=url,
+    source = WorldSource(origin=f"{_READ_IN_HER_BROWSER}{time.strftime('%H:%M on %d %B %Y')}", title=url,
                          location=url, text=text, full_text=text)
     rendered = WorldEvidence(sources=[source], read=[url] if url else []).render()
     if not record_turn_world_evidence(rendered):

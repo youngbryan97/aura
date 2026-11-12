@@ -1116,6 +1116,10 @@ async def _what_the_world_says_for_the_turn(
     from core.conversation.what_the_world_says import answer_from_earlier_reading, gather_world_evidence, remember_reading
     from core.verify.turn_receipt import current_receipt, record_latency
 
+    if _chat_desktop_objective._a_page_she_read_awaits_her_answer():
+        # Her browser ended on the page for this question: she answers from it, and a search would only stand other
+        # pages beside it. LIVE 11 November 2026, r/nosleep read, this search fetched r/nosleep_gonewild into her turn.
+        return None, effective_user_message
     turn_began = time.time()
     # This is the turn's retrieval on her desktop lane, which runs no retrieval phase: LIVE 10 November 2026 every
     # turn's split said "unmeasured: retrieval" with nine to thirteen seconds unattributed, two of them her web check.

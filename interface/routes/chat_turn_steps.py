@@ -90,12 +90,17 @@ def _the_desktop_contract_answers_for_itself(
         _desktop_objective_self_sufficient_without_cognitive_text,
         logger,
     )
+    from .chat_desktop_objective import _a_page_she_read_awaits_her_answer
 
     def _block() -> Any:
+        # Once her browser has ended on the page for the question, the desktop work is done and the answer is hers to
+        # write from it. LIVE 11 November 2026 this path served its promise to execute in place of her turn after
+        # r/nosleep went to her turn; the promise failed its authorship gate, and her background model answered.
         if (
             desktop_execution_contract
             and require_engine
             and _desktop_objective_self_sufficient_without_cognitive_text(visible)
+            and not _a_page_she_read_awaits_her_answer()
         ):
             logger.info(
                 "Serving self-sufficient desktop execution contract without foreground model allocation."
