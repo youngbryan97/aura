@@ -50,8 +50,21 @@ _GO_THERE = re.compile(
 )
 
 
+#: A subreddit, named as people name one: "r/nosleep".
+_A_SUBREDDIT = re.compile(r"(?<![\w/.])r/([A-Za-z0-9][A-Za-z0-9_]{1,20})\b")
+
+
 def site_named(message: object) -> str:
-    """The front page of the first site ``message`` names by name ("Go to YouTube"); "" when it names none."""
+    """The front page of the first site ``message`` names by name ("Go to YouTube"), or a subreddit's own page where it
+    names one ("r/nosleep"); "" when it names none.
+
+    LIVE 11 November 2026, "take a look at r/nosleep on Reddit": her browser was sent to Reddit's front page, which
+    set its reCAPTCHA wall in front of her, and her own Reddit round, which goes to the subreddit, read it the same
+    day.
+    """
+    subreddit = _A_SUBREDDIT.search(str(message or ""))
+    if subreddit:
+        return f"https://www.reddit.com/r/{subreddit.group(1)}/"
     for word in re.findall(r"[a-z]+", str(message or "").lower()):
         if word in FRONT_PAGES:
             return FRONT_PAGES[word]
