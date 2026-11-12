@@ -1219,6 +1219,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     `warmup_deferred:exclusive_lane_owned:...`. The refusal itself is the lane
     policy working; the defect was the report.
     tests/test_a_deferred_warmup_names_who_holds_the_lane.py.
+  2026-11-11, her shutdown. Every restart logged "stop failed for
+  aesthetic_engine: runtime_shutdown" and "Router history save failed:
+  runtime_shutdown", with nothing saying who refused. The lanes now name the
+  first caller each refuses (feb5d25f0), and the next shutdown named them: the
+  receipt lane refused the outcome ledger's drain of her chat-turn memory, and
+  the I/O lane refused every stop() that saved behind the loop. Each of those
+  saves fell back to a thread of its own, and runtime hygiene refused the
+  thread. Her aesthetic journal and the router's history were lost on every
+  restart, and her belief graph and epistemic map on the one after the night
+  they were moved behind the loop (13f792666). Teardown's own work now passes
+  the fence. A shutdown handler runs
+  in the scope a service's stop() runs in, work in that scope is given a
+  lane, and the fallback thread starts as teardown work hygiene allows.
+  tests/test_teardown_saves_pass_the_shutdown_fence.py.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,

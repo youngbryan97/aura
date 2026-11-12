@@ -135,6 +135,18 @@ def _register_pool(pool: ThreadPoolExecutor, *, name: str) -> None:
     from core.runtime.shutdown_coordinator import is_shutdown_requested
 
     if is_shutdown_requested():
+        from core.utils.task_tracker import (
+            shutdown_resource_creation_allowed,
+            shutdown_task_creation_allowed,
+        )
+
+        # Teardown's own work still runs: a service's stop() and a registered
+        # shutdown handler run in a shutdown scope, and what they save at the
+        # end is what this fence must not lose. LIVE 11 November 2026, every
+        # stop that saved behind the loop and the outcome ledger's drain of
+        # her chat-turn memory were refused here.
+        if shutdown_task_creation_allowed() or shutdown_resource_creation_allowed():
+            return
         if name not in _REFUSED_AT_SHUTDOWN:
             # LIVE 10 November 2026: two of her saves as her app shut down
             # (the aesthetic journal, the router's history) failed with this
@@ -451,6 +463,25 @@ _BEHIND_RUNS: dict[str, bool] = {}
 _BEHIND_RUNS_LOCK = checked_lock("core.runtime.executors.behind_the_loop")
 
 
+def start_teardown_thread(target: Callable[..., Any], *args: Any, name: str) -> None:
+    """Start a non-daemon thread for work teardown must finish, as cleanup the shutdown fence allows.
+
+    Runtime hygiene refuses a new thread once shutdown has latched, and the
+    write-behind fallbacks started one there: the lane said no, then the
+    thread said no, and the save was lost (LIVE 11 November 2026).
+    """
+    from core.utils.task_tracker import (
+        begin_shutdown_resource_creation_scope,
+        end_shutdown_resource_creation_scope,
+    )
+
+    token = begin_shutdown_resource_creation_scope()
+    try:
+        threading.Thread(target=target, args=args, name=name, daemon=False).start()
+    finally:
+        end_shutdown_resource_creation_scope(token)
+
+
 def behind_the_loop(key: str, fn: Callable[[], Any]) -> bool:
     """Run ``fn`` now, or, on a thread running an event loop, soon and off it.
 
@@ -494,9 +525,7 @@ def behind_the_loop(key: str, fn: Callable[[], Any]) -> bool:
         # 2026-09-20: reached from the GUI reaper). A thread of its own, not
         # a daemon, so the interpreter waits for the write and the loop
         # does not.
-        threading.Thread(
-            target=drain, name=f"behind_the_loop:{key}:shutdown", daemon=False
-        ).start()
+        start_teardown_thread(drain, name=f"behind_the_loop:{key}:shutdown")
     return False
 
 

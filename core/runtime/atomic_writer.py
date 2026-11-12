@@ -414,9 +414,9 @@ def atomic_write_bytes_behind(
         # inline put the fsync on the loop (LIVE 2026-09-21: resource_stakes
         # two seconds before the shutdown record). A thread of its own, not a
         # daemon, so the interpreter waits for the write and the loop does not.
-        threading.Thread(
-            target=_drain_behind, args=(key,), name=f"write_behind:{Path(key).name}:shutdown", daemon=False
-        ).start()
+        from core.runtime.executors import start_teardown_thread
+
+        start_teardown_thread(_drain_behind, key, name=f"write_behind:{Path(key).name}:shutdown")
     return False
 
 
@@ -508,9 +508,9 @@ def atomic_append_text_behind(path: PathLike, text: str, *, encoding: str = "utf
         submit_blocking_io(_drain_append_behind, key, label=f"append_behind:{Path(key).name}")
     except RuntimeError:
         # Shutting down, as for writes behind: a thread of its own, not a daemon.
-        threading.Thread(
-            target=_drain_append_behind, args=(key,), name=f"append_behind:{Path(key).name}:shutdown", daemon=False
-        ).start()
+        from core.runtime.executors import start_teardown_thread
+
+        start_teardown_thread(_drain_append_behind, key, name=f"append_behind:{Path(key).name}:shutdown")
     return False
 
 

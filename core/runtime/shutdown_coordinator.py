@@ -635,19 +635,32 @@ class ShutdownCoordinator:
             if effective_timeout <= 0.0:
                 raise TimeoutError("process-wide shutdown deadline exhausted")
             deadline = time.monotonic() + effective_timeout
-            if inspect.iscoroutinefunction(record.handler):
-                result = record.handler()
-            else:
-                result = await run_sync_shutdown_callable(
-                    cast(Callable[[], Any], record.handler),
-                    timeout_s=effective_timeout,
-                    name=f"{record.phase}:{record.name}",
-                )
-            if inspect.isawaitable(result):
-                await asyncio.wait_for(
-                    result,
-                    timeout=max(0.05, deadline - time.monotonic()),
-                )
+            # A registered handler is teardown's own work, run in the scope a
+            # service's stop() runs in, so what it saves is not refused by the
+            # fence it is closing behind (the outcome ledger's drain, LIVE 11
+            # November 2026).
+            from core.utils.task_tracker import (
+                begin_shutdown_task_creation_scope,
+                end_shutdown_task_creation_scope,
+            )
+
+            scope = begin_shutdown_task_creation_scope()
+            try:
+                if inspect.iscoroutinefunction(record.handler):
+                    result = record.handler()
+                else:
+                    result = await run_sync_shutdown_callable(
+                        cast(Callable[[], Any], record.handler),
+                        timeout_s=effective_timeout,
+                        name=f"{record.phase}:{record.name}",
+                    )
+                if inspect.isawaitable(result):
+                    await asyncio.wait_for(
+                        result,
+                        timeout=max(0.05, deadline - time.monotonic()),
+                    )
+            finally:
+                end_shutdown_task_creation_scope(scope)
         except asyncio.CancelledError:
             duration = round(time.monotonic() - started, 6)
             with self._lock:
