@@ -111,3 +111,37 @@ def test_a_person_s_turn_is_counted_while_it_waits_at_the_gate(monkeypatch):
     assert result["ok"] is True
     assert seen == [True], "counted while it waited"
     assert router_module.a_person_is_waiting_for_her_model() is False, "and not after"
+
+
+
+def test_a_pass_that_runs_out_of_time_mid_generation_keeps_what_it_did(monkeypatch, caplog):
+    """LIVE to 12 November 2026: the timeout left the pass, its earlier calls were lost, and her self-repair took the
+    line for a bug."""
+    import logging
+
+    import core.brain.llm_health_router as router
+    import core.runtime.service_access as access
+
+    asked, given_back = [], []
+
+    class Client:
+        async def think_and_act(self, objective, **kwargs):
+            asked.append(kwargs)
+            if len(asked) == 1:
+                return _call(1)
+            await asyncio.sleep(5)  # the second generation outlasts the pass
+
+    async def acquire(*, owner, timeout_s, wait_s):
+        return len(asked) + 1
+
+    monkeypatch.setattr(work, "PASS_SECONDS", 0.3)
+    monkeypatch.setattr(access, "resolve_inference_gate", lambda default=None: type("Gate", (), {"_mlx_client": Client()})())
+    monkeypatch.setattr(router, "acquire_external_generation_gate_lease", acquire)
+    monkeypatch.setattr(router, "release_external_generation_gate_lease", given_back.append)
+    monkeypatch.setattr(router, "a_person_is_waiting_for_her_model", lambda: False)
+    with caplog.at_level(logging.INFO, logger="Aura.HerGoalAtWork"):
+        result = asyncio.run(work.HerCortex().think_and_act(GOAL, tools={}, max_turns=12, prior_turns=[]))
+
+    assert [c["args"]["path"] for c in result["tool_calls"]] == ["core/f1.py"]
+    assert given_back == [1, 2], "the lease of the generation that ran out is handed back"
+    assert any("ran out of its" in r.getMessage() for r in caplog.records)

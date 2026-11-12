@@ -116,6 +116,12 @@ class HerCortex:
             try:
                 step = await asyncio.wait_for(
                     client.think_and_act(objective, max_turns=1, prior_turns=list(prior), **kwargs), timeout=left_s)
+            except TimeoutError:
+                # The pass's own time ran out mid-generation: its end, not a fault, and what it did stays. LIVE to 12
+                # November 2026 the timeout left the pass, its earlier calls were lost, and her self-repair targeted
+                # this line as a bug.
+                logger.info("🛠️ her pass ran out of its %.0f s after %d generation(s)", PASS_SECONDS, generations)
+                break
             finally:
                 release_external_generation_gate_lease(lease)
             generations += 1
