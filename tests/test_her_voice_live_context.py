@@ -388,3 +388,30 @@ def test_an_opening_that_failed_is_read_again_when_the_person_next_speaks(monkey
                                   "<|im_start|>assistant\nSilence that holds a question.<|im_end|>\n")
 
     asyncio.run(scenario())
+
+
+def test_while_she_is_still_waking_every_turn_is_answered_here_with_that_reading(monkeypatch):
+    """Bryan, 11 November 2026: "She should say she's still waking up (in her words) if she still is. I can wait a
+    few seconds." LIVE the same evening, "Hey Aura, how are you doing?" 22 s after her app opened went to her governed
+    route, which waited for her cortex's deferred warm-up: heard 172.6 s after the words."""
+    monkeypatch.setattr(lc, "goes_to_her_governed_route", lambda transcript: True)  # a question about herself
+    live, *_ = _a_context()
+    live.ready = True
+    monkeypatch.setattr(lc, "still_waking", lambda: "cold")
+    assert live.answers("Hey Aura, how are you doing?")
+    assert "- Still starting: the conversation lane reads 'cold', not yet serving" in lc.the_turns_evidence()
+    monkeypatch.setattr(lc, "still_waking", lambda: "")  # awake: her governed route takes it again
+    assert not live.answers("Hey Aura, how are you doing?")
+    assert "Still starting" not in lc.the_turns_evidence()
+
+
+def test_she_is_awake_when_her_conversation_lane_says_it_is_serving(monkeypatch):
+    from core.runtime import service_access
+
+    gate = SimpleNamespace(get_conversation_status=lambda: {"conversation_ready": False, "state": "warming"})
+    monkeypatch.setattr(service_access, "resolve_inference_gate", lambda default=None: gate)
+    assert lc.still_waking() == "warming"
+    gate.get_conversation_status = lambda: {"conversation_ready": True, "state": "ready"}
+    assert lc.still_waking() == ""
+    monkeypatch.setattr(service_access, "resolve_inference_gate", lambda default=None: None)
+    assert lc.still_waking() == ""

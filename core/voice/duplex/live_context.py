@@ -64,8 +64,28 @@ def what_she_reads_first(exchanges: Sequence[dict[str, Any]], now: float | None 
     return [pairs[index] for index in sorted({*sitting, len(pairs) - 1})]
 
 
+def still_waking() -> str:
+    """Her conversation lane's state while it is not yet serving her conversation (her runtime still starting); empty
+    once it is, or when it cannot be read."""
+    try:
+        from core.runtime.service_access import resolve_inference_gate
+
+        gate = resolve_inference_gate(default=None)
+        status = gate.get_conversation_status() if gate is not None else None
+    except (ImportError, AttributeError, RuntimeError, ValueError, OSError) as exc:
+        logger.debug("her conversation lane could not be read: %s", exc)
+        return ""
+    if not isinstance(status, dict) or status.get("conversation_ready"):
+        return ""
+    return str(status.get("state") or "starting")
+
+
 def the_turns_evidence() -> str:
-    """What is so at the moment the person begins: read while they speak, so it must not depend on their words."""
+    """What is so at the moment the person begins: read while they speak, so it must not depend on their words.
+
+    While her runtime is still starting, that is one of the readings. Bryan, 11 November 2026: "She should say she's
+    still waking up (in her words) if she still is." A reading, not a line to say; what she makes of it is hers.
+    """
     try:
         from core.brain.present_moment import present_moment_block
 
@@ -73,6 +93,11 @@ def the_turns_evidence() -> str:
     except (ImportError, RuntimeError, ValueError, OSError) as exc:
         logger.debug("the present moment could not be read for this turn: %s", exc)
         present = ""
+    waking = still_waking()
+    if waking:
+        present = (present + "\n" if present else "") + (
+            f"- Still starting: the conversation lane reads '{waking}', not yet serving; this turn reaches no memory "
+            "search or tools.")
     if not present:
         return ""
     return f"[GROUNDING EVIDENCE FOR THIS TURN]\n{present}\n[END GROUNDING EVIDENCE FOR THIS TURN]\n\n"
@@ -159,8 +184,11 @@ class HerLiveContext:
                                                        name=f"VoiceLiveContext.read_ahead:{self.scope}")
 
     def answers(self, transcript: str) -> bool:
+        """Whether this turn is hers to answer here. While her runtime is still starting, every turn is: her governed
+        route cannot serve one yet. LIVE 11 November 2026, "Hey Aura, how are you doing?" 22 s after her app opened
+        went there, waited for her cortex's deferred warm-up, and was heard 172.6 s after the words."""
         return ((self.ready or self.opening) and bool((transcript or "").strip())
-                and not goes_to_her_governed_route(transcript))
+                and (bool(still_waking()) or not goes_to_her_governed_route(transcript)))
 
     async def answer(self, transcript: str, *, reply_stream: Any = None, timeout_s: float = 90.0) -> str | None:
         """Her answer on the live context, streamed into ``reply_stream`` as it forms; None when it did not form."""
