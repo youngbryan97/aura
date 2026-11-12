@@ -8179,6 +8179,10 @@ async def _api_chat_turn_part_12(_delivery_timing, _final_reply, _final_status, 
 
 async def _api_chat_turn(body: ChatRequest, request: Request):
     request_started_at = time.monotonic()
+    # When her answer's time starts: the request's start, unless a page she worked through for it was handed to her
+    # turn to answer from, when it starts then (chat_desktop_objective_gates). LIVE 11 November 2026 the browsing took
+    # 186 s of the request's time and her answer was skipped with "remaining budget 2.0s".
+    _her_answer_clock = {"from": request_started_at}
     request_wall_started_at = time.time()
     # Reject oversized messages before processing
     if len(body.message.encode("utf-8", errors="replace")) > MAX_CHAT_MESSAGE_BYTES:
@@ -8391,7 +8395,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         )
 
     def _remaining_foreground_budget(*, reserve: float = 0.0) -> float:
-        elapsed = time.monotonic() - request_started_at
+        elapsed = time.monotonic() - _her_answer_clock["from"]
         # What this turn was granted, or what it has since been shown it needs.
         #
         # The SLA above is set when the request is admitted, from the lane and
@@ -8527,7 +8531,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         )
         desktop_memory_state_evidence: tuple[str, str] | None = None
 
-        _desktop_exec_state = {"attempted": False, "result": None}
+        _desktop_exec_state = {"attempted": False, "result": None, "answer_clock": _her_answer_clock}
         action_episode_evidence = ""
         action_episode_projection = ""
 
@@ -8682,7 +8686,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
             recovery_budget = _desktop_required_cognitive_budget(
                 foreground_timeout=foreground_timeout,
-                elapsed_s=time.monotonic() - request_started_at,
+                elapsed_s=time.monotonic() - _her_answer_clock["from"],
             )
             if recovery_budget < _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S:
                 logger.warning(
@@ -10174,7 +10178,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
             cognitive_budget = _desktop_required_cognitive_budget(
                 foreground_timeout=foreground_timeout,
-                elapsed_s=time.monotonic() - request_started_at,
+                elapsed_s=time.monotonic() - _her_answer_clock["from"],
             )
             if desktop_memory_state_evidence:
                 cognitive_budget = min(

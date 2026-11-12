@@ -17,6 +17,7 @@ inside the handler read as they did.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from core.runtime.errors import record_degradation
@@ -64,12 +65,22 @@ async def _lifted_run_desktop_objective_tracked(
                 "Desktop, file, tool, and control actions require the owner surface."
             ),
         }
+    # One run of an objective a turn. Every later door used to run it again: LIVE 11 November 2026 the page she had
+    # worked through was handed to her turn, the turn found no time to answer, and a second pursuit of the same
+    # request went back to Reddit and was served instead. A later door is given the first run's result.
+    if isinstance(_desktop_exec_state.get("executed"), dict):
+        return _desktop_exec_state["executed"]
     _desktop_exec_state["attempted"] = True
     executed = await _chat_desktop_objective._execute_desktop_objective_from_chat(
         message, cognitive_reply=cognitive_reply, her_reply_first=her_reply_first
     )
     if isinstance(executed, dict):
+        _desktop_exec_state["executed"] = executed
         _desktop_exec_state["result"] = executed.get("result")
+        clock = _desktop_exec_state.get("answer_clock")
+        if executed.get("status") == "desktop_objective_page_read" and isinstance(clock, dict):
+            # The page is beside her turn now: her answer to it has its own time, from here.
+            clock["from"] = time.monotonic()
         try:
             from core.conversation.action_episode import (
                 action_episode_from_execution,
