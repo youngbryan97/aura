@@ -119,7 +119,7 @@ def test_her_worker_waits_where_it_sends_her_sentences(monkeypatch):
     from core.brain.llm import reply_previews
 
     asked = []
-    monkeypatch.setattr(speech_hold, "wait_for_her_voice", lambda job: asked.append(job.get("speech_hold")) or 0.0)
+    monkeypatch.setattr(speech_hold, "wait_for_her_voice", lambda job, **_: asked.append(job.get("speech_hold")) or 0.0)
     reply_previews.ready_reply_preview({"speech_hold": "h"}, "Hello. More", thinking=False, attempt=0)
     assert asked == ["h"]
 
@@ -248,3 +248,12 @@ def test_the_session_says_her_listener_waited_from_what_was_queued_before_the_ne
     session = None
     asyncio.run(exercise())
     assert heard and heard[0] <= 0
+
+
+def test_a_cancelled_reply_leaves_the_hold_at_once(hold):
+    """LIVE 11 November 2026: a person cut her off, her reply's cancel waited for her worker to acknowledge it, her
+    worker waited in this hold, and her voice mode closed. A cancelled reply reaches its own cancel check."""
+    hold.hold_for(5.0)
+    started = time.monotonic()
+    speech_hold.wait_for_her_voice({"speech_hold": hold.name}, stopped=lambda: time.monotonic() - started > 0.1)
+    assert time.monotonic() - started < 0.5

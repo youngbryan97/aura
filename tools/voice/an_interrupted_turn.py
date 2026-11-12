@@ -39,6 +39,8 @@ async def interrupted(args: argparse.Namespace) -> int:
     marks: dict[str, float] = {}
     events: list[tuple[float, str, dict]] = []
     audio_at: dict[int, list[float]] = {}
+    sent_mic: list[tuple[float, bytes]] = []  # what her microphone sent, and when
+    got_speech: list[tuple[float, bytes]] = []  # her speech as it arrived, and when
     rate_out, heard_s = 24000, {}
     async with websockets.connect(url, origin=f"http://{args.host}", max_size=None) as ws:
         while True:
@@ -53,17 +55,20 @@ async def interrupted(args: argparse.Namespace) -> int:
             async def say(words: np.ndarray, mark: str) -> None:
                 marks[mark + " began"] = time.monotonic()
                 for start in range(0, len(words), step):
-                    await ws.send(words[start:start + step].tobytes())
+                    sent_mic.append((time.monotonic(), words[start:start + step].tobytes()))
+                    await ws.send(sent_mic[-1][1])
                     await asyncio.sleep(CHUNK_S)
                 marks[mark + " ended"] = time.monotonic()
 
             await say(first_words, "question")
             while not interrupt_now.is_set():
-                await ws.send(silence.tobytes())
+                sent_mic.append((time.monotonic(), silence.tobytes()))
+                await ws.send(sent_mic[-1][1])
                 await asyncio.sleep(CHUNK_S)
             await say(second_words, "interruption")
             while True:
-                await ws.send(silence.tobytes())
+                sent_mic.append((time.monotonic(), silence.tobytes()))
+                await ws.send(sent_mic[-1][1])
                 await asyncio.sleep(CHUNK_S)
 
         mic = asyncio.create_task(microphone())
@@ -79,6 +84,7 @@ async def interrupted(args: argparse.Namespace) -> int:
                 if isinstance(message, bytes):
                     opcode, _last, _seq, utterance_id, payload = decode_audio(message)
                     if opcode is AudioOpcode.SPEECH and payload:
+                        got_speech.append((now, bytes(payload)))
                         audio_at.setdefault(utterance_id, []).append(now)
                         heard_s[utterance_id] = heard_s.get(utterance_id, 0.0) + len(payload) / 2 / rate_out
                         if utterance_id != utterance:
@@ -103,8 +109,16 @@ async def interrupted(args: argparse.Namespace) -> int:
                     await ws.send(json.dumps({"command": "playback", "played_ms": played * 1000.0,
                                               "utterance_id": utterance}))
                     last_report = now
+        except websockets.ConnectionClosed as closed:
+            print(f"her voice mode closed the socket: {closed}")
         finally:
             mic.cancel()
+    if args.record:
+        np.savez_compressed(args.record, mic_at=np.array([t for t, _ in sent_mic]), rate_out=rate_out,
+                            mic=np.array([np.frombuffer(b, np.int16) for _, b in sent_mic], dtype=object),
+                            speech_at=np.array([t for t, _ in got_speech]),
+                            speech=np.array([np.frombuffer(b, np.int16) for _, b in got_speech], dtype=object),
+                            began=marks.get("interruption began", 0.0))
     began = marks.get("interruption began")
     if began is None:
         print("she never spoke long enough to be interrupted")
@@ -140,6 +154,7 @@ def main() -> int:
     parser.add_argument("--host", default="127.0.0.1:8000")
     parser.add_argument("--ready-s", type=float, default=240.0)
     parser.add_argument("--wait-s", type=float, default=180.0)
+    parser.add_argument("--record", default="", help="save what was sent and what arrived, with times (.npz)")
     return asyncio.run(interrupted(parser.parse_args()))
 
 

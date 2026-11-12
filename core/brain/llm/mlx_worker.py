@@ -8035,6 +8035,7 @@ def _mlx_worker_loop(
                                                 job, current_response, thinking=native_thinking,
                                                 attempt=internal_attempt,
                                                 previous=emitted_reply_preview,
+                                                stopped=lambda seq=job_seq: soft_cancel_requested(cancel_seq, seq),
                                             )
                                             if preview:
                                                 emitted_reply_preview = preview

@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
@@ -121,6 +122,17 @@ logger = logging.getLogger("Aura.Voice.Session")
 MAX_AUDIO_MESSAGE_BYTES = 128 * 1024
 MAX_TYPED_MESSAGE_BYTES = 64 * 1024
 TASK_QUIESCENCE_TIMEOUT_S = 3.0
+
+
+def _turn_quiescence_s() -> float:
+    """How long a cut-off turn may take to end: her client waits AURA_MLX_SOFT_CANCEL_ACK_WAIT_S (12 s unless set)
+    for her worker to acknowledge the cancel (mlx_client._soft_cancel_acknowledged), then cleans up. LIVE 11
+    November 2026, a barge-in waited 3 s for that and closed her voice mode."""
+    try:
+        ack_s = float(os.environ.get("AURA_MLX_SOFT_CANCEL_ACK_WAIT_S") or 12.0)
+    except ValueError:
+        ack_s = 12.0
+    return min(120.0, max(0.5, ack_s)) + TASK_QUIESCENCE_TIMEOUT_S
 OVERLAP_PROBE_TIMEOUT_S = 1.0
 # A second burst this soon after one that was not yet heard as an acknowledgment is the person talking. LIVE 11
 # November 2026: "Wait, stop. Just tell me in one sentence." over her was judged two acknowledgments, the comma
@@ -936,21 +948,15 @@ class DuplexVoiceSession:
         tasks: set[asyncio.Task[Any]],
         *,
         reason: str,
+        timeout_s: float = TASK_QUIESCENCE_TIMEOUT_S,
     ) -> bool:
         current = asyncio.current_task()
-        pending = {
-            task
-            for task in tasks
-            if task is not current and not task.done()
-        }
+        pending = {task for task in tasks if task is not current and not task.done()}
         for task in pending:
             task.cancel()
         if not pending:
             return True
-        _done, still_pending = await asyncio.wait(
-            pending,
-            timeout=TASK_QUIESCENCE_TIMEOUT_S,
-        )
+        _done, still_pending = await asyncio.wait(pending, timeout=timeout_s)
         if still_pending:
             record_degradation(
                 "voice_duplex.session",
@@ -971,17 +977,9 @@ class DuplexVoiceSession:
         if self._speaking is not None:
             await self._interrupt(reason=reason)
         self._stop_fillers()
-        tasks = {
-            task
-            for task in (
-                self._turn_task,
-                self._partial_task,
-                self._speculative_task,
-            )
-            if task is not None
-        }
+        tasks = {task for task in (self._turn_task, self._partial_task, self._speculative_task) if task is not None}
         self._discard_speculation()
-        quiesced = await self._cancel_and_quiesce_tasks(tasks, reason=reason)
+        quiesced = await self._cancel_and_quiesce_tasks(tasks, reason=reason, timeout_s=_turn_quiescence_s())
         if not quiesced and not self._closed:
             raise RuntimeError(f"prior_voice_turn_failed_to_quiesce:{reason}")
         self._turn_task = None

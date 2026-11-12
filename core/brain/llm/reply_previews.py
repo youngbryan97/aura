@@ -67,11 +67,11 @@ def her_retry_continues(job: Any, prompt: Any, messages: Any, sent: Any) -> Any:
 
 
 def ready_reply_preview(job: dict, text: str, *, thinking: Any, attempt: int,
-                        previous: str = '') -> str:
+                        previous: str = '', stopped: Any = None) -> str:
     """Return a checked sentence prefix; private and corrective passes stay buffered."""
     from core.brain.llm.speech_hold import wait_for_her_voice
 
-    wait_for_her_voice(job)  # between her tokens: while her voice has her next sentence in hand, her thought waits
+    wait_for_her_voice(job, stopped=stopped)  # between her tokens: while her voice has her next sentence in hand, her thought waits
     if thinking is None:
         thinking = thinking_of_a_rendered_prompt(job)
     if not (

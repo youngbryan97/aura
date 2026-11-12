@@ -18,6 +18,7 @@ from __future__ import annotations
 import struct
 import time
 from multiprocessing import shared_memory
+from typing import Any
 
 _UNTIL = struct.Struct("d")
 
@@ -77,8 +78,12 @@ def _longest_hold_s() -> float:
         return 15.0  # half of the heartbeat's 30 s, as it stood on 11 November 2026
 
 
-def wait_for_her_voice(job: dict, *, sleep_s: float = 0.02) -> float:
-    """Between tokens of a job that names a hold: wait while her voice has her next sentence in hand. Seconds waited."""
+def wait_for_her_voice(job: dict, *, sleep_s: float = 0.02, stopped: Any = None) -> float:
+    """Between tokens of a job that names a hold: wait while her voice has her next sentence in hand. Seconds waited.
+
+    ``stopped()`` true ends the wait: a cancelled reply must reach its own cancel check. LIVE 11 November 2026, a
+    person cut her off, her reply's cancel waited for her worker, her worker waited here, and her voice mode closed.
+    """
     global _READER
     name = str(job.get("speech_hold") or "") if isinstance(job, dict) else ""
     if not name:
@@ -99,6 +104,6 @@ def wait_for_her_voice(job: dict, *, sleep_s: float = 0.02) -> float:
             until = _READER.until()
         except (ValueError, OSError):
             return now - started
-        if until <= now or now - started >= longest:
+        if until <= now or now - started >= longest or (stopped is not None and stopped()):
             return now - started
         time.sleep(min(sleep_s, until - now))

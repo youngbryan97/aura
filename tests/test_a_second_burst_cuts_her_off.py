@@ -73,3 +73,31 @@ def test_one_burst_then_quiet_is_still_an_acknowledgment():
         await session.close()
 
     asyncio.run(exercise())
+
+
+def test_a_cut_off_turn_is_waited_for_as_long_as_her_client_waits_for_its_cancel(monkeypatch):
+    """LIVE 11 November 2026: the turn a barge-in cut off took longer than 3 s to end (her client waits up to 12 s for
+    her worker to acknowledge a cancel), and the session closed her voice mode instead of waiting for it."""
+    import core.voice.duplex.session as session_module
+
+    monkeypatch.setattr(session_module, "TASK_QUIESCENCE_TIMEOUT_S", 0.05)
+    monkeypatch.setenv("AURA_MLX_SOFT_CANCEL_ACK_WAIT_S", "0.5")
+
+    async def exercise():
+        session = _speaking_session([])
+
+        async def a_reply_whose_cancel_is_acknowledged_late():
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                await asyncio.shield(asyncio.sleep(0.2))  # as mlx_client waits for its worker
+                raise
+
+        session._turn_task = asyncio.ensure_future(a_reply_whose_cancel_is_acknowledged_late())
+        await asyncio.sleep(0)
+        session._speaking = None
+        await session._cancel_active_turn(reason="user_barge_in", return_to_listening=True)
+        assert session._turn_task is None and session.state.value == "listening"
+        await session.close()
+
+    asyncio.run(exercise())
