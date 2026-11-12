@@ -460,6 +460,10 @@ async def _activate_kernel_discipline(*, foreground_only: bool) -> ActivationRes
     # a blocking call had no way to check whether it was about to stall the
     # loop. Told here, on the loop, once.
     note_the_loop_thread()
+    # Every collection timed, so a pause lockdep charges to whatever lock was held can be told for what it is.
+    from core.runtime.collector_pauses import install_collector_timing
+
+    install_collector_timing()
     capacities = _declare_pressure_capacities()
     organs = _register_oom_organs()
 
