@@ -132,3 +132,18 @@ def test_the_account_of_a_pursuit_carries_what_she_read_earlier_on_the_page():
                                      observation=final, self=_Skill(), steps=[{"chose": ["scroll"]}], seen_here=seen)
     assert "Visas were possible until 1942." in report["read_text"]
     assert "Visas were possible" not in report["result_text"]
+
+
+def test_once_the_page_is_beside_her_turn_she_is_not_told_her_browser_has_yet_to_open_it():
+    """LIVE 12 November 2026: her turn held the page she had read and was told "None of that has happened yet: this
+    reply comes before the first page opens"; five replies running said her response had been interrupted or lost."""
+    import asyncio
+
+    from core.brain.observable_registry import _read_page_work
+
+    asked = "Take the Open Extended Jungian Type Scales personality test on openpsychometrics.org."
+    with bind_turn_evidence_custody(session_id="s", turn_id="before"):
+        assert "After this reply your own browser opens" in asyncio.run(_read_page_work(asked))
+    with bind_turn_evidence_custody(session_id="s", turn_id="after"):
+        assert _the_page_goes_to_her_turn(_pursuit(), _ASKED)
+        assert asyncio.run(_read_page_work(asked)) == ""

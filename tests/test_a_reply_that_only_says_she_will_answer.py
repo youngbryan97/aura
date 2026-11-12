@@ -22,6 +22,8 @@ _ASKED = "Can you check r/AskHistorians on Reddit and tell me what the top threa
     "I'm here. My response got cut short — I'll continue from wherever you left off in a moment.",
     "I'm here. My response came through in fragments — I'll piece together what's actually on the page rather than "
     "guess at it.",
+    "I'm here. My response is running long and I've lost the thread of what you actually need from me — tell me where "
+    "to pick up.",
 ])
 def test_the_replies_served_live_are_not_answers(reply):
     assert _is_promise_without_answer(_ASKED, reply)

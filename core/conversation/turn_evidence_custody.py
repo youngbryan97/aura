@@ -44,7 +44,9 @@ from core.conversation.session_scope import (
 from core.runtime.lockdep import checked_lock
 
 __all__ = [
+    "READ_IN_HER_BROWSER",
     "TurnEvidenceCustody",
+    "a_page_she_read_awaits_her_answer",
     "bind_turn_evidence_custody",
     "current_turn_evidence_custody",
     "record_turn_capability_availability",
@@ -461,6 +463,16 @@ def turn_world_sources() -> tuple[dict[str, str], ...]:
 
     custody = current_turn_evidence_custody()
     return custody.world_sources() if custody is not None else ()
+
+
+#: Where a page her browser ended on for the question is said to come from, when it goes to her turn.
+READ_IN_HER_BROWSER = "read in her browser at "
+
+
+def a_page_she_read_awaits_her_answer() -> bool:
+    """Whether this turn holds a page her browser ended on for the question, which her own turn answers from: the
+    browsing is done, and what is still to do is hers to write."""
+    return any(source.get("origin", "").startswith(READ_IN_HER_BROWSER) for source in turn_world_sources())
 
 
 def record_turn_transcript(exchanges: Any) -> bool:

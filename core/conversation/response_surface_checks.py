@@ -260,7 +260,11 @@ _SAYS_SHE_IS_THERE_RE = re.compile(r"^(?:ok(?:ay)?[,.\s]*)?i(?:'m|\u2019m| am) (
 _ABOUT_HER_OWN_REPLY_RE = re.compile(
     r"^(?:but |and |so )?(?:my|the|that|this) (?:last |previous |earlier )?(?:reply|answer|response|message)\b.{0,60}"
     r"\b(?:interrupted|cut (?:short|off)|fragments?|broke off|got lost|didn'?t come through|did not come through|"
-    r"drifted|wandered|missed)\b", re.IGNORECASE)
+    r"drifted|wandered|missed|running long|lost (?:the|my) thread)\b", re.IGNORECASE)
+#: Handing the question back: "tell me where to pick up".
+_WHERE_SHALL_I_GO_ON_RE = re.compile(
+    r"^(?:so |just )?(?:tell me|let me know) where (?:to |i should |you want me to )?(?:pick (?:it )?up|start|continue|"
+    r"go on|begin|resume)\b", re.IGNORECASE)
 _A_PROMISE_RE = re.compile(r"^(?:and |so |but |now )?(?:i(?:'ll|\u2019ll| will|'m going to| am going to)|let me)\b",
                            re.IGNORECASE)
 
@@ -285,7 +289,7 @@ def _only_says_she_is_there_and_will_answer(reply: str) -> bool:
             kinds.append("there")
         elif _ABOUT_HER_OWN_REPLY_RE.match(part):
             kinds.append("about")
-        elif _A_PROMISE_RE.match(part):
+        elif _A_PROMISE_RE.match(part) or _WHERE_SHALL_I_GO_ON_RE.match(part):
             kinds.append("promise")
         else:
             return False

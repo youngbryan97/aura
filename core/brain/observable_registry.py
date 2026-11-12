@@ -241,7 +241,13 @@ async def _read_page_work(prompt: str) -> str:
     after her reply, and nothing told her so.
     """
     from core.conversation.page_interaction import page_interaction_target
+    from core.conversation.turn_evidence_custody import a_page_she_read_awaits_her_answer
 
+    # Once her browser has been there and the page is beside her turn, it has happened. LIVE 12 November 2026 her
+    # turn held the page she had read and was told "None of that has happened yet: this reply comes before the first
+    # page opens"; five replies running said her response had been interrupted, cut short or lost.
+    if a_page_she_read_awaits_her_answer():
+        return ""
     url = page_interaction_target(prompt)
     if not url:
         return ""
