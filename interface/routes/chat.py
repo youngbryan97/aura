@@ -12017,10 +12017,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # message was already inbound, the user has already moved on; if
         # the client just disconnected, the reply is never seen anyway.
         user_cancelled = _chat_delivery.USER_CANCEL_REASON in {str(value) for value in cancel_exc.args}
+        from core.conversation.response_reliability import TURN_CUT_SHORT_REPLY
+
         cancel_reply = (
             "Stopped this turn. Actions already completed were not undone."
             if user_cancelled else
-            "I'm here. My response was cut short — I'll pick up with whatever you say next."
+            TURN_CUT_SHORT_REPLY
         )
         if pending_exchange_id:
             await _chat_preflight._complete_logged_exchange(

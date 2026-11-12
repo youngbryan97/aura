@@ -46,3 +46,16 @@ def test_being_there_answers_a_question_about_what_she_is_doing():
 
 def test_a_promise_alone_is_left_to_the_narrower_check():
     assert not _is_promise_without_answer("Ok. Just checking. I'll be back, ok?", "I'll be here.")
+
+
+def test_the_runtime_notice_of_a_cut_turn_and_her_versions_of_it_stay_out_of_her_history():
+    """24 copies of the chat route's cancel notice were logged as her replies on 11 November 2026, and her prompt
+    replays her past replies as her own words; on 12 November she answered five questions running with her own
+    versions of it."""
+    from core.conversation.response_reliability import TURN_CUT_SHORT_REPLY, is_non_answer_repair_floor_reply
+
+    assert is_non_answer_repair_floor_reply(TURN_CUT_SHORT_REPLY)
+    assert is_non_answer_repair_floor_reply("I'm here. My response got cut short — I'll continue from wherever you "
+                                            "left off in a moment.")
+    assert not is_non_answer_repair_floor_reply("The top thread on r/AskHistorians right now is asking how the United "
+                                                "States ended up with 36 of 50 gubernatorial elections in midterms.")

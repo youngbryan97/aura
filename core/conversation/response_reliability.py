@@ -1548,7 +1548,13 @@ _STATUS_REPAIR_FLOOR = (
 # the generator cannot drift apart again.
 CANNED_PRESENCE_REFLEX_RE = re.compile(r"i'?m right here with you", re.IGNORECASE)
 
+#: What the chat route says when a turn is cancelled by something other than the person. It is the runtime's notice,
+#: not her words: logged as her reply, it reached her prompt as her own past turns, 24 times on 11 November 2026, and
+#: on 12 November five of her replies in a row were her own versions of it ("I'm here. My response was interrupted").
+TURN_CUT_SHORT_REPLY = "I'm here. My response was cut short — I'll pick up with whatever you say next."
+
 _RELIABILITY_FLOOR_TEXTS = (
+    TURN_CUT_SHORT_REPLY,
     _CONFUSION_REPAIR_FLOOR,
     _RELIABILITY_REPAIR_FLOOR,
     _LIVE_CHAT_DIAGNOSTIC_FLOOR,
@@ -3437,6 +3443,9 @@ def is_non_answer_repair_floor_reply(reply_text: Any) -> bool:
     if is_reliability_floor_reply(reply_text):
         return True
     raw = str(reply_text or "")
+    # Being there and talk about her own reply, with nothing about what was asked (response_surface_checks).
+    if _only_says_she_is_there_and_will_answer(raw.strip()):
+        return True
     if not _FRIENDLY_FAILURE_PLACEHOLDER_RE.search(raw):
         return False
     if re.match(r"\s*(?:i'?m|i am)\s+still with\b", raw, re.IGNORECASE):
@@ -8265,6 +8274,7 @@ from .response_surface_checks import (  # noqa: E402,F401  (re-exported for call
     _is_code_response,
     _is_promise_without_answer,
     _is_structured_payload,
+    _only_says_she_is_there_and_will_answer,
     _looks_like_code_body,
     _looks_like_structured_output,
     _terminal_word_is_a_unit,
