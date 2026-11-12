@@ -311,8 +311,14 @@ def what_reads_as_a_screen_reading(reply_text: Any, *, display_binding_required:
         return ""
     patterns = ((_EXPLICIT_READING_RE, _BOUND_READING_RE, _DISPLAY_QUOTATION_RE) if display_binding_required
                 else (_ASSERTS_A_READING_RE, _QUOTED_TEXT_RE, _SCREEN_SUBJECT_RE))
-    found = [match.group(0) for pattern in patterns if (match := pattern.search(body))]
-    return " | ".join(text.strip()[:120] for text in found)
+    sentences = []
+    for pattern in patterns:
+        match = pattern.search(body)
+        if match:  # the whole sentence it sits in: the words alone do not say whether it claimed a reading
+            began = max(body.rfind(mark, 0, match.start()) for mark in ".!?\n") + 1
+            ends = [index for mark in ".!?\n" if (index := body.find(mark, match.end())) >= 0]
+            sentences.append(body[began:min(ends) + 1 if ends else len(body)].strip()[:240])
+    return " | ".join(dict.fromkeys(sentences))
 
 
 @dataclass(frozen=True)
