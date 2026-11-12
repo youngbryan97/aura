@@ -1758,8 +1758,20 @@ def _restore_process_globals(snapshot: dict[str, object]) -> None:
             time.time = saved_clock  # type: ignore[assignment]
 
 
+#: Modules whose first use takes back what earlier runs wrote to the shared test state root, so their reset has to reach
+#: them before a test imports them, not only after. A tiering test that was the first in its process to size a deadline
+#: read twelve decode readings at ten tokens a second from ~/.aura-test and stretched its 196 seconds to 443 (11
+#: November 2026); the reset that stops it was skipped because the module was not imported yet.
+_RESET_BEFORE_FIRST_IMPORT = ("core.brain.llm.thinking_reserve",)
+
+
 def _reset_test_scoped_runtime_services() -> None:
     """Close lazy test-owned organs before comparing process-global state."""
+    import importlib
+
+    for module_name in _RESET_BEFORE_FIRST_IMPORT:
+        if module_name not in sys.modules:
+            importlib.import_module(module_name)
     for module_name, function_name in _TEST_SCOPED_RESET_FUNCTIONS:
         module = sys.modules.get(module_name)
         reset = getattr(module, function_name, None) if module is not None else None
