@@ -101,3 +101,34 @@ def test_a_reader_outside_the_turn_is_told_why_its_sources_are_withheld():
         assert custody.why_its_sources_are_withheld() == ""          # kept, and readable here
         with conversation_session_scope("another"):
             assert "kept for session 's'" in custody.why_its_sources_are_withheld()
+
+
+def test_a_thread_read_until_her_rounds_ran_out_goes_to_her_turn_whole():
+    """LIVE 12 November 2026: she read an AskHistorians thread over six rounds, her rounds ran out with no stop of her
+    own, and she was served the account of the rounds; its last screen held only the end of the thread."""
+    asked = "Can you open the thread there about visiting Nazi-occupied France as a tourist and tell me what the answers say?"
+    read = "gamboncorner: Visas were possible until 1942 for neutral nationals.\nThe page ends with: currency limits."
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        assert _the_page_goes_to_her_turn(
+            _pursuit(concluded_from="", result_text="The page ends with: currency limits.", read_text=read), asked)
+        (given,) = turn_world_evidence()
+    assert "Visas were possible until 1942" in given
+
+
+def test_the_account_of_a_pursuit_carries_what_she_read_earlier_on_the_page():
+    from core.skills.sovereign_browser_rounds import _account_of_the_pursuit
+    from core.skills.sovereign_browser_what_it_did import remember_what_was_seen
+
+    url = "https://www.reddit.com/r/AskHistorians/comments/1xtvhx7/"
+    seen: dict[str, list[str]] = {}
+    remember_what_was_seen(seen, {"url": url, "text": "gamboncorner\nVisas were possible until 1942."})
+    final = {"url": url, "text": "gerardmenfin\nAs a supplement to the answer above."}
+
+    class _Skill:
+        def _retain_stated_positions(self, goal, steps):
+            return None
+
+    report = _account_of_the_pursuit(completed=False, concluded="", final=final, goal="read the thread",
+                                     observation=final, self=_Skill(), steps=[{"chose": ["scroll"]}], seen_here=seen)
+    assert "Visas were possible until 1942." in report["read_text"]
+    assert "Visas were possible" not in report["result_text"]

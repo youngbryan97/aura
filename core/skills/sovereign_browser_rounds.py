@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.skills.sovereign_browser_what_it_did import with_what_was_seen_here
+
 
 def _account_of_the_pursuit(
     *,
@@ -18,6 +20,7 @@ def _account_of_the_pursuit(
     observation: Any,
     self: Any,
     steps: Any,
+    seen_here: Any = None,
 ) -> Any:
     """What a pursuit reports: whether it landed anything, what stopped it, and where it ended.
 
@@ -69,6 +72,10 @@ def _account_of_the_pursuit(
             "observed_url": (final or observation).get("url", ""),
             "final_url": (final or observation).get("url", ""),
             "result_text": str((final or observation).get("text") or "")[:4000],
+            # What she read on the page she ended on: the screen she ended on, and what it showed her earlier in the
+            # run that is out of view now. LIVE 12 November 2026 she read an AskHistorians thread over six rounds,
+            # and the last screen held only the end of it.
+            "read_text": str(with_what_was_seen_here(final or observation, seen_here or {}).get("text") or ""),
             "concluded": concluded,
         }
 

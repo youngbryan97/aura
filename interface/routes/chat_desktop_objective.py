@@ -690,12 +690,24 @@ _ASKS_FOR_INFORMATION_EXCLUSION_RE = re.compile(
 )
 
 
+#: Being asked to tell the person something: "and tell me what the answers say", "then show me what it says".
+_TELLS_HER_TO_TELL_RE = re.compile(
+    r"\b(?:tell|show|explain|describe|summari[sz]e)\s+(?:me|us)\s+(?:what|who|when|where|why|which|how|whether|if|about)\b",
+    re.IGNORECASE,
+)
+
+
 def _asks_for_information(user_message: object) -> bool:
     """True when the person asked a question the reply has to answer."""
 
     text = str(user_message or "").strip()
     if not text or not _ASKS_FOR_INFORMATION_RE.search(text):
         return False
+    # An action that comes with being told something still asks to be told it: LIVE 12 November 2026, "Can you open
+    # the thread there about visiting Nazi-occupied France as a tourist and tell me what the answers say?" read as
+    # a request to open a thread, and the account of opening it was served.
+    if _TELLS_HER_TO_TELL_RE.search(text):
+        return True
     return not _ASKS_FOR_INFORMATION_EXCLUSION_RE.search(text)
 
 
@@ -721,10 +733,12 @@ def _the_page_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
     question. A pursuit that ended on a checked forecast keeps its verdict, and a task that asked nothing keeps its
     account.
     """
+    # Any end but a checked verdict: LIVE 12 November 2026 she read an AskHistorians thread until her rounds ran out,
+    # with no stop of her own, and was served the account of the rounds instead of an answer.
     if not (result.get("ok") and result.get("planner") == "browser_pursuit"
-            and result.get("concluded_from") == "stopping" and _asks_for_information(objective)):
+            and result.get("concluded_from") != "outcome" and _asks_for_information(objective)):
         return False
-    text = str(result.get("result_text") or "").strip()
+    text = str(result.get("read_text") or result.get("result_text") or "").strip()
     if not text:
         return False
     from core.conversation.turn_evidence_custody import (

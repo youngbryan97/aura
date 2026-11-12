@@ -1876,6 +1876,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             observation=observation,
             self=self,
             steps=steps,
+            seen_here=seen_here,
         )
         if _seam_early_response is not _SEAM_FELL_THROUGH:
             return _seam_early_response

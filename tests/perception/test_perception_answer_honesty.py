@@ -282,6 +282,8 @@ def test_a_question_is_never_answered_with_an_effect_receipt() -> None:
         "what is on my clipboard?",
         "what's your opinion on this paper?",
         "explain the mechanism to me",
+        # LIVE 12 November 2026: an action that comes with being told something.
+        "Can you open the thread there about visiting Nazi-occupied France as a tourist and tell me what the answers say?",
     ],
 )
 def test_information_requests_are_recognised(message: str) -> None:
