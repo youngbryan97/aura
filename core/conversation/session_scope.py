@@ -177,6 +177,18 @@ _TURN_SOLVED: dict[str, str] = {}
 _TURN_SOLVED_FOR: str = ""
 
 
+def reset_for_test() -> None:
+    """Forget the answers worked out, for a test that runs outside any turn.
+
+    The turn stamp keeps one turn's answers from another's, and outside a turn every test reads under the same
+    empty stamp: test_a_record_outranks_a_proven_reply was served "Built a 6-section deck ... document.html" from an
+    earlier file's document test, in a batch, on 11 November 2026.
+    """
+    global _TURN_SOLVED_FOR
+    _TURN_SOLVED.clear()
+    _TURN_SOLVED_FOR = ""
+
+
 def record_solved_answer(name: object, answer: object) -> None:
     """Keep an answer the runtime worked out before generation.
 
