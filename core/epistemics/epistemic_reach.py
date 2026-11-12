@@ -177,6 +177,27 @@ def _numbers(text: str) -> set[str]:
     return {n.translate(_GROUPING).rstrip(".") for n in _NUM_RE.findall(str(text or ""))}
 
 
+def _where_its_figure_is_read(evidence: str, claim: str) -> bool:
+    """Whether the words around one of the claim's figures, where the evidence states it, entail the claim.
+
+    A data page has no sentences, and the passage drawn from it carries the site's navigation. LIVE 12 November 2026
+    NIST's page for the speed of light, read whole, came back "contradiction" (0.94) for the claim it states; the words
+    around its "299 792 458", the claim's own length on each side, came back "entailment" (0.98). A figure the evidence
+    does not hold gives no window, so nothing is read into support that the page does not state.
+    """
+    wanted = _numbers(claim)
+    reach = len(str(claim or "").split())
+    for match in _NUM_RE.finditer(str(evidence or "")):
+        if not wanted or match.group(0).translate(_GROUPING).rstrip(".") not in wanted:
+            continue
+        before = evidence[: match.start()].split()[-reach:]
+        after = evidence[match.end():].split()[:reach]
+        read = _how_it_reads(" ".join([*before, match.group(0), *after]), claim)
+        if read and max(read, key=read.get) == "entailment":
+            return True
+    return False
+
+
 def _number_contexts(text: str) -> list[tuple[str, set[str]]]:
     """Return each figure with nearby lexical anchors for high-precision comparison."""
     value = str(text or "")
@@ -887,6 +908,12 @@ class EpistemicReachEngine:
                     source_url=source_url, evidence_excerpt=evidence[:240], overlap=overlap,
                     reason=f"contradicted by the passage (reader {read['contradiction']:.2f})",
                 )
+        if read and claim_nums and figures_consistent and _where_its_figure_is_read(evidence, claim):
+            return ReachVerdict(
+                verdict=VERDICT_SUPPORTED, claim=claim, fingerprint=fingerprint,
+                source_url=source_url, evidence_excerpt=evidence[:240], overlap=overlap,
+                reason="entailed by the words around its figure; figures consistent",
+            )
         if (
             overlap >= 0.5
             and claim_nums

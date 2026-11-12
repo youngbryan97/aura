@@ -101,3 +101,34 @@ def test_nists_passage_bears_out_the_claims_figure():
     from core.epistemics.epistemic_reach import _figures_borne_out
 
     assert _figures_borne_out(CLAIM, "speed of light in vacuum Numerical value 299 792 458 m s -1 (exact)")
+
+
+_NIST_PAGE = ("CODATA Value: speed of light in vacuum Constants Topics: Values Energy Equivalents Searchable Bibliography "
+              "Background Constants Bibliography Constants, Units & Uncertainty home page speed of light in vacuum Numerical "
+              "value 299 792 458 m s -1 Standard uncertainty (exact) Concise form 299 792 458 m s -1 Click here")
+
+
+def _reader_misled_by_navigation(passage, claim):
+    """As her reader read NIST's page live: the page whole, navigation and all, as a contradiction."""
+    if "Energy Equivalents" in passage and "Searchable" in passage:
+        return {"entailment": 0.04, "neutral": 0.02, "contradiction": 0.94}
+    return {"entailment": 0.98, "neutral": 0.01, "contradiction": 0.01}
+
+
+def test_a_data_page_is_read_where_it_states_the_claims_figure(monkeypatch):
+    """LIVE 2026-11-12: NIST's page, read whole, came back a contradiction (0.94) of the claim it states; the words
+    around its figure came back entailment (0.98)."""
+    import core.epistemics.epistemic_reach as reach
+
+    monkeypatch.setattr(reach, "_how_it_reads", _reader_misled_by_navigation)
+    verdict = reach.EpistemicReachEngine.judge(CLAIM, _NIST_PAGE, "http://physics.nist.gov/cgi-bin/cuu/Value?c")
+    assert verdict.verdict == reach.VERDICT_SUPPORTED and "around its figure" in verdict.reason
+
+
+def test_a_figure_the_page_does_not_hold_gives_nothing_to_read(monkeypatch):
+    import core.epistemics.epistemic_reach as reach
+
+    monkeypatch.setattr(reach, "_how_it_reads", _reader_misled_by_navigation)
+    wrong = CLAIM.replace("299,792,458", "300,000,000")
+    verdict = reach.EpistemicReachEngine.judge(wrong, _NIST_PAGE, "http://physics.nist.gov/cgi-bin/cuu/Value?c")
+    assert verdict.verdict != reach.VERDICT_SUPPORTED
