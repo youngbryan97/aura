@@ -76,8 +76,10 @@ def test_a_finished_answer_goes_the_ordinary_way():
 def test_the_desktop_exit_consults_the_salvage():
     """The exact gap: the policy existed and this exit did not ask it."""
     import interface.routes.chat as chat
+    import interface.routes.chat_turn_steps as chat_turn_steps
 
-    source = inspect.getsource(chat)
+    # One of the exits moved to chat_turn_steps when the desktop lane was cut into steps (fe85c5390).
+    source = inspect.getsource(chat) + inspect.getsource(chat_turn_steps)
     exits = [
         line
         for line in source.splitlines()

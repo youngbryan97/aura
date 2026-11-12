@@ -58,6 +58,7 @@ async def test_recovery_continues_only_an_owned_generation(monkeypatch, owned):
         response_reliability, "assess_user_facing_reply",
         lambda *_args, **_kwargs: SimpleNamespace(reasons=("unanswered_question_part",)),
     )
+    started = time.monotonic()
     namespace = {
         "desktop_requires_cognitive_engine": True,
         "_semantic_user_message": question,
@@ -69,7 +70,9 @@ async def test_recovery_continues_only_an_owned_generation(monkeypatch, owned):
         "_DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S": 1.0,
         "_run_cognitive_engine_chat_turn": run_turn,
         "foreground_timeout": 120.0,
-        "request_started_at": time.monotonic(),
+        "request_started_at": started,
+        # Her answer's own time, which starts again when a page she read is handed to her turn.
+        "_her_answer_clock": {"from": started},
         "preflight_context_message": question,
         "_turn_sensory_evidence": None,
         "_chat_session_id": "test-session",
