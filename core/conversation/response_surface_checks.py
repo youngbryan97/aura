@@ -253,6 +253,47 @@ _LATEX_MATH_RE = re.compile(
 )
 
 
+#: The three kinds of sentence a reply can be made of and still say nothing: that she is there, something about
+#: her own reply, and a promise of what she will do.
+_SAYS_SHE_IS_THERE_RE = re.compile(r"^(?:ok(?:ay)?[,.\s]*)?i(?:'m|\u2019m| am) (?:still )?(?:here|with you)[.!]?$",
+                                   re.IGNORECASE)
+_ABOUT_HER_OWN_REPLY_RE = re.compile(
+    r"^(?:but |and |so )?(?:my|the|that|this) (?:last |previous |earlier )?(?:reply|answer|response|message)\b.{0,60}"
+    r"\b(?:interrupted|cut (?:short|off)|fragments?|broke off|got lost|didn'?t come through|did not come through|"
+    r"drifted|wandered|missed)\b", re.IGNORECASE)
+_A_PROMISE_RE = re.compile(r"^(?:and |so |but |now )?(?:i(?:'ll|\u2019ll| will|'m going to| am going to)|let me)\b",
+                           re.IGNORECASE)
+
+
+def _only_says_she_is_there_and_will_answer(reply: str) -> bool:
+    """Whether every sentence of a reply is presence, talk about her own reply, or a promise, with nothing about the
+    question.
+
+    LIVE 12 November 2026, three runs of a question about a subreddit whose page her turn held: "I'm here. My
+    response was interrupted — I'll continue from where you left off.", then "... got cut short ...", then "I'm
+    here. My response came through in fragments — I'll piece together what's actually on the page rather than guess
+    at it." Each was served. "My last answer got cut off. The top thread asks whether..." is an answer, and its
+    second sentence says so.
+    """
+    parts = [part.strip(" .!\u2014\u2013-") for part in re.split(r"(?<=[.!?])\s+|\s+[\u2014\u2013]\s+|\s+-\s+|[:;]\s+", reply)]
+    parts = [part for part in parts if part]
+    if not parts:
+        return False
+    kinds = []
+    for part in parts:
+        if _SAYS_SHE_IS_THERE_RE.match(part):
+            kinds.append("there")
+        elif _ABOUT_HER_OWN_REPLY_RE.match(part):
+            kinds.append("about")
+        elif _A_PROMISE_RE.match(part):
+            kinds.append("promise")
+        else:
+            return False
+    # Talk about her own reply is what makes it one: a promise alone is the narrower check's (_PROMISE_ONLY_REPLY_RE),
+    # and "I'll be here." is the right reply to "I'll be back, ok?".
+    return "about" in kinds
+
+
 def _is_promise_without_answer(user_message: Any, reply_text: Any) -> bool:
     """True when the whole reply is a promise to answer, not an answer.
 
@@ -279,6 +320,8 @@ def _is_promise_without_answer(user_message: Any, reply_text: Any) -> bool:
         or ":" in raw
     )
     if not carries_content and _PROMISE_ONLY_REPLY_RE.match(raw):
+        return True
+    if _only_says_she_is_there_and_will_answer(raw):
         return True
     return bool(_REPLY_ABOUT_THE_REPLY_RE.search(raw)) and _word_count(raw) <= 40
 

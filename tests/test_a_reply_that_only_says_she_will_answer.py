@@ -1,0 +1,46 @@
+"""A reply made only of being there, talk about her own reply and a promise is not an answer.
+
+LIVE 12 November 2026, three runs of a question about a subreddit whose page her turn held, each served as her
+answer: "I'm here. My response was interrupted — I'll continue from where you left off.", "I'm here. My response got
+cut short — I'll continue from wherever you left off in a moment." and "I'm here. My response came through in
+fragments — I'll piece together what's actually on the page rather than guess at it."
+"""
+from __future__ import annotations
+
+import pytest
+
+from core.conversation.response_reliability import assess_user_facing_reply
+from core.conversation.response_surface_checks import _is_promise_without_answer
+
+pytestmark = pytest.mark.unit
+
+_ASKED = "Can you check r/AskHistorians on Reddit and tell me what the top thread is asking right now?"
+
+
+@pytest.mark.parametrize("reply", [
+    "I'm here. My response was interrupted — I'll continue from where you left off.",
+    "I'm here. My response got cut short — I'll continue from wherever you left off in a moment.",
+    "I'm here. My response came through in fragments — I'll piece together what's actually on the page rather than "
+    "guess at it.",
+])
+def test_the_replies_served_live_are_not_answers(reply):
+    assert _is_promise_without_answer(_ASKED, reply)
+    assessment = assess_user_facing_reply(_ASKED, reply)
+    assert not assessment.ok and "promise_without_answer" in assessment.reasons
+
+
+@pytest.mark.parametrize("reply", [
+    "My last answer got cut off. The top thread asks whether tourists could visit Nazi-occupied France.",
+    "I'll be honest: the top thread asks whether tourists could visit Nazi-occupied France.",
+    "I'm here. The top thread asks whether you could visit occupied France as a tourist.",
+])
+def test_a_sentence_about_the_question_makes_it_an_answer(reply):
+    assert not _is_promise_without_answer(_ASKED, reply)
+
+
+def test_being_there_answers_a_question_about_what_she_is_doing():
+    assert not _is_promise_without_answer("what are you doing?", "I'm here. I'll be with you in a moment.")
+
+
+def test_a_promise_alone_is_left_to_the_narrower_check():
+    assert not _is_promise_without_answer("Ok. Just checking. I'll be back, ok?", "I'll be here.")
