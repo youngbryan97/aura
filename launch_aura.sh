@@ -276,17 +276,9 @@ export HF_HUB_OFFLINE=1
 export HF_HUB_DISABLE_TELEMETRY=1
 export TRANSFORMERS_OFFLINE=1
 # ── Substrate interoception + epistemic reach (felt thought) ─────────────────
-: "${AURA_INTEROCEPTION:=1}"             # Feel the decode: per-token surprisal/entropy tap
-: "${AURA_EPISTEMIC_REACH:=1}"           # Felt doubt may verify claims externally (governed)
-# Operator READ allowlist for governed reach. Bryan's standing yes, 10 November 2026: her ordinary app reads the
-# reputable sources (config/reputable_sources.json, its search engines among them). With Wikipedia alone she had no
-# engine to search and read nothing when asked to check a claim.
-: "${AURA_REACH_READ_HOSTS:=@reputable}"
-: "${AURA_EPISTEMIC_REACH_PER_HOUR:=6}"  # Hard hourly budget for external verifications
-export AURA_INTEROCEPTION
-export AURA_EPISTEMIC_REACH
-export AURA_REACH_READ_HOSTS
-export AURA_EPISTEMIC_REACH_PER_HOUR
+# Interoception, epistemic reach, Bryan's standing yes to the reputable sources and the reach budget are set by
+# aura_main.py from core/runtime/standing_defaults.py, so the app's own launcher, which starts aura_main.py directly,
+# starts her from the same place as this script.
 : "${AURA_SAFE_BOOT_DESKTOP:=0}" # Recovery-only; normal desktop launches are the full runtime
 : "${AURA_ENABLE_BACKGROUND_COGNITION:=1}"
 : "${AURA_ENABLE_DESKTOP_BACKGROUND_LOCAL_LLM:=1}"

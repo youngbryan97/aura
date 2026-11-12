@@ -155,6 +155,11 @@ with contextlib.suppress(ImportError):
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# What every launch starts from, whichever launcher started it (core/runtime/standing_defaults.py).
+from core.runtime.standing_defaults import apply_standing_defaults  # noqa: E402
+
+apply_standing_defaults()
+
 # The signed app records where it was built; the runtime separately freezes the
 # exact live-source revision this child starts before services bind model,
 # tissue, or learning identities.

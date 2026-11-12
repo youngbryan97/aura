@@ -223,13 +223,28 @@ def test_a_dictionarys_entry_for_a_word_of_the_claim_is_not_read_for_it():
 
 def test_her_ordinary_app_reads_the_reputable_sources():
     """Bryan's standing yes, 10 November 2026: launched as he launches her, she may read the reputable list, its
-    search engines among them. With Wikipedia alone, asked to check a claim she searched nothing and read nothing."""
-    import re
+    search engines among them. LIVE 12 November her app, started by Aura.app's own launcher, which runs aura_main.py
+    directly, read nothing when asked to check a claim: the yes lived only in launch_aura.sh. It is set where every
+    launch passes, and a value something else set still wins."""
+    import ast
     from pathlib import Path
 
-    launcher = (Path(__file__).resolve().parents[1] / "launch_aura.sh").read_text(encoding="utf-8")
-    default = re.search(r': "\$\{AURA_REACH_READ_HOSTS:=([^}]*)\}"', launcher)
-    assert default is not None and "@reputable" in default.group(1).split(",")
+    from core.runtime.standing_defaults import STANDING_DEFAULTS, apply_standing_defaults
+
+    env: dict[str, str] = {}
+    apply_standing_defaults(env)
+    assert "@reputable" in env["AURA_REACH_READ_HOSTS"].split(",") and env["AURA_EPISTEMIC_REACH"] == "1"
+    chosen = {"AURA_REACH_READ_HOSTS": "en.wikipedia.org"}
+    apply_standing_defaults(chosen)
+    assert chosen["AURA_REACH_READ_HOSTS"] == "en.wikipedia.org"
+
+    root = Path(__file__).resolve().parents[1]
+    main = ast.parse((root / "aura_main.py").read_text(encoding="utf-8"))
+    called = [n for n in main.body if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
+              and getattr(n.value.func, "id", "") == "apply_standing_defaults"]
+    assert called, "aura_main.py applies the standing defaults at module level, before anything reads them"
+    shell = (root / "launch_aura.sh").read_text(encoding="utf-8")
+    assert not any(f"{name}:=" in shell for name in STANDING_DEFAULTS), "one owner: launch_aura.sh defers to it"
 
 
 def test_an_engine_is_asked_the_claim_as_it_was_said_first_and_a_challenge_is_not_an_answer(monkeypatch):
