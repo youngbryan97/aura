@@ -3473,8 +3473,49 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   One more routing defect fixed: "Describe your memory system." was answered
   with the host's processor and memory percentages. Asking what a part IS is
   not asking how it is doing — 1573a64f0.
-- [ ] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
+- [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
+  CLOSED 2026-11-11. Each part run live in the evening on her app launched
+  from Aura.app, through /ws/voice as her window speaks to it (the tools in
+  tools/voice: a_spoken_turn, an_interrupted_turn, a_device_change,
+  a_worker_dies), last on 83a6b9499.
+  Interruption: "Wait, stop. Just tell me in one sentence." said over her
+  6.0 s into an answer. She ducked 0.20 s and stopped 0.55 s after the
+  words began, heard them word for word, and answered in one sentence
+  about what she had been saying: "I find the quiet, sudden moment when a
+  complex thought finally clicks into place beautifully clear to be the
+  most beautiful thing I can perceive." Heard 5.37 s after the words ended.
+  Device change: her window's microphone lost mid-question and reopened,
+  three capture receipts; the half-question never reached her, and
+  "What's two plus two?" got "Two plus two is four."
+  Recovery: her voice worker killed 3 s into an answer was back in 5.9 s,
+  and the next turn in the same session was answered aloud 6.15 s after its
+  words; her recognizer killed the same way, 2.42 s.
+  Speech generation: two long replies with no gap inside or between
+  clauses. Latency, from the end of the words to her first sound: 6.9 s on
+  a fresh session's first turn, 1.50 and 1.16 s on an open session.
+  What it took, all from that evening's runs: a draft ends at a sentence
+  that fails a check no later text can pass (one had gone on 20 s and 167
+  failed checks); a voice worker that dies is started again for her next
+  sentence; a second burst over her before the first was heard as "mhm"
+  cuts her off; a cut-off reply leaves her speech hold at once, and its
+  turn is waited for instead of closing her voice mode (it had); her
+  canceller places her speech by her window's playback reports, follows
+  its duck, and lets words over her through where her voice does not reach
+  the microphone (with no room it had taken the first 0.6 s of "Wait,
+  stop" for her echo, and she heard "Only in one oops."); a reply she was
+  cut off in goes into her live context as far as she said it (without it
+  she answered "I am an AI assistant here to help you"); a live context
+  whose first read failed is read again when the person next speaks; a
+  sentence falling behind at her full steps goes to her busy steps where it
+  is.
+  Not shown: a room. Her canceller with real speakers is proved only on a
+  recording with a simulated room, where her solo speech read as voice in
+  0% of frames (28% through the old canceller) and words over her kept 26%
+  of their voiced frames in the first 0.6 s, so she stopped at 1.28 s, not
+  0.55 s. Running it in the room needs Bryan at the screen to let her
+  window be driven. A turn spoken while her runtime is still booting waits
+  for her cortex: 180 s on the first turn after a launch.
   10 November, 23:53, her app launched from Aura.app, Bryan's yes to the
   microphone: "Hey Aura, what is two plus two?" spoken by `say` through the
   laptop's speakers into its own microphone. At volume 45 it crossed her
