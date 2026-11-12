@@ -3474,6 +3474,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   for. Her reply carried a correction that "Since 1983 the metre has been
   defined ..." reported an action with no tool run; history is no longer
   read as a report (74d23c94b).
+  12 November, the second publisher found without an engine. The article
+  that supports a claim cites where it got it; her check now reads the
+  wikitext's citations for the paragraphs that carry the claim's figures and
+  reads the pages her list counts, each publisher once (a107ff80e). Three
+  more things stood in the way, each fixed: her app, relaunched by Aura.app's
+  own launcher, had no read list at all, because Bryan's standing yes lived
+  only in launch_aura.sh (de3fd1379, one owner for every launcher); NIST
+  writes 299 792 458 and the figure reader saw three numbers (875c21b8b);
+  and NIST's page, read whole with its navigation, came back from her
+  entailment reader as a contradiction (0.94) of the claim it states, where
+  the words around its figure read as entailment (0.98) (278a977bc). Asked
+  at 08:41 in her app, in day 1's words, she read Wikipedia and NIST and
+  answered "Two sources I just pulled agree on it to the last digit"; her
+  store holds the claim as verified, by Wikipedia (reference) and NIST
+  (official). Open: the claim used on a later day.
 
 ## 4. User-facing capability acceptance
 
