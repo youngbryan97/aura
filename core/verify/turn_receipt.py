@@ -84,6 +84,9 @@ class TurnReceipt:
     #: second generation) accumulates, and `latency_samples` says how often.
     latency_s: dict[str, float] = field(default_factory=dict)
     latency_samples: dict[str, int] = field(default_factory=dict)
+    #: Each recorded span as (component, began, ended) on the wall clock, so that work inside a wait is not counted
+    #: twice: see `_net_of_work`.
+    spans: list[tuple[str, float, float]] = field(default_factory=list)
 
     @property
     def full_pipeline_ran(self) -> bool:
@@ -177,6 +180,8 @@ def recording_turn(
         if receipt.answered_at is not None and "delivery" not in receipt.latency_s:
             receipt.latency_s["delivery"] = max(0.0, receipt.finished_at - receipt.answered_at)
             receipt.latency_samples["delivery"] = 1
+            receipt.spans.append(("delivery", receipt.answered_at, receipt.finished_at))
+        _net_of_work(receipt)
         try:
             _CURRENT.reset(token)
         except ValueError:
@@ -186,6 +191,34 @@ def recording_turn(
             if len(_RECENT) > _RECENT_LIMIT:
                 del _RECENT[: len(_RECENT) - _RECENT_LIMIT]
         _say_where_the_time_went(receipt)
+
+
+#: Spans of work, each measured by what did it, against spans of waiting around work: queue and delivery.
+_WORK = frozenset({"prefill", "decode", "tool", "retrieval"})
+_AROUND_WORK = frozenset({"queue", "delivery"})
+
+
+def _net_of_work(receipt: TurnReceipt) -> None:
+    """Queue and delivery without the work done inside them, which is already counted under its own name.
+
+    LIVE 11 November 2026, two typed turns: her gate's queue ran from its entry to her cortex's call and held a read
+    of her local corpus and a one-token generation, and delivery held the generation that repaired her reply; each
+    was also recorded as prefill and decode, so the second turn's parts added up past its 52 s.
+    """
+    work = sorted((began, ended) for name, began, ended in receipt.spans if name in _WORK and ended > began)
+    merged: list[list[float]] = []
+    for began, ended in work:
+        if merged and began <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], ended)
+        else:
+            merged.append([began, ended])
+    for name in _AROUND_WORK:
+        around = [(began, ended) for kind, began, ended in receipt.spans if kind == name and ended > began]
+        if not around or name not in receipt.latency_s:
+            continue
+        inside = sum(max(0.0, min(ended, w_end) - max(began, w_began))
+                     for began, ended in around for w_began, w_end in merged)
+        receipt.latency_s[name] = max(0.0, receipt.latency_s[name] - inside)
 
 
 def _say_where_the_time_went(receipt: TurnReceipt) -> None:
@@ -230,7 +263,7 @@ def record_response_path(path: str, *, model_generation: bool) -> None:
 LATENCY_COMPONENTS = frozenset({"queue", "retrieval", "prefill", "decode", "tool", "delivery"})
 
 
-def record_latency(component: str, seconds: float) -> None:
+def record_latency(component: str, seconds: float, *, ended_at: float | None = None) -> None:
     """Add a measured span to this turn's latency, by the thing that measured it.
 
     R11 asked for prefill, decode, tool, retrieval and queue measured
@@ -254,6 +287,8 @@ def record_latency(component: str, seconds: float) -> None:
         return  # work that outlives its turn is not the turn's time
     receipt.latency_s[name] = receipt.latency_s.get(name, 0.0) + span
     receipt.latency_samples[name] = receipt.latency_samples.get(name, 0) + 1
+    ended = time.time() if ended_at is None else float(ended_at)  # a span is recorded as it ends, unless told
+    receipt.spans.append((name, ended - span, ended))
 
 
 def record_model_generation() -> None:

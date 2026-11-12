@@ -31,12 +31,15 @@ def test_the_five_components_and_delivery_are_the_whole_vocabulary() -> None:
 
 
 def test_each_component_is_recorded_by_name_and_accumulates() -> None:
+    import time
+
+    now = time.time()
     with recording_turn("t1", phases_available=("a",)) as receipt:
+        record_latency("queue", 0.8, ended_at=now - 40.0)  # the wait came before the work
         record_latency("prefill", 15.66)
         record_latency("decode", 20.22)
         record_latency("tool", 1.5)
         record_latency("tool", 2.5)
-        record_latency("queue", 0.8)
     as_dict = receipt.as_dict()
     assert as_dict["latency_s"] == {"prefill": 15.66, "decode": 20.22, "tool": 4.0, "queue": 0.8}
     assert as_dict["latency_samples"]["tool"] == 2
@@ -104,12 +107,14 @@ def test_the_split_can_be_read_from_outside_the_process() -> None:
     )
 
     reset_turn_receipts_for_test()
+    import time
+
     with recording_turn("turn-a", phases_available=["P"]):
-        record_latency("queue", 0.5)
+        record_latency("queue", 0.5, ended_at=time.time() - 10.0)  # waits before the work they wait for
         record_latency("retrieval", 1.0)
         record_latency("prefill", 2.0)
     with recording_turn("turn-b", phases_available=["P"]):
-        record_latency("queue", 1.5)
+        record_latency("queue", 1.5, ended_at=time.time() - 10.0)
         record_latency("decode", 4.0)
 
     said = latency_by_component()
@@ -238,7 +243,7 @@ async def test_the_wait_for_her_model_is_the_turns_queue(monkeypatch) -> None:
     from interface.routes import chat_foreground_lane
 
     class _Gate:
-        async def ensure_foreground_ready(self, timeout):
+        async def ensure_foreground_ready(self, timeout):  # noqa: ASYNC109 - the gate's own signature
             await asyncio.sleep(0.05)
             return {"conversation_ready": True}
 
@@ -273,3 +278,22 @@ def test_a_generation_that_never_finished_still_says_what_it_cost() -> None:
     with recording_turn("t-measured", phases_available=()) as receipt:
         _RecordsWhatTheWorkerDid._record_an_unfinished_generations_time(measured, "r3")
     assert receipt.latency_s == {}, "a finished generation's worker already said it, once"
+
+
+
+def test_work_inside_a_wait_is_counted_once_under_its_own_name() -> None:
+    """LIVE 11 November 2026, two typed turns: her gate's queue held a read of her local corpus and a one-token
+    generation, and delivery held the generation that repaired her reply; each was also recorded as prefill and
+    decode, so the second turn's parts added up past its 52 s."""
+    import time
+
+    now = time.time()
+    with recording_turn("t-overlap", phases_available=()) as receipt:
+        record_latency("queue", 3.31, ended_at=now - 20.0)  # entry to the cortex's call
+        record_latency("retrieval", 1.2, ended_at=now - 21.0)  # the corpus read inside it
+        record_latency("prefill", 0.4, ended_at=now - 20.4)  # the one-token pass inside it
+        record_latency("decode", 0.1, ended_at=now - 20.3)
+        record_latency("prefill", 7.0, ended_at=now - 6.0)
+        record_latency("decode", 6.0, ended_at=now)
+    assert receipt.latency_s["queue"] == pytest.approx(3.31 - 1.2 - 0.4 - 0.1, abs=0.01)
+    assert receipt.latency_s["prefill"] == pytest.approx(7.4) and receipt.latency_s["retrieval"] == 1.2

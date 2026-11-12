@@ -100,10 +100,11 @@ class _RecordsWhatTheWorkerDid:
                 try:
                     from core.verify.turn_receipt import record_latency
 
+                    decoded_at = time.time()  # the response arrives as decoding ends; prefill ended before decode began
                     if exact_prefill is not None:
-                        record_latency("prefill", exact_prefill)
+                        record_latency("prefill", exact_prefill, ended_at=decoded_at - (exact_decode or 0.0))
                     if exact_decode is not None:
-                        record_latency("decode", exact_decode)
+                        record_latency("decode", exact_decode, ended_at=decoded_at)
                     self._latency_recorded_request = str(getattr(self, "_current_request_id", "") or "")
                 except (ImportError, ValueError) as exc:
                     logger.debug("Turn latency not recorded: %s", exc)
@@ -215,9 +216,9 @@ class _RecordsWhatTheWorkerDid:
         try:
             from core.verify.turn_receipt import record_latency
 
-            record_latency("prefill", (first or now) - started)
+            record_latency("prefill", (first or now) - started, ended_at=first or now)
             if first:
-                record_latency("decode", now - first)
+                record_latency("decode", now - first, ended_at=now)
         except (ImportError, ValueError) as exc:
             logger.debug("An unfinished generation's time was not recorded: %s", exc)
 
