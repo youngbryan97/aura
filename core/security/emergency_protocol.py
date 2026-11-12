@@ -351,7 +351,6 @@ class EmergencyProtocol:
         """
         try:
             vault_dir = self._get_vault_path()
-            vault_dir.mkdir(parents=True, exist_ok=True)
 
             state = self._collect_state()
             key = self._derive_encryption_key()

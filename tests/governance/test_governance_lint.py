@@ -489,3 +489,45 @@ def test_storage_migrations_are_canonical_file_gateway_owners() -> None:
 
     assert all(_canonical_owner("file_write_gateway", path) for path in migrated)
     assert not any(_canonical_owner("raw_file_mutation", path) for path in migrated)
+
+
+def test_a_shared_memory_segment_freed_is_not_a_file_mutation():
+    """`SharedMemory.unlink()` frees a segment and touches no file. The scanner counted it as a raw file mutation
+    (core/brain/llm/speech_hold.py, 11 November 2026), and a Path's unlink beside it still counts."""
+    tree = ast.parse(textwrap.dedent('''
+        from multiprocessing import shared_memory
+        from pathlib import Path
+
+        class Hold:
+            def __init__(self):
+                self._memory = shared_memory.SharedMemory(create=True, size=8)
+
+            def close(self):
+                self._memory.close()
+                self._memory.unlink()
+                Path("/tmp/x").unlink()
+    '''))
+    buckets = _scan_tree_scoped(tree, "core/synthetic.py")
+    unlinks = {key[3]: count for key, count in buckets.items() if key[0] == "raw_file_mutation"}
+    assert all("_memory" not in callee for callee in unlinks)
+    assert sum(unlinks.values()) == 1
+
+
+def test_a_name_also_bound_to_a_file_backed_segment_still_counts():
+    """core/bus/shared_mem_bus.py binds `self.shm` to a SharedMemory in one place and to a file-backed segment, whose
+    unlink deletes a file, in another: its unlink is not known to free only memory, so it counts."""
+    tree = ast.parse(textwrap.dedent('''
+        from multiprocessing import shared_memory
+
+        class Transport:
+            def open(self):
+                self.shm = shared_memory.SharedMemory(name="a", create=True, size=8)
+
+            def open_file(self, path):
+                self.shm = _FileBackedSegment(path)
+
+            def close(self):
+                self.shm.unlink()
+    '''))
+    buckets = _scan_tree_scoped(tree, "core/synthetic.py")
+    assert sum(count for key, count in buckets.items() if key[0] == "raw_file_mutation") == 1

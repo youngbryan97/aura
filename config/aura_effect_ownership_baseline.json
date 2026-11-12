@@ -809,7 +809,7 @@
       "scope": "<module>.ContinuousExperienceStream._save_now"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -11641,14 +11641,6 @@
       "scope": "<module>.transplant_model_dirs_streaming"
     },
     {
-      "callee": "data_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/preference_trainer.py",
-      "scope": "<module>.export_preference_splits"
-    },
-    {
       "callee": "self.ledger_path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -12778,14 +12770,6 @@
     },
     {
       "callee": "manifest.path.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/reaper.py",
-      "scope": "<module>._execute_cleanup"
-    },
-    {
-      "callee": "segment.unlink",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
@@ -14201,14 +14185,6 @@
       "scope": "<module>.EmergencyProtocol._rotate_vault_snapshots"
     },
     {
-      "callee": "vault_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/security/emergency_protocol.py",
-      "scope": "<module>.EmergencyProtocol._take_encrypted_snapshot"
-    },
-    {
       "callee": "os.chmod",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -15415,6 +15391,14 @@
       "count": 1,
       "path": "core/voice/duplex/original_speech.py",
       "scope": "<module>.OriginalSpeech.load"
+    },
+    {
+      "callee": "subprocess.Popen",
+      "canonical_owner": false,
+      "category": "raw_subprocess",
+      "count": 1,
+      "path": "core/voice/duplex/parakeet_process.py",
+      "scope": "<module>.ParakeetProcess.start"
     },
     {
       "callee": "gateway.mutate",
@@ -17578,6 +17562,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "f591b4b63fa78aa67a7f91ead425f66dac24e35126fe0399d00994f7ef8c4d20",
+  "inventory_sha256": "bf5897ba03dc44ce2c25affaf3d221a2fb69c9c78d5bf3d725a27f5e1190ef28",
   "schema_version": 1
 }

@@ -97,7 +97,6 @@ def export_preference_splits(rows: list[dict[str, str]], data_dir: Path) -> dict
     """Write ``train/valid/test.jsonl`` preference splits without duplicating rows."""
     if not rows:
         raise ValueError("cannot export empty preference dataset")
-    data_dir.mkdir(parents=True, exist_ok=True)
 
     cleaned: list[dict[str, str]] = []
     seen: set[str] = set()

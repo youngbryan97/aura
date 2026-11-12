@@ -88,8 +88,14 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: program she builds or changes and the stand-ins' trial files: 781 and
 #: 2,072. Then six skills' folders a gateway write after them makes anyway,
 #: and four of their deletes and writes onto the gateway: 770 and 2,065.
-TOTAL_CEILING = 2065
-RAW_CEILING = 770
+#: 11 November, her voice work added her recognizer's process (an MLX
+#: child, owed to spawn_async with its lane) and her speech hold's
+#: segment freed: 772. The scanner stopped counting `.unlink()` on a name
+#: bound only to a SharedMemory, which frees memory and touches no file,
+#: and two folders an atomic writer after them makes anyway came out:
+#: 768 and 2,063.
+TOTAL_CEILING = 2063
+RAW_CEILING = 768
 
 
 def _split() -> tuple[int, int]:

@@ -593,6 +593,7 @@ class EffectVisitor(ast.NodeVisitor):
         self.scope_parts: list[str] = ["<module>"]
         self.calls: list[tuple[str, str, int]] = []
         self.local_functions: set[str] = set()
+        self.shared_memory_names: set[str] = set()
 
     def visit_Module(self, node: ast.Module) -> None:
         # A local serializer named write_text is not Path.write_text. Its body
@@ -618,6 +619,26 @@ class EffectVisitor(ast.NodeVisitor):
         self.local_functions = {
             name for name in definitions if definitions.count(name) == 1
         } - shadowed
+        # A name bound to a multiprocessing SharedMemory segment anywhere in
+        # the module: its `.unlink()` frees the segment and touches no file
+        # (core/brain/llm/speech_hold.py, 11 November 2026). Collected before
+        # the methods are visited, because a class binds `self.X` in one
+        # method and unlinks it in another.
+        # A name bound to anything else as well (a file-backed segment, a
+        # lookup that may miss) is not known to be one, and still counts.
+        bound_otherwise: set[str] = set()
+        for child in ast.walk(node):
+            if not isinstance(child, ast.Assign):
+                continue
+            names = {ast.unparse(target) for target in child.targets}
+            if (
+                isinstance(child.value, ast.Call)
+                and ast.unparse(child.value.func).rsplit(".", 1)[-1] == "SharedMemory"
+            ):
+                self.shared_memory_names.update(names)
+            else:
+                bound_otherwise.update(names)
+        self.shared_memory_names -= bound_otherwise
         self.generic_visit(node)
 
     @property
@@ -799,6 +820,12 @@ class EffectVisitor(ast.NodeVisitor):
             return "raw_file_mutation"
         if method in _PATH_MUTATION_METHODS:
             if isinstance(node.func, ast.Name) and node.func.id in self.local_functions:
+                return None
+            if (
+                method == "unlink"
+                and isinstance(node.func, ast.Attribute)
+                and ast.unparse(node.func.value) in self.shared_memory_names
+            ):
                 return None
             return "raw_file_mutation"
         if (
