@@ -4220,6 +4220,37 @@ async def api_system_memory_growth(request: Request, top: int = 25):
         )
 
 
+@router.get("/system/modules-that-ran", tags=["health"])
+async def api_system_modules_that_ran(request: Request):
+    """Which core.consciousness functions have run since launch (Master Todo F12).
+
+    Requires a launch with AURA_MODULE_ACTIVITY=1. Each module's functions,
+    how many ran, and when each first did, by sys.monitoring at almost no cost
+    (core/observability/which_modules_run.py).
+    """
+    try:
+        from core.observability.which_modules_run import get_module_activity
+
+        activity = get_module_activity()
+        if activity is None:
+            return JSONResponse(
+                {"available": False, "reason": "launch with AURA_MODULE_ACTIVITY=1"},
+                status_code=200,
+            )
+        report = await asyncio.to_thread(activity.report)
+        return JSONResponse(_json_safe(report))
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "system",
+            exc,
+            action="returned unavailable module-activity report",
+        )
+        return JSONResponse(
+            {"available": False, "reason": "module_activity_failed"},
+            status_code=200,
+        )
+
+
 @router.get("/system/learning", tags=["health"])
 async def api_system_learning(request: Request):
     """The weight-learning stack's live state, receipts included.

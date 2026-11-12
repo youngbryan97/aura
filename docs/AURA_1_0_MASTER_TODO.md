@@ -5182,6 +5182,19 @@ needs her 27B free (her app down, or her app's own influence trials).
 - [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
   the 512-unit substrate (d9fdc1660). Left: each module driving what she does
   or says, measured by lesion. Lane: no.
+  11 November 2026. The question is the one an outside audit put to another
+  architecture's modules, "real computation or merely naming?"
+  (arXiv:2610.41604), whose Section 8 found a real fault in her phi core
+  (fixed, see L08). A lesion means nothing for a module that never runs, and
+  imports cannot say which do: of the 170 modules in `core/consciousness`,
+  71 are imported by nothing outside the package, among them `phi_core`,
+  which the package registers itself and her runtime calls every tick. The
+  first measure is therefore which of them run in a live session:
+  `core/observability/which_modules_run.py` watches their functions with
+  `sys.monitoring` (a start event per function, turned off after its first
+  call), on a launch with `AURA_MODULE_ACTIVITY=1`, and
+  `/api/system/modules-that-ran` reports each module's functions, which ran,
+  and when. Then lesions, on what runs.
 
 ## Live session 2026-09-07: what the runtime showed
 

@@ -160,6 +160,13 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # tissue, or learning identities.
 bind_runtime_source_snapshot(PROJECT_ROOT)
 
+# Master Todo F12: which consciousness functions run in this session, when the
+# launch asks for it (AURA_MODULE_ACTIVITY=1; core/observability/which_modules_run.py).
+with contextlib.suppress(ImportError):
+    from core.observability.which_modules_run import start_if_asked as _watch_which_modules_run
+
+    _watch_which_modules_run()
+
 def _env_flag(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None:
