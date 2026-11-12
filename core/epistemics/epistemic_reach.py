@@ -450,9 +450,11 @@ class EpistemicReachEngine:
         policy = getattr(gateway, "policy", None)
         candidates = list(self._sources)
         if self._searched:
+            from core.epistemics.cited_sources import cited_sources
             from core.epistemics.searched_sources import searched_sources
 
-            candidates += searched_sources(policy)
+            # What the article cites, read where it is published, before engines that turn a program away (L10).
+            candidates += cited_sources(policy) + searched_sources(policy)
         return [s for s in candidates if s.is_permitted(policy)]
 
     def dormant_reason(self) -> str:
