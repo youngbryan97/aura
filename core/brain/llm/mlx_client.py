@@ -3082,6 +3082,13 @@ def _apply_memory_pressure_generation_controls(
         # `<script type=`, because a 4096-token default had been scaled to 970
         # — a fair size for prose and half a page.
         effective_cap = max(pressure_cap, requested_max_tokens)
+    elif options.get("schema") is not None and pressure_cap >= 192:
+        # An answer held to a schema is the same: a JSON object cut before it closes is not a shorter answer, it is no
+        # answer, and the worker retries it. LIVE 11 November 2026, one request to read r/nosleep: seven of her
+        # browser's structured answers were cut mid-JSON at the warning band's 384 tokens, the first of them asked
+        # 1,044. A cut reading of a page keeps only the fields that finished, and what she chose to do there is
+        # dropped. The critical and emergency caps stand.
+        effective_cap = max(pressure_cap, requested_max_tokens)
     elif _offered_for_budgeting(options):
         # A tool call is an execution turn, and the paragraph above applies to
         # it word for word: clamped below the size of a call, she cannot

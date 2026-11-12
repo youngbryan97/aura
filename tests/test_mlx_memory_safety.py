@@ -4,6 +4,7 @@ import json
 import time
 from types import SimpleNamespace
 
+import pytest
 from mlx_source import worker_source
 
 
@@ -2586,3 +2587,24 @@ def test_the_hard_reclaim_pulls_the_ladder_before_terminating_workers():
         f"caches must be shed before workers are killed, got {calls}"
     )
     assert "kill" in calls
+
+
+@pytest.mark.parametrize("cap, expected", [(384, 1044), (192, 1044), (64, 64), (32, 32)])
+def test_an_answer_held_to_a_schema_keeps_its_size_until_pressure_is_critical(cap, expected):
+    """LIVE 11 November 2026: her browser's readings of pages, asked 1,044 tokens, were cut mid-JSON at 384."""
+    from core.brain.llm.mlx_client import _apply_memory_pressure_generation_controls
+
+    controlled = _apply_memory_pressure_generation_controls(
+        {"max_tokens": 1044, "schema": {"type": "object", "properties": {"here": {"type": "string"}}}},
+        SimpleNamespace(max_token_cap=cap),
+    )
+
+    assert controlled["max_tokens"] == expected
+
+
+def test_prose_under_the_same_pressure_is_still_capped():
+    from core.brain.llm.mlx_client import _apply_memory_pressure_generation_controls
+
+    controlled = _apply_memory_pressure_generation_controls({"max_tokens": 1044}, SimpleNamespace(max_token_cap=384))
+
+    assert controlled["max_tokens"] == 384
