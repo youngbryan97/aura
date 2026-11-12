@@ -9,8 +9,11 @@ detour for want of it.
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
 import marshal
 import pathlib
+import py_compile
 
 import core.runtime.loaded_source_drift as loaded_source_drift
 from core.runtime.dynamic_execution_gateway import DynamicExecutionGateway
@@ -96,11 +99,35 @@ def test_assertion_rewritten_test_modules_are_not_runtime_drift_inputs():
     assert not any(name.startswith("tests.") for name, _source, _cache in loaded)
 
 
+@contextlib.contextmanager
+def _compiled_as_the_interpreter_would(path: pathlib.Path):
+    """The module's bytecode cache, written as an import writes it, where this process writes none.
+
+    With PYTHONDONTWRITEBYTECODE set (this host's shell sets it) no cache exists, the scanner reports the module
+    unknown rather than stale, and the edit below could not be seen at all: the test failed by the host, not by the
+    code. A cache it writes is removed afterwards.
+    """
+    cache = pathlib.Path(importlib.util.cache_from_source(str(path)))
+    made = not cache.exists()
+    if made:
+        py_compile.compile(str(path), cfile=str(cache), doraise=True)
+    try:
+        yield
+    finally:
+        if made:
+            cache.unlink(missing_ok=True)
+
+
 def test_a_real_edit_is_detected_and_clears():
     import core.conversation.screen_reading_claim as module
 
     path = pathlib.Path(module.__file__)
     original = path.read_bytes()
+    with _compiled_as_the_interpreter_would(path):
+        _an_edit_is_seen_and_clears(path, original)
+
+
+def _an_edit_is_seen_and_clears(path: pathlib.Path, original: bytes) -> None:
     try:
         path.write_bytes(original + b"\n_DRIFT_PROBE = 1\n")
         report = scan_drift()
@@ -121,12 +148,16 @@ def test_cosmetic_rewrites_do_not_cry_stale():
 
     path = pathlib.Path(module.__file__)
     original = path.read_bytes()
-    try:
-        for rewrite in (original, original + b"\n\n", original + b"\n# a comment\n"):
-            path.write_bytes(rewrite)
-            assert not scan_drift().is_stale, rewrite[-20:]
-    finally:
-        path.write_bytes(original)
+    with _compiled_as_the_interpreter_would(path):
+        try:
+            for rewrite in (original, original + b"\n\n", original + b"\n# a comment\n"):
+                path.write_bytes(rewrite)
+                report = scan_drift()
+                # Measured, not merely unmeasurable: a module the scanner cannot read is never a clean one.
+                assert "core.conversation.screen_reading_claim" not in report.unknown
+                assert not report.is_stale, rewrite[-20:]
+        finally:
+            path.write_bytes(original)
 
 
 def test_dependencies_are_not_project_source():
