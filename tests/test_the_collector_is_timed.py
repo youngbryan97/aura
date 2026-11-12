@@ -46,3 +46,13 @@ def test_uninstalling_stops_timing():
     collector_pauses.uninstall_collector_timing()
     gc.collect(0)
     assert collector_pauses.collector_pauses()["generations"] == {}
+
+
+def test_what_boot_made_is_frozen_out_of_later_collections():
+    """LIVE 2026-11-12: 269 full collections in three hours, median 0.4 s, worst 2.7 s, each holding the GIL."""
+    keep = [object() for _ in range(10)]  # noqa: F841 - lives through the freeze
+    try:
+        frozen = collector_pauses.freeze_what_boot_made()
+        assert frozen == gc.get_freeze_count() > 0
+    finally:
+        gc.unfreeze()

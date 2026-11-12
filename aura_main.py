@@ -1194,6 +1194,10 @@ async def _boot_runtime_orchestrator(
     ServiceContainer.lock_registration()
     _enforce_service_manifest(ready_label)
     _mark_runtime_boot_phase("registry_and_service_manifest")
+    # Everything boot made lives as long as she does; later full collections walk only what came after.
+    from core.runtime.collector_pauses import freeze_what_boot_made
+
+    freeze_what_boot_made()
     try:
         ownership_root = (
             PROJECT_ROOT

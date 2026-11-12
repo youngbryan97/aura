@@ -21,7 +21,7 @@ from typing import Any
 from core.runtime.lockdep import LOOP_BLOCKING_HOLD_S
 from core.runtime.which_thread_may_do_this import the_loop_thread
 
-__all__ = ["collector_pauses", "install_collector_timing", "uninstall_collector_timing"]
+__all__ = ["collector_pauses", "freeze_what_boot_made", "install_collector_timing", "uninstall_collector_timing"]
 
 logger = logging.getLogger("Aura.CollectorPauses")
 
@@ -88,3 +88,21 @@ def collector_pauses() -> dict[str, Any]:
             for generation, row in sorted(_BY_GENERATION.items())
         },
     }
+
+
+def freeze_what_boot_made() -> int:
+    """Leave everything her boot made out of every later collection; how many objects that is.
+
+    LIVE 12 November 2026, three hours of her runtime timed by this module: 269 full (generation-2) collections, a
+    median of about 0.4 s each and the worst 2.7 s, every one of them holding the interpreter lock, so her event loop
+    stood still for each one wherever it ran, every 40 s or so. A full collection walks every container object the
+    process holds, and almost all of hers were made at boot and live until it exits: services, registries, tables,
+    loaded modules. Collected once and then frozen (gc.freeze), they sit in the permanent generation, and a later full
+    collection walks only what was made since. What was frozen is not collected again: a cycle among boot objects that
+    becomes garbage later stays, which for objects that live as long as the process is no loss.
+    """
+    gc.collect()
+    gc.freeze()
+    frozen = gc.get_freeze_count()
+    logger.info("🗑️ %d objects made during boot are frozen out of every later collection", frozen)
+    return frozen
