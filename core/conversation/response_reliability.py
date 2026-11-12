@@ -8274,8 +8274,8 @@ from .response_surface_checks import (  # noqa: E402,F401  (re-exported for call
     _is_code_response,
     _is_promise_without_answer,
     _is_structured_payload,
-    _only_says_she_is_there_and_will_answer,
     _looks_like_code_body,
     _looks_like_structured_output,
+    _only_says_she_is_there_and_will_answer,
     _terminal_word_is_a_unit,
 )
