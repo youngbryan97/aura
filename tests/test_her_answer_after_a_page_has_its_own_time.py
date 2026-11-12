@@ -57,3 +57,12 @@ def test_a_run_that_did_not_hand_her_a_page_leaves_the_clock_where_it_was(monkey
     state = {"attempted": False, "result": None, "answer_clock": {"from": started}}
     _run(state, monkeypatch, "desktop_objective_completed")
     assert state["answer_clock"]["from"] == started
+
+
+def test_once_the_page_is_hers_a_later_door_has_nothing_to_serve_over_her_reply(monkeypatch):
+    """LIVE 12 November 2026: her model answered from r/nosleep, and the door after her reply served the first run's
+    empty response, so her chat showed nothing."""
+    state = {"attempted": False, "result": None, "answer_clock": {"from": 0.0}}
+    runs, (first, second) = _run(state, monkeypatch, "desktop_objective_page_read")
+    assert runs == ["look at r/nosleep"]
+    assert first["status"] == "desktop_objective_page_read" and second is None

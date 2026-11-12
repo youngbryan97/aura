@@ -69,7 +69,11 @@ async def _lifted_run_desktop_objective_tracked(
     # worked through was handed to her turn, the turn found no time to answer, and a second pursuit of the same
     # request went back to Reddit and was served instead. A later door is given the first run's result.
     if isinstance(_desktop_exec_state.get("executed"), dict):
-        return _desktop_exec_state["executed"]
+        first = _desktop_exec_state["executed"]
+        # Except a run that handed her turn the page it ended on: that run's part is done and the reply is hers, so a
+        # later door is given nothing to serve. LIVE 12 November 2026 her model answered from the page, 217 tokens,
+        # and the door after her reply served the first run's empty response over it.
+        return None if first.get("status") == "desktop_objective_page_read" else first
     _desktop_exec_state["attempted"] = True
     executed = await _chat_desktop_objective._execute_desktop_objective_from_chat(
         message, cognitive_reply=cognitive_reply, her_reply_first=her_reply_first
