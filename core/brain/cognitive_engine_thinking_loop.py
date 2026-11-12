@@ -959,7 +959,7 @@ class _RunsTheThinkingLoop:
         # suppressed user append leaves one sitting at the end, and extraction
         # checked only `role == "assistant"`, so the previous answer went out
         # again as this one's.
-        turn_memory_mark = len(getattr(state.cognition, "working_memory", []) or [])
+        turn_memory_mark, turn_began_at = len(getattr(state.cognition, "working_memory", []) or []), time.time()
         # What this turn changed, so a rebase can restore only that. Restoring
         # everything from the per-turn snapshot overwrote whatever a concurrent
         # writer had done to goals, initiatives, focus and modifiers.
@@ -1156,7 +1156,7 @@ class _RunsTheThinkingLoop:
 
         # 6. Extract Response
         last_msg = self._turn_response_message(
-            state.cognition.working_memory, mark=turn_memory_mark
+            state.cognition.working_memory, mark=turn_memory_mark, since=turn_began_at
         )
         # What the turn was worth to her, and what was in it. Chat is served by
         # this loop and almost never by the kernel tick, and the reading lived

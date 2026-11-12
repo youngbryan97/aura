@@ -1685,6 +1685,9 @@ def _note_refused_thought(origin: str, reason: str) -> None:
     )
 
 
+from core.brain.this_turns_reply import this_turns_reply  # noqa: E402
+
+
 class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsItsAugmentors):
     """
     Cognitive Engine facade.
@@ -1818,26 +1821,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
             if after != before:
                 setattr(target, field, after)
 
-    @staticmethod
-    def _turn_response_message(
-        working_memory: Any, *, mark: int
-    ) -> dict[str, Any] | None:
-        """The assistant message THIS turn produced, or None.
-
-        Extraction used to take the last message if its role was "assistant".
-        A duplicate or suppressed user append leaves an older assistant message
-        at the end of working memory, and that previous answer went out again
-        as this turn's — correct-looking, addressed to the wrong question.
-        """
-        memory = list(working_memory or [])
-        if len(memory) <= max(0, int(mark)):
-            return None
-        last = memory[-1]
-        if not isinstance(last, dict):
-            return None
-        if str(last.get("role", "") or "").strip().lower() != "assistant":
-            return None
-        return last
+    _turn_response_message = staticmethod(this_turns_reply)
 
     @staticmethod
     def _cycle_confidence(*, commit_outcome: str, degraded_subsystems: int) -> float:

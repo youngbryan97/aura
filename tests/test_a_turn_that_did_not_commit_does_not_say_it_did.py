@@ -1343,3 +1343,28 @@ async def test_the_persistence_receipt_carries_purpose_and_sensitivity():
 
     assert receipt["purpose"] == "conversation_continuity"
     assert receipt["sensitivity"] == "ordinary_conversation"
+
+
+def test_a_reply_this_turn_made_is_found_after_working_memory_was_pruned():
+    """LIVE to 2026-11-12: 84 of ~2,600 cycles ended on a new reply with working memory no longer than before."""
+    began = 1_000.0
+    memory = [
+        {"role": "user", "content": "old", "timestamp": 900.0},
+        {"role": "thought", "content": "a stale thought", "timestamp": 950.0},
+        {"role": "assistant", "content": "old answer", "timestamp": 960.0},
+    ]
+    mark = len(memory)
+    memory.pop(1)  # pruned while the turn ran
+    memory.append({"role": "assistant", "content": "this answer", "timestamp": 1_001.0})
+
+    found = CognitiveEngine._turn_response_message(memory, mark=mark, since=began)
+
+    assert found is not None and found["content"] == "this answer"
+
+
+def test_an_earlier_reply_is_not_this_turns_answer_after_pruning_either():
+    memory = [
+        {"role": "user", "content": "old", "timestamp": 900.0},
+        {"role": "assistant", "content": "old answer", "timestamp": 960.0},
+    ]
+    assert CognitiveEngine._turn_response_message(memory, mark=len(memory), since=1_000.0) is None
