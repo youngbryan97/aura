@@ -139,7 +139,7 @@ def test_her_level_is_what_her_finished_sentences_needed():
 def test_a_cut_off_sentence_stops_her_worker_and_still_reads_its_last_message(monkeypatch):
     engine = OriginalSpeech(Path('/unused'), Path(__file__))
     writes = []
-    engine.process = SimpleNamespace(stdin=SimpleNamespace(write=writes.append))
+    engine.process = SimpleNamespace(stdin=SimpleNamespace(write=writes.append), poll=lambda: None)
     piece = base64.b64encode(np.ones(240, '<f4').tobytes()).decode()
     replies = iter([{'audio': piece, 'sample_rate': 24000, 'more': True},
                     {'audio': piece, 'sample_rate': 24000, 'more': True},

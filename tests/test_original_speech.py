@@ -39,10 +39,10 @@ def test_worker_is_reaped_before_memory_ownership_is_released():
 def test_timed_out_audio_cannot_become_the_next_sentence(monkeypatch):
     engine = OriginalSpeech(Path('/unused'), Path(__file__))
     writes, closed = [], []
-    engine.process = SimpleNamespace(stdin=SimpleNamespace(write=writes.append))
+    engine.process = SimpleNamespace(stdin=SimpleNamespace(write=writes.append), poll=lambda: None)
     def timeout(_):
         raise TimeoutError('no response')
-    def close():
+    def close(**_):
         closed.append(True)
         engine.process = None
     monkeypatch.setattr(engine, '_receive', timeout)
@@ -218,3 +218,42 @@ async def test_original_audio_reaches_the_production_mask(monkeypatch):
         assert result.samples.shape == samples.shape
         assert not np.array_equal(result.samples,samples)
     finally: tts.shutdown()
+
+
+class _Worker:
+    def __init__(self, alive=True):
+        self.alive, self.stdout = alive, None
+        self.stdin = SimpleNamespace(write=lambda data: None, close=lambda: None)
+
+    def poll(self):
+        return None if self.alive else -9
+
+    def terminate(self):
+        self.alive = False
+
+    def wait(self, timeout=None):
+        return -15
+
+
+def test_a_worker_that_died_mid_session_is_started_again_for_her_next_sentence(monkeypatch):
+    """A worker killed or timed out mid-session left her mute until her voice mode was closed and opened again."""
+    engine = OriginalSpeech(Path('/unused'), Path(__file__))
+    started = []
+    def load():
+        started.append(True)
+        engine.process = _Worker()
+        engine._loaded_once = True
+        return True
+    monkeypatch.setattr(engine, 'load', load)
+    monkeypatch.setattr(engine, '_receive', lambda _: {'audio': '', 'sample_rate': 24000})
+    with pytest.raises(RuntimeError, match='not loaded'):
+        engine.synthesize('Before her first load.', ProsodySpec(voice='aura_kiwi'))
+    assert not started
+    load()
+    engine.process.alive = False  # killed
+    engine.synthesize('Next sentence.', ProsodySpec(voice='aura_kiwi'))
+    assert len(started) == 2 and engine.process.alive
+    engine.close()  # her voice mode closed: never started again after that
+    with pytest.raises(RuntimeError, match='not loaded'):
+        engine.synthesize('After close.', ProsodySpec(voice='aura_kiwi'))
+    assert len(started) == 2

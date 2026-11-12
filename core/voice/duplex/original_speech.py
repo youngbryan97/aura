@@ -32,6 +32,26 @@ class OriginalSpeech:
         self.streams = False  # her worker sends a sentence in pieces as it forms (her_speech_as_it_forms.py)
         self._buffer = bytearray()
         self._lock = checked_lock("voice.tts.reference_worker", rank=LockRank.LEAF)
+        self._loaded_once = self._retired = False
+
+    def _worker(self) -> subprocess.Popen:
+        """Her worker for the next request, started again if it died or was stopped since it was loaded.
+
+        A worker stopped by a timeout or killed under memory pressure left her mute until her voice mode was closed
+        and opened again; now the next sentence waits for a new one. Never before her first load, never after close.
+        """
+        process = self.process
+        if process is not None and process.stdin is not None and process.poll() is None:
+            return process
+        if not self._loaded_once or self._retired:
+            raise RuntimeError("Original speech worker is not loaded")
+        self.close(for_good=False)
+        started = time.monotonic()
+        logger.warning("🗣️ her voice worker stopped mid-session; starting a new one")
+        if not self.load() or self.process is None:
+            raise RuntimeError("Original speech worker is not loaded and did not start again")
+        logger.info("🗣️ her voice worker is back after %.1f s", time.monotonic() - started)
+        return self.process
 
     def _receive(self, timeout: float) -> dict[str, Any]:
         assert self.process is not None and self.process.stdout is not None
@@ -96,25 +116,25 @@ class OriginalSpeech:
                 raise RuntimeError("Original speech worker did not become ready")
             self.streams = ready.get("streams") is True
             self.voices = frozenset({voice_id})
+            self._loaded_once = True
             return True
         except (OSError, RuntimeError, ValueError, KeyError, TypeError) as exc:
             logger.warning("Original speech unavailable: %s", exc)
-            self.close()
+            self.close(for_good=False)
             return False
 
     def synthesize(self, text: str, spec: Any) -> tuple[np.ndarray, int]:
         # Backchannels and replies share this pipe. A request must receive its
         # own audio before the next request can use the worker.
         with self._lock:
-            if self.process is None or self.process.stdin is None:
-                raise RuntimeError("Original speech worker is not loaded")
+            process = self._worker()
             request = json.dumps({"text": text, "speed": float(spec.speed)}) + "\n"
             try:
-                self.process.stdin.write(request.encode())
+                process.stdin.write(request.encode())
                 result = self._receive(45)
             except (OSError, RuntimeError, ValueError):
                 # A timed-out response cannot become the next sentence.
-                self.close()
+                self.close(for_good=False)
                 raise
         audio = np.frombuffer(base64.b64decode(result["audio"], validate=True), dtype="<f4").copy()
         if not np.isfinite(audio).all():
@@ -130,16 +150,15 @@ class OriginalSpeech:
         off) the worker is told to stop making the sentence, and its last message is still read.
         """
         with self._lock:
-            if self.process is None or self.process.stdin is None:
-                raise RuntimeError("Original speech worker is not loaded")
+            process = self._worker()
             request = json.dumps({"text": text, "speed": float(spec.speed), "stream": True,
                                   "behind": bool(behind)}) + "\n"
             try:
-                self.process.stdin.write(request.encode())
+                process.stdin.write(request.encode())
                 more, asked_to_stop = True, False
                 while more:
                     if not asked_to_stop and stopped is not None and stopped():
-                        self.process.stdin.write(b'{"stop": true}\n')
+                        process.stdin.write(b'{"stop": true}\n')
                         asked_to_stop = True
                     result = self._receive(45)
                     more = result.get("more") is True
@@ -150,10 +169,11 @@ class OriginalSpeech:
                         raise ValueError("Original speech returned nonfinite audio")
                     deliver(audio, int(result["sample_rate"]), more)
             except (OSError, RuntimeError, ValueError, KeyError, TypeError):
-                self.close()
+                self.close(for_good=False)
                 raise
 
-    def close(self) -> None:
+    def close(self, *, for_good: bool = True) -> None:
+        self._retired = self._retired or for_good
         process, self.process = self.process, None
         if process is None:
             return
