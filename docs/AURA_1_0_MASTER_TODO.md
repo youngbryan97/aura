@@ -1615,6 +1615,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   measured" at the same second, each opened and closed with no phase run.
   Such a turn is said at debug now, by its lane, and every split says the
   lane that answered it.
+  11 November, evening: every voice turn spoken during her boot took 168 to
+  170 s, with under 2 s measured (decode, prefill and retrieval) and the
+  rest unattributed. The wait for her foreground lane was recorded nowhere;
+  it is queue now (d2763ff48), and it was not the cause: 0.50 s. Read off
+  the next one, "Hey Aura, how are you doing?" at 19:14:22, 22 s after her
+  app launched: her live context had opened, but the turn went to her
+  governed route because the live context takes "how are you" for a
+  question about her runtime; the route's preflight took 19 s; then the
+  generation waited for her cortex, whose warm-up her inference gate defers
+  during launch "until post-boot memory settles", though its worker had
+  answered a one-token warm-up at 19:14:42. Her voice route gave up at its
+  120 s cap and her first sound came 172.6 s after the words. Not changed
+  yet: the launch deferral guards a machine that has panicked on GPU memory,
+  and what a turn during boot should get instead is a decision.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
