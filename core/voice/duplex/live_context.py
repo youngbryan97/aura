@@ -26,9 +26,6 @@ from typing import Any
 logger = logging.getLogger("Aura.Voice.LiveContext")
 
 _ANSWER_OPENS = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
-#: While her runtime is still starting, how long a turn waits for her cortex to come up. Bryan, 11 November 2026, of
-#: her saying she is still waking up: "I can wait a few seconds."
-WAKING_WAIT_S = 3.0
 _TURN_ENDS = "<|im_end|>\n"
 
 
@@ -74,7 +71,9 @@ def still_waking() -> str:
         from core.runtime.service_access import resolve_inference_gate
 
         gate = resolve_inference_gate(default=None)
-        status = gate.get_conversation_status() if gate is not None else None
+        if gate is None:
+            return "not up yet"  # her inference gate is not registered yet, as her health pulse reads it
+        status = gate.get_conversation_status()
     except (ImportError, AttributeError, RuntimeError, ValueError, OSError) as exc:
         logger.debug("her conversation lane could not be read: %s", exc)
         return ""
@@ -281,10 +280,15 @@ def _her_cortex_client() -> Any:
     return None
 
 
-async def _her_cortex_client_when_up() -> Any:
-    """Her cortex client; while her runtime is still starting, waited for up to WAKING_WAIT_S."""
+async def _her_cortex_client_when_up(timeout_s: float) -> Any:
+    """Her cortex client; while her runtime is still starting, waited for within the turn's own time.
+
+    Bryan, 11 November 2026, of her saying she is still waking up: "I can wait a few seconds." Her cortex's worker
+    comes up about 26 s after her app opens, seconds after her voice does; her governed route, the alternative, took
+    170 s for every turn spoken in that time.
+    """
     client = _her_cortex_client()
-    waited_until = time.monotonic() + WAKING_WAIT_S
+    waited_until = time.monotonic() + max(0.0, float(timeout_s))
     while (client is None or not hasattr(client, "generate")) and still_waking() and time.monotonic() < waited_until:
         await asyncio.sleep(0.25)
         client = _her_cortex_client()
@@ -319,7 +323,7 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
     from core.brain.llm_health_router_gate_owners import _background_stands_aside
     from core.conversation.reply_stream import bind_reply_stream
 
-    client = await _her_cortex_client_when_up()
+    client = await _her_cortex_client_when_up(timeout_s)
     if client is None or not hasattr(client, "generate"):
         logger.info("🗣️ her cortex has no running client (her conversation lane reads %r); her governed route answers",
                     still_waking() or "serving")

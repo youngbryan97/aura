@@ -76,6 +76,7 @@ def test_a_turn_that_asks_her_to_act_or_about_her_runtime_takes_her_governed_rou
     live, *_ = _a_context()
     live.ready = True
     monkeypatch.setattr(lc, "goes_to_her_governed_route", lambda text: "open" in text)
+    monkeypatch.setattr(lc, "still_waking", lambda: "")  # her runtime is up
     assert live.answers("Can you open Safari for me?") is False
     assert live.answers("What's two plus two?") is True
 
@@ -414,7 +415,7 @@ def test_she_is_awake_when_her_conversation_lane_says_it_is_serving(monkeypatch)
     gate.get_conversation_status = lambda: {"conversation_ready": True, "state": "ready"}
     assert lc.still_waking() == ""
     monkeypatch.setattr(service_access, "resolve_inference_gate", lambda default=None: None)
-    assert lc.still_waking() == ""
+    assert lc.still_waking() == "not up yet", "a gate not registered yet is her runtime still starting"
 
 
 def test_while_her_gate_has_no_cortex_client_yet_the_running_one_answers(monkeypatch):
@@ -445,10 +446,10 @@ def test_while_she_is_waking_a_turn_waits_a_few_seconds_for_her_cortex(monkeypat
     monkeypatch.setattr(lc, "_her_cortex_client", lambda: cortex if time.monotonic() >= appears[0] else None)
     monkeypatch.setattr(lc, "still_waking", lambda: "cold")
     began = time.monotonic()
-    assert asyncio.run(lc._her_cortex_client_when_up()) is cortex
-    assert time.monotonic() - began < lc.WAKING_WAIT_S
-    appears[0] = time.monotonic() + 60.0  # not within a few seconds: the wait ends
-    assert asyncio.run(lc._her_cortex_client_when_up()) is None
+    assert asyncio.run(lc._her_cortex_client_when_up(5.0)) is cortex
+    assert time.monotonic() - began < 2.0
+    appears[0] = time.monotonic() + 60.0  # not within the turn's time: the wait ends with it
+    assert asyncio.run(lc._her_cortex_client_when_up(0.5)) is None
     monkeypatch.setattr(lc, "still_waking", lambda: "")  # awake and no client: no wait at all
     began = time.monotonic()
-    assert asyncio.run(lc._her_cortex_client_when_up()) is None and time.monotonic() - began < 0.1
+    assert asyncio.run(lc._her_cortex_client_when_up(5.0)) is None and time.monotonic() - began < 0.1
