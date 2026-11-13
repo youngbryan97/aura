@@ -14734,7 +14734,8 @@ async def test_memory_outbox_applies_complete_conversation_experience_once(monke
     assert (outcome, error) == ("completed", "")
     logged.assert_awaited_once()
     experience.assert_awaited_once()
-    assert experience.await_args[1] == {"principal_id": "bryan"}
+    # The turn's receipts travel with the queued item; this one was queued without any.
+    assert experience.await_args[1] == {"principal_id": "bryan", "tool_receipts": None}
 
 
 @pytest.mark.asyncio
@@ -15040,6 +15041,8 @@ async def test_chat_exchange_atomic_persistence_keeps_ui_session_id(monkeypatch)
                     # Every completed exchange now carries its metadata to the
                     # persistence call, None when the turn produced none.
                     "exchange_metadata": None,
+                    # And the turn's receipts, for the post-reply judge; none ran here.
+                    "tool_receipts": [],
                 },
         )
     ]

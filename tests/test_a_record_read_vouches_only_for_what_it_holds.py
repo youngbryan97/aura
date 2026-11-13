@@ -83,3 +83,51 @@ def test_the_worker_is_handed_what_a_record_read_held(monkeypatch):
     monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: (_read_of(HER_RECORD),))
     [carried] = mlx_client._bounded_surface_tool_receipts()
     assert carried["vouches_for"] == WHAT_IT_HOLDS and carried["observed_content"] == HER_RECORD
+
+
+ASKED = "Morning, Aura. I'm at work today, so it's quiet on my end. What have you been up to since you woke?"
+
+
+def test_her_learning_step_judges_with_the_turns_receipts():
+    """Judged without them her true retelling read as unfounded, and was kept for continuity but never learned from."""
+    from core.conversation.response_reliability import assess_conversation_learning_admission
+
+    without = assess_conversation_learning_admission(ASKED, HER_REPLY, tool_receipts=())
+    assert "unfounded_tool_execution_claim" in without.reasons
+    carried = assess_conversation_learning_admission(ASKED, HER_REPLY, tool_receipts=[_read_of(HER_RECORD)])
+    assert "unfounded_tool_execution_claim" not in carried.reasons
+
+
+def test_the_post_reply_item_carries_the_turns_receipts(tmp_path):
+    import json
+
+    from core.conversation.persistence import ConversationPersistence
+
+    store = ConversationPersistence(tmp_path / "outbox.db")
+    session_id = store.start_session()
+    store.record_exchange(ASKED, HER_REPLY, cid="with", session_id=session_id, enqueue_memory_log=True,
+                          tool_receipts=[_read_of(HER_RECORD)])
+    store.record_exchange("Hi.", "Hello.", cid="without", session_id=session_id, enqueue_memory_log=True)
+    items = {item["exchange_id"]: item for item in store.claim_memory_log_batch(limit=4)}
+    assert json.loads(items["with"]["tool_receipts_json"]) == [_read_of(HER_RECORD)]
+    assert items["without"]["tool_receipts_json"] == ""
+
+
+def test_an_older_queue_gains_the_column(tmp_path):
+    import sqlite3
+
+    from core.conversation.persistence import ConversationPersistence
+
+    db = tmp_path / "older.db"
+    with sqlite3.connect(db) as connection:
+        connection.execute(
+            "CREATE TABLE conversation_memory_outbox (operation_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, "
+            "exchange_id TEXT NOT NULL, revision INTEGER NOT NULL, user_content TEXT NOT NULL, aura_content TEXT NOT "
+            "NULL, origin TEXT NOT NULL, principal_id TEXT NOT NULL, principal_surface TEXT NOT NULL, payload_sha256 "
+            "TEXT NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, available_at REAL NOT NULL, "
+            "claimed_at REAL, completed_at REAL, last_error TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, "
+            "updated_at REAL NOT NULL)")
+    ConversationPersistence(db)
+    with sqlite3.connect(db) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(conversation_memory_outbox)")}
+    assert "tool_receipts_json" in columns

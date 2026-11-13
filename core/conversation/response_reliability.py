@@ -7966,8 +7966,7 @@ def internal_leak_reasons(text: Any) -> tuple[str, ...]:
 
 
 def assess_conversation_learning_admission(
-    user_message: Any,
-    reply_text: Any,
+    user_message: Any, reply_text: Any, *, tool_receipts: Iterable[Any] | None = None
 ) -> ConversationReplyAssessment:
     """Gate profile, episodic, consolidation, and dream input from a chat turn.
 
@@ -7999,7 +7998,9 @@ def assess_conversation_learning_admission(
             hard_failure=True,
             retryable=False,
         )
-    assessment = assess_user_facing_reply(user_message, reply_text)
+    # The turn's receipts, carried by the chat's post-reply step, which runs outside the turn: judged without them, a
+    # true retelling of her record read as unfounded and was never learned from (13 November 2026).
+    assessment = assess_user_facing_reply(user_message, reply_text, tool_receipts=tool_receipts)
     # Serving a shortfall is right; LEARNING from one is not. A reply that only
     # reached the person because nothing better arrived is a fallback, not
     # experience, and storing it as experience closes a loop:

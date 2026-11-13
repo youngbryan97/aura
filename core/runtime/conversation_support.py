@@ -780,6 +780,7 @@ async def record_conversation_experience(
     state: Any = None,
     *,
     principal_id: str | None = None,
+    tool_receipts: Any = None,
 ) -> None:
     if not str(user_input or "").strip() or not str(aura_response or "").strip():
         return
@@ -789,10 +790,7 @@ async def record_conversation_experience(
             is_self_condition_turn,
         )
 
-        learning_admission = assess_conversation_learning_admission(
-            user_input,
-            aura_response,
-        )
+        learning_admission = assess_conversation_learning_admission(user_input, aura_response, tool_receipts=tool_receipts)
         if not learning_admission.ok:
             logger.warning(
                 "Not learning from this reply (%s); recording the exchange for "

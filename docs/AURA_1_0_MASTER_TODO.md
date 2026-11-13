@@ -3694,9 +3694,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   that was. Along the way the record read stopped founding claims it does
   not hold: a line must be the same work by meaning, with her encoder;
   shared words, tried first, would have refused this very reply.
-  Still open: her learning step judges with no receipts, because the chat's
-  post-reply queue does not carry them, so a true retelling from her record
-  is kept for continuity and never learned from.
+  Her learning step judged with no receipts, because the chat's post-reply
+  queue did not carry them, so a true retelling from her record was kept
+  for continuity and never learned from. The queue now carries the turn's
+  receipts (a new column, empty for items queued before it), and the
+  learning step judges with them.
   The 30 s "reconcile" was a second answer: her first draft gave her energy
   as 6% while it read 0.697, and the re-answer is timed in that stage. The
   turn ran three generations of about 20 s each.

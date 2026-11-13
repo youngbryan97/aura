@@ -287,6 +287,35 @@ def turn_tool_receipts() -> tuple[dict[str, Any], ...]:
     return custody.receipts() if custody is not None else ()
 
 
+def bounded_turn_tool_receipts() -> list[dict[str, Any]]:
+    """This turn's receipts, bounded, for a judge that runs where the turn's custody does not: her model's worker, and
+    the chat's post-reply step. Callers cannot supply arbitrary receipts through it."""
+    bounded: list[dict[str, Any]] = []
+    total_chars = 0
+    for raw in turn_tool_receipts()[:16]:
+        if not isinstance(raw, dict):
+            continue
+        item = {
+            "receipt_id": str(raw.get("receipt_id") or "").strip()[:64],
+            "tool": str(raw.get("tool") or "").strip()[:128],
+            "action": str(raw.get("action") or "").strip()[:128],
+            "object_ref": str(raw.get("object_ref") or "").strip()[:500],
+            "ok": bool(raw.get("ok")),
+            "effect_observed": bool(raw.get("effect_observed")),
+            "verification": str(raw.get("verification") or "").strip()[:160],
+        }
+        if raw.get("vouches_for"):  # it vouches only for what it read, so what it read goes too
+            item.update(vouches_for=str(raw["vouches_for"])[:32], observed_content=str(raw.get("observed_content") or "")[:2000])
+        if not item["receipt_id"] or not item["tool"]:
+            continue
+        item_chars = sum(len(str(value)) for value in item.values())
+        if total_chars + item_chars > 8_000:
+            break
+        bounded.append(item)
+        total_chars += item_chars
+    return bounded
+
+
 def capabilities_run_this_turn() -> frozenset[str]:
     """The capabilities this turn already ran and that came back done.
 

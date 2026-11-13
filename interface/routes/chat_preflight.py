@@ -891,10 +891,9 @@ async def _run_chat_turn_memory_log_item(
             assess_conversation_learning_admission,
         )
 
-        admission = assess_conversation_learning_admission(
-            user_message,
-            aura_response,
-        )
+        stored = str(payload.get("tool_receipts_json") or "")
+        receipts = json.loads(stored) if stored else None  # None for an item queued without them: the old reading
+        admission = assess_conversation_learning_admission(user_message, aura_response, tool_receipts=receipts)
         from core.memory.chat_turn_logger import (
             local_chat_turn_learning_rejection_reason,
             log_chat_turn_auto,
@@ -934,7 +933,8 @@ async def _run_chat_turn_memory_log_item(
         from core.runtime.conversation_support import record_conversation_experience
 
         if not bool(payload.get("experience_recorded")):
-            await record_conversation_experience(user_message, aura_response, principal_id=user_id or None)
+            await record_conversation_experience(user_message, aura_response, principal_id=user_id or None,
+                                                 tool_receipts=receipts)
             watch_a_typed_exchange(user_id, user_message, aura_response)  # her model of them: a typed turn runs no phase
             await _mark_chat_turn_memory_log_stage(operation_id, "experience")
 
@@ -1251,6 +1251,9 @@ async def _persist_completed_conversation_exchange(
         safe_user_message = str(user_message or "")
         safe_aura_response = str(aura_response or "")
         scope_kwargs = _chat_principal_scope_kwargs()
+        from core.conversation.surface_disposition import bounded_turn_tool_receipts
+
+        receipts = bounded_turn_tool_receipts()  # read here, in the turn; its post-reply step runs outside it
 
         def _commit() -> None:
             if callable(record_exchange):
@@ -1262,6 +1265,7 @@ async def _persist_completed_conversation_exchange(
                     session_id=safe_session_id or None,
                     enqueue_memory_log=enqueue_memory_log,
                     exchange_metadata=exchange_metadata,
+                    tool_receipts=receipts,
                     **scope_kwargs,
                 )
                 return

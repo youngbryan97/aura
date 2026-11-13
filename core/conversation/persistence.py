@@ -112,7 +112,8 @@ CREATE TABLE IF NOT EXISTS conversation_memory_outbox (
     consciousness_updated INTEGER NOT NULL DEFAULT 0 CHECK (consciousness_updated IN (0,1)),
     last_error      TEXT NOT NULL DEFAULT '',
     created_at      REAL NOT NULL,
-    updated_at      REAL NOT NULL
+    updated_at      REAL NOT NULL,
+    tool_receipts_json TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_memory_outbox_ready
@@ -326,6 +327,8 @@ class ConversationPersistence:
                         "INTEGER NOT NULL DEFAULT 0 CHECK ("
                         f"{column} IN (0,1))"
                     )
+            if "tool_receipts_json" not in existing_columns:  # the turn's receipts, for its post-reply judge
+                con.execute("ALTER TABLE conversation_memory_outbox ADD COLUMN tool_receipts_json TEXT NOT NULL DEFAULT ''")
             turn_columns = {
                 str(row[1]) for row in con.execute("PRAGMA table_info(turns)")
             }
@@ -510,8 +513,9 @@ class ConversationPersistence:
         principal_surface: str = "",
         enqueue_memory_log: bool = False,
         exchange_metadata: dict[str, Any] | None = None,
+        tool_receipts: list[dict[str, Any]] | None = None,
     ) -> tuple[str, str]:
-        """Atomically persist a completed user/Aura exchange."""
+        """Atomically persist a completed user/Aura exchange; ``tool_receipts`` go to its post-reply step."""
 
         sid = _safe_text(session_id or self._current_session_id, max_chars=64)
         if not sid:
@@ -642,6 +646,7 @@ class ConversationPersistence:
                     principal_id=principal_id,
                     principal_surface=principal_surface,
                     now=now + 1e-6,
+                    tool_receipts=tool_receipts,
                 )
             con.commit()
 
@@ -899,6 +904,7 @@ class ConversationPersistence:
         principal_id: str,
         principal_surface: str,
         now: float,
+        tool_receipts: list[dict[str, Any]] | None = None,
     ) -> str:
         safe_exchange_id = _safe_text(exchange_id, max_chars=64)
         operation_id = f"{session_id}:{safe_exchange_id}:r{int(revision)}"
@@ -912,6 +918,8 @@ class ConversationPersistence:
             "principal_id": principal_id,
             "principal_surface": principal_surface,
         }
+        if tool_receipts:  # absent otherwise, so an item queued without them keeps its identity
+            payload["tool_receipts"] = list(tool_receipts)
         payload_sha256 = hashlib.sha256(
             json.dumps(
                 payload,
@@ -939,7 +947,7 @@ class ConversationPersistence:
             "operation_id, session_id, exchange_id, revision, user_content, "
             "aura_content, origin, principal_id, principal_surface, payload_sha256, "
             "state, attempts, available_at, claimed_at, completed_at, last_error, "
-            "created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "created_at, updated_at, tool_receipts_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 operation_id,
                 session_id,
@@ -959,6 +967,7 @@ class ConversationPersistence:
                 "",
                 now,
                 now,
+                json.dumps(payload["tool_receipts"]) if "tool_receipts" in payload else "",
             ),
         )
         return operation_id
