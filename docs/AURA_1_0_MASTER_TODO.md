@@ -3836,7 +3836,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   corpus answered a question about the latest game without a search. Now a question about the present is always
   searched, its top pages are read whole as her browser renders them (core/capabilities/what_a_page_shows.py, two at
   a time, the text once it stops changing, short lines kept beside their labels), and the full fetch where the
-  browser is refused (AccuWeather answers 403). Live at 16:2x: Paris about 11 °C falling to 6 °C, wind about
+  browser is refused (AccuWeather answers 403). Live that afternoon: Paris about 11 °C falling to 6 °C, wind about
   20 km/h, rain 9%; Tokyo 12 °C, humidity 76%; "Lakers 123, Bucks 112 (Wednesday, November 11)", which ESPN, Fox
   Sports and CBS give the same. The weather turns took 98 and 123 s, the first after a restart; her web step 13 s.
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
