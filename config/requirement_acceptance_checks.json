@@ -2869,6 +2869,33 @@
         "name": "tests/test_g09_organ_harness.py",
         "why": "External sealed benchmarks graded by their own published graders, with exclusions kept out across runs. Not decided here or above: the whole-system ablation arms on those benchmarks, confidence intervals, contamination controls, and matched cost and latency."
       }
+    ],
+    "RLC-CLAIMS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_claim_liveness.py",
+        "why": "Decides the automatic demotion: a claim measured live reads its own telemetry and decays when its channel goes quiet, so stale evidence stops supporting it without anyone editing it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_claim_cannot_outlive_its_constant.py",
+        "why": "Mismatched evidence: a claim that cites a constant is checked against the constant, and fails when the code has moved."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_claims_consistency.py",
+        "why": "The published conclusions do not contradict themselves: the claims matrix's summary rows and detail sections agree, and so do the documents citing it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_claim_cannot_outrun_its_measurement.py",
+        "why": "Limitations and non-claims stated: a conclusion goes no further than the measurement that supports it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_no_fabricated_benchmarks.py",
+        "why": "Only measured scores are published. Not decided here or above: UI, health, Foundry and release manifests derived from accepted artifacts, and superseded evidence demoted when a newer artifact replaces it."
+      }
     ]
   }
 }
