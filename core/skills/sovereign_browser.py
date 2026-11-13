@@ -47,6 +47,7 @@ from .sovereign_browser_what_it_did import (
     _go_back_to_the_last_good_page,
     every_way_on_led_back,
     names_of_the_moves,
+    only_looked_again,
     remember_what_was_seen,
     say_what_she_makes_of_the_page,
     the_ones_tried_here,
@@ -1566,10 +1567,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # it, which is the general fact and the one worth acting on.
                 if signature in been_in and last_moves:
                     went_nowhere.update(last_moves)
-                    logger.info(
-                        "🌐 Retired %d control(s) that led back to a page already seen.",
-                        len(last_moves),
-                    )
+                    logger.info("🌐 Retired %d control(s) that led back to a page already seen.", len(last_moves))
                 been_in.add(signature)
                 new_lines = remember_what_was_seen(seen_here, observation)
                 noticed = what_the_move_did(
@@ -1580,12 +1578,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 spent = went_nowhere | the_ones_tried_here(tried_from, signature)
                 exhausted = every_way_on_led_back(observation, spent)
                 observation = self._without_the_moves_that_go_nowhere(observation, spent)
-                # A scroll that shows nothing she has not already read on this page is not progress, though it moves
-                # the screen. LIVE 12 November 2026 she said "I've captured the full thread content" on an
-                # AskHistorians thread, and scrolled about it for round after round until her request had run 15
-                # minutes. A click is not counted so: choosing an answer changes a page without new words.
-                only_looked_again = bool(last_kinds) and last_kinds <= {"scroll"} and not new_lines
-                if signature == last_signature or exhausted or only_looked_again:
+                if signature == last_signature or exhausted or only_looked_again(last_kinds, new_lines):
                     stalled += 1
                     if stalled >= self.PURSUE_STALL_LIMIT:
                         steps.append({"error": "no_progress", "url": observation.get("url")})

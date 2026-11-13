@@ -142,6 +142,16 @@ def the_ones_tried_here(tried_from: set[tuple[str, str]], signature: str) -> set
     return {selector for state, selector in tried_from if state == signature}
 
 
+def only_looked_again(kinds_of_the_last_moves: set[str], new_lines: int) -> bool:
+    """A round of scrolls that showed nothing she had not already read on the page: not progress, though it moved.
+
+    LIVE 12 November 2026 she said "I've captured the full thread content" on an AskHistorians thread, and scrolled
+    about it for round after round until her request had run 15 minutes. A click is not counted so: choosing an
+    answer changes a page without new words.
+    """
+    return bool(kinds_of_the_last_moves) and kinds_of_the_last_moves <= {"scroll"} and not new_lines
+
+
 def remember_what_was_seen(seen: dict[str, list[str]], observation: Mapping[str, Any]) -> int:
     """Keep every line of text each page has shown in this run; how many it showed for the first time."""
     url = str(observation.get("url") or "")

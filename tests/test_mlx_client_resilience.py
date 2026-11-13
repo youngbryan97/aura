@@ -51,8 +51,8 @@ from core.brain.llm.unified_recurrent_shadow_contract import (
     seal_shadow_load_receipt,
 )
 from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
-from core.utils.deadlines import get_deadline
 from core.runtime.wall_clock import monotonic_time
+from core.utils.deadlines import get_deadline
 from tests.clock_patch import patch_module_clock
 from tests.fixtures.rlc_runtime_integrity import complete_serving_stack
 
