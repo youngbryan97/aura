@@ -2396,6 +2396,45 @@
         "name": "ui-audit",
         "why": "Decides accessibility for every page, the launch screen among them: contrast in every appearance, screen-reader names, visible focus, reduced motion and reflow. Launch performance is held by RUNTIME-001 and VALIDATE-001, as the requirement says, and is not decided here."
       }
+    ],
+    "CTX2-AMP-003": [
+      {
+        "kind": "test",
+        "name": "tests/test_g09_organ_harness.py",
+        "why": "Decides the matched control's harness: tasks sampled reproducibly across groups with every excluded id kept out, each domain graded by the grader its source publishes, and the typed lane's answer cap and search time read from her own gate and thinking loop rather than chosen. The paired run it drives (tools/run_g09_organ.py, ordinary arm against organ arm on the same sealed tasks) is the control; whether a gain is statistically credible is that run's result, not this test's."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_amplifier_reaches_a_typed_turn.py",
+        "why": "Decides that in her chat a searched answer replaces her draft only under checked-verifier or independent-executable-consensus authority, that an unchecked answer leaves the draft, and that the search spends only the time left on the turn, priced at what her draft cost. If it fails, extra samples or confident prose can replace an answer nothing checked."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_phase_response_amplifier_wiring.py::test_phase_keeps_draft_when_amplified_unverified",
+        "why": "The same rule on the phase path: an amplified answer that was not verified does not replace the draft."
+      }
+    ],
+    "AMPLIFY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_verifier_names_what_happened.py",
+        "why": "Decides the verifier-soundness half: each named outcome comes from the path that should produce it, and no crash, timeout or empty verifier set is read as correctness."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_verifier_crash_is_not_a_pass.py",
+        "why": "A crashed verifier reported as clean, and an escalated answer inheriting the previous candidate's checked flag, both driven end to end through amplify()."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_amplifier_reaches_a_typed_turn.py",
+        "why": "Decides that in her chat a searched answer replaces her draft only under checked-verifier or independent-executable-consensus authority, that an unchecked answer leaves the draft, and that the search spends only the time left on the turn, priced at what her draft cost. If it fails, extra samples or confident prose can replace an answer nothing checked."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_g09_organ_harness.py",
+        "why": "Decides the matched control's harness: tasks sampled reproducibly across groups with every excluded id kept out, each domain graded by the grader its source publishes, and the typed lane's answer cap and search time read from her own gate and thinking loop rather than chosen. The paired run it drives (tools/run_g09_organ.py, ordinary arm against organ arm on the same sealed tasks) is the control; whether a gain is statistically credible is that run's result, not this test's."
+      }
     ]
   }
 }
