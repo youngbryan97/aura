@@ -5303,6 +5303,30 @@ needs her 27B free (her app down, or her app's own influence trials).
   longer thinking budget, her sandbox as a tool, verifier and executable
   consensus), live, and a paired measure on held-out problems. Lane: build no,
   check yes.
+  12 November, live: a deep mode ran on a typed turn for the first time.
+  Asked "What is the sum of all the prime numbers below 100?" it had stood
+  down, "52 s left on the turn, one candidate costs 741 s": a candidate was
+  priced with her whole private channel, which a typed turn's lane does not
+  open. A candidate now costs what her draft cost, off the turn's receipt
+  (7b97d9c21). At 20:21, "What is the sum of the squares of the first 30
+  positive integers?": mode deep, her draft checked by the verifier and
+  kept, 9,455, right. No role script ran.
+  Same evening, the paired measure's development pilot
+  (tools/run_g09_organ.py, --arms ordinary,organ --budget turn, her app
+  down; rows in ~/.aura/rlc-evidence/f04-organ): 33 held-out tasks, MATH 5,
+  CRUXEval 6, LiveCodeBench 6, Blocksworld 6, BBEH 6, AIME 4. Her drafts were
+  right on 27; the organ was admitted on 29 and changed no answer either
+  way, 0 gained and 0 lost. On the six wrong drafts it never finished a
+  second attempt: four drafts wrote no answer inside the 8,192 tokens the
+  pilot allowed (her thinking used them all), so it had nothing to start
+  from; on the other two one candidate thought as long as a draft does (212
+  s, 327 s) and the turn's budget was spent. As it stands the organ checks
+  right drafts and cannot help a wrong one within a turn: its candidates
+  cost what a draft costs, and a turn affords about one. Open: whether to
+  measure it with candidates that cost less than a draft, or with the draft
+  made as a typed turn makes it (no private channel, about 580 tokens),
+  before a confirmatory run is sized; 0 discordant of 33 bounds the rate
+  below about 9%.
 - [ ] F05 Self-modification promoted. Promotion is disabled; repair by
   selection mends 4 of 79 real past defects, most out of time. Left: a night
   run with long budgets, a promotion path (staged branch, full gates, then
