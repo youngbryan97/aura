@@ -174,3 +174,56 @@ def test_one_page_read_twice_on_one_day_is_one_reading(tmp_path):
     assert [a.read_at for a in readings] == ["2026-10-20", Attestation(url=page, verdict=SUPPORTED).read_at]
     assert readings[-1].quote.endswith("the later quote")
     assert as_evidence([store.get(claim)]).count("2026-10-20") == 1
+
+
+LIGHT = "the speed of light in a vacuum is exactly 299,792,458 metres per second"
+
+
+def _verified_light(tmp_path):
+    from core.epistemics.what_she_has_verified import SUPPORTED, VerifiedFacts
+
+    store = VerifiedFacts(tmp_path / "facts.json")
+    store.attest(LIGHT, WIKI, SUPPORTED)
+    store.attest(LIGHT, NASA, SUPPORTED)
+    return store
+
+
+def test_a_question_gets_the_fact_it_asks_for_though_it_holds_few_of_its_words(tmp_path):
+    """L10, 13 November 2026: a question never holds the answer's figure or units, so by words alone her verified
+    speed of light never reached "How fast does light travel in a vacuum, exactly?". Judged by meaning, it does, and
+    a question about another speed does not."""
+    from core.language.learned_matcher import embed_sentences
+
+    if not embed_sentences(["a sentence"]):
+        pytest.skip("no embedder in this process; the words decide, as the next test holds")
+    store = _verified_light(tmp_path)
+    assert [fact.claim for fact in store.bearing_on("How fast does light travel in a vacuum, exactly?")] == [LIGHT]
+    assert store.bearing_on("How fast can a cheetah run?") == []
+    assert store.bearing_on("What did you have for lunch?") == []
+
+
+def test_where_meaning_cannot_judge_the_shared_words_decide(tmp_path, monkeypatch):
+    from core.epistemics import what_she_has_verified
+
+    monkeypatch.setattr(what_she_has_verified, "_bearing_by_meaning", lambda text, claims, features=None: [])
+    store = _verified_light(tmp_path)
+    assert [f.claim for f in store.bearing_on("Is the speed of light in a vacuum exactly 299,792,458 metres per second?")] == [LIGHT]
+    assert store.bearing_on("How fast does light travel in a vacuum, exactly?") == []
+
+
+def test_the_boundary_is_measured_from_the_declared_pairs():
+    from core.epistemics import what_she_has_verified as w
+
+    about = {sentence for pair in w._BEARS_ON for sentence in pair}
+
+    def features(sentences):
+        # A declared "about" pair lies along the first direction and every other declared sentence along the second,
+        # so about-pairs score 1 and the rest 0; two undeclared requests lean towards and away from the claims.
+        lean = {"towards": [1.0, 1.0], "away": [-1.0, 1.0]}
+        return [[1.0, 0.0] if s in about else lean.get(s.split()[0], [0.0, 1.0]) for s in sentences]
+
+    boundary = w._bearing_boundary(features)
+    assert boundary.separable and (boundary.decide_true_above, boundary.decide_false_below) == (0.0, 1.0)
+    claim = [w._BEARS_ON[0][1]]
+    assert w._bearing_by_meaning("towards the claim", claim, features)[0][0] is True  # above every request not about it
+    assert w._bearing_by_meaning("away from it", claim, features)[0][0] is False

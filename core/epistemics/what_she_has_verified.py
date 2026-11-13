@@ -311,17 +311,27 @@ class VerifiedFacts:
         return self._facts.get(key_of(claim))
 
     def bearing_on(self, text: str, *, at_most: int = 5) -> list[Fact]:
-        """The settled facts a text bears on, by the words they share, most shared first: what she knows of it."""
+        """The settled facts a text is about, most closely first: what she knows of it.
+
+        Judged by meaning where her embedder can say, against a boundary measured from declared pairs
+        (``_BEARS_ON``); by the words a fact shares with the text where it cannot. Words alone missed the fact a
+        question asks for: a question never holds the answer's figure or units, so "How fast does light travel in
+        a vacuum, exactly?" shared 5 of the 13 words of her verified speed of light and got nothing (L10, 13 November
+        2026).
+        """
+        settled = [fact for fact in self._facts.values() if fact.status in (VERIFIED, DISPUTED, REFUTED)]
+        if not settled:
+            return []
+        meant = _bearing_by_meaning(text, [fact.claim for fact in settled])
         words = set(key_of(text).split())
         scored = []
-        for fact in self._facts.values():
-            if fact.status not in (VERIFIED, DISPUTED, REFUTED):
-                continue
+        for index, fact in enumerate(settled):
             mine = set(key_of(fact.claim).split())
             shared = len(words & mine) / max(1, len(mine))
-            if shared >= 0.5:
-                scored.append((shared, fact))
-        return [fact for _shared, fact in sorted(scored, key=lambda pair: -pair[0])[:at_most]]
+            decided, closeness = meant[index] if meant else (None, shared)
+            if decided is True or (decided is None and shared >= 0.5):
+                scored.append((closeness, fact))
+        return [fact for _closeness, fact in sorted(scored, key=lambda pair: -pair[0])[:at_most]]
 
     def __len__(self) -> int:
         return len(self._facts)
@@ -338,6 +348,67 @@ def as_evidence(facts: list[Fact], *, today: str | None = None) -> str:
         lines.append(f"- {fact.claim} — {fact.status}{dated_note}. Sources: {sources}")
     lines.append("[END CHECKED FACTS, KEPT]")
     return "\n".join(lines)
+
+
+#: Requests that are about a claim, and requests that share its words or its kind but not its subject, across kinds
+#: of fact. Where her embedder separates them is measured from these, never chosen; in the overlap the words decide.
+_BEARS_ON = (
+    ("How fast does light travel in a vacuum, exactly?",
+     "the speed of light in a vacuum is exactly 299,792,458 metres per second"),
+    ("What's the boiling point of water at sea level?",
+     "water boils at 100 degrees Celsius at standard atmospheric pressure"),
+    ("When did the Berlin Wall come down?", "the Berlin Wall fell on 9 November 1989"),
+    ("How high is Everest?", "Mount Everest is 8,849 metres above sea level"),
+    ("Which city is Australia's capital?", "Canberra is the capital city of Australia"),
+    ("How many bones does a grown person have?", "an adult human skeleton has 206 bones"),
+    ("Who's the author of Pride and Prejudice?", "Jane Austen wrote the novel Pride and Prejudice, published in 1813"),
+    ("How far away is the Moon?", "the average distance from the Earth to the Moon is about 384,400 kilometres"),
+)
+_BEARS_ON_NOTHING_OF = (
+    ("How fast can a cheetah run?", "the speed of light in a vacuum is exactly 299,792,458 metres per second"),
+    ("What temperature should I bake bread at?",
+     "water boils at 100 degrees Celsius at standard atmospheric pressure"),
+    ("When was the Great Wall of China built?", "the Berlin Wall fell on 9 November 1989"),
+    ("How tall is the Eiffel Tower?", "Mount Everest is 8,849 metres above sea level"),
+    ("What is the capital of Austria?", "Canberra is the capital city of Australia"),
+    ("How many teeth does an adult have?", "an adult human skeleton has 206 bones"),
+    ("Who painted the Mona Lisa?", "Jane Austen wrote the novel Pride and Prejudice, published in 1813"),
+    ("How far is Mars from the Sun?", "the average distance from the Earth to the Moon is about 384,400 kilometres"),
+)
+#: The boundary measured for each feature source, so it is measured once.
+_BOUNDARY: dict = {}
+
+
+def _bearing_boundary(features) -> object | None:
+    """Where a request is about a claim and where it is not, measured once from the declared pairs."""
+    from core.language.learned_matcher import Boundary, cosine
+
+    if features in _BOUNDARY:
+        return _BOUNDARY[features]
+    pairs = (*_BEARS_ON, *_BEARS_ON_NOTHING_OF)
+    vectors = features([sentence for pair in pairs for sentence in pair])
+    if len(vectors) != 2 * len(pairs):
+        return None
+    scores = [cosine(vectors[2 * i], vectors[2 * i + 1]) for i in range(len(pairs))]
+    about, not_about = scores[:len(_BEARS_ON)], scores[len(_BEARS_ON):]
+    boundary = Boundary(decide_true_above=max(not_about), decide_false_below=min(about),
+                        separable=min(about) > max(not_about))
+    _BOUNDARY[features] = boundary
+    return boundary
+
+
+def _bearing_by_meaning(text: str, claims: list[str], features=None) -> list[tuple[bool | None, float]]:
+    """For each claim, whether the text is about it by meaning (None in the overlap) and how close; [] unjudged."""
+    from core.language.learned_matcher import cosine, embed_sentences
+
+    features = features or embed_sentences
+    boundary = _bearing_boundary(features)
+    if boundary is None or not boundary.trustworthy:
+        return []
+    vectors = features([text, *claims])
+    if len(vectors) != len(claims) + 1:
+        return []
+    return [(boundary.decide(score), score) for score in (cosine(vectors[0], vector) for vector in vectors[1:])]
 
 
 _STORE: VerifiedFacts | None = None
