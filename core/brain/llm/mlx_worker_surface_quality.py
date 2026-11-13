@@ -745,6 +745,20 @@ def _recent_assistant_turns(job: dict[str, Any]) -> list[str]:
     return said
 
 
+def _shown_before_the_request(job: dict[str, Any]) -> list[str]:
+    """Everything put in front of her before the request but tool results: her transcript and her readings, among them
+    the recall that carries what she said in earlier sittings.
+
+    LIVE 13 November 2026: asked again what she had been up to, seven of her ten sentences were her answer from the
+    sitting before, read back from her recall with its figures ("awake for twelve minutes", four minutes after she
+    woke). The check read only this sitting's transcript."""
+    messages = job.get("messages") if isinstance(job.get("messages"), (list, tuple)) else ()
+    rows = [message for message in messages if isinstance(message, dict)]
+    roles = [str(message.get("role") or "").strip().lower() for message in rows]
+    request = max((index for index, role in enumerate(roles) if role == "user"), default=len(rows))
+    return [str(rows[index].get("content") or "").strip() for index in range(request) if roles[index] != "tool"]
+
+
 #: Runs of this many words are what a reply is compared by, and the share of a draft's runs found in one earlier reply
 #: that makes it that reply said again. Fewer runs than ``A_REPLY_HAS_RUNS`` is too short to be a repeat ("Yes.").
 A_RUN_OF_WORDS, A_REPEAT_SHARES, A_REPLY_HAS_RUNS = 8, 0.5, 12
@@ -835,7 +849,7 @@ def _surface_quality_failure_reasons(
             action="continued surface validation after self-claim verification failed",
             severity="error",
         )
-    repeated = repeats_an_earlier_reply(candidate, _recent_assistant_turns(job), prompt)
+    repeated = repeats_an_earlier_reply(candidate, _shown_before_the_request(job), prompt)
     if (
         assessment.ok
         and not assessment.retryable
