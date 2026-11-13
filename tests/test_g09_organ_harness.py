@@ -38,3 +38,28 @@ def test_bbeh_answers_are_read_as_bbehs_own_evaluator_reads_them() -> None:
              ("Ok The answer is: **25**\nHere's why.", "25.0", True), ("Ok The answer is: **25**\nHere's why.", "26.0", False)]
     for reply, reference, expected in cases:
         assert grade_bbeh(reply, reference)[0] is expected, (reply, reference)
+
+
+def test_a_typed_answer_is_capped_where_the_gate_caps_one(monkeypatch) -> None:
+    """The longest answer the model has been seen to give, never past the run's ceiling; unmeasured, the ceiling."""
+    from core.brain.llm import thinking_reserve
+    from tools.run_g09_organ import _typed_answer_cap
+
+    monkeypatch.setattr(thinking_reserve, "answer_tokens_seen", lambda model: 1194)
+    assert _typed_answer_cap("m", 32768) == 1194
+    assert _typed_answer_cap("m", 512) == 512
+    monkeypatch.setattr(thinking_reserve, "answer_tokens_seen", lambda model: 0)
+    assert _typed_answer_cap("m", 32768) == 32768
+
+
+def test_the_search_gets_the_room_her_thinking_loop_grants_the_turn(monkeypatch) -> None:
+    """Read from the loop's own code: three answers' worth for a checkable request, inside the user-facing ceiling."""
+    from core.brain import cognitive_engine, reasoning_amplifier_v2
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+    from tools.run_g09_organ import _room_the_turn_grants
+
+    monkeypatch.setattr(reasoning_amplifier_v2, "is_amplifiable", lambda q: "math")
+    monkeypatch.setattr(cognitive_engine, "_time_the_answer_needs", lambda q: 100.0)
+    assert _room_the_turn_grants("What is 7919 multiplied by 104729?") == 300.0
+    monkeypatch.setattr(cognitive_engine, "_time_the_answer_needs", lambda q: 400.0)
+    assert _room_the_turn_grants("What is 7919 multiplied by 104729?") == USER_FACING_COMPLETION_DEADLINE_MAX_S

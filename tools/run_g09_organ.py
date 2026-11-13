@@ -19,6 +19,13 @@ Two arms per task, paired:
   checked-verifier or independent-executable-consensus authority. Sealed
   from her memory and caches; read-only.
 
+With ``--lane typed`` both arms are made as a turn typed into her chat makes
+them (cognitive_engine_quick_reply): private channel closed, the answer capped
+where the inference gate caps a typed answer (the longest answer this model
+has been seen to give), the draft delivered as written even when the cap cut
+it, and the search called as her chat calls it, with the time her thinking loop
+grants the turn less the draft and the chat's margin (``--budget room``).
+
 Domains, each with the grader its source publishes: math (MATH test problems
 outside MATH-500, graded by MATH-500's grader), code (HumanEval+, run against
 its hidden tests in her kernel-bounded sandbox), planning (Natural Plan
@@ -646,6 +653,29 @@ GRADERS = {"math": grade_math, "code": grade_code, "planning": grade_planning,
 
 # ── The run ────────────────────────────────────────────────────────────────
 
+def _typed_answer_cap(model_name: str, ceiling: int) -> int:
+    """Where the inference gate caps a typed answer on this model: the longest it has been seen to give.
+
+    The gate lowers this further when a turn's clock is short (445 to 1,058
+    tokens on 25 typed turns, 12 November 2026); the search here gets its own
+    clock, so only the evidence bound applies. Unmeasured, the ceiling stands.
+    """
+    from core.brain.llm.thinking_reserve import answer_tokens_seen
+
+    seen = int(answer_tokens_seen(model_name))
+    return min(ceiling, seen) if seen > 0 else ceiling
+
+
+def _room_the_turn_grants(request: str) -> float:
+    """Seconds her thinking loop gives a typed turn asking this, from its own code."""
+    from types import SimpleNamespace
+
+    from core.brain.cognitive_engine_thinking_loop import _RunsTheThinkingLoop
+
+    engine = SimpleNamespace(_is_user_facing_origin=lambda origin: True)
+    return float(_RunsTheThinkingLoop._run_thinking_loop_part_2(engine, {}, 0.0, False, request, "user")[1])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--domain", choices=DOMAINS, required=True)
@@ -659,9 +689,14 @@ def main() -> int:
                         help="drafts decoded together (tools/g12_batched.py); the organ always runs one at a time")
     parser.add_argument("--carry", action="store_true",
                         help="a group below half full hands its unfinished sequences to the next (tools/g12_batched.py)")
-    parser.add_argument("--budget", choices=("allowance", "turn"), default="allowance",
+    parser.add_argument("--budget", choices=("allowance", "turn", "room"), default="allowance",
                         help="allowance: each planned candidate may use the draft's token allowance at the "
-                             "draft's measured rate; turn: what a live turn's ceiling leaves after the draft")
+                             "draft's measured rate; turn: what a live turn's ceiling leaves after the draft; "
+                             "room: what her thinking loop grants this request's turn, less the draft and the "
+                             "chat's margin")
+    parser.add_argument("--lane", choices=("served", "typed"), default="served",
+                        help="served: private channel open at her serving effort; typed: as a turn typed into "
+                             "her chat makes its answer and calls the search")
     parser.add_argument("--arms", default="ordinary,organ",
                         help="ordinary decodes her drafts; organ runs on drafts already written")
     parser.add_argument("--model", type=Path,
@@ -720,7 +755,14 @@ def main() -> int:
 
     grade = GRADERS[args.domain]
     model_path = args.model.expanduser().resolve(strict=True)
-    print(json.dumps({"domain": args.domain, "tasks": len(tasks), "excluded": len(excluded)}), flush=True)
+    thinking = args.lane == "served"
+    cap = args.max_tokens
+    if not thinking:
+        cap = _typed_answer_cap(model_path.name, args.max_tokens)
+    if args.batch > 1 and not thinking:
+        raise SystemExit("--lane typed decodes one draft at a time")
+    print(json.dumps({"domain": args.domain, "tasks": len(tasks), "excluded": len(excluded), "lane": args.lane,
+                      "answer_cap": cap}), flush=True)
     with standalone_model_lane(owner_id=f"g09-organ:{output.name}", model_path=str(model_path),
                                purpose="evaluation", preemptible=False, require_exclusive=True,
                                allow_owner_eviction=True, metadata={"tool": Path(__file__).name}):
@@ -736,18 +778,18 @@ def main() -> int:
                 seed = int(hashlib.sha256(f"{messages}\0{temperature}".encode()).hexdigest()[:8], 16)
                 mx.random.seed(seed)
                 rendered = render_chat_template(tokenizer, messages, add_generation_prompt=True,
-                                                enable_thinking=True,
-                                                reasoning_effort=reasoning_effort_for_generation(thinking=True))
+                                                enable_thinking=thinking,
+                                                reasoning_effort=reasoning_effort_for_generation(thinking=thinking))
                 ids = [int(t) for t in tokenizer.encode(rendered, add_special_tokens=False)]
                 began, pieces = time.monotonic(), []
                 cut = False
-                for response in stream_generate(model, tokenizer, ids, max_tokens=args.max_tokens,
+                for response in stream_generate(model, tokenizer, ids, max_tokens=cap,
                                                 sampler=make_sampler(temp=float(temperature), top_p=0.95)):
                     pieces.append(str(response.text or ""))
                     if time.monotonic() >= turn_deadline[0]:
                         cut = True
                         break
-                channels = split_native_thinking_generation("".join(pieces), native_thinking=True)
+                channels = split_native_thinking_generation("".join(pieces), native_thinking=thinking)
                 generations.append({"temperature": temperature, "seconds": round(time.monotonic() - began, 3),
                                     "closed": channels.boundary_closed, "cut_at_turn_deadline": cut})
                 return "" if cut or not channels.boundary_closed else channels.surface
@@ -767,12 +809,15 @@ def main() -> int:
             return f"{hashlib.sha256(task['id'].encode()).hexdigest()[:24]}.json"
 
         def ordinary_row(task: dict[str, Any], draft: dict[str, Any]) -> dict[str, Any]:
-            draft_text = draft["public_text"] if draft["termination"] == "stop" else ""
+            # A typed turn shows what she wrote when its cap cut her; an open
+            # private channel that never closed has no answer to show.
+            shown = draft["termination"] == "stop" or (not thinking and draft["termination"] == "length")
+            draft_text = draft["public_text"] if shown else ""
             correct, note = grade(draft_text, task["truth"])
             return {"id": task["id"], "domain": args.domain, "group": task["group"], "correct": correct,
                     "note": note, "text": draft_text, "termination": draft["termination"],
                     "tokens": draft["generated_tokens"], "seconds": draft["seconds"],
-                    "batch_size": draft.get("batch_size", 1)}
+                    "batch_size": draft.get("batch_size", 1), "lane": args.lane, "answer_cap": cap}
 
         if "ordinary" in arms and args.batch > 1:
             from tools.g12_batched import decode_stream
@@ -792,7 +837,7 @@ def main() -> int:
             if "ordinary" in arms and not ordinary_path.exists():
                 with model_lock:
                     draft = decode_public(model, tokenizer, [{"role": "user", "content": task["request"]}],
-                                          max_tokens=args.max_tokens, thinking=True)
+                                          max_tokens=cap, thinking=thinking)
                 row = ordinary_row(task, draft)
                 write_once(ordinary_path, row)
                 print(json.dumps({"done": done, "of": len(tasks), "arm": "ordinary", "correct": row["correct"]}),
@@ -807,7 +852,15 @@ def main() -> int:
             executable = task_type is not None and should_use_executable_reasoning(task["request"], task_type=task_type)
             sample_budget = 3 if executable else None
             planned = planned_new_candidates(task_type, sample_budget=sample_budget, seeds=1) if task_type else 0
-            if args.budget == "turn":
+            if args.budget == "room":
+                # What her chat leaves the search: the turn her thinking loop
+                # grants this request, less the draft and the margin the chat
+                # keeps (_direct_desktop_quick_reply_amplify); it stands down
+                # when one candidate, priced at the draft, would not fit.
+                budget = _room_the_turn_grants(task["request"]) - float(ordinary["seconds"]) - 8.0
+                if budget < float(ordinary["seconds"]):
+                    budget = 0.0
+            elif args.budget == "turn":
                 # All a live turn can give the search: its ceiling, less what the
                 # draft spent and the reserve the response phase keeps.
                 budget = USER_FACING_COMPLETION_DEADLINE_MAX_S - float(ordinary["seconds"]) - 4.0
@@ -823,15 +876,20 @@ def main() -> int:
                 generations.clear()
                 began = time.monotonic()
                 turn_deadline[0] = began + budget
+                sealed = {"sealed_evaluation": True, "read_only_evaluation": True, "skip_cache": True}
+                if thinking:
+                    called = {"sample_budget": sample_budget, "extra_context": {
+                        "seed_candidates": [draft_text], "enable_executable_reasoning": executable,
+                        "allow_textual_fallback_after_executable": True, "generation_max_tokens": cap,
+                        "disable_batched_candidates": True, **sealed}}
+                else:  # as her chat calls it
+                    called = {"extra_context": {
+                        "live_response_phase": True, "disable_batched_candidates": True,
+                        "generation_max_tokens": cap, "seed_candidates": [draft_text],
+                        "allow_textual_fallback_after_executable": True, **sealed}}
                 try:
                     result = asyncio.run(amplify_turn(
-                        task["request"], generate, task_type=task_type, time_budget_s=budget,
-                        sample_budget=sample_budget,
-                        extra_context={"seed_candidates": [draft_text], "enable_executable_reasoning": executable,
-                                       "allow_textual_fallback_after_executable": True,
-                                       "generation_max_tokens": args.max_tokens,
-                                       "disable_batched_candidates": True,
-                                       "sealed_evaluation": True, "read_only_evaluation": True, "skip_cache": True}))
+                        task["request"], generate, task_type=task_type, time_budget_s=budget, **called))
                     receipt = result.receipt.to_dict()
                     authority = str(receipt.get("promotion_authority") or "none")
                     promoted = ""
