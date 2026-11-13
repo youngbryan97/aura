@@ -2925,6 +2925,43 @@
         "name": "tests/test_release_certificate.py::test_a_waiver_requires_a_reason_and_a_named_person",
         "why": "A gate is waived only with a reason and a named person, and the waiver is recorded. Not decided here or above: the versioned product-contract manifest itself, with an owner and acceptance evidence for every capability, mode, SLO, data guarantee, boundary, control, degradation, claim limit and non-goal, and refusal of an undocumented feature or an open severity-1 or 2 defect."
       }
+    ],
+    "CTX2-PERSON-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_preferences_are_consistent_because_they_are_read.py",
+        "why": "Coherent preferences in the live path: her answers about what she prefers read her preferences, so four askings of one question no longer get four different topics."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_what_he_likes_reaches_the_prompt.py",
+        "why": "The relationship model in the live path: what she learns he likes is written to the durable record her turns read, not a record nothing writes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_her_actions_reach_her_selfhood.py",
+        "why": "Action ownership and accountability in canonical state: what her actions did reaches her selfhood, her sense of agency and her recurrent self-model, which had stayed unchanged through 1,295 completed intentions."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_person_who_learns_is_still_herself.py",
+        "why": "Stable identity through learning: a change written by a measured transformation inside its contract continues her, and an unmeasured one ends continuity."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_interpersonal_model.py::test_knowledge_about_her_is_distinct_from_knowledge_about_him",
+        "why": "Self and other kept apart in what she knows."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_welfare_model.py::test_background_policy_consumes_welfare_gate",
+        "why": "Welfare interests in the decision path: background policy consumes the welfare gate."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py::test_consent_is_exact_agent_expiring_and_purpose_scoped",
+        "why": "Consent, exact to the agent, expiring and purpose-scoped. Not decided here or above: enduring interests, norm comprehension, refusal and autobiographical continuity carried into the live decision path."
+      }
     ]
   }
 }
