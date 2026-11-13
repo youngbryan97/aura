@@ -66,3 +66,30 @@ def test_a_full_audit_runs_and_saves(tmp_path):
     report = asyncio.run(suite.run(save=True))
     assert (tmp_path / f"{report.audit_id}.json").exists()
     assert suite.get_trend().get("status") != "no audits yet"
+
+
+def test_the_audit_reads_her_published_phi_and_the_synthesizers_own_keys(monkeypatch):
+    """Her first audits read phi 0.000 beside a live 0.263, and PRI 0 from keys the synthesizer never had."""
+    from core.consciousness import unified_audit
+    from core.container import ServiceContainer
+    from core.runtime import service_registry
+
+    class PhiCore:
+        current_phi = 0.26331
+        history_length = 40
+
+    class Synth:
+        def get_snapshot(self):
+            return {"pri": 0.42, "dominant_dimension": "precision", "history_depth": 12}
+
+    monkeypatch.setattr(service_registry, "get_runtime_service",
+                        lambda name, default=None: PhiCore() if name == "phi_core" else default)
+    real_get = ServiceContainer.get
+    monkeypatch.setattr(ServiceContainer, "get",
+                        lambda name, default=None: Synth() if name == "qualia_synthesizer" else real_get(name, default))
+    suite = unified_audit.ConsciousnessAuditSuite()
+    iit, raw = asyncio.run(suite._gather_iit())
+    assert iit.key_metric == 0.26331 and iit.criteria_met == [True, True, True] and raw["phi_samples"] == 40
+    qualia, raw = asyncio.run(suite._gather_qualia())
+    assert qualia.key_metric == 0.42 and qualia.criteria_met == [True, True, True]
+    assert raw["dominant_dimension"] == "precision"

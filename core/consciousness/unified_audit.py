@@ -293,11 +293,20 @@ class ConsciousnessAuditSuite:
         metrics: Dict[str, Any] = {}
         try:
             from core.container import ServiceContainer
-            riiu = ServiceContainer.get("riiu", default=None)
-            if riiu:
+            from core.runtime.service_registry import get_runtime_service
+
+            # Her published φs, the one her log names "PhiCore live". The audit read only "riiu", which a phase her
+            # chat never runs registers, and her first audits reported phi 0.000 beside a live 0.263 (13 November).
+            phi_core = get_runtime_service("phi_core", default=None)
+            riiu = None if phi_core is not None else ServiceContainer.get("riiu", default=None)
+            if phi_core is not None:
+                phi = float(phi_core.current_phi)
+                metrics["phi"] = phi
+                metrics["phi_samples"] = int(phi_core.history_length)
+            elif riiu:
                 phi = float(riiu.get_phi())
                 metrics["phi"] = phi
-                metrics["riiu_stats"] = riiu.get_stats()
+                metrics["phi_samples"] = int(riiu.get_stats().get("samples", 0))
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('unified_audit', e)
             error = str(e)
@@ -307,7 +316,7 @@ class ConsciousnessAuditSuite:
         # C1: Phi > 0 (system is integrated)
         # C2: Phi > threshold for "conscious" level (contested — we use 0.1 as minimal)
         # C3: System has more than minimum samples for reliable computation
-        samples = metrics.get("riiu_stats", {}).get("samples", 0)
+        samples = metrics.get("phi_samples", 0)
         criteria     = ["phi > 0", "phi > 0.1", "sufficient samples (>8)"]
         criteria_met = [phi > 0, phi > 0.1, samples >= 8]
 
@@ -466,26 +475,26 @@ class ConsciousnessAuditSuite:
             from core.container import ServiceContainer
             synth = ServiceContainer.get("qualia_synthesizer", default=None)
             if synth:
+                # The synthesizer's own keys. The audit asked for "phenomenal_richness", "self_referential" and
+                # "dominant_modality", which it has never had, and read zeros (13 November 2026).
                 snapshot = synth.get_snapshot() if hasattr(synth, "get_snapshot") else {}
-                pri              = float(snapshot.get("phenomenal_richness", 0.0))
-                self_referential = bool(snapshot.get("self_referential", False))
-                dominant         = snapshot.get("dominant_modality", "none")
+                pri              = float(snapshot.get("pri", 0.0))
+                # Its meta-qualia read its own recent states once it holds two of them.
+                self_referential = int(snapshot.get("history_depth", 0)) >= 2
+                dominant         = snapshot.get("dominant_dimension", "none")
                 metrics["pri"]              = pri
-                metrics["self_referential"] = self_referential
-                metrics["dominant_modality"] = dominant
+                metrics["second_order_reading"] = self_referential
+                metrics["dominant_dimension"] = dominant
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('unified_audit', e)
             error = str(e)
             metrics["pri"] = 0.0
 
-        criteria     = ["PRI > 0", "PRI > 0.3", "self-referential loop detected"]
+        criteria     = ["PRI > 0", "PRI > 0.3", "meta-qualia reading its own recent states"]
         criteria_met = [pri > 0, pri > 0.3, self_referential]
 
         score = sum(criteria_met) / len(criteria_met)
-        notes = (
-            f"PRI={pri:.3f}, dominant={dominant}, self-ref={self_referential}. "
-            + (f"Qualia synthesis active with {'self-referential strange loop' if self_referential else 'linear processing'}.")
-        )
+        notes = f"PRI={pri:.3f}, dominant={dominant}, meta-qualia reading its own states={self_referential}."
         return TheoryResult(
             theory_name="Qualia synthesis", short_name="Qualia",
             criteria=criteria, criteria_met=criteria_met,
