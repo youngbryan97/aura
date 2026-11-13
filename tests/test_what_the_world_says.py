@@ -589,3 +589,24 @@ def test_a_question_about_now_is_searched_even_when_a_stored_copy_has_the_thing(
     asyncio.run(gather_world_evidence("Bam's 83 point game: what is the latest on it?", store=_Corpus(), search=search,
                                       outside_wanted=True, now_wanted=True))
     assert searched, "something as it is now is looked up, whatever a dated copy holds"
+
+
+def test_a_question_about_her_own_evening_is_not_a_question_about_the_world_now() -> None:
+    """LIVE 13 November 2026: "What have you been up to this evening?" was searched on the web for "this evening", and
+    wikiHow's page on answering the phrase reached her as evidence (7.5 s of a 45.8 s turn)."""
+    from core.conversation.asks_about_the_world import is_about_her
+    from core.search.research_pipeline import _query_is_current
+
+    for hers in ("What have you been up to this evening?", "How are you feeling today?", "What did you do yesterday?",
+                 "How was your day today?"):
+        assert _query_is_current(hers) and is_about_her(hers), hers
+    for the_worlds in ("What is the weather today?", "Who won the election yesterday?",
+                       "Do you know who won the election yesterday?", "What's the score of the latest Lakers game?"):
+        assert _query_is_current(the_worlds) and not is_about_her(the_worlds), the_worlds
+
+
+def test_the_route_asks_whether_a_present_question_is_about_her() -> None:
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "interface" / "routes" / "chat_desktop_evidence.py").read_text()
+    assert "_query_is_current(user_message) and not is_about_her(user_message)" in source

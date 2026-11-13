@@ -32,7 +32,7 @@ from core.language.model_features import model_hidden_features as _model_hidden_
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["asks_for_sources", "asks_about_a_named_thing", "wants_outside_evidence"]
+__all__ = ["asks_for_sources", "asks_about_a_named_thing", "is_about_her", "wants_outside_evidence"]
 
 #: Asking where something came from. An instruction, not a topic.
 _WANTS_SOURCES = re.compile(
@@ -234,6 +234,20 @@ _NEEDS_OUTSIDE = _LearnedMatcher(
     ),
     features=_model_hidden_features,
 )
+
+
+def is_about_her(message: object) -> bool:
+    """A turn about her own doings, state or nature, which her record answers and no search of the world does.
+
+    LIVE 13 November 2026: "What have you been up to this evening?" was searched on the web for "this evening", as a
+    question about something as it is now, and wikiHow's advice on answering the phrase reached her as evidence.
+    """
+    text = _said(message)
+    if _ABOUT_HER.search(text):
+        return True
+    from core.self.recent_activity import looks_like_a_question_about_recent_activity
+
+    return looks_like_a_question_about_recent_activity(text)
 
 
 def wants_outside_evidence(message: object) -> bool:

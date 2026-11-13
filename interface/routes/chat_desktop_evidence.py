@@ -1157,11 +1157,11 @@ async def _what_the_world_says_for_the_turn(
     if should_collect and asks_for_her_view(user_message) is True and not asks_for_sources(user_message):
         should_collect = False
     try:
-        from core.conversation.asks_about_the_world import wants_outside_evidence
+        from core.conversation.asks_about_the_world import is_about_her, wants_outside_evidence
         from core.search.research_pipeline import _query_is_current
 
-        current = _query_is_current(user_message)
-        # Something as it is now needs a live source, whatever a dated copy holds.
+        # Something as it is now needs a live source, whatever a dated copy holds; her own evening is not the world's.
+        current = _query_is_current(user_message) and not is_about_her(user_message)
         outside = should_collect or current or wants_outside_evidence(user_message)
     except _CHAT_RECOVERABLE_ERRORS:
         current, outside = False, should_collect
