@@ -2565,6 +2565,87 @@
         "name": "tests/test_one_door_into_what_she_knows_about_people.py",
         "why": "Each person is their own record: two people do not shadow each other, and every turn reaches the record through one door. Not decided here or above: non-instrumental welfare for the people she models, and boundaries she keeps on their behalf beyond consent."
       }
+    ],
+    "CTX2-WELFARE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_valence_is_the_only_path.py",
+        "why": "Decides the arbitration: every damage and benefit channel reaches policy through the one appraisal, no policy term reads a raw input, a lesioned valence leaves no policy shift behind, and an unknown axis is refused rather than ignored."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_welfare_model.py",
+        "why": "The welfare authority's source and reach: interests derive from real telemetry and are bounded, only a vital interest's deficit gates optional work, background policy consumes that gate, the gate holds when a snapshot fails, and what she reports of her condition is what the welfare model holds."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nociception.py",
+        "why": "Nociception with decay: damage raises pressure, pain decays over time, repeated failures escalate, valence is negative while deteriorating and positive while healing, and recorded degradations feed it live."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_feeling_named_is_what_moved_her.py",
+        "why": "Explicit source: a feeling she is shown to have is one something moved, read from its departure from her resting chemistry. Not decided here or above: resistance to a prompt that tries to set her welfare signals, attachment and existential-stakes signals under the same authority, and per-signal confidence and persistence across restarts."
+      }
+    ],
+    "TOOLS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_durable_workflow_approval.py",
+        "why": "Resumable and budgeted: a paused workflow resumes past its approval without re-running the completed prefix, the decision survives a new engine process, a denial cancels and records who refused, a cancelled workflow owes no more work, and a step retries only up to its policy."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_transactions.py",
+        "why": "Idempotent and compensating effects: a verified effect is durable and replays idempotently, a failed independent verification rolls back, a crash after dispatch is never replayed automatically, restart recovery returns an interrupted effect to an observed safe state, and drift in what the provider offers is refused before any effect."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_procedure_steps_need_their_own_evidence.py",
+        "why": "Complete only after observed effects: a step advances on its own requirement's observed effect, a later answer does not prove an earlier requirement, and a causal change does not complete a planned effect before it is observed."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_tool_loop_sees_what_was_read.py",
+        "why": "Source preserving: what the turn already read reaches the tool loop, so a named document is not fetched again from a rebuilt URL. Not decided here or above: one typed workflow spanning many tools end to end, and a tool renamed or replaced by its provider mid-workflow."
+      }
+    ],
+    "CTX2-COLLEAGUE-003": [
+      {
+        "kind": "test",
+        "name": "tests/test_interpersonal_persistence.py",
+        "why": "Relationships through a restart: every field of what she knows about a person round-trips, corrections and repaired ruptures stay as they were, evidence is not restamped as new, and an unreadable file is an incident with the evidence kept rather than an empty model."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_standing_authority.py::test_budget_is_atomic_and_survives_manager_restart",
+        "why": "Permissions through a restart: a consequence budget is atomic and survives the manager restarting."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_standing_authority.py::test_revocation_is_durable_immediate_and_owner_authenticated",
+        "why": "Permission drift: a revocation is durable and immediate, and only the owner can make it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_transactions.py",
+        "why": "Partial external effects through a crash: an effect dispatched before a crash is never replayed automatically, a new coordinator returns an interrupted effect to an observed safe state, and a failed recovery is reported as indeterminate."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_durable_workflow_approval.py::test_the_decision_survives_a_new_engine_process",
+        "why": "Operator intervention through a restart: an approval decision survives a new engine process."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_goal_is_one_object.py",
+        "why": "Obligations: a goal she forms reaches its durable store, and one that could not be made durable says so rather than being reported as kept."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_shutdown_snapshot_continues_her_line.py",
+        "why": "Identity through shutdown: a snapshot continues her one line or is not written. Not decided here or above: project state across an update, the same through a model migration live, and behaviour under network loss."
+      }
     ]
   }
 }
