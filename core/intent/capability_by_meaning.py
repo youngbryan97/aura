@@ -113,6 +113,20 @@ class Meanings:
         logger.info("by meaning: %s stands %.2f out and %.2f clear of %s", near[0][0], stands, clear, near[1][0])
         return near[0][0] if stands >= STANDS_OUT and clear >= CLEAR_OF else None
 
+    def standing_out(self, text: str, skills: Mapping[str, Any]) -> list[str]:
+        """Every capability that stands out from them all for ``text``, nearest first: what meaning narrows a request
+        to when no one of them is clearly ahead. LIVE 13 November 2026, "Could you put up a desktop notification for me
+        that says time to water the plants?": notify_user stood 3.03 out and 0.12 clear of reminder, and with no one
+        chosen nothing was done. A tie needs two: one capability standing out alone and not clearly is not narrowed
+        to, or a remark would be read only against the one thing it happened to sit nearest."""
+        near = self.nearest(text, skills)
+        if len(near) < 3:
+            return []
+        scores = np.array([score for _name, score in near])
+        spread = float(scores.std()) or 1e-9
+        tied = [name for name, score in near if (score - scores.mean()) / spread >= STANDS_OUT]
+        return tied if len(tied) >= 2 else []
+
     def learned(self, text: str, name: str) -> None:
         """``name`` served ``text``: one more of its meanings, kept."""
         text = " ".join(str(text or "").split())[:400]

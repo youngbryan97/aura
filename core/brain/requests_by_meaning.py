@@ -15,7 +15,7 @@ from core.intent.capability_by_meaning import TASK, Meanings
 
 logger = logging.getLogger("Aura.CapabilityByMeaning")
 
-__all__ = ["meant_capability", "served"]
+__all__ = ["meant_capability", "meant_shortlist", "served"]
 
 
 _SHARED: dict[str, Meanings] = {}
@@ -60,6 +60,18 @@ def meant_capability(text: str, skills: Mapping[str, Any]) -> str | None:
     except Exception as why:  # noqa: BLE001 - a reading that fails is no reading; the words still route
         logger.info("a request could not be read by meaning: %s", why)
         return None
+
+
+def meant_shortlist(text: str, skills: Mapping[str, Any]) -> list[str]:
+    """The capabilities ``text`` could mean, by her embedding of it, when none is clearly the one; [] without a model."""
+    meanings = _the_meanings()
+    if meanings is None:
+        return []
+    try:
+        return meanings.standing_out(text, skills)
+    except Exception as why:  # noqa: BLE001 - a reading that fails is no reading; the words still route
+        logger.info("a request could not be read by meaning: %s", why)
+        return []
 
 
 def served(text: str, name: str) -> None:

@@ -181,3 +181,45 @@ def test_nothing_meant_and_no_order_leaves_the_turn_to_words(engine, monkeypatch
     monkeypatch.setattr("core.intent.what_her_model_reads_it_needs.capabilities_her_model_reads", reading)
     required, ceiling, _ = asyncio.run(her_reading("I had tea with my sister this afternoon.", [], "sandboxed_compute", frozenset()))
     assert required == [] and ceiling == "sandboxed_compute" and called == []
+
+
+def test_when_meaning_narrows_it_to_a_few_her_model_chooses_among_them(engine, monkeypatch):
+    """LIVE 13 November 2026: "Could you put up a desktop notification for me that says time to water the plants?"
+    stood notify_user 3.03 out and 0.12 clear of reminder; with no one chosen, nothing was done."""
+    from core.brain.her_reading_of_a_request import her_reading
+    from core.container import ServiceContainer
+
+    skills = ServiceContainer.get("capability_engine").skills
+    skills["notify_user"] = SimpleNamespace(description="Pushes a native OS desktop notification.", enabled=True, trigger_patterns=[])
+    skills["reminder"] = SimpleNamespace(description="Sets a reminder for later.", enabled=True, trigger_patterns=[])
+    _means(monkeypatch, None)
+    monkeypatch.setattr("core.brain.requests_by_meaning.meant_shortlist", lambda text, s: ["notify_user", "reminder"])
+    shown = []
+
+    async def reading(text, offered, ask=None):
+        shown.append(sorted(offered))
+        return ["notify_user"]
+
+    monkeypatch.setattr("core.intent.what_her_model_reads_it_needs.capabilities_her_model_reads", reading)
+    asked = "Could you put up a desktop notification for me that says time to water the plants?"
+    required, ceiling, scopes = asyncio.run(her_reading(asked, [], "sandboxed_compute", frozenset({"sandboxed_compute"})))
+    assert shown == [["notify_user", "reminder"]], "her model chooses among what meaning narrowed it to"
+    assert required == ["notify_user"] and ceiling == "external_io"
+
+
+def test_a_shortlist_is_what_stands_out_from_them_all():
+    import numpy as np
+
+    from core.intent.capability_by_meaning import Meanings
+
+    vectors = {"notify": [1.0, 0.0], "remind": [0.97, 0.24], **{f"other{i}": [0.0, 1.0] for i in range(40)}}
+    meanings = Meanings(lambda texts: np.array([vectors.get(t.split()[0], [0.0, 1.0]) for t in texts], dtype=np.float32),
+                        embed_query=lambda text: np.array([1.0, 0.05], dtype=np.float32))
+    skills = {name: SimpleNamespace(description=f"{name} does its own thing here.", enabled=True) for name in vectors}
+    assert meanings.which("notify me", skills) is None  # two stand out, neither clearly ahead
+    assert meanings.standing_out("notify me", skills) == ["notify", "remind"]
+    # One standing out alone is not a tie to settle: nothing is narrowed to.
+    lone = Meanings(lambda texts: np.array([vectors.get(t.split()[0], [0.0, 1.0]) if not t.startswith("remind") else [0.0, 1.0]
+                                            for t in texts], dtype=np.float32),
+                    embed_query=lambda text: np.array([1.0, 0.05], dtype=np.float32))
+    assert lone.standing_out("notify me", skills) == []
