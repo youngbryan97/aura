@@ -4,7 +4,8 @@ Bryan decided on 23 October that the record of her growth begins at e19047ec7:
 before it, 33 steps of her live window changed how far she had grown under a
 contract that never named the write, so each read as a defect. Those steps are
 before the record and reported beside it; after it, every measured step must
-develop, as before.
+develop, as before. He decided the same on 3 November for the fix that kept her
+writers through the vault (8b25f0356), and the record begins there now.
 """
 
 from __future__ import annotations
@@ -48,4 +49,4 @@ def test_read_from_the_fix_the_early_defect_is_before_the_record_and_reported():
 
 
 def test_her_record_begins_at_the_fix_commit():
-    assert HER_RECORD_BEGINS_AT == 1792766937.0
+    assert HER_RECORD_BEGINS_AT == 1793727220.0  # 8b25f0356, 2026-11-03 09:33:40 -0800

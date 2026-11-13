@@ -33,7 +33,7 @@ def test_probe_load_and_certificate_share_resolved_checkpoint(tmp_path, monkeypa
     # The voice reading's arguments (028fbd1aa): no recorded replies here, so it reads none.
     args = SimpleNamespace(model="some/default-model", model_path=str(checkpoint) if explicit else "",
                            sweep="0.05", steps=2, seed=5, no_write=True,
-                           replies=str(tmp_path / "no-replies.jsonl"), voice=0)
+                           replies=str(tmp_path / "no-replies.jsonl"), voice=0, voice_model="")
     def descriptor(path, **kwargs):
         described.append((path, kwargs))
         return {"descriptor_sha256": "actual-basis"}
