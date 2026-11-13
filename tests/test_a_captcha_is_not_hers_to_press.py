@@ -110,3 +110,15 @@ def test_her_browser_waits_for_a_check_to_go_on_and_reads_the_page_it_went_on_to
     sat_there.browse = browse
     assert asyncio.run(skill._look_again_once_it_has_checked(sat_there))["url"] == "https://www.reddit.com/r/nosleep/"
     assert loaded_again == ["https://www.reddit.com/r/nosleep/"]
+
+
+def test_what_she_has_seen_on_a_page_is_counted_as_it_comes():
+    """A scroll that shows nothing new is not progress (sovereign_browser's stall counter): LIVE 12 November 2026 she
+    scrolled about a thread she had finished reading for round after round."""
+    from core.skills.sovereign_browser_what_it_did import remember_what_was_seen
+
+    seen: dict[str, list[str]] = {}
+    url = "https://www.reddit.com/r/AskHistorians/comments/1xtvhx7/"
+    assert remember_what_was_seen(seen, {"url": url, "text": "gamboncorner\nYou could, though not officially."}) == 2
+    assert remember_what_was_seen(seen, {"url": url, "text": "You could, though not officially.\ngerardmenfin"}) == 1
+    assert remember_what_was_seen(seen, {"url": url, "text": "gamboncorner\ngerardmenfin"}) == 0

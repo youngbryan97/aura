@@ -1505,6 +1505,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         been_in: set[str] = set()
         went_nowhere: set[str] = set()
         last_moves: list[str] = []
+        last_kinds: set[str] = set()
         # What the last move did, and every line each page showed in this run.
         # See `sovereign_browser_what_it_did`.
         before_move: Mapping[str, Any] = {}
@@ -1570,7 +1571,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         len(last_moves),
                     )
                 been_in.add(signature)
-                remember_what_was_seen(seen_here, observation)
+                new_lines = remember_what_was_seen(seen_here, observation)
                 noticed = what_the_move_did(
                     before_move, observation, done=last_done,
                     expected=str((steps[-1] if steps else {}).get("expected") or ""),
@@ -1579,7 +1580,12 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 spent = went_nowhere | the_ones_tried_here(tried_from, signature)
                 exhausted = every_way_on_led_back(observation, spent)
                 observation = self._without_the_moves_that_go_nowhere(observation, spent)
-                if signature == last_signature or exhausted:
+                # A scroll that shows nothing she has not already read on this page is not progress, though it moves
+                # the screen. LIVE 12 November 2026 she said "I've captured the full thread content" on an
+                # AskHistorians thread, and scrolled about it for round after round until her request had run 15
+                # minutes. A click is not counted so: choosing an answer changes a page without new words.
+                only_looked_again = bool(last_kinds) and last_kinds <= {"scroll"} and not new_lines
+                if signature == last_signature or exhausted or only_looked_again:
                     stalled += 1
                     if stalled >= self.PURSUE_STALL_LIMIT:
                         steps.append({"error": "no_progress", "url": observation.get("url")})
@@ -1773,6 +1779,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         break
                     # What the play or the talk came to is her last move: moves made are progress though the page's text did not change.
                     before_move, last_done, last_moves = observation, [str(steps[-1].get("did") or "")], []
+                    last_kinds = set()
                     stalled, last_signature = (0, "") if steps[-1].get("moved") else (stalled, last_signature)
                     continue
 
@@ -1788,6 +1795,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     for action, _said in moves
                     if getattr(action, "selector", "")
                 ]
+                last_kinds = {str(getattr(action, "type", "") or "") for action, _said in moves}
                 before_move, last_done = observation, names_of_the_moves(moves, elements)
                 tried_from.update((signature, selector) for selector in last_moves)
                 planned = [action for action, _said in moves]

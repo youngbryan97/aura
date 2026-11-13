@@ -142,12 +142,14 @@ def the_ones_tried_here(tried_from: set[tuple[str, str]], signature: str) -> set
     return {selector for state, selector in tried_from if state == signature}
 
 
-def remember_what_was_seen(seen: dict[str, list[str]], observation: Mapping[str, Any]) -> None:
-    """Keep every line of text each page has shown in this run."""
+def remember_what_was_seen(seen: dict[str, list[str]], observation: Mapping[str, Any]) -> int:
+    """Keep every line of text each page has shown in this run; how many it showed for the first time."""
     url = str(observation.get("url") or "")
     kept = seen.setdefault(url, [])
     known = set(kept)
-    kept.extend(line for line in _lines(observation) if line not in known)
+    fresh = [line for line in _lines(observation) if line not in known]
+    kept.extend(fresh)
+    return len(fresh)
 
 
 def with_what_was_seen_here(
