@@ -2788,6 +2788,33 @@
         "name": "tests/test_latent_consolidation.py::test_heldout_regression_blocks_activation",
         "why": "A held-out regression blocks activation. Not decided here or above: more domains and seeds, identity, governance, tool and latency probes, adversarial tasks, retained activation windows, longitudinal revalidation, and independent replay."
       }
+    ],
+    "CARRYOVER-07": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_consolidation.py",
+        "why": "Behavioural holdouts and no heuristic-only acceptance for adapters: a missing or incomplete held-out contract refuses activation, a held-out regression blocks it, flat loss or no steps is rejected, and the interference battery fails a disruptive change and reverts it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_caa_causal_evaluation.py",
+        "why": "CAA steering qualified by causal evidence only: an independent replay builds the evaluation, producer scores that were tampered with are rejected, every specificity lesion is required, and a result changed after verification is rejected."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_amplifier_cache_integrity.py",
+        "why": "No cache contamination: work the uncached path verifies is never served from the cache without the same verification."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_quantization_floor.py",
+        "why": "Quantization-aware substrate coupling: how much of a steering vector survives 4-bit weights is measured, so an alpha that steers is told apart from one drowned by quantization noise."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reasoning_phi_budget.py",
+        "why": "Bounded Phi compute: demand buys reasoning depth and Phi capacity gates how much of it may be spent. Not decided here or above: the CRSM and LoRA debt closed as a whole, active memory metabolism, and a bound on LTC compute."
+      }
     ]
   }
 }
