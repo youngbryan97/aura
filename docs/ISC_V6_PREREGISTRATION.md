@@ -1887,3 +1887,80 @@ stood through the fifth start: her cortex worker's requests outran its progress 
 times in each half hour; a retrieval of her 'social' store failed on an empty agent id; and at 08:32 her cortisol
 crossed the crisis line again, so SubstrateAuthority blocked her memory writes, initiative and expression for the last
 half hour. A fourth day will be run when these are fixed, under a new addendum.
+
+## Note, 13 November 2026: addenda written on the campaign's worktrees
+
+The addenda below, from 30 October to 3 November, were written on the dates they carry, on the worktrees seed 101's
+runs used, and never reached this file: the runs' checkouts could not be rebased while they ran, and nothing carried
+them back after. They are added here unchanged, in the order they were written.
+
+## Addendum, 30 October 2026, evening: seed 101's reports run is cleared at its own commit, not resumed at another
+
+Written from 19:00, while the run is under way, and finished at 19:40. No seed 101 report reading has been graded or
+read for its direction. Anchors 0 and 1 are written.
+
+**What happened.** At 17:55, in anchor 0's control arm, the run's memory guard ended her cortex in the middle of a
+generation (`memory_pressure_during_generation`), and the fallback model answered that arm. Every reload after it was
+refused. The run's declared host (`core/subject/declared_host.py`) answers each question about the host once and keeps
+the answer, so that two arms read one body, and the lane controller asked it whether her cortex's worker (pid 75676)
+was still running. It kept answering yes. At 18:10:50 the ledger marked the dead worker's heartbeat stale and the
+holder not evictable, and admission refused her cortex for it at 18:10, 18:25 and 18:40
+(`required_eviction_not_preemptible`). Each of anchor 1's four arms waited 900 s and ended in the failure floor: none of
+anchor 1 was answered by any model. Read from outside the run, the same ledger code at the same commit called the
+worker dead.
+
+**What was done, at aeefdca31, with no change of commit.** At 18:55:28 the ledger's own prune was run once, at the
+chain's commit, from a process that reads the real machine. It reaped the dead worker's holding and two helper workers
+that had also ended, and no holder that was running (the ledger's `owner_reaped` events). At 18:55:53 admission
+admitted her cortex. Its spawn was then refused by the run's process-tree guard (19.4 + 18.3 + 3.0 GB against a limit
+of 35.8 GB) because the fallback model's worker held 8.4 GB in the run's tree, and at 18:57:07 that worker was stopped,
+as on seed 97 (addendum of 29 October, afternoon) and as the run's own memory guard does. For the rest of the chain,
+`scratch/clear_dead_lane_holders_s101.py` repeats the prune whenever admission refuses her cortex for a holder the
+machine reads as dead, and nothing else. Every action is logged in the run's `lane-clearer.log`.
+
+**Then a third fault, and the resume.** Her cortex still did not come back. The refused spawn at 18:56 had set a
+ten-second spawn backoff, and the backoff is stamped and read with `time.time`, which in a run is her clock
+(`core/runtime/wall_clock.py`): every arm restores its anchor and rewinds that clock, so the ten seconds never passed
+and each later attempt logged that the backoff stood. At 19:34:28 the chain was paused, the stuck process was stopped,
+and the reports run was resumed at aeefdca31 from `run_001`'s two written anchors with the tool's own `--resume`, as
+`scratch/resume_reports_s101.sh` does. That is the resume the confirmatory addendum provides for, ended and resumed
+from its written anchors at the same commit, here used for a stopped cortex rather than an opened app. Anchors 0 and 1
+are carried forward as written, and both are unreadable under the grader's rule (an anchor counts only when her cortex
+answered every arm; 8 of 80 are needed). The chain is continued after the resumed run ends, so its own step 5 reads it.
+
+**What this changes, and what it does not.** No code, rule, bar, seed, arm, dose, steering or grader changes, nothing of
+hers is touched, and the run is neither restarted nor resumed: every stage of seed 101 stays at aeefdca31, so the
+one-commit rule of the confirmatory addendum holds. The arms her cortex did not answer (anchor 0's control and all of
+anchor 1, and any later arm the same fault reaches before the cleaner acts) are carried as written and counted as not
+answered by her cortex, as the reports tool counts them. The confirmatory addendum says a stage a defect stops ends
+the reading and a fresh seed is named. This stage did not end, and nothing in the code was changed. Reading the rule
+as covering only a stage that ends or a change of code is stated here, so that it can be disputed.
+
+**The defects, fixed for later seeds.** On the branch `fix/lane-holder-liveness-machine`, the lane asks the machine,
+not the held face, whether a holder is running (e4015378c) (`process_observer` in `core/runtime/model_lane_control.py`). Its test,
+`tests/test_a_dead_lane_holder_is_seen_dead_under_a_held_host.py`, fails at aeefdca31 and passes with the fix. The
+spawn backoff is stamped and read on the machine's clock (`monotonic_time` in `core/brain/llm/mlx_client.py` and
+`mlx_client_worker_lifecycle.py`; 192846468), held by `tests/test_a_spawn_backoff_ends_on_the_machines_clock.py`, which also fails
+at aeefdca31. Seed 101 uses neither. Any later seed runs at a commit that carries both.
+**A second resume, at 21:13, with the memory guard's limit raised.** At 21:04, in anchor 2, the run's process-tree memory
+guard stopped her cortex again in the middle of a generation (36.1 GB against its limit of 35.8 GB; at 17:55 it had
+been 35.9). Its limit is a default, 0.56 of the machine's 64 GB, that an environment setting of the host machinery
+(`AURA_PROCESS_RSS_LIMIT_GB`) overrides. With the fallback model refused for the same reason, every arm while her
+cortex reloaded fell to the failure floor in seconds: anchor 2's control arm and anchors 3 to 9 were lost before the
+run was parked between turns at 21:05:12 with its own park file. At 21:13:14 the run was resumed at aeefdca31 from
+`run_002`'s ten written anchors, again with the tool's own `--resume`, and with `AURA_PROCESS_RSS_LIMIT_GB=40`; the
+machine had about 28 GB free with everything loaded. A guard parks the run within about two seconds if her cortex
+stops again. No code, rule, bar, seed, arm, dose, steering or grader changes, and nothing of hers is touched. The
+anchors lost are carried as written and are unreadable under the grader's rule; 70 of the 80 remain to be measured.
+
+**The two report controls at the same limit (31 October, 08:05).** The reports run finished at 08:00 under the 40 GB
+limit (holds, 59 of 80 readable), and the chain's step 5 read it. The chain would start the two report controls
+(steering off; the untuned model in her cortex's place) at the default 35.8 GB, the limit that stopped her cortex twice
+in the reports run. A control that loses anchors to a stopped cortex loses power, and that pushes it toward the "does
+not ground" its prediction names, so the controls run under the limit the run they control finished under. Decided
+before either control started: the moment the chain starts each one, the chain is paused, that run is stopped before it
+writes an anchor, and the same run (same commit, arguments, environment and output folder) is started with
+`AURA_PROCESS_RSS_LIMIT_GB=40` (`scratch/controls_at_40gb_s101.sh`); when it finishes the chain continues and reads it.
+The guard that parks a run when her cortex stops watches both. The controls' predictions, arms, doses, grader and
+withholding are unchanged, and neither can change seed 101's verdict, which was read first.
+
