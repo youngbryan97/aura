@@ -3670,6 +3670,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   One more routing defect fixed: "Describe your memory system." was answered
   with the host's processor and memory percentages. Asking what a part IS is
   not asking how it is doing — 1573a64f0.
+  13 November, 08:48, a typed greeting after a restart ("What have you been
+  up to since you woke?"): she answered that she had checked her email and
+  wandered through Reddit threads. Neither ran (her Reddit adapter is not
+  configured); her turn held her instruments, which list email, and she
+  read what she can do as what she did. Her chat delivered it; two minutes
+  later her learning step refused it as an unfounded tool-execution claim.
+  Two causes, both open: the sentence-level action check asks a learned
+  matcher that does not wait, which had not warmed at delivery and abstained,
+  and when it does decide, any tool receipt in the turn founds any claim, so
+  a read of her own source would vouch for "I checked my email". That turn's
+  delivery also spent 30 s in runtime reconciliation after 22 s stabilising.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched
