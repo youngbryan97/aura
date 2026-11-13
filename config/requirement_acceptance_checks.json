@@ -761,7 +761,7 @@
       {
         "kind": "test",
         "name": "tests/test_relational_memory_authority.py",
-        "why": "Decides the one authority SocialMemory and SharedGround adapt over: consent that is exact-agent, expiring and purpose-scoped, an encrypted envelope with no plaintext identity or memory, revocation that blocks prompts, legacy plaintext quarantined until claimed, export and deletion behind authorisation receipts, failed writes that roll back, and every legacy adapter sharing it. None of the three decides the consolidation of humor, joy, the user profile, the relationship graph and theory of mind, action receipts tied to observed social outcomes, user-facing style and boundary controls, or multi-session trials."
+        "why": "Decides the one authority SocialMemory and SharedGround adapt over: she keeps what she learns of a person without being given leave, and a person's own word holds in the order they said it (a refusal, private mode or a session-only policy turns a use off, a later grant turns it back on), an encrypted envelope with no plaintext identity or memory, revocation that blocks prompts, legacy plaintext quarantined until claimed, export and deletion behind authorisation receipts, failed writes that roll back, and every legacy adapter sharing it. None of the three decides the consolidation of humor, joy, the user profile, the relationship graph and theory of mind, action receipts tied to observed social outcomes, user-facing style and boundary controls, or multi-session trials."
       }
     ],
     "CTX3-SITUATION-001": [
@@ -908,7 +908,7 @@
       {
         "kind": "test",
         "name": "tests/test_relational_memory_authority.py",
-        "why": "Decides consent as governed abstention: a record is session-only without explicit consent, consent is exact-agent, expiring and purpose-scoped, revocation blocks prompts, an expired record is rejected before it mutates anything, and private mode revokes without deleting. Neither file decides cultural and power-context uncertainty, multi-party reasoning, outcome learning, or longitudinal live repair."
+        "why": "Decides a person's word over what she keeps of them: she keeps what she learns of a person without being given leave, and a person's own word holds in the order they said it (a refusal, private mode or a session-only policy turns a use off, a later grant turns it back on), revocation blocks prompts, an expired record is rejected before it mutates anything, and private mode revokes without deleting. Neither file decides cultural and power-context uncertainty, multi-party reasoning, outcome learning, or longitudinal live repair."
       }
     ],
     "SIMWORLD-001": [
@@ -1236,7 +1236,7 @@
       {
         "kind": "test",
         "name": "tests/test_relational_memory_authority.py",
-        "why": "Decides the part to preserve, the encrypted exact-agent relational authority: consent that is exact-agent, expiring and purpose-scoped, no plaintext identity or memory in the envelope, a wrong key that locks without overwriting, revocation and durable deletion, export and deletion behind receipts, and failed writes that roll back live state. It does not decide unifying the other memory writers and readers, cross-store retrieval, exact live consumption, or key rotation."
+        "why": "Decides the part to preserve, the encrypted exact-agent relational authority: she keeps what she learns of a person without being given leave, and a person's own word holds in the order they said it (a refusal, private mode or a session-only policy turns a use off, a later grant turns it back on), no plaintext identity or memory in the envelope, a wrong key that locks without overwriting, revocation and durable deletion, export and deletion behind receipts, and failed writes that roll back live state. It does not decide unifying the other memory writers and readers, cross-store retrieval, exact live consumption, or key rotation."
       }
     ],
     "MULTIMODAL-001": [
@@ -1364,7 +1364,7 @@
       {
         "kind": "test",
         "name": "tests/test_relational_memory_authority.py",
-        "why": "Decides relationships and consent through restart: consent survives or lapses as scoped, a wrong key locks without overwriting, and a failed update keeps the prior durable record. None of the three decides beliefs with their uncertainty, or continuity across a model replacement."
+        "why": "Decides relationships and consent through restart: a person's refusal of keeping survives the restart, a wrong key locks without overwriting, and a failed update keeps the prior durable record. None of the three decides beliefs with their uncertainty, or continuity across a model replacement."
       }
     ],
     "OPERATIONS-001": [
@@ -2553,7 +2553,7 @@
       {
         "kind": "test",
         "name": "tests/test_relational_memory_authority.py",
-        "why": "Consent and privacy: a record is session-only without the person's explicit consent, consent is exact to the agent, expiring and purpose-scoped, the stored envelope holds no identity or memory in plain text, revocation blocks use, and deletion and export need authorization receipts and leave other people's records intact."
+        "why": "Privacy and the person's word: she keeps what she learns of a person without being given leave, and a person's own word holds in the order they said it (a refusal, private mode or a session-only policy turns a use off, a later grant turns it back on), the stored envelope holds no identity or memory in plain text, revocation blocks use, and deletion and export need authorization receipts and leave other people's records intact."
       },
       {
         "kind": "test",
@@ -2959,8 +2959,8 @@
       },
       {
         "kind": "test",
-        "name": "tests/test_relational_memory_authority.py::test_consent_is_exact_agent_expiring_and_purpose_scoped",
-        "why": "Consent, exact to the agent, expiring and purpose-scoped. Not decided here or above: enduring interests, norm comprehension, refusal and autobiographical continuity carried into the live decision path."
+        "name": "tests/test_relational_memory_authority.py::test_a_refusal_is_exact_to_the_person_and_holds_until_they_say_otherwise",
+        "why": "She remembers a person without being given leave, and a refusal is exact to the person who made it and holds until they say otherwise. Not decided here or above: enduring interests, norm comprehension, refusal and autobiographical continuity carried into the live decision path."
       }
     ]
   }
