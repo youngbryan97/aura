@@ -128,6 +128,16 @@ class RelationalConsentGrant:
         )
 
 
+
+def _refuse(grants: dict, agent_id: str, kinds, operations, receipt_id: str, now: float) -> None:
+    """Keep a person's refusal as a record of its own, after everything they said before it (call under the lock)."""
+    refusal_id = f"refusal-{agent_id}-{len(grants)}-{int(now * 1000)}"
+    grants[refusal_id] = RelationalConsentGrant(
+        grant_id=refusal_id, agent_id=agent_id, kinds=list(kinds), operations=sorted(operations), granted_at=now,
+        expires_at=None, source=_REFUSAL, receipt_id=str(receipt_id)[:200], revoked_at=now,
+        revocation_receipt_id=str(receipt_id)[:200],
+    )
+
 @dataclass
 class RelationalMemoryRecord:
     record_id: str
@@ -353,7 +363,7 @@ class RelationalMemoryAuthority:
             # A policy the person set says what they leave out as well: keeping to the session refuses keeping.
             refused = sorted(_VALID_OPERATIONS - set(grant.operations))
             if refused:
-                self._refuse_locked(grant.agent_id, grant.kinds, refused, grant.receipt_id, now)
+                _refuse(self._grants, grant.agent_id, grant.kinds, refused, grant.receipt_id, now)
             self._revision += 1
             durable_change = replaced_durable_grant or "persist" in grant.operations or bool(refused)
             if (
@@ -385,7 +395,7 @@ class RelationalMemoryAuthority:
                     grant.revocation_receipt_id = str(receipt_id)[:200]
             # Remembering needs no grant, so a refusal is kept as one of its own: it covers every kind and use of this
             # person's records until a later grant of theirs.
-            self._refuse_locked(agent_id, ["*"], _VALID_OPERATIONS, receipt_id, now)
+            _refuse(self._grants, agent_id, ["*"], _VALID_OPERATIONS, receipt_id, now)
             if delete_records:
                 deleted = self._delete_records_locked(agent_id)
             self._revision += 1
@@ -1040,15 +1050,6 @@ class RelationalMemoryAuthority:
 
     get_health = status
     get_status = status
-
-    def _refuse_locked(self, agent_id: str, kinds, operations, receipt_id: str, now: float) -> None:
-        """Keep a person's refusal as a record of its own, after everything they said before it."""
-        refusal_id = f"refusal-{agent_id}-{len(self._grants)}-{int(now * 1000)}"
-        self._grants[refusal_id] = RelationalConsentGrant(
-            grant_id=refusal_id, agent_id=agent_id, kinds=list(kinds), operations=sorted(operations),
-            granted_at=now, expires_at=None, source=_REFUSAL, receipt_id=str(receipt_id)[:200],
-            revoked_at=now, revocation_receipt_id=str(receipt_id)[:200],
-        )
 
     def _matching_grant_id(self, agent_id: str, kind: str, operation: str, now: float) -> str:
         with self._lock:

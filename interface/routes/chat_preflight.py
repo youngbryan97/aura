@@ -34,6 +34,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
 from core.runtime.lockdep import checked_async_lock, checked_lock
 from core.runtime.service_access import resolve_orchestrator
+from core.social.watching_people import watch_a_typed_exchange
 from core.utils.task_tracker import get_task_tracker
 from interface.auth import (
     paired_device_session_id,
@@ -933,15 +934,8 @@ async def _run_chat_turn_memory_log_item(
         from core.runtime.conversation_support import record_conversation_experience
 
         if not bool(payload.get("experience_recorded")):
-            await record_conversation_experience(
-                user_message,
-                aura_response,
-                principal_id=user_id or None,
-            )
-            # Her model of the person, which only a phase fed and a typed turn runs none (core/social/watching_people).
-            from core.social.watching_people import watch_a_typed_exchange
-
-            watch_a_typed_exchange(user_id, user_message, aura_response)
+            await record_conversation_experience(user_message, aura_response, principal_id=user_id or None)
+            watch_a_typed_exchange(user_id, user_message, aura_response)  # her model of them: a typed turn runs no phase
             await _mark_chat_turn_memory_log_stage(operation_id, "experience")
 
         if not admission.ok:
@@ -2282,7 +2276,7 @@ async def _resolve_play_request_off_the_loop(message: str) -> Any | None:
     _MEDIA_LOOKUP_IN_FLIGHT["task"] = task
     try:
         return await asyncio.wait_for(asyncio.shield(task), timeout=MEDIA_LOOKUP_WAIT_S)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("🎬 looking up %r on this machine took over %.0fs; her turn goes on without it",
                        message[:80], MEDIA_LOOKUP_WAIT_S)
         return None
