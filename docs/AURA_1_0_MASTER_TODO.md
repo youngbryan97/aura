@@ -798,8 +798,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   27.0 s in all against 12.9, three on her loop against eight, and four
   lines of loop lag against none. The collector schedules a full pass by
   how many long-lived objects are not frozen, so passes come more often,
-  and each costs about a quarter of what it did. The three-hour comparison
-  is next.
+  and each costs about a quarter of what it did. Over three hours, the
+  build before against the build with the freeze: 251 full collections
+  over 50 ms against 707, median 398 ms against 139, worst 2,748 ms
+  against 353, 119.9 s in all against 102.9, and 22 on her loop against
+  64. The freeze traded rare long stalls for frequent short ones: the
+  worst is an eighth of what it was, and the total only 14% lower,
+  because what she makes after boot keeps growing and the collector
+  schedules a full pass by the part of the heap that is not frozen.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
@@ -1713,6 +1719,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   3,000 new tokens each turn (subconscious temporal recall 3,001
   characters, live mind context 2,621, grounding 1,273) after a prefix that
   her cache does reuse whole.
+  13 November: "queue" was everything from her gate's entry to her
+  cortex's call that no one timed: 4.87, 5.03 and 4.00 s on three chat
+  turns the day before, with nothing ahead of them. Her live context and
+  the turn's grounding are timed as retrieval now, and a wait is counted
+  net of the work inside it (e0b04c367). A typed turn after the restart,
+  45.76 s: queue 2.37, retrieval 7.68, tool 7.47 (a web search that should
+  not have run, fixed in 6a5d907e1), decode 12.29, prefill 8.10, delivery
+  1.69, 6.15 unattributed.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
@@ -3537,6 +3551,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   started counts as theirs and its words are never named as her work, and a
   subject is whole sentences or nothing. Open: the record replaced every word
   of her reply, where its docstring says what was interesting stays hers.
+  13 November: the record is a reading her model is given, and nothing in
+  her voice replaces her reply (710f3b1d0). Asked in her app's words after
+  the restart, the reply was hers, built on the record's figures: "I've
+  finished 53 pieces of work since waking up, with just one failure", then
+  what the work was. The same turn was searched on the web for "this
+  evening" and ended on a wikiHow address as its source; a question about
+  her own evening is no longer read as one about the world now (6a5d907e1).
   2026-09-30, memory. A question about what was said was answered without
   her cortex by a word scorer whose length bonus let almost any sentence
   clear its bar, so it quoted whichever memory scored top: on twelve
