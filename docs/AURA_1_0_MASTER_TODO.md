@@ -3558,6 +3558,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   what the work was. The same turn was searched on the web for "this
   evening" and ended on a wikiHow address as its source; a question about
   her own evening is no longer read as one about the world now (6a5d907e1).
+  Two more turns that night. Her draft retold work from the record, and
+  her worker refused it as claiming work no receipt showed; reading the
+  record now files a receipt (bf44d9713). "Busy night? What kept you
+  occupied?" came back as two whole answers in one reply: the coverage
+  check called the second part unanswered because the reply did not say
+  "kept" or "occupied", the draft was continued, and the continuation
+  answered again (99f06edc3, an exception for a question about what she
+  did). Bryan, the same night: that is one more rule beside eight others,
+  each added for a live failure, and what is wanted is a judgement that
+  holds across domains. Measured on the 164 multi-part cases the coverage
+  tests label (247 parts): her retrieval encoder's similarity, cut at 5%
+  against its own null, disagreed on 72; a model trained on whether a
+  sentence answers a question (QNLI) disagreed on 65 of the 191 parts
+  whose label is about meaning, scoring "You're rewriting the retry logic"
+  0.995 for "What did I just tell you I was working on?" and her real
+  answer to "What kept you occupied?" 0.004. Neither is the judge; the
+  labels themselves partly encode the rule's gates. Next: one answerhood
+  judge for every domain, learned from her own turns (the person's next
+  turn says whether a part was taken up), over a representation that reads
+  both question and reply, with abstention and an error rate per domain;
+  the word rule then only proposes, and its exceptions go.
   2026-09-30, memory. A question about what was said was answered without
   her cortex by a word scorer whose length bonus let almost any sentence
   clear its bar, so it quoted whichever memory scored top: on twelve
