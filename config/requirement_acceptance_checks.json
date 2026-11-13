@@ -2705,6 +2705,28 @@
         "name": "tests/test_a_deferral_is_not_a_refusal.py",
         "why": "Deferring for reasons of her own is told apart from being refused. Not decided here or above: a live proof that she understands her available action surfaces and chooses among them uncommanded, reflection and communication she starts herself, and that no state turns autonomous action off."
       }
+    ],
+    "CTX2-REPL-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_adjudicate_unified_intrinsic_resident_replication.py",
+        "why": "Decides what counts as a replication: a powered plan frozen before it runs, three disjoint seeds, any task or prompt reused across seeds rejected, and an evaluator that drifts between seeds rejected."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_campaign_role_signer_service.py",
+        "why": "Separate artifact signers: each campaign role signs with its own isolated key, which never touches disk and signs only a sealed policy."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_g05_independent_verifier.py",
+        "why": "Separate evaluators: G05's reading of her final answer is written apart from the runner that produced it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_g04_independent_verifier.py",
+        "why": "The same separation for G08's verifier, which interprets and tests with its own code. Not decided here or above: an independent replication of any of the named results: canonical-instance ownership, substrate and welfare effects on behaviour, amplifier uplift, one-shot learning, continuity through a model migration, tool-effect completion, rollback, and long-horizon recovery."
+      }
     ]
   }
 }
