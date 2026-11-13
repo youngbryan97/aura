@@ -39,7 +39,9 @@ def _result(authority: str, answer: str):
 
 @pytest.fixture
 def priced(monkeypatch):
-    monkeypatch.setattr(amp, "search_allowance", lambda *a, **k: (20.0, 40.0))
+    from core.brain import cognitive_engine
+
+    monkeypatch.setattr(cognitive_engine, "_time_the_answer_needs", lambda q: 20.0)
     monkeypatch.setattr(amp, "is_amplifiable", lambda q: "math")
 
 
@@ -101,3 +103,46 @@ def test_ordinary_chat_is_not_searched(monkeypatch):
         _amplify(None, "how was your day?", "fine", _Router(), {"messages": []}, _context(300.0))
     )
     assert out is None
+
+
+def test_a_candidate_is_priced_as_the_turns_answer_not_with_a_private_channel(monkeypatch):
+    """LIVE 2026-11-12: "Reasoning amplifier in chat stood down for math: 52 s left on the turn, one candidate costs
+    741 s": a candidate was priced with her whole private channel, which a typed turn's lane does not open, and the
+    amplifier had never run on a typed turn. It is priced in the unit the turn's room was granted in."""
+    from core.brain import cognitive_engine
+
+    monkeypatch.setattr(amp, "search_allowance", lambda *a, **k: (741.0, 1482.0))  # the old price, no longer asked
+    monkeypatch.setattr(cognitive_engine, "_time_the_answer_needs", lambda q: 30.0)
+    monkeypatch.setattr(amp, "is_amplifiable", lambda q: "math")
+    ran = []
+
+    async def _amplify_turn(objective, generate, **kwargs):
+        ran.append(kwargs["time_budget_s"])
+        return _result("checked_verifier", "829348951")
+
+    monkeypatch.setattr(amp, "amplify_turn", _amplify_turn)
+    out = asyncio.run(_amplify(None, QUESTION, "829348950", _Router(), {"messages": []}, _context(60.0)))
+    assert ran and 45.0 < ran[0] < 53.0
+    assert out == "829348951"
+
+
+def test_a_candidate_costs_what_her_draft_just_cost(monkeypatch):
+    """The draft is measured on the turn's receipt; a candidate through the same lane is priced at that."""
+    from core.brain import cognitive_engine
+    from core.verify.turn_receipt import record_latency, recording_turn
+
+    monkeypatch.setattr(cognitive_engine, "_time_the_answer_needs", lambda q: 5.0)  # the model, not asked
+    monkeypatch.setattr(amp, "is_amplifiable", lambda q: "math")
+    ran = []
+
+    async def _amplify_turn(objective, generate, **kwargs):
+        ran.append(kwargs["time_budget_s"])
+        return _result("checked_verifier", "829348951")
+
+    monkeypatch.setattr(amp, "amplify_turn", _amplify_turn)
+    with recording_turn("t", phases_available=()):
+        record_latency("prefill", 22.7)
+        record_latency("decode", 9.0)
+        assert asyncio.run(_amplify(None, QUESTION, "x", _Router(), {"messages": []}, _context(38.0))) is None
+        assert ran == []  # 30 s left after the margin, and the draft cost 31.7
+        assert asyncio.run(_amplify(None, QUESTION, "x", _Router(), {"messages": []}, _context(52.0))) == "829348951"

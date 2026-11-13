@@ -825,11 +825,9 @@ class _AnswersTheDesktopDirectly:
 
         if not reasoning_amplifier_v2_enabled():
             return None
-        from core.brain.reasoning_amplifier_v2 import (
-            amplify_turn,
-            is_amplifiable,
-            search_allowance,
-        )
+        from core.brain.reasoning_amplifier_v2 import amplify_turn, is_amplifiable
+
+        from .cognitive_engine import _time_the_answer_needs
 
         task_type = await asyncio.to_thread(is_amplifiable, request)
         if task_type is None:
@@ -838,7 +836,17 @@ class _AnswersTheDesktopDirectly:
             token_cap = max(1, int(router_kwargs.get("max_tokens") or 1024))
         except (TypeError, ValueError, OverflowError):
             token_cap = 1024
-        candidate_s, _planned_s = search_allowance(request, task_type, token_cap=token_cap, system=None)
+        # A candidate is another answer to this request through this turn's lane, so it costs what her draft just
+        # cost, as the turn's receipt measured it (docs/evidence/G09_BROAD_GAIN_PLAN_2026-10-07.md: "each
+        # candidate's allowance from what her draft cost"); before anything is measured, the unit the turn's room was
+        # granted in. LIVE 12 November 2026 it was priced as a generation with her whole private channel, which this
+        # lane does not open: "52 s left on the turn, one candidate costs 741 s", and it had never run on a typed turn.
+        from core.verify.turn_receipt import current_receipt
+
+        spent = current_receipt().latency_s if current_receipt() is not None else {}
+        candidate_s = float(spent.get("prefill", 0.0)) + float(spent.get("decode", 0.0))
+        if candidate_s <= 0.0:
+            candidate_s = await asyncio.to_thread(_time_the_answer_needs, request)
         deadline = context.get("cognitive_cycle_deadline_monotonic")
         try:
             left_s = float(deadline) - _time.monotonic() - 8.0
