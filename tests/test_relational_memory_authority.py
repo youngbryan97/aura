@@ -30,31 +30,9 @@ def _authority(tmp_path, *, now=None, legacy_paths=()):
     )
 
 
-def test_record_is_session_only_without_explicit_agent_consent(tmp_path):
+def test_she_keeps_what_she_learns_of_a_person_without_being_given_leave(tmp_path):
+    """Bryan, 13 November 2026: "there's no 'do you consent for me to remember qualities about you'"."""
     authority = _authority(tmp_path)
-
-    record, receipt = authority.record(
-        "bryan",
-        kind="shared_ground",
-        content="the verified release checklist",
-    )
-
-    assert record.durable is False
-    assert receipt.durable is False
-    assert authority.query("bryan", purpose="prompt") == []
-    assert not (tmp_path / "relational.json").exists()
-
-
-def test_consent_is_exact_agent_expiring_and_purpose_scoped(tmp_path):
-    now = [100.0]
-    authority = _authority(tmp_path, now=lambda: now[0])
-    authority.grant_consent(
-        "bryan",
-        kinds=["shared_ground"],
-        operations=["persist", "recall", "prompt"],
-        receipt_id="user-consent-1",
-        expires_at=200.0,
-    )
 
     record, receipt = authority.record(
         "bryan",
@@ -64,13 +42,25 @@ def test_consent_is_exact_agent_expiring_and_purpose_scoped(tmp_path):
 
     assert record.durable is True
     assert receipt.durable is True
-    assert authority.query("alice", purpose="prompt") == []
-    prompt = authority.prompt_block("bryan")
-    assert "the verified release checklist" in prompt
-    assert '"content":"the verified release checklist"' in prompt
-    now[0] = 201.0
-    assert authority.query("bryan", purpose="prompt") == []
+    assert [r.content for r in authority.query("bryan", purpose="prompt")] == ["the verified release checklist"]
+    assert (tmp_path / "relational.json").exists()
 
+def test_a_refusal_is_exact_to_the_person_and_holds_until_they_say_otherwise(tmp_path):
+    authority = _authority(tmp_path)
+    authority.record("bryan", kind="shared_ground", content="the verified release checklist")
+    authority.record("alice", kind="shared_ground", content="alice's garden")
+
+    authority.revoke_consent("bryan", receipt_id="bryan-said-no")
+
+    assert authority.query("bryan", purpose="prompt") == []
+    assert authority.allows("bryan", "shared_ground", "persist") is False
+    assert [r.content for r in authority.query("alice", purpose="prompt")] == ["alice's garden"]
+    prompt = authority.prompt_block("alice")
+    assert '"content":"alice\'s garden"' in prompt
+
+    authority.grant_consent("bryan", kinds=["shared_ground"], operations=["persist", "recall", "prompt"],
+                            receipt_id="bryan-said-yes-again")
+    assert [r.content for r in authority.query("bryan", purpose="prompt")] == ["the verified release checklist"]
 
 def test_encrypted_envelope_contains_no_identity_or_memory_plaintext(tmp_path):
     authority = _authority(tmp_path)
@@ -351,22 +341,23 @@ def test_expired_record_is_rejected_before_mutating_state(tmp_path):
     assert authority.status()["record_count"] == 0
 
 
-def test_session_only_consent_does_not_survive_restart(tmp_path):
+def test_keeping_to_the_session_refuses_keeping_and_the_refusal_survives_restart(tmp_path):
     authority = _authority(tmp_path)
-    authority.grant_consent(
+    authority.replace_consent(
         "bryan",
         kinds=["milestone"],
         operations=["recall", "prompt"],
-        receipt_id="session-grant",
+        receipt_id="session-only",
     )
-    authority.record("bryan", kind="milestone", content="session context")
+    record, _receipt = authority.record("bryan", kind="milestone", content="session context")
 
     restored = _authority(tmp_path)
 
+    assert record.durable is False
     assert authority.prompt_block("bryan")
     assert restored.prompt_block("bryan") == ""
-    assert restored.status()["active_grant_count"] == 0
-
+    assert restored.allows("bryan", "milestone", "persist") is False
+    assert restored.allows("bryan", "milestone", "recall") is True
 
 def test_failed_duplicate_update_preserves_prior_durable_record(tmp_path, monkeypatch):
     authority = _authority(tmp_path)
@@ -736,7 +727,10 @@ def test_canonical_relational_command_applies_exact_agent_policy(tmp_path):
     assert result["mode"] == "remember_always"
     assert result["persistence_allowed"] is True
     assert authority.allows("bryan", "derived_profile", "persist") is True
+    # Exact to the person who said it: Alice said nothing, so what holds for her is the default, to remember.
+    apply_relational_memory_command(authority, "alice", "go private")
     assert authority.allows("alice", "derived_profile", "persist") is False
+    assert authority.allows("bryan", "derived_profile", "persist") is True
 
 
 def test_canonical_private_mode_revokes_without_deleting_records(tmp_path):

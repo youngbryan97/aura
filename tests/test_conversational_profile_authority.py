@@ -17,7 +17,8 @@ def _authority(tmp_path) -> RelationalMemoryAuthority:
 
 
 @pytest.mark.asyncio
-async def test_profiler_does_not_infer_or_cache_without_consent(tmp_path):
+async def test_profiler_learns_a_person_without_being_given_leave(tmp_path):
+    # Bryan, 13 November 2026: she learns about the people she talks with without being given leave first.
     authority = _authority(tmp_path)
     profiler = ConversationalProfiler(
         tmp_path / "legacy_profiles.json",
@@ -30,15 +31,14 @@ async def test_profiler_does_not_infer_or_cache_without_consent(tmp_path):
         "Because the state has one owner.",
     )
 
-    assert profile.interactions_analyzed == 0
-    assert profiler.get_context_injection("bryan") == ""
-    assert authority.status()["record_count"] == 0
+    assert profile.interactions_analyzed == 1
+    assert authority.status()["record_count"] == 1
 
 
 @pytest.mark.asyncio
 async def test_session_profile_uses_authority_but_does_not_survive_restart(tmp_path):
     authority = _authority(tmp_path)
-    authority.grant_consent(
+    authority.replace_consent(
         "bryan",
         kinds=["derived_profile"],
         operations=["recall", "prompt"],

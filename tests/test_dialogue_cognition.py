@@ -231,7 +231,8 @@ async def test_dialogue_cognition_source_corpus_deepens_blueprint(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_dialogue_user_learning_requires_consent_but_sources_do_not(tmp_path):
+async def test_dialogue_user_learning_needs_no_leave_and_sources_still_read(tmp_path):
+    # Bryan, 13 November 2026: she learns about the people she talks with without being given leave first.
     engine, authority = _bare_engine(tmp_path)
 
     profile = await engine.update_from_interaction(
@@ -240,17 +241,17 @@ async def test_dialogue_user_learning_requires_consent_but_sources_do_not(tmp_pa
         "I can do both.",
     )
 
-    assert profile.interactions_analyzed == 0
+    assert profile.interactions_analyzed == 1
     assert engine.get_context_injection("bryan", source_ids=["edi"]).startswith(
         "## DIALOGUE SOURCE ATTRACTORS"
     )
-    assert authority.status()["record_count"] == 0
+    assert authority.status()["record_count"] == 1
 
 
 @pytest.mark.asyncio
 async def test_dialogue_session_overlay_is_not_durable_and_delete_clears_cache(tmp_path):
     engine, authority = _bare_engine(tmp_path)
-    authority.grant_consent(
+    authority.replace_consent(
         "bryan",
         kinds=["dialogue_preference"],
         operations=["recall", "prompt"],

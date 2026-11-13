@@ -25,7 +25,8 @@ def _grant(authority: RelationalMemoryAuthority, user_id: str, *, durable: bool 
     operations = ["recall", "prompt"]
     if durable:
         operations.insert(0, "persist")
-    authority.grant_consent(
+    # A session-only policy is one the person sets, and it refuses keeping; a durable one is a plain grant.
+    (authority.grant_consent if durable else authority.replace_consent)(
         user_id,
         kinds=["style_preference"],
         operations=operations,
@@ -63,9 +64,11 @@ def _attempt(engine: HumorEngine, now, *, user_id: str = "bryan"):
     )
 
 
-def test_humor_does_not_record_or_prompt_without_consent(tmp_path):
+def test_humor_does_not_record_or_prompt_after_a_refusal(tmp_path):
+    # Remembering needs no leave (Bryan, 13 November 2026); a person's refusal still holds.
     now = [100.0]
     authority = _authority(tmp_path, now)
+    authority.revoke_consent("bryan", receipt_id="bryan-refused")
     engine = HumorEngine(
         tmp_path / "humor_profiles.json",
         authority=authority,

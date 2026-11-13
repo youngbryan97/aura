@@ -569,13 +569,14 @@ def test_social_imagination_save_uses_relational_memory_authority(tmp_path):
     assert snapshot["frames"][0]["evidence_digest"]
 
 
-def test_social_imagination_does_not_retain_or_prompt_without_consent(tmp_path):
+def test_social_imagination_does_not_retain_or_prompt_after_a_refusal(tmp_path):
     authority = RelationalMemoryAuthority(
         tmp_path / "relational.json",
         encryption_key=b"i" * 32,
         legacy_paths=(),
         auto_provision_key=False,
     )
+    authority.revoke_consent("bryan", receipt_id="bryan-refused")  # remembering needs no leave; a refusal holds
     engine = SocialImagination(
         tmp_path / "social_imagination.json",
         authority=authority,

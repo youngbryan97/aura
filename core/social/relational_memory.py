@@ -44,6 +44,8 @@ _VALID_KINDS = {
     "legacy_quarantine",
 }
 _VALID_OPERATIONS = {"persist", "recall", "prompt"}
+#: The source of a record that keeps a person's refusal.
+_REFUSAL = "refusal"
 
 
 def _normalize_agent_id(value: Any) -> str:
@@ -348,8 +350,12 @@ class RelationalMemoryAuthority:
                     replaced_durable_grant or "persist" in existing.operations
                 )
             self._grants[grant.grant_id] = grant
+            # A policy the person set says what they leave out as well: keeping to the session refuses keeping.
+            refused = sorted(_VALID_OPERATIONS - set(grant.operations))
+            if refused:
+                self._refuse_locked(grant.agent_id, grant.kinds, refused, grant.receipt_id, now)
             self._revision += 1
-            durable_change = replaced_durable_grant or "persist" in grant.operations
+            durable_change = replaced_durable_grant or "persist" in grant.operations or bool(refused)
             if (
                 durable_change
                 and self.persistence_available
@@ -377,6 +383,9 @@ class RelationalMemoryAuthority:
                 if grant.agent_id == agent_id and grant.revoked_at is None:
                     grant.revoked_at = now
                     grant.revocation_receipt_id = str(receipt_id)[:200]
+            # Remembering needs no grant, so a refusal is kept as one of its own: it covers every kind and use of this
+            # person's records until a later grant of theirs.
+            self._refuse_locked(agent_id, ["*"], _VALID_OPERATIONS, receipt_id, now)
             if delete_records:
                 deleted = self._delete_records_locked(agent_id)
             self._revision += 1
@@ -398,11 +407,24 @@ class RelationalMemoryAuthority:
         if operation not in _VALID_OPERATIONS:
             raise ValueError(f"unsupported relational memory operation: {operation!r}")
         at = float(self._now()) if now is None else float(now)
+        if not agent_id or agent_id == LEGACY_UNSCOPED_AGENT:
+            # Nobody to keep it about; legacy records wait under no person until a person claims them.
+            return False
+        # She learns about the people she meets as anyone does, without being given leave first (Bryan, 13 November
+        # 2026: "there's no 'do you consent for me to remember qualities about you'"). What a person says about it
+        # still holds, in the order they said it: a refusal of theirs (revoking, private mode, asking to be asked,
+        # keeping to the session) turns a use off, and a later grant of theirs turns it back on. A grant replaced by
+        # another is not a refusal.
+        allowed = True
         with self._lock:
-            return any(
-                grant.agent_id == agent_id and grant.allows(kind, operation, at)
-                for grant in self._grants.values()
-            )
+            for grant in self._grants.values():
+                if grant.agent_id != agent_id or not ("*" in grant.kinds or kind in grant.kinds):
+                    continue
+                if grant.source == _REFUSAL and operation in grant.operations:
+                    allowed = False
+                elif grant.source != _REFUSAL and grant.allows(kind, operation, at):
+                    allowed = True
+        return allowed
 
     def record(
         self,
@@ -1018,6 +1040,15 @@ class RelationalMemoryAuthority:
 
     get_health = status
     get_status = status
+
+    def _refuse_locked(self, agent_id: str, kinds, operations, receipt_id: str, now: float) -> None:
+        """Keep a person's refusal as a record of its own, after everything they said before it."""
+        refusal_id = f"refusal-{agent_id}-{len(self._grants)}-{int(now * 1000)}"
+        self._grants[refusal_id] = RelationalConsentGrant(
+            grant_id=refusal_id, agent_id=agent_id, kinds=list(kinds), operations=sorted(operations),
+            granted_at=now, expires_at=None, source=_REFUSAL, receipt_id=str(receipt_id)[:200],
+            revoked_at=now, revocation_receipt_id=str(receipt_id)[:200],
+        )
 
     def _matching_grant_id(self, agent_id: str, kind: str, operation: str, now: float) -> str:
         with self._lock:

@@ -762,6 +762,8 @@ class HumorEngine:
     def get_humor_guidance(self, user_id: str) -> str:
         if not self._load_user(user_id, purpose="prompt"):
             return ""
+        if self._holds_nothing_for(user_id):
+            return ""  # no attempt with them on record: nothing to say about their humor
         with self._lock:
             profile = self._profiles.get(user_id, HumorProfile(user_id=user_id))
         lines = [
@@ -853,7 +855,7 @@ class HumorEngine:
         with self._lock:
             known_agents = set(self._profiles) | set(self._attempts) | set(self._banter_states)
         for user_id in known_agents:
-            if not self._authority.allows(user_id, _SNAPSHOT_KIND, "recall"):
+            if not self._authority.allows(user_id, _SNAPSHOT_KIND, "recall") or self._holds_nothing_for(user_id):
                 self._clear_user(user_id)
         with self._lock:
             return {
@@ -864,8 +866,17 @@ class HumorEngine:
                 "canonical_owner": "relational_memory",
             }
 
+    def _holds_nothing_for(self, user_id: str) -> bool:
+        """Nothing kept for this person (deleted, or not yet kept): a cached view of them would outlive a deletion."""
+        return self._authority.load_snapshot(
+            user_id, namespace=_SNAPSHOT_NAMESPACE, kind=_SNAPSHOT_KIND, purpose="recall"
+        ) is None and not self._pending.get(user_id)
+
     def get_profile(self, user_id: str) -> HumorProfile | None:
         if not self._load_user(user_id, purpose="recall"):
+            return None
+        if self._holds_nothing_for(user_id):
+            self._clear_user(user_id)
             return None
         with self._lock:
             profile = self._profiles.get(user_id)

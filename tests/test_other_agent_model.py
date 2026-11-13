@@ -34,7 +34,8 @@ def _grant(
     operations = ["recall", "prompt"]
     if persist:
         operations.append("persist")
-    authority.grant_consent(
+    # A session-only policy is one the person sets, and it refuses keeping; a durable one is a plain grant.
+    (authority.grant_consent if persist else authority.replace_consent)(
         agent_id,
         kinds=["derived_profile"],
         operations=operations,
@@ -96,10 +97,12 @@ def test_signal_fuses_and_decays_with_bounded_confidence():
     assert 0.0 < confidence < 0.5
 
 
-def test_missing_consent_abstains_without_cache_or_active_identity(tmp_path):
+def test_a_refusal_abstains_without_cache_or_active_identity(tmp_path):
+    authority = _authority(tmp_path)
+    authority.revoke_consent("bryan", receipt_id="bryan-refused")  # remembering needs no leave; a refusal holds
     estimator = OtherAgentStateEstimator(
         storage_path=tmp_path / "legacy.json",
-        authority=_authority(tmp_path),
+        authority=authority,
         autosave=False,
     )
 
@@ -699,9 +702,9 @@ def test_context_injection_requires_prompt_consent_and_quotes_hypotheses(tmp_pat
     assert "I am frustrated" not in block
 
 
-def test_context_injection_abstains_without_separate_prompt_consent(tmp_path):
+def test_context_injection_abstains_where_the_person_kept_it_out_of_her_prompt(tmp_path):
     authority = _authority(tmp_path)
-    authority.grant_consent(
+    authority.replace_consent(
         "bryan",
         kinds=["derived_profile"],
         operations=["recall"],

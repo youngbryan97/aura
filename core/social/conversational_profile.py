@@ -225,6 +225,11 @@ class ConversationalProfiler:
             kind=_SNAPSHOT_KIND,
             purpose=purpose,
         )
+        if payload is None:
+            # Nothing is held for them: deleted, or not yet kept. A cached view would outlive a deletion.
+            self._profiles.pop(user_id, None)
+            self._phrase_counter.pop(user_id, None)
+            return None
         if payload is not None:
             profile_data = payload.get("profile", payload)
             if isinstance(profile_data, dict):

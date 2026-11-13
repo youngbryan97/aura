@@ -21,7 +21,8 @@ def _grant(authority: RelationalMemoryAuthority, *, durable: bool = True) -> Non
     operations = ["recall", "prompt"]
     if durable:
         operations.insert(0, "persist")
-    authority.grant_consent(
+    # A session-only policy is one the person sets, and it refuses keeping; a durable one is a plain grant.
+    (authority.grant_consent if durable else authority.replace_consent)(
         "bryan",
         kinds=["derived_profile"],
         operations=operations,
@@ -30,8 +31,10 @@ def _grant(authority: RelationalMemoryAuthority, *, durable: bool = True) -> Non
 
 
 @pytest.mark.asyncio
-async def test_relational_intelligence_does_not_infer_without_consent(tmp_path):
+async def test_relational_intelligence_does_not_infer_after_a_refusal(tmp_path):
+    # Remembering needs no leave (Bryan, 13 November 2026); a person's refusal still holds.
     authority = _authority(tmp_path)
+    authority.revoke_consent("bryan", receipt_id="bryan-refused")
     engine = RelationalIntelligence(
         tmp_path / "relational_intelligence.json",
         authority=authority,

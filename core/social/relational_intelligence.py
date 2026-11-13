@@ -332,6 +332,9 @@ class RelationalIntelligence:
             kind=_SNAPSHOT_KIND,
             purpose=purpose,
         )
+        if payload is None:
+            # Nothing is held for them: deleted, or not yet kept. A cached projection would outlive a deletion.
+            self._clear_user(user_id)
         if payload is not None:
             self._vulnerability[user_id] = self._hydrate(
                 VulnerabilityState,
@@ -1019,7 +1022,8 @@ class RelationalIntelligence:
     def get_health(self) -> dict[str, Any]:
         return {
             "module": "RelationalIntelligence",
-            "profiles": len(self._vulnerability),
+            # People she has something on: an empty default made for anyone looked up is not a profile.
+            "profiles": sum(1 for count in self._interaction_counts.values() if count > 0),
             "interactions_processed": self._interaction_count,
             "status": "online",
         }

@@ -8835,7 +8835,7 @@ def test_theory_of_mind_correction_updates_evidence_without_mutating_trust(tmp_p
     assert not hasattr(tom, "belief")
 
 
-def test_theory_of_mind_perspective_requires_exact_agent_and_consent(tmp_path):
+def test_theory_of_mind_perspective_requires_exact_agent_and_honours_a_refusal(tmp_path):
     from core.consciousness.theory_of_mind import TheoryOfMindEngine as CanonicalToM
     from core.social.relational_memory import RelationalMemoryAuthority
     from core.social.theory_of_mind import TheoryOfMindEngine
@@ -8849,6 +8849,7 @@ def test_theory_of_mind_perspective_requires_exact_agent_and_consent(tmp_path):
         legacy_paths=(),
         auto_provision_key=False,
     )
+    authority.revoke_consent("bryan", receipt_id="bryan-refused")  # remembering needs no leave; a refusal holds
     tom = TheoryOfMindEngine(
         person="bryan",
         canonical=CanonicalToM(

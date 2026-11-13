@@ -103,7 +103,8 @@ async def test_http_turn_applies_consent_and_observes_exact_principal_idempotent
 
     assert request.state.relational_memory_control["mode"] == "remember_always"
     assert authority.allows("bryan", "derived_profile", "persist") is True
-    assert authority.allows("alice", "derived_profile", "persist") is False
+    # Alice said nothing: she is remembered by default, and Bryan's command did not refuse for her.
+    assert authority.allows("alice", "derived_profile", "persist") is True
     assert estimator.estimate("bryan").observations == 1
     assert len(observer.events) == 4
     assert len({digest for _, digest in observer.events}) == 1

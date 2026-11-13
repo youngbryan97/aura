@@ -522,7 +522,10 @@ class UserProfile:
         with self._lock:
             known_users = list(self._profiles)
         for user_id in known_users:
-            if not self._authority.allows(user_id, _SNAPSHOT_KIND, "recall"):
+            # Refused, or nothing held for them any more (deleted): a cached view would outlive either.
+            if not self._authority.allows(user_id, _SNAPSHOT_KIND, "recall") or self._authority.load_snapshot(
+                user_id, namespace=_SNAPSHOT_NAMESPACE, kind=_SNAPSHOT_KIND, purpose="recall"
+            ) is None:
                 self._clear_user(user_id)
         with self._lock:
             return {

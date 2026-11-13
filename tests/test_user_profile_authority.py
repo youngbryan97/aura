@@ -30,7 +30,8 @@ def _grant(
     operations = ["recall", "prompt"]
     if durable:
         operations.insert(0, "persist")
-    authority.grant_consent(
+    # A session-only policy is one the person sets, and it refuses keeping; a durable one is a plain grant.
+    (authority.grant_consent if durable else authority.replace_consent)(
         user_id,
         kinds=["derived_profile"],
         operations=operations,
@@ -65,8 +66,10 @@ def _add(
     )
 
 
-def test_profile_denies_inference_recall_and_prompt_without_consent(tmp_path):
+def test_profile_denies_inference_recall_and_prompt_after_a_refusal(tmp_path):
+    # Remembering needs no leave (Bryan, 13 November 2026); a person's refusal still holds.
     authority = _authority(tmp_path)
+    authority.revoke_consent("bryan", receipt_id="bryan-refused")
     profile = UserProfile(tmp_path / "legacy.json", authority=authority)
 
     assert _add(profile, "bryan") is False
@@ -269,8 +272,9 @@ def test_full_profile_refuses_evicted_new_fact_instead_of_reporting_success(tmp_
 
 
 @pytest.mark.asyncio
-async def test_manager_requires_exact_identity_and_consent_before_extraction(tmp_path):
+async def test_manager_requires_exact_identity_and_no_refusal_before_extraction(tmp_path):
     authority = _authority(tmp_path)
+    authority.revoke_consent("bryan", receipt_id="bryan-refused")
     profile = UserProfile(tmp_path / "legacy.json", authority=authority)
     manager = ProfileManager(authority=authority, user_profile=profile)
 

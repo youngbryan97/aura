@@ -137,13 +137,15 @@ def resolve_primary_user_id(state: Any) -> str:
 
 
 def relational_memory_allows(user_id: str, kind: str, operation: str) -> bool:
+    """Whether she may keep and use what she knows of this person: yes, unless they said otherwise.
+
+    With no authority to ask there is no refusal on record either, and she remembers people as anyone does.
+    """
     try:
         authority = service_access.optional_service("relational_memory", default=None)
-        return bool(
-            authority
-            and hasattr(authority, "allows")
-            and authority.allows(user_id, kind, operation)
-        )
+        if authority is None or not hasattr(authority, "allows"):
+            return True
+        return bool(authority.allows(user_id, kind, operation))
     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
         _record_conversation_degradation(
             exc,

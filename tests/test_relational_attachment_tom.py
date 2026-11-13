@@ -79,8 +79,9 @@ def tom(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_theory_of_mind_refuses_unscoped_identity_and_missing_consent(tmp_path):
+async def test_theory_of_mind_refuses_unscoped_identity_and_a_refusal(tmp_path):
     authority = _authority(tmp_path)
+    authority.revoke_consent("bryan", receipt_id="bryan-refused")  # remembering needs no leave; a refusal holds
     engine = TheoryOfMindEngine(authority=authority, storage_path=tmp_path / "legacy.json")
 
     with pytest.raises(ValueError, match="exact non-empty user_id"):
