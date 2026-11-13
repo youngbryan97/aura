@@ -34,8 +34,10 @@ __all__ = [
     "asking_part",
     "asks_for_a_quantity",
     "asks_more_than_one_thing",
+    "asks_what_she_did",
     "asks_what_the_person_said",
     "recalls_what_the_person_said",
+    "recounts_what_she_did",
     "states_a_quantity",
 ]
 
@@ -309,3 +311,38 @@ def asks_what_the_person_said(clause: str) -> bool:
 def recalls_what_the_person_said(body: str) -> bool:
     """Whether this text attributes something, with content, to the person."""
     return bool(_RECALLS_WHAT_THE_PERSON_SAID.search(str(body or "")))
+
+
+#: "what kept you occupied?", "what did you do yesterday?", "what have you been up to?": a question whose answer is
+#: what SHE did, told in her words rather than in the verb it was asked with.
+_ASKS_WHAT_SHE_DID = re.compile(
+    r"\bwhat\b[^?]{0,60}?\byou\b[^?]{0,40}?"
+    r"\b(?:do|did|done|doing|been\s+up\s+to|get\s+up\s+to|got\s+up\s+to|occupied|busy|"
+    r"work(?:ed|ing)\s+on|spen[dt])\b",
+    re.IGNORECASE,
+)
+
+#: "I wandered over to r/AskHistorians ...", "I pulled the weather ...", "I've been reading ...": she says, in the
+#: first person and the past, something she did, with at least two words of what it was.
+_RECOUNTS_WHAT_SHE_DID = re.compile(
+    r"\bI(?:'ve|\s+have|\s+was|\s+had)?\s+"
+    r"(?:\w+ed|ran|did|made|wrote|read|found|went|got|saw|spent|took|built|kept|been|began|chose|thought|caught)\b"
+    r"\s+(?:\w+\W+){2,}",
+    re.IGNORECASE,
+)
+
+
+def asks_what_she_did(clause: str) -> bool:
+    """Whether this clause asks what she did.
+
+    Its answer is the doing, which seldom repeats the asking verb. LIVE 13 November 2026: "Busy night? What kept you
+    occupied?" was answered with the weather she looked up and a thread she read, and "What kept you occupied?"
+    counted as unanswered because the reply said neither "kept" nor "occupied"; the draft was continued, the
+    continuation answered again, and both were served.
+    """
+    return bool(_ASKS_WHAT_SHE_DID.search(str(clause or "")))
+
+
+def recounts_what_she_did(body: str) -> bool:
+    """Whether this text says, in her first person and the past, something she did."""
+    return bool(_RECOUNTS_WHAT_SHE_DID.search(str(body or "")))

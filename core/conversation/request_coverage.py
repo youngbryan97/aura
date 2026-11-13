@@ -20,8 +20,10 @@ from core.conversation.requested_reply_shape import (
 from core.language import relational_request
 from core.language.asking_clauses import (
     asks_for_a_quantity,
+    asks_what_she_did,
     asks_what_the_person_said,
     recalls_what_the_person_said,
+    recounts_what_she_did,
     states_a_quantity,
 )
 from core.language.word_forms import matching_word_forms
@@ -1264,11 +1266,11 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
         # they said. "what preference did I state?" is answered by "you want
         # answers short and concrete", which contains neither "preference"
         # nor "state" (LIVE 2026-09-20: a correct two-part recall rejected
-        # four times, and the turn ended with nothing served).
+        # four times, and the turn ended with nothing served). Likewise what SHE did is engaged by telling it.
         if asks_what_the_person_said(segment) and (
             recalls_what_the_person_said(local_body)
             or _a_clause_for_every_part(local_body, len(segments))
-        ):
+        ) or (asks_what_she_did(segment) and recounts_what_she_did(local_body)):
             continue
         # Measured on what was ASKED, not on how the answer was to be
         # presented. A segment that is a delivery instruction wearing a
