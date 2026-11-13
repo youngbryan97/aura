@@ -2435,6 +2435,136 @@
         "name": "tests/test_g09_organ_harness.py",
         "why": "Decides the matched control's harness: tasks sampled reproducibly across groups with every excluded id kept out, each domain graded by the grader its source publishes, and the typed lane's answer cap and search time read from her own gate and thinking loop rather than chosen. The paired run it drives (tools/run_g09_organ.py, ordinary arm against organ arm on the same sealed tasks) is the control; whether a gain is statistically credible is that run's result, not this test's."
       }
+    ],
+    "ACCOUNT-AUTHORITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_her_replies_to_mail.py",
+        "why": "Decides the email send scope against its exact standing policy: a reply to someone other than the owner is held as a draft and sent only by him until he sets the standing permission, a reply her assessor does not pass is never held for sending, a withdrawn draft answers nothing, and the owner's mail is answered under his principal and a stranger's under none."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_standing_authority.py",
+        "why": "Decides the standing-authority half every account adapter is held to: leases bound to origin, effect and tool, forged or substituted scopes and argument origins rejected, scope expansion refused, a consequence budget that is atomic and survives a restart, and revocation that is durable, immediate and owner-authenticated."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_an_email_with_no_credentials_is_not_checked.py",
+        "why": "A missing grant is told apart from a failure: with no credentials the inbox is not called, an unreadable keychain reads as not configured, and a skill not set up says so at info rather than as an adapter error."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_she_is_asked_into_her_mail.py",
+        "why": "The requested read path: asking her into her mail raises the turn's ceiling to her mail and nothing wider, talk about mail does not, and her accounts ask authority under the turn's origin rather than the tool loop's. Not decided here or above: separate modify, move and delete scopes for email, duplicate-send idempotency, offline and re-authentication, revocation racing a send in flight, the desktop rendering the true disposition, and exact-app effect receipts."
+      }
+    ],
+    "CTX2-ID-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_continuity_branches_and_identity_does_not.py",
+        "why": "Decides the separation and the lineage: bookkeeping is not part of the person and an identity-bearing field is; a migration or a destructive restore with one successor continues her, a fork has no strict successor, a stale backup is a branch from the older stage, and a transfer that did not preserve the person is not continuation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_person_who_learns_is_still_herself.py",
+        "why": "Signed identity transitions: a change written by a measured transformation inside its contract continues her, an unmeasured change ends continuity, the writes sit under the signature, the key is the install's own and not one in the source, and two installs sign the same lineage differently."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_shutdown_snapshot_continues_her_line.py",
+        "why": "A snapshot continues her durable line or is not written: a stale one is refused, one whose parent never arrived follows the latest stage, and the first of an empty log is written."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_cortex_generation_upgrade.py",
+        "why": "The replaceable weights: a model migration is staged with a byte-exact rollback and changes nothing live, activation needs operator authorization and a passing verdict, and rollback restores the pointer exactly. Not decided here or above: a schema check of the identity snapshot carried across a model swap, and identity kept apart from the prompts her model is given."
+      }
+    ],
+    "CTX2-MIND-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_state_ownership.py",
+        "why": "Decides the boot-scoped identity and its first carriers: one runtime instance id, immutable for the process and naming its profile, so a test run can never pass as the live runtime; persistent records are stamped with the runtime that wrote them, a forwarded record keeps its origin, and the identity serialises without secrets."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_governance_reaches_the_health_surface.py::test_the_health_surface_names_the_runtime_that_is_reporting",
+        "why": "The health report names the runtime instance that produced it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_release_certificate.py::test_the_certificate_names_the_runtime_that_built_it",
+        "why": "A proof artifact names the runtime instance that built it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_shutdown_snapshot_continues_her_line.py",
+        "why": "The durable lineage: a snapshot continues her one line or is not written. Not decided here or above: the instance and lineage ids carried through mind moments, chat turns, plans, actions, welfare changes, model calls and turn receipts, and shown in the operator interface."
+      }
+    ],
+    "CARRYOVER-03": [
+      {
+        "kind": "test",
+        "name": "tests/test_server_conversation_lane.py::test_api_chat_desktop_surface_requires_cognitive_engine_and_blocks_kernel_fallback",
+        "why": "No raw model takeover on the desktop surface: a desktop turn requires the CognitiveEngine and the kernel fallback is blocked."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_server_conversation_lane.py::test_api_chat_refuses_implicit_legacy_orchestrator_fallback",
+        "why": "No assistant fallback: the legacy orchestrator answers only when explicitly asked for, never as a silent substitute."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_server_conversation_lane.py::test_api_chat_desktop_surface_outer_timeout_refuses_direct_gate_fallback",
+        "why": "A desktop turn that runs out of time is not handed to the raw gate to answer instead."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_ungrounded_person_gate.py",
+        "why": "No name hallucination: a person named on the conversation surface with nothing grounding them is caught, from the live transcript where she invented Peter Brenner and called the user Aaron."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_ui_is_not_invisible_by_default.py",
+        "why": "No black panels: no content depends on a CSS animation having run to be visible."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_capture_without_the_grant_is_not_attempted.py",
+        "why": "No repeated TCC prompts: a screen capture macOS would refuse is not attempted, so macOS does not ask again (43 dialogs in ten minutes on 3 November)."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_resident_runtime_at_a_time.py",
+        "why": "No model-spawn runaway: a second process may not load a second cortex beside the first. Not decided here or above: the same proven in the launched Aura.app itself, context drift into invented projects, and desktop-control false negatives."
+      }
+    ],
+    "CTX2-PERSON-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_interpersonal_model.py",
+        "why": "Decides the relationship-memory distinctions the requirement names: what he said, what she saw and what she inferred are kept apart and an inference says it is one; a correction removes a claim and no later observation revives it; shared events are recorded without a frequency and never decay; commitments, ruptures with whether they were repaired, and open questions are first-class; knowledge about her is kept apart from knowledge about him; and every reading carries the evidence that produced it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_interpersonal_persistence.py",
+        "why": "The distinctions survive a restart: every field round-trips, evidence is not restamped as new, a correction and a repaired rupture stay as they were, and a conditional keeps its condition."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Consent and privacy: a record is session-only without the person's explicit consent, consent is exact to the agent, expiring and purpose-scoped, the stored envelope holds no identity or memory in plain text, revocation blocks use, and deletion and export need authorization receipts and leave other people's records intact."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_asking_to_be_forgotten_is_never_silent.py",
+        "why": "User-controllable deletion: an ordinary request to be forgotten is recognised, a negated one never deletes, and an unhonoured request is counted where her integrity report shows it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_door_into_what_she_knows_about_people.py",
+        "why": "Each person is their own record: two people do not shadow each other, and every turn reaches the record through one door. Not decided here or above: non-instrumental welfare for the people she models, and boundaries she keeps on their behalf beyond consent."
+      }
     ]
   }
 }
