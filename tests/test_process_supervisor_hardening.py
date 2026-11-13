@@ -252,7 +252,8 @@ def test_governor_leased_once(actuator, monkeypatch):
         def apply_volition_profile(self, level):
             applied.append(level)
 
-    monkeypatch.setattr(ps.ServiceContainer, "get", staticmethod(lambda key, default=None: _Gov() if key == "governor" else default))
+    # The supervisor reaches the substrate governor through its accessor; nothing registers it as "governor".
+    monkeypatch.setattr(ps, "_the_governor", lambda: _Gov())
 
     procs = [_FakeProc(pid=i) for i in range(3)]
     calls = {"n": 0}

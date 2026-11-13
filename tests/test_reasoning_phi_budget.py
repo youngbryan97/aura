@@ -125,7 +125,7 @@ def test_amplify_cache_hit_bypasses_generation(tmp_path, monkeypatch):
     assert calls["n"] == 0  # generation was fully bypassed
 
 
-def _run_amplify_with_verifier(tmp_path, monkeypatch, *, ok: bool, checked: bool):
+def _run_amplify_with_verifier(tmp_path, monkeypatch, *, ok: bool, checked: bool, reaches: bool | None = None):
     """Run amplify() with an injected verifier verdict; return (result, temp cache)."""
     from core.brain import reasoning_amplifier_v2 as rav
     from core.brain import reasoning_solved_cache as rsc
@@ -136,7 +136,8 @@ def _run_amplify_with_verifier(tmp_path, monkeypatch, *, ok: bool, checked: bool
 
     class _FakeVerifier:
         async def verify(self, candidate, *, task_type=None, context=None):
-            return VerificationResult(domain="math", ok=ok, checked=checked, score=0.95, engine="fake")
+            return VerificationResult(domain="math", ok=ok, checked=checked, score=0.95, engine="fake",
+                                      reaches_the_answer=checked if reaches is None else reaches)
 
     async def _gen(prompt, temperature):
         return "the answer is 4"
@@ -156,8 +157,15 @@ def test_vacuous_pass_is_not_cached(tmp_path, monkeypatch):
     assert cache.get("what is two plus two", "math") is None
 
 
+def test_a_check_of_the_working_alone_is_not_cached(tmp_path, monkeypatch):
+    # ok and checked, but the check never reached the answer (an audit of the working): not a reason to serve the
+    # same answer again as solved (core/brain/verifiers/base.py, reaches_the_answer).
+    _result, cache = _run_amplify_with_verifier(tmp_path, monkeypatch, ok=True, checked=True, reaches=False)
+    assert cache.get("what is two plus two", "math") is None
+
+
 def test_genuinely_checked_pass_is_cached(tmp_path, monkeypatch):
-    # ok=True AND checked=True (a real evaluation happened) IS cached.
+    # ok=True AND checked=True, by a check that reached the answer itself: IS cached.
     _result, cache = _run_amplify_with_verifier(tmp_path, monkeypatch, ok=True, checked=True)
     hit = cache.get("what is two plus two", "math")
     assert hit is not None and "4" in hit.answer
