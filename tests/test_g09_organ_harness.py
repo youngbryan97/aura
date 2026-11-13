@@ -40,16 +40,31 @@ def test_bbeh_answers_are_read_as_bbehs_own_evaluator_reads_them() -> None:
         assert grade_bbeh(reply, reference)[0] is expected, (reply, reference)
 
 
-def test_a_typed_answer_is_capped_where_the_gate_caps_one(monkeypatch) -> None:
-    """The longest answer the model has been seen to give, never past the run's ceiling; unmeasured, the ceiling."""
-    from core.brain.llm import thinking_reserve
-    from tools.run_g09_organ import _typed_answer_cap
+def test_a_typed_generation_is_planned_by_the_code_that_plans_it_in_her_chat(monkeypatch) -> None:
+    """Channel open only where her worker opens it, bounded where her decoder bounds it, the answer raised as the gate
+    raises it and no further than the longest answer seen."""
+    from pathlib import Path
+
+    from core.brain.inference_gate import InferenceGate
+    from core.brain.llm import a_bounded_private_channel, chat_format, thinking_reserve
+    from tools.run_g09_organ import _how_her_chat_answers
 
     monkeypatch.setattr(thinking_reserve, "answer_tokens_seen", lambda model: 1194)
-    assert _typed_answer_cap("m", 32768) == 1194
-    assert _typed_answer_cap("m", 512) == 512
-    monkeypatch.setattr(thinking_reserve, "answer_tokens_seen", lambda model: 0)
-    assert _typed_answer_cap("m", 32768) == 32768
+    monkeypatch.setattr(InferenceGate, "_tokens_the_turn_is_allowed_to_take", staticmethod(lambda **k: 9000))
+    monkeypatch.setattr(InferenceGate, "_reasoning_reserve_for_generation", classmethod(lambda cls, **k: 0))
+    monkeypatch.setattr(chat_format, "thinking_enabled_for_generation", lambda *a, **k: False)
+    closed = _how_her_chat_answers("What is the sum of the squares of the first 30 positive integers?",
+                                   Path("/m/model"), 175.0)
+    assert closed["thinking"] is False and closed["channel"] == 0
+    assert closed["answer_cap"] == closed["max_tokens"] == 1194
+
+    monkeypatch.setattr(chat_format, "thinking_enabled_for_generation", lambda *a, **k: True)
+    monkeypatch.setattr(InferenceGate, "_reasoning_reserve_for_generation", classmethod(lambda cls, **k: 1500))
+    monkeypatch.setattr(a_bounded_private_channel, "the_channel_budget_for", lambda **k: 1200)
+    derived = _how_her_chat_answers("Prove that the square root of 2 is irrational, then find all n with n^2 < 50.",
+                                    Path("/m/model"), 475.0)
+    assert derived["thinking"] is True and derived["channel"] == 1200
+    assert derived["max_tokens"] == derived["answer_cap"] + 1500
 
 
 def test_the_search_gets_the_room_her_thinking_loop_grants_the_turn(monkeypatch) -> None:

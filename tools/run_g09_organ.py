@@ -19,12 +19,15 @@ Two arms per task, paired:
   checked-verifier or independent-executable-consensus authority. Sealed
   from her memory and caches; read-only.
 
-With ``--lane typed`` both arms are made as a turn typed into her chat makes
-them (cognitive_engine_quick_reply): private channel closed, the answer capped
-where the inference gate caps a typed answer (the longest answer this model
-has been seen to give), the draft delivered as written even when the cap cut
-it, and the search called as her chat calls it, with the time her thinking loop
-grants the turn less the draft and the chat's margin (``--budget room``).
+With ``--lane typed`` every generation is planned by the code that plans it
+in her chat (cognitive_engine_quick_reply, the inference gate, her worker):
+the answer budget the lane asks for the request's shape and the gate's raise;
+the private channel open only where the answer is derived in the turn, and
+then closed by the decoder at the bound her worker holds; a draft cut by its
+cap or its clock shown as written; and the search called as her chat calls
+it, each candidate given half again what the draft took, with the time her
+thinking loop grants the turn less the draft and the chat's margin
+(``--budget room``).
 
 Domains, each with the grader its source publishes: math (MATH test problems
 outside MATH-500, graded by MATH-500's grader), code (HumanEval+, run against
@@ -653,17 +656,46 @@ GRADERS = {"math": grade_math, "code": grade_code, "planning": grade_planning,
 
 # ── The run ────────────────────────────────────────────────────────────────
 
-def _typed_answer_cap(model_name: str, ceiling: int) -> int:
-    """Where the inference gate caps a typed answer on this model: the longest it has been seen to give.
+def _how_her_chat_answers(request: str, model_path: Path, seconds: float) -> dict[str, Any]:
+    """What one generation for this request gets in her chat, asked of the code that decides it there.
 
-    The gate lowers this further when a turn's clock is short (445 to 1,058
-    tokens on 25 typed turns, 12 November 2026); the search here gets its own
-    clock, so only the evidence bound applies. Unmeasured, the ceiling stands.
+    The answer budget her chat lane asks for the request's shape, raised as the
+    inference gate raises a typed turn's (what the clock affords less the
+    reserve the worker will add, bounded by the longest answer this model has
+    been seen to give); whether her worker opens the private channel (when the
+    answer is derived in this turn); and the bound her decoder holds on it.
+    ``seconds`` is the generation's own deadline.
     """
+    from core.brain.cognitive_engine_quick_reply import _AnswersTheDesktopDirectly as lane
+    from core.brain.inference_gate import InferenceGate
+    from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
+    from core.brain.llm.chat_format import (
+        answer_is_derived_for_generation,
+        thinking_enabled_for_generation,
+    )
     from core.brain.llm.thinking_reserve import answer_tokens_seen
 
-    seen = int(answer_tokens_seen(model_name))
-    return min(ceiling, seen) if seen > 0 else ceiling
+    name = model_path.name
+    shape, floor = lane._direct_desktop_quick_reply_prompt_shape({"visible_user_message": request}, request, False)
+    completion_floor, asked = lane._direct_desktop_quick_reply_part_2([], False, {}, False, 768, False, False,
+                                                                       shape, floor)
+    derived = answer_is_derived_for_generation(completion_floor=completion_floor, budget_tokens=asked,
+                                               model_name=str(model_path), seconds_remaining=seconds)
+    thinking = thinking_enabled_for_generation(str(model_path), cognitive_mode="fast", final_user_surface=True,
+                                               answer_is_derived_here=derived) is True
+    reserve = InferenceGate._reasoning_reserve_for_generation(
+        model=name, cognitive_mode="fast", final_user_surface=True, completion_floor=completion_floor,
+        budget_tokens=asked, seconds_remaining=seconds)
+    affordable = max(0, InferenceGate._tokens_the_turn_is_allowed_to_take(
+        seconds=seconds, prompt_chars=len(request), model=name) - reserve)
+    seen = int(answer_tokens_seen(name))
+    if seen > 0:
+        affordable = min(affordable, max(asked, seen))
+    cap = max(asked, affordable)
+    channel = int(the_channel_budget_for(max_tokens=cap, seconds_left=seconds, answer_floor=completion_floor,
+                                         model=name)) if thinking else 0
+    return {"seconds": round(seconds, 3), "completion_floor": int(completion_floor), "thinking": thinking,
+            "answer_cap": int(cap), "channel": channel, "max_tokens": int(cap) + (max(reserve, channel) if thinking else 0)}
 
 
 def _room_the_turn_grants(request: str) -> float:
@@ -695,8 +727,8 @@ def main() -> int:
                              "room: what her thinking loop grants this request's turn, less the draft and the "
                              "chat's margin")
     parser.add_argument("--lane", choices=("served", "typed"), default="served",
-                        help="served: private channel open at her serving effort; typed: as a turn typed into "
-                             "her chat makes its answer and calls the search")
+                        help="served: private channel open at her serving effort; typed: each generation as her "
+                             "chat plans it, and the search called as her chat calls it")
     parser.add_argument("--arms", default="ordinary,organ",
                         help="ordinary decodes her drafts; organ runs on drafts already written")
     parser.add_argument("--model", type=Path,
@@ -738,6 +770,7 @@ def main() -> int:
     from mlx_lm.sample_utils import make_sampler
 
     from core.brain.executable_reasoning import should_use_executable_reasoning
+    from core.brain.llm.a_bounded_private_channel import close_the_channel_after
     from core.brain.llm.chat_format import (
         reasoning_effort_for_generation,
         render_chat_template,
@@ -755,14 +788,11 @@ def main() -> int:
 
     grade = GRADERS[args.domain]
     model_path = args.model.expanduser().resolve(strict=True)
-    thinking = args.lane == "served"
-    cap = args.max_tokens
-    if not thinking:
-        cap = _typed_answer_cap(model_path.name, args.max_tokens)
-    if args.batch > 1 and not thinking:
+    typed = args.lane == "typed"
+    if args.batch > 1 and typed:
         raise SystemExit("--lane typed decodes one draft at a time")
-    print(json.dumps({"domain": args.domain, "tasks": len(tasks), "excluded": len(excluded), "lane": args.lane,
-                      "answer_cap": cap}), flush=True)
+    print(json.dumps({"domain": args.domain, "tasks": len(tasks), "excluded": len(excluded), "lane": args.lane}),
+          flush=True)
     with standalone_model_lane(owner_id=f"g09-organ:{output.name}", model_path=str(model_path),
                                purpose="evaluation", preemptible=False, require_exclusive=True,
                                allow_owner_eviction=True, metadata={"tool": Path(__file__).name}):
@@ -773,26 +803,50 @@ def main() -> int:
         # cancelled from outside, so it reads this and stops itself.
         turn_deadline = [float("inf")]
 
+        # What a candidate for the task in hand gets: the served lane's open
+        # channel at serving effort, or what her chat gives a candidate.
+        served = {"thinking": True, "channel": 0, "max_tokens": args.max_tokens, "seconds": float("inf"),
+                  "effort": reasoning_effort_for_generation(thinking=True)}
+        candidate_plan = [served]
+
+        def decode(messages: list[dict[str, str]], plan: dict[str, Any], sampler: Any, deadline: float) -> dict[str, Any]:
+            """One generation as the plan says: channel open or shut, bounded where her decoder bounds it."""
+            thinking = bool(plan["thinking"])
+            effort = plan["effort"] if "effort" in plan else reasoning_effort_for_generation(
+                cognitive_mode="fast", thinking=thinking)
+            rendered = render_chat_template(tokenizer, messages, add_generation_prompt=True,
+                                            enable_thinking=thinking, reasoning_effort=effort)
+            ids = [int(t) for t in tokenizer.encode(rendered, add_special_tokens=False)]
+            bound = close_the_channel_after(tokenizer, int(plan["channel"])) if thinking and plan["channel"] else None
+            began, pieces, generated, finish = time.monotonic(), [], 0, "token_limit"
+            for response in stream_generate(model, tokenizer, ids, max_tokens=int(plan["max_tokens"]), sampler=sampler,
+                                            logits_processors=[bound] if bound is not None else None):
+                pieces.append(str(response.text or ""))
+                if response.finish_reason != "stop":
+                    generated += 1
+                if response.finish_reason:
+                    finish = str(response.finish_reason)
+                if time.monotonic() >= deadline:
+                    finish = "deadline"
+                    break
+            channels = split_native_thinking_generation("".join(pieces), native_thinking=thinking)
+            return {"public_text": channels.surface, "closed": channels.boundary_closed, "prompt_tokens": len(ids),
+                    "cut_by_deadline": finish == "deadline",
+                    "termination": finish if channels.boundary_closed else "native_thinking_incomplete",
+                    "generated_tokens": generated, "seconds": round(time.monotonic() - began, 3)}
+
         def sampled(messages: list[dict[str, str]], temperature: float) -> str:
             with model_lock:
                 seed = int(hashlib.sha256(f"{messages}\0{temperature}".encode()).hexdigest()[:8], 16)
                 mx.random.seed(seed)
-                rendered = render_chat_template(tokenizer, messages, add_generation_prompt=True,
-                                                enable_thinking=thinking,
-                                                reasoning_effort=reasoning_effort_for_generation(thinking=thinking))
-                ids = [int(t) for t in tokenizer.encode(rendered, add_special_tokens=False)]
-                began, pieces = time.monotonic(), []
-                cut = False
-                for response in stream_generate(model, tokenizer, ids, max_tokens=cap,
-                                                sampler=make_sampler(temp=float(temperature), top_p=0.95)):
-                    pieces.append(str(response.text or ""))
-                    if time.monotonic() >= turn_deadline[0]:
-                        cut = True
-                        break
-                channels = split_native_thinking_generation("".join(pieces), native_thinking=thinking)
-                generations.append({"temperature": temperature, "seconds": round(time.monotonic() - began, 3),
-                                    "closed": channels.boundary_closed, "cut_at_turn_deadline": cut})
-                return "" if cut or not channels.boundary_closed else channels.surface
+                plan = candidate_plan[0]
+                out = decode(messages, plan, make_sampler(temp=float(temperature), top_p=0.95),
+                             min(turn_deadline[0], time.monotonic() + float(plan["seconds"])))
+                cut = out["cut_by_deadline"]
+                generations.append({"temperature": temperature, "seconds": out["seconds"], "closed": out["closed"],
+                                    "cut_at_turn_deadline": cut, "tokens": out["generated_tokens"],
+                                    "thinking": plan["thinking"], "channel": plan["channel"]})
+                return "" if cut or not out["closed"] else out["public_text"]
 
         async def generate(prompt: str, temperature: float) -> str:
             messages = [{"role": "system", "content": AMPLIFIER_CANDIDATE_SYSTEM},
@@ -809,15 +863,15 @@ def main() -> int:
             return f"{hashlib.sha256(task['id'].encode()).hexdigest()[:24]}.json"
 
         def ordinary_row(task: dict[str, Any], draft: dict[str, Any]) -> dict[str, Any]:
-            # A typed turn shows what she wrote when its cap cut her; an open
-            # private channel that never closed has no answer to show.
-            shown = draft["termination"] == "stop" or (not thinking and draft["termination"] == "length")
+            # A typed turn shows what she wrote when its cap or its clock cut
+            # her; a private channel that never closed has no answer to show.
+            shown = draft["termination"] == "stop" or (typed and draft["termination"] in ("length", "deadline"))
             draft_text = draft["public_text"] if shown else ""
             correct, note = grade(draft_text, task["truth"])
             return {"id": task["id"], "domain": args.domain, "group": task["group"], "correct": correct,
                     "note": note, "text": draft_text, "termination": draft["termination"],
                     "tokens": draft["generated_tokens"], "seconds": draft["seconds"],
-                    "batch_size": draft.get("batch_size", 1), "lane": args.lane, "answer_cap": cap}
+                    "batch_size": draft.get("batch_size", 1), "lane": args.lane, "plan": draft.get("plan")}
 
         if "ordinary" in arms and args.batch > 1:
             from tools.g12_batched import decode_stream
@@ -836,8 +890,16 @@ def main() -> int:
             ordinary_path, organ_path = output / "rows" / "ordinary" / name, output / "rows" / "organ" / name
             if "ordinary" in arms and not ordinary_path.exists():
                 with model_lock:
-                    draft = decode_public(model, tokenizer, [{"role": "user", "content": task["request"]}],
-                                          max_tokens=cap, thinking=thinking)
+                    if typed:
+                        # The lane's request timeout: the turn's room less its five seconds.
+                        plan = _how_her_chat_answers(task["request"], model_path,
+                                                     _room_the_turn_grants(task["request"]) - 5.0)
+                        draft = decode([{"role": "user", "content": task["request"]}], plan,
+                                       lambda logits: mx.argmax(logits, axis=-1), time.monotonic() + plan["seconds"])
+                        draft["plan"] = plan
+                    else:
+                        draft = decode_public(model, tokenizer, [{"role": "user", "content": task["request"]}],
+                                              max_tokens=args.max_tokens, thinking=True)
                 row = ordinary_row(task, draft)
                 write_once(ordinary_path, row)
                 print(json.dumps({"done": done, "of": len(tasks), "arm": "ordinary", "correct": row["correct"]}),
@@ -877,16 +939,20 @@ def main() -> int:
                 began = time.monotonic()
                 turn_deadline[0] = began + budget
                 sealed = {"sealed_evaluation": True, "read_only_evaluation": True, "skip_cache": True}
-                if thinking:
+                if not typed:
                     called = {"sample_budget": sample_budget, "extra_context": {
                         "seed_candidates": [draft_text], "enable_executable_reasoning": executable,
-                        "allow_textual_fallback_after_executable": True, "generation_max_tokens": cap,
+                        "allow_textual_fallback_after_executable": True, "generation_max_tokens": args.max_tokens,
                         "disable_batched_candidates": True, **sealed}}
-                else:  # as her chat calls it
+                else:  # as her chat calls it, each candidate given half again what her draft took
+                    candidate_s = float(ordinary["seconds"])
+                    candidate_plan[0] = _how_her_chat_answers(task["request"], model_path, candidate_s * 1.5)
+                    organ["candidate_plan"] = candidate_plan[0]
                     called = {"extra_context": {
                         "live_response_phase": True, "disable_batched_candidates": True,
-                        "generation_max_tokens": cap, "seed_candidates": [draft_text],
-                        "allow_textual_fallback_after_executable": True, **sealed}}
+                        "generation_max_tokens": int((ordinary.get("plan") or {}).get("answer_cap") or 0),
+                        "seed_candidates": [draft_text], "allow_textual_fallback_after_executable": True,
+                        **sealed}}
                 try:
                     result = asyncio.run(amplify_turn(
                         task["request"], generate, task_type=task_type, time_budget_s=budget, **called))
