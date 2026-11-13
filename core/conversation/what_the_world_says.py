@@ -408,20 +408,29 @@ def _asks_her_view(question: str) -> bool:
 
 
 async def _read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining: Callable[[], float]) -> None:
-    """The top pages of a search, read again as her browser renders them, one at a time and within the turn's time.
-    A page's rendered text takes the place of what the fetch returned; a page that did not render keeps it."""
-    for result in results[:_PAGES_PER_SEARCH]:
+    """The top pages of a search, read again as her browser renders them, two at a time and within the turn's time.
+    A page's rendered text takes the place of what the fetch returned; a page that did not render keeps it. Two at a
+    time because each is its own browser beside her cortex's weights; one at a time, five weather pages took 22.5 s
+    of a 120 s turn on 12 November 2026."""
+    rendering = asyncio.Semaphore(2)
+
+    async def one(result: dict[str, Any]) -> None:
         url = str(result.get("url") or "")
-        if not url or remaining() <= 1.0:
-            continue
-        try:
-            page = await asyncio.wait_for(render(url), timeout=min(20.0, remaining()))
-        except (TimeoutError, OSError, RuntimeError, ValueError):
-            page = None
+        if not url:
+            return
+        async with rendering:
+            if remaining() <= 1.0:
+                return
+            try:
+                page = await asyncio.wait_for(render(url), timeout=min(20.0, remaining()))
+            except (TimeoutError, OSError, RuntimeError, ValueError):
+                page = None
         text = str((page or {}).get("text") or "").strip()
         if text:
             result["text"] = text
             result.setdefault("title", (page or {}).get("title") or url)
+
+    await asyncio.gather(*(one(result) for result in results[:_PAGES_PER_SEARCH]))
 
 
 def _answers_only_in_part(question: str, local: Sequence[WorldSource]) -> bool:
