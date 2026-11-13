@@ -2896,6 +2896,35 @@
         "name": "tests/test_no_fabricated_benchmarks.py",
         "why": "Only measured scores are published. Not decided here or above: UI, health, Foundry and release manifests derived from accepted artifacts, and superseded evidence demoted when a newer artifact replaces it."
       }
+    ],
+    "RELEASE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_release_certificate.py",
+        "why": "Decides the blocking half: a certificate with no evidence refuses, omitting any single requirement blocks the release, a failed requirement blocks as hard as a missing one and the two stay distinguishable, evidence from another commit is stale and names both commits, an unidentifiable build can never be certified, and a waiver needs a reason and a named person."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_launch_provenance.py",
+        "why": "Provenance-bound: the build manifest signs the runtime shell by a path-bound, content-sensitive digest, refuses a workspace that changes during capture, and binds the runtime snapshot once so later source movement cannot change what launched. Not decided here or above: a signed and notarized bundle, a clean-machine replay, the soak, and independent verification of the final bundle from its public manifest."
+      }
+    ],
+    "RELEASE-CONTRACT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_release_certificate.py::test_evidence_from_another_commit_is_stale_not_valid",
+        "why": "Release tooling rejects a proof artifact from a different commit."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_release_certificate.py::test_evidence_for_an_undeclared_requirement_is_refused",
+        "why": "Evidence for something the release does not declare is refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_release_certificate.py::test_a_waiver_requires_a_reason_and_a_named_person",
+        "why": "A gate is waived only with a reason and a named person, and the waiver is recorded. Not decided here or above: the versioned product-contract manifest itself, with an owner and acceptance evidence for every capability, mode, SLO, data guarantee, boundary, control, degradation, claim limit and non-goal, and refusal of an undocumented feature or an open severity-1 or 2 defect."
+      }
     ]
   }
 }
