@@ -607,6 +607,15 @@ class BootCognitiveMixin:
                 severity="error",
             )
             logger.error("Failed to integrate continuous learning: %s", e)
+        # Her consciousness audit had a scheduler nothing started: its hourly reader (agency's self-development)
+        # read "no audits yet", and the opacity monitor it builds on first use was never built.
+        try:
+            from core.consciousness.unified_audit import get_audit_suite
+
+            get_audit_suite().schedule()
+        except (ImportError, AttributeError, RuntimeError, OSError) as e:
+            _record_boot_cognitive_degradation(e, action="continued boot without the scheduled consciousness audit",
+                                               severity="warning")
 
         try:
             from core.autonomy.behavior_controller import integrate_behavior_control

@@ -117,9 +117,12 @@ class ConsciousnessAuditSuite:
     Queries all consciousness modules and produces a unified assessment.
     """
 
-    REPORT_DIR = Path("aura/data/consciousness_reports")
-
     def __init__(self):
+        from core.config import config
+
+        # Under her data directory. It was a path relative to wherever the process stood ("aura/data/..."), which
+        # in her app is her source checkout.
+        self.REPORT_DIR = Path(config.paths.data_dir) / "consciousness_reports"
         self._history:  List[AuditReport] = []
         self._schedule_task: Optional[asyncio.Task] = None
         self.REPORT_DIR.mkdir(parents=True, exist_ok=True)

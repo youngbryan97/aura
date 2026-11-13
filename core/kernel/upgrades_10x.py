@@ -317,13 +317,16 @@ def hand_insight_to_her_initiative(insight: object, *, curiosity: float) -> bool
         return False
     from core.initiative_synthesis import get_initiative_synthesizer
 
-    return get_initiative_synthesizer().submit(
+    accepted = get_initiative_synthesizer().submit(
         content,
         source="morphic_clone",
         urgency=min(1.0, max(0.0, float(curiosity))),
         drive="curiosity",
         metadata={"type": "morphic_insight"},
     )
+    logger.info("🌱 A morphic clone's insight %s her initiatives: %s", "reached" if accepted else "was refused by",
+                content[:80])
+    return accepted
 
 
 class TrueEvolutionPhase(Phase):
