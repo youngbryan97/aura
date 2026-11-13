@@ -1182,6 +1182,10 @@ _REQUESTED_ARTIFACT_SCOPES = _SELF_SERVICE_EFFECT_SCOPES | {"read_write_artifact
 _REQUESTED_BROWSING_CEILING = "external_io"
 _REQUESTED_BROWSING_SCOPES = _SELF_SERVICE_EFFECT_SCOPES | {"external_io"}
 
+#: The scopes a person's request may open beyond self-service, whichever way it is read: a file to exist, or her
+#: reaching outside this machine.
+_REQUESTABLE_SCOPES = frozenset({_REQUESTED_ARTIFACT_CEILING, _REQUESTED_BROWSING_CEILING})
+
 
 def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
     """How far this turn may reach, given what was actually asked for.

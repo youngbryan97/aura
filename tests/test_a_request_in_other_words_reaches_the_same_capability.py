@@ -141,3 +141,43 @@ def test_the_reply_itself_is_not_in_the_catalogue_her_model_reads():
     asyncio.run(capabilities_her_model_reads("open the notes file", skills, ask=ask))
 
     assert "file_operation" in seen[0] and "native_chat" not in seen[0]
+
+
+def _means(monkeypatch, name):
+    monkeypatch.setattr("core.brain.requests_by_meaning.meant_capability", lambda text, skills: name)
+
+    async def asked(_said):
+        return True
+
+    monkeypatch.setattr("core.together.taking_it_up.asked_to_do_something", asked)
+
+
+def test_a_capability_meant_is_reached_whatever_verb_asked_for_it(engine, monkeypatch):
+    """LIVE 13 November 2026: "Could you send me a desktop notification that says the tea is ready?" stopped at a verb
+    list before her reading by meaning, and she said she could not send notifications, with notify_user ready."""
+    from core.brain.her_reading_of_a_request import her_reading
+    from core.container import ServiceContainer
+
+    ServiceContainer.get("capability_engine").skills["notify_user"] = SimpleNamespace(
+        description="Pushes a native OS desktop notification to the user.", enabled=True, trigger_patterns=[])
+    _means(monkeypatch, "notify_user")
+    _reads(monkeypatch, [])  # her large model is not asked: the meaning decided
+    asked = "Could you send me a desktop notification that says the tea is ready?"
+    required, ceiling, scopes = asyncio.run(her_reading(asked, [], "sandboxed_compute", frozenset({"sandboxed_compute"})))
+    assert required == ["notify_user"]
+    assert ceiling == "external_io" and "external_io" in scopes  # asking for the effect is asking for it
+
+
+def test_nothing_meant_and_no_order_leaves_the_turn_to_words(engine, monkeypatch):
+    from core.brain.her_reading_of_a_request import her_reading
+
+    _means(monkeypatch, None)
+    called = []
+
+    async def reading(text, skills, ask=None):
+        called.append(text)
+        return ["repair_a_program"]
+
+    monkeypatch.setattr("core.intent.what_her_model_reads_it_needs.capabilities_her_model_reads", reading)
+    required, ceiling, _ = asyncio.run(her_reading("I had tea with my sister this afternoon.", [], "sandboxed_compute", frozenset()))
+    assert required == [] and ceiling == "sandboxed_compute" and called == []

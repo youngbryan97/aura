@@ -60,8 +60,6 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
 
     if required and the_one_asked_for(text, {required[0]: {}}) is not None:
         return required, ceiling, scopes
-    if not worth_reading(text):
-        return required, ceiling, scopes
     # A capability is for something she was asked to do. Live, 13 October,
     # "There is a wren nesting in the old boot by my back door" spent ten
     # seconds of her large model on which capability it needed.
@@ -78,6 +76,12 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
     # By meaning first: her embedding of the request beside each capability's
     # meanings (core/intent/capability_by_meaning.py), measured, not guessed.
     meant = await asyncio.to_thread(meant_capability, text, skills)
+    # The words' own gate guards only her large model's reading, which costs a pass over the catalogue. A reading by
+    # meaning costs an embedding and decides by its own margins. LIVE 13 November 2026: "Could you send me a desktop
+    # notification that says the tea is ready?" never reached it, because no word of it is in that gate's verb list,
+    # and she answered that she could not send notifications, with notify_user ready.
+    if not meant and not worth_reading(text):
+        return required, ceiling, scopes
     read = [meant] if meant else await capabilities_her_model_reads(text, skills, ask=_asking(client))
     # A reading that lands on the reply in words asks for no tool: the turn is
     # answered in words (LIVE 2026-10-05, native_chat called with no message).
@@ -99,12 +103,19 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
     from core.intent.artifact_request import asks_for_an_artifact
     from core.intent.capability_selection import points_at_something_real
     from core.phases.response_contract import (
+        _REQUESTABLE_SCOPES,
         _REQUESTED_ARTIFACT_CEILING,
         _REQUESTED_ARTIFACT_SCOPES,
     )
     from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
 
-    if SKILL_EFFECT_SCOPES.get(read[0]) in _REQUESTED_ARTIFACT_SCOPES and (points_at_something_real(text) or asks_for_an_artifact(text)):
+    scope = SKILL_EFFECT_SCOPES.get(read[0])
+    if meant and scope in _REQUESTABLE_SCOPES and scope not in scopes:
+        # Asking for what a capability does is asking for that effect (requested_effect_ceiling's own principle), so
+        # the capability meant sets how far the turn reaches, among the scopes a person's request may open; the
+        # dispatch still judges the act.
+        ceiling, scopes = scope, frozenset(scopes) | {scope}
+    elif scope in _REQUESTED_ARTIFACT_SCOPES and (points_at_something_real(text) or asks_for_an_artifact(text)):
         ceiling, scopes = _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
     return [read[0]], ceiling, scopes
 
