@@ -938,6 +938,10 @@ async def _run_chat_turn_memory_log_item(
                 aura_response,
                 principal_id=user_id or None,
             )
+            # Her model of the person, which only a phase fed and a typed turn runs none (core/social/watching_people).
+            from core.social.watching_people import watch_a_typed_exchange
+
+            watch_a_typed_exchange(user_id, user_message, aura_response)
             await _mark_chat_turn_memory_log_stage(operation_id, "experience")
 
         if not admission.ok:
