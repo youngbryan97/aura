@@ -140,8 +140,9 @@ async def test_math_engine_catches_arithmetic_error():
 
 @pytest.mark.asyncio
 async def test_math_engine_accepts_correct_arithmetic():
+    # A right step is no provable failure, and with no question to compare an answer against it confirms nothing.
     res = await MathTruthEngine().verify("Since 12 * 12 = 144 we are fine.")
-    assert res.checked and res.ok
+    assert res.ok and not res.checked
 
 
 @pytest.mark.asyncio

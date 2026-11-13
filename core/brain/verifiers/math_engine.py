@@ -157,9 +157,15 @@ class MathTruthEngine:
                 target_label, target_value = derived
                 target_ok = _final_answer_matches(text, str(target_value))
 
-        # If there were no numeric claims and nothing to compare against, nothing to check.
-        if not arithmetic_errors and target_ok is None and "=" not in text:
-            return VerificationResult(domain="math", ok=True, checked=False, engine=self.name)
+        # Re-doing the working's arithmetic can refute an answer and cannot confirm one: only a final answer compared
+        # with an exact value is a check of the answer. LIVE 2026-11-12 (F04 typed-lane proof): an AIME draft cut by
+        # its token cap before it reached any answer passed as checked because its LaTeX held "=" signs, and the
+        # amplifier kept it as a verified incumbent without searching. A clean working with nothing to compare is
+        # accepted and unchecked; a wrong step below still fails it.
+        if not arithmetic_errors and target_ok is None:
+            return VerificationResult(domain="math", ok=True, checked=False,
+                                      score=0.95 if "=" in text else 0.5, engine=self.name,
+                                      detail={"arithmetic_errors": 0, "answer_compared": False})
 
         issues = [f"arithmetic error: {e['claim']} (correct: {e['correct']})" for e in arithmetic_errors]
         if target_ok is False:
@@ -175,5 +181,5 @@ class MathTruthEngine:
             engine=self.name,
             issues=issues,
             evidence=evidence,
-            detail={"arithmetic_errors": len(arithmetic_errors)},
+            detail={"arithmetic_errors": len(arithmetic_errors), "answer_compared": target_ok is not None},
         )

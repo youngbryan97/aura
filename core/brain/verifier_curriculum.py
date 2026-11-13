@@ -73,6 +73,23 @@ class CurriculumTask:
     task_type: str
     source: str            # "weakness" | "playbook_adjacent" | "explore"
     difficulty: float      # 0..1 (proposal-time estimate)
+    #: The battery item's own grader, which knows the answer; None where the
+    #: task has none and only the truth engines can judge it.
+    grade: Callable[[str], bool] | None = field(default=None, compare=False, repr=False)
+
+
+async def _a_verified_win(task: CurriculumTask, answer: str) -> float | None:
+    """The engines' score when no engine refutes the answer and a check reached it (the task's own grader where it
+    carries one); None when it is not a verified win.
+
+    The engines are handed the question so a check can reach the answer at all; a clean working alone is no check of
+    an answer (core/brain/verifiers/math_engine.py).
+    """
+    from core.brain.verifiers.registry import verify_candidate
+
+    verdict = await verify_candidate(answer, task_type=task.task_type, context={"objective": task.prompt})
+    reached = bool(task.grade(str(answer))) if task.grade is not None else bool(verdict.checked)
+    return float(verdict.score) if verdict.ok and reached else None
 
 
 @dataclass
@@ -136,7 +153,7 @@ class VerifierCurriculumLoop:
                 break
             if item.task_class in weak:
                 tasks.append(CurriculumTask(item.prompt, item.task_type,
-                                            "weakness", 0.7))
+                                            "weakness", 0.7, getattr(item, "grade", None)))
 
         # 2. playbook-adjacent: shapes she has proven strategies for
         if len(tasks) < k:
@@ -152,13 +169,13 @@ class VerifierCurriculumLoop:
                     break
                 if item.task_type in known_types and item not in tasks:
                     tasks.append(CurriculumTask(item.prompt, item.task_type,
-                                                "playbook_adjacent", 0.5))
+                                                "playbook_adjacent", 0.5, getattr(item, "grade", None)))
 
         # 3. exploration fills the rest
         for item in pool:
             if len(tasks) >= k:
                 break
-            task = CurriculumTask(item.prompt, item.task_type, "explore", 0.4)
+            task = CurriculumTask(item.prompt, item.task_type, "explore", 0.4, getattr(item, "grade", None))
             if all(t.prompt != task.prompt for t in tasks):
                 tasks.append(task)
         return tasks[:k]
@@ -268,19 +285,17 @@ class VerifierCurriculumLoop:
             report.solved += 1
 
             try:
-                from core.brain.verifiers.registry import verify_candidate
-
-                verdict = await verify_candidate(answer, task_type=task.task_type)
+                won = await _a_verified_win(task, answer)
             except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 record_degradation("curriculum_loop", exc, severity="warning",
                                    action="curriculum verification failed; win not counted")
                 continue
-            if not (verdict.ok and verdict.checked):
+            if won is None:
                 continue
             report.verified += 1
 
             if capture:
-                captured = self._capture_win(task, answer, verdict.score)
+                captured = self._capture_win(task, answer, won)
                 report.captured += 1 if captured else 0
         return report
 
@@ -353,12 +368,10 @@ class VerifierCurriculumLoop:
                 continue
             report.solved += 1
             try:
-                from core.brain.verifiers.registry import verify_candidate
-
-                verdict = await verify_candidate(answer, task_type=task.task_type)
+                won = await _a_verified_win(task, answer)
             except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
                 continue
-            if not (verdict.ok and verdict.checked):
+            if won is None:
                 continue
             report.verified += 1
             try:
@@ -368,7 +381,7 @@ class VerifierCurriculumLoop:
 
                 if get_reasoning_self_improvement().record_win(
                     task.prompt, task.task_type, answer=answer,
-                    confidence=max(0.7, float(verdict.score)),
+                    confidence=max(0.7, won),
                     mode="teacher_distillation",   # provenance, never hidden
                     verified=True,
                 ):

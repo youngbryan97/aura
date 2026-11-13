@@ -29,14 +29,14 @@ def _approve_will(monkeypatch, approved=True, reason="ok"):
 
 
 async def _perfect_solver(prompt: str, task_type: str) -> str:
-    """A realistic worked solver — returns verifier-checkable forms (the math
-    engine needs the equation, not a bare number)."""
+    """A solver that answers as each task asks: the battery's math tasks want just the integer, and their own
+    grader checks it (a worked equation is no check of the answer, core/brain/verifiers/math_engine.py)."""
     import re
 
     m = re.search(r"Compute (\d+) \* (\d+)", prompt)
     if m:
         a, b = int(m.group(1)), int(m.group(2))
-        return f"{a} * {b} = {a * b}"          # a claim the math engine can check
+        return str(a * b)
     names = re.findall(r"([A-Z][a-z]+) is older than", prompt)
     if names and "oldest" in prompt.lower():
         return names[0]

@@ -86,3 +86,42 @@ def test_last_answer_envelope_is_authoritative():
         "What is 17 to the power of 4?",
     )
     assert r.ok is False and r.checked is True
+
+
+# A draft cut by its token cap before any answer, as an AIME draft was in the F04 typed-lane proof on
+# 12 November 2026: working in LaTeX, no final answer, a question no exact value is derived from.
+CUT_DRAFT = (
+    "Let the box have edges $2x$, $2y$, $2z$, so $4x^2 + 4y^2 = 41$ and $V_{box} = (2x)(2y)(2z) = 8xyz$.\n"
+    "The tetrahedron is formed by cutting off 4 corner pyramids from the box. Each corner pyramid has"
+)
+TETRAHEDRON = "Let ABCD be a tetrahedron such that AB=CD=sqrt(41), AC=BD=sqrt(80), BC=AD=sqrt(89). Find m+n+p."
+
+
+def test_working_with_no_answer_is_not_a_checked_answer():
+    r = _verify(CUT_DRAFT, TETRAHEDRON)
+    assert r.ok is True and r.checked is False and r.verdict == "UNCHECKED"
+
+
+def test_a_wrong_step_still_refutes_without_an_answer_to_compare():
+    r = _verify("First 12 * 12 = 154, and then the area follows.", TETRAHEDRON)
+    assert r.ok is False and r.checked is True
+
+
+def test_the_amplifier_searches_past_a_draft_that_reached_no_answer():
+    """The incumbent is kept without a search only when a check reached its answer."""
+    from core.brain.reasoning_amplifier_v2 import amplify_turn
+
+    asked: list[float] = []
+
+    async def generate(prompt: str, temperature: float) -> str:
+        asked.append(temperature)
+        return CUT_DRAFT
+
+    result = asyncio.run(amplify_turn(
+        TETRAHEDRON, generate, task_type="math", time_budget_s=30.0, sample_budget=2,
+        extra_context={"seed_candidates": [CUT_DRAFT], "sealed_evaluation": True, "read_only_evaluation": True,
+                       "skip_cache": True}))
+    receipt = result.receipt.to_dict()
+    assert "incumbent_verified" not in receipt["fallbacks_used"]
+    assert receipt["promotion_authority"] != "preserve_incumbent"
+    assert asked, "no candidate was asked for"
