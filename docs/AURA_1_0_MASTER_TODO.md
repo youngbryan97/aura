@@ -3681,6 +3681,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and when it does decide, any tool receipt in the turn founds any claim, so
   a read of her own source would vouch for "I checked my email". That turn's
   delivery also spent 30 s in runtime reconciliation after 22 s stabilising.
+  Corrected that afternoon: the learned matcher was not what let it through.
+  The pattern caught "I ran", and her turn held one receipt, the read of her
+  work record that 12 November's fix files so she can retell that work. Any
+  receipt founded any claim, so that read vouched for email and Reddit. A
+  record read now founds a claim only when a line of the record is the same
+  work: by meaning where her encoder is loaded, by shared words in her
+  model's worker, which never loads it. Receipts of work done keep the old
+  reading. Her exact reply, with a record of that morning's shape, is now
+  refused (tests/test_a_record_read_vouches_only_for_what_it_holds.py).
+  The 30 s "reconcile" was a second answer: her first draft gave her energy
+  as 6% while it read 0.697, and the re-answer is timed in that stage. The
+  turn ran three generations of about 20 s each.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

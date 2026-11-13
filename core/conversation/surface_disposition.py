@@ -206,6 +206,7 @@ def record_tool_receipt(
     evidence: Any = "",
     observed_content: Any = "",
     mirror_to_turn: bool = True,
+    vouches_for: str = "",  # core/conversation/what_a_record_vouches_for.py
 ) -> bool:
     """Record one structured effect under the exact active turn custody.
 
@@ -272,6 +273,7 @@ def record_tool_receipt(
             "verification": " ".join(str(verification or "").split())[:160],
             "evidence": " ".join(str(evidence or "").split())[:1000],
             "observed_content": str(observed_content or "")[:16000],
+            "vouches_for": str(vouches_for or "")[:32],
             "recorded_at": time.time(),
         }
     )

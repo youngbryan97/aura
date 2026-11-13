@@ -59,6 +59,7 @@ from core.conversation.escaped_controls import has_escaped_whitespace_artifact
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
 from core.conversation.request_coverage import gives_a_closed_answer, unanswered_question_parts
 from core.conversation.requested_reply_shape import reply_scope_text
+from core.conversation.what_a_record_vouches_for import founded_by
 from core.conversation.word_markers import names_any
 from core.dialogue.referents import borrowed_first_person_spans
 from core.dialogue.shared_history import has_fabricated_shared_history
@@ -5670,7 +5671,7 @@ def _has_unfounded_tool_execution_claim(
         # never enumerated still counts, one sentence at a time.
         for sentence in re.split(r"(?<=[.!?])\s+|\n", raw):
             if _ACTION_CLAIM_MATCHER.decide_without_waiting(sentence) is True:
-                return not tool_receipts
+                return not founded_by(tool_receipts, sentence)
         return False
     # Only the sentence carrying the claim decides whether it was hedged, and
     # only evidence of the same kind can vouch for it;
@@ -5679,15 +5680,14 @@ def _has_unfounded_tool_execution_claim(
     end = raw.find(".", match.end())
     clause = raw[start : end if end != -1 else len(raw)]
     _ACTION_CLAIM_MATCHER.observe(clause, holds=True)
-    # A quoted result had a producer or it was written by the model. Every
-    # other kind of execution claim keeps the older, permissive reading, where
-    # any receipt at all is enough, because those can be founded by work this
-    # function cannot see and destroying a true reply is the worse error.
+    # A quoted result had a producer or it was written by the model. Any other execution claim is
+    # founded by any receipt of work, which can stand for work unseen here; a read of her own record
+    # founds only what the record holds. Destroying a true reply is the worse error.
     if _quotes_a_result(raw):
         if not _receipts_include(tool_receipts, _EXECUTOR_SURFACE_RE):
             return not _EXECUTION_CLAIM_HEDGE_RE.search(clause)
         return False
-    if tool_receipts:
+    if founded_by(tool_receipts, clause):
         return False
     return not _EXECUTION_CLAIM_HEDGE_RE.search(clause)
 

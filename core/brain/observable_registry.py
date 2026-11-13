@@ -804,10 +804,11 @@ async def _read_recent_activity(prompt: str) -> str:
         # what did you get up to tonight?" named work from this record, her worker refused it twice as claiming work
         # no receipt showed, and the person was served a stock line that she could not answer.
         from core.conversation.surface_disposition import record_tool_receipt
+        from core.conversation.what_a_record_vouches_for import WHAT_IT_HOLDS
 
         record_tool_receipt("her_work_record", ok=True, action="read", object_ref="her intention log",
                             effect_observed=True, verification="her own record of the work she finished, read this turn",
-                            observed_content=described[:2000])
+                            observed_content=described[:2000], vouches_for=WHAT_IT_HOLDS)
     return described
 
 

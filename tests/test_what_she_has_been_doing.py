@@ -225,7 +225,9 @@ def test_reading_her_work_record_is_this_turns_evidence_for_retelling_it(monkeyp
     from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
 
     monkeypatch.setattr(activity, "read_recent_activity", lambda limit=0, *, since_seconds=None: None)
-    monkeypatch.setattr(activity, "describe_recent_activity", lambda window: "52 pieces of work; an improvement plan.")
+    monkeypatch.setattr(activity, "describe_recent_activity", lambda window: (
+        "52 pieces of work finished in the last 6 hours.\nWork that was not just a tool call:\n"
+        "- Drafting a safe improvement plan for aura_main.py."))
     draft = "The most significant task I ran was drafting a safe improvement plan for aura_main.py."
     with bind_turn_evidence_custody(session_id="s", turn_id="t"):
         assert _has_unfounded_tool_execution_claim(draft, tool_receipts=turn_tool_receipts())

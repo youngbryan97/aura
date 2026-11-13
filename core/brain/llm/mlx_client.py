@@ -3433,6 +3433,8 @@ def _bounded_surface_tool_receipts() -> list[dict[str, Any]]:
             "effect_observed": bool(raw.get("effect_observed")),
             "verification": str(raw.get("verification") or "").strip()[:160],
         }
+        if raw.get("vouches_for"):  # it vouches only for what it read, so what it read goes too
+            item.update(vouches_for=str(raw["vouches_for"])[:32], observed_content=str(raw.get("observed_content") or "")[:2000])
         if not item["receipt_id"] or not item["tool"]:
             continue
         item_chars = sum(len(str(value)) for value in item.values())
