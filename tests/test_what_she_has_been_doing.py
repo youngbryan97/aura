@@ -210,3 +210,28 @@ def test_the_reading_covers_the_stretch_the_person_named(monkeypatch) -> None:
     monkeypatch.setattr(activity, "describe_recent_activity", lambda window: "")
     asyncio.run(_read_recent_activity("of everything in the last hour, what did you actually do?"))
     assert asked["since"] == 3600
+
+
+def test_reading_her_work_record_is_this_turns_evidence_for_retelling_it(monkeypatch) -> None:
+    """LIVE 13 November 2026: her draft retold work from the record she was given ("drafting a safe improvement plan
+    for aura_main.py"), her worker refused it twice as claiming work no receipt showed, and she was served a stock
+    line."""
+    import asyncio
+
+    import core.self.recent_activity as activity
+    from core.brain.observable_registry import _read_recent_activity
+    from core.conversation.response_reliability import _has_unfounded_tool_execution_claim
+    from core.conversation.surface_disposition import turn_tool_receipts
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+
+    monkeypatch.setattr(activity, "read_recent_activity", lambda limit=0, *, since_seconds=None: None)
+    monkeypatch.setattr(activity, "describe_recent_activity", lambda window: "52 pieces of work; an improvement plan.")
+    draft = "The most significant task I ran was drafting a safe improvement plan for aura_main.py."
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        assert _has_unfounded_tool_execution_claim(draft, tool_receipts=turn_tool_receipts())
+        asyncio.run(_read_recent_activity("So what did you get up to tonight?"))
+        receipts = turn_tool_receipts()
+        assert [r["tool"] for r in receipts] == ["her_work_record"]
+        assert not _has_unfounded_tool_execution_claim(draft, tool_receipts=receipts)
+        # A quoted output still needs something that produced it.
+        assert _has_unfounded_tool_execution_claim("I ran it in Python and the output is: 4", tool_receipts=receipts)

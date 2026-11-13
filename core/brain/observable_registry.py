@@ -798,7 +798,17 @@ async def _read_recent_activity(prompt: str) -> str:
     from core.self.recent_activity import describe_recent_activity, read_recent_activity
 
     window = await asyncio.to_thread(read_recent_activity, since_seconds=seconds_named(prompt))
-    return describe_recent_activity(window)
+    described = describe_recent_activity(window)
+    if described:
+        # The read is this turn's evidence for the work she retells from it. LIVE 13 November 2026: her draft for "So
+        # what did you get up to tonight?" named work from this record, her worker refused it twice as claiming work
+        # no receipt showed, and the person was served a stock line that she could not answer.
+        from core.conversation.surface_disposition import record_tool_receipt
+
+        record_tool_receipt("her_work_record", ok=True, action="read", object_ref="her intention log",
+                            effect_observed=True, verification="her own record of the work she finished, read this turn",
+                            observed_content=described[:2000])
+    return described
 
 
 async def _read_queued_work(_prompt: str) -> str:
