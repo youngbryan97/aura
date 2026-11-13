@@ -25,6 +25,10 @@ class NotifyUserSkill(BaseSkill):
 
 
     name = "notify_user"
+    # Declared, so its schema says a message is required. Undeclared, it advertised none, and LIVE 13 November 2026
+    # "Mind pinging me with a desktop notification that says stretch break?" called it with no arguments as a skill
+    # that needs nothing but the request, and it failed for want of a message.
+    input_model = NotifyUserInput
     retry_safe = False  # external send/act — never double-fire on retry
     description = (
         "Pushes a native OS desktop notification to the user. "
