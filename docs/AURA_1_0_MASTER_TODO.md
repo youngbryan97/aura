@@ -3827,6 +3827,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   which for page work come back as a generic clipboard receipt, so the turn
   stayed on the chat lane and she answered without ever opening the page.
   Fixed with its test; the live run follows.
+  12 November, reading the web for something as it is now. "Can you look up what the weather is in Paris right
+  now?" found AccuWeather, Weather.com, Ease Weather and two more, and she said none held a value; "What's the score
+  of the latest Lakers game?" was answered with a game from 6 October. Measured on the pages: her search handed her
+  its own chunks matched to the question's words (titles and menus); her research pipeline rendered a page only in
+  deep mode and only when its fetch came back under 1,000 characters (Weather.com's was 1,152 characters of menus);
+  her browser's cleaner drops lines under 18 characters, which on a page of readings is every reading; her stored
+  corpus answered a question about the latest game without a search. Now a question about the present is always
+  searched, its top pages are read whole as her browser renders them (core/capabilities/what_a_page_shows.py, two at
+  a time, the text once it stops changing, short lines kept beside their labels), and the full fetch where the
+  browser is refused (AccuWeather answers 403). Live at 16:2x: Paris about 11 °C falling to 6 °C, wind about
+  20 km/h, rain 9%; Tokyo 12 °C, humidity 76%; "Lakers 123, Bucks 112 (Wednesday, November 11)", which ESPN, Fox
+  Sports and CBS give the same. The weather turns took 98 and 123 s, the first after a restart; her web step 13 s.
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
@@ -5293,6 +5305,17 @@ needs her 27B free (her app down, or her app's own influence trials).
   the stabilizer's rewrite, which every turn reaches when its draft fails stabilization; the static census
   (`tools/where_she_is_still_prompted.py`) counts 163,919 characters in 461 strings across 237 files, the most
   on her reply path in `core/phases/response_generation_unitary.py` (35 strings).
+  12 November. On the path to her words, done: her stabilizer asks her turn again as it was asked, with nothing
+  added, instead of writing a repair turn ("You are Aura. This is a user-facing repair turn.");
+  core/brain/her_turn_as_asked.py keeps the person's turn as her gate dispatched it. Seven checks on her reply each
+  appended a paragraph in her first person ("I cut a sentence there — I had written ...", "Correction on one thing
+  I just said", "I have to flag that"; Bryan saw it as a leak); they remove the sentence the record refutes and keep
+  the fact as a reading, and her turn is asked again with it. The identity lock no longer rides a person's turn in a
+  lane that keeps its worded contract; the capability, source and perception notes are readings; a typed turn while
+  she wakes is answered on her cortex. Census for 15:22 to 16:00 after the stabilizer change: on her reply path, the
+  identity lock twice (fixed after) and one source instruction (fixed after). Left, all background and not her words
+  to a person: the curriculum loop's identity lock (17 dispatches, 142,768 characters in that window, on her brainstem,
+  which does not carry her persona), her browser's, the reimplementation lab's code generator, her waking sequence.
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the
