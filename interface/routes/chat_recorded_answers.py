@@ -100,7 +100,6 @@ from .chat_served_answers import (  # noqa: E402
     _serve_measured_filesystem_count,
     _serve_positional_solution,
     _serve_queued_work,
-    _serve_recent_activity,
     _serve_solved_game,
     _serve_tabular_answer,
     _serve_worked_out_sequence,
@@ -310,8 +309,8 @@ async def _recorded_answer_corrections(
          lambda text: _serve_earlier_conversation(user_message, text), False),
         ("host_load", lambda text: _serve_host_load(user_message, text), False),
         ("queued_work", lambda text: _serve_queued_work(user_message, text), False),
-        ("recent_activity",
-         lambda text: _serve_recent_activity(user_message, text), False),
+        # No "recent_activity": what she has done is a reading her model is given ("WORK YOU HAVE ACTUALLY DONE",
+        # core/brain/observable_registry.py), not a paragraph in her voice put in place of her reply (F06, U01).
         ("saved_artifact",
          lambda text: _save_requested_artifact(user_message, text), True),
         ("positional_solution",

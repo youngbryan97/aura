@@ -182,3 +182,31 @@ def test_a_persons_own_words_are_never_named_as_her_work(tmp_path, monkeypatch) 
     window = activity.read_recent_activity()
     assert window.completed == 2 and window.for_them == 1 and window.her_own == 1
     assert window.subjects == ("Tides follow the moon's pull on the sea.",)
+
+
+def test_her_reply_is_never_replaced_by_the_record() -> None:
+    """LIVE 10 November 2026: "What have you been up to this evening?" came back as the record in her first person, and
+    the 844 characters her cortex wrote were dropped. The record is a reading her model is given, and her words are
+    hers (F06)."""
+    from tests.source_contract import family_text_at
+
+    source = family_text_at(Path(__file__).resolve().parents[1] / "interface" / "routes" / "chat.py")
+    assert "_serve_recent_activity" not in source
+    assert '("recent_activity"' not in source
+
+
+def test_the_reading_covers_the_stretch_the_person_named(monkeypatch) -> None:
+    import asyncio
+
+    import core.self.recent_activity as activity
+    from core.brain.observable_registry import _read_recent_activity
+
+    asked = {}
+
+    def read(limit=0, *, since_seconds=None):
+        asked["since"] = since_seconds
+
+    monkeypatch.setattr(activity, "read_recent_activity", read)
+    monkeypatch.setattr(activity, "describe_recent_activity", lambda window: "")
+    asyncio.run(_read_recent_activity("of everything in the last hour, what did you actually do?"))
+    assert asked["since"] == 3600

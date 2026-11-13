@@ -608,7 +608,6 @@ from .chat_served_answers import (  # noqa: E402
     _serve_measured_filesystem_count,
     _serve_positional_solution,
     _serve_queued_work,
-    _serve_recent_activity,
     _serve_solved_game,
     _serve_tabular_answer,
     _serve_worked_out_sequence,

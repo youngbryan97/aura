@@ -279,32 +279,14 @@ def query_requires_source_reading(query: str) -> bool:
     return False
 
 
+from core.search.page_text import _html_to_text  # noqa: E402,F401  (callers import it from here)
+
+
 def _normalized_match_text(*parts: str) -> str:
     combined = " ".join(str(part or "") for part in parts if str(part or "").strip())
     combined = combined.lower()
     combined = re.sub(r"[^a-z0-9]+", " ", combined)
     return re.sub(r"\s+", " ", combined).strip()
-
-
-def _html_to_text(raw_html: str) -> str:
-    text = re.sub(
-        r"(?is)<(script|style|noscript|svg|iframe|canvas).*?>.*?</\1>",
-        " ",
-        raw_html,
-    )
-    text = re.sub(
-        r"(?i)</?(article|section|div|p|li|ul|ol|table|tr|td|th|h[1-6]|blockquote|br)[^>]*>",
-        "\n",
-        text,
-    )
-    text = re.sub(r"(?is)<[^>]+>", " ", text)
-    text = html.unescape(text)
-    lines = [
-        re.sub(r"\s+", " ", line).strip()
-        for line in text.splitlines()
-    ]
-    lines = [line for line in lines if len(line) >= 3]
-    return "\n".join(lines)
 
 
 def _extract_title(raw_html: str) -> str:

@@ -781,17 +781,23 @@ def _matches_recent_activity(prompt: str) -> bool:
     return looks_like_a_question_about_recent_activity(prompt)
 
 
-async def _read_recent_activity(_prompt: str) -> str:
-    """What she has actually done, from her own record of intending it.
+async def _read_recent_activity(prompt: str) -> str:
+    """What she has actually done, from her own record of intending it, over the stretch the person named.
 
     queued_work answers the forward half of this and refuses the backward half
     outright — its matcher returns False on a past-tense question — so
     "anything planned?" was grounded and "what have you been working on?"
     reached nothing at all and was answered from the model.
+
+    This reading is the whole of it now. The chat route used to put the record, in her first person, in place of
+    her reply; LIVE 10 November 2026 that dropped the 844 characters her cortex wrote to "What have you been up to
+    this evening?", and runtime text in her voice is the leak F06 removes. The window the person named ("in the
+    last hour or so", LIVE 27 August) was read only on that route, so it is read here.
     """
+    from core.language.stated_window import seconds_named
     from core.self.recent_activity import describe_recent_activity, read_recent_activity
 
-    window = await asyncio.to_thread(read_recent_activity)
+    window = await asyncio.to_thread(read_recent_activity, since_seconds=seconds_named(prompt))
     return describe_recent_activity(window)
 
 

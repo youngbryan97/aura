@@ -156,7 +156,6 @@ def test_every_chat_answer_route_goes_through_the_ledger():
         "earlier_conversation",
         "host_load",
         "queued_work",
-        "recent_activity",
         "saved_artifact",
         "positional_solution",
         "worked_out_sequence",

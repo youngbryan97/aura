@@ -404,63 +404,6 @@ def _serve_positional_solution(user_message: object, reply: object) -> object:
         return reply
 
 
-def _serve_recent_activity(user_message: object, reply: object) -> object:
-    """Answer "what have you been working on" from the record of doing it.
-
-    LIVE, 2026-08-20. The reading was taken — the log records "took 2
-    reading(s): work you have actually done" — and the answer was "I've been
-    analyzing my cognitive architecture, looking at how information flows
-    between different systems." Thirty-three finished pieces of work sat in
-    the block in front of her, with the tools she ran and the topics she
-    chased, and one of them reached the reply.
-
-    Same treatment as the queue, for the same reason: evidence informs, it
-    does not enforce, and what she did is not a matter of opinion. The reply
-    she wrote is kept after the record, because why one piece of work was
-    interesting IS hers to say — only the list of what happened is not.
-    """
-    try:
-        from core.self.recent_activity import (
-            looks_like_a_question_about_recent_activity,
-            narrate_recent_activity,
-            read_recent_activity,
-        )
-
-        if not looks_like_a_question_about_recent_activity(str(user_message or "")):
-            return reply
-        # Said, not displayed. The block form belongs in a prompt, where
-        # headings separate evidence from everything around it; served to
-        # somebody who asked what she had been up to tonight it reads as a
-        # status page — the right facts in the wrong voice.
-        # Bound it to the stretch the person asked about.
-        #
-        # LIVE, 2026-08-27: "of everything I've thrown at you in the last hour
-        # or so, what did you actually do well?" came back with several days of
-        # work — 2048, a sliding puzzle, notes written to a Desktop — because
-        # the record was read by COUNT and the window in the sentence was never
-        # read at all.
-        from core.language.stated_window import seconds_named
-
-        described = narrate_recent_activity(
-            read_recent_activity(since_seconds=seconds_named(user_message))
-        )
-        if not described:
-            return reply
-        logger.info("🗂️ Served the activity record from the intention log.")
-        return _compose(
-            user_message, reply, described, looks_like_a_question_about_recent_activity
-        )
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation(
-            "chat.recent_activity",
-            exc,
-            severity="debug",
-            action="left the activity answer to the model",
-            enforce_failure_policy=False,
-        )
-        return reply
-
-
 def _serve_host_load(user_message: object, reply: object) -> object:
     """Answer "how hard is the machine working" with the reading.
 
