@@ -6456,6 +6456,9 @@ function renderMessageMarkdown(t, isHtml = false) {
         return protect(`<div class="code-block-wrap">${langLabel}<button class="code-copy-btn" onclick="copyCodeBlock('${codeId}')">COPY</button><pre><code id="${codeId}">${code.trim()}</code></pre></div>`);
     });
 
+    // Maths, after code so a dollar in code stays code, and before emphasis so a * in TeX stays TeX.
+    h = typesetMath(h, protect);
+
     // Headers (# through ####)
     h = h.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
     h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
@@ -6507,6 +6510,30 @@ function renderMessageMarkdown(t, isHtml = false) {
     h = h.replace(/\[MAX_TOKENS_REACHED\]/g, '<button class="regenerate-btn" style="display:block;margin-top:10px" onclick="sendMessage(\'Please continue exactly where you left off.\')">Continue Generating</button>');
     h = h.replace(/\n/g, '<br>');
     for (const [token, html] of blocks) h = h.replace(token, () => html);
+    return h;
+}
+
+/**
+ * Typeset the TeX she writes: $$…$$ and \[…\] set apart, $…$ and \(…\) in the line. Her replies on maths
+ * are full of it, and her chat showed every dollar sign (13 November 2026: "the speed of light ($c$)"). KaTeX
+ * renders each span; one it cannot read stays as she wrote it, and so does all of it where KaTeX did not load.
+ * A price is not maths: an opening $ is followed by a non-space, and a closing $ follows one and is not followed
+ * by a digit, the rule Pandoc reads TeX by, so "$5 and $10" stays text.
+ */
+function typesetMath(h, protect) {
+    if (typeof katex === 'undefined') return h;
+    const tex = body => body.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+    const render = (source, body, displayMode) => {
+        try {
+            return protect(katex.renderToString(tex(body), { displayMode, throwOnError: true, output: 'htmlAndMathml' }));
+        } catch (_) {
+            return source;
+        }
+    };
+    h = h.replace(/\$\$([\s\S]+?)\$\$/g, (m, body) => render(m, body, true));
+    h = h.replace(/\\\[([\s\S]+?)\\\]/g, (m, body) => render(m, body, true));
+    h = h.replace(/\\\(([\s\S]+?)\\\)/g, (m, body) => render(m, body, false));
+    h = h.replace(/\$(?=\S)([^$\n]*?\S)\$(?!\d)/g, (m, body) => render(m, body, false));
     return h;
 }
 
@@ -6672,21 +6699,8 @@ function appendStreamChunk(chunk) {
         renderText += '\n```\n';
     }
 
-    // Render streaming content with markdown support
-    let h = escHtml(renderText);
-
-    // 2. Handle max_tokens hook seamlessly
-    h = h.replace(/\[MAX_TOKENS_REACHED\]/g, '<button class="regenerate-btn" style="display:block;margin-top:10px" onclick="sendMessage(\'Please continue exactly where you left off.\')">Continue Generating</button>');
-    // Code blocks with copy button
-    h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-        const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
-        const codeId = 'code-' + Math.random().toString(36).slice(2, 8);
-        return `<div class="code-block-wrap">${langLabel}<button class="code-copy-btn" onclick="copyCodeBlock('${codeId}')">COPY</button><pre><code id="${codeId}">${code.trim()}</code></pre></div>`;
-    });
-    h = h.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    h = h.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    h = h.replace(/`(.*?)`/g, '<code>$1</code>');
-    h = h.replace(/\n/g, '<br>');
+    // 2. The same rendering a finished reply gets, so a streamed one does not read differently while it arrives.
+    const h = renderMessageMarkdown(renderText);
 
     if (activeStreamDiv.className.includes('aura')) {
         activeStreamDiv.innerHTML = `<div class="aura-avatar"></div><div class="msg-content">${h}</div>`;

@@ -54,3 +54,12 @@
     .conversation-metric strong { font-size: 1.85em; }
 }
 @media (prefers-reduced-motion: reduce) { .conversation-visual-source summary { transition: none; } }
+
+/* Maths she writes, typeset by KaTeX: a wide display scrolls inside its bubble instead of widening it. */
+.msg-content .katex-display {
+    margin: 0.6em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.2em 0;
+}
+.msg-content .katex { font-size: 1.08em; }
