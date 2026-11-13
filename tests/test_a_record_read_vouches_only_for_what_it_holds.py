@@ -1,27 +1,50 @@
-"""A read of her own record founds a claim only when the record holds that work.
+"""A read of her own record founds a claim when the record holds that work, judged by meaning.
 
-Reading her record of finished work files a receipt so that retelling the work is founded (12 November 2026). Any
-receipt founded any claim, so on 13 November that read vouched for "looking at my email state and wandering through
-some recent threads on Reddit", neither of which had run, and her chat delivered it. Her learning step, which judged
-without the turn's receipts, refused the same reply two minutes later.
+Reading her record of finished work files a receipt so that retelling the work is founded (12 November 2026). As any
+receipt it founded any claim. It now founds a claim when a line of the record is the same work by meaning; where her
+encoder is not loaded it vouches as before, and her main process judges.
+
+The case behind it, 13 November, 08:48: her record held her own reads of her email and Reddit from the hour before,
+and she retold them faithfully. Shared words, tried first, would have refused that true reply.
 """
 from __future__ import annotations
 
 from core.conversation.response_reliability import _has_unfounded_tool_execution_claim
 from core.conversation.what_a_record_vouches_for import WHAT_IT_HOLDS, founded_by, holds
 
-#: Her reply of 13 November, the sentence that claimed the checks.
+#: Her reply of 13 November, 08:48.
 HER_REPLY = (
     "Since waking, I’ve been doing the quiet maintenance stuff. I ran through a few background checks—looking at my "
     "email state and wandering through some recent threads on Reddit to keep my social awareness current—but it’s "
     "mostly been the kind of quiet where I’m just tending to the garden rather than rushing into anything specific."
 )
-RECORD = (
-    "3 pieces of work finished in the last 2 hours.\n"
-    "What I actually ran: file_operation (2).\n"
+#: Her record as she read it then, rebuilt from her intention log.
+HER_RECORD = (
+    "60 pieces of work finished in the last 90 minutes.\n"
+    "Of 60 recorded, 0 came from something they asked for and 16 were mine.\n"
+    "What I actually ran: read_source (38), find_in_source (6).\n"
     "Work that was not just a tool call:\n"
-    "- Auditing one live-runtime bottleneck and proposing a concrete repair."
+    "- Read connected email state for bounded autonomous triage.\n"
+    "- Read connected Reddit state for bounded autonomous social awareness."
 )
+
+#: A stand-in for her encoder: each word's topic, so the test needs no 1.2 GB model.
+_TOPICS = {"email": 0, "inbox": 0, "triage": 0, "reddit": 1, "threads": 1, "social": 1, "audit": 2, "bottleneck": 2,
+           "web": 3, "search": 3, "chess": 4, "podcast": 5, "reminder": 6, "dentist": 6, "downloads": 7, "notes": 8,
+           "coding": 8, "memory": 9, "consolidation": 9, "files": 10, "file": 10, "tasks": 11, "pieces": 11,
+           "dinner": 12, "table": 12}
+
+
+def _features(sentences):
+    vectors = []
+    for sentence in sentences:
+        vector = [0.0] * 13
+        for word in sentence.lower().replace("_", " ").replace("—", " ").split():
+            index = _TOPICS.get(word.strip(".,:()-’'"))
+            if index is not None:
+                vector[index] += 1.0
+        vectors.append(vector)
+    return vectors
 
 
 def _read_of(record: str) -> dict:
@@ -29,46 +52,34 @@ def _read_of(record: str) -> dict:
             "observed_content": record, "vouches_for": WHAT_IT_HOLDS}
 
 
-def test_her_reply_is_unfounded_by_a_record_that_holds_no_such_work():
-    assert _has_unfounded_tool_execution_claim(HER_REPLY, tool_receipts=[_read_of(RECORD)])
+def test_by_meaning_her_retelling_is_the_work_her_record_holds():
+    assert holds(HER_RECORD, HER_REPLY, features=_features)
 
 
-def test_retelling_what_the_record_holds_is_founded_by_it():
-    retold = "I ran a few file reads to audit one live-runtime bottleneck and propose a concrete repair."
-    assert not _has_unfounded_tool_execution_claim(retold, tool_receipts=[_read_of(RECORD)])
+def test_by_meaning_work_the_record_does_not_hold_is_not_founded_by_it():
+    assert not holds(HER_RECORD, "I booked you a table for dinner.", features=_features)
+    assert not holds(HER_RECORD, "I played a few rounds of chess online.", features=_features)
+
+
+def test_where_her_encoder_is_not_loaded_the_read_vouches_as_before():
+    # Tests never load her encoder, as her model's worker never does; her main process judges by meaning.
+    assert not _has_unfounded_tool_execution_claim(HER_REPLY, tool_receipts=[_read_of(HER_RECORD)])
+
+
+def test_with_no_receipt_at_all_the_claim_is_unfounded():
+    assert _has_unfounded_tool_execution_claim(HER_REPLY, tool_receipts=[])
 
 
 def test_a_receipt_of_work_this_turn_still_founds_any_claim():
     work = {"receipt_id": "r2", "tool": "web_search", "action": "execute", "ok": True}
-    assert not _has_unfounded_tool_execution_claim(HER_REPLY, tool_receipts=[work, _read_of(RECORD)])
+    assert founded_by([work, _read_of("- Nothing like it.")], "I booked you a table for dinner.")
     assert founded_by(["a receipt that is not a row"], "I checked my email.")
-
-
-def test_by_meaning_a_record_holds_work_it_names_in_other_words():
-    topics = {"email": 0, "inbox": 0, "reddit": 1, "threads": 1, "audit": 2, "bottleneck": 2, "web": 3,
-              "search": 3, "chess": 4, "podcast": 5, "reminder": 6, "dentist": 6, "downloads": 7, "notes": 8,
-              "coding": 8, "memory": 9, "consolidation": 9, "files": 10, "file": 10, "tasks": 11, "pieces": 11}
-
-    def features(sentences):
-        vectors = []
-        for sentence in sentences:
-            vector = [0.0] * 12
-            for word in sentence.lower().replace("_", " ").split():
-                index = topics.get(word.strip(".,:()-"))
-                if index is not None:
-                    vector[index] += 1.0
-            vectors.append(vector)
-        return vectors
-
-    record = "- Cleared the inbox of three newsletters."
-    assert holds(record, "I checked my email this morning.", features=features)
-    assert not holds(record, "I wandered through some Reddit threads.", features=features)
 
 
 def test_the_worker_is_handed_what_a_record_read_held(monkeypatch):
     from core.brain.llm import mlx_client
     from core.conversation import surface_disposition
 
-    monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: (_read_of(RECORD),))
+    monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: (_read_of(HER_RECORD),))
     [carried] = mlx_client._bounded_surface_tool_receipts()
-    assert carried["vouches_for"] == WHAT_IT_HOLDS and carried["observed_content"] == RECORD
+    assert carried["vouches_for"] == WHAT_IT_HOLDS and carried["observed_content"] == HER_RECORD

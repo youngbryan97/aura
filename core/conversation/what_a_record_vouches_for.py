@@ -1,11 +1,14 @@
 """Which claims a reading of her own record vouches for: the ones about what it holds.
 
 Reading her record of finished work files a receipt, so that retelling the work is founded (U01, 12 November 2026).
-Any receipt founded any claim, so that one read vouched for work the record does not hold: on 13 November, asked what
-she had been up to, she said she had looked at her email and wandered through Reddit threads, neither had run, and her
-chat delivered it. A receipt from reading a record now founds a claim only when some line of the record is about the
-same work: by meaning where her encoder is loaded in this process, by the words they share where it is not (her
-model's worker never loads it).
+As any receipt it founded any claim, including work the record does not hold. It now founds a claim when some line of
+the record is the same work, judged by meaning with her encoder against a boundary measured from declared pairs.
+
+Where her encoder is not loaded (her model's worker never loads it) the read vouches as before, and her main process
+judges. Shared words were tried first and refused a true retelling: on 13 November her record held "Read connected
+Reddit state for bounded autonomous social awareness" and she said she had been "wandering through some recent
+threads on Reddit to keep my social awareness current", which shares four of its nine words. By meaning it is the same
+work (0.547 against a boundary of 0.435), and "I played a few rounds of chess online" matches no line.
 """
 from __future__ import annotations
 
@@ -16,7 +19,7 @@ from typing import Any
 WHAT_IT_HOLDS = "what_it_holds"
 
 #: A claim of work and a line of her record that is the same work, then a line that is other work. Where her encoder
-#: separates the two is measured from these, never chosen; in the overlap the words decide.
+#: separates the two is measured from these, never chosen; in the overlap the read vouches.
 _SAME_WORK = (
     ("I spent the morning auditing a bottleneck in my runtime.",
      "- Auditing one live-runtime bottleneck and proposing a concrete repair."),
@@ -59,25 +62,13 @@ def founded_by(receipts: Iterable[Any] | None, claim: str) -> bool:
 
 
 def holds(record: Any, claim: str, *, features: Features | None = None) -> bool:
-    """Whether some line of ``record`` is about the work ``claim`` says was done."""
+    """Whether some line of ``record`` is the work ``claim`` says was done; True where that cannot be judged here."""
     lines = [line.strip() for line in str(record or "").splitlines() if line.strip()]
     claim = " ".join(str(claim or "").split())
     if not claim or not lines:
         return False
     meant = _by_meaning(claim, lines, features)
-    for index, line in enumerate(lines):
-        decided = meant[index] if meant else None
-        if decided is True or (decided is None and _shares_its_words(claim, line)):
-            return True
-    return False
-
-
-def _shares_its_words(claim: str, line: str) -> bool:
-    """Most of the line's words are in the claim: the rule her verified facts use where meaning cannot say."""
-    from core.epistemics.what_she_has_verified import key_of
-
-    mine = set(key_of(line).split())
-    return bool(mine) and len(mine & set(key_of(claim).split())) / len(mine) >= 0.5
+    return not meant or any(decided is not False for decided in meant)
 
 
 def _by_meaning(claim: str, lines: list[str], features: Features | None) -> list[bool | None]:

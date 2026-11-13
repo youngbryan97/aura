@@ -3681,15 +3681,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and when it does decide, any tool receipt in the turn founds any claim, so
   a read of her own source would vouch for "I checked my email". That turn's
   delivery also spent 30 s in runtime reconciliation after 22 s stabilising.
-  Corrected that afternoon: the learned matcher was not what let it through.
-  The pattern caught "I ran", and her turn held one receipt, the read of her
-  work record that 12 November's fix files so she can retell that work. Any
-  receipt founded any claim, so that read vouched for email and Reddit. A
-  record read now founds a claim only when a line of the record is the same
-  work: by meaning where her encoder is loaded, by shared words in her
-  model's worker, which never loads it. Receipts of work done keep the old
-  reading. Her exact reply, with a record of that morning's shape, is now
-  refused (tests/test_a_record_read_vouches_only_for_what_it_holds.py).
+  Corrected that afternoon, from her intention log: both ran. Her email read
+  ran through the morning and her Reddit read at 08:08, declared as "Read
+  connected Reddit state for bounded autonomous social awareness", in her run
+  before the 08:45 restart. Her record at 08:48 held both lines, and she
+  retold them faithfully ("wandering through some recent threads on Reddit to
+  keep my social awareness current"). Her chat delivered a true reply, the
+  read of her work record founding it; her learning step, which judged
+  without the turn's receipts, refused it. What was false was "since waking":
+  the record said "in the last 90 minutes" and nothing about the restart. It
+  now says how much of the work came before she last woke, and how long ago
+  that was. Along the way the record read stopped founding claims it does
+  not hold: a line must be the same work by meaning, with her encoder;
+  shared words, tried first, would have refused this very reply.
+  Still open: her learning step judges with no receipts, because the chat's
+  post-reply queue does not carry them, so a true retelling from her record
+  is kept for continuity and never learned from.
   The 30 s "reconcile" was a second answer: her first draft gave her energy
   as 6% while it read 0.697, and the re-answer is timed in that stage. The
   turn ran three generations of about 20 s each.

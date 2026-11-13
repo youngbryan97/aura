@@ -237,3 +237,34 @@ def test_reading_her_work_record_is_this_turns_evidence_for_retelling_it(monkeyp
         assert not _has_unfounded_tool_execution_claim(draft, tool_receipts=receipts)
         # A quoted output still needs something that produced it.
         assert _has_unfounded_tool_execution_claim("I ran it in Python and the output is: 4", tool_receipts=receipts)
+
+
+def test_her_record_says_what_came_before_she_last_woke() -> None:
+    """LIVE 13 November 2026: three minutes after a restart she told what her record held as work done "since waking".
+    It was from her run before, and the record said only "in the last 90 minutes"."""
+    window = ActivityWindow(completed=60, span_seconds=5390.0, before_waking=60, woke_seconds_ago=180.0)
+    assert "60 pieces of work finished in the last 90 minutes; all of it before I last woke, 3 minutes ago." in (
+        describe_recent_activity(window))
+    window = ActivityWindow(completed=5, span_seconds=600.0, before_waking=2, woke_seconds_ago=300.0)
+    assert "; 2 of it before I last woke, 5 minutes ago." in describe_recent_activity(window)
+    assert "woke" not in describe_recent_activity(ActivityWindow(completed=5, span_seconds=600.0))
+
+
+def test_reading_counts_the_work_finished_before_she_woke(monkeypatch, tmp_path) -> None:
+    import sqlite3
+    import time
+
+    import core.self.recent_activity as activity
+
+    db = tmp_path / "intention_loop.db"
+    with sqlite3.connect(db) as connection:
+        connection.execute("CREATE TABLE intentions (intention TEXT, drive TEXT, status TEXT, completed_at REAL, "
+                           "actual_outcome TEXT)")
+        now = time.time()
+        for at in (now - 4000, now - 3000, now - 60):
+            connection.execute("INSERT INTO intentions VALUES ('Use tool ''read_source''', 'curiosity', "
+                               "'completed', ?, '')", (at,))
+    monkeypatch.setattr(activity, "_database", lambda: db)
+    monkeypatch.setattr(activity, "_woke_at", lambda: now - 180)
+    window = activity.read_recent_activity()
+    assert window.before_waking == 2 and 179 < window.woke_seconds_ago < 200

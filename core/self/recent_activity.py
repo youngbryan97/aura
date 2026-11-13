@@ -107,6 +107,9 @@ class ActivityWindow:
     drives: tuple[tuple[str, int], ...] = field(default=())
     for_them: int = 0
     her_own: int = 0
+    #: How many were finished before she last woke, and how long ago she woke.
+    before_waking: int = 0
+    woke_seconds_ago: float = 0.0
 
     def is_empty(self) -> bool:
         return self.completed == 0 and self.failed == 0
@@ -121,6 +124,23 @@ def _database() -> Path | None:
     except _RECOVERABLE:
         return None
     return path if path.is_file() else None
+
+
+def _woke_at() -> float:
+    """When this process started, which is when she last woke; 0.0 when it cannot be read.
+
+    LIVE 13 November 2026: three minutes after a restart she said she had read her email and Reddit "since waking".
+    Her record held both, from her run before, and said only "in the last 90 minutes".
+    """
+    try:
+        import os
+
+        from core.runtime.resource_psutil import Process
+
+        return float(Process(os.getpid()).create_time())
+    # not a failure: without it the record names no waking, as it did before.
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return 0.0
 
 
 def _humanise(seconds: float) -> str:
@@ -183,7 +203,8 @@ def read_recent_activity(
     if not rows:
         return ActivityWindow()
 
-    completed = failed = for_them = her_own = 0
+    completed = failed = for_them = her_own = before_waking = 0
+    woke = _woke_at()
     tools: Counter[str] = Counter()
     drives: Counter[str] = Counter()
     subjects: list[str] = []
@@ -200,6 +221,7 @@ def read_recent_activity(
             failed += 1
         else:
             continue
+        before_waking += int(stamp < woke)
         # A failed intention's outcome is the error it hit, not work she did.
         # Naming those made "the ones worth naming" read as a fault list:
         # "Reddit inbox unavailable; login required, blocked, or provider
@@ -239,6 +261,8 @@ def read_recent_activity(
         drives=tuple(drives.most_common(6)),
         for_them=for_them,
         her_own=her_own,
+        before_waking=before_waking,
+        woke_seconds_ago=max(0.0, time.time() - woke) if woke else 0.0,
     )
 
 
@@ -255,6 +279,9 @@ def describe_recent_activity(window: ActivityWindow | None = None) -> str:
         head += f" in the last {span}"
     if reading.failed:
         head += f", and {reading.failed} that failed"
+    if reading.before_waking:
+        share = "all of it" if reading.before_waking >= reading.completed + reading.failed else f"{reading.before_waking} of it"
+        head += f"; {share} before I last woke, {_humanise(reading.woke_seconds_ago)} ago"
     lines.append(head + ".")
 
     attributed = reading.for_them + reading.her_own
