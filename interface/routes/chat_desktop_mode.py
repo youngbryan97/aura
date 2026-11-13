@@ -599,12 +599,27 @@ async def _reanswer_when_the_runtime_contradicts_her(
                 f"I need to correct that: I did receive a fresh {evidence.channel} "
                 f"reading for this turn. {evidence.observation}"
             )
-    corrections = " ".join(claim.correction() for claim in claims)
-    if not corrections:
-        corrections = (
-            "I quoted a figure about my own machinery that I did not read off any instrument."
-        )
+    corrections = " ".join(claim.correction() for claim in claims) or _what_my_instruments_read(text)
     return f"{text}\n\n[Correcting myself from my own instruments: {corrections}]"
+
+
+def _what_my_instruments_read(text: str) -> str:
+    """Each figure she gave that its instrument contradicts, beside the reading; the general sentence otherwise.
+
+    LIVE 13 November 2026: "Curiosity is at 12%", read back from an earlier answer while curiosity read 0.218, was
+    served with "I quoted a figure about my own machinery that I did not read off any instrument", which names neither
+    the figure nor the instrument she does have.
+    """
+    try:
+        from core.self.capability_ledger import contradicted_self_readings
+
+        read = [f"I gave {metric.replace('_', ' ')} as {claimed}; it reads "
+                + (f"{value * 100:.0f}%." if "%" in claimed else f"{value:g}.")
+                for metric, claimed, value in contradicted_self_readings(text)]
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.self_metrics", exc, severity="info", action="appended the general correction")
+        read = []
+    return " ".join(read) or "I quoted a figure about my own machinery that I did not read off any instrument."
 
 
 _LIGHTWEIGHT_LIVE_STATE_OR_RECALL_RE = re.compile(

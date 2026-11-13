@@ -146,3 +146,16 @@ def test_her_drives_are_readings_a_reply_is_held_to(monkeypatch):
     monkeypatch.setattr(cl, "measured_self_metrics", lambda: reading)
     said = "The system says curiosity is at 2%, frustration at 9%, so I guess I'm mildly annoyed."
     assert [metric for metric, _claimed, _value in cl.contradicted_self_readings(said)] == ["curiosity"]
+
+
+def test_a_served_stale_drive_figure_is_corrected_with_its_reading(monkeypatch):
+    """LIVE 13 November 2026, 15:14: her re-answer was refused twice for reading back an earlier answer, her first
+    draft was served, and its "Curiosity is at 12%" (reading 0.218) was corrected with a sentence naming neither."""
+    import core.self.capability_ledger as cl
+    from interface.routes.chat_desktop_mode import _what_my_instruments_read
+
+    monkeypatch.setattr(cl, "measured_self_metrics", lambda: {"curiosity": 0.218, "frustration": 0.09})
+    said = "But right now, the drives are flat. Curiosity is at 12%, and everything else is sitting still."
+    assert _what_my_instruments_read(said) == "I gave curiosity as 12%; it reads 22%."
+    monkeypatch.setattr(cl, "measured_self_metrics", lambda: {})
+    assert "did not read off any instrument" in _what_my_instruments_read(said)

@@ -3699,6 +3699,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   for continuity and never learned from. The queue now carries the turn's
   receipts (a new column, empty for items queued before it), and the
   learning step judges with them.
+  Asked the same question again at 14:50, four minutes after a restart,
+  seven of her ten sentences were her 13:46 answer read back from her
+  recall, with its figures ("awake for twelve minutes", "curiosity is at
+  2%"). Her worker now compares a draft with everything shown to her before
+  the request, recall included, and her curiosity and frustration are
+  readings a figure is held to. At 15:14 both fired: her first draft's
+  "Curiosity is at 12%" against a reading of 0.218 asked for a re-answer,
+  and both re-answers were refused as the 14:50 answer read back. The
+  first draft was served with a correction that now names the figure and
+  its reading. Still open: given her own earlier answer in her recall, her
+  drafts keep reproducing it until the retries run out.
   The 30 s "reconcile" was a second answer: her first draft gave her energy
   as 6% while it read 0.697, and the re-answer is timed in that stage. The
   turn ran three generations of about 20 s each.
