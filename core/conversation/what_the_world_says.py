@@ -71,6 +71,8 @@ _PASSAGE_CHARS = 1400
 _EVIDENCE_CHARS = 7000
 #: Sources read per search.
 _PAGES_PER_SEARCH = 4
+#: How long a turn's looking-up may take, from its start.
+LOOKING_UP_S = 45.0
 #: Conversations whose last reading is kept. A person holds a few at once; this
 #: bounds the memory without reaching any real use.
 _SESSIONS_REMEMBERED = 32
@@ -407,7 +409,7 @@ def _asks_her_view(question: str) -> bool:
     return asks_for_her_view(question) is True
 
 
-async def _read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining: Callable[[], float]) -> None:
+async def read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining: Callable[[], float]) -> None:
     """The top pages of a search, read again as her browser renders them, two at a time and within the turn's time.
     A page's rendered text takes the place of what the fetch returned; a page that did not render keeps it. Two at a
     time because each is its own browser beside her cortex's weights; one at a time, five weather pages took 22.5 s
@@ -463,7 +465,7 @@ async def gather_world_evidence(
     search: Search | None = None,
     store: Any = None,
     outside_wanted: bool = False,
-    deadline_s: float = 45.0,
+    deadline_s: float = LOOKING_UP_S,
     read_since: float = 0.0,
     previous_reply: str = "",
     render: Fetch | None = None,
@@ -558,7 +560,7 @@ async def gather_world_evidence(
             results = []
         evidence.searched.append(query)
         if render is not None:
-            await _read_as_shown(results, render, remaining)
+            await read_as_shown(results, render, remaining)
         candidates = []
         for result in results[: 2 * _PAGES_PER_SEARCH]:
             text = str(result.get("text") or result.get("snippet") or "").strip()

@@ -1229,9 +1229,20 @@ async def _what_the_world_says_for_the_turn(
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.world_evidence", exc, severity="warning", action="answered without the check she was asked for")
     if contracted:
-        from core.conversation.what_the_world_says import WorldSource, passage_of
+        from core.conversation.what_the_world_says import (
+            LOOKING_UP_S,
+            WorldSource,
+            passage_of,
+            read_as_shown,
+        )
 
         found = _pages_from_search(contracted.get("result"))
+        if current:
+            # The search contract's pages are the chunks its skill matched, kept from when it ran: LIVE 12 November
+            # 2026 "What's the score of the latest Lakers game?" got schedules and standings this way, and before
+            # that a game from 6 October. Something as it is now is read from the pages as they show it.
+            await read_as_shown(found, _read_a_page_as_shown,
+                                lambda: max(1.0, LOOKING_UP_S - (time.monotonic() - looking_began)))
         evidence.sources = [
             WorldSource("web", str(page.get("title") or page.get("url")), str(page.get("url") or ""),
                         passage_of(str(page.get("text") or page.get("snippet") or "")),
