@@ -2646,6 +2646,65 @@
         "name": "tests/test_a_shutdown_snapshot_continues_her_line.py",
         "why": "Identity through shutdown: a snapshot continues her one line or is not written. Not decided here or above: project state across an update, the same through a model migration live, and behaviour under network loss."
       }
+    ],
+    "RLC-BASELINES-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_fitted_controls_are_compared_as_pairs.py",
+        "why": "Decides the rule against a straw baseline: a greater total win count does not establish superiority to a matched control; the arms are compared as pairs on the same items."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_sequential_exclusion_dominates_iid.py",
+        "why": "The best-of-N control as arithmetic: verifier-guided exclusion is checked against i.i.d. best-of-N for every N and distribution, and a flat pilot is predicted to gain little rather than oversold."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_budget_reconciliation.py",
+        "why": "Equal compute is enforceable: a compute receipt is checked against what was allocated, so an arm cannot spend past its budget and still pass, and a missing or exhausted receipt is refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_rlc_reconciliation_sweep.py::test_the_mechanism_arm_stays_an_ablation",
+        "why": "The mechanism arm is kept an ablation and never reported as the unified system."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_g09_organ_harness.py",
+        "why": "The single-sample control her reasoning organ is measured against: the same sealed tasks, sampled reproducibly with exclusions, graded by each source's published grader for both arms. Not decided here or above: vanilla resident, longer-CoT, equal-FLOP and equal-latency arms run with identical prompt information, cache state, task order and output limits."
+      }
+    ],
+    "AUTONOMY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_goal_nobody_wrote_can_reach_her.py",
+        "why": "Self-directed goal formation: a goal she works out herself, from initiatives her own boredom, curiosity, social hunger and load decide to propose, reaches her rather than stopping at the trigger."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_prompt_fragment_is_not_a_goal.py",
+        "why": "Not a prompt phrase: an instruction written for a model is never taken for something she wants."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_thought_she_had_on_her_own_can_reach_the_will.py",
+        "why": "Bounded action without being commanded: a thought she had on her own reaches the intent router and the Will, from trusted internal sources only, and a router failure is reported rather than swallowed."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_her_own_yes_asks_the_gates.py",
+        "why": "Consequence-governed without approval theatre: her own yes to a change of hers runs the gates in her workspace and stops at the first that fails, handing her its words."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_standing_grant_is_scoped_and_spent.py",
+        "why": "No silent authority minting: a standing grant moves a decision earlier and makes it narrower, and is scoped and spent."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_deferral_is_not_a_refusal.py",
+        "why": "Deferring for reasons of her own is told apart from being refused. Not decided here or above: a live proof that she understands her available action surfaces and chooses among them uncommanded, reflection and communication she starts herself, and that no state turns autonomous action off."
+      }
     ]
   }
 }
