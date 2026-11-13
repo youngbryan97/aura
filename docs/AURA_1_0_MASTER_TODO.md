@@ -3471,7 +3471,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   as registered. Such requests are rare in what people type (293 of WildChat-4.8M's English user turns), and on the
   four kinds common enough to test (letters in a word, sums, products, percentages) her model alone was right on
   80 of 80 read by hand. Open: a population where she is wrong in ordinary use, for the loop to be measured on.
-- [ ] L10 Let her learn from what she verifies online, offline-first. Today a
+- [x] L10 Let her learn from what she verifies online, offline-first. Today a
   claim she checks online (core/epistemics/epistemic_reach.py, through the
   governed reach gateway) corrects one reply and is not kept, and no web
   source feeds learning in use. Wanted, by Bryan on 2026-10-16, saved for a
@@ -3556,6 +3556,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   answered "Two sources I just pulled agree on it to the last digit"; her
   store holds the claim as verified, by Wikipedia (reference) and NIST
   (official). Open: the claim used on a later day.
+  CLOSED 2026-11-13, live. Asked at 00:16 in a fresh session of her app on
+  a60cf39bb, without being asked to check, "How fast does light travel in a
+  vacuum, exactly?": her turn was handed the kept fact ("CHECKED FACTS,
+  KEPT", 318 characters), what the world said for the turn was nothing
+  searched and nothing read, and she answered "Light travels in a vacuum at
+  exactly 299,792,458 metres per second", exact by definition since the
+  metre was defined from it in 1983 (45.6 s). One defect stood in the way:
+  her store matched a request to a fact by the share of the claim's own
+  words it held, and a question never holds the answer's figure or units,
+  so this question shared 5 of 13 and got nothing. It is judged by meaning
+  now, against a boundary measured from declared pairs across eight kinds of
+  fact, with the words deciding where the embedder cannot (a60cf39bb).
 
 ## 4. User-facing capability acceptance
 
