@@ -1097,6 +1097,27 @@ async def _read_a_page(url: str) -> dict[str, Any] | None:
     return {"url": page.url, "title": page.title, "text": page.text} if page is not None else None
 
 
+async def _read_a_page_as_shown(url: str) -> dict[str, Any] | None:
+    """One page whole: as her browser renders it, everything it shows (core/capabilities/what_a_page_shows.py), or
+    where the browser is refused (AccuWeather answers it 403), the full page as fetched; never the chunks a search
+    matched to the question's words, which on 12 November were the titles and menus of five weather pages."""
+    from core.capabilities.what_a_page_shows import everything_a_page_shows
+
+    page = await everything_a_page_shows(url)
+    if page is None:
+        return await _read_a_page(url)
+    try:
+        from core.conversation.surface_disposition import record_tool_receipt
+
+        record_tool_receipt(
+            "web_browser", action="read_rendered_page", object_ref=url, ok=True, effect_observed=True,
+            verification="rendered_text_received",
+        )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.world_evidence", exc, severity="warning", action="kept the page without its receipt")
+    return page
+
+
 async def _what_the_world_says_for_the_turn(
     user_message: str,
     effective_user_message: str,
@@ -1187,9 +1208,13 @@ async def _what_the_world_says_for_the_turn(
         if should_collect and not instructed else None
     )
     try:
+        from core.search.research_pipeline import _query_is_current
+
         evidence = await gather_world_evidence(
             user_message, previous_request=previous, fetch=_read_a_page,
             search=None if contracted else search, outside_wanted=outside, read_since=turn_began,
+            # Something as it is now: its pages fill their values in with scripts, so they are read as shown.
+            render=_read_a_page_as_shown if _query_is_current(user_message) else None,
             previous_reply=previous_reply,
         )
     except _CHAT_RECOVERABLE_ERRORS as exc:

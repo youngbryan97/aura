@@ -215,7 +215,7 @@ async def test_research_pipeline_prioritizes_exact_title_page(tmp_path: Path):
             ),
         ]
 
-    async def _fetch_pages(hits, *, deep):
+    async def _fetch_pages(hits, *, deep, current=False):
         seen_fetch_order["urls"] = [hit.url for hit in hits]
         pages = []
         for hit in hits:

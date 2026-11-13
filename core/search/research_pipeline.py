@@ -541,7 +541,7 @@ class ResearchSearchPipeline:
         emitter.emit("📖 Reading Sources", f"Fetching top {max_pages} pages...", category="Research")
         
         stage_started = time.perf_counter()
-        pages = await self._fetch_pages(hits[:max_pages], deep=deep)
+        pages = await self._fetch_pages(hits[:max_pages], deep=deep, current=_query_is_current(query))
         timing_ms["source_fetch"] = round(
             (time.perf_counter() - stage_started) * 1000.0,
             1,
@@ -1003,7 +1003,7 @@ class ResearchSearchPipeline:
                 )
         return results
 
-    async def _fetch_pages(self, hits: list[SearchHit], *, deep: bool) -> list[SearchPage]:
+    async def _fetch_pages(self, hits: list[SearchHit], *, deep: bool, current: bool = False) -> list[SearchPage]:
         pages: list[SearchPage] = []
         timeout_val = 14.0 if deep else 8.0 # Component A3: Timeout hardening
         
@@ -1018,14 +1018,24 @@ class ResearchSearchPipeline:
         # 2. Deep mode: browser-recover only pages that HTTP could not read
         # completely.  Recovery is parallel; a blocked source must not make
         # every other independent source wait behind its browser timeout.
-        if deep:
+        # A question about something as it is now is answered by pages that fill their values in with scripts: their
+        # fetch can be long and hold none of it (LIVE 12 November 2026, Weather.com's was 1,152 characters of menus and
+        # no temperature, so the 1,000-character rule took it as read). Those pages are all read rendered, in any mode.
+        if deep or current:
             browser_hits = [
                 hit
                 for hit in hits
-                if not any(page.url == hit.url and max(len(page.text), page.read_chars) > 1000
-                           for page in pages)
+                if current or not any(page.url == hit.url and max(len(page.text), page.read_chars) > 1000
+                                      for page in pages)
             ]
-            browser_tasks = [self._fetch_page_with_browser(hit) for hit in browser_hits]
+            # Two browsers at a time: each is its own Chromium, beside her cortex's weights.
+            rendering = asyncio.Semaphore(2)
+
+            async def rendered(hit: SearchHit) -> SearchPage | None:
+                async with rendering:
+                    return await self._fetch_page_with_browser(hit)
+
+            browser_tasks = [rendered(hit) for hit in browser_hits]
             if browser_tasks:
                 browser_results = await asyncio.gather(*browser_tasks, return_exceptions=True)
                 for item in browser_results:

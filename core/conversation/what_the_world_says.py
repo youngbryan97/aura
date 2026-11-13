@@ -407,6 +407,23 @@ def _asks_her_view(question: str) -> bool:
     return asks_for_her_view(question) is True
 
 
+async def _read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining: Callable[[], float]) -> None:
+    """The top pages of a search, read again as her browser renders them, one at a time and within the turn's time.
+    A page's rendered text takes the place of what the fetch returned; a page that did not render keeps it."""
+    for result in results[:_PAGES_PER_SEARCH]:
+        url = str(result.get("url") or "")
+        if not url or remaining() <= 1.0:
+            continue
+        try:
+            page = await asyncio.wait_for(render(url), timeout=min(20.0, remaining()))
+        except (TimeoutError, OSError, RuntimeError, ValueError):
+            page = None
+        text = str((page or {}).get("text") or "").strip()
+        if text:
+            result["text"] = text
+            result.setdefault("title", (page or {}).get("title") or url)
+
+
 def _answers_only_in_part(question: str, local: Sequence[WorldSource]) -> bool:
     """A factual question about a named thing that the offline copy leaves open.
 
@@ -440,11 +457,17 @@ async def gather_world_evidence(
     deadline_s: float = 45.0,
     read_since: float = 0.0,
     previous_reply: str = "",
+    render: Fetch | None = None,
 ) -> WorldEvidence:
     """Read what the request names, from the page sent, a search asked for, or the offline corpus.
 
     ``read_since`` is when the turn began (epoch seconds): what its own
     searches kept since then is not read back as a separate source.
+
+    ``render`` reads a page as her browser shows it, scripts run. Given, the pages a search found are read that way
+    before they are judged: LIVE 12 November 2026, "Can you look up what the weather is in Paris right now?" fetched
+    AccuWeather, Weather.com and three more, and every one came back the shell its scripts fill in, no temperature in
+    any of them; she said so, and Bryan: she should absolutely be able to pull the values.
     """
     started = time.monotonic()
     evidence = WorldEvidence()
@@ -519,6 +542,8 @@ async def gather_world_evidence(
         except (TimeoutError, OSError, RuntimeError, ValueError):
             results = []
         evidence.searched.append(query)
+        if render is not None:
+            await _read_as_shown(results, render, remaining)
         candidates = []
         for result in results[: 2 * _PAGES_PER_SEARCH]:
             text = str(result.get("text") or result.get("snippet") or "").strip()

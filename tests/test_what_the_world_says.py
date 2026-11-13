@@ -538,3 +538,37 @@ def test_a_question_that_says_he_reads_whom_the_last_turn_named(monkeypatch) -> 
     assert "two regular-season MVP Awards" in evidence.render()
     # Without the turn before, nobody is named and nothing is read.
     assert asyncio.run(gather_world_evidence(asked, store=Shelf())).sources == []
+
+
+def test_a_question_about_now_reads_the_pages_it_found_as_her_browser_shows_them(monkeypatch) -> None:
+    """LIVE 12 November 2026: "Can you look up what the weather is in Paris right now?" found Weather.com and four
+    more, and what reached her was each page's shell, no temperature in any; Bryan: she should be able to pull them."""
+
+    def assess(question, passages):
+        return [evidence_relevance.EvidenceAlignment(True, True, 0.8, 0.5, (), "stand-in") for _ in passages]
+
+    monkeypatch.setattr(evidence_relevance, "assess_evidence_alignments", assess)
+    shell = "Paris Weather | Forecasts | Radar | News | Sign in | Get Premium | Paris weather today and tonight."
+    shown = "Paris Weather · Paris, France\nAs of 12:52 AM GMT+1\nNow · 46° · Fair · Feels Like · 40° · High · 54°"
+
+    async def search(query):
+        return [{"url": "https://weather.com/fr/city/paris/today", "title": "Paris weather", "text": shell}]
+
+    async def render(url):
+        return {"url": url, "title": "Paris Weather", "text": shown}
+
+    evidence = asyncio.run(gather_world_evidence("look up the weather in Paris right now", store=_Corpus(),
+                                                 search=search, render=render))
+    assert any("46°" in source.text for source in evidence.sources)
+    unrendered = asyncio.run(gather_world_evidence("look up the weather in Paris right now", store=_Corpus(),
+                                                   search=search))
+    assert not any("46°" in source.text for source in unrendered.sources)
+
+
+def test_a_page_of_readings_keeps_its_labels_beside_their_values() -> None:
+    """Her browser's cleaner drops lines under 18 characters; "Now", "46°", "Fair" are such lines."""
+    from core.capabilities.what_a_page_shows import _as_rows
+
+    rows = _as_rows("Paris Weather\nAs of 12:52 AM GMT+1\nNow\n46°\nFair\nFeels Like\n40°\nToday's outlook is clear and cold.")
+    assert "Now · 46° · Fair · Feels Like · 40°" in rows
+    assert rows.endswith("Today's outlook is clear and cold.")

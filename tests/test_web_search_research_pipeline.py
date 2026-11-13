@@ -134,7 +134,7 @@ async def test_search_pipeline_retains_successful_search(tmp_path: Path):
             )
         ]
 
-    async def _fetch_pages(hits, *, deep):
+    async def _fetch_pages(hits, *, deep, current=False):
         return [
             SearchPage(
                 url="https://example.com/rayleigh",
@@ -412,7 +412,7 @@ async def test_evidence_only_search_skips_model_work_and_preserves_source_divers
             for index in range(1, 4)
         ]
 
-    async def _fetch_pages(hits, *, deep):
+    async def _fetch_pages(hits, *, deep, current=False):
         observed["fetched"] = len(hits)
         observed["deep"] = deep
         return [
