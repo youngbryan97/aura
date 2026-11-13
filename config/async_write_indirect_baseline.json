@@ -122,11 +122,6 @@
       "_save_lexicon"
     ],
     [
-      "core/consciousness/unified_audit.py",
-      "run",
-      "save_to_file"
-    ],
-    [
       "core/container.py",
       "wake",
       "write_sovereignty_seal"

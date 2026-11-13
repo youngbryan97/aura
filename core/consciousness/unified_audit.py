@@ -2,7 +2,7 @@ from __future__ import annotations
 from core.runtime.errors import record_degradation
 
 from core.utils.task_tracker import get_task_tracker
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import async_atomic_write_text
 
 import asyncio
 import json
@@ -13,6 +13,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("Consciousness.Audit")
+
+
+def _plain(value: Any) -> Any:
+    """A numpy scalar or array from a gatherer, as the Python value json can write.
+
+    Her first scheduled audit (13 November 2026) was lost to a numpy bool in its raw metrics.
+    """
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        return tolist()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 # ── Theory evaluation results ─────────────────────────────────────────────────
@@ -81,9 +92,11 @@ class AuditReport:
             "raw_metrics": self.raw_metrics,
         }
 
-    def save_to_file(self, path: str) -> None:
-        p = Path(path)
-        atomic_write_text(p, json.dumps(self.to_dict(), indent=2))
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), indent=2, default=_plain)
+
+    async def save_to_file(self, path: str) -> None:
+        await async_atomic_write_text(Path(path), self.to_json())
         logger.info("Audit saved to %s", path)
 
     def print_report(self) -> None:
@@ -221,7 +234,7 @@ class ConsciousnessAuditSuite:
 
         if save:
             path = self.REPORT_DIR / f"{audit_id}.json"
-            report.save_to_file(str(path))
+            await report.save_to_file(str(path))
 
         return report
 
