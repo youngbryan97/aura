@@ -1076,18 +1076,11 @@ def _correct_unsourced_self_metrics(reply_text: object) -> object:
         return reply_text
     if not unsourced:
         return reply_text
-    if len(unsourced) == 1:
-        claim = unsourced[0]
-        note = (
-            f"Correction on one thing I just said: I have no channel that reads "
-            f"my {claim.subject}, so {claim.quantity}{claim.unit} was not a "
-            f"measurement. Withdraw that number — the instrument does not exist."
-        )
-    else:
-        listed = ", ".join(f"{c.subject} ({c.quantity}{c.unit})" for c in unsourced)
-        note = (
-            "Correction on some numbers I just gave: nothing samples these, so "
-            f"they were not measurements — {listed}. Withdraw them; those "
-            "instruments do not exist."
-        )
-    return f"{str(reply_text or '').rstrip()}\n\n{note}"
+    # Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a
+    # leak). What the record says goes to her turn asked again, as a reading (core/brain/her_turn_as_asked.py).
+    from core.brain.her_turn_as_asked import the_record_says
+
+    for claim in unsourced:
+        the_record_says(f"No channel reads her {claim.subject}; {claim.quantity}{claim.unit} was not measured.")
+        text = text.replace(claim.span, "") if claim.span else text
+    return text

@@ -144,7 +144,9 @@ def test_reply_guard_consults_the_ledger_not_a_lane_local_list() -> None:
 
     guard = inspect.getsource(chat._correct_unevidenced_action_claims)
     assert "turn_has_verified_effect" in guard
-    assert "unevidenced_action_correction" in guard
+    assert "find_unevidenced_action_claims" in guard
 
-    chain = inspect.getsource(chat._stabilize_user_facing_reply)
-    assert "_correct_unevidenced_action_claims" in chain
+    from interface.routes import chat_reply_repair
+
+    assert "_through_the_record" in inspect.getsource(chat._stabilize_user_facing_reply)
+    assert "_correct_unevidenced_action_claims" in inspect.getsource(chat_reply_repair._through_the_record)

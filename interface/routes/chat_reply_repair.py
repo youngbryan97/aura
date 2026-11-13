@@ -288,6 +288,57 @@ async def _stabilize_user_facing_reply_part_3(
     )
     return corrected_text, stabilizer_timeout
 
+def _through_the_record(user_message: str, reply_text: Any) -> Any:
+    """Her reply checked against what the runtime holds: her senses, her machinery, her numbers, her choices, her
+    writes, her actions, her receipts. A sentence the record refutes is taken out; what the record says is kept for her
+    turn asked again (core/brain/her_turn_as_asked.py), and nothing is written into her reply in her voice."""
+    from .chat import _append_past_action_record, _correct_unsourced_self_metrics
+
+    reply_text = _append_sensory_claim_correction(user_message, reply_text)
+    reply_text = _remove_self_denials_the_record_refutes(reply_text)
+    reply_text = _correct_unsourced_self_metrics(reply_text)
+    reply_text = _flag_unstable_choice_commitment(user_message, reply_text)
+    reply_text = _correct_unfulfilled_write_claims(reply_text, user_message)
+    # After the path check, so a reply that names a missing file is caught by that instrument first; this one catches
+    # the completion claims that name no path and reach no lane with receipts.
+    reply_text = _correct_unevidenced_action_claims(reply_text, user_message)
+    return _append_past_action_record(user_message, reply_text)
+
+
+async def _asked_again_with_the_record(user_message: str, checked: Any, *, desktop_cognitive_engine_required: bool,
+                                       protected_foreground_lane: bool) -> Any:
+    """Her turn asked again, once, with what the record said among its readings; her new draft goes through the same
+    checks. The new draft when the record finds nothing in it; otherwise the first, with what it refuted taken out.
+
+    LIVE 12 November 2026, Bryan, of "I cut a sentence there — I had written ..., and nothing I sensed this turn showed
+    that. The rest stands.": a leak, and he was seeing more like it. Every check here used to append its own paragraph
+    in her first person.
+    """
+    from core.brain.her_turn_as_asked import as_asked, clear_the_record, what_the_record_says
+
+    asked = as_asked()
+    gate = resolve_inference_gate()
+    if asked is None or gate is None or not hasattr(gate, "think"):
+        return checked
+    max_tokens, memory_block = _bound_stabilizer_generation_budget(int(asked.get("max_tokens") or 1024))
+    record = what_the_record_says()
+    try:
+        again, _timeout = await _stabilize_user_facing_reply_part_3(
+            asked, desktop_cognitive_engine_required, gate, memory_block, protected_foreground_lane, max_tokens,
+            user_message)
+    except (*_CHAT_RECOVERABLE_ERRORS, TimeoutError) as exc:
+        logger.info("Her turn was not asked again with the record (%s); the checked draft stands.", exc)
+        return checked
+    clear_the_record()
+    second = _through_the_record(user_message, again) if str(again or "").strip() else ""
+    if str(second or "").strip() and not what_the_record_says():
+        logger.info("Her turn asked again with the record (%d fact(s)); her new draft passed it.", len(record))
+        return second
+    logger.info("Her turn asked again with the record; the record still refuted her new draft, so the first stands "
+                "with what it refuted taken out.")
+    return checked if str(checked or "").strip() else second
+
+
 def _assessment_or_none(user_message: str, reply: str, recent_user_messages: Any) -> Any:
     """The reliability verdict on a reply, or None where the assessor refused it."""
     try:
@@ -394,10 +445,8 @@ async def _stabilize_user_facing_reply(
     # evidence back into an unsupported subjective account.
     from .chat import (
         _SEARCH_SNIPPET_PATTERNS,
-        _append_past_action_record,
         _attempt_generated_social_grounding_repair,
         _build_grounded_traceability_reply,
-        _correct_unsourced_self_metrics,
         _desktop_secondary_model_repair_allowed,
         _has_unexpected_cjk,
         _is_objective_parrot_reply,
@@ -424,19 +473,14 @@ async def _stabilize_user_facing_reply(
     # — wrong, and grounded in four senses she does not have. Carrying the
     # typed absence into the prompt was not enough: evidence informs, it does
     # not enforce.
-    reply_text = _append_sensory_claim_correction(user_message, reply_text)
-    # A claim about her own machinery, checked against the machinery. Same
-    # shape as the sense check above and for the same reason: carrying the
-    # record into the prompt is not enough.
-    reply_text = _remove_self_denials_the_record_refutes(reply_text)
-    reply_text = _correct_unsourced_self_metrics(reply_text)
-    reply_text = _flag_unstable_choice_commitment(user_message, reply_text)
-    reply_text = _correct_unfulfilled_write_claims(reply_text, user_message)
-    # Runs after the path check so a reply that names a missing file is
-    # corrected by the specific instrument first; this one catches the
-    # completion claims that name no path and reach no lane with receipts.
-    reply_text = _correct_unevidenced_action_claims(reply_text, user_message)
-    reply_text = _append_past_action_record(user_message, reply_text)
+    # A claim about her own machinery is checked against the machinery, for the same reason; see _through_the_record.
+    reply_text = _through_the_record(user_message, reply_text)
+    from core.brain.her_turn_as_asked import what_the_record_says
+
+    if what_the_record_says():
+        reply_text = await _asked_again_with_the_record(
+            user_message, reply_text, desktop_cognitive_engine_required=desktop_cognitive_engine_required,
+            protected_foreground_lane=protected_foreground_lane)
     frame = _chat_desktop_repair._build_aura_expression_frame(user_message)
     contract = frame.get("contract")
     prompt_shape = analyze_prompt_shape(user_message)

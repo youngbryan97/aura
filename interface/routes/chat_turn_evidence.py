@@ -685,22 +685,24 @@ def _correct_unevidenced_action_claims(reply_text: object, user_message: object 
             request_expects_action,
             turn_has_verified_effect,
         )
-        from core.epistemics.unevidenced_action import unevidenced_action_correction
+        from core.epistemics.unevidenced_action import find_unevidenced_action_claims
 
-        correction = str(
-            unevidenced_action_correction(
-                reply_text,
-                effects_observed=turn_has_verified_effect(),
-                action_requested=request_expects_action(user_message),
-            )
-            or ""
-        ).strip()
+        claims = find_unevidenced_action_claims(reply_text, effects_observed=turn_has_verified_effect(),
+                                                action_requested=request_expects_action(user_message))
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         return reply_text
-    if not correction:
+    if not claims:
         return reply_text
-    return f"{str(reply_text or '').rstrip()}\n\n{correction}"
+    # Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a
+    # leak). What the record says goes to her turn asked again, as a reading (core/brain/her_turn_as_asked.py).
+    from core.brain.her_turn_as_asked import the_record_says
+
+    the_record_says("Nothing ran this turn that completed an action: no tool ran and no effect was verified.")
+    text = str(reply_text or "")
+    for claim in claims:
+        text = text.replace(claim.sentence, "") if claim.sentence else text
+    return " ".join(text.split(" ")).strip()
 
 
 def _serve_built_artifact(reply: object) -> object:

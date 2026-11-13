@@ -1419,13 +1419,13 @@ def _flag_unstable_choice_commitment(user_message: object, reply_text: object) -
         return reply_text
     if contradiction is None:
         return reply_text
-    note = (
-        "I have to flag that: I just argued for one of those and then committed "
-        "to the other, so treat the choice as unsettled rather than as my answer. "
-        f"I called {contradiction.first_option!r} the one I would take, then said "
-        f"{contradiction.second_option!r}."
-    )
-    return f"{str(reply_text or '').rstrip()}\n\n{note}"
+    # Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a
+    # leak). What the record says goes to her turn asked again, as a reading (core/brain/her_turn_as_asked.py).
+    from core.brain.her_turn_as_asked import the_record_says
+
+    the_record_says(f"A draft of the reply called {contradiction.first_option!r} the one to take, then committed to "
+                    f"{contradiction.second_option!r}.")
+    return reply_text
 
 
 def _brevity_requested(user_message: object) -> bool:

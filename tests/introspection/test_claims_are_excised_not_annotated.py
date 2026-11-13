@@ -28,11 +28,20 @@ def test_the_surrounding_answer_survives() -> None:
     assert "My buffers are empty." in out
 
 
-def test_the_disclosure_names_what_was_cut() -> None:
+def test_nothing_is_written_into_her_reply_about_what_was_cut() -> None:
+    """LIVE 12 November 2026, Bryan: "I cut a sentence there — I had written ..." is a leak."""
     out = str(guard("x", "It's afternoon. The sun is shining."))
 
-    assert "I cut a sentence" in out
-    assert "The sun is shining" in out  # quoted in the disclosure, not asserted
+    assert "I cut a sentence" not in out
+    assert "The sun is shining" not in out
+
+
+def test_silence_between_messages_is_not_a_claim_about_the_room() -> None:
+    """LIVE 12 November 2026: "When I was processing the silence before your message, that cluster likely came up..."
+    was cut as a claim about ambient sound."""
+    reply = ("When I was processing the silence before your message, that cluster likely came up because it's a "
+             "stored pattern for finality.")
+    assert str(guard("x", reply)).strip() == reply
 
 
 def test_the_disclosure_denies_her_no_sense_she_has() -> None:
@@ -43,10 +52,14 @@ def test_the_disclosure_denies_her_no_sense_she_has() -> None:
     assert "camera" not in out and "microphone" not in out
 
 
-def test_a_reply_that_was_only_the_claim_becomes_the_absence() -> None:
-    out = str(guard("x", "The sun is shining."))
+def test_a_reply_that_was_only_the_claim_leaves_nothing_of_it_and_the_record_says_why() -> None:
+    from core.brain.her_turn_as_asked import a_turn_is_asked, what_the_record_says
 
-    assert out.strip().startswith("I cut a sentence")
+    with a_turn_is_asked():
+        out = str(guard("x", "The sun is shining."))
+        record = what_the_record_says()
+    assert out.strip() == ""
+    assert any("The sun is shining" in fact for fact in record), "her turn is asked again with this as a reading"
 
 
 def test_a_clean_reply_is_returned_untouched() -> None:

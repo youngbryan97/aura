@@ -543,8 +543,9 @@ def _append_past_action_record(user_message: object, reply_text: object) -> obje
     #
     # Leading also rescues a truncated reply: that same turn was cut off at "If
     # you", and an answer appended to a severed sentence reads as debris.
-    denies = _DENIES_THE_ACTION_RE.search(reply) is not None
-    truncated = bool(reply.strip()) and reply.strip()[-1] not in ".!?\"')]}"
-    if denies or truncated:
-        return f"{record}\n\n{reply.strip()}"
-    return f"{reply.rstrip()}\n\n{record}"
+    # Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: a leak). Her receipts go to her turn
+    # asked again, as a reading (core/brain/her_turn_as_asked.py), and she answers from them.
+    from core.brain.her_turn_as_asked import the_record_says
+
+    the_record_says(f"Her receipts for that earlier action: {record}")
+    return reply_text

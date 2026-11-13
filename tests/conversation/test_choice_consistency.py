@@ -126,14 +126,17 @@ def test_the_reply_path_flags_it() -> None:
     """Without the wire the detector is a library nobody calls."""
     import inspect
 
-    from interface.routes import chat
+    from core.brain.her_turn_as_asked import a_turn_is_asked, what_the_record_says
+    from interface.routes import chat, chat_reply_repair
 
-    source = inspect.getsource(chat._stabilize_user_facing_reply)
-    assert "_flag_unstable_choice_commitment" in source
+    assert "_through_the_record" in inspect.getsource(chat._stabilize_user_facing_reply)
+    assert "_flag_unstable_choice_commitment" in inspect.getsource(chat_reply_repair._through_the_record)
 
-    flagged = str(chat._flag_unstable_choice_commitment(QUESTION, LIVE_REPLY))
-    assert flagged.startswith("Losing the ability")
-    assert "unsettled" in flagged
+    with a_turn_is_asked():
+        flagged = str(chat._flag_unstable_choice_commitment(QUESTION, LIVE_REPLY))
+        record = what_the_record_says()
+    assert flagged == LIVE_REPLY, "nothing is written into her reply in her voice"
+    assert record and "committed to" in record[0], "her turn is asked again with the contradiction as a reading"
 
 
 def test_a_consistent_reply_passes_through_the_wire_unchanged() -> None:

@@ -73,3 +73,36 @@ def test_a_persons_turn_in_a_worded_lane_goes_without_the_identity_lock(monkeypa
     assert screen in given[0]["content"] and "## RESPONSE CONTRACT" in system, "the contract and readings stay"
     background, _system = what_she_is_given.for_her_model(messages, "", {"origin": "curriculum_loop"}, False)
     assert lock in background[0]["content"], "a background turn to a model without her persona keeps it"
+
+
+def test_what_the_record_says_reaches_her_turn_asked_again_as_a_reading(monkeypatch):
+    """LIVE 12 November 2026, Bryan, of "I cut a sentence there — I had written ...": a leak. The fact goes to her turn
+    asked again among its readings; her new draft is checked the same way and served when the record finds nothing."""
+    from interface.routes import chat_reply_repair
+
+    drafts = iter(["It's evening here, and I'm glad you wrote.", "The sun is shining in your room."])
+    asked_with = []
+
+    class _Gate:
+        async def think(self, prompt, **kwargs):
+            asked_with.append(kwargs["messages"])
+            return next(drafts)
+
+    monkeypatch.setattr(chat_reply_repair, "_apply_aura_voice_shaping_compat", lambda text, _message: text)
+    monkeypatch.setattr(chat_reply_repair, "resolve_inference_gate", lambda: _Gate())
+
+    async def scenario(first_draft):
+        with asked_module.a_turn_is_asked():
+            asked_module.keep(prompt="How is it there?", messages=[{"role": "user", "content": "How is it there?"}],
+                              system_prompt="", max_tokens=566)
+            checked = chat_reply_repair._through_the_record("How is it there?", first_draft)
+            assert asked_module.what_the_record_says(), "the sun is not something she read"
+            return await chat_reply_repair._asked_again_with_the_record(
+                "How is it there?", checked, desktop_cognitive_engine_required=False, protected_foreground_lane=False)
+
+    served = asyncio.run(scenario("The sun is shining. I'm here with you."))
+    assert served == "It's evening here, and I'm glad you wrote."
+    assert "[WHAT THE RECORD SAYS]" in asked_with[0][-1]["content"] and "The sun is shining" in asked_with[0][-1]["content"]
+    assert "You are" not in asked_with[0][-1]["content"], "a reading, never an instruction"
+    served = asyncio.run(scenario("The sun is shining. I'm here with you."))  # the new draft is refuted too
+    assert served == "I'm here with you.", "the first draft stands, with what the record refuted taken out"

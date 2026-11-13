@@ -1559,15 +1559,26 @@ def _correct_unfulfilled_write_claims(reply_text: object, user_message: object =
     """
 
     try:
-        from core.conversation.claimed_effect import unfulfilled_write_correction
+        from core.conversation.claimed_effect import (
+            find_unaddressed_write_claims,
+            find_unfulfilled_write_claims,
+        )
 
-        correction = str(unfulfilled_write_correction(reply_text, user_message) or "").strip()
+        missing = find_unfulfilled_write_claims(reply_text) or find_unaddressed_write_claims(reply_text, user_message)
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         return reply_text
-    if not correction:
+    if not missing:
         return reply_text
-    return f"{str(reply_text or '').rstrip()}\n\n{correction}"
+    # Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a
+    # leak). What the record says goes to her turn asked again, as a reading (core/brain/her_turn_as_asked.py).
+    from core.brain.her_turn_as_asked import the_record_says
+
+    text = str(reply_text or "")
+    for claim in missing:
+        the_record_says(f"{claim.path} is not on disk, and no write to it ran this turn.")
+        text = text.replace(claim.sentence, "") if claim.sentence else text
+    return " ".join(text.split(" ")).strip()
 
 
 def _append_runtime_authored_why(user_message: object, reply_text: object) -> object:
@@ -1782,10 +1793,7 @@ def _append_sensory_claim_correction(user_message: object, reply_text: object) -
     """
 
     try:
-        from core.introspection.self_evidence import (
-            excise_unsupported_sensory_claims,
-            sensory_claim_correction,
-        )
+        from core.introspection.self_evidence import excise_unsupported_sensory_claims
 
         # What she watched with someone lately is her own record: retold, it is recalled, not sensed now.
         try:
@@ -1795,23 +1803,18 @@ def _append_sensory_claim_correction(user_message: object, reply_text: object) -
         except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
             recalled = ""
         kept, removed = excise_unsupported_sensory_claims(reply_text, recalled=recalled)
-        correction = str(sensory_claim_correction(reply_text, user_message) or "").strip()
-        if removed:
-            dropped = " ".join(removed)[:200]
-            correction = (
-                f"I cut a sentence there — I had written {dropped!r}, and nothing "
-                "I sensed this turn showed that. The rest stands."
-            )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         return reply_text
     if not removed:
         return reply_text
-    if not kept.strip():
-        # The whole reply was the ungrounded claim. There is nothing to keep,
-        # so the absence IS the answer.
-        return correction or str(reply_text)
-    return f"{kept.rstrip()}\n\n{correction}"
+    # Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a
+    # leak). What the record says goes to her turn asked again, as a reading (core/brain/her_turn_as_asked.py).
+    from core.brain.her_turn_as_asked import the_record_says
+
+    for sentence in removed:
+        the_record_says(f"No reading this turn supports what a draft of the reply said: \"{sentence}\"")
+    return kept
 
 
 def _remove_self_denials_the_record_refutes(reply_text: object) -> object:
@@ -1836,11 +1839,7 @@ def _remove_self_denials_the_record_refutes(reply_text: object) -> object:
     """
 
     try:
-        from core.introspection.self_denial import (
-            excise_refuted_self_denials,
-            self_denial_correction,
-            what_the_record_says,
-        )
+        from core.introspection.self_denial import excise_refuted_self_denials
 
         kept, refuted = excise_refuted_self_denials(reply_text)
     except _CHAT_RECOVERABLE_ERRORS as exc:
@@ -1848,17 +1847,18 @@ def _remove_self_denials_the_record_refutes(reply_text: object) -> object:
         return reply_text
     if not refuted:
         return reply_text
-    correction = self_denial_correction(refuted)
+    # Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a
+    # leak). What the record says goes to her turn asked again, as a reading (core/brain/her_turn_as_asked.py).
+    from core.brain.her_turn_as_asked import the_record_says
+
+    for denial in refuted:
+        the_record_says(f"{denial.plain_name}: {denial.reading}")
     logger.info(
         "Removed %d self-denial(s) the record refutes: %s",
         len(refuted),
         ", ".join(sorted({denial.mechanism for denial in refuted})),
     )
-    if not kept.strip():
-        # Nothing of the reply survived, so a note about what was dropped is
-        # the whole answer and answers nothing. The readings do answer it.
-        return what_the_record_says(refuted) or correction or str(reply_text)
-    return f"{kept.rstrip()}\n\n{correction}"
+    return kept
 
 
 def _hold_a_reasoning_answer_to_its_contract(

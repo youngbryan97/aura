@@ -109,14 +109,18 @@ def test_a_tilde_path_is_expanded_before_checking() -> None:
 def test_the_reply_path_applies_the_check() -> None:
     import inspect
 
-    from interface.routes import chat
+    from core.brain.her_turn_as_asked import a_turn_is_asked, what_the_record_says
+    from interface.routes import chat, chat_reply_repair
 
-    source = inspect.getsource(chat._stabilize_user_facing_reply)
-    assert "_correct_unfulfilled_write_claims" in source
+    assert "_through_the_record" in inspect.getsource(chat._stabilize_user_facing_reply)
+    assert "_correct_unfulfilled_write_claims" in inspect.getsource(chat_reply_repair._through_the_record)
 
-    corrected = str(chat._correct_unfulfilled_write_claims(LIVE_REPLY))
+    with a_turn_is_asked():
+        corrected = str(chat._correct_unfulfilled_write_claims(LIVE_REPLY))
+        record = what_the_record_says()
     assert corrected.startswith("There are 3 .py files")
-    assert "is not there" in corrected
+    assert "Correction" not in corrected, "nothing is written into her reply in her voice"
+    assert any("not on disk" in fact for fact in record)
 
 
 # ── A success claim that names no path is still a claim about their file ───

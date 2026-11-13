@@ -1172,10 +1172,14 @@ _PRESENCE_CLAIM_RE = re.compile(
     r"there\s+(?:is|are)\s+no\s+(?:one|other\s+people))\b",
     re.IGNORECASE,
 )
-#: Claims about ambient sound. Need a microphone.
+#: Claims about ambient sound. Need a microphone. "The silence" between messages is the conversation's, not the room's:
+#: LIVE 12 November 2026 "When I was processing the silence before your message, that cluster likely came up ..." was
+#: cut as a claim about sound.
 _AMBIENT_SOUND_CLAIM_RE = re.compile(
     r"\b(?:the\s+)?(?:room|house|space)\s+(?:is|remains|stays)\s+"
-    r"(?:quiet|silent|still)\b|\bi\s+(?:can\s+)?hear\b|\bthe\s+silence\b|"
+    r"(?:quiet|silent|still)\b|\bi\s+(?:can\s+)?hear\b|"
+    r"\bthe\s+silence\b(?!\s+(?:before|after|between|since|of)\s+"
+    r"(?:\w+\s+){0,2}(?:messages?|repl(?:y|ies)|turns?|words?|chat|conversation|exchanges?)\b)|"
     r"\becho\s+of\s+footsteps\b|\bair\s+currents?\b",
     re.IGNORECASE,
 )

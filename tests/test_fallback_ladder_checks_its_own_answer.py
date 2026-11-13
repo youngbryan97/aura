@@ -51,7 +51,8 @@ def test_the_ladder_checks_its_own_answer():
 
 
 def test_the_main_path_checks_its_answer_too():
-    assert GUARD in _calls(_function("_stabilize_user_facing_reply"))
+    assert "_through_the_record" in _calls(_function("_stabilize_user_facing_reply"))
+    assert GUARD in _calls(_function("_through_the_record"))
 
 
 def test_the_ladder_still_declines_when_nothing_is_left():

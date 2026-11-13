@@ -92,16 +92,21 @@ def test_identity_rewrite_uses_the_same_foreground_completion_owner() -> None:
 
     # the wait sits in a block the size sweep moved into a helper; read the
     # stabiliser as it runs, with that block back in place
-    text = inlined_function_source(CHAT, "_stabilize_user_facing_reply")
+    # Her turn is asked again from two places now (a draft the checks refused, a draft the record refuted), so the
+    # helper that waits on her model is read as itself: a helper called from two places is not inlined.
+    text = inlined_function_source(CHAT, "_stabilize_user_facing_reply_part_3")
     function = next(node for node in ast.walk(ast.parse(textwrap.dedent(text)))
                     if isinstance(node, ast.AsyncFunctionDef)
-                    and node.name == "_stabilize_user_facing_reply")
+                    and node.name == "_stabilize_user_facing_reply_part_3")
     waits = [node for node in ast.walk(function)
              if isinstance(node, ast.Call)
              and isinstance(node.func, ast.Name)
              and node.func.id == "_await_while_it_is_working"]
-    assert len(waits) == 1
-    keywords = {item.arg: ast.unparse(item.value) for item in waits[0].keywords}
-    assert keywords["person_is_waiting"] == "strict_desktop_repair"
-    assert keywords["user_facing"] == "True"
-    assert "inference_gate.think" in ast.unparse(waits[0].args[0])
+    # Her turn is asked again from two places now: a draft the checks refused, and a draft the record refuted
+    # (core/brain/her_turn_as_asked.py). Every such wait is owned by the foreground completion.
+    assert waits
+    for wait in waits:
+        keywords = {item.arg: ast.unparse(item.value) for item in wait.keywords}
+        assert keywords["person_is_waiting"] == "strict_desktop_repair"
+        assert keywords["user_facing"] == "True"
+        assert "inference_gate.think" in ast.unparse(wait.args[0])

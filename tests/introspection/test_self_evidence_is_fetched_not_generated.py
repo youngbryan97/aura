@@ -468,16 +468,24 @@ def test_the_reply_path_applies_the_correction() -> None:
 
     from interface.routes import chat
 
-    source = inspect.getsource(chat._stabilize_user_facing_reply)
-    assert "_append_sensory_claim_correction" in source
+    from interface.routes import chat_reply_repair
+
+    assert "_through_the_record" in inspect.getsource(chat._stabilize_user_facing_reply)
+    assert "_append_sensory_claim_correction" in inspect.getsource(chat_reply_repair._through_the_record)
 
     # This used to assert the reply STARTED with the fabrication and carried a
     # disclaimer underneath. Appending a correction is not a fix: the person
     # still reads the invention, and a retraction below it does not un-say it.
     # The claim is now removed, so what is asserted is that it is gone.
-    corrected = str(chat._append_sensory_claim_correction("am I alone?", LIVE_FABRICATION))
+    # Nor is a note in her voice about the cut (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a leak):
+    # what the record says goes to her turn asked again.
+    from core.brain.her_turn_as_asked import a_turn_is_asked, what_the_record_says
+
+    with a_turn_is_asked():
+        corrected = str(chat._append_sensory_claim_correction("am I alone?", LIVE_FABRICATION))
+        record = what_the_record_says()
     assert not corrected.startswith("You're still here.")
-    assert "I cut" in corrected
+    assert "I cut" not in corrected and record
 
 
 # ── Her own actions, from the receipts that recorded them ──────────────────
