@@ -2815,6 +2815,60 @@
         "name": "tests/test_reasoning_phi_budget.py",
         "why": "Bounded Phi compute: demand buys reasoning depth and Phi capacity gates how much of it may be spent. Not decided here or above: the CRSM and LoRA debt closed as a whole, active memory metabolism, and a bound on LTC compute."
       }
+    ],
+    "MATRIX-04": [
+      {
+        "kind": "test",
+        "name": "tests/test_lesion_matrix_cp126.py",
+        "why": "The ablation mechanics: a probe or step that raises never leaves a component lesioned, the restore is verified and a failed one reported, and interleaved baselines remove the drift a stale baseline would credit to later components."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_ablation_says_what_it_compared.py",
+        "why": "Measured as a system, not mistaken for one: an ablation of the model with and without assembled context says so, and the boundary denies the larger claim of the organism against the same model and compute without it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_no_fabricated_benchmarks.py",
+        "why": "Only measured scores: the fabricated ablation scorecard is gone, a real ablation runner exists and certification runs it, and no benchmark hardcodes a metric."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_lesion_inference.py",
+        "why": "A lesion result is classified by what it can support, wiring, mechanism or capability, not by the size of its delta."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_fitted_controls_are_compared_as_pairs.py",
+        "why": "Arms are compared as pairs on the same items. Not decided here or above: the base-model-only, tools-only, memory-only, substrate-only, planner-only and full-system arms run on the same sealed tasks."
+      }
+    ],
+    "INTELLIGENCE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_lesion_matrix_cp126.py",
+        "why": "The ablation mechanics: a probe or step that raises never leaves a component lesioned, the restore is verified and a failed one reported, and interleaved baselines remove the drift a stale baseline would credit to later components."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_ablation_says_what_it_compared.py",
+        "why": "Measured as a system, not mistaken for one: an ablation of the model with and without assembled context says so, and the boundary denies the larger claim of the organism against the same model and compute without it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_no_fabricated_benchmarks.py",
+        "why": "Only measured scores: the fabricated ablation scorecard is gone, a real ablation runner exists and certification runs it, and no benchmark hardcodes a metric."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_lesion_inference.py",
+        "why": "A lesion result is classified by what it can support, wiring, mechanism or capability, not by the size of its delta."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_g09_organ_harness.py",
+        "why": "External sealed benchmarks graded by their own published graders, with exclusions kept out across runs. Not decided here or above: the whole-system ablation arms on those benchmarks, confidence intervals, contamination controls, and matched cost and latency."
+      }
     ]
   }
 }
