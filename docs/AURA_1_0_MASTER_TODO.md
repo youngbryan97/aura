@@ -5272,6 +5272,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reserve ran with the runtime profile still made unreadable, and asked it
   for the state root. With no root there is no stamp to take back; the
   reset says so, and the pair that errored passes.
+  2026-11-13, from a 603-file regression run in six processes beside her
+  app: `test_being_with_somebody_is_not_doing_a_task_for_them.py::
+  test_her_own_model_tells_bryans_invitation_from_bryans_task` fails in its
+  batch and passes alone, because something earlier in the batch leaves
+  MLX's default device on the CPU and her fast model then refuses to load
+  ("this process keeps MLX off the GPU"). Four more fail on main alone, with
+  none of that night's changes: `test_verification_and_passes.py::
+  test_runtime_invariants_are_registered_and_run_clean`,
+  `test_model_load_ownership_audit.py::
+  test_repository_model_load_inventory_is_complete`,
+  `test_semantic_grounded_native_fit.py::
+  test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_release`
+  (eight cases) and `test_state_ownership.py::
+  test_no_module_resolves_the_live_root_for_itself_any_more`.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.
@@ -5374,6 +5388,31 @@ needs her 27B free (her app down, or her app's own influence trials).
   search ended at its 434 s budget, draft kept). The confirmatory run is
   ~/.aura/rlc-evidence/f04-organ/typed_run.sh: ten domains, twelve held-out
   requests her chat would search in each, in rounds of three.
+  13 November, night: the confirmatory paired measure, on drafts and
+  candidates made as a turn typed into her chat makes them
+  (~/.aura/rlc-evidence/f04-organ/typed_run.sh at d1da37770, 00:57 to
+  06:15, rows in typed-<domain>-20261113). Each generation was planned by
+  her own code: the lane's answer budget for the request's shape, the
+  gate's raise, the private channel open where the answer is derived in
+  the turn and closed at her worker's bound, each candidate given half again
+  what the draft took, and the search given the room her thinking loop
+  grants the turn. 54 held-out requests her chat would search, ten domains
+  (CRUXEval 3; LiveCodeBench, HumanEval+, MATH, AIME 2024, BBEH,
+  Blocksworld, Natural Plan calendar, trip planning 6 each; meeting 3). Her
+  drafts were right on 41, and the organ changed no answer: 0 gained, 0
+  lost. On the 13 wrong drafts it searched 11 and found nothing it could
+  adopt; it kept the other 2 without searching, through a second soundness
+  defect the run found: a check of the working counted as a check of the
+  answer (on an AIME draft cut off before any answer, the logic audit found
+  no non-sequitur). That is fixed in 65b402ec7, which this run did not
+  carry; the run was to stop after its first round and go on at the fix,
+  and the stop missed, so both rounds ran at d1da37770. 0 discordant of 54
+  bounds the rate of any change below about 5.5% (95%). As it stands in
+  chat, the search spends a turn's room on the requests no check can reach
+  and changes nothing there; where a check can reach the answer, her drafts
+  were already right. Open: the same measure at 65b402ec7, and whether the
+  search should run in chat at all on requests no check can reach
+  (CTX2-AMP-003: kept only where it earns its latency).
 - [ ] F05 Self-modification promoted. Promotion is disabled; repair by
   selection mends 4 of 79 real past defects, most out of time. Left: a night
   run with long budgets, a promotion path (staged branch, full gates, then
