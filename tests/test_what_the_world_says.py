@@ -572,3 +572,20 @@ def test_a_page_of_readings_keeps_its_labels_beside_their_values() -> None:
     rows = _as_rows("Paris Weather\nAs of 12:52 AM GMT+1\nNow\n46°\nFair\nFeels Like\n40°\nToday's outlook is clear and cold.")
     assert "Now · 46° · Fair · Feels Like · 40°" in rows
     assert rows.endswith("Today's outlook is clear and cold.")
+
+
+def test_a_question_about_now_is_searched_even_when_a_stored_copy_has_the_thing(judge) -> None:
+    """LIVE 12 November 2026: "What's the score of the latest Lakers game?" was answered from a stored page with a game
+    from 6 October; her offline corpus had the thing, so nothing was searched."""
+    searched = []
+
+    async def search(query):
+        searched.append(query)
+        return []
+
+    asyncio.run(gather_world_evidence("Bam's 83 point game: what is the latest on it?", store=_Corpus(), search=search,
+                                      outside_wanted=True))
+    assert searched == [], "a stored copy answers what is not asked about as it is now"
+    asyncio.run(gather_world_evidence("Bam's 83 point game: what is the latest on it?", store=_Corpus(), search=search,
+                                      outside_wanted=True, now_wanted=True))
+    assert searched, "something as it is now is looked up, whatever a dated copy holds"

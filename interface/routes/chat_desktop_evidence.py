@@ -1158,10 +1158,13 @@ async def _what_the_world_says_for_the_turn(
         should_collect = False
     try:
         from core.conversation.asks_about_the_world import wants_outside_evidence
+        from core.search.research_pipeline import _query_is_current
 
-        outside = should_collect or wants_outside_evidence(user_message)
+        current = _query_is_current(user_message)
+        # Something as it is now needs a live source, whatever a dated copy holds.
+        outside = should_collect or current or wants_outside_evidence(user_message)
     except _CHAT_RECOVERABLE_ERRORS:
-        outside = should_collect
+        current, outside = False, should_collect
     previous = previous_reply = ""
     try:
         recent = await _chat_memory_state._recent_completed_conversation_exchanges(
@@ -1208,13 +1211,11 @@ async def _what_the_world_says_for_the_turn(
         if should_collect and not instructed else None
     )
     try:
-        from core.search.research_pipeline import _query_is_current
-
         evidence = await gather_world_evidence(
             user_message, previous_request=previous, fetch=_read_a_page,
             search=None if contracted else search, outside_wanted=outside, read_since=turn_began,
             # Something as it is now: its pages fill their values in with scripts, so they are read as shown.
-            render=_read_a_page_as_shown if _query_is_current(user_message) else None,
+            render=_read_a_page_as_shown if current else None, now_wanted=current,
             previous_reply=previous_reply,
         )
     except _CHAT_RECOVERABLE_ERRORS as exc:

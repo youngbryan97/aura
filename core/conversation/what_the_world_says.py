@@ -467,6 +467,7 @@ async def gather_world_evidence(
     read_since: float = 0.0,
     previous_reply: str = "",
     render: Fetch | None = None,
+    now_wanted: bool = False,
 ) -> WorldEvidence:
     """Read what the request names, from the page sent, a search asked for, or the offline corpus.
 
@@ -477,6 +478,10 @@ async def gather_world_evidence(
     before they are judged: LIVE 12 November 2026, "Can you look up what the weather is in Paris right now?" fetched
     AccuWeather, Weather.com and three more, and every one came back the shell its scripts fill in, no temperature in
     any of them; she said so, and Bryan: she should absolutely be able to pull the values.
+
+    ``now_wanted``: the request is about something as it is now, which no stored copy answers, so it is searched even
+    when her offline corpus has the thing (LIVE 12 November 2026, "What's the score of the latest Lakers game?" was
+    answered from a stored page with a game from 6 October, and nothing was searched).
     """
     started = time.monotonic()
     evidence = WorldEvidence()
@@ -543,7 +548,8 @@ async def gather_world_evidence(
     evidence.sources.extend(local[:3])
 
     if search is not None and (
-        asked_for or (outside_wanted and not local) or (not _asks_her_view(question) and _answers_only_in_part(question, local))
+        asked_for or (outside_wanted and (not local or now_wanted))
+        or (not _asks_her_view(question) and _answers_only_in_part(question, local))
     ):
         query = asked_for or question
         try:
