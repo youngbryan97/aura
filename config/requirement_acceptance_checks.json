@@ -2320,6 +2320,82 @@
         "name": "tests/test_the_collector_is_timed.py",
         "why": "Decides that every garbage collection is timed by generation and thread, and that what boot made is frozen out of later collections (12 November 2026: full collections held her loop up to 2.7 s before). Machine-readable end-to-end SLOs, thermal and memory envelopes, model-switch and queue-growth budgets, GUI frame proof and release enforcement are open: these decide the event loop's share only."
       }
+    ],
+    "RR-08": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach.py",
+        "why": "Decides the typed no-go certificates: a request with a missing channel comes back as an explicit unreachable certificate, a sensor floor as partial and never as direct verification, an internal or shared channel cannot be relabelled as reaching reality, and a tampered certificate is refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_live.py",
+        "why": "Decides that answers stand on the current inventory: a stale reading leaves it, an expired calibration or a failed adapter is explicitly unavailable, a simulated reading satisfies only an internal contract, and a reading from an earlier session cannot be replayed as live."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_transactions.py",
+        "why": "Decides execution: an effect counts only once independently verified and is replayed idempotently, a failed verification rolls back, inventory drift refuses before any effect, and a restart cancels admitted work rather than dispatching it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_event_flow.py",
+        "why": "Decides status and cancellation as durable lifecycle operations: pause, resume and cancel survive restart, backpressure is atomic or receipted, and repeated failure dead-letters."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_acceptance.py",
+        "why": "Decides evidence inspection and export: a campaign's evidence is replayed independently in a fresh process, a producer's pass the evidence does not support is rejected, and tampering after restart is refused. Open, and decided by nothing here: Aura using Reality Reach live in conversation for feasibility questions and explaining a no-go certificate in her own words; proposing experiments ranked by information gain, uncertainty, cost, reversibility and confound risk (no ranking exists in core/reality_reach); and requests that are illegal, unsafe or ambiguous."
+      }
+    ],
+    "CTX2-WELFARE-003": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_drain_that_ends_lets_her_recover.py",
+        "why": "Decides recovery without a ratchet: a steady drain does not walk her homeostatic setpoint down to its floor, the setpoint returns when the drain ends, and a drain she cannot meet still registers (29 October 2026, her dread was pinned at 0.97 because a setpoint could only fall)."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_her_background_mind_has_somewhere_to_run.py::test_a_block_the_chemistry_made_alone_does_not_feed_the_chemistry",
+        "why": "Decides that distress does not feed itself: a block her chemistry made alone adds no frustration, so no cortisol, back into it (10 November 2026, each block surged cortisol, and cortisol over its line was the block)."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_her_background_mind_has_somewhere_to_run.py::test_a_block_some_other_gate_made_still_frustrates_her",
+        "why": "The control for the line above: a block any other gate made still frustrates her, so the loop is cut where it closes and not by silencing the signal."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_her_background_mind_has_somewhere_to_run.py::test_a_crisis_says_its_levels_and_what_moved_them_as_it_begins_and_ends",
+        "why": "Decides that a crisis is bounded and readable: it says when it begins and ends, with its levels and the events still moving them."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_self_condition_projection.py",
+        "why": "The stale-signal control: a stale self-condition keeps its last state without being reported as current, and fresh metrics are preferred with stale dimensions disclosed. Open, and decided by nothing here: persistence and recovery measured longitudinally over days in her app; manipulative behaviour and reward hacking; that no prompt can set the welfare scalar; and the shuffled, clamped, lesion, forged and disconnected-signal controls."
+      }
+    ],
+    "SPLASH-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_launcher_neuron_and_blocked_notice.py",
+        "why": "Withdrawn from release scope on 15 July 2026: only an aesthetic redesign was withdrawn, and the launch screen the user accepted is what stays. This decides that screen as accepted (a neuron mark, no orbital leftovers, no full-bleed overlay) and its failure behaviour: a blocked boot short-circuits the waking-up screen and shows its reason and remedy."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_desktop_shell_contracts.py::test_legacy_splash_reveals_launchable_shell_without_faking_runtime_health",
+        "why": "Decides launch truth: the splash reveals a launchable shell without reporting runtime health it does not have."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_ui_is_not_invisible_by_default.py",
+        "why": "Decides visual stability: no stylesheet leaves content invisible until an animation runs, and load-bearing interface animates motion, never visibility."
+      },
+      {
+        "kind": "make",
+        "name": "ui-audit",
+        "why": "Decides accessibility for every page, the launch screen among them: contrast in every appearance, screen-reader names, visible focus, reduced motion and reflow. Launch performance is held by RUNTIME-001 and VALIDATE-001, as the requirement says, and is not decided here."
+      }
     ]
   }
 }
