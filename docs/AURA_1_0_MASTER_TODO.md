@@ -5345,6 +5345,22 @@ needs her 27B free (her app down, or her app's own influence trials).
   made as a typed turn makes it (no private channel, about 580 tokens),
   before a confirmatory run is sized; 0 discordant of 33 bounds the rate
   below about 9%.
+  12-13 November, night: Bryan chose drafts made as a typed turn makes them.
+  A typed turn is not thinking-off in general: her worker opens the private
+  channel when the answer is derived in the turn, and every benchmark prompt
+  is (completion floor above 256), with the channel closed by the decoder at
+  the bound the clock allows; only a short closed question goes without one.
+  The runner now asks her own code for each generation (d1da37770). Its
+  first proof found a soundness defect: her math check passed any text
+  holding an "=" as checked, so an AIME draft cut before any answer was kept
+  as a verified incumbent in 0.05 s, with nothing searched. A pass is checked
+  now only when a final answer was compared with an exact value (22dd604f6).
+  The consequence shows in chat: a math turn now searches, and her chat
+  gives each candidate half again what the draft took, which a thinking
+  candidate outruns (second proof: six of nine cut mid-thought at 57 s, the
+  search ended at its 434 s budget, draft kept). The confirmatory run is
+  ~/.aura/rlc-evidence/f04-organ/typed_run.sh: ten domains, twelve held-out
+  requests her chat would search in each, in rounds of three.
 - [ ] F05 Self-modification promoted. Promotion is disabled; repair by
   selection mends 4 of 79 real past defects, most out of time. Left: a night
   run with long budgets, a promotion path (staged branch, full gates, then
