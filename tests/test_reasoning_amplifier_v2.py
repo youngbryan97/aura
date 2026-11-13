@@ -437,10 +437,12 @@ class _CheckedPassingVerifier:
     async def verify(self, candidate, *, task_type=None, context=None):
         from core.brain.verifiers.base import VerificationResult
 
+        # A check that reached the answer itself, which is what lets it keep or adopt one.
         return VerificationResult(
             domain=str(task_type or "generic"),
             ok=True,
             checked=True,
+            reaches_the_answer=True,
             engine="test_checked",
         )
 

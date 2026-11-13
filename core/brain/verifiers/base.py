@@ -38,6 +38,13 @@ class VerificationResult:
     #: first says the answer made no claim a verifier could reach, the second
     #: says the task has no verifier.
     not_applicable: bool = False
+    #: Whether a pass speaks to the answer itself: the answer compared with a value, or run against examples, that do
+    #: not come from the candidate. A check of the working, the citations, the form or a trace can find a provable
+    #: fault and so refute an answer; its pass does not make the answer right. LIVE 13 November 2026 (F04): an AIME
+    #: draft cut off before any answer was kept as a verified incumbent because the logic audit found no non-sequitur
+    #: in its working. Only a pass that reaches the answer is authority to keep an answer or put another in its place
+    #: (core/brain/reasoning_amplifier_v2.py); every other pass still ranks candidates.
+    reaches_the_answer: bool = False
     detail: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -118,6 +125,7 @@ class VerificationResult:
             "infrastructure_failed": self.infrastructure_failed,
             "timed_out": self.timed_out,
             "not_applicable": self.not_applicable,
+            "reaches_the_answer": self.reaches_the_answer,
             "score": round(float(self.score), 3),
             "engine": self.engine,
             "issues": self.issues[:8],
@@ -188,6 +196,7 @@ def combine_results(
         infrastructure_failed=infrastructure_failed,
         timed_out=timed_out,
         not_applicable=not_applicable,
+        reaches_the_answer=ok and any(r.ok and r.reaches_the_answer for r in checked),
         score=round(score, 4),
         engine="+".join(engines),
         issues=issues[:12],

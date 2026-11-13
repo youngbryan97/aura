@@ -35,7 +35,7 @@ class _PassesOnlyTheDraft:
     async def verify(self, candidate, *, task_type=None, context=None):
         self.seen.append(candidate)
         if candidate.strip() == DRAFT:
-            return VerificationResult(domain="math", ok=True, checked=True, engine="stub")
+            return VerificationResult(domain="math", ok=True, checked=True, reaches_the_answer=True, engine="stub")
         return VerificationResult(domain="math", ok=True, checked=False, engine="stub")
 
 

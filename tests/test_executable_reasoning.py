@@ -249,6 +249,7 @@ class _ExactCandidateVerifier:
             domain="math",
             ok=exact,
             checked=True,
+            reaches_the_answer=exact,  # the exact answer compared
             score=1.0 if exact else 0.0,
             engine="test_exact",
             issues=[] if exact else ["wrong answer"],

@@ -1203,6 +1203,18 @@ class ReasoningAmplifierV2:
             and getattr(delivered_verdict, "checked", False)
             and getattr(delivered_verdict, "verification_was_possible", True)
         )
+        # Whether that pass reached the delivered answer itself, which is what "verified" claims to the person and
+        # what a checked verifier's authority to replace a draft rests on.
+        delivered_reached = delivered_pass and self._executable_verdict_is_authoritative(delivered_verdict)
+        # A draft a check proved wrong is replaced by an answer the same checks find nothing wrong in, though nothing
+        # confirms it: the one is known wrong and the other is not. It is not called verified.
+        incumbent_verdict = request.context.get("_incumbent_verdict")
+        incumbent_refuted = bool(
+            incumbent_verdict is not None
+            and getattr(incumbent_verdict, "checked", False)
+            and not getattr(incumbent_verdict, "ok", True)
+        )
+        replaces_a_refuted_draft = delivered_pass and incumbent_refuted
         if verified_pass and not delivered_pass:
             fallbacks.append("delivered_rewrite_not_verified")
         delivered_confidence = (
@@ -1215,7 +1227,12 @@ class ReasoningAmplifierV2:
         # arithmetic to evaluate) must never be cached, or a wrong answer gets served as
         # truth forever. The hard bench caught exactly this poisoning.
         if "solved_cache_hit" not in fallbacks and not read_only_evaluation:
-            self._amplify_cp126_d45893c2_verification(answer, calibrated_answer, confidence, mode, problem, request, strategy, verified_pass, verifiers_run)
+            # Learned and cached only from an answer a check reached, or one independent programs agreed on; a clean
+            # audit of the working is no reason to serve the same answer again as solved.
+            learned_pass = verified_pass and (
+                self._executable_verdict_is_authoritative(verdict) or strategy == "independent_executable_consensus"
+            )
+            self._amplify_cp126_d45893c2_verification(answer, calibrated_answer, confidence, mode, problem, request, strategy, learned_pass, verifiers_run)
 
         # 10. record the episode so the next one is wiser.
         if not read_only_evaluation:
@@ -1237,7 +1254,7 @@ class ReasoningAmplifierV2:
                 if strategy == "verified_incumbent"
                 # The authority goes with the text the person receives: a rewrite that failed its own check
                 # carries none, though the text before it passed.
-                else ("checked_verifier" if delivered_pass else "none")
+                else ("checked_verifier" if delivered_reached or replaces_a_refuted_draft else "none")
             )
         )
         receipt = ReasoningReceipt(
@@ -1288,7 +1305,7 @@ class ReasoningAmplifierV2:
             confidence=delivered_confidence,
             # "verified" is a claim to the user about the text they receive:
             # only ok AND actually-checked, on that text, earns it.
-            verified=delivered_pass,
+            verified=delivered_reached,
             calibrated=(calibration.downgraded > 0 or calibration.flagged_impossible > 0),
             receipt=receipt,
             generation_metadata=winning_generation_metadata,
@@ -1552,10 +1569,12 @@ class ReasoningAmplifierV2:
         ):
             return False
         detail = getattr(verdict, "detail", None)
-        if not isinstance(detail, dict) or "assessment" not in detail:
-            return True
-        assessment = detail.get("assessment") or {}
-        return bool(assessment.get("ground_truth_verified"))
+        if isinstance(detail, dict) and "assessment" in detail:
+            assessment = detail.get("assessment") or {}
+            return bool(assessment.get("ground_truth_verified"))
+        # A pass is authority over an answer only where the check reached the answer itself
+        # (VerificationResult.reaches_the_answer); a clean audit of the working refutes nothing and confirms nothing.
+        return bool(getattr(verdict, "reaches_the_answer", False))
 
     async def _deep_path(self, problem, guard_text, sample_budget, deadline, mode, context, fallbacks):
         """DEEP/EXTREME/PROOF: adversarial courtroom, then optional sandbox repair.

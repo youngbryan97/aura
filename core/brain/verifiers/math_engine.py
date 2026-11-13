@@ -177,6 +177,7 @@ class MathTruthEngine:
             domain="math",
             ok=ok,
             checked=True,
+            reaches_the_answer=ok and target_ok is True,
             score=round(score, 4),
             engine=self.name,
             issues=issues,

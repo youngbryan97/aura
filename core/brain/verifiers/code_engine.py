@@ -419,7 +419,7 @@ class CodeTruthEngine:
             wrong = [c for c in measured.get("cases", []) if c["verdict"] == "wrong"]
             unknown = [c for c in measured.get("cases", []) if c["verdict"] == "unmeasured"]
             return VerificationResult(domain="code", ok=not wrong, checked=bool(wrong) or (bool(examples) and not unknown),
-                engine=self.name, score=0.98 if measured.get("verified") else 0.1 if wrong else 0.5,
+                reaches_the_answer=not wrong and bool(examples) and not unknown, engine=self.name, score=0.98 if measured.get("verified") else 0.1 if wrong else 0.5,
                 issues=issues+[f"{c['name']}: expected {c['expected']!r}, got {c['actual']!r}" for c in wrong],
                 evidence=evidence+[f"{c['name']}: {c['verdict']} ({c['boundary']})" for c in measured.get("cases", [])],
                 detail={"blocks": len(blocks), "compiled_ok": compiled_ok, "function_checks": measured})

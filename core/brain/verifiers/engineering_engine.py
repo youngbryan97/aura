@@ -145,6 +145,8 @@ class EngineeringTruthEngine:
             domain="engineering",
             ok=ok,
             checked=True,
+            # Every figure the reply states was compared with the one the design computed.
+            reaches_the_answer=ok,
             score=1.0 if ok else max(0.0, 1.0 - len(issues) / max(checked, 1)),
             engine=self.name,
             issues=issues,
