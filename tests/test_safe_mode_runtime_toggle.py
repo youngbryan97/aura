@@ -142,3 +142,37 @@ def test_settings_store_registers_runtime_mode_subscriber(monkeypatch):
     assert settings._apply_runtime_mode_from_settings in {
         subscriber.callback for subscriber in store._subscribers
     }
+
+
+def test_her_kernel_is_read_from_the_container_when_the_orchestrator_holds_none(caplog):
+    """Her orchestrator has no kernel attribute; the boot line printed volition=0 while her kernel ran at 3."""
+    import logging
+
+    from core.container import ServiceContainer
+    from core.runtime.safe_mode import apply_orchestrator_patches, runtime_mode_value
+
+    class _Bare:
+        conversation_history: list = []
+
+    ServiceContainer.register_instance("aura_kernel", _Kernel(3))
+    try:
+        orch = _Bare()
+        with caplog.at_level(logging.INFO):
+            apply_orchestrator_patches(orch)
+        assert "volition=3" in caplog.text
+        assert runtime_mode_value(orch, "self_preservation") is True
+    finally:
+        ServiceContainer.unregister("aura_kernel")
+
+
+def test_before_her_kernel_exists_the_line_says_so(caplog):
+    import logging
+
+    from core.runtime.safe_mode import apply_orchestrator_patches
+
+    class _Bare:
+        conversation_history: list = []
+
+    with caplog.at_level(logging.INFO):
+        apply_orchestrator_patches(_Bare())
+    assert "volition=not yet set" in caplog.text

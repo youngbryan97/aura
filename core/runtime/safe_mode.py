@@ -65,8 +65,7 @@ FULL_MODE_CONFIG = {
 def _build_runtime_mode_config(orchestrator: Any, *, safe_mode: bool) -> dict[str, Any]:
     runtime_config = deepcopy(SAFE_MODE_CONFIG if safe_mode else FULL_MODE_CONFIG)
 
-    kernel = getattr(orchestrator, "kernel", None)
-    volition = getattr(kernel, "volition_level", 0) if kernel else 0
+    volition = getattr(_her_kernel(orchestrator), "volition_level", None) or 0
 
     if not safe_mode:
         if volition >= 1:
@@ -110,16 +109,29 @@ def apply_orchestrator_patches(orchestrator: Any, safe_mode: bool = False) -> No
     orchestrator._runtime_mode_config = runtime_config
     orchestrator._safe_mode_enabled = bool(safe_mode)
 
-    kernel = getattr(orchestrator, "kernel", None)
-    volition = getattr(kernel, "volition_level", 0) if kernel else 0
-
     _apply_runtime_caps(orchestrator, runtime_config)
 
     logger.info(
-        "Applied orchestrator runtime configuration (safe_mode=%s, volition=%d)",
+        "Applied orchestrator runtime configuration (safe_mode=%s, volition=%s)",
         safe_mode,
-        volition,
+        _her_volition(orchestrator),
     )
+
+
+def _her_kernel(orchestrator: Any) -> Any:
+    """Her kernel: the orchestrator's own, or the container's "aura_kernel".
+
+    Her orchestrator has no `kernel` attribute, so reading only that printed volition=0 on every boot while her
+    kernel ran at level 3.
+    """
+    from core.container import ServiceContainer
+
+    return getattr(orchestrator, "kernel", None) or ServiceContainer.get("aura_kernel", default=None)
+
+
+def _her_volition(orchestrator: Any) -> str:
+    level = getattr(_her_kernel(orchestrator), "volition_level", None)
+    return "not yet set" if level is None else str(level)
 
 
 def is_safe_mode(orchestrator: Any) -> bool:
