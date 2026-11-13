@@ -2754,6 +2754,40 @@
         "name": "tests/test_autonomous_repair_executor.py",
         "why": "Monitoring and dedupe: a fault is logged and runs a repair cycle, a repeated fault waits out its cooldown, and an environmental fault never becomes a source repair. Not decided here or above: coding at a human-level-plus standard on unseen repositories, learning carried from one repair to the next, and one repair of hers taken through this loop into the source she runs on."
       }
+    ],
+    "RLC-CONSOLIDATION-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_consolidation.py",
+        "why": "Decides the loop from candidate to rollback on real machinery: an exported episode lands a candidate in the queue, the trusted consumer validates its evidence and refuses corrupt, unproven or fingerprint-less candidates, a domain proposes only after enough independent wins, proposals are scoped to one checkpoint, distillation is the exact mean delta and refuses mixed fingerprints or dimensions, a missing or incomplete held-out contract refuses activation, a held-out regression blocks it, and a full train activates an adapter and rolls it back exactly. Not decided here: repeated promotion, persistence across a restart, a measured causal benefit, signed publish into the installed worker, quarantine and retention, and outcome monitoring."
+      }
+    ],
+    "RLC-ANTI-INTERFERENCE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_consolidation.py::test_disruptive_change_fails_battery_and_reverts",
+        "why": "The battery fails a genuinely disruptive change and reverts it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_consolidation.py::test_identity_change_passes_battery",
+        "why": "And passes a change that leaves behaviour as it was, so it is not a battery that fails everything."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_consolidation.py::test_natural_probes_measure_protected_behavior_regions",
+        "why": "Its probes measure the behaviour regions it protects."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_consolidation.py::test_disruptive_adapter_is_refused_and_model_untouched",
+        "why": "A disruptive adapter is refused and the model is left untouched."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_consolidation.py::test_heldout_regression_blocks_activation",
+        "why": "A held-out regression blocks activation. Not decided here or above: more domains and seeds, identity, governance, tool and latency probes, adversarial tasks, retained activation windows, longitudinal revalidation, and independent replay."
+      }
     ]
   }
 }
