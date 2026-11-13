@@ -122,3 +122,27 @@ def test_both_quantities_are_checkable_against_their_own_owner():
         assert cl.contradicted_self_readings("Substrate energy is 0.14.") == []
         wrong = cl.contradicted_self_readings("My energy is 0.14.")
         assert [metric for metric, _c, _v in wrong] == ["energy"]
+
+
+def test_her_drives_are_readings_a_reply_is_held_to(monkeypatch):
+    """LIVE 13 November 2026: "The system says curiosity is at 2%, frustration at 9%", read back from an answer an hour
+    old, a minute after she had reported curiosity at 12%."""
+    from types import SimpleNamespace
+    from unittest import mock
+
+    import core.self.capability_ledger as cl
+
+    class _Container:
+        @staticmethod
+        def peek(name, default=None):
+            if name == "liquid_substrate":
+                return SimpleNamespace(current=SimpleNamespace(energy=0.14, focus=0.5, curiosity=0.12, frustration=0.09))
+            return default
+
+    with mock.patch.dict("sys.modules", {"core.container": SimpleNamespace(ServiceContainer=_Container)}):
+        reading = cl._substrate_reading()
+    assert reading["curiosity"] == 0.12 and reading["frustration"] == 0.09
+
+    monkeypatch.setattr(cl, "measured_self_metrics", lambda: reading)
+    said = "The system says curiosity is at 2%, frustration at 9%, so I guess I'm mildly annoyed."
+    assert [metric for metric, _claimed, _value in cl.contradicted_self_readings(said)] == ["curiosity"]

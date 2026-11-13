@@ -649,11 +649,15 @@ def _substrate_reading() -> dict[str, float]:
     except _PROBE_ERRORS:
         return {}
 
+    # Curiosity and frustration too, which her instruments show as drives and nothing else measured shares a name
+    # with. LIVE 13 November 2026: "The system says curiosity is at 2%, frustration at 9%", read back from an answer
+    # an hour old, a minute after she had reported curiosity at 12%; the check knew no drive to hold it to.
     reading: dict[str, float] = {}
-    for label in ("energy", "focus"):
+    for label, name in (("energy", "substrate_energy"), ("focus", "substrate_focus"), ("curiosity", "curiosity"),
+                        ("frustration", "frustration")):
         value = getattr(vector, label, None)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
-            reading[f"substrate_{label}"] = round(float(value), 3)
+            reading[name] = round(float(value), 3)
     return reading
 
 
