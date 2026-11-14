@@ -768,6 +768,8 @@ def _bounded_maintenance_counters(
     means the worker measured none. Collapsing the two is how "we never found
     out" becomes "we checked and there was nothing".
     """
+    from core.brain.nonparametric_ingest import pairs_examined_at_most
+
     faults: list[str] = []
 
     def _count(name: str, ceiling: int) -> int | None:
@@ -790,7 +792,7 @@ def _bounded_maintenance_counters(
         return value
 
     counters: dict[str, int | None] = {
-        "pairs_considered": _count("pairs_considered", scan_limit),
+        "pairs_considered": _count("pairs_considered", pairs_examined_at_most(scan_limit)),
         "pairs_scanned": _count("pairs_scanned", scan_limit),
         "pairs_ingested": _count("pairs_ingested", max_pairs),
         "positions_ingested": _count("positions_ingested", max_positions),
@@ -4944,14 +4946,6 @@ def _is_internal_inference(cognitive_context: Any) -> bool:
             if isinstance(slot, Mapping) and slot.get("internal_inference"):
                 return True
     return False
-
-
-
-
-
-
-
-
 
 
 class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _ReasonsInLatentSpace, _RunsTheUnifiedRecurrentLane, _AsksWhatSheExpectsNext):

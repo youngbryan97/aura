@@ -320,3 +320,18 @@ async def test_foreground_preempts_nonparametric_maintenance():
     client._release_request_lock()
     assert await acquire is True
     client._release_request_lock()
+
+
+def test_examined_pairs_are_held_to_the_collection_not_to_the_scans():
+    """A pair over the sequence budget is examined and not scanned. The client held examinations to the scan limit and
+    called every larger count a broken measurement, three times in a night (13 November 2026)."""
+    from core.brain.llm.mlx_client import _bounded_maintenance_counters
+    from core.brain.nonparametric_ingest import pairs_examined_at_most
+
+    assert pairs_examined_at_most(16) == 64 and pairs_examined_at_most(100) == 256
+    measured = {"pairs_considered": 40, "pairs_scanned": 16, "pairs_ingested": 1, "positions_ingested": 96}
+    counters, faults = _bounded_maintenance_counters(measured, max_pairs=1, scan_limit=16, max_positions=96)
+    assert faults == [] and counters["pairs_considered"] == 40
+    _counters, faults = _bounded_maintenance_counters({**measured, "pairs_considered": 65}, max_pairs=1, scan_limit=16,
+                                                      max_positions=96)
+    assert faults == ["pairs_considered:above_budget"]

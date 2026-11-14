@@ -1346,6 +1346,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   a test holds every call into her chat turn to naming the person. Open, by
   cause: her kernel's response phase routes ordinary turns to a tertiary
   tier with no endpoint on this host (5 times); one event-loop lag at idle.
+  "Maintenance counters out of contract: pairs_considered:above_budget"
+  (three times a night) was the client and her worker disagreeing on the
+  contract: a pair over the sequence budget is examined and not scanned, so
+  examinations run past the scan limit up to the collection the worker
+  reads. Both now take that cap from one function.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,

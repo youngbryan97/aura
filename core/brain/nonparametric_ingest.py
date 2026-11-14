@@ -197,6 +197,16 @@ def collect_trusted_pairs(
     return pairs
 
 
+def pairs_examined_at_most(scan_limit: int) -> int:
+    """How many trusted pairs one ingest may examine: the collection it reads, not the scans it makes.
+
+    A pair over the sequence budget is examined and not scanned, so examinations run past ``scan_limit``. The client
+    held them to ``scan_limit`` and reported every larger count as a broken measurement ("maintenance counters out of
+    contract: pairs_considered:above_budget", three times in a night on 13 November 2026).
+    """
+    return min(256, int(scan_limit) * 4)
+
+
 def collect_trusted_pairs_by_source(
     *, limit: int = 500, sources: list[tuple[Path, str]] | None = None
 ) -> list[tuple[str, list[tuple[str, str]]]]:

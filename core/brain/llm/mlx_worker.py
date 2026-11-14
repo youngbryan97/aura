@@ -3833,6 +3833,7 @@ def _run_nonparametric_ingest_job(
         NonParametricIngestor,
         collect_trusted_pairs_by_source,
         ingest_provenance,
+        pairs_examined_at_most,
     )
     from core.brain.nonparametric_memory import (
         SHARED_MEMORY_PRINCIPAL,
@@ -3888,7 +3889,7 @@ def _run_nonparametric_ingest_job(
     # all, so each entry it wrote was unattributed, unverified and owned by
     # "anonymous" — the three values the store's revocation and
     # per-principal erasure need before they can do anything.
-    grouped = collect_trusted_pairs_by_source(limit=min(256, scan_limit * 4))
+    grouped = collect_trusted_pairs_by_source(limit=pairs_examined_at_most(scan_limit))
     collected_pairs = [
         (context, answer, source) for source, found in grouped for context, answer in found
     ]
