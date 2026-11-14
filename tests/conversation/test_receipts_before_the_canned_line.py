@@ -17,27 +17,38 @@ from __future__ import annotations
 
 from pathlib import Path
 
+ROUTES = Path(__file__).resolve().parents[2] / "interface" / "routes"
 
-def test_the_search_fallback_consults_receipts_first() -> None:
-    # The fallback and the reading both live in `chat_reply_repair` now — the
-    # chat route was split for size and this test read the file it used to be
-    # in, found neither string, and reported that receipts are never consulted.
-    # A shorter file and a deleted call site are indistinguishable from here,
-    # so the module that HOLDS the two lines is the one to read.
-    source = (
-        Path(__file__).resolve().parents[2]
-        / "interface"
-        / "routes"
-        / "chat_reply_repair.py"
-    ).read_text(encoding="utf-8")
-    index_receipts = source.find("concise_past_action_answer(user_message)")
-    index_canned = source.find(
-        "I don't have a clean grounded answer on that yet. I need to stick"
+
+def test_the_canned_line_is_not_served_from_her_chat_routes() -> None:
+    """13 November 2026 (0ff478280): no canned text replaces her draft. The line
+    this test used to order receipts before is gone from every chat route, and
+    it must not come back as a fallback."""
+    for module in sorted(ROUTES.glob("*.py")):
+        source = module.read_text(encoding="utf-8")
+        assert "I don't have a clean grounded answer on that yet" not in source, module.name
+
+
+def test_a_past_action_question_hands_her_the_receipts(monkeypatch) -> None:
+    """The proof she was asked for reaches her turn asked again, and her reply is not rewritten."""
+    import core.introspection.self_evidence as self_evidence
+    from core.brain.her_turn_as_asked import a_turn_is_asked, what_the_record_says
+    from interface.routes.chat_turn_recall import _append_past_action_record
+
+    monkeypatch.setattr(self_evidence, "asks_about_past_actions", lambda _message: True)
+    monkeypatch.setattr(
+        self_evidence,
+        "concise_past_action_answer",
+        lambda _message: "I read core/agency/goal_engine.py at 14:02 (tool_execution receipt).",
     )
+    reply = "I just matched the pattern, I think."
 
-    assert index_receipts != -1, "receipts are never consulted"
-    assert index_canned != -1
-    assert index_receipts < index_canned, "the canned line runs before the reading"
+    with a_turn_is_asked("receipts"):
+        served = _append_past_action_record("prove you actually read that file", reply)
+        record = what_the_record_says()
+
+    assert served == reply
+    assert record and "goal_engine.py" in record[0]
 
 
 def test_receipts_that_cover_nothing_yield_nothing() -> None:
