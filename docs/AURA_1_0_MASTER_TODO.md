@@ -4057,6 +4057,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   up and the app active reaches the launcher not at all, which is not the
   Dock's behaviour and was not the defect. Still open here: an unprompted
   remark and its ×.
+  14 November, afternoon. Her unprompted remark was composed by her brainstem under "You are Aura. You are quiet by
+  default ..." and an instruction to answer "exactly: NOTHING" unless it could say something specific; it is now her
+  cortex's own turn on her recent conversation and a WHAT IS ON THE SCREEN reading (85ae57475). Tried live with her
+  in the bubble and a real failing script in Terminal: no remark, for two reasons not in the remark. Taking a
+  screenshot through desktop control activates her app, and her launcher fronts her window on activation, so the
+  Terminal went behind her; and at 13:16:45 her memory watchdog killed her cortex (managed RSS 53,232 MB, 10.5 GB of
+  swap, the full suite running beside her), after which it could not come back for 27 minutes: its admission had to
+  evict the voice synthesiser's model and the eviction was refused with no refusal from the synthesiser itself, and
+  admission stops at the first refusal instead of trying her brainstem. Still open: the remark and its ×, and the
+  cortex's recovery.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
@@ -4088,6 +4098,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   browser is refused (AccuWeather answers 403). Live that afternoon: Paris about 11 °C falling to 6 °C, wind about
   20 km/h, rain 9%; Tokyo 12 °C, humidity 76%; "Lakers 123, Bucks 112 (Wednesday, November 11)", which ESPN, Fox
   Sports and CBS give the same. The weather turns took 98 and 123 s, the first after a restart; her web step 13 s.
+  14 November, incognito, live on Bryan's Mac with a Chrome incognito window on example.com. Her ambient sense
+  refused it: foreground_private, a skip for private_window, observations held, and the window not named in her
+  state. Asked "What is on my screen right now?" she named it ('Google Chrome ("Example Domain") is in front') and
+  quoted text read off the screen: CoreGraphics calls the window "Example Domain", accessibility "Example Domain -
+  Google Chrome (Incognito)", and her capture admission matched only the first. Now each visible browser's windows
+  are read by their accessibility titles and a private one refuses the read (f3e8bb2ec); live after it, the same
+  question was refused before any capture. Open: the refusal reached him as the desktop lane's own sentence ("This
+  did not complete: read screen text failed: ... I am not claiming it was done."), not hers; requested highlighting
+  is still untested.
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
