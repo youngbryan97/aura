@@ -202,7 +202,7 @@ class DynamicContextBuilder:
             segments.append(
                 f"### SYSTEM VITALITY\n"
                 f"Mood: {ls.get('mood')}\n"
-                f"Energy: {ls.get('energy')}%\n"
+                f"Substrate energy: {ls.get('energy')}%\n"
                 f"Curiosity: {ls.get('curiosity')}%\n"
                 f"Frustration: {ls.get('frustration')}%"
             )

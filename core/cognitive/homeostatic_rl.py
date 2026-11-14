@@ -828,7 +828,7 @@ class HomeostaticRL:
 
         return (
             f"## MOTIVATION (Homeostatic RL)\n"
-            f"Energy: {self._energy:.0f}/100 ({mode}) | "
+            f"Homeostatic energy: {self._energy:.0f}/100 ({mode}) | "
             f"Drive: {top_action} ({prefs[top_action]:.0%}) | "
             f"Discomfort: {discomfort:.2f}{urgency_note}"
         )

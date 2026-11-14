@@ -376,6 +376,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
             fabricated_self_metrics,
             measured_self_metrics,
             unsupported_self_specification,
+            with_her_readings_in_place,
         )
 
         # A number attached to an instrument she HAS, that the instrument
@@ -425,24 +426,29 @@ async def _reanswer_when_the_runtime_contradicts_her(
         except _CHAT_RECOVERABLE_ERRORS as exc:
             record_degradation("chat.self_attribution", exc)
 
-        contradictions = contradicted_self_readings(text)
-        if contradictions:
-            stated = ", ".join(
-                f"{metric.replace('_', ' ')} as {claimed} when it reads {value:g}"
-                for metric, claimed, value in contradictions[:4]
+        # A figure her own instrument contradicts is corrected where it stands,
+        # and nothing else in her reply changes: no second generation and no
+        # note in her voice. Bryan, 14 November 2026, of the bracketed line the
+        # runtime added under her reply: "ideally just make the correction vs
+        # putting it in a note".
+        if contradicted_self_readings(text):
+            corrected, figures = with_her_readings_in_place(text)
+            if isinstance(turn_trace, dict):
+                _append_turn_text_mutation(
+                    turn_trace,
+                    stage="chat.self_reading_correction",
+                    method="measured_figure_replacement",
+                    reasons=[f"contradicted_reading:{metric}" for metric, _claimed, _value in figures],
+                    before=text,
+                    after=corrected,
+                    deterministic=True,
+                    authorship_effect="augmented_by_runtime",
+                )
+            logger.info(
+                "📐 Her figure corrected in place from its instrument (%s).",
+                "; ".join(f"{metric} {claimed} -> {value:g}" for metric, claimed, value in figures[:4]),
             )
-            computed_context = (f"{computed_context}\n\n" if computed_context else "") + (
-                f"[You gave a number for something you can actually read, and it "
-                f"disagrees with the instrument: you said {stated}. Read it off "
-                "the measurement rather than estimating it.]"
-            )
-            logger.warning(
-                "📉 Reply contradicted its own instruments (%s); re-answering.",
-                "; ".join(
-                    f"{metric}={claimed}!={value:g}"
-                    for metric, claimed, value in contradictions[:4]
-                ),
-            )
+            text = reply_text = corrected
 
         # A number quoted as a property of her own machinery. Live twice in a
         # row: "my short-term memory buffer clears after about 18 seconds" —
@@ -586,6 +592,28 @@ async def _reanswer_when_the_runtime_contradicts_her(
         logger.info("🧭 Re-answer no longer contradicts the runtime (%s).", contradicted)
         return revised_text
 
+    return _what_the_measurements_leave(text, claims, capability_reconciler, sensory_contradictions,
+                                        turn_sensory_evidence)
+
+
+def _what_the_measurements_leave(text: str, claims: list[Any], capability_reconciler: Any,
+                                 sensory_contradictions: tuple[str, ...], turn_sensory_evidence: Any) -> str:
+    """Her reply after a re-answer that did not settle it: corrected where a measurement can say what is so, and
+    nothing written into it in her voice.
+
+    It used to end in a bracketed correction in her first person, or a sentence saying she did receive a fresh
+    reading: the runtime speaking as her (Bryan, 12 and 14 November 2026: a leak; "just make the correction"). A denied capability is reconciled in its sentence; what the measurements say otherwise reaches her
+    next turn in this conversation as a reading (core/brain/her_turn_as_asked.py).
+    """
+    from core.brain.her_turn_as_asked import carry_the_record_to_the_next_turn, the_record_says
+
+    if claims and callable(capability_reconciler):
+        try:
+            text = str(capability_reconciler(text, claims) or "").strip() or text
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation("chat.capability_ledger", exc, severity="info", action="served her reply unreconciled")
+    for claim in claims:
+        the_record_says(claim.correction())
     if sensory_contradictions:
         try:
             from core.senses.turn_evidence import TurnSensoryEvidence
@@ -595,31 +623,9 @@ async def _reanswer_when_the_runtime_contradicts_her(
         except _CHAT_RECOVERABLE_ERRORS:
             evidence = None
         if evidence is not None and evidence.ok:
-            return (
-                f"I need to correct that: I did receive a fresh {evidence.channel} "
-                f"reading for this turn. {evidence.observation}"
-            )
-    corrections = " ".join(claim.correction() for claim in claims) or _what_my_instruments_read(text)
-    return f"{text}\n\n[Correcting myself from my own instruments: {corrections}]"
-
-
-def _what_my_instruments_read(text: str) -> str:
-    """Each figure she gave that its instrument contradicts, beside the reading; the general sentence otherwise.
-
-    LIVE 13 November 2026: "Curiosity is at 12%", read back from an earlier answer while curiosity read 0.218, was
-    served with "I quoted a figure about my own machinery that I did not read off any instrument", which names neither
-    the figure nor the instrument she does have.
-    """
-    try:
-        from core.self.capability_ledger import contradicted_self_readings
-
-        read = [f"I gave {metric.replace('_', ' ')} as {claimed}; it reads "
-                + (f"{value * 100:.0f}%." if "%" in claimed else f"{value:g}.")
-                for metric, claimed, value in contradicted_self_readings(text)]
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat.self_metrics", exc, severity="info", action="appended the general correction")
-        read = []
-    return " ".join(read) or "I quoted a figure about my own machinery that I did not read off any instrument."
+            the_record_says(f"A fresh {evidence.channel} reading reached this turn: {evidence.observation}")
+    carry_the_record_to_the_next_turn()
+    return text
 
 
 _LIGHTWEIGHT_LIVE_STATE_OR_RECALL_RE = re.compile(

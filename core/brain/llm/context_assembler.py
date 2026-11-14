@@ -1224,7 +1224,7 @@ class ContextAssembler(_BuildsThePromptBlocks):
             cognitive_metrics = (
                 f"## STATE\n"
                 f"Mood: {ContextAssembler._self_state_number(affect.valence, low=-1.0, high=1.0, signed=True)} | "
-                f"Energy: {ContextAssembler._self_state_number(affect.arousal, low=0.0, high=1.0)} | "
+                f"Arousal: {ContextAssembler._self_state_number(affect.arousal, low=0.0, high=1.0)} | "
                 f"Curiosity: {ContextAssembler._self_state_number(affect.curiosity, low=0.0, high=1.0)}\n\n"
             )
         if system_failure and not black_box_steering:

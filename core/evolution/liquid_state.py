@@ -92,5 +92,6 @@ class LiquidState:
 
     def get_summary(self) -> str:
         """Returns a text summary for the context builder."""
-        return f"Current Mood: {self.get_mood()} (Energy: {self.current.energy:.2f}, Focus: {self.current.focus:.2f})"
+        return (f"Current Mood: {self.get_mood()} (substrate energy: {self.current.energy:.2f}, "
+                f"substrate focus: {self.current.focus:.2f})")
 

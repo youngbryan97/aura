@@ -41,11 +41,13 @@ def test_the_re_ask_uses_that_test_rather_than_one_check():
     assert "not ledger.contradicted_claims(revised_text)" not in reanswer
 
 
-def test_a_correction_is_still_offered_when_only_a_specification_was_wrong():
-    """With no capability claims, the fallback used to render an empty note."""
+def test_a_revision_that_still_contradicts_ends_in_no_note():
+    """With no capability claims, the fallback used to render an empty note; then a bracketed one in her voice. A
+    revision that did not settle it now ends with what the measurements leave (Bryan, 14 November 2026)."""
     reanswer = re.search(
         r"async def _reanswer_when_the_runtime_contradicts_her.*?\n\n\ndef ",
         SOURCE,
         re.S,
     ).group(0)
-    assert "if not corrections:" in reanswer
+    assert "_what_the_measurements_leave(" in reanswer
+    assert "Correcting myself" not in reanswer

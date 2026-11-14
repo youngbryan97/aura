@@ -680,7 +680,8 @@ class ActionExecutor:
             affect = ServiceContainer.get("affect_engine", default=None)
             if affect:
                 status = affect.get_status()
-                parts.append(f"Mood: {status.get('mood')} | Energy: {status.get('energy')}%")
+                # The affect engine's "energy" is its arousal, scaled to 100.
+                parts.append(f"Mood: {status.get('mood')} | Arousal: {status.get('energy')}%")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_react_degradation(e, action="continued self-reflection without affect status")
             logger.debug("ReAct: Self-reflection (affect) failed: %s", e)

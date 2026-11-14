@@ -56,7 +56,7 @@ import logging
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 
 from core.self.denial_scope import complement_names_something_else, denied_bounds
 
@@ -909,6 +909,45 @@ def self_reading_mentions(reply: str) -> list[tuple[str, str, float, bool]]:
     Reading the same instrument in both places is what stops that.
     """
 
+    return [(m.metric, m.claimed, m.value, m.agrees) for m in _mentions_of_her_readings(reply)]
+
+
+class _Mention(NamedTuple):
+    metric: str
+    claimed: str
+    value: float
+    agrees: bool
+    #: Where the figure sits in the reply: its digits and any percent sign.
+    figure: tuple[int, int]
+    percent: bool
+    decimals: int
+    scale: float
+
+
+def _agrees(value: float, claimed: float, scale: float, decimals: int) -> bool:
+    return round(float(value) * scale, decimals) == round(claimed, decimals)
+
+
+def _instruments_a_name_can_mean(alias: str, metric: str, measured: dict[str, float]) -> list[tuple[str, float]]:
+    """The instrument ``alias`` names, then every other one whose name ends in it.
+
+    LIVE 13 November 2026, 20:06: her context read "Current Mood: TIRED
+    (substrate energy: 0.00 ...)" and she said "My mood reads tired right now
+    (energy at 0%, curiosity at its ceiling)". The bare word matched the soma
+    reserve, which read 0.678, and her faithful report was served with
+    "[Correcting myself from my own instruments: I gave energy as 0%; it reads
+    65%.]". A bare name may mean any instrument published under it.
+    """
+    meant = [(metric, measured[metric])]
+    for other, value in measured.items():
+        if other == metric or not isinstance(value, (int, float)):
+            continue
+        if any(name != alias and name.endswith(" " + alias) for name in _reading_aliases(other)):
+            meant.append((other, value))
+    return meant
+
+
+def _mentions_of_her_readings(reply: str) -> list[_Mention]:
     text = str(reply or "")
     if not text.strip():
         return []
@@ -916,7 +955,7 @@ def self_reading_mentions(reply: str) -> list[tuple[str, str, float, bool]]:
     if not measured:
         return []
 
-    found: list[tuple[str, str, float, bool]] = []
+    found: list[_Mention] = []
     seen: set[str] = set()
     # Longest alias first, and a span consumed by one alias is closed to the
     # rest. Without it a short name shadows every compound built on it:
@@ -972,16 +1011,37 @@ def self_reading_mentions(reply: str) -> list[tuple[str, str, float, bool]]:
                 if _claimed_as_fraction(claimed, percent) is None:
                     continue
                 decimals = len(raw.split(".")[1]) if "." in raw else 0
-                scale = 100.0 if percent else 1.0
-                agrees = round(float(value) * scale, decimals) == round(claimed, decimals)
-                key = f"{metric}:{raw}:{percent}"
+                # "65" for a 0-1 instrument is a percentage written without its sign.
+                scale = 100.0 if percent or claimed > 1.0 else 1.0
+                meant = _instruments_a_name_can_mean(alias, metric, measured)
+                agreeing = [(name, read) for name, read in meant if _agrees(read, claimed, scale, decimals)]
+                said_of, reading = agreeing[0] if agreeing else (metric, value)
+                key = f"{said_of}:{raw}:{percent}"
                 if key in seen:
                     continue
                 seen.add(key)
-                found.append(
-                    (metric, f"{raw}{'%' if percent else ''}", float(value), agrees)
-                )
+                found.append(_Mention(
+                    said_of, f"{raw}{'%' if percent else ''}", float(reading), bool(agreeing),
+                    (match.start(1), match.end(2) if percent else match.end(1)), percent, decimals, scale,
+                ))
     return found
+
+
+def with_her_readings_in_place(reply: str) -> tuple[str, list[tuple[str, str, float]]]:
+    """``reply`` with each figure its instrument contradicts replaced by the reading, at the precision she used.
+
+    Bryan, 14 November 2026, of a bracketed "[Correcting myself from my own
+    instruments: ...]" under her reply: "ideally just make the correction vs
+    putting it in a note". Only the figure changes; every other word is hers.
+    Returns the text and ``(metric, claimed, reading)`` for each figure changed.
+    """
+    text = str(reply or "")
+    wrong = [m for m in _mentions_of_her_readings(text) if not m.agrees]
+    for mention in sorted(wrong, key=lambda m: m.figure[0], reverse=True):
+        start, end = mention.figure
+        figure = f"{mention.value * mention.scale:.{mention.decimals}f}" + ("%" if mention.percent else "")
+        text = text[:start] + figure + text[end:]
+    return text, [(m.metric, m.claimed, m.value) for m in wrong]
 
 
 def reports_measured_self_state(reply: str) -> bool:

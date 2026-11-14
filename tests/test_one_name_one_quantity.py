@@ -59,14 +59,44 @@ def test_the_substrate_summary_names_its_organ():
 
 
 def test_no_renderer_emits_a_bare_energy_label():
-    """The collision is a naming fact, so it is checked on the source."""
-    for relative in (
-        "core/consciousness/liquid_substrate.py",
-        "interface/routes/chat_protected_prompt.py",
-    ):
-        text = _read(relative)
+    """The collision is a naming fact, so it is checked on the source.
+
+    14 November 2026: five renderers still printed "Energy" for arousal, the
+    field and the homeostatic budget, beside the soma reserve the guard calls
+    energy. Every module her prompt is built from is swept, not a list."""
+    root = Path(__file__).resolve().parents[1]
+    bare = re.compile(r"""(?:^|["( |])Energy: \{""")
+    for module in sorted((*root.joinpath("core").rglob("*.py"), *root.joinpath("interface").rglob("*.py"))):
+        text = module.read_text(encoding="utf-8")
+        relative = str(module.relative_to(root))
         assert '_compact_snapshot_line("Energy"' not in text, relative
-        assert "(Energy: {" not in text, relative
+        assert not bare.search(text), relative
+
+
+def test_a_bare_name_agrees_with_any_instrument_published_under_it(monkeypatch):
+    """LIVE 13 November 2026, 20:06: shown "Current Mood: TIRED (substrate
+    energy: 0.00 ...)", she said "My mood reads tired right now (energy at 0%)",
+    and the reserve's 0.678 was set against it as a correction."""
+    import core.self.capability_ledger as cl
+
+    monkeypatch.setattr(cl, "measured_self_metrics", lambda: {"energy": 0.678, "substrate_energy": 0.003})
+    said = "My mood reads tired right now (energy at 0%, curiosity at its ceiling)."
+
+    assert cl.contradicted_self_readings(said) == []
+    assert cl.with_her_readings_in_place(said) == (said, [])
+
+
+def test_a_figure_no_instrument_supports_is_corrected_where_it_stands(monkeypatch):
+    """Bryan, 14 November 2026: "ideally just make the correction vs putting it in a note"."""
+    import core.self.capability_ledger as cl
+
+    monkeypatch.setattr(cl, "measured_self_metrics", lambda: {"memory_pressure": 0.717, "energy": 0.678})
+    said = "Memory pressure is 37% and energy is 0.2 now, which feels about right."
+
+    corrected, figures = cl.with_her_readings_in_place(said)
+
+    assert corrected == "Memory pressure is 72% and energy is 0.7 now, which feels about right."
+    assert sorted(metric for metric, _claimed, _value in figures) == ["energy", "memory_pressure"]
 
 
 def test_the_registry_names_the_field_quantities_separately():
@@ -120,7 +150,14 @@ def test_both_quantities_are_checkable_against_their_own_owner():
     with mock.patch.object(cl, "measured_self_metrics", lambda: dict(measured)):
         assert cl.contradicted_self_readings("My energy is 0.647.") == []
         assert cl.contradicted_self_readings("Substrate energy is 0.14.") == []
-        wrong = cl.contradicted_self_readings("My energy is 0.14.")
+        # A qualified name is held to its own organ.
+        wrong = cl.contradicted_self_readings("Substrate energy is 0.647.")
+        assert [metric for metric, _c, _v in wrong] == ["substrate_energy"]
+        # The bare word may mean either (13 November 2026, 20:06: her mood's
+        # "substrate energy: 0.00" said back as "energy at 0%"), so it is wrong
+        # only when neither reads it.
+        assert cl.contradicted_self_readings("My energy is 0.14.") == []
+        wrong = cl.contradicted_self_readings("My energy is 0.30.")
         assert [metric for metric, _c, _v in wrong] == ["energy"]
 
 
@@ -148,14 +185,32 @@ def test_her_drives_are_readings_a_reply_is_held_to(monkeypatch):
     assert [metric for metric, _claimed, _value in cl.contradicted_self_readings(said)] == ["curiosity"]
 
 
-def test_a_served_stale_drive_figure_is_corrected_with_its_reading(monkeypatch):
-    """LIVE 13 November 2026, 15:14: her re-answer was refused twice for reading back an earlier answer, her first
-    draft was served, and its "Curiosity is at 12%" (reading 0.218) was corrected with a sentence naming neither."""
+@pytest.mark.asyncio
+async def test_a_served_stale_drive_figure_is_corrected_where_it_stands(monkeypatch):
+    """LIVE 13 November 2026, 15:14: "Curiosity is at 12%" (reading 0.218) was served with a sentence naming neither;
+    by evening it had become a bracketed note in her voice. Bryan, 14 November: "just make the correction"."""
     import core.self.capability_ledger as cl
-    from interface.routes.chat_desktop_mode import _what_my_instruments_read
+    from interface.routes import chat
 
+    class _Ledger:
+        @staticmethod
+        def contradicted_claims(_text):
+            return []
+
+    async def _asked_again(*_args, **_kwargs):
+        raise AssertionError("a figure the instrument settles needed a second generation")
+
+    monkeypatch.setattr(cl, "get_capability_ledger", lambda: _Ledger())
     monkeypatch.setattr(cl, "measured_self_metrics", lambda: {"curiosity": 0.218, "frustration": 0.09})
+    monkeypatch.setattr(chat, "_run_cognitive_engine_chat_turn", _asked_again)
     said = "But right now, the drives are flat. Curiosity is at 12%, and everything else is sitting still."
-    assert _what_my_instruments_read(said) == "I gave curiosity as 12%; it reads 22%."
-    monkeypatch.setattr(cl, "measured_self_metrics", lambda: {})
-    assert "did not read off any instrument" in _what_my_instruments_read(said)
+
+    served = await chat._reanswer_when_the_runtime_contradicts_her(said, user_message="How are your drives?")
+
+    assert served == "But right now, the drives are flat. Curiosity is at 22%, and everything else is sitting still."
+
+
+def test_nothing_is_written_into_her_reply_in_her_voice():
+    source = _read("interface/routes/chat_desktop_mode.py")
+    assert "Correcting myself" not in source
+    assert "I need to correct that" not in source
