@@ -1364,6 +1364,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Her own find_in_source failed on "(?i)quantum error correction|qec\b":
   she writes Python's regex dialect and the tool ran git grep -E, for which
   an inline flag is fatal. It searches Perl-compatible patterns now.
+  14 November. "No endpoints matched routing plan for tier 'tertiary'" came
+  at warning 115 times on 13 and 14 November and never said which lane was
+  out. To choose its level it read every lane through the admission check,
+  which hands an open circuit past its cooldown its one half-open probe, so
+  each time it fired a log line held the probe for 30 s. It reads the lanes
+  without admitting them now and names each one out, its circuit and its
+  last failure (30dde2bb0); the cause of the tertiary misses is to be read
+  from that line on her next run. "[Correcting myself from my own
+  instruments: I gave energy as 0%; it reads 65%.]" under her reply (Bryan:
+  "just make the correction vs putting it in a note") was wrong as well as
+  in her voice: shown "substrate energy: 0.00" in her mood, she said "energy
+  at 0%", and the guard read the bare word as the soma reserve. A bare name
+  now agrees with any instrument published under it, five renderers that
+  printed "Energy" for other quantities say what they show, and a figure an
+  instrument does contradict is corrected where it stands, with no second
+  generation and no note (c80dbc6c8). Her boot SIGKILLed the full suite's
+  pytest in another worktree as an orphan of hers, because its arguments
+  named tests/test_mlx_worker_*.py; the reaper reads the program a process
+  runs now (71f459264).
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
