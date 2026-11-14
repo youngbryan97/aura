@@ -4035,6 +4035,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and left the companion panel on screen over it (the window server listed
   both), and reopening the app with the panel up did not bring the window
   forward; the mechanism is not yet read.
+  Read the same afternoon. A guard on the panel coming back (5957d293f)
+  did not stop it, so the launcher was given a log of its own surface
+  changes (729aea0d2, ~/.aura/logs/launcher-surfaces.log), and the next
+  reproduction showed the cause: at 20:25:16 the reopen fronted her window
+  and ordered the chat out, and in the same second an "open" from the
+  bubble, put away 24 s earlier, showed the chat again. The bubble's page
+  runs what was queued when the app is next active. An "open" is now taken
+  only from a bubble on screen (1f9dd4ed5). On that build the stale open
+  arrived at 20:31:04, was logged and ignored, and FULL left her window
+  alone on screen. Reopening the app from the command line with the chat
+  up and the app active reaches the launcher not at all, which is not the
+  Dock's behaviour and was not the defect. Still open here: an unprompted
+  remark and its ×.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
