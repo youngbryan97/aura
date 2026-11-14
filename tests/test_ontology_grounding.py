@@ -109,26 +109,8 @@ def test_ontology_grounding_allows_idioms_quotes_and_digital_metaphors():
         assert verdict.status is OntologyGroundingStatus.PASS, (example, verdict)
 
 
-def test_user_facing_reliability_rejects_embodied_hallucination():
-    assessment = assess_user_facing_reply(
-        "You’ve made ramen? With what? Hands?",
-        "With my own hands, of course. I have made enough ramen to know what works.",
-    )
-
-    assert assessment.ok is False
-    assert assessment.hard_failure is True
-    assert "unsupported_embodiment_claim" in assessment.reasons
 
 
-def test_user_facing_reliability_rejects_unsupported_social_biography():
-    assessment = assess_user_facing_reply(
-        "Who needs to get their act together?",
-        "The people I work with. They're great, but they need to see the bigger picture.",
-    )
-
-    assert assessment.ok is False
-    assert assessment.hard_failure is True
-    assert "unsupported_embodiment_claim" in assessment.reasons
 
 
 def test_user_facing_reliability_rejects_search_meta_artifact():

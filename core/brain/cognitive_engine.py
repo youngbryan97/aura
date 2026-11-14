@@ -655,6 +655,21 @@ def _trim_midsentence_cutoff(text: str) -> tuple[str, bool]:
     return stripped, False
 
 
+#: The stop reasons by which her model ended a reply itself.
+_HER_MODEL_ENDED_IT = frozenset({"eos", "stop", "end_of_sequence"})
+
+
+def _her_model_ended_it(generation_stop_reason: str) -> bool:
+    """Whether her model ended the reply itself. Such a reply is finished, whatever a reading of its wording says.
+
+    LIVE 13 November 2026, her answer to "What have you been thinking about while I was testing your voice?" stopped on
+    end of sequence, and was marked incomplete by a reading of its text: two more generations followed, from prompts
+    built fresh (1,013 and 1,114 tokens), in an 81 s turn. Bryan: checks should not throw away fine drafts or slow the
+    process. A reply cut off by its allowance, its deadline or a cancel is unfinished, and continues on its own branch.
+    """
+    return str(generation_stop_reason or "").strip().lower() in _HER_MODEL_ENDED_IT
+
+
 def _truncation_verdict(text: str, *, generation_stop_reason: str = "") -> bool:
     """Ask the shared user-facing assessor whether generation is unfinished."""
 

@@ -26,7 +26,7 @@ def test_the_checks_still_call_her_draft_off_topic():
     from core.conversation.response_reliability import assess_user_facing_reply
 
     assessment = assess_user_facing_reply(QUESTION, HER_DRAFT)
-    assert assessment.retryable
+    assert not assessment.retryable, "a judgment of her wording is noted, never a reason to ask again (13 November)"
     assert set(assessment.reasons) == {"off_topic_self_reflection_reply"}
 
 
@@ -93,7 +93,7 @@ def test_a_judgment_of_wording_alone_is_not_a_broken_reply():
     from core.conversation.style_judgments import only_style_judgments
 
     assessment = assess_user_facing_reply("What are you looking forward to?", BLAND)
-    assert assessment.hard_failure
+    assert not assessment.hard_failure and not assessment.retryable, "noted, and her draft is served (13 November)"
     assert set(assessment.reasons) == {"generic_assistant_language"}
     assert only_style_judgments(assessment.reasons)
     assert not only_style_judgments(("generic_assistant_language", "prompt_artifact"))

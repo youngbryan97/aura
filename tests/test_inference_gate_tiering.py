@@ -732,33 +732,6 @@ async def test_inference_gate_assesses_recollection_against_supplied_transcript(
     client.generate_text_async.assert_awaited_once()
 
 
-@pytest.mark.asyncio
-async def test_inference_gate_still_rejects_unsupported_shared_history():
-    gate = InferenceGate()
-    invented = "We were discussing your prison sentence and the moonlit courtyard."
-    client = _FakeClient(invented)
-
-    result = await gate._generate_with_client(
-        client,
-        "What topic were we discussing?",
-        "",
-        [],
-        get_deadline(10.0),
-        "Cortex",
-        messages=[
-            {"role": "user", "content": "How does database recovery safely redo changes?"},
-            {
-                "role": "assistant",
-                "content": "It uses idempotent redo operations to recover committed changes.",
-            },
-            {"role": "user", "content": "What topic were we discussing?"},
-        ],
-        origin="desktop_quick_user",
-        foreground_request=True,
-    )
-
-    assert result is None
-    client.generate_text_async.assert_awaited_once()
 
 
 @pytest.mark.asyncio

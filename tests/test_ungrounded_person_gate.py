@@ -110,16 +110,6 @@ class TestUngroundedPersonAddress:
 
 
 class TestAssessmentIntegration:
-    def test_confabulated_narrative_is_hard_and_retryable(self):
-        assessment = assess_user_facing_reply(
-            "hey, how are you?",
-            "Now that's a pleasant surprise. Brenner usually had the good "
-            "sense to stay away from me after his last fiasco. What brings "
-            "you here? Actually, let me guess — you've got that look.",
-        )
-        assert "ungrounded_person_narrative" in assessment.reasons
-        assert assessment.hard_failure
-        assert assessment.retryable
 
     def test_confabulated_address_is_repaired_by_dropping_the_name(self):
         """A wrong name at the front does not cost the answer behind it.

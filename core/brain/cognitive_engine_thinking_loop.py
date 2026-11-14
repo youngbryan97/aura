@@ -513,6 +513,7 @@ class _RunsTheThinkingLoop:
         from .cognitive_engine import (
             _COGNITIVE_ENGINE_RECOVERABLE_ERRORS,
             Thought,
+            _her_model_ended_it,
             _truncation_verdict,
             get_container,
             logger,
@@ -594,7 +595,7 @@ class _RunsTheThinkingLoop:
         generation_failure_class = str(
             state.response_modifiers.get("generation_failure_class") or ""
         ).lower()
-        reply_generation_incomplete = bool(
+        reply_generation_incomplete = not _her_model_ended_it(generation_stop_reason) and bool(
             semantic_completion_incomplete
             or set(surface_reasons)
             & {
@@ -773,6 +774,7 @@ class _RunsTheThinkingLoop:
         state: AuraState,
     ) -> dict[str, Any]:
         from .cognitive_engine import (
+            _her_model_ended_it,
             _truncation_verdict,
             logger,
             normalize_live_mind_surface_control_receipt,
@@ -824,7 +826,7 @@ class _RunsTheThinkingLoop:
         generation_failure_class = str(
             generation_metadata.get("generation_failure_class") or ""
         ).lower()
-        reply_generation_incomplete = bool(
+        reply_generation_incomplete = not _her_model_ended_it(generation_stop_reason) and bool(
             surface_control_receipt.get(
                 "semantic_completion_incomplete", False
             )

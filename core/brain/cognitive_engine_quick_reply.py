@@ -632,6 +632,7 @@ class _AnswersTheDesktopDirectly:
         text: Any,
     ) -> tuple[Any, bool]:
         from .cognitive_engine import (
+            _her_model_ended_it,
             _truncation_verdict,
             record_degradation,
         )
@@ -639,7 +640,7 @@ class _AnswersTheDesktopDirectly:
         semantic_completion_incomplete = bool(
             surface_receipt.get("semantic_completion_incomplete", False)
         )
-        reply_generation_incomplete = bool(
+        reply_generation_incomplete = not _her_model_ended_it(generation_stop_reason) and bool(
             semantic_completion_incomplete
             or "truncated_tail" in surface_reasons
             or generation_stop_reason
