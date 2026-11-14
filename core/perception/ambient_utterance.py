@@ -196,6 +196,14 @@ _ORIGIN = "ambient_remark"
 #: The most of a remark the bubble shows.
 _REMARK_CHARS = 400
 
+#: Her remark is worked out in its own generation: nothing upstream has thought about the screen. Named, her model's
+#: private channel is opened and bounded by the decoder, and a generation that ends mid-thought shows nothing. Unnamed,
+#: the channel was the template's default, unbounded, and all of it was handed over as her remark. LIVE 14 November
+#: 2026, 14:56, her first remark from her cortex in the bubble: "The user is asking what's on their screen. I have the
+#: OCR/screen capture data from the tool result. Let me parse what's visible" (core/brain/llm/chat_format.py,
+#: thinking_enabled_for_generation).
+_HER_MODE = "reflective"
+
 
 async def _on_her_cortex(messages: list[dict[str, Any]]) -> str:
     """Her cortex's next turn on these messages, admitted as her goal pass is; "" when her model is not free for it.
@@ -237,7 +245,7 @@ async def _on_her_cortex(messages: list[dict[str, Any]]) -> str:
         return await asyncio.wait_for(
             client.generate_text_async(
                 "", messages=messages, system_prompt="", origin=_ORIGIN, is_background=True,
-                max_tokens=A_CLOSED_QUESTIONS_FLOOR, timeout=seconds),
+                cognitive_mode=_HER_MODE, max_tokens=A_CLOSED_QUESTIONS_FLOOR, timeout=seconds),
             timeout=seconds,
         ) or ""
     finally:

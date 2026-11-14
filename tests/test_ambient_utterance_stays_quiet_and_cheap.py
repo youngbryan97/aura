@@ -98,6 +98,10 @@ def test_the_ambient_judgment_is_background_work_under_the_lanes_lease(router):
 
     assert router.kwargs.get("is_background") is True
     assert router.kwargs.get("origin") == "ambient_remark"
+    from core.brain.llm.chat_format import thinking_enabled_for_request
+
+    assert thinking_enabled_for_request("Aura-Qwen3.8-27B", cognitive_mode=router.kwargs.get("cognitive_mode")) is True, (
+        "her private channel opened by name, so the decoder bounds it and its working is never handed over as a remark")
     assert len(router.leases) == 1 and not router.leases[0].get("foreground"), "a background lease"
     assert router.released == [7], "the lease is given back"
     assert "mode" not in router.kwargs
