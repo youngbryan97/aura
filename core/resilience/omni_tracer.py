@@ -137,7 +137,10 @@ def _get_system_context() -> Dict[str, Any]:
             "proc_mem_mb": proc.memory_info().rss / (1024 * 1024),
             "open_fds": proc.num_fds() if hasattr(proc, "num_fds") else 0,
         }
-    except OSError:
+    # Read inside a logging handler: whatever a reading of the process fails with, the trace keeps the pid and the
+    # code that logged goes on. Only OSError was caught, so a psutil.Process that a test had stood in for made a
+    # worker spawn's own log line raise AttributeError into the spawn (Q09, 13 November 2026).
+    except (OSError, AttributeError, TypeError, ValueError, psutil.Error):
         return {"pid": os.getpid()}
 
 def _omni_writer_loop():

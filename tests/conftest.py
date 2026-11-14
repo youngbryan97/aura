@@ -965,6 +965,31 @@ def _measured_host_rates_do_not_leak(request):
 
 
 @pytest.fixture(autouse=True)
+def _mlx_default_device_does_not_leak():
+    """A test that moves MLX to the CPU puts it back.
+
+    Tests that run her runtime's boot path, and several that decode on purpose on the CPU, call
+    ``mx.set_default_device(mx.cpu)`` and never restore it, so every later test in that process ran MLX on the CPU.
+    One that loads her fast model then found "this process keeps MLX off the GPU", scored nothing, and failed in every
+    batch while passing alone (Q09, 13 November 2026). MLX is read only when a test has imported it.
+    """
+    def real(module):
+        # Tests put stand-ins for mlx.core in sys.modules; only the real module is restored.
+        has = all(callable(getattr(module, name, None)) for name in ("default_device", "set_default_device"))
+        return module if has and hasattr(module, "metal") else None
+
+    mx = real(sys.modules.get("mlx.core"))
+    before = mx.default_device() if mx is not None else None
+    yield
+    mx = mx or real(sys.modules.get("mlx.core"))
+    if mx is None:
+        return
+    natural = before if before is not None else (mx.gpu if mx.metal.is_available() else mx.cpu)
+    if mx.default_device() != natural:
+        mx.set_default_device(natural)
+
+
+@pytest.fixture(autouse=True)
 def _her_words_are_not_read_by_a_model_on_disk(monkeypatch):
     """Whether a test's answer is placed by her words cannot depend on the cache.
 
