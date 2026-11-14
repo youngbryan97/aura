@@ -102,7 +102,8 @@ def test_the_warm_encodes_the_anchors_too():
 
 
 def test_the_preflight_classifies_sight_off_the_server_loop():
-    source = Path("interface/routes/chat_preflight.py").read_text(encoding="utf-8")
+    # The sight step moved whole into chat_preflight_senses.py (the size ratchet); chat_preflight imports it.
+    source = Path("interface/routes/chat_preflight_senses.py").read_text(encoding="utf-8")
     assert "await asyncio.to_thread(_classify_sight, _original_user_message)" in source
 
 
