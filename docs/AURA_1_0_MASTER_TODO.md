@@ -3719,7 +3719,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   (her four wordings 0.759 to 0.965 against a measured line of 0.756; black
   holes against neutron stars 0.651), and her decoder does not continue any
   run of her earlier answer to the same question in the conversation in
-  front of her.
+  front of her. Live at 19:19 neither fired: both judges asked the shared
+  embedding runtime, which in her app held no model, so identical words
+  decided (b0418b037 reads the encoder her history reach uses). At 20:05,
+  asked "So what have you been up to since you woke up?", her worker logged
+  "Asked again: her 1 earlier answer(s) to this are not read back", no draft
+  was refused, and her reply shared 6 of its 189 eight-word runs with the
+  19:20 answer; it said "53 pieces of work completed before I woke", and its
+  stale energy figure came back corrected with the reading.
   The 30 s "reconcile" was a second answer: her first draft gave her energy
   as 6% while it read 0.697, and the re-answer is timed in that stage. The
   turn ran three generations of about 20 s each.
@@ -5341,7 +5348,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   test_no_module_resolves_the_live_root_for_itself_any_more`.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
-- [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.
+- [x] Q11 Validate installation/update/uninstall and ordinary desktop launch.
+  CLOSED 2026-11-13, each part run on this Mac
+  (docs/evidence/q11-install-update-uninstall-launch-2026-11-13.md). Clean
+  install from `git archive` into a new virtualenv, imports and collection:
+  passed in 71 s. The app built, signed and installed into a sandbox in 81 s,
+  fresh at HEAD. Update: the release train took a checkout from c23e25c3e to
+  f83c7b257 in 17 s, compiled clean, and rolled it back. Uninstall did not
+  exist; tools/uninstall_aura.py moves the app and every com.aura.* launch
+  agent (booted out first) to the Trash, keeps her state unless asked, and
+  refuses while she runs, shown on the real sandbox bundle. Ordinary launch:
+  /Applications/Aura.app rebuilt from b0418b037 and opened at 20:03; healthy
+  in 63 s, her window showing her chat, a typed turn answered in 60 s.
 - [ ] Q12 Publish reproducible evidence, release notes, known limitations,
   supported capabilities, and recovery instructions.
 - [ ] Q13 Final 1.0 adjudication: all required child items closed with current

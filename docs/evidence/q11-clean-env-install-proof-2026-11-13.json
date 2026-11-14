@@ -1,0 +1,56 @@
+{
+  "passed": true,
+  "install_ok": true,
+  "imports_ok": true,
+  "collect_ok": true,
+  "checkout": "(removed)",
+  "steps": [
+    {
+      "step": "git_archive_extract",
+      "rc": 0,
+      "files": 11688
+    },
+    {
+      "step": "venv",
+      "cmd": "/Users/bryan/.aura/live-source/.venv/bin/python -m venv /var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura_clean_env_g77uuwk2/checkout/.venv",
+      "rc": 0,
+      "secs": 2.5,
+      "tail": ""
+    },
+    {
+      "step": "pip_upgrade",
+      "cmd": "/var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura_clean_env_g77uuwk2/checkout/.venv/bin/pip install -U pip wheel",
+      "rc": 0,
+      "secs": 2.5,
+      "tail": "a (4.6 kB)\nCollecting wheel\n  Using cached wheel-0.48.0-py3-none-any.whl.metadata (2.3 kB)\nCollecting packaging>=24.0 (from wheel)\n  Using cached packaging-26.3-py3-none-any.whl.metadata (3.5 kB)\nUsing cached pip-26.3-py3-none-any.whl (2.0 MB)\nUsing cached wheel-0.48.0-py3-none-any.whl (33 kB)\nUsing cached packaging-26.3-py3-none-any.whl (129 kB)\nInstalling collected packages: pip, packaging, wheel\n  Attempting uninstall: pip\n    Found existing installation: pip 26.0\n    Uninstalling pip-26.0:\n      Successfully uninstalled pip-26.0\n\nSuccessfully installed packaging-26.3 pip-26.3 wheel-0.48.0\n"
+    },
+    {
+      "step": "pip_core",
+      "cmd": "/var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura_clean_env_g77uuwk2/checkout/.venv/bin/pip install -r requirements/core.txt",
+      "rc": 0,
+      "secs": 13.4,
+      "tail": "antic-2.14.3 pydantic-core-2.50.4 pydantic-settings-2.16.3 pyobjc-core-13.0 pyobjc-framework-ApplicationServices-13.0 pyobjc-framework-Cocoa-13.0 pyobjc-framework-CoreText-13.0 pyobjc-framework-Quartz-13.0 pyobjc-framework-ScriptingBridge-13.0 python-dateutil-2.9.0.post0 python-dotenv-1.2.4 python-multipart-0.0.33 redis-8.1.0 requests-2.34.2 six-1.17.0 sqlalchemy-2.1.8 starlette-1.10.0 structlog-26.1.0 truststore-0.10.5 typing-extensions-4.16.0 typing-inspection-0.4.5 tzlocal-5.4.5 urllib3-2.8.0 uvicorn-0.54.0 uvloop-0.23.0 vine-5.1.0 watchfiles-1.3.0 wcwidth-0.9.4 websockets-17.4 yarl-1.25.1\n"
+    },
+    {
+      "step": "pip_dev",
+      "cmd": "/var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura_clean_env_g77uuwk2/checkout/.venv/bin/pip install -r requirements/dev.txt",
+      "rc": 0,
+      "secs": 21.3,
+      "tail": "0 matplotlib-inline-0.2.2 mdit-py-plugins-0.7.0 mdurl-0.1.2 memray-1.20.0 mujoco-3.10.0 mypy-2.4.1 mypy_extensions-1.2.0 nodeenv-1.12.0 numpy-2.5.4 parso-0.8.7 pathspec-1.1.1 pexpect-4.9.0 platformdirs-4.14.5 pluggy-1.7.0 pre-commit-4.7.0 ptyprocess-0.7.0 pure-eval-0.2.4 pygments-2.21.0 pyinstrument-5.1.3 pyopengl-3.1.10 pytest-9.2.0 pytest-asyncio-1.5.0 pytest-cov-7.1.0 pytest-randomly-3.16.0 pytest-xdist-3.8.0 python-discovery-1.9.5 pytokens-0.4.1 rich-15.0.0 ruff-0.17.5 stack_data-0.6.3 textual-8.2.8 traitlets-5.16.1 types-PyYAML-6.0.12.20261113 virtualenv-21.15.6 watchdog-7.1.0 zipp-4.1.2\n"
+    },
+    {
+      "step": "skeleton_imports",
+      "cmd": "/var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura_clean_env_g77uuwk2/checkout/.venv/bin/python -c import importlib,sys\nimportlib.import_module('core.config')\nimportlib.import_module('core.container')\nimportlib.import_module('core.runtime.atomic_writer')\nimportlib.import_module('core.runtime.thread_inspector')\nimportlib.import_module('core.runtime.network_gateway')\nimportlib.import_module('core.conversation.self_claim_verifier')\nimportlib.import_module('core.runtime.desktop_objective_intent')\nimportlib.import_module('interface.auth')\nprint('IMPORTS_OK')\n",
+      "rc": 0,
+      "secs": 2.4,
+      "tail": "IMPORTS_OK\na_clean_env_g77uuwk2/checkout/models/Ternary-Bonsai-2-27B-mlx-2bit [raised at unknown] \u2192 answered the local path rather than a repository id, so serving cannot turn into a download\nFAULT RUNTIME-MODEL_REGISTRY [MARGINAL] in model_registry: FileNotFoundError: Ternary-Bonsai-2-27B-mlx-2bit is not at /private/var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura | error=FileNotFoundError: Ternary-Bonsai-2-27B-mlx-2bit is not at /private/var/folders/4j/r61gf1hj119fpbtv\n[DEGRADATION] model_registry (warning): FileNotFoundError: Qwen2.5-1.5B-Instruct-4bit is not at /private/var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura_clean_env_g77uuwk2/checkout/models/Qwen2.5-1.5B-Instruct-4bit [raised at unknown] \u2192 answered the local path rather than a repository id, so serving cannot turn into a download\nFAULT RUNTIME-MODEL_REGISTRY [MARGINAL] in model_registry: FileNotFoundError: Qwen2.5-1.5B-Instruct-4bit is not at /private/var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura_cl | error=FileNotFoundError: Qwen2.5-1.5B-Instruct-4bit is not at /private/var/folders/4j/r61gf1hj119fpbtvykg\n2026-11-13 19:31:10,582 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).\n"
+    },
+    {
+      "step": "pytest_collect",
+      "cmd": "/var/folders/4j/r61gf1hj119fpbtvykg46b2r0000gn/T/aura_clean_env_g77uuwk2/checkout/.venv/bin/python -m pytest --collect-only -q tests/test_self_claim_verifier.py",
+      "rc": 0,
+      "secs": 7.4,
+      "tail": "_shared_desktop_objective_detector_covers_general_document_tasks\ntests/test_desktop_objective_intent.py::test_screen_questions_survive_missing_apostrophes_and_plain_nouns\ntests/test_desktop_objective_intent.py::test_an_action_the_person_does_is_not_one_she_was_asked_for\ntests/test_desktop_objective_intent.py::test_everyday_english_app_names_do_not_route_a_turn_to_desktop_control\ntests/test_desktop_objective_intent.py::test_talking_about_a_screen_is_not_asking_to_read_one\ntests/test_desktop_objective_intent.py::test_screen_observation_requests_route_to_desktop_body\n\n73 tests collected in 2.45s\n"
+    }
+  ]
+}
