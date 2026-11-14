@@ -1359,6 +1359,28 @@ def _no_test_moves_the_real_pointer(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_test_reads_the_real_window_list(request, monkeypatch):
+    """A test's screen-capture admission sees no real windows unless it is about the real desktop.
+
+    The admission reads the visible browsers' window titles (core/security/screen_capture_policy.py,
+    `_unless_a_browser_window_is_private`); left to the real Mac, a test's verdict would hang on what happened to be
+    open on the desktop of whoever ran it.
+    """
+    from tests import host_actuation_guard as guard
+
+    if any(request.node.get_closest_marker(name) for name in guard.ALLOWED_MARKERS):
+        yield
+        return
+    try:
+        from core.security import screen_capture_policy
+    except ImportError:
+        yield
+        return
+    monkeypatch.setattr(screen_capture_policy, "_visible_windows_and_foreground", lambda: ([], 0))
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _no_test_opens_an_app_on_the_real_desktop(request, monkeypatch):
     """A test never launches an app, opens a URL, or brings a window forward.
 

@@ -394,6 +394,128 @@ def _python_macos_capture_admission() -> ScreenCaptureAdmission | None:
     )
 
 
+#: How long the accessibility read of a browser's window titles may take before the read is refused for want of it.
+_BROWSER_TITLES_TIMEOUT_S = 2.0
+
+_BROWSER_TITLES_SCRIPT = """
+on run argv
+    set out to ""
+    tell application "System Events"
+        repeat with proc in (every process whose name is (item 1 of argv))
+            repeat with w in (every window of proc)
+                try
+                    set p to position of w
+                    set z to size of w
+                    set out to out & (name of w) & tab & (item 1 of p) & "," & (item 2 of p) & "," & (item 1 of z) & "," & (item 2 of z) & linefeed
+                end try
+            end repeat
+        end repeat
+    end tell
+    return out
+end run
+"""
+
+
+def _accessibility_window_titles(app: str) -> list[tuple[str, tuple[int, int, int, int]]] | None:
+    """Each window of ``app`` as accessibility names it, with its frame; None when that could not be read."""
+    import subprocess
+
+    try:
+        done = subprocess.run(["/usr/bin/osascript", "-e", _BROWSER_TITLES_SCRIPT, app], capture_output=True,
+                              text=True, timeout=_BROWSER_TITLES_TIMEOUT_S, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    windows: list[tuple[str, tuple[int, int, int, int]]] = []
+    for line in done.stdout.splitlines():
+        title, _tab, frame = line.rpartition("\t")
+        try:
+            x, y, w, h = (int(float(part)) for part in frame.split(","))
+        except ValueError:
+            continue
+        windows.append((title, (x, y, w, h)))
+    return windows
+
+
+def _window_frame(raw_window: Mapping[str, Any]) -> tuple[int, int, int, int] | None:
+    bounds = raw_window.get("kCGWindowBounds") or {}
+    try:
+        return (int(bounds["X"]), int(bounds["Y"]), int(bounds["Width"]), int(bounds["Height"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _a_visible_browser_window_is_private(
+    windows: Any,
+    *,
+    foreground_pid: int = 0,
+    titles_of: Any = _accessibility_window_titles,
+) -> ScreenCaptureAdmission | None:
+    """A refusal when a browser window on screen is private by the title its browser gives it, else None.
+
+    The window server names a browser window by its page alone. LIVE 14 November 2026, a Chrome incognito window on
+    example.com was "Example Domain" to CoreGraphics and "Example Domain - Google Chrome (Incognito)" to
+    accessibility; her resident bridge and the window inventory both admitted a full-screen read with it in front, and
+    asked what was on the screen she named it and read the screen around it. So a visible browser's windows are read by
+    their accessibility titles, matched to the windows on screen by frame, and a private one refuses the read. A
+    browser whose titles cannot be read refuses it too: an unreadable title cannot show a window is not private.
+    """
+    policy = _load_privacy_policy()
+    if policy is None or not isinstance(windows, (list, tuple)):
+        return None
+    on_screen: dict[str, list[tuple[tuple[int, int, int, int] | None, int]]] = {}
+    for raw_window in windows:
+        if not isinstance(raw_window, Mapping):
+            continue
+        try:
+            layer = int(raw_window.get("kCGWindowLayer", 0) or 0)
+            owner_pid = int(raw_window.get("kCGWindowOwnerPID", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        owner = str(raw_window.get("kCGWindowOwnerName", "") or "").strip()
+        if layer == 0 and owner.lower() in policy.private_browsing_apps:
+            on_screen.setdefault(owner, []).append((_window_frame(raw_window), owner_pid))
+    for owner, shown in on_screen.items():
+        titled = titles_of(owner)
+        if titled is None:
+            return ScreenCaptureAdmission(allowed=False, reason=ScreenCaptureDenial.BROWSER_TITLE_UNKNOWN,
+                                          authority="browser_accessibility_titles")
+        frames = {frame for frame, _pid in shown if frame is not None}
+        for title, frame in titled:
+            if frame in frames and policy.private_pattern.search(f"{owner} {title}"):
+                in_front = any(pid == foreground_pid for _frame, pid in shown) and foreground_pid > 0
+                return ScreenCaptureAdmission(
+                    allowed=False,
+                    reason=ScreenCaptureDenial.PRIVATE_FOREGROUND if in_front else ScreenCaptureDenial.PRIVATE_VISIBLE,
+                    context_known=True, authority="browser_accessibility_titles")
+    return None
+
+
+def _visible_windows_and_foreground() -> tuple[list[Any], int] | None:
+    try:
+        import Quartz
+        from AppKit import NSWorkspace
+
+        foreground = NSWorkspace.sharedWorkspace().frontmostApplication()
+        options = Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements
+        windows = Quartz.CGWindowListCopyWindowInfo(options, Quartz.kCGNullWindowID) or []
+        return list(windows), int(foreground.processIdentifier()) if foreground is not None else 0
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _unless_a_browser_window_is_private(admission: ScreenCaptureAdmission) -> ScreenCaptureAdmission:
+    if not admission.allowed:
+        return admission
+    seen = _visible_windows_and_foreground()
+    if seen is None:
+        return ScreenCaptureAdmission(allowed=False, reason=ScreenCaptureDenial.FOREGROUND_UNKNOWN,
+                                      authority="browser_accessibility_titles")
+    windows, foreground_pid = seen
+    return _a_visible_browser_window_is_private(windows, foreground_pid=foreground_pid) or admission
+
+
 def screen_recording_granted() -> bool | None:
     """Whether macOS grants her app screen recording, asked without a prompt; None when it cannot be asked."""
     if sys.platform != "darwin":
@@ -445,11 +567,11 @@ def evaluate_screen_capture_admission(
 
     resident_admission = _resident_bridge_capture_admission()
     if resident_admission is not None:
-        return resident_admission
+        return _unless_a_browser_window_is_private(resident_admission)
     if sys.platform == "darwin":
         visible_windows_admission = _python_macos_capture_admission()
         if visible_windows_admission is not None:
-            return visible_windows_admission
+            return _unless_a_browser_window_is_private(visible_windows_admission)
         # A full-display capture can include visible windows on every monitor.
         # If neither authority can enumerate all of them, a frontmost-only
         # probe is not strong enough to permit capture.
@@ -507,7 +629,29 @@ def evaluate_window_capture_admission(owner: str, title: str) -> ScreenCaptureAd
                 reason=ScreenCaptureDenial.SESSION_LOCKED,
                 authority="one_window",
             )
-    return _admission_from_context((owner, title), authority="one_window")
+    admission = _admission_from_context((owner, title), authority="one_window")
+    if admission.allowed and sys.platform == "darwin":
+        return _this_browser_window_is_private(owner, title) or admission
+    return admission
+
+
+def _this_browser_window_is_private(owner: str, title: str, *, titles_of: Any = None) -> ScreenCaptureAdmission | None:
+    """A refusal when ``owner`` is a browser and the window CoreGraphics calls ``title`` is private by the title its
+    browser gives it (CoreGraphics' "Example Domain" is "Example Domain - Google Chrome (Incognito)"), or when the
+    browser's titles cannot be read; else None."""
+    policy = _load_privacy_policy()
+    name = str(owner or "").strip()
+    if policy is None or name.lower() not in policy.private_browsing_apps:
+        return None
+    titled = (titles_of or _accessibility_window_titles)(name)
+    if titled is None:
+        return ScreenCaptureAdmission(allowed=False, reason=ScreenCaptureDenial.BROWSER_TITLE_UNKNOWN,
+                                      authority="browser_accessibility_titles")
+    shown = str(title or "").strip()
+    if any(given.startswith(shown) and policy.private_pattern.search(f"{name} {given}") for given, _frame in titled):
+        return ScreenCaptureAdmission(allowed=False, reason=ScreenCaptureDenial.PRIVATE_FOREGROUND, context_known=True,
+                                      authority="browser_accessibility_titles")
+    return None
 
 
 async def evaluate_window_capture_admission_async(owner: str, title: str) -> ScreenCaptureAdmission:
