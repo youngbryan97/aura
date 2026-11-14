@@ -47,6 +47,7 @@ from interface.routes.chat_common import (  # noqa: E402
     _CHAT_REQUEST_SURFACE,  # noqa: F401
     _CHAT_SESSION_ID_MAX_CHARS,
     _INTERNAL_SURFACE_CONTEXT,
+    _INTERNAL_SURFACE_HEARD_AT,
     _MAX_CONVERSATION_LOG_EXCHANGES,  # noqa: F401
     _UNSET,
     _conversation_log,  # noqa: F401
@@ -2082,6 +2083,42 @@ class _ChatPreflight:
     skipped_components: tuple[str, ...] = ()
 
 
+def _heard_at(request: Any) -> float:
+    """When this turn's words came through her microphone, or 0.0 for a turn that was not spoken.
+
+    Her voice session sets it in-process. Her server wake lane posts over loopback with the voice surface header, and
+    only a loopback post is believed: a header is something any client can send.
+    """
+    heard_at = float(_INTERNAL_SURFACE_HEARD_AT.get() or 0.0)
+    if heard_at > 0.0:
+        return heard_at
+    headers = getattr(request, "headers", None)
+    client = getattr(request, "client", None)
+    host = str(getattr(client, "host", "") or "")
+    if headers is None or host not in {"127.0.0.1", "::1", "localhost"}:
+        return 0.0
+    return time.time() if str(headers.get("X-Aura-Surface") or "").strip().lower() == "voice" else 0.0
+
+
+def _record_the_microphone_reading(words: Any, request: Any = None) -> dict[str, Any] | None:
+    """A turn that came through her microphone carries that reading, as a camera read does.
+
+    LIVE 13 November 2026 he asked aloud "can you hear me?" and she answered that her audio input was inactive and
+    his text was landing directly with her: the turn's evidence had no microphone channel in it, so the only reading
+    she had of her ears was her own guess. A typed turn records nothing here.
+    """
+    heard_at = _heard_at(request)
+    if heard_at <= 0.0:
+        return None
+    from core.conversation.turn_evidence_custody import record_turn_grounding, record_turn_sensory_evidence
+    from core.senses.turn_evidence import build_microphone_turn_evidence, sensory_evidence_grounding_block
+
+    reading = build_microphone_turn_evidence(words, source="voice_governed_turn", heard_at=heard_at)
+    record_turn_sensory_evidence(reading)
+    record_turn_grounding(sensory_evidence_grounding_block(reading))
+    return reading
+
+
 async def _run_chat_preflight_sight_how_many(_original_user_message, _turn_sensory_evidence, body):
     # Sight. "How many fingers am I holding up" is answerable only by
     # looking, now, at this resolution — the presence lane's thumbnail
@@ -2309,7 +2346,7 @@ async def _run_chat_preflight(
     _grounded = _UNSET
     _shown = _UNSET
     status = _UNSET
-    _turn_sensory_evidence = None
+    _turn_sensory_evidence = _record_the_microphone_reading(_original_user_message, request)
     _wire_user_message = str(raw_user_message or _original_user_message or "")
     _timing_started_at = time.perf_counter()
     _timing_cursor = _timing_started_at

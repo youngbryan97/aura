@@ -82,11 +82,16 @@ def still_waking() -> str:
     return str(status.get("state") or "starting")
 
 
-def the_turns_evidence() -> str:
+def the_turns_evidence(*, heard: bool = False) -> str:
     """What is so at the moment the person begins: read while they speak, so it must not depend on their words.
 
     While her runtime is still starting, that is one of the readings. Bryan, 11 November 2026: "She should say she's
     still waking up (in her words) if she still is." A reading, not a line to say; what she makes of it is hers.
+
+    ``heard`` is a turn that arrives as speech. LIVE 13 November 2026 he said "can you hear me?" aloud and she answered
+    "my audio input is currently inactive": nothing she read said the words had come through her microphone. The
+    reading is the channel's, in the same form as a camera read, and has no words in it because it is read before
+    they are recognised; the words follow it.
     """
     try:
         from core.brain.present_moment import present_moment_block
@@ -100,6 +105,11 @@ def the_turns_evidence() -> str:
         present = (present + "\n" if present else "") + (
             f"- Still starting: the conversation lane reads '{waking}', not yet serving; this turn reaches no memory "
             "search or tools.")
+    if heard:
+        from core.senses.turn_evidence import build_microphone_turn_evidence, sensory_evidence_grounding_block
+
+        microphone = sensory_evidence_grounding_block(build_microphone_turn_evidence(source="voice_live_context"))
+        present = (present + "\n" if present else "") + microphone
     if not present:
         return ""
     return f"[GROUNDING EVIDENCE FOR THIS TURN]\n{present}\n[END GROUNDING EVIDENCE FOR THIS TURN]\n\n"
@@ -177,7 +187,7 @@ class HerLiveContext:
 
                 get_task_tracker().create_task(self.open(self._exchanges), name=f"VoiceLiveContext.reopen:{self.scope}")
             return
-        self._opening = f"<|im_start|>user\n{the_turns_evidence()}"
+        self._opening = f"<|im_start|>user\n{the_turns_evidence(heard=True)}"
         if self._reading is not None and not self._reading.done():
             return  # a read of this turn is already under way
         from core.utils.task_tracker import get_task_tracker
@@ -206,7 +216,7 @@ class HerLiveContext:
                 await asyncio.wait_for(asyncio.shield(self._reading), timeout=timeout_s)
             except (TimeoutError, asyncio.CancelledError, RuntimeError):
                 logger.debug("the read-ahead did not finish; the turn reads what is left itself")
-        opening = self._opening or f"<|im_start|>user\n{the_turns_evidence()}"
+        opening = self._opening or f"<|im_start|>user\n{the_turns_evidence(heard=True)}"
         prompt = self.text + opening + words + _ANSWER_OPENS
         self._said_into, self._governed = prompt, ""
         try:

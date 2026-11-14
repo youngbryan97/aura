@@ -20,6 +20,7 @@ from typing import Any
 __all__ = [
     "TurnSensoryEvidence",
     "build_camera_turn_evidence",
+    "build_microphone_turn_evidence",
     "sensory_evidence_contradictions",
     "sensory_evidence_grounding_block",
     "sensory_evidence_supports_channel",
@@ -163,6 +164,40 @@ def build_camera_turn_evidence(
     if evidence.ok and not evidence.observation:
         raise ValueError("successful camera evidence requires an observation")
     return evidence.to_dict()
+
+
+def build_microphone_turn_evidence(
+    words: Any = "",
+    *,
+    source: str,
+    heard_at: float | None = None,
+    detail: Any = "",
+) -> dict[str, Any]:
+    """The reading of a turn that arrived as speech: said aloud to her microphone and recognised.
+
+    A spoken turn reached her model as its words alone. LIVE 13 November 2026, asked "Hey Aura, can you hear me?" in
+    voice mode, she answered "no ambient audio ... your text is landing directly with me", and by the wake word, "my
+    audio input is currently inactive". The words had come through her microphone and her speech recogniser; nothing
+    in the turn said so. ``words`` is empty where the reading is taken before the words are known (her voice mode's
+    read-ahead, while the person is still speaking); the words then follow in the same turn.
+    """
+    said = _bounded_text(words, _MAX_REQUEST_CHARS)
+    observation = (
+        f'speech said aloud to her microphone just now, recognised as: "{said}"'
+        if said
+        else "speech said aloud to her microphone just now; her speech recogniser's words for it are this turn's words"
+    )
+    return TurnSensoryEvidence(
+        channel="microphone",
+        ok=True,
+        request=said,
+        observed_at=float(heard_at if heard_at is not None else time.time()),
+        observation=observation,
+        detail=_bounded_text(detail, _MAX_DIAGNOSTIC_CHARS),
+        source=_bounded_text(source, 80) or "microphone",
+        scope="this_turn",
+        coverage="full",
+    ).to_dict()
 
 
 def sensory_evidence_grounding_block(value: Any) -> str:

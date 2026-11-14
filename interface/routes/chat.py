@@ -233,6 +233,7 @@ from interface.routes.chat_common import (  # noqa: E402  # noqa: E402  # noqa: 
     _INCOMPLETE_TAIL_WORDS,  # noqa: F401
     _INTERNAL_STATE_PATTERNS,  # noqa: F401
     _INTERNAL_SURFACE_CONTEXT,  # noqa: F401
+    _INTERNAL_SURFACE_HEARD_AT,  # noqa: F401
     _LOCAL_CHOICE_REFERENCE_RE,  # noqa: F401
     _MAX_CONVERSATION_LOG_EXCHANGES,  # noqa: F401
     _MAX_USER_SURFACE_CONTINUATIONS,  # noqa: F401
@@ -856,6 +857,7 @@ async def run_governed_surface_chat_turn(
     _require_internal(request)
     _check_rate_limit(request)
     context_token = _INTERNAL_SURFACE_CONTEXT.set(str(surface_context or "")[:4000])
+    heard_token = _INTERNAL_SURFACE_HEARD_AT.set(time.time() if normalized_surface == "voice" else 0.0)
     stream_ctx: AbstractContextManager[object]
     if reply_stream is not None:
         from core.conversation.reply_stream import bind_reply_stream
@@ -877,6 +879,7 @@ async def run_governed_surface_chat_turn(
                 return None
             return str(payload.get("response") or "").strip() or None
     finally:
+        _INTERNAL_SURFACE_HEARD_AT.reset(heard_token)
         _INTERNAL_SURFACE_CONTEXT.reset(context_token)
 
 

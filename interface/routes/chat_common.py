@@ -79,6 +79,13 @@ _INTERNAL_SURFACE_CONTEXT: ContextVar[str] = ContextVar(
     default="",
 )
 
+# Set only in-process by the voice surface (``run_governed_surface_chat_turn``), never from a request header a client
+# could send: the unix time the turn's words were heard through her microphone, 0.0 for a turn that was not spoken.
+_INTERNAL_SURFACE_HEARD_AT: ContextVar[float] = ContextVar(
+    "aura_internal_surface_heard_at",
+    default=0.0,
+)
+
 _UNSET = object()
 
 import re

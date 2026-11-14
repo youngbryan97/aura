@@ -42,7 +42,7 @@ def _a_context(replies=("Four.",)):
 
 
 def test_the_conversation_is_read_once_and_each_turn_only_adds_to_it(monkeypatch):
-    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "[EVIDENCE]\n")
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda **_k: "[EVIDENCE]\n")
 
     async def scenario():
         live, read, generated, recorded = _a_context(replies=("Four.", "Six."))
@@ -89,7 +89,7 @@ def test_a_turn_her_governed_route_answered_is_added_to_the_context():
 
 
 def test_an_answer_that_did_not_form_leaves_the_context_as_it_was(monkeypatch):
-    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "")
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda **_k: "")
 
     async def scenario():
         live, _read, _generated, recorded = _a_context(replies=())
@@ -217,7 +217,7 @@ def test_a_session_opens_on_this_sitting_and_the_last_exchange_not_every_exchang
 def test_a_person_who_began_before_the_context_opened_still_has_their_turn_read_ahead(monkeypatch):
     """LIVE 11 November 2026: the person began 0.45 s before the context opened, and nothing of their turn was read
     while they spoke."""
-    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "[EVIDENCE]\n")
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda **_k: "[EVIDENCE]\n")
 
     async def scenario():
         live, read, generated, _recorded = _a_context()
@@ -303,7 +303,7 @@ def test_a_reply_cut_off_while_it_was_written_goes_in_as_far_as_she_said_it(monk
     """LIVE 11 November 2026: a reply cut off while it was written never went into her live context, and "Wait, stop.
     Just tell me in one sentence." reached her with nothing before it; she answered "I am an AI assistant here to help
     you with any questions or tasks you have.\""""
-    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "")
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda **_k: "")
 
     async def scenario():
         started = asyncio.Event()
@@ -329,7 +329,7 @@ def test_a_reply_cut_off_while_it_was_written_goes_in_as_far_as_she_said_it(monk
 
 
 def test_a_whole_reply_cut_off_while_it_was_spoken_keeps_only_what_was_heard(monkeypatch):
-    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "")
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda **_k: "")
 
     async def scenario():
         live, *_ = _a_context(replies=("First part. Second part never heard.",))
@@ -368,7 +368,7 @@ def test_a_governed_reply_cut_off_before_it_returned_still_goes_in():
 def test_an_opening_that_failed_is_read_again_when_the_person_next_speaks(monkeypatch):
     """LIVE 11 November 2026: her cortex was still loading when her voice mode opened, the read failed, and every turn
     of the session took her governed route; the second took 120 s and the third failed closed."""
-    monkeypatch.setattr(lc, "the_turns_evidence", lambda: "")
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda **_k: "")
 
     async def scenario():
         cortex_up = []

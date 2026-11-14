@@ -69,17 +69,16 @@ def test_runtime_settings_client_has_cas_conflict_and_idempotency_contracts():
     assert "settings_idempotent_replay_superseded" in JS
 
 
-def test_auto_listen_uses_canonical_server_owner_without_duplicate_browser_capture():
+def test_auto_listen_runs_the_duplex_lane_and_keeps_the_server_lane_as_fallback():
+    """LIVE 13 November 2026 auto-listen ran the server lane because it came first: his quiet speech fell under its
+    fixed loudness gate, and what he said while she answered was dropped. The duplex lane is tried first; the server
+    lane listens only when the browser cannot."""
     assert "reconcileAutoListenFromSettings" in JS
-    # Starting ambient browser capture belongs to the full-duplex lane, which
-    # owns barge-in, clause streaming and addressivity. This asserted
-    # `toggleVoice(true` until the lane took ownership, at which point it was
-    # checking for a call the design had deliberately removed — a green
-    # assertion for a second microphone implementation nobody wanted.
-    assert "await duplex.setAmbient(true)" in JS
-    assert "await toggleVoice(false)" in JS
-    assert "state.voiceSummary.server_capture === true" in JS
-    assert "canonical server microphone lane is active" in JS
+    body = JS[JS.index("async function reconcileAutoListenFromSettings("):JS.index("async function hydrateRuntimeSettings(")]
+    assert "await duplex.setAmbient(true)" in body
+    assert "await toggleVoice(false)" in body  # input disabled still stops the browser microphone
+    assert "state.voiceSummary.server_capture === true" in body
+    assert body.index("await duplex.setAmbient(true)") < body.index("state.voiceSummary.server_capture === true")
     assert "acknowledgeFrontendSetting" not in JS
 
 

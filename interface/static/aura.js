@@ -9990,25 +9990,26 @@ async function reconcileAutoListenFromSettings({ reportFailure = true } = {}) {
         return { status: 'applied', detail: 'focused voice conversation owns capture' };
     }
 
-    // The resident server-side voice engine is the canonical desktop owner.
-    // Do not open a second getUserMedia stream when sounddevice owns capture.
-    if (state.voiceSummary && state.voiceSummary.server_capture === true) {
-        if (haveDuplex && duplex.isActive()) await toggleVoice(false);
-        return {
-            status: state.voiceSummary.listening ? 'applied' : 'deferred',
-            detail: state.voiceSummary.listening
-                ? 'canonical server microphone lane is active'
-                : 'canonical server microphone owner is applying auto-listen',
-        };
-    }
-
-    // The full-duplex lane owns browser capture, barge-in, clause streaming,
-    // and addressivity. A missing bundle is a visible failure, never a second
-    // microphone implementation.
+    // The full-duplex lane listens while she speaks, hears a reply to her
+    // after she has answered, and judges whether speech was meant for her.
+    // It was second to the server lane (15 July, before it existed), and on
+    // 13 November auto-listen ran the server lane: his speech under its fixed
+    // loudness gate was dropped, and what he said while she answered was lost.
+    // The server lane is now what listens when the browser cannot.
     if (haveDuplex) {
         if (duplex.isActive()) return { status: 'applied', detail: 'ambient listening already active' };
         const started = await duplex.setAmbient(true);
         if (started) return { status: 'applied', detail: 'ambient duplex listening started' };
+    }
+    if (state.voiceSummary && state.voiceSummary.server_capture === true) {
+        return {
+            status: state.voiceSummary.listening ? 'applied' : 'deferred',
+            detail: state.voiceSummary.listening
+                ? 'server microphone lane is listening (browser capture unavailable)'
+                : 'server microphone lane is applying auto-listen',
+        };
+    }
+    if (haveDuplex) {
         return {
             status: reportFailure ? 'failed' : 'deferred',
             detail: 'ambient listening needs microphone permission — press VOICE once to grant it',
@@ -10017,7 +10018,7 @@ async function reconcileAutoListenFromSettings({ reportFailure = true } = {}) {
 
     return {
         status: reportFailure ? 'failed' : 'deferred',
-        detail: 'canonical browser voice bundle is unavailable',
+        detail: 'browser voice bundle is unavailable',
     };
 }
 
