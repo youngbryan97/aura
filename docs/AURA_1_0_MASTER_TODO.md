@@ -5375,8 +5375,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Still red on main and not order: the model-load inventory, 27 tools
   loading a model with no entry, 15 of them with no lane guard at all.
   Also in that batch, passing alone: five cases of
-  test_her_feelings_reach_the_worker_that_steers (her resting state read as
-  steering), not MLX; not yet traced. The registrar census was red on main
+  test_her_feelings_reach_the_worker_that_steers. Steering reads what she
+  last felt (steering_channel._FELT, written by her affect phase) in place
+  of the substrate it is handed, and nothing cleared it between tests: after
+  twelve affect-phase test files the five fail on main and pass once the
+  conftest's process-wide reset clears it (123 passed). The registrar census was red on main
   since the morning's organ wiring: its baseline still listed five services
   that now have registrars, and it only shrinks; they are removed.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;

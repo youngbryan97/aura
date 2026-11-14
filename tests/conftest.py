@@ -1042,6 +1042,9 @@ def _reset_process_wide_state():
         ("core.skills.screen_pursuit_surface", lambda m: (m._HOW_KEYS_LAND.clear(), m._UNANSWERED.clear(), m._EVER_ANSWERED.clear())),
         # How long this world takes to answer, found by probing it.
         ("core.skills.screen_pursuit_looking", lambda m: (m._WAIT.update(seconds=0.0), m._STILL_FLOOR.update(seconds=float("inf")))),
+        # What she last felt, which steering reads in place of the substrate it is handed. Left by an affect test, it
+        # made "her resting state steers nowhere" read a feeling (Q09, 13 November 2026).
+        ("core.consciousness.steering_channel", lambda m: m._FELT.clear()),
     ):
         try:
             import importlib
