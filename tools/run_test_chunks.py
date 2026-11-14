@@ -178,6 +178,10 @@ def what_a_killed_chunk_reached(
     only record of what it found. On 14 November 2026 the runner kept the last
     twelve of them: chunk 1 of 6 ran 88% of 912 files in ninety minutes and
     every failure it saw was lost.
+
+    A file has started when its line is printed, whatever its place in the
+    list: pytest does not run the files in the order it is given them (that
+    chunk printed its 75th file beside its 597th).
     """
     reached: list[str] = []
     failing: set[str] = set()
@@ -194,9 +198,10 @@ def what_a_killed_chunk_reached(
             failing.add(reached[-1])
     if not reached:
         return [], "unknown", []
+    started = {_position_of(name, files) for name in reached}
     at = _position_of(reached[-1], files)
     in_flight = _runnable(files[at]) if at is not None else reached[-1]
-    not_started = files[at + 1 :] if at is not None else []
+    not_started = [path for position, path in enumerate(files) if position not in started]
     failed = []
     for name in dict.fromkeys(reached):
         if name in failing:

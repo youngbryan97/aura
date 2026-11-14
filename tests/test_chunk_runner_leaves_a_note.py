@@ -221,5 +221,17 @@ class TestATimedOutChunkKeepsWhatItFound:
         assert Path(in_flight).name == "test_next.py"
         assert not_started == []
 
+    def test_a_file_not_printed_has_not_started_whatever_its_place(self):
+        """pytest's order is not the list's: the 14 November chunk printed its
+        75th file beside its 597th."""
+        files = [ROOT / "tests" / name for name in ("test_a.py", "test_b.py", "test_c.py", "test_d.py")]
+        partial = "tests/test_c.py ..\ntests/test_a.py F.\ntests/test_d.py .\n"
+
+        failed, in_flight, not_started = what_a_killed_chunk_reached(partial, files)
+
+        assert [Path(f).name for f in failed] == ["test_a.py"]
+        assert Path(in_flight).name == "test_d.py"
+        assert [path.name for path in not_started] == ["test_b.py"]
+
     def test_a_chunk_killed_in_collection_names_nothing(self):
         assert what_a_killed_chunk_reached("", [ROOT / "tests" / "test_x.py"]) == ([], "unknown", [])
