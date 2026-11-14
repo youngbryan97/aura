@@ -1651,6 +1651,40 @@ async def test_the_init_handshake_waits_while_the_worker_loads():
         await client._await_init_while_the_worker_loads(stuck, stall_s=0.1)
 
 
+@pytest.mark.asyncio
+async def test_a_worker_that_ended_ends_the_init_wait_at_the_next_look_and_says_how():
+    """LIVE 14 November 2026: her cortex's worker was gone soon after its last init step at 14:39:57, and the wait,
+    with no process to sample, ran on the clock alone until 14:45:17 and recorded nothing of how it ended."""
+    import asyncio
+    import time
+
+    from core.brain.llm import mlx_client
+    from core.brain.llm.worker_exit import WorkerEndedDuringInit, how_it_ended
+
+    class _Ended:
+        exitcode = -9
+
+    client = mlx_client.MLXLocalClient.__new__(mlx_client.MLXLocalClient)
+    client._process = _Ended()
+    client.model_path = "/models/Aura-Qwen3.8-27B"
+    client.worker_load_progress = lambda: None
+    never: asyncio.Future = asyncio.get_running_loop().create_future()
+    began = time.monotonic()
+    with pytest.raises(WorkerEndedDuringInit, match="Aura-Qwen3.8-27B worker ended during init: signal SIGKILL"):
+        await client._await_init_while_the_worker_loads(never, stall_s=10.0)
+    assert time.monotonic() - began < 2.0, "one look, not the stall budget"
+    assert issubclass(WorkerEndedDuringInit, TimeoutError), "the retry for an init that timed out applies"
+
+    class _Running:
+        exitcode = None
+
+    class _Exited:
+        exitcode = 1
+
+    assert how_it_ended(_Running()) == "" and how_it_ended(None) == ""
+    assert how_it_ended(_Exited()) == "exit code 1"
+
+
 def test_the_probe_command_is_a_recognised_import_only_probe():
     """LIVE 2026-09-16, 45 minutes of spawns aborted with
     model_process_claim_missing_model_path: the probe had grown a line that

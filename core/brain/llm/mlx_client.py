@@ -43,6 +43,7 @@ from .mlx_client_tool_results import (  # noqa: F401  (re-exported: they were de
 )
 from .mlx_client_waiting import _WaitsForTheResult
 from .what_she_expects_next import _AsksWhatSheExpectsNext
+from .worker_exit import await_init_while_the_worker_loads
 
 if TYPE_CHECKING:
     from core.brain.lane_admission import ActiveLane
@@ -9287,42 +9288,9 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             except (_queue_mod.Empty, OSError, ValueError):
                 break
 
-    async def _await_init_while_the_worker_loads(
-        self, fut: SharedFuture, *, stall_s: float
-    ) -> Any:
-        """Wait for the init handshake while the worker is still loading.
-
-        The handshake bound was an absolute wall clock: 300s, then the
-        worker is wedged and respawned. LIVE 2026-09-16, load 34 on 18
-        cores: the 27B worker was at 9GB of RSS and loading when the clock
-        ran out, and the respawn started the load again from nothing. The
-        bound is now on the worker's progress. Its RSS and CPU advance while
-        it loads; ``stall_s`` of neither is the wedge the clock was for.
-        """
-        stall_s = max(0.0, float(stall_s))
-        period = max(0.05, min(15.0, stall_s / 20.0)) if stall_s else 15.0
-        seen = self.worker_load_progress()
-        still_for = 0.0
-        while True:
-            try:
-                return await _await_shared_future(fut, timeout_s=period)
-            except TimeoutError:
-                pass  # not a failure: a look, not a deadline
-            progress = self.worker_load_progress()
-            if progress is None:
-                # No process to read: nothing can advance, so the wait is
-                # bounded by the clock alone, as it was.
-                still_for += period
-            elif seen is None or progress[0] > seen[0] or progress[1] > seen[1]:
-                seen, still_for = progress, 0.0
-            else:
-                still_for += period
-            if still_for >= stall_s:
-                raise TimeoutError(
-                    f"worker init made no progress for {still_for:.0f}s "
-                    f"(rss={0 if seen is None else seen[0] / 1e9:.1f}GB, "
-                    f"cpu={0 if seen is None else seen[1]:.0f}s)"
-                )
+    async def _await_init_while_the_worker_loads(self, fut: SharedFuture, *, stall_s: float) -> Any:
+        """Wait for the init handshake while the worker loads (core/brain/llm/worker_exit.py)."""
+        return await await_init_while_the_worker_loads(self, fut, stall_s=stall_s)
 
     def worker_load_progress(self) -> tuple[float, float] | None:
         """What the worker has done so far: its (rss_bytes, cpu_seconds).

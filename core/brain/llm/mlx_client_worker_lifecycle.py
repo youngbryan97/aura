@@ -1465,7 +1465,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                             continue
                         self._set_lane_state("failed", msg)
                         raise RuntimeError(msg)
-                except TimeoutError:
+                except TimeoutError as init_ended:
                     if soft_timeout and self._process and self._process.is_alive():
                         logger.warning(
                             "⏳ [MLX] Init handshake exceeded request budget (%.1fs) for %s. Keeping worker alive to continue warming.",
@@ -1481,7 +1481,8 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                         )
                         raise
                     if handshake_attempt == 0:
-                        logger.warning("⏳ [MLX] Init timeout on attempt 1. Retrying spawn...")
+                        logger.warning("⏳ [MLX] Init on attempt 1 ended without a ready worker (%s). Retrying spawn...",
+                                       init_ended or "timed out")
                         await self.reboot_worker(reason="init_timeout_retry", mark_failed=False)
                         fut = self._init_future
                         if not fut:
