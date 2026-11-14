@@ -69,9 +69,9 @@ a thing she has met once and knows nothing about.
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
-import functools
 import math
 import time
 from collections.abc import Iterable, Mapping
