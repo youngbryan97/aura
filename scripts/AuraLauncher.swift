@@ -2090,6 +2090,10 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     /// the Dock or hidden with the app, it is still open.
     private var desktopWindowOpen = false
     private var pendingBubbleMoveSequence: Int?
+    /// The surface the person last chose: "window", "companion", "bubble" or
+    /// "hidden". The health poll repairs a window that was lost; a window the
+    /// person closed, or her hidden from the bubble, is a choice it keeps.
+    private var chosenSurface = "window"
     private var companionPanel: NSPanel?
     private var companionWebView: WKWebView?
     private var overlayWindow: NSWindow?
@@ -2305,6 +2309,17 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             || companionPanel?.isVisible == true
     }
 
+    /// Whether what is on screen is what the person chose.
+    ///
+    /// 14 November 2026, testing companion mode: her window was closed and
+    /// was back within seconds, every time. The health poll reopened it
+    /// whenever no interactive surface was visible, and the bubble is not one,
+    /// so companion mode could not last past the next poll; hiding her from
+    /// the bubble's menu was undone the same way.
+    private func theSurfaceThePersonChoseIsUp() -> Bool {
+        chosenSurface == "bubble" || chosenSurface == "hidden" || visibleInteractiveSurfaceExists()
+    }
+
     /// Make an explicitly presented Aura surface the active application.
     ///
     /// `activate(ignoringOtherApps:)` stopped reliably taking foreground
@@ -2349,6 +2364,15 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         }
         if target.isMiniaturized {
             target.deminiaturize(nil)
+        }
+        if target === desktopWindow {
+            // One presence on one surface: the bubble and the restrained chat
+            // give way, as they do when the window is first opened.
+            orderBubbleOut()
+            hideCompanionChat(restoringBubble: false)
+            desktopWindowOpen = true
+            chosenSurface = "window"
+            postAmbientMode("window")
         }
         publishAccessiblePrimaryWindow(target)
         target.makeKeyAndOrderFront(nil)
@@ -3774,6 +3798,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         // The window, the bubble and the restrained chat are one presence on
         // three surfaces. Whoever asks, she is not shown twice.
         if desktopWindowOpen { return }
+        chosenSurface = "bubble"
         if bubblePanel == nil {
             // The page reports its measured pill size after load. Starting at
             // the icon footprint prevents an invisible 520pt web view from
@@ -3923,6 +3948,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
 
     /// The person asked her to go away.
     private func hideBubble() {
+        chosenSurface = "hidden"
         orderBubbleOut()
         // Hiding her must stop her LOOKING, not just stop her being drawn.
         // Ordering the panel out on its own left the observation loop reading
@@ -4249,6 +4275,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         desktopWindow?.makeKeyAndOrderFront(nil)
         desktopWindow?.orderFrontRegardless()
         desktopWindowOpen = desktopWindow != nil
+        chosenSurface = "window"
         activateLauncherSurface()
         NSApp.requestUserAttention(.informationalRequest)
         autoDesktopOpenTriggered = true
@@ -4553,6 +4580,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             )
         }
         orderBubbleOut()
+        chosenSurface = "companion"
         postAmbientMode("window")
         // makeKey, because this one is for typing into. KeyablePanel is what
         // lets that actually take effect on a borderless window.
@@ -4598,6 +4626,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     func windowWillClose(_ notification: Notification) {
         guard (notification.object as? NSWindow) === desktopWindow else { return }
         desktopWindowOpen = false
+        chosenSurface = "bubble"
         // She does not leave when the window does. Closing the window is a
         // request for less surface area, not for her to stop; the bubble is
         // what "still here, out of the way" looks like.
@@ -5109,7 +5138,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             // initial handoff while the runtime remains healthy. If every Aura
             // surface is gone, reconstruct the retained primary window on the
             // next health poll instead of leaving a headless desktop runtime.
-            if !visibleInteractiveSurfaceExists() {
+            if !theSurfaceThePersonChoseIsUp() {
                 return frontPrimaryWindow()
             }
             return true

@@ -1243,3 +1243,25 @@ def test_webviews_answer_webkits_microphone_prompt():
     assert "isLocalRuntimeOrigin" in swift
     assert "decisionHandler(.deny)" in swift
     assert "decisionHandler(.grant)" in swift
+
+
+def test_the_health_poll_keeps_the_surface_the_person_chose():
+    """14 November 2026, testing companion mode: her window was closed and back within seconds, every time. The poll
+    reopened it whenever no interactive surface was visible, and the bubble is not one, so companion mode could not
+    last; hiding her from the bubble's menu was undone the same way."""
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
+
+    auto_body = swift.split("private func autoOpenDesktopWindowIfNeeded()", 1)[1].split("\n    }\n}", 1)[0]
+    repair = auto_body.split("if autoDesktopOpenTriggered {", 1)[1].split("return true", 1)[0]
+    assert "if !theSurfaceThePersonChoseIsUp()" in repair
+
+    chose = swift.split("private func theSurfaceThePersonChoseIsUp()", 1)[1].split("\n    }\n", 1)[0]
+    assert 'chosenSurface == "bubble"' in chose and 'chosenSurface == "hidden"' in chose
+
+    close_body = swift.split("func windowWillClose(", 1)[1].split("\n    }\n", 1)[0]
+    hide_body = swift.split("private func hideBubble()", 1)[1].split("\n    }\n", 1)[0]
+    reopen_body = swift.split("private func frontPrimaryWindow()", 1)[1].split("\n    }\n", 1)[0]
+    assert 'chosenSurface = "bubble"' in close_body
+    assert 'chosenSurface = "hidden"' in hide_body
+    # Reopening the window is a change of surface: the bubble gives way, as when it first opens.
+    assert 'chosenSurface = "window"' in reopen_body and "orderBubbleOut()" in reopen_body
