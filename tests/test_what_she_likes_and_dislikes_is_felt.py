@@ -90,3 +90,35 @@ def test_an_option_is_worth_more_or_less_to_her_by_the_things_it_names(record):
     assert record.regard_for_text("Read more on tide pools") > 0.3
     assert record.regard_for_text("Ask Tomas what he meant") == 0.0
     assert record.regard_for_text("Running a self-integrity scan") == 0.0
+
+
+def test_her_verdicts_are_worked_out_outside_the_record_s_lock(record, monkeypatch):
+    """14 November 2026: lockdep caught her appraisal holding this record's lock 67 ms on her event loop, 32 ms of it
+    computing, because the test behind each verdict ran inside it for every thing she knows."""
+    import threading
+
+    import core.conation.what_she_wants as wants
+
+    held_while_testing: list[bool] = []
+    real = wants._two_sided
+
+    def try_the_lock(free: list[bool]) -> None:
+        got = record._lock.acquire(blocking=False)
+        if got:
+            record._lock.release()
+        free.append(got)
+
+    def testing(*args):
+        free: list[bool] = []
+        probe = threading.Thread(target=try_the_lock, args=(free,))
+        probe.start()
+        probe.join()
+        held_while_testing.append(not free[0])
+        return getattr(real, "__wrapped__", real)(*args)
+
+    monkeypatch.setattr(wants, "_two_sided", testing)
+    liked = [thing.key for thing in record.likes()]
+    disliked = [thing.key for thing in record.dislikes()]
+
+    assert held_while_testing and not any(held_while_testing), "a verdict was worked out holding the lock"
+    assert WARM in liked and COLD in disliked

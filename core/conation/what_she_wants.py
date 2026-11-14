@@ -71,6 +71,7 @@ from __future__ import annotations
 
 import json
 import logging
+import functools
 import math
 import time
 from collections.abc import Iterable, Mapping
@@ -148,8 +149,24 @@ def liking_of(reading: Any) -> float | None:
     return math.copysign(max(0.0, min(1.0, size)), worth)
 
 
+def _verdict(good: int, contacts: int, good_turns: int, turns: int) -> bool | None:
+    """Liked, disliked, or not yet told apart from chance, from the counts alone."""
+    if contacts <= 0 or turns <= 0:
+        return None
+    chance = good_turns / turns
+    if _two_sided(good, contacts, chance) >= _WRONG:
+        return None
+    return good / contacts > chance
+
+
+@functools.lru_cache(maxsize=4096)
 def _two_sided(above: int, of: int, chance: float) -> float:
-    """The chance of a count at least this far from chance, either way."""
+    """The chance of a count at least this far from chance, either way.
+
+    Kept once worked out: it depends on two counts and a chance that moves
+    only when a turn is recorded, and her appraisal asks for every thing she
+    knows on every tick.
+    """
     if of <= 0 or not 0.0 < chance < 1.0:
         return 1.0
 
@@ -698,23 +715,29 @@ class WhatSheWants(_WantReadouts):
         """Whether she likes it, dislikes it, or has not had enough of it to say."""
         with self._lock:
             thing = self._things.get(key)
-            if thing is None or thing.contacts <= 0 or self._turns <= 0:
+            if thing is None:
                 return None
-            chance = self._good_turns / self._turns
-            if _two_sided(thing.good, thing.contacts, chance) >= _WRONG:
-                return None
-            return thing.good / thing.contacts > chance
+            good, contacts, good_turns, turns = thing.good, thing.contacts, self._good_turns, self._turns
+        return _verdict(good, contacts, good_turns, turns)
+
+    def _with_verdict(self, verdict: bool) -> list[Thing]:
+        """The things she has a verdict on, read under the lock and judged outside it.
+
+        14 November 2026: lockdep caught her appraisal holding this lock 67 ms on
+        her event loop, 32 ms of it computing, because the test behind each
+        verdict ran inside it for every thing she knows.
+        """
+        with self._lock:
+            seen = [(thing, thing.good, thing.contacts) for thing in self._things.values()]
+            good_turns, turns = self._good_turns, self._turns
+        return [thing for thing, good, contacts in seen if _verdict(good, contacts, good_turns, turns) is verdict]
 
     def likes(self) -> list[Thing]:
         """What she likes, most liked first; reachable or not."""
-        with self._lock:
-            found = [thing for thing in self._things.values() if self.known(thing.key) is True]
-        return sorted(found, key=lambda thing: (-thing.liking, thing.key))
+        return sorted(self._with_verdict(True), key=lambda thing: (-thing.liking, thing.key))
 
     def dislikes(self) -> list[Thing]:
-        with self._lock:
-            found = [thing for thing in self._things.values() if self.known(thing.key) is False]
-        return sorted(found, key=lambda thing: (thing.liking, thing.key))
+        return sorted(self._with_verdict(False), key=lambda thing: (thing.liking, thing.key))
 
     def pictured(self, key: str) -> float:
         """What a thing is pictured to be worth from what it has come with, in [0, 1].
