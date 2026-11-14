@@ -87,7 +87,7 @@ class ReplyStreamChannel:
     producer died would be a hang, so every path that binds one closes it.
     """
 
-    __slots__ = ("_queue", "_closed", "_stats", "_loop", "_backlog_probe")
+    __slots__ = ("_queue", "_closed", "_stats", "_loop", "_backlog_probe", "_published")
 
     def __init__(self) -> None:
         self._queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=_MAX_PENDING_CHUNKS)
@@ -98,6 +98,14 @@ class ReplyStreamChannel:
         # only be touched from its own loop.
         self._loop: asyncio.AbstractEventLoop | None = None
         self._backlog_probe: Callable[[], int] | None = None
+        #: Every chunk published, kept: what she had produced of her reply when it stopped. LIVE 13 November 2026, a
+        #: voice reply cut off while it was written went into her live context as the few words heard ("Yes, I"),
+        #: and her model, reading those as finished answers, answered every later turn in one word.
+        self._published: list[str] = []
+
+    def published_text(self) -> str:
+        """All of the reply published so far, whether or not anyone has taken it yet."""
+        return "".join(self._published)
 
     def heard_backlog(self, probe: Callable[[], int]) -> None:
         """Whoever speaks this stream says how much of it is still waiting to be spoken (core/brain/llm/speech_hold.py)."""
@@ -118,6 +126,7 @@ class ReplyStreamChannel:
         text = str(chunk or "")
         if not text or self._closed:
             return
+        self._published.append(text)  # produced, whether or not a stalled consumer takes it
         try:
             self._queue.put_nowait(text)
         except asyncio.QueueFull:

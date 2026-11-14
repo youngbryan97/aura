@@ -82,8 +82,9 @@ def still_waking() -> str:
     return str(status.get("state") or "starting")
 
 
-def the_turns_evidence(*, heard: bool = False) -> str:
+def the_turns_evidence(*, heard: bool = False, also: Sequence[str] = ()) -> str:
     """What is so at the moment the person begins: read while they speak, so it must not depend on their words.
+    ``also``: readings the session holds for this turn, such as how her last reply was cut off.
 
     While her runtime is still starting, that is one of the readings. Bryan, 11 November 2026: "She should say she's
     still waking up (in her words) if she still is." A reading, not a line to say; what she makes of it is hers.
@@ -110,9 +111,30 @@ def the_turns_evidence(*, heard: bool = False) -> str:
 
         microphone = sensory_evidence_grounding_block(build_microphone_turn_evidence(source="voice_live_context"))
         present = (present + "\n" if present else "") + microphone
+    for reading in also:
+        if str(reading or "").strip():
+            present = (present + "\n" if present else "") + str(reading).strip()
     if not present:
         return ""
     return f"[GROUNDING EVIDENCE FOR THIS TURN]\n{present}\n[END GROUNDING EVIDENCE FOR THIS TURN]\n\n"
+
+
+#: How many of her last words out loud the reading of a cut-off reply quotes: enough to place it, not the reply again.
+_LAST_WORDS_HEARD = 12
+
+
+def how_it_was_cut(said: str, reply: str = "") -> str:
+    """The reading of a reply of hers that was cut off out loud, for the turn that follows; empty when all of it was
+    heard. ``said`` is what was heard, ``reply`` what she produced, when it was whole."""
+    said, whole = " ".join(str(said or "").split()), " ".join(str(reply or "").split())
+    if whole and said and len(said) >= len(whole):
+        return ""
+    if not said:
+        return "- Cut off: they began to speak before any of your last reply was heard."
+    words = said.split()
+    heard = " ".join(words[-_LAST_WORDS_HEARD:])
+    return (f"- Cut off: they began to speak over your last reply, and it stopped out loud after "
+            f"\"{'...' if len(words) > _LAST_WORDS_HEARD else ''}{heard}\"; the rest of it was not heard.")
 
 
 def goes_to_her_governed_route(transcript: str) -> bool:
@@ -144,6 +166,9 @@ class HerLiveContext:
         self._reading: asyncio.Task | None = None
         self._speaking = False  # a person began a turn that has not been answered yet
         self._said_into = ""  # the text up to where her last reply begins, until her next turn
+        self._replied = ""  # her last reply as she produced it, once it was whole; empty while it is being written
+        self._stream: Any = None  # the stream her reply goes out on while she writes it
+        self._cut = ""  # how her last reply was cut off out loud, read at the head of the next turn
         self._governed = ""  # the words of a turn her governed route is answering now
         self._exchanges: list[dict[str, Any]] | None = None  # what it opened on, kept to open again if the read failed
         self._unread: list[dict[str, Any]] = []  # turns answered while it was not open
@@ -187,13 +212,17 @@ class HerLiveContext:
 
                 get_task_tracker().create_task(self.open(self._exchanges), name=f"VoiceLiveContext.reopen:{self.scope}")
             return
-        self._opening = f"<|im_start|>user\n{the_turns_evidence(heard=True)}"
-        if self._reading is not None and not self._reading.done():
+        opening = self._turn_opening()
+        if opening == self._opening and self._reading is not None and not self._reading.done():
             return  # a read of this turn is already under way
+        self._opening = opening
         from core.utils.task_tracker import get_task_tracker
 
         self._reading = get_task_tracker().create_task(self._read(self.text + self._opening, self.scope),
                                                        name=f"VoiceLiveContext.read_ahead:{self.scope}")
+
+    def _turn_opening(self) -> str:
+        return f"<|im_start|>user\n{the_turns_evidence(heard=True, also=(self._cut,))}"
 
     def answers(self, transcript: str) -> bool:
         """Whether this turn is hers to answer here. While her runtime is still starting, every turn is: her governed
@@ -216,9 +245,10 @@ class HerLiveContext:
                 await asyncio.wait_for(asyncio.shield(self._reading), timeout=timeout_s)
             except (TimeoutError, asyncio.CancelledError, RuntimeError):
                 logger.debug("the read-ahead did not finish; the turn reads what is left itself")
-        opening = self._opening or f"<|im_start|>user\n{the_turns_evidence(heard=True)}"
+        opening = self._opening or self._turn_opening()
         prompt = self.text + opening + words + _ANSWER_OPENS
-        self._said_into, self._governed = prompt, ""
+        self._said_into, self._governed, self._replied, self._cut = prompt, "", "", ""
+        self._stream = reply_stream
         try:
             reply = await self._generate(prompt, scope=self.scope, words=words, reply_stream=reply_stream,
                                          timeout_s=timeout_s)
@@ -228,7 +258,7 @@ class HerLiveContext:
             self._said_into = ""
             return None
         # What she said goes in as she said it, so the next turn's prompt begins with exactly what her model holds.
-        self.text = prompt + reply + _TURN_ENDS
+        self.text, self._replied = prompt + reply + _TURN_ENDS, reply
         if self._record is not None:
             await self._record(words, reply.strip())
         return reply.strip()
@@ -242,24 +272,40 @@ class HerLiveContext:
             self._unread.append({"user": said, "aura": answered})
         if self.ready and said and answered:
             self._said_into = self.text + f"<|im_start|>user\n{said}{_TURN_ENDS}<|im_start|>assistant\n"
-            self.text = self._said_into + answered + _TURN_ENDS
+            self.text, self._replied = self._said_into + answered + _TURN_ENDS, answered
         self._opening, self._reading, self._speaking = "", None, False
 
     def cut_off(self, said: str) -> None:
-        """She was cut off: her last reply goes into the conversation as far as she got out loud, whether it was still
-        being written or already whole. LIVE 11 November 2026, a reply cut off while it was written never went in,
-        and "Wait, stop. Just tell me in one sentence." reached her with nothing before it, and she
-        answered "I am an AI assistant here to help you with any questions or tasks you have."
+        """She was cut off. Her next turn reads how far her last reply was heard, and the reply stays in the
+        conversation as she produced it if it was whole; one still being written goes in as far as she got out loud.
+
+        LIVE 11 November 2026, a reply cut off while it was written never went in, and "Wait, stop. Just tell me in one
+        sentence." reached her with nothing before it, and she answered "I am an AI assistant here to help you with any
+        questions or tasks you have." So the reply went in as far as it was heard, whole or not, and nothing said it
+        had been cut. LIVE 13 November 2026, her own voice through Bryan's speakers cut her off twice in a minute, and
+        every reply after that was one word, "I" or "Hello": her model read its last turns as finished one-word
+        answers and answered the same way. On her worker alone (her live context, the 16:40 session's turns), two
+        replies cut to "Yes, I" and "I'm " gave "Yes", "Hi", "I", "Yes", "Yes"; the same turns with nothing cut gave
+        whole replies, and so did the cut turns kept whole. Kept as heard with this reading after them, they still
+        gave "Yes", so a reply still being written goes in as far as she had produced it: the sentences her stream
+        carried, which hold what was heard.
         """
         said = str(said or "").strip()
         if self._said_into:
-            self.text, self._said_into = self._said_into + said + _TURN_ENDS, ""
+            if not self._replied:  # still being written: as far as she had produced it, or as heard
+                produced = getattr(self._stream, "published_text", None)
+                written = str(produced() if callable(produced) else "").strip()
+                self.text = self._said_into + (written if len(written) >= len(said) else said) + _TURN_ENDS
+            self._cut, self._said_into = how_it_was_cut(said, self._replied), ""
         elif self._governed and said:  # her governed route was answering; its reply never returned
             if self.ready:
                 self.text += rendered([{"user": self._governed, "aura": said}])
             else:
                 self._unread.append({"user": self._governed, "aura": said})
+            self._cut = how_it_was_cut(said)
         self._governed = ""
+        if self._cut and self._speaking and self.ready:
+            self.a_person_began_to_speak()  # they are talking over her now: their turn is read again with it
 
     def governed_turn(self, words: str) -> None:
         """Her governed route takes this turn: if she is cut off before its reply returns, the turn still goes in."""

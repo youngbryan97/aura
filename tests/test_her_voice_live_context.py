@@ -328,18 +328,103 @@ def test_a_reply_cut_off_while_it_was_written_goes_in_as_far_as_she_said_it(monk
     asyncio.run(scenario())
 
 
-def test_a_whole_reply_cut_off_while_it_was_spoken_keeps_only_what_was_heard(monkeypatch):
+def test_a_whole_reply_cut_off_while_it_was_spoken_stays_whole_and_the_next_turn_reads_how_far_it_was_heard(
+        monkeypatch):
+    """LIVE 13 November 2026: two replies cut to what was heard ("Yes, I", "I'm ") and every reply after was one word,
+    "I" or "Hello"; her model read its clipped turns as finished answers. On her worker alone the same turns uncut
+    gave whole replies."""
+    asked_with = []
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda **k: asked_with.append(k.get("also", ())) or "")
+
+    async def scenario():
+        live, _read, generated, _recorded = _a_context(replies=("First part. Second part never heard.", "Sure."))
+        await live.open([])
+        await live.answer("Tell me two things.")
+        whole = live.text
+        live.cut_off("First part.")
+        assert live.text == whole, "her reply stays as she produced it"
+        assert whole.endswith("<|im_start|>assistant\n<think>\n\n</think>\n\nFirst part. Second part never heard."
+                              "<|im_end|>\n")
+        live.a_person_began_to_speak()
+        await asyncio.sleep(0)
+        await live.answer("Go on.")
+        assert asked_with[-1] == ('- Cut off: they began to speak over your last reply, and it stopped out loud after '
+                                  '"First part."; the rest of it was not heard.',)
+        live.heard_elsewhere("Open Safari.", "Opening it now, and then")
+        governed = live.text
+        live.cut_off("Opening it now,")
+        assert live.text == governed and live._cut.startswith("- Cut off:")
+
+    asyncio.run(scenario())
+
+
+def test_a_reply_cut_off_while_it_was_written_goes_in_as_far_as_she_had_produced_it(monkeypatch):
+    """On her worker alone, a reply cut while written and kept as the words heard, with the reading of the cut after
+    it, still gave "Yes", "Hello", "Yes" on every later turn; kept as the sentences her stream had carried, whole
+    replies."""
+    from core.conversation.reply_stream import ReplyStreamChannel
+
     monkeypatch.setattr(lc, "the_turns_evidence", lambda **_k: "")
 
     async def scenario():
-        live, *_ = _a_context(replies=("First part. Second part never heard.",))
+        started = asyncio.Event()
+        stream = ReplyStreamChannel()
+
+        async def a_reply_being_written(prompt, *, reply_stream, **_):
+            reply_stream.publish("Yes, I can hear you clearly. ")
+            reply_stream.publish("The microphone is on.")
+            started.set()
+            await asyncio.sleep(30)
+
+        live = lc.HerLiveContext("session-1", read=lambda *a: None, generate=a_reply_being_written)
         await live.open([])
-        await live.answer("Tell me two things.")
-        live.cut_off("First part.")
-        assert live.text.endswith("<|im_start|>assistant\n<think>\n\n</think>\n\nFirst part.<|im_end|>\n")
-        live.heard_elsewhere("Open Safari.", "Opening it now, and then")
-        live.cut_off("Opening it now,")
-        assert live.text.endswith("<|im_start|>user\nOpen Safari.<|im_end|>\n<|im_start|>assistant\nOpening it now,<|im_end|>\n")
+        turn = asyncio.ensure_future(live.answer("Are you able to hear me?", reply_stream=stream))
+        await started.wait()
+        live.cut_off("Yes, I")
+        turn.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await turn
+        assert live.text.endswith("<|im_start|>assistant\n<think>\n\n</think>\n\nYes, I can hear you clearly. The "
+                                  "microphone is on.<|im_end|>\n")
+        assert live._cut.endswith('after "Yes, I"; the rest of it was not heard.')
+
+    asyncio.run(scenario())
+
+
+def test_her_reply_stream_keeps_what_it_published_even_past_a_stalled_consumer():
+    from core.conversation import reply_stream as rs
+
+    channel = rs.ReplyStreamChannel()
+    for index in range(rs._MAX_PENDING_CHUNKS + 3):
+        channel.publish(f"{index} ")
+    assert channel.published_text().split()[-1] == str(rs._MAX_PENDING_CHUNKS + 2)
+    channel.close()
+    channel.publish("after close")
+    assert "after close" not in channel.published_text()
+
+
+def test_the_reading_of_a_cut_says_where_it_stopped_and_nothing_when_all_of_it_was_heard():
+    assert lc.how_it_was_cut("Four.", "Four.") == ""
+    assert lc.how_it_was_cut("", "Four.") == "- Cut off: they began to speak before any of your last reply was heard."
+    long = " ".join(f"w{i}" for i in range(30))
+    assert lc.how_it_was_cut(long).endswith('after "...w18 w19 w20 w21 w22 w23 w24 w25 w26 w27 w28 w29"; the rest of '
+                                            "it was not heard.")
+    reading = lc.how_it_was_cut("Yes, I")
+    assert "You " not in reading and "should" not in reading, "a reading, never an instruction (F06)"
+
+
+def test_a_cut_while_they_are_still_talking_reads_their_turn_again_with_it(monkeypatch):
+    monkeypatch.setattr(lc, "the_turns_evidence", lambda **k: "|".join(k.get("also", ())))
+
+    async def scenario():
+        live, read, *_ = _a_context(replies=("One. Two. Three.",))
+        await live.open([_said("Hi.", "Hello.")])
+        await live.answer("Count.")
+        live.a_person_began_to_speak()  # they begin over her...
+        await asyncio.sleep(0)
+        live.cut_off("One.")  # ...and her voice stops
+        await asyncio.sleep(0)
+        assert "Cut off:" in read[-1][0] and live._opening.endswith('"One."; the rest of it was not heard.')
 
     asyncio.run(scenario())
 
