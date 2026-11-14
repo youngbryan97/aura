@@ -23,7 +23,6 @@ import pytest
 from core.perception.ambient_utterance import (
     _COMPOSE_TIMEOUT_S,
     _compose,
-    _is_refusal_or_noise,
     _worth_noticing,
     consider_utterance,
 )
@@ -42,11 +41,20 @@ class _Router:
 
     def __init__(self, reply: str = "The failing assertion is on line 42."):
         self.kwargs: dict = {}
+        self.prompt = None
         self.reply = reply
 
     async def think(self, prompt, **kwargs):
+        self.prompt = prompt
         self.kwargs = kwargs
         return self.reply
+
+
+@pytest.fixture(autouse=True)
+def _a_conversation_with_him(monkeypatch):
+    """Her remark is her next turn in her conversation with him; a turn of his comes before it."""
+    monkeypatch.setattr("core.together.remarks.said_since",
+                        lambda _began: [(1.0, "user", "I'm going to run the tests."), (2.0, "assistant", "Go ahead.")])
 
 
 @pytest.fixture
@@ -175,26 +183,29 @@ def test_the_cheap_gate_runs_before_any_model_call(router):
     assert router.kwargs == {}, "an ordinary screen reached the model"
 
 
-# ────────────────────────────────────────────── a greeting is not an insight
+# ─────────────────────────────────────── her own words, with nothing added to her turn
 
 
-@pytest.mark.parametrize(
-    "reply",
-    [
-        "NOTHING",
-        "Hi! I noticed you're working on something.",
-        "It looks like you're debugging.",
-        "Would you like some help with that?",
-        "I'm here to help!",
-        "ok",
-    ],
-)
-def test_template_replies_are_discarded(reply):
-    assert _is_refusal_or_noise(reply) is True
+def test_her_remark_is_her_turn_with_the_screen_as_a_reading_and_nothing_else(router):
+    """It asked her brainstem, under "You are Aura. You are quiet by default ...", to answer "exactly: NOTHING" unless
+    it could say something specific, and not to greet him: instruction on the path to her words (F06)."""
+    from core.brain.llm.llm_tier import LLMTier
+
+    said = asyncio.run(_compose(_Observation("Traceback (most recent call last):\n  File 'x.py', line 3"), "traceback"))
+    assert said == "The failing assertion is on line 42."
+    assert router.prompt == "" and router.kwargs["system_prompt"] == ""
+    assert router.kwargs["prefer_tier"] is LLMTier.PRIMARY, "her words, from her cortex"
+    messages = router.kwargs["messages"]
+    assert [m["role"] for m in messages[:2]] == ["user", "assistant"]
+    assert messages[-1]["content"].startswith("## WHAT IS ON THE SCREEN\nTraceback (most recent call last)")
+    for instruction in ("NOTHING", "Do not", "If — and only if", "You are Aura"):
+        assert instruction not in str(messages), instruction
 
 
-def test_a_specific_observation_survives():
-    assert (
-        _is_refusal_or_noise("The assertion on line 42 contradicts the test name.")
-        is False
-    )
+def test_a_remark_that_opens_with_a_greeting_is_still_hers(monkeypatch):
+    """A filter threw away remarks by their opening words ("Hey", "I see you"); her words are not judged by them."""
+    monkeypatch.setattr("core.container.ServiceContainer.get", staticmethod(
+        lambda name, default=None: _Router("Hey, that traceback is from the missing config key on line 3.")
+        if name == "llm_router" else default))
+    said = asyncio.run(_compose(_Observation("Traceback (most recent call last):"), "traceback"))
+    assert said.startswith("Hey, that traceback")

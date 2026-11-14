@@ -684,32 +684,7 @@ class TestUtteranceFilter:
 
         assert _worth_noticing("the error: field is optional in this schema") == ""
 
-    @pytest.mark.parametrize(
-        "reply",
-        [
-            "NOTHING",
-            "nothing.",
-            "Hi Bryan!",
-            "I see you're working on the parser.",
-            "It looks like you're debugging.",
-            "Would you like help with that?",
-            "I noticed you have a test failing.",
-            "ok",
-            "",
-        ],
-    )
-    def test_template_and_refusal_replies_are_suppressed(self, reply):
-        from core.perception.ambient_utterance import _is_refusal_or_noise
 
-        assert _is_refusal_or_noise(reply) is True
-
-    def test_a_specific_observation_survives(self):
-        from core.perception.ambient_utterance import _is_refusal_or_noise
-
-        assert _is_refusal_or_noise(
-            "That AssertionError is comparing 391 to 391.0 — the fixture "
-            "casts to float but the check uses ==."
-        ) is False
 
     def test_no_canned_fallback_when_her_voice_is_unavailable(self, monkeypatch):
         """Silence beats "I noticed an error on your screen!".
