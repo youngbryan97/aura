@@ -42,6 +42,7 @@ from core.adaptation.immune_state_writer import (
     SingleSlotStateWriter,
 )
 from core.adaptation.spatial_receptor_code import annotate_antigen_like
+from core.adaptation.what_load_is import the_governor_names_load as _the_governor_names_load
 from core.cognitive.anomaly_detector import FeatureExtractor
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
@@ -346,7 +347,6 @@ def _unit_scalar(value: Any, *, default: float = 0.0) -> float:
     if not math.isfinite(number):
         return default
     return max(0.0, min(1.0, number))
-
 
 
 @dataclass
@@ -822,8 +822,6 @@ def simulation_isolation_active() -> bool:
 _VOCABULARY_UNSET: Any = object()
 
 
-
-
 def _system_pressure(model: Any) -> float | None:
     """Total strain across EVERY entity, whatever they are.
 
@@ -862,8 +860,6 @@ def _unit_free_float(value: Any) -> float:
         # Not a failure: a value that is not a number contributes nothing, which is what zero says here.
         return 0.0
     return number if math.isfinite(number) else 0.0
-
-
 
 
 def _mutate_behavioral_rule(
@@ -2291,7 +2287,7 @@ class AdaptiveImmuneSystem(ImmuneStatePersistence):
                 kind = EffectorKind.CLEAR_CACHE
             elif "schema" in text or "migration" in text:
                 kind = EffectorKind.SCHEMA_MIGRATION
-            elif antigen.resource_pressure > 0.78:
+            elif antigen.resource_pressure > 0.78 and _the_governor_names_load():
                 kind = EffectorKind.REDUCE_LOAD
             elif antigen.error_load > 0.45 or antigen.health_pressure > 0.4:
                 kind = EffectorKind.RESTART_COMPONENT

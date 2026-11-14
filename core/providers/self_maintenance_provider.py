@@ -64,29 +64,10 @@ def _topology_evolution() -> Any:
     return TopologyEvolution()
 
 
-def _reduce_load_as_the_governor_judges() -> bool:
-    """reduce_load/global, decided by the one owner of load: the resource governor sheds what its own tier names.
-
-    Her immune system asks for this whenever resource pressure passes 0.78, which with her 27B resident is most of the
-    time, and no handler existed (live, 13 November 2026, "No repair handler registered for reduce_load/global").
-    Shedding on that reading alone would drop her prompt cache every few seconds. The governor measures against its own
-    thresholds; when it names no tier, the load is what her running model needs, and nothing is shed.
-    """
-    from core.resource.resource_governor import EvictionTier, get_resource_governor
-
-    governor = get_resource_governor()
-    tier = governor.sample().eviction_tier
-    if tier is not EvictionTier.NONE:
-        governor.execute_eviction(tier)
-    return True
-
-
 def _autopoiesis() -> Any:
-    from core.cognitive.autopoiesis import RepairStrategy, get_autopoiesis_engine
+    from core.cognitive.autopoiesis import get_autopoiesis_engine
 
-    engine = get_autopoiesis_engine()
-    engine.register_repair_handler(RepairStrategy.REDUCE_LOAD, "global", _reduce_load_as_the_governor_judges)
-    return engine
+    return get_autopoiesis_engine()
 
 
 def _adaptive_immune_system() -> Any:

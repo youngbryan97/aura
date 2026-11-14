@@ -1321,15 +1321,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   stealth port scan.
   13 November, evening, after her launch from /Applications: "No repair
   handler registered for reduce_load/global". Her immune system asks for it
-  whenever resource pressure passes 0.78, which her resident 27B holds most
-  of the time, and nothing could answer. The handler now asks the resource
-  governor, the one owner of load, and sheds only the tier its own
-  thresholds name; at her 27B's ordinary footprint that is none, so her
-  prompt cache is not dropped every few seconds on a reading of normal.
-  Open, by cause: a user turn reached the context assembler with no bound
-  principal ("hint was 'bryan'"), so that prompt went without her
-  relational memory of him; the tertiary routing tier matched no endpoint
-  (5 times); one event-loop lag at idle.
+  whenever resource pressure passes 0.78, which is her resident 27B's
+  ordinary footprint. A handler that deferred to the resource governor
+  (dac544086) made it worse: autopoiesis judges a repair by whether a
+  component's health rises, "global" has no health reading, and in two
+  hours 536 repairs ran every fifteen seconds, each "INEFFECTIVE" and fed
+  back to the immune system as a failure. The handler is gone. The immune
+  system now asks to reduce load only when the resource governor, which
+  owns load and sheds it on its own cadence, names an eviction tier.
+  "Relational memory withheld: no bound principal for user requests (hint
+  was 'bryan')" was her re-answer: when the runtime asked her again (a stale
+  energy figure), the call passed no principal, so the second pass to Bryan
+  was assembled without what she knows of him. The call names him now, and
+  a test holds every call into her chat turn to naming the person. Open, by
+  cause: her kernel's response phase routes ordinary turns to a tertiary
+  tier with no endpoint on this host (5 times); one event-loop lag at idle.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
