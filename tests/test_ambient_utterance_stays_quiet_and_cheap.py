@@ -224,3 +224,19 @@ def test_a_remark_that_opens_with_a_greeting_is_still_hers(monkeypatch):
     _her_cortex_is(monkeypatch, _Cortex("Hey, that traceback is from the missing config key on line 3."))
     said = asyncio.run(_compose(_Observation("Traceback (most recent call last):"), "traceback"))
     assert said.startswith("Hey, that traceback")
+
+
+def test_a_remark_her_allowance_cut_ends_at_her_last_finished_sentence_with_its_lines(monkeypatch):
+    """LIVE 14 November 2026, 15:03: her remark ended "Both ran the same command:" and an opened code fence."""
+    cut = ("Here's what I can see.\n\n**Behind it:** two Terminal windows. Both crashed on line 12 of load_settings.py."
+           "\n\nBoth ran the same command:\n\n```")
+    _her_cortex_is(monkeypatch, _Cortex(cut))
+    said = asyncio.run(_compose(_Observation("Traceback (most recent call last):"), "traceback"))
+    assert said == ("Here's what I can see.\n\n**Behind it:** two Terminal windows. Both crashed on line 12 of "
+                    "load_settings.py.")
+
+
+def test_a_whole_remark_is_served_whole_however_long(monkeypatch):
+    whole = "The traceback is a JSONDecodeError: settings.json ends after its opening brace. " * 8
+    _her_cortex_is(monkeypatch, _Cortex(whole.strip()))
+    assert asyncio.run(_compose(_Observation("Traceback (most recent call last):"), "traceback")) == whole.strip()

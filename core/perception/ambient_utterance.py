@@ -187,14 +187,30 @@ async def _compose(observation: Any, trigger: str) -> str:
             action="stayed silent because her own voice was unavailable",
         )
         return ""
-    return str(text or "").strip()[:_REMARK_CHARS]
+    return _what_she_finished(str(text or ""))
+
+
+def _what_she_finished(text: str) -> str:
+    """Her remark to its last finished sentence, its lines kept; "" when she finished none.
+
+    It was cut at 400 characters. LIVE 14 November 2026, 15:03, her remark in the bubble ended "Both ran the same
+    command:" and an opened code fence: her allowance ran out mid-sentence, and then the slice cut it again.
+    """
+    from core.utils.an_answer import was_cut_off
+
+    said = text.strip()
+    if said.count("```") % 2:
+        said = said[: said.rfind("```")].rstrip()  # a code block she did not close is not said
+    if not was_cut_off(said) and not said.endswith(":"):  # a colon at the end introduces what was not said
+        return said
+    for end in range(len(said) - 1, -1, -1):
+        if said[end] in ".!?" and not was_cut_off(said[: end + 1]):
+            return said[: end + 1]
+    return ""
 
 
 #: What her generation of a remark is admitted as, and named in her log.
 _ORIGIN = "ambient_remark"
-
-#: The most of a remark the bubble shows.
-_REMARK_CHARS = 400
 
 #: Her remark is worked out in its own generation: nothing upstream has thought about the screen. Named, her model's
 #: private channel is opened and bounded by the decoder, and a generation that ends mid-thought shows nothing. Unnamed,
