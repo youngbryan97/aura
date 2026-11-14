@@ -227,3 +227,29 @@ def test_a_reading_never_taken_is_not_served_as_idle(monkeypatch) -> None:
 
     assert compute.cpu_percent_measured is False and not compute.cpu_percent_readable
     assert served == 100.0, "an unread processor was reported as idle"
+
+
+def test_a_reading_taken_in_a_new_thread_is_a_reading(monkeypatch) -> None:
+    """psutil 7 keeps cpu_percent's baseline per thread, so a thread's first reading had nothing to subtract: her
+    health pulse read "CPU 0.0%" every few samples on 13 and 14 November, between readings such as 31.9% and 47.7%."""
+    import threading
+
+    import psutil
+
+    import core.runtime.cpu_sampler as ro
+
+    # Measured before, in another thread; the window has passed by the time a new thread asks.
+    monkeypatch.setattr(ro, "_CPU_TIMES_AT", psutil.cpu_times())
+    monkeypatch.setattr(ro, "_CPU_SAMPLED_AT", time.monotonic())
+    monkeypatch.setattr(ro, "_CPU_EVER_MEASURED", True)
+    monkeypatch.setattr(ro, "_CPU_LAST_VALUE", 0.0)
+    deadline = time.monotonic() + ro._CPU_MINIMUM_WINDOW_S + 0.2
+    while time.monotonic() < deadline:
+        pass
+
+    readings: list[float | None] = []
+    fresh = threading.Thread(target=lambda: readings.append(ro.measured_cpu_percent()))
+    fresh.start()
+    fresh.join()
+
+    assert readings[0] is not None and readings[0] > 0.0, readings

@@ -242,21 +242,22 @@ def test_the_actionable_goal_verdict_is_remembered_by_text(monkeypatch):
 def test_two_threads_sampling_cpu_together_do_not_read_zero(monkeypatch):
     """The health pulse said "CPU 0.0%" on a host at load 15 (2026-09-16):
     two samplers diffed against a baseline the other had just reset."""
+    from collections import namedtuple
+
     from core.runtime import cpu_sampler as ro
 
+    Times = namedtuple("Times", "user system idle")
     calls: list[float] = []
 
-    def fake_cpu_percent(interval=None):
-        # psutil semantics: the first diff after a reset reads 0.0.
+    def fake_cpu_times():
         calls.append(time.monotonic())
-        if len(calls) >= 2 and calls[-1] - calls[-2] < 0.05:
-            return 0.0
-        return 42.0
+        return Times(21.0, 21.0, 58.0)
 
-    monkeypatch.setattr(ro.psutil, "cpu_percent", fake_cpu_percent)
+    monkeypatch.setattr(ro.psutil, "cpu_times", fake_cpu_times)
+    monkeypatch.setattr(ro, "_CPU_TIMES_AT", Times(0.0, 0.0, 0.0))
     monkeypatch.setattr(ro, "_CPU_SAMPLED_AT", time.monotonic() - 5.0)
     monkeypatch.setattr(ro, "_CPU_EVER_MEASURED", True)
-    monkeypatch.setattr(ro, "_CPU_LAST_VALUE", 42.0)
+    monkeypatch.setattr(ro, "_CPU_LAST_VALUE", 7.0)  # an older reading; the new one is 42%
 
     readings: list[float] = []
     barrier = threading.Barrier(4)
