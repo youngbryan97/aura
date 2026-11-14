@@ -73,14 +73,13 @@ def holds(record: Any, claim: str, *, features: Features | None = None) -> bool:
 
 def _by_meaning(claim: str, lines: list[str], features: Features | None) -> list[bool | None]:
     """For each line, whether the claim is the same work by meaning (None in the overlap); [] unjudged."""
-    from core.language.learned_matcher import cosine, embed_sentences
+    from core.cognition.evidence_relevance import vectors_if_ready
+    from core.language.learned_matcher import cosine
 
     if features is None:
-        from core.memory.embedding_runtime import shared_embedding_runtime_snapshot
-
-        if not shared_embedding_runtime_snapshot().get("engine_live"):
-            return []
-        features = embed_sentences
+        # The encoder her evidence judge uses, only once it is loaded: the shared runtime's handle held no model in
+        # her app, so asking it left every live record read unjudged (13 November 2026).
+        features = vectors_if_ready
     boundary = _boundary(features)
     if boundary is None or not boundary.trustworthy:
         return []

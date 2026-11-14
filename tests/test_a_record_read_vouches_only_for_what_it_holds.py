@@ -61,8 +61,11 @@ def test_by_meaning_work_the_record_does_not_hold_is_not_founded_by_it():
     assert not holds(HER_RECORD, "I played a few rounds of chess online.", features=_features)
 
 
-def test_where_her_encoder_is_not_loaded_the_read_vouches_as_before():
-    # Tests never load her encoder, as her model's worker never does; her main process judges by meaning.
+def test_where_her_encoder_is_not_loaded_the_read_vouches_as_before(monkeypatch):
+    from core.cognition import evidence_relevance
+
+    # Her model's worker never loads her encoder; her main process judges by meaning.
+    monkeypatch.setattr(evidence_relevance, "semantic_routing_ready", lambda: False)
     assert not _has_unfounded_tool_execution_claim(HER_REPLY, tool_receipts=[_read_of(HER_RECORD)])
 
 

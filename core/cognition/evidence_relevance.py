@@ -435,6 +435,19 @@ def semantic_routing_ready() -> bool:
     return anchors_warm()
 
 
+def vectors_if_ready(texts: Sequence[str]) -> list[Any]:
+    """Vectors for ``texts`` from the encoder this judge uses, only when it is loaded already; [] otherwise.
+
+    Loads nothing, as ``semantic_routing_ready`` does not. The shared embedding runtime is a different handle, and in
+    her app it held no model while this one did: a judge that asked it fell back to words on every live turn
+    (13 November 2026).
+    """
+    if not semantic_routing_ready():
+        return []
+    vectors = _encode_documents([str(text or "") for text in texts], _embedder())
+    return [] if any(vector is None for vector in vectors) else [[float(x) for x in vector] for vector in vectors]
+
+
 def anchors_warm() -> bool:
     """Whether every evidence kind's concept and baseline are encoded already."""
     with _LOCK:

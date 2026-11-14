@@ -56,9 +56,9 @@ def test_a_reworded_question_is_the_same_question_by_meaning():
 
 
 def test_without_her_encoder_identical_words_decide_as_before(monkeypatch):
-    from core.memory import embedding_runtime
+    from core.cognition import evidence_relevance
 
-    monkeypatch.setattr(embedding_runtime, "shared_embedding_runtime_snapshot", lambda: {"engine_live": False})
+    monkeypatch.setattr(evidence_relevance, "semantic_routing_ready", lambda: False)
     assert asked_again.asks_the_same(AT_14_50, [AT_14_50.upper(), AT_13_44]) == [True, False]
 
 
@@ -135,6 +135,9 @@ def test_the_decoder_holds_the_next_word_of_her_earlier_answer():
 def test_her_client_sends_and_her_worker_installs_it():
     from pathlib import Path
 
-    assert "her_answers_in_the_conversation(kwargs)" in Path("core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
+    client = Path("core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
+    # Judged in a thread: it encodes, and her client builds the job on her event loop.
+    assert "await asyncio.to_thread(her_answers_in_the_conversation," in client
+    assert '"her_answers_when_asked_this": list(kwargs.get("her_answers_when_asked_this") or ())' in client
     assert "hold_her_earlier_answer(tokenizer, job, logits_processors)" in Path(
         "core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")

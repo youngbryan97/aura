@@ -41,10 +41,11 @@ _ASKS_SOMETHING_ELSE = (
     ("What's your favorite book?", "What's your favorite movie?"),
 )
 
-#: Her encoder (Qwen3-Embedding) is trained to take the task with each text; "asks the same question" is a task it
-#: was trained for. Without it the encoder measures topic: black holes and neutron stars scored 0.855, over the line;
-#: with it 0.651, and her four wordings of "what have you been up to since you woke" 0.759 to 0.965.
-_TASK = "Instruct: Given a message, retrieve messages that ask the same question\nQuery: "
+#: Her encoder (Qwen3-Embedding) is trained to take the task with each text; "asks the same question" is declared
+#: with her other tasks (core/memory/embedding_model.py). Without it the encoder measures topic: black holes and
+#: neutron stars scored 0.855, over the line; with it 0.651, and her four wordings of "what have you been up to since
+#: you woke" 0.759 to 0.965.
+_TASK_NAME = "same_question"
 
 Features = Callable[[Iterable[str]], list[list[float]]]
 _BOUNDARY: dict[Any, Any] = {}
@@ -82,10 +83,6 @@ def _by_meaning(request: str, earlier: list[str], features: Features | None) -> 
     if not earlier:
         return []
     if features is None:
-        from core.memory.embedding_runtime import shared_embedding_runtime_snapshot
-
-        if not shared_embedding_runtime_snapshot().get("engine_live"):
-            return []
         features = _as_a_question
     boundary = _boundary(features)
     if boundary is None or not boundary.separable:
@@ -97,9 +94,11 @@ def _by_meaning(request: str, earlier: list[str], features: Features | None) -> 
 
 
 def _as_a_question(texts: Iterable[str]) -> list[list[float]]:
-    from core.language.learned_matcher import embed_sentences
+    """Each text with the task, from the encoder her evidence judge uses, only once it is loaded; [] otherwise."""
+    from core.cognition.evidence_relevance import vectors_if_ready
+    from core.memory.embedding_model import query_prompt
 
-    return embed_sentences([_TASK + str(text or "") for text in texts])
+    return vectors_if_ready([query_prompt(_TASK_NAME) + str(text or "") for text in texts])
 
 
 def _boundary(features: Features) -> Any:

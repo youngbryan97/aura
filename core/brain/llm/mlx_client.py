@@ -4792,8 +4792,6 @@ def _build_the_generation_request(
     writing. It reads 10 name(s) from the turn and hands back
     1.
     """
-    from core.conversation.asked_again import her_answers_in_the_conversation
-
     continuation_resume_handle = str(
         kwargs.get("user_surface_continuation_resume_handle") or ""
     ).strip().lower()
@@ -4903,7 +4901,7 @@ def _build_the_generation_request(
             kwargs.get("user_surface_sensory_evidence")
         ),
         "user_surface_tool_receipts": _bounded_surface_tool_receipts(),
-        "her_answers_when_asked_this": her_answers_in_the_conversation(kwargs),
+        "her_answers_when_asked_this": list(kwargs.get("her_answers_when_asked_this") or ()),
         "clean_user_surface_steering_alpha": kwargs.get("clean_user_surface_steering_alpha"),
         "clean_user_surface_recurrent_loops": (
             kwargs.get("clean_user_surface_recurrent_loops")
@@ -10780,13 +10778,15 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
         req_id = uuid.uuid4().hex
         self._job_seq_counter += 1
+        from core.conversation.asked_again import her_answers_in_the_conversation
         req = _build_the_generation_request(
             _bridge_get=_bridge_get,
             adaptive_suggested_max_tokens=adaptive_suggested_max_tokens,
             contract_generation_floor=contract_generation_floor,
             generation_max_tokens=generation_max_tokens,
             hard_output_token_ceiling=hard_output_token_ceiling,
-            kwargs=kwargs,
+            kwargs={**kwargs, "her_answers_when_asked_this": await asyncio.to_thread(her_answers_in_the_conversation,
+                                                                                     kwargs)},
             prompt=prompt,
             req_id=req_id,
             requested_output_contract=requested_output_contract,
