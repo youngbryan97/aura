@@ -275,3 +275,29 @@ def test_uninstrumented_service_is_not_scored_as_healthy():
     assert module._UNKNOWN_HEALTH_SCORE < 0.55
     # The gap was surfaced rather than silently absorbed.
     assert "_Opaque" in module._reported_uninstrumented
+
+
+def test_auto_wiring_never_builds_a_service_on_her_loop():
+    """It runs every tick on her event loop. Live, 13 November 2026, resolving every registered name built the semantic
+    runtime there; it wires only what is already built, and a service built later on the tick after."""
+    autopoiesis = _AutopoiesisStub()
+    built = {"demo_service": None}
+    asked_to_build = []
+
+    class _Container(_ContainerStub):
+        @staticmethod
+        def peek(name, default=None):
+            return built.get(name) or default
+
+    def resolver(name: str):
+        if name == "autopoiesis":
+            return autopoiesis
+        asked_to_build.append(name)
+        return _ServiceStub()
+
+    auditor = IntegrationAuditor(service_resolver=resolver, container_cls=_Container)
+    assert "demo_service" not in auditor.auto_wire_autopoiesis()["health_probes_added"]
+    assert asked_to_build == []
+
+    built["demo_service"] = _ServiceStub()
+    assert "demo_service" in auditor.auto_wire_autopoiesis()["health_probes_added"]

@@ -53,7 +53,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
+from core.runtime.lockdep import checked_async_lock
 from core.verify.causal_influence import get_influence_ledger
 from core.verify.influence_probe import TrialReport, measure_channel
 from core.verify.lesion_registry import LesionUnavailable, get_lesion_registry
@@ -156,7 +156,9 @@ class CampaignReport:
 # Persistence
 # ---------------------------------------------------------------------------
 
-_PERSIST_LOCK = checked_lock("influence_campaign.persist")
+#: An asyncio lock: the one writer is a coroutine that awaits under it. A threading lock held across those awaits
+#: kept her loop 52 ms (lockdep, 13 November 2026), and a second writer on the loop would have deadlocked it.
+_PERSIST_LOCK = checked_async_lock("influence_campaign.persist")
 
 
 def ledger_path() -> Path:
@@ -217,7 +219,7 @@ async def persist_ledger() -> str:
 
     path = ledger_path()
     payload = get_influence_ledger().as_dict()
-    with _PERSIST_LOCK:
+    async with _PERSIST_LOCK:
         with local_internal_governed_scope(
             "influence_campaign", domain="state_mutation"
         ):

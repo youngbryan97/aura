@@ -260,7 +260,9 @@ async def read_what_the_turn_was_worth(state: AuraState, *, person: str = "", se
                 from core.together.taking_it_up import get_taking_it_up
 
                 get_taking_it_up().she_said(said[1], who=who)
-            met_this_turn(about, reading, said=said)
+            # Off the loop, as her other reads of this record are: it held her loop 225 ms under its lock, live
+            # 13 November 2026 (lockdep).
+            await asyncio.to_thread(met_this_turn, about, reading, said=said)
     except _LEARNING_RECOVERABLE_ERRORS as e:
         _record_learning_degradation(
             e,

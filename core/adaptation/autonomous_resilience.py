@@ -446,8 +446,12 @@ class IntegrationAuditor:
         for name in list(registry):
             if name in self._IGNORED_SERVICES:
                 continue
+            # Only what is already built. Resolving builds a lazy service, and this runs every tick on her loop:
+            # lockdep caught the semantic runtime being constructed here (13 November 2026). A service built
+            # later is wired on the tick after.
+            peek = getattr(self._container_cls, "peek", None)
             try:
-                instance = self._service_resolver(name)
+                instance = peek(name, default=None) if callable(peek) else self._service_resolver(name)
             except (RuntimeError, AttributeError, TypeError, ValueError):
                 continue
             if instance is None:

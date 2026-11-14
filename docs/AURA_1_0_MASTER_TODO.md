@@ -836,6 +836,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   worst is an eighth of what it was, and the total only 14% lower,
   because what she makes after boot keeps growing and the collector
   schedules a full pass by the part of the heap that is not frozen.
+  13 November, night, three of lockdep's live splats moved off her loop:
+  her learning phase read the turn into her record of what she wants under
+  that record's lock on the loop (225 ms; now in a thread, as its other
+  reads were); the influence ledger was written under a threading lock held
+  across awaits (52 ms, and a second writer would have deadlocked the loop;
+  now an async lock); and autonomous resilience, wired that morning,
+  resolved every registered service each tick to wire it, building the
+  semantic runtime on the loop (it wires only what is built now). Left: the
+  CPU sampler's one bounded seeding wait, once per process, which fell to
+  the loop that time.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
