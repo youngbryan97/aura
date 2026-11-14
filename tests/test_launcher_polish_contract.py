@@ -1279,3 +1279,13 @@ def test_the_restrained_chat_stays_away_while_another_surface_is_chosen():
     for hook in ("func windowDidBecomeKey(", "func windowDidChangeOcclusionState("):
         body = swift.split(hook, 1)[1].split("\n    }\n", 1)[0]
         assert "keepTheCompanionToTheChosenSurface(notification)" in body
+
+
+def test_an_open_from_a_bubble_not_on_screen_is_ignored():
+    """14 November 2026, launcher-surfaces.log: her window was fronted, and in the same second an "open" from the
+    bubble, put away 24 s earlier, showed the restrained chat over it."""
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
+
+    open_case = swift.split('case "open":', 1)[1].split('case "expand":', 1)[0]
+    guard_at = open_case.index("bubblePanel?.isVisible == true")
+    assert guard_at < open_case.index("showCompanionChat()")

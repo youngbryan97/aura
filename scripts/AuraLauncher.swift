@@ -4302,6 +4302,17 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             // desktop. Someone who clicked a bubble in the corner wants to
             // say one thing and get back to work; handing them the whole
             // surface makes them close a window they did not ask for.
+            //
+            // Only from a bubble on screen. 14 November 2026, from this log:
+            // the chat was shown at 20:24:52 by a click on the bubble, her
+            // window was fronted at 20:25:16, and in the same second an "open"
+            // from the bubble, put away 24 s earlier, showed the chat again
+            // over the window. A page whose panel is off screen is throttled
+            // and runs what was queued when the app is next active.
+            guard message.name == "auraCompanion" || bubblePanel?.isVisible == true else {
+                noteSurface("open from a bubble not on screen, ignored")
+                return
+            }
             showCompanionChat()
         case "expand":
             // They asked for the full desktop explicitly.
@@ -4663,11 +4674,10 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
 
     /// The restrained chat stays away while another surface is the one chosen.
     ///
-    /// 14 November 2026: FULL, clicked in the restrained chat while another app
-    /// was in front, opened her window and ordered the chat out, and the chat
-    /// came back over the window; the window server listed both. Reactivating
-    /// an app brings back the window that was key when it was last active, and
-    /// the chat had been, so the reactivation the click began undid the order.
+    /// Written on 14 November 2026 for the chat that came back over her window,
+    /// on the guess that AppKit restored it. launcher-surfaces.log then showed
+    /// the cause was a late "open" from the bubble (see the "open" case). This
+    /// stays as the rule itself: any way the chat comes back uninvited, it goes.
     private func keepTheCompanionToTheChosenSurface(_ notification: Notification) {
         guard let panel = companionPanel, (notification.object as? NSWindow) === panel,
               chosenSurface != "companion", panel.isVisible else { return }
