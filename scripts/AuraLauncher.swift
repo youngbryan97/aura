@@ -2379,6 +2379,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         target.orderFrontRegardless()
         activateLauncherSurface()
         NSApp.requestUserAttention(.informationalRequest)
+        noteSurface("fronted the \(target === desktopWindow ? "desktop" : "launcher") window")
         return true
     }
 
@@ -2391,10 +2392,12 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        frontPrimaryWindow()
+        noteSurface("reopen asked, visible windows \(flag)")
+        return frontPrimaryWindow()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        noteSurface("became active")
         // A bubble click activates only after the restrained companion panel is
         // visible. A Dock/app activation with no interactive surface means the
         // window lifecycle was lost and should be repaired immediately.
@@ -4276,6 +4279,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         desktopWindow?.orderFrontRegardless()
         desktopWindowOpen = desktopWindow != nil
         chosenSurface = "window"
+        noteSurface("desktop window opened")
         activateLauncherSurface()
         NSApp.requestUserAttention(.informationalRequest)
         autoDesktopOpenTriggered = true
@@ -4589,10 +4593,12 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         if let panel = companionPanel { matchBackingScale(for: panel) }
         activateLauncherSurface()
         postCompanionVisibility(true)
+        noteSurface("chat shown")
     }
 
     private func hideCompanionChat(restoringBubble: Bool = true) {
         companionPanel?.orderOut(nil)
+        noteSurface("chat ordered out, restoring bubble \(restoringBubble)")
         // Ordering a WKWebView out does not make the page "hidden" by any
         // measure the page can take for itself, and it keeps running: a turn
         // started here and then collapsed is answered into a window nobody is
@@ -4624,7 +4630,30 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         return NSPoint(x: visible.minX + 24, y: visible.minY + 100)
     }
 
+    /// One line per change of surface, read when a surface comes back or never
+    /// goes. 14 November 2026: with the restrained chat up, reopening the app
+    /// and then FULL left the chat over her window, and nothing recorded which
+    /// of the launcher's surface changes ran.
+    private func noteSurface(_ what: String) {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".aura/logs/launcher-surfaces.log")
+        let line = "\(ISO8601DateFormatter().string(from: Date())) \(what) | window=\(desktopWindow?.isVisible == true)"
+            + " chat=\(companionPanel?.isVisible == true) bubble=\(bubblePanel?.isVisible == true)"
+            + " chosen=\(chosenSurface) active=\(NSApp.isActive)\n"
+        // A day of ordinary use is a few hundred lines; past a megabyte it starts again.
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        if size < 1_000_000, let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile()
+            handle.write(Data(line.utf8))
+            try? handle.close()
+        } else {
+            try? Data(line.utf8).write(to: url)
+        }
+    }
+
     func windowDidBecomeKey(_ notification: Notification) {
+        let window = notification.object as? NSWindow
+        noteSurface("key: \(window === companionPanel ? "chat" : window === desktopWindow ? "desktop" : "other")")
         keepTheCompanionToTheChosenSurface(notification)
     }
 
@@ -4643,12 +4672,14 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         guard let panel = companionPanel, (notification.object as? NSWindow) === panel,
               chosenSurface != "companion", panel.isVisible else { return }
         panel.orderOut(nil)
+        noteSurface("chat came back while \(chosenSurface) was chosen; ordered out")
     }
 
     func windowWillClose(_ notification: Notification) {
         guard (notification.object as? NSWindow) === desktopWindow else { return }
         desktopWindowOpen = false
         chosenSurface = "bubble"
+        noteSurface("desktop window closed")
         // She does not leave when the window does. Closing the window is a
         // request for less surface area, not for her to stop; the bubble is
         // what "still here, out of the way" looks like.
