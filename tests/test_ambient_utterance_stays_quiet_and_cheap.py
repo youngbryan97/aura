@@ -1,17 +1,16 @@
 """An unprompted remark must never make the person's own question slower.
 
 ``consider_utterance`` runs off the ambient observation loop — every time she
-notices the screen changed, on a machine whose resident 32B is the same model
+notices the screen changed, on a machine whose resident 27B is the same model
 answering whatever the person just typed. So the judgment has two costs and
 both have to stay small: the cheap gate must reject almost everything before
 any model call, and the model call it does make must be BACKGROUND.
 
-It was neither marked background nor bounded. It passed ``mode=ThinkingMode.
-FAST``, and the router's tiering reads ``is_background`` / ``priority`` /
-``prefer_tier`` — never ``mode`` — so the flag was inert and an ambient
-musing rode the foreground lane against a live turn.
-
-There was no dedicated test for this module at all, which is why.
+It was neither marked background nor bounded. Then, marked background and asked
+of her router, it never reached her cortex: the router sends background work to
+its tertiary tier (LIVE 14 November 2026, eleven remarks with nothing formed, a
+traceback on the screen). It now takes the generation lane's background lease,
+as her goal pass does, and her cortex's own client.
 """
 from __future__ import annotations
 
@@ -23,6 +22,7 @@ import pytest
 from core.perception.ambient_utterance import (
     _COMPOSE_TIMEOUT_S,
     _compose,
+    _on_her_cortex,
     _worth_noticing,
     consider_utterance,
 )
@@ -36,17 +36,22 @@ class _Observation:
         return f"[screen] {self.capture}"
 
 
-class _Router:
-    """Records exactly how the ambient lane asked for cognition."""
+class _Cortex:
+    """Records exactly how the ambient lane asked her cortex's client, and which lease it held."""
 
-    def __init__(self, reply: str = "The failing assertion is on line 42."):
+    def __init__(self, reply: str = "The failing assertion is on line 42.", delay_s: float = 0.0):
         self.kwargs: dict = {}
         self.prompt = None
         self.reply = reply
+        self.delay_s = delay_s
+        self.leases: list[dict] = []
+        self.released: list[int] = []
 
-    async def think(self, prompt, **kwargs):
+    async def generate_text_async(self, prompt, **kwargs):
         self.prompt = prompt
         self.kwargs = kwargs
+        if self.delay_s:
+            await asyncio.sleep(self.delay_s)
         return self.reply
 
 
@@ -57,65 +62,79 @@ def _a_conversation_with_him(monkeypatch):
                         lambda _began: [(1.0, "user", "I'm going to run the tests."), (2.0, "assistant", "Go ahead.")])
 
 
+def _her_cortex_is(monkeypatch, cortex, *, lease: int | None = 7, person_waiting: bool = False):
+    class _Gate:
+        _mlx_client = cortex
+
+    async def acquire(**kwargs):
+        if cortex is not None:
+            cortex.leases.append(kwargs)
+        return lease
+
+    def release(lease_id):
+        if cortex is not None:
+            cortex.released.append(lease_id)
+
+    monkeypatch.setattr("core.runtime.service_access.resolve_inference_gate",
+                        lambda default=None: _Gate() if cortex is not None else default)
+    monkeypatch.setattr("core.brain.llm_health_router.acquire_external_generation_gate_lease", acquire)
+    monkeypatch.setattr("core.brain.llm_health_router.release_external_generation_gate_lease", release)
+    monkeypatch.setattr("core.brain.llm_health_router.a_person_is_waiting_for_her_model", lambda: person_waiting)
+
+
 @pytest.fixture
 def router(monkeypatch):
-    instance = _Router()
-    monkeypatch.setattr(
-        "core.container.ServiceContainer.get",
-        staticmethod(
-            lambda name, default=None: instance if name == "llm_router" else default
-        ),
-    )
+    instance = _Cortex()
+    _her_cortex_is(monkeypatch, instance)
     return instance
 
 
 # ─────────────────────────────────────────── it does not fight the foreground
 
 
-def test_the_ambient_judgment_is_marked_background(router):
-    """The flag the router actually reads.
-
-    ``mode=ThinkingMode.FAST`` went into **kwargs and was never consulted, so
-    the call it was meant to de-prioritise ran at full foreground priority.
-    """
+def test_the_ambient_judgment_is_background_work_under_the_lanes_lease(router):
+    """A person's turn asks a background lease to yield; the generation itself is marked background too."""
     asyncio.run(_compose(_Observation("traceback (most recent call last)"), "traceback"))
 
     assert router.kwargs.get("is_background") is True
-    assert router.kwargs.get("priority", 1.0) <= 0.3
-    assert router.kwargs.get("prefer_tier") is not None
-    assert "mode" not in router.kwargs, (
-        "the router does not read `mode`; passing it looks like tiering and is not"
-    )
+    assert router.kwargs.get("origin") == "ambient_remark"
+    assert len(router.leases) == 1 and not router.leases[0].get("foreground"), "a background lease"
+    assert router.released == [7], "the lease is given back"
+    assert "mode" not in router.kwargs
+
+
+def test_it_does_not_ask_for_her_model_while_a_person_is_waiting_for_it(monkeypatch):
+    cortex = _Cortex()
+    _her_cortex_is(monkeypatch, cortex, person_waiting=True)
+    assert asyncio.run(_compose(_Observation("panic: nil map"), "panic:")) == ""
+    assert cortex.leases == [] and cortex.prompt is None
+
+
+def test_no_lease_means_no_generation_and_no_remark(monkeypatch):
+    cortex = _Cortex()
+    _her_cortex_is(monkeypatch, cortex, lease=None)
+    assert asyncio.run(_compose(_Observation("panic: nil map"), "panic:")) == ""
+    assert cortex.prompt is None and cortex.released == []
 
 
 def test_composing_is_bounded(router):
     """It runs inside a loop. An unbounded call is a wedged loop."""
-    source = inspect.getsource(_compose)
+    source = inspect.getsource(_on_her_cortex)
 
     assert "wait_for" in source
-    assert "_COMPOSE_TIMEOUT_S" in source
+    assert "_COMPOSE_TIMEOUT_S" in source and "time_a_prompt_needs" in source
     assert 0 < _COMPOSE_TIMEOUT_S <= 60
 
 
 def test_a_slow_composition_is_silence_not_a_late_remark(monkeypatch):
     """A remark about a screen the person already left is wrong, not late."""
-
-    class _Slow:
-        async def think(self, prompt, **kwargs):
-            await asyncio.sleep(5)
-            return "too late to matter"
-
-    monkeypatch.setattr(
-        "core.container.ServiceContainer.get",
-        staticmethod(
-            lambda name, default=None: _Slow() if name == "llm_router" else default
-        ),
-    )
-    monkeypatch.setattr(
-        "core.perception.ambient_utterance._COMPOSE_TIMEOUT_S", 0.05
-    )
+    cortex = _Cortex("too late to matter", delay_s=5)
+    _her_cortex_is(monkeypatch, cortex)
+    monkeypatch.setattr("core.perception.ambient_utterance._COMPOSE_TIMEOUT_S", 0.05)
+    monkeypatch.setattr("core.brain.llm.mlx_client.time_a_prompt_needs", lambda _chars, _tokens: 0.0)
 
     assert asyncio.run(_compose(_Observation("panic: nil map"), "panic:")) == ""
+    assert cortex.released == [7], "the lease is given back when the time runs out"
 
 
 def test_no_cognition_means_no_fallback_line(monkeypatch):
@@ -124,10 +143,7 @@ def test_no_cognition_means_no_fallback_line(monkeypatch):
     A template interrupts and carries no information, and the person cannot
     tell it from a real observation until they have already been interrupted.
     """
-    monkeypatch.setattr(
-        "core.container.ServiceContainer.get",
-        staticmethod(lambda name, default=None: default),
-    )
+    _her_cortex_is(monkeypatch, None)
 
     assert asyncio.run(_compose(_Observation("build failed"), "build failed")) == ""
 
@@ -189,12 +205,9 @@ def test_the_cheap_gate_runs_before_any_model_call(router):
 def test_her_remark_is_her_turn_with_the_screen_as_a_reading_and_nothing_else(router):
     """It asked her brainstem, under "You are Aura. You are quiet by default ...", to answer "exactly: NOTHING" unless
     it could say something specific, and not to greet him: instruction on the path to her words (F06)."""
-    from core.brain.llm.llm_tier import LLMTier
-
     said = asyncio.run(_compose(_Observation("Traceback (most recent call last):\n  File 'x.py', line 3"), "traceback"))
     assert said == "The failing assertion is on line 42."
     assert router.prompt == "" and router.kwargs["system_prompt"] == ""
-    assert router.kwargs["prefer_tier"] is LLMTier.PRIMARY, "her words, from her cortex"
     messages = router.kwargs["messages"]
     assert [m["role"] for m in messages[:2]] == ["user", "assistant"]
     assert messages[-1]["content"].startswith("## WHAT IS ON THE SCREEN\nTraceback (most recent call last)")
@@ -204,8 +217,6 @@ def test_her_remark_is_her_turn_with_the_screen_as_a_reading_and_nothing_else(ro
 
 def test_a_remark_that_opens_with_a_greeting_is_still_hers(monkeypatch):
     """A filter threw away remarks by their opening words ("Hey", "I see you"); her words are not judged by them."""
-    monkeypatch.setattr("core.container.ServiceContainer.get", staticmethod(
-        lambda name, default=None: _Router("Hey, that traceback is from the missing config key on line 3.")
-        if name == "llm_router" else default))
+    _her_cortex_is(monkeypatch, _Cortex("Hey, that traceback is from the missing config key on line 3."))
     said = asyncio.run(_compose(_Observation("Traceback (most recent call last):"), "traceback"))
     assert said.startswith("Hey, that traceback")

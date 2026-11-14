@@ -80,7 +80,7 @@ _NOISE_CONTEXTS: tuple[str, ...] = (
 _MIN_CAPTURE_CHARS = 40
 _MAX_CAPTURE_CHARS = 6000
 
-#: How long she may spend deciding whether to say something unprompted.
+#: The least time she has to decide whether to say something unprompted; a longer prompt gets what it needs.
 #: Past this the screen has moved on and the remark would be about a window
 #: the person already left.
 _COMPOSE_TIMEOUT_S = 25.0
@@ -180,27 +180,68 @@ async def _compose(observation: Any, trigger: str) -> str:
     screen = "\n".join(part for part in (source, capture[:SCREEN_CHARS]) if part)
     messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE, "content": f"## WHAT IS ON THE SCREEN\n{screen}"}))
     try:
-        import asyncio
-
-        from core.brain.llm.llm_tier import LLMTier
-        from core.container import ServiceContainer
-
-        brain = ServiceContainer.get("llm_router", default=None)
-        if brain is None:
-            return ""
-        response = await asyncio.wait_for(
-            brain.think("", messages=messages, system_prompt="", priority=0.2, is_background=True,
-                        prefer_tier=LLMTier.PRIMARY),
-            timeout=_COMPOSE_TIMEOUT_S,
-        )
+        text = await _on_her_cortex(messages)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError, TimeoutError) as exc:
         record_degradation(
             "ambient_utterance", exc, severity="debug",
             action="stayed silent because her own voice was unavailable",
         )
         return ""
-    text = response[1] if isinstance(response, tuple) and len(response) > 1 else response
-    return str(text or "").strip()[:400]
+    return str(text or "").strip()[:_REMARK_CHARS]
+
+
+#: What her generation of a remark is admitted as, and named in her log.
+_ORIGIN = "ambient_remark"
+
+#: The most of a remark the bubble shows.
+_REMARK_CHARS = 400
+
+
+async def _on_her_cortex(messages: list[dict[str, Any]]) -> str:
+    """Her cortex's next turn on these messages, admitted as her goal pass is; "" when her model is not free for it.
+
+    Asked of her router as background work, a remark never reached her cortex: the router sends background work to its
+    tertiary tier. LIVE 14 November 2026, 14:22 to 14:28, a traceback on the screen and her in the bubble: eleven times
+    "Tier Lock: Background task requested 'primary'; using the governed tertiary tier", then "no endpoints matched"
+    (her brainstem was out), and nothing formed. Her goal pass reaches her cortex through its client under the
+    generation lane's lease (core/agency/her_goal_at_work.py). The lease is a background one, so a person's turn asks
+    it to yield, and it is not asked for while a person is waiting for her model. The time it may take is what this
+    prompt needs on this machine, and at least as long as the screen is worth a remark.
+    """
+    import asyncio
+
+    from core.brain.llm.mlx_client import time_a_prompt_needs
+    from core.brain.llm_health_router import (
+        _BACKGROUND_GENERATION_GATE_WAIT_S,
+        a_person_is_waiting_for_her_model,
+        acquire_external_generation_gate_lease,
+        release_external_generation_gate_lease,
+    )
+    from core.runtime.service_access import resolve_inference_gate
+    from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+    if a_person_is_waiting_for_her_model():
+        logger.info("🫧 remark: her model is someone's now")
+        return ""
+    client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
+    if client is None or not hasattr(client, "generate_text_async"):
+        return ""
+    prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
+    seconds = max(_COMPOSE_TIMEOUT_S, time_a_prompt_needs(prompt_chars, A_CLOSED_QUESTIONS_FLOOR))
+    lease = await acquire_external_generation_gate_lease(
+        owner=f"{_ORIGIN}:her_own_turn", timeout_s=seconds, wait_s=_BACKGROUND_GENERATION_GATE_WAIT_S)
+    if lease is None:
+        logger.info("🫧 remark: her model is held for something else")
+        return ""
+    try:
+        return await asyncio.wait_for(
+            client.generate_text_async(
+                "", messages=messages, system_prompt="", origin=_ORIGIN, is_background=True,
+                max_tokens=A_CLOSED_QUESTIONS_FLOOR, timeout=seconds),
+            timeout=seconds,
+        ) or ""
+    finally:
+        release_external_generation_gate_lease(lease)
 
 
 def _latest_observation() -> Any:
