@@ -5403,6 +5403,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the Mac on 14 October; each now holds its model inside the lane for as
   long as it is used (measure_rebuilding loads in main for its whole run
   rather than in a router's constructor), and the audit passes.
+  Still order: test_host_process_ids_never_enriches_process_table errs at
+  teardown in a batch. It makes psutil's process scan raise for the whole
+  process, so some earlier test left a thread running that scans the
+  process table; that thread is not yet named.
   Also in that batch, passing alone: five cases of
   test_her_feelings_reach_the_worker_that_steers. Steering reads what she
   last felt (steering_channel._FELT, written by her affect phase) in place
