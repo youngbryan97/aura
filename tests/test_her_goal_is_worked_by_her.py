@@ -266,3 +266,13 @@ def test_her_words_between_her_calls_reach_her_model_and_every_call_after_them_d
              {"id": "b", "tool": "read_source", "args": {"path": "y.py"}, "result": "1: y", "at": 3.0}]
     turns = work.turns_from(steps, room=10_000, said=[{"words": "x.py has no forget.", "at": 2.0}])
     assert _prior_tool_turns(turns) == turns, "pairing by position dropped every call after her words"
+
+
+def test_she_finds_in_her_source_with_the_patterns_she_writes(her_source):
+    """Live, 13 November 2026: "(?i)quantum error correction|qec\\b|..." was fatal to git grep -E, so her search failed
+    on the inline flag she writes as a matter of course. She searches in the Perl-compatible dialect now."""
+    record = work.GoalRecord(goal=GOAL, slug=work.slug_of(GOAL))
+    workspace = work.ensure_workspace(record)
+    found = asyncio.run(her_draft.FindInSourceSkill().execute({"pattern": r"(?i)NOTE_COUNT\b|qec\b"},
+                                                              {"her_goal_workspace": str(workspace)}))
+    assert found["ok"] is True and found["matches"] == 1 and "core/notes.py:1:" in found["text"]

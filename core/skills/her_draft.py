@@ -187,7 +187,8 @@ class FindInSourceSkill(BaseSkill):
             where = _inside(workspace, asked.where or ".") if (asked.where or ".") != "." else workspace
         except Refused as why:
             return {"ok": False, "error": str(why)}
-        code, out = await _run("git", "-c", "core.fsmonitor=false", "grep", "-n", "-I", "-E", asked.pattern, "--",
+        # Perl-compatible, the dialect she writes: "(?i)quantum error correction|qec\b" is fatal to -E (13 November 2026).
+        code, out = await _run("git", "-c", "core.fsmonitor=false", "grep", "-n", "-I", "-P", asked.pattern, "--",
                                str(where.relative_to(workspace)) if where != workspace else ".",
                                cwd=workspace, timeout=60.0)
         if code not in (0, 1):
