@@ -5008,6 +5008,9 @@ def _mlx_worker_loop_endogenous_language_pathway(job, logger, logits_processors,
             action="generated without the endogenous vocabulary bias",
             severity="warning",
         )
+    from core.brain.llm.her_earlier_answer import install as hold_her_earlier_answer
+
+    hold_her_earlier_answer(tokenizer, job, logits_processors)
 
     # Foreground non-parametric memory (KV-cache-correct): the tap captures the
     # hidden state the generation forward already computes, so the processor adds

@@ -4792,6 +4792,8 @@ def _build_the_generation_request(
     writing. It reads 10 name(s) from the turn and hands back
     1.
     """
+    from core.conversation.asked_again import her_answers_in_the_conversation
+
     continuation_resume_handle = str(
         kwargs.get("user_surface_continuation_resume_handle") or ""
     ).strip().lower()
@@ -4901,6 +4903,7 @@ def _build_the_generation_request(
             kwargs.get("user_surface_sensory_evidence")
         ),
         "user_surface_tool_receipts": _bounded_surface_tool_receipts(),
+        "her_answers_when_asked_this": her_answers_in_the_conversation(kwargs),
         "clean_user_surface_steering_alpha": kwargs.get("clean_user_surface_steering_alpha"),
         "clean_user_surface_recurrent_loops": (
             kwargs.get("clean_user_surface_recurrent_loops")

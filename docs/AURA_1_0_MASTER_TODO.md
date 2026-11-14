@@ -3710,6 +3710,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   first draft was served with a correction that now names the figure and
   its reading. Still open: given her own earlier answer in her recall, her
   drafts keep reproducing it until the retries run out.
+  Found that evening: no template and no replayed cache. Her memory gateway
+  keeps each exchange whole ("Interaction: <asked> -> conversation_reply ->
+  <her answer>", 1,282 characters for the 13:46 one), recall brought it back
+  for a reworded question because its filter compared words, and copying an
+  answer in front of her was her model's likeliest continuation. Now "the
+  same question" is judged by meaning, with her encoder given its task
+  (her four wordings 0.759 to 0.965 against a measured line of 0.756; black
+  holes against neutron stars 0.651), and her decoder does not continue any
+  run of her earlier answer to the same question in the conversation in
+  front of her.
   The 30 s "reconcile" was a second answer: her first draft gave her energy
   as 6% while it read 0.697, and the re-answer is timed in that stage. The
   turn ran three generations of about 20 s each.

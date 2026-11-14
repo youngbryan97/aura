@@ -364,10 +364,9 @@ async def _her_earlier_answers_to(request: str, began: float) -> Any:
         A_REPLY_HAS_RUNS,
         _runs_of_words,
     )
+    from core.conversation.asked_again import asks_the_same
     from core.conversation.sitting import when
-    from core.memory.rag_bridge import _in_these_words
 
-    asked = _in_these_words(request)
     try:
         exchanges = await asyncio.to_thread(
             _chat_memory_state._load_durable_conversation_exchanges_sync, limit=40
@@ -375,13 +374,12 @@ async def _her_earlier_answers_to(request: str, began: float) -> Any:
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("rag_bridge", exc, severity="warning", action="recalled without her earlier answers set aside")
         return None
-    answers = [
-        _runs_of_words(str(exchange.get("aura") or ""))
-        for exchange in exchanges
-        if isinstance(exchange, dict)
-        and _in_these_words(exchange.get("user")) == asked
-        and (when(exchange.get("timestamp")) or began) < began
-    ]
+    # The same question by meaning, not in the same words: "What have you been up to since you woke?" reworded at
+    # 14:50 on 13 November brought her 13:46 answer back whole, and seven of its ten sentences were read back.
+    earlier = [exchange for exchange in exchanges
+               if isinstance(exchange, dict) and (when(exchange.get("timestamp")) or began) < began]
+    same = await asyncio.to_thread(asks_the_same, request, [str(exchange.get("user") or "") for exchange in earlier])
+    answers = [_runs_of_words(str(exchange.get("aura") or "")) for exchange, is_same in zip(earlier, same, strict=True) if is_same]
     answers = [runs for runs in answers if len(runs) >= A_REPLY_HAS_RUNS]
     if not answers:
         return None
