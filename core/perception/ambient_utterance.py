@@ -35,9 +35,12 @@ category has to argue past them.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger("Aura.Perception.AmbientUtterance")
 
 UTTERANCE_SCHEMA = "aura.perception.ambient_utterance.v1"
 
@@ -84,22 +87,33 @@ _COMPOSE_TIMEOUT_S = 25.0
 
 
 async def consider_utterance(tick_result: Any) -> str:
-    """Return what she would say, or "" — which is the normal answer."""
+    """Return what she would say, or "" — which is the normal answer.
+
+    Each step that keeps her quiet is named in her log, once per observation she considers. LIVE 14 November 2026,
+    with her in the bubble and a traceback in front of her for six minutes, she said nothing, and nothing anywhere said
+    which step had held her.
+    """
     observation = _latest_observation()
     if observation is None:
+        logger.info("🫧 remark: quiet, no screen reading to consider")
         return ""
     capture = str(getattr(observation, "capture", "") or "")
     if not (_MIN_CAPTURE_CHARS <= len(capture) <= _MAX_CAPTURE_CHARS):
         # Too little to be anything; too much to be one screen worth
         # reasoning about without a request.
+        logger.info("🫧 remark: quiet, the screen reading is %d characters", len(capture))
         return ""
 
     trigger = _worth_noticing(capture)
     if not trigger:
+        logger.info("🫧 remark: quiet, nothing in the %d characters read is a fault", len(capture))
         return ""
     if _already_said_about(observation):
+        logger.info("🫧 remark: quiet, she already spoke about this screen")
         return ""
-    return await _compose(observation, trigger)
+    said = await _compose(observation, trigger)
+    logger.info("🫧 remark: %s (%r seen)", f"{len(said)} characters formed" if said else "nothing formed", trigger)
+    return said
 
 
 def _worth_noticing(capture: str) -> str:

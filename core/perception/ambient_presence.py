@@ -954,7 +954,14 @@ class AmbientPresence(_CarriesTheBubble):
                 action="ambient tick observed but did not consider speaking",
             )
             return
-        if thought and self.offer_utterance(thought):
+        offered = bool(thought) and self.offer_utterance(thought)
+        if thought:
+            import logging
+
+            logging.getLogger("Aura.Perception.AmbientPresence").info(
+                "🫧 remark: %s", "offered to the bubble" if offered else
+                "formed and not offered (hidden, or unprompted speech suppressed now)")
+        if offered:
             with self._lock:
                 self._last_spoke_at = time.time()
 
