@@ -792,7 +792,11 @@ def test_packaged_launcher_repairs_a_lost_window_on_application_activation():
         "func applicationShouldTerminateAfterLastWindowClosed",
         1,
     )[0]
-    assert "visibleInteractiveSurfaceExists" in active_body
+    # A lost window is repaired; a bubble or a hidden Aura the person chose is not a lost window (launcher-surfaces.log,
+    # 14 November 2026, 21:33:53Z: an activation with the bubble chosen fronted her window).
+    assert "guard !theSurfaceThePersonChoseIsUp() else { return }" in active_body
+    chose = swift.split("private func theSurfaceThePersonChoseIsUp()", 1)[1].split("private func", 1)[0]
+    assert 'chosenSurface == "bubble"' in chose and "visibleInteractiveSurfaceExists()" in chose
     assert "frontPrimaryWindow()" in active_body
     assert "bubblePanel?.isVisible" not in swift.split(
         "private func visibleInteractiveSurfaceExists", 1

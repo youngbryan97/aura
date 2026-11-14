@@ -2399,9 +2399,14 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     func applicationDidBecomeActive(_ notification: Notification) {
         noteSurface("became active")
         // A bubble click activates only after the restrained companion panel is
-        // visible. A Dock/app activation with no interactive surface means the
-        // window lifecycle was lost and should be repaired immediately.
-        guard !visibleInteractiveSurfaceExists() else { return }
+        // visible. An activation with no interactive surface means the window
+        // lifecycle was lost and should be repaired, unless the person chose the
+        // bubble or hid her: launcher-surfaces.log, 14 November 2026, 21:33:53Z,
+        // her app became active with the bubble chosen (a screenshot taken
+        // through desktop control) and her window was fronted over the window
+        // the bubble was watching. A click on her Dock icon still brings her
+        // window: that is a reopen, handled above.
+        guard !theSurfaceThePersonChoseIsUp() else { return }
         frontPrimaryWindow()
     }
 
