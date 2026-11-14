@@ -44,10 +44,8 @@ def test_the_first_processor_reading_is_measured_not_zero() -> None:
     nothing, and a caller who asks sooner than the counters can answer gets a
     blocking sample rather than a zero meaning "I did not look".
     """
-    from core.runtime.resource_observation import (
-        _CPU_MINIMUM_WINDOW_S,
-        _measured_cpu_percent,
-    )
+    from core.runtime.cpu_sampler import _CPU_MINIMUM_WINDOW_S
+    from core.runtime.cpu_sampler import measured_cpu_percent as _measured_cpu_percent
 
     # Burn a core for the length of the window, so a reading that looks at the
     # counters cannot come back zero. `0.0 <= x <= 100.0` would pass on the
@@ -170,3 +168,62 @@ def test_the_reading_lands_in_the_reply_not_in_place_of_it() -> None:
     )
     assert composed.startswith("The machine is at 12.0%")
     assert "consolidating memory" in composed
+
+
+class _NeverTaken:
+    def __enter__(self):
+        raise AssertionError("her event loop took the CPU sampler's lock")
+
+    def __exit__(self, *_exc):
+        return False
+
+
+def test_her_loop_reads_the_published_reading_and_never_takes_the_lock(monkeypatch) -> None:
+    """Lockdep, 12-14 November 2026: 18 holds of the sampler's lock on her loop, the longest 239 ms."""
+    import asyncio
+
+    import core.runtime.cpu_sampler as ro
+
+    queued: list[object] = []
+    monkeypatch.setattr(ro, "_CPU_SAMPLE_LOCK", _NeverTaken())
+    monkeypatch.setattr(ro, "done_by_the_walker", queued.append)
+    monkeypatch.setattr(ro, "_CPU_EVER_MEASURED", True)
+    monkeypatch.setattr(ro, "_CPU_LAST_VALUE", 37.5)
+    monkeypatch.setattr(ro, "_CPU_REFRESH_QUEUED", False)
+
+    async def on_the_loop():
+        monkeypatch.setattr(ro, "_CPU_SAMPLED_AT", time.monotonic())
+        fresh = ro.measured_cpu_percent()
+        fresh_queued = len(queued)
+        monkeypatch.setattr(ro, "_CPU_SAMPLED_AT", time.monotonic() - 5.0)
+        due = ro.measured_cpu_percent()
+        again = ro.measured_cpu_percent()
+        return fresh, fresh_queued, due, again
+
+    fresh, fresh_queued, due, again = asyncio.run(on_the_loop())
+
+    assert (fresh, due, again) == (37.5, 37.5, 37.5)
+    assert fresh_queued == 0, "a fresh reading queued a refresh"
+    assert len(queued) == 1, "a due reading queued no refresh, or queued one per call"
+
+
+def test_a_reading_never_taken_is_not_served_as_idle(monkeypatch) -> None:
+    import asyncio
+
+    import core.runtime.cpu_sampler as ro
+    from core.runtime import resource_psutil
+    from core.runtime.resource_observation import HostResourceObserver
+
+    monkeypatch.setattr(ro, "_CPU_SAMPLE_LOCK", _NeverTaken())
+    monkeypatch.setattr(ro, "done_by_the_walker", lambda _work: None)
+    monkeypatch.setattr(ro, "_CPU_EVER_MEASURED", False)
+    monkeypatch.setattr(ro, "_CPU_REFRESH_QUEUED", False)
+    monkeypatch.setattr(resource_psutil, "get_resource_observer", HostResourceObserver)
+
+    async def on_the_loop():
+        return HostResourceObserver().compute(), resource_psutil.cpu_percent()
+
+    compute, served = asyncio.run(on_the_loop())
+
+    assert compute.cpu_percent_measured is False and not compute.cpu_percent_readable
+    assert served == 100.0, "an unread processor was reported as idle"

@@ -337,7 +337,9 @@ class HostResourceAdapter:
         value: float,
     ) -> ChannelReading:
         provenance = observation.provenance
-        available = bool(getattr(observation, "available", True))
+        available = bool(getattr(observation, "available", True)) and bool(
+            getattr(observation, "cpu_percent_measured", True)
+        )
         if not available:
             status = ReadingStatus.UNAVAILABLE
             reading_value = None

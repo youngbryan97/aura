@@ -235,7 +235,7 @@ def _read_compute_pressure_reason() -> str:
 
     try:
         compute = observer.compute()
-        if not compute.available:
+        if not compute.cpu_percent_readable:
             return f"compute_observation_unavailable_source_{provenance.source.value}"
         cpu_pct = float(compute.cpu_percent)
         max_cpu_pct = _env_float("AURA_BACKGROUND_MAX_CPU_PERCENT", 88.0)

@@ -159,7 +159,7 @@ def cpu_percent(
 ) -> Any:
     del interval
     compute = get_resource_observer().compute()
-    value = float(compute.cpu_percent) if compute.available else 100.0
+    value = float(compute.cpu_percent) if compute.cpu_percent_readable else 100.0
     if percpu:
         return [value for _index in range(max(1, int(compute.cpu_count)))]
     return value

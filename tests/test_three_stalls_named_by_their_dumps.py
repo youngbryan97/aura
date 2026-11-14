@@ -242,7 +242,7 @@ def test_the_actionable_goal_verdict_is_remembered_by_text(monkeypatch):
 def test_two_threads_sampling_cpu_together_do_not_read_zero(monkeypatch):
     """The health pulse said "CPU 0.0%" on a host at load 15 (2026-09-16):
     two samplers diffed against a baseline the other had just reset."""
-    from core.runtime import resource_observation as ro
+    from core.runtime import cpu_sampler as ro
 
     calls: list[float] = []
 
@@ -263,7 +263,7 @@ def test_two_threads_sampling_cpu_together_do_not_read_zero(monkeypatch):
 
     def sample():
         barrier.wait()
-        readings.append(ro._measured_cpu_percent())
+        readings.append(ro.measured_cpu_percent())
 
     workers = [threading.Thread(target=sample) for _ in range(4)]
     for w in workers:

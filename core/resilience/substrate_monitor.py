@@ -43,7 +43,7 @@ class SubstrateMonitor:
         memory_mb = float(memory.process_rss_bytes) / float(1024**2)
         memory_percent = float(memory.percent)
         cpu_percent = float(compute.cpu_percent)
-        observation_available = bool(memory.available and compute.available)
+        observation_available = bool(memory.available and compute.cpu_percent_readable)
         source_prefix = provenance.source.value
 
         if process is not None:

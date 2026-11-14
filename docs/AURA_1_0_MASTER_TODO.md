@@ -846,6 +846,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   semantic runtime on the loop (it wires only what is built now). Left: the
   CPU sampler's one bounded seeding wait, once per process, which fell to
   the loop that time.
+  14 November: that was the wrong wait. Her log from 12 to 14 November holds
+  18 splats on the sampler's lock, the longest 239 ms and none near the
+  half-second seeding wait. They come from the cognitive loop's free-energy
+  tick and the subconscious loop, and the work under the lock is one counter
+  read; the loop thread was off the CPU while it held a lock other threads
+  wait on. Her loop no longer takes that lock: it reads the published
+  reading, and the walker thread takes the next one, the first included. A
+  reading not yet taken is marked as such, and the readers that decide
+  pressure or feel load treat it as unread, not idle
+  (`core/runtime/cpu_sampler.py`).
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;

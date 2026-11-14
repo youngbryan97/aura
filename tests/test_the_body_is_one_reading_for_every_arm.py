@@ -84,10 +84,11 @@ def test_interoception_reads_the_shared_observer_rather_than_psutil():
     # The fallback stays: a caller that cannot reach the shared reading uses
     # its own rather than reporting a body of zeros.
     assert "psutil.cpu_percent" in body
-    cpu_line = next(
-        line for line in body.splitlines() if "observer.compute()" in line
-    )
-    assert "cpu_percent" in cpu_line
+    # The CPU figure is read from that compute observation, in the branch
+    # that has the observer (14 November: split over two lines, so that a
+    # figure not yet read is not felt as an idle machine).
+    observer_branch = body[body.index("observer.compute()") :].split("else:")[0]
+    assert "cpu_percent" in observer_branch
 
 
 def test_every_priced_kind_of_work_has_something_that_reports_it():

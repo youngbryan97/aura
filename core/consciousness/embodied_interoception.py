@@ -337,10 +337,13 @@ class EmbodiedInteroception:
         observer = _resource_observer()
         try:
             if observer is not None:
-                cpu = float(observer.compute().cpu_percent) / 100.0
+                compute = observer.compute()
+                # Not read yet: no new feeling, rather than an idle one.
+                cpu = float(compute.cpu_percent) / 100.0 if compute.cpu_percent_readable else None
             else:
                 cpu = psutil.cpu_percent(interval=0) / 100.0
-            self.channels["metabolic_load"].update(cpu)
+            if cpu is not None:
+                self.channels["metabolic_load"].update(cpu)
         except _EMBODIED_INTEROCEPTION_RECOVERABLE_ERRORS:
             self.channels["metabolic_load"].fail_safe()
 

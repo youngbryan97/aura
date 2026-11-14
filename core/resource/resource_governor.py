@@ -291,7 +291,7 @@ class ResourceGovernor:
         try:
             compute = observer.compute()
             snap.cpu_percent = float(compute.cpu_percent)
-            snap.observation_available = snap.observation_available and compute.available
+            snap.observation_available = snap.observation_available and compute.cpu_percent_readable
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as _exc:
             logger.debug("Suppressed %s in core.resource.resource_governor: %s", type(_exc).__name__, _exc)
 

@@ -313,7 +313,9 @@ async def _execute_new_state_new_state(self, state):
             )
 
             observer = get_resource_observer()
-            soma.hardware["cpu_usage"] = float(observer.compute().cpu_percent)
+            compute = observer.compute()
+            if compute.cpu_percent_readable:
+                soma.hardware["cpu_usage"] = float(compute.cpu_percent)
             mem = observer.memory()
             # Both names carry the same reading. `vram_usage` is what the
             # field has always been called and several readers use it, but
