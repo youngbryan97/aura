@@ -446,7 +446,11 @@ class _CallsTheEndpoint:
                 # the host ran at 80% and both background lanes cooled down
                 # between budget timeouts. Only a circuit opened by counted
                 # failures is a fault worth the level.
-                unavailable = [ep for ep in self.endpoints.values() if not ep.is_available()]
+                # probe_eligible, not is_available: is_available is the
+                # admission check and grants an open circuit's one half-open
+                # probe. Asked here, it gave that probe to a log line, and the
+                # lane waited out the lease before any caller could test it.
+                unavailable = [ep for ep in self.endpoints.values() if not ep.probe_eligible()]
                 waiting = [
                     ep for ep in unavailable
                     if str(getattr(ep, "last_failure_reason", "") or "").startswith("transient:")
@@ -454,8 +458,9 @@ class _CallsTheEndpoint:
                 ]
                 log = logger.info if unavailable and len(waiting) == len(unavailable) else logger.warning
                 log(
-                    "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order.",
+                    "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order. %s",
                     prefer_tier,
+                    _the_lanes_out(unavailable),
                 )
                 self._last_fallback_warning_at = now
             # Every endpoint for this tier is unavailable — which is a
@@ -1803,6 +1808,23 @@ def _the_arguments_it_takes(
     if "_generation_metadata_sink" in sig.parameters:
         payload["_generation_metadata_sink"] = sink
     return payload
+
+
+def _the_lanes_out(lanes: list[Any]) -> str:
+    """Each lane that could not take the turn, with its circuit and why.
+
+    The line said only that nothing matched. In her log of 13 and 14 November
+    it came at warning 115 times for the tertiary tier, and none of them said
+    which lane was out or for what.
+    """
+    if not lanes:
+        return "No lane of this tier is registered on this host."
+    said = []
+    for lane in lanes:
+        state = getattr(getattr(lane, "state", None), "value", "unknown")
+        reason = " ".join(str(getattr(lane, "last_failure_reason", "") or "none recorded").split())
+        said.append(f"{getattr(lane, 'name', '?')} ({state}: {reason[:120]})")
+    return "Out: " + "; ".join(said) + "."
 
 
 def _a_lane_still_coming_up(error: object) -> bool:

@@ -174,3 +174,33 @@ def test_a_lane_on_its_way_up_is_said_at_info():
         assert _a_lane_still_coming_up(f"lane_not_ready:{state}")
     assert not _a_lane_still_coming_up("lane_not_ready:cold")
     assert not _a_lane_still_coming_up("worker_died_during_generation")
+
+
+def test_the_fallback_line_never_takes_a_lanes_probe(caplog):
+    """The line read every lane through the admission check, which grants an
+    open circuit's one half-open probe once its cooldown has passed. A log
+    line held the probe, and no caller could test the lane until the lease
+    ran out."""
+    from core.brain.llm_health_router import CircuitState
+
+    brainstem = EndpointHealth(name="Brainstem", url="local://brainstem", model="b")
+    for _ in range(brainstem.failure_threshold):
+        brainstem.record_failure("mlx_runtime_unavailable:crashed")
+    brainstem.cooldown_until_monotonic = 0.0  # its cooldown has passed
+
+    _the_fallback_line(caplog, _a_router_with(brainstem))
+
+    assert brainstem.state is CircuitState.OPEN
+    assert brainstem.half_open_probe_at_monotonic == 0.0
+    assert brainstem.is_available(), "the first real caller did not get the probe"
+
+
+def test_the_fallback_line_names_each_lane_out_and_why(caplog):
+    reflex = EndpointHealth(name="Reflex", url="local://reflex", model="r")
+    for _ in range(reflex.failure_threshold):
+        reflex.record_failure("mlx_runtime_unavailable:crashed")
+
+    said = _the_fallback_line(caplog, _a_router_with(reflex))[0].getMessage()
+
+    assert "Reflex (open: mlx_runtime_unavailable:crashed)" in said, said
+    assert "No lane of this tier" in _the_fallback_line(caplog, _a_router_with())[-1].getMessage()
