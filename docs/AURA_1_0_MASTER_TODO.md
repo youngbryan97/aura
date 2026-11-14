@@ -4016,6 +4016,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   not on a timeout.
 - [ ] U04 Companion mode: bubble, hide/clear, notifications, restrained chat,
   proactive observation, and continuity with full mode.
+  14 November, first live test, driven on Bryan's screen with his leave.
+  Closing her window left her in the bubble for about five seconds, then
+  the window came back, every time: the launcher's health poll reopens the
+  main window when no interactive surface is visible, and the bubble is not
+  one, so companion mode could not last and hiding her was undone the same
+  way. The launcher now keeps the surface the person chose (bc769371a).
+  Then, on that build: the bubble stayed for 20 s of polls; clicking it
+  opened the restrained chat, and a turn there was answered in 80 s; FULL
+  opened her window with that exchange in the conversation, and the
+  companion kept its transcript across the trip; right-clicking the bubble
+  hid her, her observations stopped at 8 and stayed there, and nothing
+  reopened; a turn sent and then collapsed showed the working state, then
+  the unread dot when the answer landed at 11:57:41, and clicking the
+  bubble opened the chat on the answer. Not yet seen: an unprompted remark
+  in the bubble and the × that clears it (none was made, and none was
+  prompted). Open defect: with another app in front, FULL opened her window
+  and left the companion panel on screen over it (the window server listed
+  both), and reopening the app with the panel up did not bring the window
+  forward; the mechanism is not yet read.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
