@@ -20,6 +20,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -3868,16 +3869,52 @@ def _disable_legacy_launchagent(*, quarantine_obsolete: bool, reason: str = "") 
         return None
 
 
-def _is_reapable_aura_process_command(command: str) -> bool:
-    cmd = str(command or "")
-    normalized = " ".join(cmd.split())
-    return (
-        "aura_main.py" in cmd
-        or "gui_actor.py" in cmd
-        or "mlx_worker" in cmd
-        or "MLXWorker" in cmd
-        or normalized == "caffeinate -i -m -s"
-    )
+#: Interpreter options that take the next word as their value.
+_INTERPRETER_OPTIONS_WITH_A_VALUE = frozenset({"-X", "-W", "-Q"})
+
+
+def _the_program(argv: list[str]) -> tuple[str, str]:
+    """What a command line runs: ("script", path), ("module", name), ("code", text) or ("program", argv[0]).
+
+    Read from the program, never from its arguments.
+    """
+    if not argv:
+        return "program", ""
+    if not Path(argv[0]).name.lower().startswith("python"):
+        return "program", argv[0]
+    words = iter(argv[1:])
+    for word in words:
+        if word in ("-m", "-c"):
+            return ("module" if word == "-m" else "code"), next(words, "")
+        if word in _INTERPRETER_OPTIONS_WITH_A_VALUE:
+            next(words, None)
+            continue
+        if word.startswith("-"):
+            continue
+        return "script", word
+    return "program", argv[0]
+
+
+def _is_reapable_aura_process_command(command: str | Sequence[str]) -> bool:
+    """Whether a command line is one of hers: her runtime, her GUI actor, an MLX worker, or her keep-awake.
+
+    It used to ask whether those words appeared anywhere in the command line.
+    14 November 2026, 11:11: her boot SIGKILLed a test run's pytest in another
+    worktree, whose arguments named 456 test files, some of them
+    tests/test_mlx_worker_*.py, as an "orphaned Aura process".
+    """
+    argv = [str(word) for word in command] if not isinstance(command, str) else str(command or "").split()
+    if " ".join(argv) == "caffeinate -i -m -s":
+        return True
+    kind, what = _the_program(argv)
+    name = Path(what).name if kind in ("script", "program") else what
+    if kind == "script":
+        return name in ("aura_main.py", "gui_actor.py") or name.startswith("mlx_worker")
+    if kind == "module":
+        return name.split(".")[-1] in ("aura_main", "gui_actor", "mlx_worker")
+    if kind == "code":
+        return "mlx_worker" in what
+    return name.startswith("MLXWorker") or name.startswith("mlx_worker")
 
 
 def _is_python_multiprocessing_spawn_command(command: str) -> bool:
@@ -3936,7 +3973,7 @@ def _reap_orphaned_aura_processes() -> int:
         if _is_python_multiprocessing_spawn_command(cmd):
             if not observed.cwd or not _same_path(observed.cwd, PROJECT_ROOT):
                 continue
-        elif not _is_reapable_aura_process_command(cmd):
+        elif not _is_reapable_aura_process_command(observed.cmdline):
             continue
         # Skip this launcher/reaper context
         if "reaper" in cmd.lower():

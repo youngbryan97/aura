@@ -616,3 +616,22 @@ def test_caa_validator_reads_existing_vector_artifacts():
     report = CAA32BValidator(vectors_dir=Path("training/vectors")).run()
     assert report["vector_count"] > 0
     assert "activation_vectors_present" in report["pass_conditions"]
+
+
+def test_the_reaper_reads_the_program_not_its_arguments():
+    """14 November 2026, 11:11: her boot SIGKILLed a test run's pytest in another worktree because its arguments
+    named tests/test_mlx_worker_*.py among 456 files."""
+    import aura_main
+
+    python = "/opt/homebrew/bin/python3.12"
+    a_test_run = [python, "-m", "pytest", "tests/test_aura_main_boot.py", "tests/test_gui_actor.py",
+                  "tests/test_mlx_worker_contract.py", "-rfE"]
+    assert aura_main._is_reapable_aura_process_command(a_test_run) is False
+    assert aura_main._is_reapable_aura_process_command(" ".join(a_test_run)) is False
+    assert aura_main._is_reapable_aura_process_command(["grep", "aura_main.py", "notes.txt"]) is False
+
+    assert aura_main._is_reapable_aura_process_command(
+        [python, "-u", "/Users/x/.aura/live-source/aura_main.py", "--desktop"]) is True
+    assert aura_main._is_reapable_aura_process_command([python, "-X", "faulthandler", "gui_actor.py"]) is True
+    assert aura_main._is_reapable_aura_process_command([python, "-m", "core.brain.llm.mlx_worker"]) is True
+    assert aura_main._is_reapable_aura_process_command(["MLXWorker-Aura-Qwen3.8-27B"]) is True
