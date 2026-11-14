@@ -128,6 +128,30 @@ def a_live_turn_is_under_way() -> bool:
         return bool(_LIVE_TURNS)
 
 
+_VOICE_SESSIONS: set[str] = set()
+
+
+def a_voice_session(session: str, open_: bool) -> None:
+    """A person has her voice mode open: between turns too, while her cortex and her voice's models are held for it.
+
+    A background model loaded in a gap is memory her live conversation then cannot have. LIVE 13 November 2026, her
+    memory watchdog reached its hard ceiling twice in one voice session (managed 53,177 MB, then 53,574 MB, with 10 GB
+    of swap) and the only model worker it could stop was her cortex: Bryan's first question waited 41 s while it
+    reloaded, and the second kill came in the middle of a reply. Her brainstem had begun loading during the session.
+    """
+    key = str(session or "voice")
+    with _PEOPLE_WAITING_LOCK:
+        if open_:
+            _VOICE_SESSIONS.add(key)
+        else:
+            _VOICE_SESSIONS.discard(key)
+
+
+def a_voice_session_is_open() -> bool:
+    with _PEOPLE_WAITING_LOCK:
+        return bool(_VOICE_SESSIONS)
+
+
 def _background_stands_aside(reason: str) -> None:
     """Ask what of her background work holds her model to stop; a person's own reply is never asked."""
     from .llm_health_router import _oldest_generation_gate_lease

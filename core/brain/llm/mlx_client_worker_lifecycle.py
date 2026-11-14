@@ -645,6 +645,15 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         # spawn gate remains the mechanical single-spawn mutex beneath it.
         if request_is_background and self._model_load_admission_backoff_active():
             return False
+        if request_is_background and not self._is_primary_lane():
+            from core.brain.llm_health_router_gate_owners import a_voice_session_is_open
+
+            if a_voice_session_is_open():
+                # A background model loaded while a person is in her voice mode takes memory her cortex is then shed
+                # for (core/brain/llm_health_router_gate_owners.py, a_voice_session). It loads when the session ends.
+                logger.info("⏸️ [MLX] Not loading %s for background work while her voice mode is open.",
+                            os.path.basename(self.model_path))
+                return False
         if int(self._model_lane_fencing_token or 0) > 0:
             try:
                 await self._release_durable_model_lane_owner(

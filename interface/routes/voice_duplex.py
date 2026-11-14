@@ -26,7 +26,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from core.brain.llm.her_pinned_weights import a_voice_session_closed, a_voice_session_opened
-from core.brain.llm_health_router_gate_owners import a_live_turn
+from core.brain.llm_health_router_gate_owners import a_live_turn, a_voice_session
 from core.conversation.delivered_history import VISIBLE_CONVERSATION_EXCHANGES
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
@@ -574,7 +574,10 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
 
         pinning: asyncio.Task | None = None
         opening: asyncio.Task | None = None
+        held_for_voice = requested_mode == "focused"  # her voice mode, opened by the person; not ambient listening
         try:
+            if held_for_voice:
+                a_voice_session(session_id, True)
             await session.start()
             logger.info("Voice session %s opened from %s", session_id, host)
             # Her weights pinned while voice mode is open (core/brain/llm/her_pinned_weights.py), and her live context's
@@ -649,6 +652,7 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
                     await pinning
                 await asyncio.to_thread(a_voice_session_closed)
             a_live_turn(conversation_key, False)  # a socket that died mid-turn sent no last state
+            a_voice_session(session_id, False)
             logger.info("Voice session %s closed", session_id)
 
     except WebSocketDisconnect as exc:
