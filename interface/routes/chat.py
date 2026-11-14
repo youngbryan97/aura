@@ -11180,7 +11180,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 user_message=_semantic_user_message,
                 session_id=_chat_session_id,
                 lane=lane,
-                source="chat_api",
+                source="chat_api", principal_id=_profile_user_id,
                 require_engine=bool(desktop_requires_cognitive_engine),
                 turn_sensory_evidence=_turn_sensory_evidence,
                 turn_trace=_live_turn_trace,
