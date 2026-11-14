@@ -32,17 +32,3 @@ def test_the_last_finished_sentence_is_where_it_stops() -> None:
     assert _up_to_its_last_finished_sentence("nothing was finished here") == ""
 
 
-@pytest.mark.asyncio
-async def test_the_stabilizer_serves_what_she_finished(monkeypatch) -> None:
-    from interface.routes import chat as chat_routes
-    from interface.routes import chat_reply_repair
-
-    # No rewrite lane: a pass can only come from what she wrote.
-    monkeypatch.setattr(chat_reply_repair, "resolve_inference_gate", lambda: None, raising=False)
-    served = await chat_routes._stabilize_user_facing_reply(
-        "https://en.wikipedia.org/wiki/Bam_Adebayo%27s_83-point_game",
-        DRAFT,
-        desktop_cognitive_engine_required=True,
-        protected_foreground_lane=True,
-    )
-    assert "Kaseya Center" in served and served.endswith("from the line.")

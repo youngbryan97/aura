@@ -546,6 +546,45 @@ class SurfaceDisposition(Enum):
 #:
 #: Declared HERE, in the lower-level module, so the two definitions cannot
 #: disagree: response_reliability imports this one.
+#: Verdicts on what a draft CLAIMS, reached by detectors reading its wording: a voice she did not use, a tool she did
+#: not run, a shared past the record does not hold, a sense with no reading, her model's name. They were in
+#: UNSPEAKABLE_REASONS, so a detector's verdict discarded the whole draft and her worker regenerated it.
+#:
+#: Bryan, 13 November 2026: "gates and stabilizers have a tendancy to throw away fine drafts ... certainly shouldnt be
+#: throwing away legit responses. doing the job theyre there for doesnt mean again defaulting to heuristics or
+#: replacing with canned speech ... and ideally they dont slow down the process either." LIVE that afternoon, her
+#: answer to "What have you been thinking about while I was testing your voice?" was thrown away three times as
+#: fabricated_shared_history (the testing had happened), in a turn of 131 s, 93 s of it in the stabilizer.
+#:
+#: Her draft is served. A claim the record itself refutes (a file not on disk, a sense with no reading, an action
+#: with no receipt, a number no channel produced) is taken out where her reply is checked against the record
+#: (interface/routes/chat_reply_repair._through_the_record), and the record's fact reaches her as a reading.
+CLAIM_VERDICT_REASONS: frozenset[str] = frozenset(
+    {
+        "unfounded_voice_intrusion",
+        "unfounded_tool_execution_claim",
+        "sensory_evidence_contradiction",
+        "unsupported_sensor_scope_claim",
+        "unsupported_embodiment_claim",
+        "self_claim_contradiction",
+        "self_claim_verification_unavailable",
+        "unsupported_affection_claim",
+        "unsupported_self_telemetry_claim",
+        "unsupported_external_provider_path_claim",
+        "unsupported_context_continuation_claim",
+        "unsupported_deployment_routing_claim",
+        "unsupported_runtime_limits_claim",
+        "host_telemetry_substituted_for_self_condition",
+        "ungrounded_person_narrative",
+        "fabricated_shared_history",
+        "ungrounded_person_address",
+        "template_telemetry_greeting",
+        "unfounded_alarm_derailment",
+        "unrequested_pop_culture_intrusion",
+        "raw_model_identity_leak",
+    }
+)
+
 ADVISORY_ONLY_REASONS: frozenset[str] = frozenset(
     {
         "borrowed_owner_first_person_speech",
@@ -556,8 +595,16 @@ ADVISORY_ONLY_REASONS: frozenset[str] = frozenset(
         # check deciding how she has to answer a question about herself, and
         # a retry at the same temperature returns the same words anyway.
         "missing_requested_scale_placement",
+        # How it was worded: noted, never a reason to withhold or rewrite her words.
+        "generic_assistant_language",
+        "persona_card_deflection",
+        "detail_request_deflection",
+        "vague_status_derailment",
+        "status_page_self_reflection",
+        "pseudo_internal_jargon",
+        "off_topic_self_reflection_reply",
     }
-)
+) | CLAIM_VERDICT_REASONS
 
 #: Objections about HOW something was said, not about whether it was true or
 #: responsive. A turn carrying only these is still a real exchange: the person
@@ -585,7 +632,7 @@ CONTINUITY_SAFE_REASONS: frozenset[str] = frozenset(
         # missing from it.
         "missing_requested_scale_placement",
     }
-)
+) | ADVISORY_ONLY_REASONS  # what she said and was served happened: it is remembered
 
 UNSPEAKABLE_REASONS: frozenset[str] = frozenset(
     {
@@ -603,7 +650,6 @@ UNSPEAKABLE_REASONS: frozenset[str] = frozenset(
         "backend_symbolic_surface_leak",
         "telemetry_path_wall",
         "unbounded_numeric_identifier",
-        "raw_model_identity_leak",
         "corrupted_language",
         "unexpected_cjk_intrusion",
         # A measurement with a wide margin rather than a guess: English prose
@@ -618,35 +664,6 @@ UNSPEAKABLE_REASONS: frozenset[str] = frozenset(
         "surface_validation_prompt_binding_invalid",
         "surface_quality_gate_unavailable",
         "integrity_check_unavailable",
-        # ── Claims the runtime cannot support ────────────────────────────
-        # These are not style. They are statements about reality that are
-        # false: having spoken aloud, having a body, having run a tool,
-        # remembering a conversation that did not happen, addressing a person
-        # who is not there, reciting host telemetry as felt state. Each is
-        # IDENTIFIED by the claim it makes rather than estimated from tone,
-        # which is what earns them a place here — an answer that invents
-        # something is worse than no answer, and saying so is the one thing a
-        # person cannot check for themselves.
-        "unfounded_voice_intrusion",
-        "unfounded_tool_execution_claim",
-        "sensory_evidence_contradiction",
-        "unsupported_sensor_scope_claim",
-        "unsupported_embodiment_claim",
-        "self_claim_contradiction",
-        "self_claim_verification_unavailable",
-        "unsupported_affection_claim",
-        "unsupported_self_telemetry_claim",
-        "unsupported_external_provider_path_claim",
-        "unsupported_context_continuation_claim",
-        "unsupported_deployment_routing_claim",
-        "unsupported_runtime_limits_claim",
-        "host_telemetry_substituted_for_self_condition",
-        "ungrounded_person_narrative",
-        "fabricated_shared_history",
-        "ungrounded_person_address",
-        "template_telemetry_greeting",
-        "unfounded_alarm_derailment",
-        "unrequested_pop_culture_intrusion",
         # An explicit instruction, checked by string comparison rather than
         # judged: the person said "answer exactly: yes" and the reply is
         # something else. Identification, not estimate.

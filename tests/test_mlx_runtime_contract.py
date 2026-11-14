@@ -425,39 +425,6 @@ def test_worker_retry_budget_never_expands_past_output_contract():
     assert receipt["hard_output_token_ceiling"] == 48
 
 
-def test_worker_count_contract_retry_demands_semantic_task_ownership():
-    from core.brain.llm.mlx_worker import _messages_with_user_surface_retry
-
-    retry_messages = _messages_with_user_surface_retry(
-        [
-            {"role": "system", "content": "Answer accurately."},
-            {
-                "role": "user",
-                "content": "In exactly five words, state why checksums matter.",
-            },
-        ],
-        ["missing_requested_word_count"],
-        {
-            "user_surface_validation_prompt": (
-                "In exactly five words, state why checksums matter."
-            ),
-            "requested_output_contract": {
-                "kind": "word_count",
-                "word_min": 5,
-                "word_max": 5,
-            }
-        },
-    )
-
-    assert retry_messages is not None
-    system = retry_messages[0]["content"]
-    assert "Solve the current semantic task first" in system
-    assert "retain a concrete topic noun" in system
-    assert "never describe the word or sentence constraint" in system
-    assert "exactly 5 words" in system
-    assert "current-topic terms" in system
-    assert "checksum" in system
-    assert "Count the final visible answer" in system
 
 
 def test_worker_never_expands_admitted_cap_for_mode_specific_contracts():

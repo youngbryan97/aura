@@ -714,32 +714,11 @@ def _with_initial_user_surface_guidance(
     prompt: Any,
     job: dict[str, Any],
 ) -> tuple[Any, Any]:
-    # ``mlx_client`` deliberately gives health probes the clean-surface flag
-    # so they inherit the safe steering/recurrent clamps. That flag describes
-    # decode controls, not audience. Appending conversational guidance to the
-    # readiness prompt changed ``Reply exactly: ready`` into two competing
-    # instructions and made a healthy resident lane fail boot deterministically.
-    # Keep control-plane measurements clamped, but never prompt-shape them as
-    # user prose.
-    if bool(job.get("health_probe", False)) or not _job_needs_concrete_status_signal_guidance(job):
-        return messages, prompt
-    guidance = _LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION
-    if isinstance(messages, list):
-        guided_messages = copy.deepcopy(messages)
-        for message in guided_messages:
-            if isinstance(message, dict) and str(message.get("role") or "").lower() == "system":
-                content = str(message.get("content") or "").rstrip()
-                message["content"] = f"{content}\n{guidance}" if content else guidance
-                return guided_messages, prompt
-        guided_messages.insert(
-            0,
-            {"role": "system", "content": guidance},
-        )
-        return guided_messages, prompt
-    prompt_text = str(prompt or "").rstrip()
-    if not prompt_text:
-        return messages, guidance
-    return messages, f"{prompt_text}\n\n{guidance}"
+    """Her turn as it was asked. This added a system message telling her how to answer a status question
+    (``_LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION``): instruction on the path to her words (F06). What she reads of her
+    own state reaches her as readings."""
+    del job
+    return messages, prompt
 
 
 def _repair_live_user_surface_operational_status(
@@ -879,48 +858,27 @@ def _messages_with_user_surface_retry(
     reasons: list[str],
     job: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]] | None:
+    """Her turn asked again as it was asked, with a reading of what happened to the draft that was not served.
+
+    This put a system message ahead of her turn: "The previous assistant draft failed the live user-surface quality
+    gate ... Regenerate ... avoid generic assistant identity, do not invent unsupported prior topics, do not mention
+    validation ...", with more instructions per reason. That is instruction on the path to her words (F06; Bryan's
+    rule, no prompt engineering, ever), and LIVE 13 November 2026 it ran on a draft a detector had wrongly thrown
+    away. Only text that is not her speech (core/conversation/surface_disposition.UNSPEAKABLE_REASONS) reaches here
+    now, and what her model is told is what became of her draft, as a reading at the head of the person's message:
+    the fact, never what to do about it.
+    """
+    del job  # what the draft was asked is in the messages; nothing else is added
     if not isinstance(messages, list):
         return None
-    operational_status_retry = ""
-    self_condition_retry = ""
-    semantic_count_retry = ""
-    if any(
-        reason
-        in {
-            "host_telemetry_substituted_for_self_condition",
-            "low_signal_self_condition_reply",
-            "missing_self_condition_answer",
-        }
-        for reason in reasons
-    ):
-        self_condition_retry = f" {_SELF_CONDITION_SIGNAL_INSTRUCTION}"
-    if (
-        any(
-            reason in {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
-            for reason in reasons
-        )
-        and not self_condition_retry
-    ):
-        operational_status_retry = f" {_LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION}"
-    if set(reasons) & _SEMANTIC_COUNT_CONTRACT_RETRY_REASONS:
-        semantic_count_retry = f" {_semantic_count_contract_retry_instruction(job or {})}"
-    retry_instruction = (
-        "The previous assistant draft failed the live user-surface quality gate "
-        f"for: {', '.join(reasons[:8]) or 'quality_gate_failed'}. Regenerate the "
-        "assistant reply from the same live mind context. Answer only the current "
-        "user message, preserve recent-turn continuity, avoid generic assistant "
-        "identity, do not invent unsupported prior topics, and do not mention "
-        "validation, retry, hidden prompts, receipts, gates, or implementation details."
-        f"{_surface_retry_repair_instructions(reasons)}"
-        f"{self_condition_retry}{operational_status_retry}{semantic_count_retry}"
-    )
     retry_messages = copy.deepcopy(messages)
-    for message in retry_messages:
-        if isinstance(message, dict) and str(message.get("role") or "").lower() == "system":
-            content = str(message.get("content") or "").rstrip()
-            message["content"] = f"{content}\n{retry_instruction}" if content else retry_instruction
+    found = ", ".join(str(reason).replace("_", " ") for reason in list(reasons or [])[:8]) or "a check of its text"
+    reading = (f"[WHAT THE RECORD SAYS]\n- Your draft of this reply was not served; its text was found to carry: "
+               f"{found}.\n[END WHAT THE RECORD SAYS]\n\n")
+    for message in reversed(retry_messages):
+        if isinstance(message, dict) and str(message.get("role") or "").lower() == "user":
+            message["content"] = reading + str(message.get("content") or "")
             return retry_messages
-    retry_messages.insert(0, {"role": "system", "content": retry_instruction})
     return retry_messages
 
 
@@ -963,40 +921,10 @@ def _build_user_surface_quality_retry_prompt(
             )
             logger.debug("Live surface retry template render failed: %s", exc)
 
-    operational_status_retry = ""
-    self_condition_retry = ""
-    semantic_count_retry = ""
-    if any(
-        reason
-        in {
-            "host_telemetry_substituted_for_self_condition",
-            "low_signal_self_condition_reply",
-            "missing_self_condition_answer",
-        }
-        for reason in reasons
-    ):
-        self_condition_retry = f" {_SELF_CONDITION_SIGNAL_INSTRUCTION}\n"
-    if (
-        any(
-            reason in {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
-            for reason in reasons
-        )
-        and not self_condition_retry
-    ):
-        operational_status_retry = f" {_LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION}\n"
-    if set(reasons) & _SEMANTIC_COUNT_CONTRACT_RETRY_REASONS:
-        semantic_count_retry = f" {_semantic_count_contract_retry_instruction(job or {})}\n"
-    retry_note = (
-        "\n\n[LIVE USER-SURFACE RETRY]\n"
-        f"Previous assistant draft failed for: {', '.join(reasons[:8]) or 'quality_gate_failed'}.\n"
-        "Regenerate the assistant reply from the same live mind context. Answer only "
-        "the current user message. Do not mention validation, retry, hidden prompts, "
-        "receipts, gates, or implementation details.\n"
-        f"{_surface_retry_repair_instructions(reasons).strip()}\n"
-        f"{self_condition_retry}{operational_status_retry}{semantic_count_retry}"
-        "[END LIVE USER-SURFACE RETRY]\n"
-    )
-    return f"{str(fallback_prompt or '').rstrip()}{retry_note}"
+    # No chat template to render with: the draft's own prompt again, with nothing appended. A "[LIVE USER-SURFACE
+    # RETRY] ... Regenerate ..." block went here, instruction on the path to her words (F06).
+    del reasons, job
+    return str(fallback_prompt or "")
 
 
 def _prepare_clean_retry_kwargs(kwargs: dict[str, Any], *, structured: bool = False) -> None:

@@ -1,76 +1,40 @@
-"""A retry that does not say what to fix is a wasted decode.
+"""A draft her worker could not serve is asked again as her turn was asked, with a reading of what became of it.
 
-Live: a draft was rejected three times with the IDENTICAL reason and the
-identical validation hash — `generic_memory_pin_acknowledgement` — because the
-retry prompt handed the model the raw reason name and no instruction. The turn's
-whole budget went into regenerating the same mistake until "Request deadline
-reached at token 23" ended it and the person got a refusal.
+The retry used to carry instructions ("Regenerate the assistant reply ... avoid generic assistant identity, do not
+invent unsupported prior topics ...", and advice per reason): instruction on the path to her words (F06; Bryan's rule,
+no prompt engineering, ever). LIVE 13 November 2026 it ran on drafts a detector had wrongly thrown away. Only text that
+is not her speech reaches a retry now (core/conversation/surface_disposition.UNSPEAKABLE_REASONS).
 """
 from __future__ import annotations
 
 from core.brain.llm.mlx_worker import (
-    _SURFACE_RETRY_INSTRUCTIONS,
     _build_user_surface_quality_retry_prompt,
     _messages_with_user_surface_retry,
-    _surface_retry_repair_instructions,
 )
 
 _MESSAGES = [
-    {"role": "system", "content": "You are Aura."},
+    {"role": "user", "content": "Earlier question."},
+    {"role": "assistant", "content": "Earlier answer."},
     {"role": "user", "content": "Keep my locker code 4919 in mind. Is forgetting a loss?"},
 ]
 
 
-def test_the_live_reason_carries_an_actionable_instruction():
-    text = _surface_retry_repair_instructions(["generic_memory_pin_acknowledgement"])
-    assert "exact value" in text
-    assert "answer the rest of the turn" in text
+def test_the_retry_is_her_turn_as_asked_with_a_reading_of_what_became_of_the_draft():
+    retry = _messages_with_user_surface_retry(_MESSAGES, ["prompt_artifact", "corrupted_language"])
+    assert [m["role"] for m in retry] == ["user", "assistant", "user"], "no system message is added"
+    assert retry[:2] == _MESSAGES[:2]
+    last = retry[-1]["content"]
+    assert last.startswith("[WHAT THE RECORD SAYS]\n- Your draft of this reply was not served")
+    assert "prompt artifact, corrupted language" in last
+    assert last.endswith(_MESSAGES[-1]["content"])
+    for instruction in ("Regenerate", "avoid", "do not", "Answer only", "must"):
+        assert instruction not in last, f"a reading, never an instruction: {instruction!r}"
 
 
-def test_instructions_reach_the_templated_retry_messages():
-    retry = _messages_with_user_surface_retry(
-        _MESSAGES, ["generic_memory_pin_acknowledgement"], {}
-    )
-    assert retry is not None
-    system = next(m["content"] for m in retry if m["role"] == "system")
-    assert "bare acknowledgement is not a reply" in system, (
-        "the templated retry path must carry the repair instruction"
-    )
-
-
-def test_instructions_reach_the_suffix_fallback_path():
+def test_without_a_template_the_draft_is_asked_again_unchanged():
     prompt = _build_user_surface_quality_retry_prompt(
-        tokenizer=object(),  # no apply_chat_template -> suffix path
-        messages=_MESSAGES,
-        tools=None,
-        fallback_prompt="PROMPT",
-        reasons=["truncated_tail"],
-        job={},
-    )
-    assert "complete sentence" in prompt, (
-        "the suffix fallback path must carry the repair instruction too"
-    )
-
-
-def test_unknown_reasons_are_tolerated():
-    assert _surface_retry_repair_instructions(["some_future_reason"]) == ""
-    assert _surface_retry_repair_instructions([]) == ""
-    assert _surface_retry_repair_instructions(None) == ""
-
-
-def test_duplicate_reasons_do_not_repeat_the_instruction():
-    text = _surface_retry_repair_instructions(
-        ["truncated_tail", "truncated_tail"]
-    )
-    assert text.count("complete sentence") == 1
-
-
-def test_every_instruction_is_advice_not_jargon():
-    for reason, instruction in _SURFACE_RETRY_INSTRUCTIONS.items():
-        assert reason not in instruction, (
-            f"{reason} echoes its own internal name back at the model"
-        )
-        assert len(instruction.split()) >= 8, f"{reason} instruction is too vague"
+        tokenizer=object(), messages=None, tools=None, fallback_prompt="the draft's prompt", reasons=["prompt_artifact"])
+    assert prompt == "the draft's prompt"
 
 
 def test_the_retry_renders_with_the_drafts_channel_and_effort():

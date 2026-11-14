@@ -9754,6 +9754,10 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         max_tokens = self._generate_with_metadata_sink_serving_lane(_grounded, context, initial_visible_user_prompt, keeps_its_length(context, max_tokens), messages, morpho_kwargs, system_prompt)
         await self._read_what_was_said_first(_is_user_facing and not context.get("her_own_turn"), initial_visible_user_prompt)
         messages, system_prompt = for_her_model(messages, system_prompt, context, _is_user_facing, _observable_dispatch_markers(), initial_visible_user_prompt)
+        if _is_user_facing and not context.get("her_own_turn"):  # what the record said against her last reply here
+            from core.brain.her_turn_as_asked import with_what_the_record_said
+
+            messages = with_what_the_record_said(messages)
         self._generate_with_metadata_sink_part_28(max_tokens, messages, origin, prompt_chars, prompt_mode, request_chars, scaffold_chars, system_prompt)
         if _is_user_facing and not context.get("her_own_turn"):  # asked again, not rewritten, if checks refuse it
             from core.brain.her_turn_as_asked import keep

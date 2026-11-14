@@ -34,7 +34,6 @@ from core.conversation.response_reliability import (
     _has_unfounded_tool_execution_claim,
 )
 from core.conversation.surface_disposition import (
-    UNSPEAKABLE_REASONS,
     begin_turn_tool_receipts,
     record_tool_receipt,
     turn_tool_receipts,
@@ -129,11 +128,6 @@ class TestExecutionClaims:
         that never fires passes the other half."""
         assert sum(1 for case in CASES if case[3]) >= 3
         assert sum(1 for case in CASES if not case[3]) >= 5
-
-
-class TestTheReasonCanDestroyAReply:
-    def test_a_false_receipt_is_unspeakable_not_repairable(self):
-        assert "unfounded_tool_execution_claim" in UNSPEAKABLE_REASONS
 
 
 class TestTurnScopedReceipts:

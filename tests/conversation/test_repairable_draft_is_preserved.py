@@ -47,6 +47,9 @@ def test_the_chat_gate_now_preserves_the_draft() -> None:
 
 
 def test_preservation_round_trips() -> None:
+    from core.conversation.surface_disposition import clear_preserved_draft
+
+    clear_preserved_draft()  # custody keeps a longer draft another test left in this thread
     preserve_draft("A real answer that missed the sentence count.")
 
     assert "missed the sentence count" in preserved_draft()

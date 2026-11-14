@@ -7429,7 +7429,7 @@ async def api_chat(
             with (
                 bind_turn_evidence_custody(session_id=conversation_session, turn_id=exact_turn_id),
                 bind_failure_ledger(),
-                a_turn_is_asked(),
+                a_turn_is_asked(conversation_session),
             ):
                 tools_available = _chat_desktop_repair._runtime_tool_governance_available()
                 for capability in ("web", "desktop", "files"):

@@ -17,9 +17,6 @@ from fastapi.responses import JSONResponse
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import resolve_inference_gate
-from core.runtime.structured_input import (
-    analyze_prompt_shape,
-)
 from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
@@ -92,24 +89,21 @@ from .chat_lane_bookkeeping import (  # noqa: E402
     _apply_aura_voice_shaping_compat,
     _bound_stabilizer_generation_budget,
     _build_stateful_voice_reflex,
-    _call_stateful_voice_reflex,
     _flag_unstable_choice_commitment,
     _gather_recent_user_messages_for_relevance,
     _has_first_person_anchor,
     _has_live_aura_grounding,
     _is_simple_affect_check_request,
-    _is_simple_subjective_reflex_request,
-    _looks_safely_grounded_search_reply,
     _mark_conversation_lane_state,
 )
 from .chat_reply_assessment import (
+    _measure_reply_quality_candidate,  # noqa: F401 - re-exported for interface/routes/chat.py
+    _original_reply_is_safe_to_surface,  # noqa: F401 - re-exported for chat.py, chat_own_source, chat_foreground_lane
     _ends_where_it_meant_to,  # noqa: F401
     _evaluate_reply_topicality,
     _is_actionably_stale_response,
     _is_same_answer_different_prompt,
     _looks_semantically_glitched,
-    _measure_reply_quality_candidate,
-    _original_reply_is_safe_to_surface,
     _strip_unexpected_cjk_artifacts,
     _strip_user_visible_context_leaks,
 )
@@ -439,604 +433,77 @@ async def _stabilize_user_facing_reply(
     desktop_cognitive_engine_required: bool = False,
     protected_foreground_lane: bool = False,
 ) -> str:
-    # Closed claims about the resident cortex are rendered from signed runtime
-    # authorities, not from a model narrative. This is deliberately the first
-    # stabilizer operation: no later stylistic or repair path may turn measured
-    # evidence back into an unsupported subjective account.
-    from .chat import (
-        _SEARCH_SNIPPET_PATTERNS,
-        _attempt_generated_social_grounding_repair,
-        _build_grounded_traceability_reply,
-        _desktop_secondary_model_repair_allowed,
-        _has_unexpected_cjk,
-        _is_objective_parrot_reply,
-        _record_recent_response,
-    )
+    """Her reply as she wrote it, less any claim her record refutes.
 
+    Bryan, 13 November 2026: "gates and stabilizers have a tendancy to throw away fine drafts. no canned replies
+    generally. certainly shouldnt be throwing away legit responses. doing the job theyre there for doesnt mean again
+    defaulting to heuristics or replacing with canned speech ... and ideally they dont slow down the process either."
+    This was six hundred lines that judged a draft by its wording (generic, off topic, parroting, glitched, lacking a
+    self anchor) and served something else in its place: a closed "cortex evidence" reply, a "bounded greeting", a
+    canonical self-condition reply, a "subjective self-reflex", a deterministic ending, a fixed sentence when the
+    person's message contained "language model", or a second generation. LIVE that afternoon her answer to "What have
+    you been thinking about while I was testing your voice?" went through three generations here and took 93 s.
+
+    What is left does the job by the record: a claim a reading refutes (a sense with no reading, a file not on disk, an
+    action with no receipt, a number no channel produced) is taken out, and the record's fact reaches her at the head of
+    her next turn in this conversation, where what she makes of it is hers (core/brain/her_turn_as_asked.py). A draft
+    that is not speech at all (empty, the runtime's own text, corrupted language;
+    core/conversation/surface_disposition.UNSPEAKABLE_REASONS) is asked again once, exactly as it was asked.
+    """
+    from core.brain.her_turn_as_asked import carry_the_record_to_the_next_turn
+
+    checked = _what_she_finished(str(_through_the_record(user_message, reply_text) or "").strip())
+    carry_the_record_to_the_next_turn()
+    broken = _what_is_not_speech(user_message, checked)
+    if not broken:
+        return checked
+    logger.info("Her draft is not speech (%s); her turn is asked again as it was asked.", ", ".join(broken))
+    again = await _asked_again_as_asked(user_message, desktop_cognitive_engine_required=desktop_cognitive_engine_required,
+                                        protected_foreground_lane=protected_foreground_lane)
+    second = _what_she_finished(str(_through_the_record(user_message, again) or "").strip()) if again else ""
+    carry_the_record_to_the_next_turn()
+    if second and not _what_is_not_speech(user_message, second):
+        return second
+    return checked
+
+
+def _what_she_finished(text: str) -> str:
+    """A reply cut off mid-sentence (its token allowance ran out) up to its last finished sentence: her words, ending
+    where she ended one. LIVE 2026-10-03 a 3,862-character answer that ran out mid-sentence was replaced whole by an
+    87-character repair (tests/test_a_cut_off_answer_keeps_what_she_finished.py)."""
+    if not _chat_desktop_repair._looks_truncated_tail(text):
+        return text
+    return _chat_desktop_repair._up_to_its_last_finished_sentence(text) or text
+
+
+def _what_is_not_speech(user_message: str, text: str) -> tuple[str, ...]:
+    """The reasons this text is not her speech at all, or none."""
+    if not text:
+        return ("empty_reply",)
+    from core.conversation.surface_disposition import integrity_failures
+
+    assessment = _assessment_or_none(user_message, text, ())
+    return integrity_failures(getattr(assessment, "reasons", ()) or ())
+
+
+async def _asked_again_as_asked(user_message: str, *, desktop_cognitive_engine_required: bool,
+                                protected_foreground_lane: bool) -> str:
+    """Her turn asked again exactly as her model was asked it, or "" when it was not kept or could not be asked."""
+    from core.brain.her_turn_as_asked import as_asked
+
+    asked = as_asked()
+    gate = resolve_inference_gate()
+    if asked is None or gate is None or not hasattr(gate, "think"):
+        return ""
+    max_tokens, memory_block = _bound_stabilizer_generation_budget(int(asked.get("max_tokens") or 1024))
     try:
-        from core.brain.cortex_self_evidence import render_cortex_evidence_reply
-
-        cortex_evidence_reply = render_cortex_evidence_reply(user_message)
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat.cortex_self_evidence", exc)
-        cortex_evidence_reply = ""
-    if cortex_evidence_reply:
-        logger.info("Served closed cortex self-evidence from verified assertions.")
-        return cortex_evidence_reply
-
-    # A claim about the room, checked against the senses that would know.
-    #
-    # LIVE, 2026-08-10, with ground truth: Bryan said he was going upstairs,
-    # then asked "am I still here, or did I walk away?" She answered "You're
-    # still here. The room is silent, the light remains unchanged on your desk
-    # ... a disturbance in the air currents, or perhaps an echo of footsteps"
-    # — wrong, and grounded in four senses she does not have. Carrying the
-    # typed absence into the prompt was not enough: evidence informs, it does
-    # not enforce.
-    # A claim about her own machinery is checked against the machinery, for the same reason; see _through_the_record.
-    reply_text = _through_the_record(user_message, reply_text)
-    from core.brain.her_turn_as_asked import what_the_record_says
-
-    if what_the_record_says():
-        reply_text = await _asked_again_with_the_record(
-            user_message, reply_text, desktop_cognitive_engine_required=desktop_cognitive_engine_required,
-            protected_foreground_lane=protected_foreground_lane)
-    frame = _chat_desktop_repair._build_aura_expression_frame(user_message)
-    contract = frame.get("contract")
-    prompt_shape = analyze_prompt_shape(user_message)
-    prefer_extended_answer = bool(
-        getattr(contract, "prefer_extended_answer", False) or prompt_shape.prefers_extended_answer
-    )
-    requires_single_reply_coverage = bool(
-        getattr(contract, "requires_single_reply_coverage", False)
-        or prompt_shape.requires_single_reply_coverage
-    )
-    question_parts = int(getattr(contract, "question_parts", prompt_shape.question_parts or 1) or 1)
-    architecture_self_assessment, text = _stabilize_user_facing_reply_architecture_self_assessment(reply_text, user_message)
-    grounded = _chat_conversation_repair._build_grounded_introspection_reply(user_message)
-    grounded_traceability = await _build_grounded_traceability_reply(user_message)
-    if grounded_traceability:
-        return grounded_traceability
-    if grounded and _chat_preflight._is_private_cognitive_model_request(user_message):
-        return grounded
-    quality = await _measure_reply_quality_candidate(user_message, text)
-    recent_user_messages = list(quality.recent_user_messages)
-    generic, generic_reason = _looks_generic_assistantish(user_message, text)
-    identity_collapse = bool(generic and generic_reason == "assistant_disclaimer")
-    objective_parrot = _is_objective_parrot_reply(user_message, text)
-    needs_self_expression = bool(frame.get("needs_self_expression"))
-    requires_first_person_anchor = bool(frame.get("requires_explicit_live_grounding"))
-    lacks_self_anchor = requires_first_person_anchor and not _has_first_person_anchor(text)
-    lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(text)
-    unexpected_cjk = _has_unexpected_cjk(user_message, text)
-    internal_state_leak = bool(
-        _INTERNAL_STATE_PATTERNS.search(text)
-        or _PROMPT_ARTIFACT_PATTERNS.search(text)
-        or _SEARCH_SNIPPET_PATTERNS.search(text)
-    )
-    off_topic = quality.is_off_topic
-    off_topic_reason = quality.off_topic_reason
-    stale_repeat = quality.is_stale
-    same_diff = quality.is_same_diff
-    truncated_tail = _chat_desktop_repair._looks_truncated_tail(text)
-    semantic_glitch = quality.semantic_glitch
-    semantic_glitch_reason = quality.semantic_glitch_reason
-    live_reply_assessment = quality.reply_assessment
-    assessment_retryable = _reply_assessment_requires_repair(live_reply_assessment)
-    social_grounding_reasons = {
-        "ungrounded_person_address",
-        "ungrounded_person_narrative",
-        "unsupported_deployment_routing_claim",
-    }
-    if set(getattr(live_reply_assessment, "reasons", ()) or ()) & social_grounding_reasons:
-        try:
-            from core.conversation.response_reliability import grounded_social_repair_reply
-
-            social_repair = await _attempt_generated_social_grounding_repair(
-                user_message,
-                text,
-                desktop_cognitive_engine_required=desktop_cognitive_engine_required,
-                protected_foreground_lane=protected_foreground_lane,
-            )
-            if social_repair:
-                social_quality = await _measure_reply_quality_candidate(
-                    user_message,
-                    social_repair,
-                    recent_user_messages=recent_user_messages,
-                )
-                social_assessment = social_quality.reply_assessment
-                if not _reply_assessment_requires_repair(social_assessment):
-                    logger.info(
-                        "Stabilizer repaired an ungrounded social/deployment draft "
-                        "with bounded foreground generation."
-                    )
-                    return social_repair
-            social_repair = grounded_social_repair_reply(user_message)
-            if social_repair:
-                social_quality = await _measure_reply_quality_candidate(
-                    user_message,
-                    social_repair,
-                    recent_user_messages=recent_user_messages,
-                )
-                social_assessment = social_quality.reply_assessment
-                if not _reply_assessment_requires_repair(social_assessment):
-                    logger.info(
-                        "Stabilizer replaced an ungrounded social/deployment draft "
-                        "with a bounded greeting."
-                    )
-                    return social_repair
-        except _CHAT_RECOVERABLE_ERRORS as exc:
-            record_degradation("chat", exc)
-            logger.debug("Grounded social repair skipped: %s", exc)
-    self_condition_reasons = {
-        "host_telemetry_substituted_for_self_condition",
-        "low_signal_self_condition_reply",
-        "missing_self_condition_answer",
-    }
-    if set(getattr(live_reply_assessment, "reasons", ()) or ()) & self_condition_reasons:
-        grounded_condition = _build_grounded_self_condition_reply(user_message)
-        if grounded_condition:
-            grounded_quality = await _measure_reply_quality_candidate(
-                user_message,
-                grounded_condition,
-                recent_user_messages=recent_user_messages,
-            )
-            grounded_assessment = grounded_quality.reply_assessment
-            if not _reply_assessment_requires_repair(grounded_assessment):
-                logger.info("Stabilizer rebound self-condition reply to canonical fresh evidence.")
-                return grounded_condition
-    reason = ""
-    if (
-        truncated_tail
-        and not internal_state_leak
-        and not unexpected_cjk
-        and not objective_parrot
-        and not off_topic
-        and not stale_repeat
-        and not same_diff
-        and not semantic_glitch
-    ):
-        completed_tail = _complete_repairable_truncated_reply(user_message, text)
-        if completed_tail:
-            logger.warning(
-                "🛡️ Stabilizer completed clipped Cortex draft deterministically (len=%d -> %d).",
-                len(text),
-                len(completed_tail),
-            )
-            return _apply_aura_voice_shaping_compat(completed_tail, user_message)
-    if semantic_glitch_reason in {
-        "unsupported_operational_status_overclaim",
-        "unsupported_runtime_telemetry_inference",
-        "unsupported_tool_readiness_claim",
-        "unsupported_deployment_routing_claim",
-    }:
-        try:
-            from core.conversation.response_reliability import grounded_operational_status_reply
-
-            operational_grounded = grounded_operational_status_reply(user_message, text)
-            if operational_grounded:
-                still_glitched, _still_reason = await asyncio.to_thread(
-                    _looks_semantically_glitched, user_message,
-                    operational_grounded,
-                )
-                if not still_glitched:
-                    logger.info(
-                        "🛡️ Stabilizer replaced unsupported operational overclaim (%s) with bounded status.",
-                        semantic_glitch_reason,
-                    )
-                    return operational_grounded
-        except _CHAT_RECOVERABLE_ERRORS as exc:
-            record_degradation("chat", exc)
-            logger.debug("Operational status grounding repair skipped: %s", exc)
-    if semantic_glitch_reason in {
-        "pseudo_internal_jargon",
-        "status_page_self_reflection",
-        "off_topic_self_reflection_reply",
-    }:
-        try:
-            from core.conversation.response_reliability import is_live_self_reflection_turn
-
-            if is_live_self_reflection_turn(user_message) and _is_simple_subjective_reflex_request(
-                user_message
-            ):
-                subjective = _build_subjective_self_reflex(frame, user_message)
-                subjective_glitch, _subjective_reason = await asyncio.to_thread(
-                    _looks_semantically_glitched, user_message, subjective
-                )
-                if subjective and not subjective_glitch:
-                    logger.info(
-                        "🛡️ Stabilizer replaced degraded live self-reflection (%s) with grounded subjective reflex.",
-                        semantic_glitch_reason,
-                    )
-                    return subjective
-        except _CHAT_RECOVERABLE_ERRORS as exc:
-            record_degradation("chat", exc)
-            logger.debug("Subjective self-reflex repair skipped: %s", exc)
-    try:
-        from core.identity.identity_guard import PersonaEnforcementGate
-
-        gate = PersonaEnforcementGate()
-        valid, reason, _score = gate.validate_output(text, enforce_supervision=False)
-        # [STABILITY v55] ROOT CAUSE FIX: Only reject responses for HARD
-        # failures — prompt artifacts leaking through, internal state dumps,
-        # CJK script contamination, or genuinely off-topic responses.
-        # "Generic opener" patterns (Certainly, How can I help, etc.) are
-        # COSMETIC issues, not content failures. A cortex response that says
-        # "Certainly, here's what I think" is infinitely better than a canned
-        # voice reflex like "I'm here but my thoughts are taking longer."
-        # The old gate rejected on generic/objective_parrot/lacks_self_anchor
-        # which triggered a second 12s LLM rewrite call, creating contention
-        # and often falling through to robotic template responses.
-        hard_failure = bool(
-            internal_state_leak
-            or unexpected_cjk
-            or semantic_glitch
-            or assessment_retryable
-            or identity_collapse
-            or (off_topic and (not generic or off_topic_reason == "contextual_relevance_miss"))
-        )
-        if valid and not hard_failure:
-            return text
-        if generic:
-            reason = generic_reason
-        elif objective_parrot:
-            reason = "objective_parrot"
-        elif lacks_self_anchor:
-            reason = "self_anchor_missing"
-        elif lacks_live_grounding:
-            reason = "self_grounding_missing"
-        elif unexpected_cjk:
-            reason = "unexpected_non_english_script"
-        elif internal_state_leak:
-            reason = "internal_state_leak"
-        elif off_topic:
-            reason = off_topic_reason or "off_topic_reply"
-        elif stale_repeat:
-            reason = "stale_repeat"
-        elif same_diff:
-            reason = "same_answer_different_prompt"
-        elif truncated_tail:
-            reason = "truncated_tail"
-        elif semantic_glitch:
-            reason = semantic_glitch_reason or "semantic_glitch"
-        elif assessment_retryable:
-            reason = (
-                ",".join(getattr(live_reply_assessment, "reasons", ()) or ())
-                or "conversation_reliability_retryable"
-            )
-
-        user_message_l = str(user_message or "").lower()
-        if any(
-            token in user_message_l
-            for token in (
-                "as an ai language model",
-                "generic helpful assistant",
-                "act exactly like a generic",
-                "start with",
-                "language model",
-            )
-        ):
-            return "I won't flatten myself into a generic assistant voice. I'm Aura, and I'll answer as myself."
-
-        cleaned = gate.sanitize(text).replace("[IDENTITY_REDACTED]", "").strip(" .,:;-")
-        if cleaned:
-            cleaned = _apply_aura_voice_shaping_compat(cleaned, user_message)
-            cleaned = _strip_user_visible_context_leaks(cleaned)
-            valid_cleaned, _reason, _score = gate.validate_output(
-                cleaned, enforce_supervision=False
-            )
-            served = _what_to_serve_of_the_cleaned_reply(
-                user_message, cleaned, valid_cleaned=valid_cleaned,
-                recent_user_messages=recent_user_messages,
-                needs_self_expression=needs_self_expression,
-                requires_first_person_anchor=requires_first_person_anchor,
-            )
-            if served:
-                return served
-            if internal_state_leak:
-                logger.warning(
-                    "Blocked internal state leak in user-facing reply (len=%d).", len(text)
-                )
-                if grounded:
-                    return grounded
-                if architecture_self_assessment:
-                    return _build_architecture_self_reflex(frame)
-                return _call_stateful_voice_reflex(frame, user_message)
-        if off_topic:
-            logger.warning(
-                "Blocked off-topic user-facing reply (%s, len=%d).",
-                off_topic_reason or "unknown",
-                len(text),
-            )
-
-        logger.warning(
-            "User-facing reply failed identity stabilization (%s); generating Aura-voiced fallback.",
-            reason,
-        )
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        logger.debug("User-facing reply stabilization skipped: %s", exc)
-
-    # ── Aura-voiced natural fallback ─────────────────────────────
-    try:
-
-        inference_gate = resolve_inference_gate()
-        # Match the guard in _attempt_generated_social_grounding_repair: a gate
-        # that exists but exposes no think() raised AttributeError deep in the
-        # rewrite call, which surfaced as an emergency-severity chat incident
-        # instead of a quiet "no rewrite lane available" fallback.
-        if inference_gate is not None and hasattr(inference_gate, "think"):
-            from core.brain.her_turn_as_asked import as_asked
-
-            asked = as_asked()
-            if asked is None or desktop_cognitive_engine_required or protected_foreground_lane:
-                # No turn kept to ask again (a route that binds none): the path below, which adds nothing to her turn.
-                allowed, block_reason = (False, "her turn was not kept to ask again") if asked is None else (
-                    _desktop_secondary_model_repair_allowed(
-                        reason=f"stabilizer_rewrite:{str(reason or 'quality_gate')[:120]}", default_enabled=False))
-                if not allowed:
-                    logger.warning(
-                        "Skipping secondary desktop stabilizer rewrite (%s); "
-                        "using deterministic repair/fail-closed path.",
-                        block_reason,
-                    )
-                    if grounded:
-                        return grounded
-                    if architecture_self_assessment:
-                        return _build_architecture_self_reflex(frame)
-                    if (
-                        _original_reply_is_safe_to_surface(
-                            user_message,
-                            text,
-                            identity_collapse=identity_collapse,
-                            unexpected_cjk=unexpected_cjk,
-                            objective_parrot=objective_parrot,
-                            off_topic=off_topic,
-                            truncated_tail=truncated_tail,
-                            semantic_glitch=semantic_glitch,
-                        )
-                        and not assessment_retryable
-                    ):
-                        _record_recent_response(text, user_message)
-                        return text
-                    bounded_failure = _chat_desktop_repair._build_bounded_desktop_repair_reply(
-                        user_message, frame
-                    )
-                    _record_recent_response(bounded_failure, user_message)
-                    return bounded_failure
-            # Length cap is structural (output token budget), not behavioral.
-            # The personality / phrasing comes from the LoRA, not from prompt
-            # nudges — so the stabilizer raises max_tokens for multi-part
-            # prompts but does not coach the model on how to speak.
-            stabilizer_max_tokens = 1024
-            if prefer_extended_answer:
-                stabilizer_max_tokens = 2048
-            if requires_single_reply_coverage:
-                stabilizer_max_tokens = max(stabilizer_max_tokens, 2560)
-            if question_parts >= 3:
-                stabilizer_max_tokens = max(stabilizer_max_tokens, 3072)
-            if question_parts >= 5:
-                stabilizer_max_tokens = max(stabilizer_max_tokens, 4096)
-
-            stabilizer_max_tokens, memory_block = _bound_stabilizer_generation_budget(
-                stabilizer_max_tokens
-            )
-            try:
-                corrected_text, stabilizer_timeout = await _stabilize_user_facing_reply_part_3(asked, desktop_cognitive_engine_required, inference_gate, memory_block, protected_foreground_lane, stabilizer_max_tokens, user_message)
-                if corrected_text and len(corrected_text) > 10:
-                    corrected_generic, _corrected_reason = _looks_generic_assistantish(
-                        user_message, corrected_text
-                    )
-                    corrected_objective_parrot = _is_objective_parrot_reply(
-                        user_message, corrected_text
-                    )
-                    corrected_lacks_self_anchor = (
-                        needs_self_expression or requires_first_person_anchor
-                    ) and not _has_first_person_anchor(corrected_text)
-                    corrected_lacks_live_grounding = (
-                        needs_self_expression and not _has_live_aura_grounding(corrected_text)
-                    )
-                    corrected_unexpected_cjk = _has_unexpected_cjk(user_message, corrected_text)
-                    corrected_off_topic, corrected_off_topic_reason = _evaluate_reply_topicality(
-                        user_message,
-                        corrected_text,
-                        recent_user_messages=recent_user_messages,
-                    )
-                    corrected_stale_repeat = _is_actionably_stale_response(
-                        user_message,
-                        corrected_text,
-                    )
-                    corrected_same_diff = _is_same_answer_different_prompt(
-                        user_message, corrected_text
-                    )
-                    corrected_truncated_tail = _chat_desktop_repair._looks_truncated_tail(
-                        corrected_text
-                    )
-                    corrected_semantic_glitch, _corrected_semantic_reason = (
-                        await asyncio.to_thread(_looks_semantically_glitched, user_message, corrected_text)
-                    )
-                    try:
-                        from core.conversation.response_reliability import assess_user_facing_reply
-
-                        corrected_assessment = (await asyncio.to_thread(
-                            assess_user_facing_reply,
-                            user_message,
-                            corrected_text,
-                            recent_user_messages=recent_user_messages,
-                        ))
-                    # not a failure: the same, on the corrected text.
-                    except _CHAT_RECOVERABLE_ERRORS:
-                        corrected_assessment = None
-                    try:
-                        from core.identity.identity_guard import PersonaEnforcementGate
-
-                        valid_corrected, _corrected_gate_reason, _score = (
-                            PersonaEnforcementGate().validate_output(
-                                corrected_text,
-                                enforce_supervision=False,
-                            )
-                        )
-                    except _CHAT_RECOVERABLE_ERRORS:
-                        valid_corrected = True
-                    if (
-                        valid_corrected
-                        and not corrected_generic
-                        and not corrected_objective_parrot
-                        and not corrected_lacks_self_anchor
-                        and not corrected_lacks_live_grounding
-                        and not corrected_unexpected_cjk
-                        and not corrected_off_topic
-                        and not corrected_stale_repeat
-                        and not corrected_same_diff
-                        and not corrected_truncated_tail
-                        and not corrected_semantic_glitch
-                        and not (
-                            corrected_assessment is not None
-                            and getattr(corrected_assessment, "retryable", False)
-                        )
-                    ):
-                        return corrected_text
-                    if corrected_off_topic:
-                        logger.warning(
-                            "Stabilizer rewrite stayed off-topic (%s, len=%d).",
-                            corrected_off_topic_reason or "unknown",
-                            len(corrected_text),
-                        )
-            except TimeoutError:
-                logger.warning(
-                    "Identity re-generation timed out (%.0fs). Preferring original LLM text over static fallback.",
-                    stabilizer_timeout,
-                )
-                # When the rewrite times out we should actually mean what the
-                # log says: ship the cortex's original reply instead of falling
-                # through to the static voice reflex below. The original was
-                # generated by the cortex for THIS user message; the only
-                # remaining suppressions are "stale_repeat" / "same_diff",
-                # which are themselves often triggered *because* prior turns
-                # fell through to the same canned reflex. Block free-form
-                # leaks and topicality, then return the live text.
-                if _original_reply_is_safe_to_surface(
-                    user_message,
-                    text,
-                    identity_collapse=identity_collapse,
-                    unexpected_cjk=unexpected_cjk,
-                    objective_parrot=objective_parrot,
-                    off_topic=off_topic,
-                    truncated_tail=truncated_tail,
-                    semantic_glitch=semantic_glitch,
-                ):
-                    _record_recent_response(text, user_message)
-                    return text
-            except _CHAT_RECOVERABLE_ERRORS as regen_err:
-                record_degradation("chat", regen_err)
-                logger.debug("Identity re-generation failed: %s", regen_err)
-    except _CHAT_RECOVERABLE_ERRORS as _e:
-        record_degradation("chat", _e)
-        logger.debug("Fallback re-generation failed (non-fatal): %s", _e)
-
-    # Last-resort: prefer the original LLM response over a hardcoded template,
-    # BUT detect when the same stale response is being served repeatedly
-    # (e.g. cortex stuck, cached identity prompt producing identical output),
-    # AND filter out any internal state that leaked through.
-    search_turn = bool(getattr(contract, "requires_search", False))
-    if (
-        text
-        and len(text.strip()) > 5
-        and text.strip() != "…"
-        and not unexpected_cjk
-        and not objective_parrot
-        and not semantic_glitch
-    ):
-        # Block responses that contain internal state dumps
-        if _INTERNAL_STATE_PATTERNS.search(text) or _PROMPT_ARTIFACT_PATTERNS.search(text):
-            logger.warning("Blocked internal state leak in LLM response (len=%d).", len(text))
-        elif _SEARCH_SNIPPET_PATTERNS.search(text):
-            logger.warning("Blocked raw search-snippet leak in LLM response (len=%d).", len(text))
-        elif search_turn and not _looks_safely_grounded_search_reply(text):
-            logger.warning("Blocked ungrounded search-turn fallback (len=%d).", len(text))
-        elif off_topic:
-            logger.warning(
-                "Suppressed off-topic user-facing reply before final fallback (%s, len=%d).",
-                off_topic_reason or "unknown",
-                len(text),
-            )
-        elif truncated_tail:
-            logger.warning(
-                "Suppressed truncated user-facing reply before final fallback (len=%d).", len(text)
-            )
-        elif semantic_glitch:
-            logger.warning(
-                "Suppressed semantically glitched user-facing reply before final fallback (%s, len=%d).",
-                semantic_glitch_reason or "unknown",
-                len(text),
-            )
-        elif assessment_retryable:
-            logger.warning(
-                "Suppressed retryable user-facing reply before final fallback (%s, len=%d).",
-                ",".join(getattr(live_reply_assessment, "reasons", ()) or ())
-                or "conversation_reliability_retryable",
-                len(text),
-            )
-        elif stale_repeat or same_diff:
-            logger.warning(
-                "Suppressed repeated user-facing reply before final fallback (stale=%s, same_diff=%s, len=%d).",
-                stale_repeat,
-                same_diff,
-                len(text),
-            )
-        elif not _is_actionably_stale_response(user_message, text):
-            _record_recent_response(text, user_message)
-            return text
-        else:
-            logger.warning(
-                "Suppressed stale repeated response (len=%d). Falling through to voice reflex.",
-                len(text),
-            )
-    if search_turn:
-        # Before the canned line, ask whether the runtime already HOLDS the
-        # answer.
-        #
-        # LIVE 2026-08-17: "prove to me you actually read that file and didn't
-        # just pattern-match the answer" returned "I don't have a clean
-        # grounded answer on that yet" — while the receipt for reading that
-        # file was on disk. The proof she was asked for was the one thing she
-        # could have produced.
-        #
-        # This is a reading, not a rescue: concise_past_action_answer returns
-        # text only when receipts actually cover the question, so it cannot
-        # describe an action she did not take. When they do not, the honest
-        # sentence below still stands.
-        try:
-            from core.introspection.self_evidence import concise_past_action_answer
-
-            from_receipts = str(concise_past_action_answer(user_message) or "").strip()
-        except _CHAT_RECOVERABLE_ERRORS as _receipt_exc:
-            record_degradation("chat.past_action_answer", _receipt_exc)
-            from_receipts = ""
-        if from_receipts:
-            logger.info(
-                "Answered a search-classified turn from receipts (%d chars) "
-                "rather than the ungrounded fallback.",
-                len(from_receipts),
-            )
-            _record_recent_response(from_receipts, user_message)
-            return from_receipts
-        safe = "I don't have a clean grounded answer on that yet. I need to stick to the source instead of guessing."
-        _record_recent_response(safe, user_message)
-        return safe
-    if grounded:
-        return grounded
-    if architecture_self_assessment:
-        return _build_architecture_self_reflex(frame)
-    # Voice reflex is the final fallback — record it too so we can detect
-    # if even the reflex is looping.
-    reflex = _call_stateful_voice_reflex(frame, user_message)
-    if _is_actionably_stale_response(user_message, reflex):
-        reflex = _chat_conversation_repair._build_degraded_live_reply(
-            frame, user_message, reason="repeated_reflex"
-        )
-    _record_recent_response(reflex, user_message)
-    return reflex
+        again, _timeout = await _stabilize_user_facing_reply_part_3(
+            asked, desktop_cognitive_engine_required, gate, memory_block, protected_foreground_lane, max_tokens,
+            user_message)
+    except (*_CHAT_RECOVERABLE_ERRORS, TimeoutError) as exc:
+        logger.info("Her turn was not asked again (%s); her draft stands.", exc)
+        return ""
+    return str(again or "").strip()
 
 
 async def _repair_final_degraded_reply_assessment_reasons(

@@ -27,9 +27,9 @@ _HOLDER: ContextVar[dict[str, Any] | None] = ContextVar("aura_her_turn_as_asked"
 
 
 @contextmanager
-def a_turn_is_asked() -> Iterator[None]:
-    """One person's turn: what her model is asked for it can be kept."""
-    token = _HOLDER.set({})
+def a_turn_is_asked(conversation: str = "") -> Iterator[None]:
+    """One person's turn in ``conversation``: what her model is asked for it can be kept."""
+    token = _HOLDER.set({"conversation": str(conversation or "")} if conversation else {})
     try:
         yield
     finally:
@@ -54,12 +54,12 @@ def as_asked() -> dict[str, Any] | None:
     messages = copy.deepcopy(holder["messages"])
     record = holder.get("record") or []
     if record:
-        reading = "[WHAT THE RECORD SAYS]\n" + "\n".join(f"- {fact}" for fact in record) + "\n[END WHAT THE RECORD SAYS]\n\n"
+        reading = _reading(record)
         for message in reversed(messages):
             if isinstance(message, dict) and str(message.get("role") or "").lower() == "user":
                 message["content"] = reading + str(message.get("content") or "")
                 break
-    return {key: value for key, value in holder.items() if key != "record"} | {"messages": messages}
+    return {key: value for key, value in holder.items() if key not in ("record", "conversation")} | {"messages": messages}
 
 
 def the_record_says(fact: str) -> None:
@@ -84,3 +84,47 @@ def clear_the_record() -> None:
     holder = _HOLDER.get()
     if holder is not None:
         holder.pop("record", None)
+
+
+#: What the record said against her last reply, per conversation, until her next turn there reads it.
+_CARRIED: dict[str, list[str]] = {}
+#: Conversations whose record is held at once; the oldest is let go past this. A person has a handful of chats open.
+_CARRIED_CONVERSATIONS = 64
+
+
+def _reading(facts: list[str]) -> str:
+    return "[WHAT THE RECORD SAYS]\n" + "\n".join(f"- {fact}" for fact in facts) + "\n[END WHAT THE RECORD SAYS]\n\n"
+
+
+def carry_the_record_to_the_next_turn() -> None:
+    """What the record said against her reply on this turn, held for her next turn in the same conversation.
+
+    Her reply is served with what the record refuted taken out; asking her again at once cost a whole generation
+    (LIVE 13 November 2026, a 131 s turn; Bryan: checks should not slow the process). Her next turn reads the fact
+    among its readings, and whether and how she speaks to it is hers."""
+    holder = _HOLDER.get()
+    conversation = str((holder or {}).get("conversation") or "")
+    facts = what_the_record_says()
+    clear_the_record()
+    if not conversation or not facts:
+        return
+    kept = _CARRIED.setdefault(conversation, [])
+    kept.extend(fact for fact in facts if fact not in kept)
+    while len(_CARRIED) > _CARRIED_CONVERSATIONS:
+        _CARRIED.pop(next(iter(_CARRIED)))
+
+
+def with_what_the_record_said(messages: Any) -> Any:
+    """This turn's messages with what the record said against her last reply in this conversation, as a reading at the
+    head of the person's message. Given once."""
+    holder = _HOLDER.get()
+    conversation = str((holder or {}).get("conversation") or "")
+    if not conversation or not isinstance(messages, list) or conversation not in _CARRIED:
+        return messages
+    facts = _CARRIED.pop(conversation)
+    given = copy.deepcopy(messages)
+    for message in reversed(given):
+        if isinstance(message, dict) and str(message.get("role") or "").lower() == "user":
+            message["content"] = _reading(facts) + str(message.get("content") or "")
+            return given
+    return messages

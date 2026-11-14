@@ -91,13 +91,6 @@ class TestWordingFailuresKeepTheRecord:
             "function_word_starvation",
         } <= CONTINUITY_SAFE_REASONS
 
-    def test_a_grounding_failure_is_not_continuity_safe(self) -> None:
-        """A wrong claim about her own state must not be stored as what she said."""
-        from core.conversation.surface_disposition import CONTINUITY_SAFE_REASONS
-
-        assert "host_telemetry_substituted_for_self_condition" not in (
-            CONTINUITY_SAFE_REASONS
-        )
 
     def test_the_demo_reply_is_wording_only(self) -> None:
         from core.conversation.response_reliability import (

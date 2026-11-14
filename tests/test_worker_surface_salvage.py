@@ -14,15 +14,12 @@ preemptions). These tests pin the salvage contract:
 """
 from __future__ import annotations
 
-import time
-
 from core.brain.llm.mlx_worker import (
     _DELIVERABLE_RESIDUAL_SURFACE_REASONS,
     _SELF_CLAIM_BOUNDARY_SUFFIX,
     _loop_abort_prefix_is_servable,
     _repair_live_user_surface_instruction_shape,
     _salvage_exhausted_user_surface,
-    _surface_quality_failure_reasons,
 )
 
 
@@ -159,101 +156,12 @@ def test_early_loop_abort_still_uses_the_clean_retry_path():
     )
 
 
-def test_worker_admits_shared_history_only_with_bound_grounding_evidence():
-    prompt = "What did I tell you to remember about my favorite animal?"
-    reply = "You told me your favorite animal is the orca."
-    ungrounded = _job_for(prompt)
-    grounded = {
-        **ungrounded,
-        "user_surface_grounding_evidence": [
-            "Bryan said his favorite animal is the orca."
-        ],
-    }
-
-    assert "fabricated_shared_history" in _surface_quality_failure_reasons(
-        ungrounded, reply
-    )
-    assert "fabricated_shared_history" not in _surface_quality_failure_reasons(
-        grounded, reply
-    )
 
 
-def test_worker_admits_prior_assistant_speech_from_delivered_transcript():
-    prompt = "What topic were we discussing before I asked how you knew?"
-    reply = "We were discussing Solaris by Stanislaw Lem."
-    job = {
-        **_job_for(prompt),
-        "messages": [
-            {"role": "user", "content": "Name a science fiction novel and its author."},
-            {"role": "assistant", "content": "Solaris was written by Stanislaw Lem."},
-            *[
-                message
-                for index in range(20)
-                for message in (
-                    {"role": "user", "content": f"Another question {index}."},
-                    {"role": "assistant", "content": f"Another answer {index}."},
-                )
-            ],
-            {"role": "user", "content": "How did you know that?"},
-            {"role": "assistant", "content": "I recognized it from learned knowledge."},
-            {"role": "user", "content": prompt},
-        ],
-    }
-
-    without_assistant_evidence = {
-        **job,
-        "messages": [m for m in job["messages"] if m["role"] != "assistant"],
-    }
-    assert "fabricated_shared_history" in _surface_quality_failure_reasons(
-        without_assistant_evidence, reply
-    )
-    assert "fabricated_shared_history" not in _surface_quality_failure_reasons(
-        job, reply
-    )
 
 
-def test_worker_still_rejects_history_absent_from_both_sides_of_transcript():
-    prompt = "What topic were we discussing before I asked how you knew?"
-    reply = "We were discussing a house move to Paris and your new landlord."
-    job = {
-        **_job_for(prompt),
-        "messages": [
-            {"role": "user", "content": "Who wrote Solaris?"},
-            {"role": "assistant", "content": "Solaris was written by Stanislaw Lem."},
-            {"role": "user", "content": prompt},
-        ],
-    }
-
-    assert "fabricated_shared_history" in _surface_quality_failure_reasons(
-        job, reply
-    )
 
 
-def test_worker_admits_execution_claim_only_with_exact_turn_receipt():
-    prompt = "Search the web for the latest Mistral model release."
-    reply = "I ran the search and found Mistral 3 on Mistral AI's release page."
-    unreceipted = _job_for(prompt)
-    receipted = {
-        **unreceipted,
-        "user_surface_tool_receipts": [
-            {
-                "receipt_id": "a" * 32,
-                "tool": "web_search",
-                "action": "web_search",
-                "object_ref": "latest Mistral model release",
-                "ok": True,
-                "effect_observed": True,
-                "verification": "result_received",
-            }
-        ],
-    }
-
-    assert "unfounded_tool_execution_claim" in _surface_quality_failure_reasons(
-        unreceipted, reply
-    )
-    assert "unfounded_tool_execution_claim" not in _surface_quality_failure_reasons(
-        receipted, reply
-    )
 
 
 def test_parent_projects_only_custodied_tool_receipts_for_worker_ipc():
@@ -279,34 +187,6 @@ def test_parent_projects_only_custodied_tool_receipts_for_worker_ipc():
     assert "evidence" not in receipts[0]
 
 
-def test_worker_admits_typed_camera_evidence_and_rejects_scope_overclaim():
-    from core.senses.turn_evidence import build_camera_turn_evidence
-
-    prompt = "ChatGPT here. Can you determine whether anyone else is physically here with me?"
-    evidence = build_camera_turn_evidence(
-        prompt,
-        ok=True,
-        observation="No other person is visible in the current camera view.",
-        observed_at=time.time(),
-    )
-    job = {
-        **_job_for(prompt),
-        "user_surface_sensory_evidence": evidence,
-    }
-    scoped = (
-        "I looked just now. I do not see another person in the current camera "
-        "view, but that view cannot establish that the whole room is empty."
-    )
-
-    assert _surface_quality_failure_reasons(job, scoped) == []
-    assert "unsupported_sensor_scope_claim" in _surface_quality_failure_reasons(
-        job,
-        "No one else is here with you. The room seems empty.",
-    )
-    assert "unfounded_tool_execution_claim" in _surface_quality_failure_reasons(
-        _job_for(prompt),
-        "No one else is physically here with you.",
-    )
 
 
 def test_live_failure_shape_now_delivers():

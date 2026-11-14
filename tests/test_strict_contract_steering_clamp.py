@@ -17,16 +17,13 @@ from mlx_source import client_source, worker_source
 
 from core.brain.llm.mlx_worker import (
     _apply_surface_generation_controls,
-    _build_user_surface_quality_retry_prompt,
     _expand_user_surface_retry_budget,
     _extract_expected_strict_value,
     _job_needs_concrete_status_signal_guidance,
-    _messages_with_user_surface_retry,
     _normalize_strict_value_response,
     _repair_live_user_surface_operational_status,
     _repair_live_user_surface_self_claims,
     _repair_live_user_surface_truncated_tail,
-    _self_claim_retry_uses_original_context,
     _surface_control_alpha,
     _surface_generation_contract_enabled,
     _surface_generation_control_receipt,
@@ -224,32 +221,8 @@ def test_live_mind_surface_controls_apply_restore_and_emit_receipt(monkeypatch):
     assert model.model._recurrent_depth_runtime_loops == 4
 
 
-def test_live_user_surface_quality_gate_rejects_template_affect_status():
-    job = {
-        "clean_user_surface_contract": True,
-        "user_surface_validation_prompt": "Hi",
-    }
-
-    reasons = _surface_quality_failure_reasons(
-        job,
-        "Hi. I am feeling joyous right now.",
-    )
-
-    assert _surface_quality_gate_enabled(job) is True
-    assert "template_telemetry_greeting" in reasons
 
 
-def test_live_user_surface_quality_gate_rejects_unfounded_voice_intrusion():
-    reasons = _surface_quality_failure_reasons(
-        {
-            "clean_user_surface_contract": True,
-            "user_surface_validation_prompt": "What are you talking about?",
-            "user_surface_recent_messages": ["You with me?", "What pitch?"],
-        },
-        "The voices. The small ones. They're whispering in my ear. Telling me things.",
-    )
-
-    assert "unfounded_voice_intrusion" in reasons
 
 
 def test_diagnostic_self_claim_repair_remains_available_without_worker_substitution():
@@ -273,45 +246,8 @@ def test_diagnostic_self_claim_repair_remains_available_without_worker_substitut
     assert worker_source().count("_repair_live_user_surface_self_claims(") == 1
 
 
-@pytest.mark.parametrize(
-    "draft",
-    (
-        "I autonomously retrain and update my own model weights.",
-        "I definitely have phenomenal consciousness, and the runtime proves it.",
-        "I do not have persistent memory across sessions.",
-        "I cannot modify or improve my own code.",
-    ),
-)
-def test_worker_rejects_false_self_claims_without_rewriting_them(draft):
-    job = {
-        "clean_user_surface_contract": True,
-        "user_surface_validation_prompt": "What can you do?",
-    }
-
-    reasons = _surface_quality_failure_reasons(job, draft)
-
-    assert "self_claim_contradiction" in reasons
-    assert _self_claim_retry_uses_original_context(reasons)
 
 
-def test_worker_fails_closed_when_self_claim_verification_is_unavailable(monkeypatch):
-    import core.conversation.self_claim_verifier as verifier
-
-    def unavailable(_text):
-        raise RuntimeError("verifier unavailable")
-
-    monkeypatch.setattr(verifier, "verify_self_claims", unavailable)
-    reasons = _surface_quality_failure_reasons(
-        {
-            "clean_user_surface_contract": True,
-            "user_surface_validation_prompt": "What can you do?",
-        },
-        "I autonomously retrain and update my own model weights.",
-    )
-
-    assert "self_claim_verification_unavailable" in reasons
-    assert not _self_claim_retry_uses_original_context(reasons)
-    assert _surface_retry_is_futile(reasons)
 
 
 @pytest.mark.parametrize(
@@ -397,42 +333,8 @@ def test_live_user_surface_quality_gate_defers_verified_runtime_fact_contract():
     ) == []
 
 
-def test_live_user_surface_retry_preserves_original_live_context_messages():
-    messages = [
-        {"role": "system", "content": "live mind context stays here"},
-        {"role": "user", "content": "You with me?"},
-    ]
-
-    retried = _messages_with_user_surface_retry(messages, ["template_telemetry_greeting"])
-
-    assert retried is not None
-    assert retried[0]["role"] == "system"
-    assert "live mind context stays here" in retried[0]["content"]
-    assert "template_telemetry_greeting" in retried[0]["content"]
-    assert retried[1] == messages[1]
-    assert messages[0]["content"] == "live mind context stays here"
 
 
-def test_initial_live_status_generation_gets_concrete_signal_guidance():
-    messages = [
-        {"role": "system", "content": "live mind context stays here"},
-        {"role": "user", "content": "Name one live runtime signal you can perceive."},
-    ]
-
-    guided, prompt = _with_initial_user_surface_guidance(
-        messages,
-        "fallback",
-        {
-            "clean_user_surface_contract": True,
-            "user_surface_validation_prompt": "Name one live runtime signal you can perceive.",
-        },
-    )
-
-    assert prompt == "fallback"
-    assert guided is not messages
-    assert "live mind context stays here" in guided[0]["content"]
-    assert "concrete observable runtime or sensory signal" in guided[0]["content"]
-    assert messages[0]["content"] == "live mind context stays here"
 
 
 def test_initial_non_status_surface_is_not_prompt_shaped():
@@ -529,56 +431,10 @@ def test_live_status_repair_does_not_touch_non_status_failure():
     assert repaired == original
 
 
-def test_live_status_retry_requests_concrete_runtime_signals():
-    messages = [
-        {"role": "system", "content": "live mind context stays here"},
-        {"role": "user", "content": "Name one live runtime signal you can perceive."},
-    ]
-
-    retried = _messages_with_user_surface_retry(
-        messages,
-        ["too_thin_for_operational_status_turn"],
-    )
-
-    assert retried is not None
-    assert "concrete observable runtime or sensory signal" in retried[0]["content"]
-    assert "CPU/RAM pressure" in retried[0]["content"]
-    assert "metaphor-only attention-texture" in retried[0]["content"]
 
 
-def test_live_user_surface_retry_prompt_uses_native_template_when_available():
-    class Tokenizer:
-        def apply_chat_template(self, messages, tools=None, add_generation_prompt=True, tokenize=False):
-            assert add_generation_prompt is True
-            assert tokenize is False
-            return "\n".join(message["content"] for message in messages)
-
-    prompt = _build_user_surface_quality_retry_prompt(
-        tokenizer=Tokenizer(),
-        messages=[{"role": "system", "content": "live context"}, {"role": "user", "content": "Hi"}],
-        tools=None,
-        fallback_prompt="fallback",
-        reasons=["generic_assistant_language"],
-    )
-
-    assert "live context" in prompt
-    assert "generic_assistant_language" in prompt
-    assert "fallback" not in prompt
 
 
-def test_live_status_retry_suffix_requests_concrete_runtime_signals_without_template():
-    prompt = _build_user_surface_quality_retry_prompt(
-        tokenizer=object(),
-        messages="raw prompt",
-        tools=None,
-        fallback_prompt="fallback",
-        reasons=["too_thin_for_operational_status_turn"],
-    )
-
-    assert "fallback" in prompt
-    assert "concrete observable runtime or sensory signal" in prompt
-    assert "CPU/RAM pressure" in prompt
-    assert "metaphor-only attention-texture" in prompt
 
 
 def test_live_recurrent_ceiling_defaults_to_one(monkeypatch):

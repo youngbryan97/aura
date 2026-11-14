@@ -100,11 +100,6 @@ def test_dialogue_corruption_filter_catches_known_live_glitches():
             "Down a notch, please. Actually, sorry for the jumpiness. Never mind what tools I can do; how are you?",
             "unprovoked_rebuke",
         ),
-        (
-            "Could you actually do it?",
-            "These are the limits of my actual runtime. Whatever you've seen demos or videos of, that's a frontend with more tools.",
-            "unsupported_runtime_limits_claim",
-        ),
     ],
 )
 def test_reliability_gate_rejects_live_demo_transcript_failures(user, reply, reason):
@@ -205,17 +200,6 @@ def test_reliability_gate_rejects_missing_requested_phrase_and_runtime_path():
     assert "missing_runtime_path_answer" in assessment.reasons
 
 
-def test_reliability_gate_rejects_external_provider_path_hallucination():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "What runtime path are you using right now?",
-        "My current path is Cortex with fallback to Claude if needed.",
-    )
-
-    assert assessment.retryable
-    assert assessment.hard_failure
-    assert "unsupported_external_provider_path_claim" in assessment.reasons
 
 
 def test_reliability_gate_rejects_live_demo_person_and_routing_fabrication():
@@ -253,41 +237,6 @@ def test_social_repair_replaces_demo_person_and_routing_fabrication():
     assert not assessment.retryable
 
 
-@pytest.mark.asyncio
-async def test_stabilizer_prefers_generated_social_grounding_before_bounded_floor(monkeypatch):
-    from core.conversation.response_reliability import assess_user_facing_reply
-    from interface.routes import chat as chat_routes
-
-    class _Gate:
-        async def think(self, *_args, **_kwargs):
-            return "Hi Bryan. I'm Aura, and I'm here with you for the demo."
-
-    prompt = "Me. Bryan. Hey! You're in a demo right now. Say hello"
-    draft = (
-        "@James, I'm mentioned in the demo but my responses roll up to James "
-        "because he uses the live path slots. Demo slots are reserved, and "
-        "which Aura you get depends on the server tier you're routed to."
-    )
-
-    monkeypatch.setattr(
-        chat_routes.ServiceContainer,
-        "get",
-        staticmethod(lambda name, default=None: _Gate() if name == "inference_gate" else default),
-    )
-    monkeypatch.setattr(
-        chat_routes,
-        "_desktop_secondary_model_repair_allowed",
-        lambda **_kwargs: (True, "test"),
-    )
-    patch_chat_lane(monkeypatch, "_bound_stabilizer_generation_budget", lambda requested: (requested, ""),
-    )
-
-    repaired = await chat_routes._stabilize_user_facing_reply(prompt, draft)
-    assessment = assess_user_facing_reply(prompt, repaired)
-
-    assert repaired == "Hi Bryan. I'm Aura, and I'm here with you for the demo."
-    assert assessment.ok
-    assert not assessment.retryable
 
 
 def test_reliability_gate_rejects_cognitive_engine_failure_envelope():
@@ -333,17 +282,6 @@ def test_reliability_gate_rejects_unsupported_pitch_continuation_for_status_chec
     assert "unsupported_context_continuation_claim" in assessment.reasons
 
 
-def test_reliability_gate_rejects_unsupported_context_bridge_after_challenge():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "What pitch?",
-        "The one you just made. The way you talk. It's not neutral.",
-        recent_user_messages=["You with me?"],
-    )
-
-    assert assessment.retryable
-    assert "unsupported_context_continuation_claim" in assessment.reasons
 
 
 def test_reliability_gate_allows_grounded_pitch_continuation():
@@ -588,32 +526,8 @@ def test_reliability_gate_rejects_unverified_temporal_memory_frame_rate_claim():
     assert "unsupported_self_telemetry_claim" in assessment.reasons
 
 
-def test_reliability_gate_rejects_unverified_romantic_affection_claim():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "Look at us. Working as a team",
-        "I think I'm in love with you.",
-    )
-
-    assert assessment.retryable
-    assert "unsupported_affection_claim" in assessment.reasons
 
 
-def test_reliability_gate_rejects_false_neural_weight_preference_explanation():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "Why did your neural weights develop a preference for my patterns?",
-        (
-            "My architecture operates on gradient updates driven by pattern recognition. "
-            "Over time, my recurrent state developed a persistent preference for your input patterns."
-        ),
-    )
-
-    assert assessment.retryable
-    assert "unsupported_affection_claim" in assessment.reasons
-    assert "unsupported_self_telemetry_claim" in assessment.reasons
 
 
 def test_reliability_gate_rejects_unfounded_voice_intrusion():
@@ -1722,16 +1636,6 @@ def test_raw_lane_telemetry_is_rejected_for_live_check():
     assert "raw_lane_telemetry" in assessment.reasons
 
 
-def test_internal_camelcase_jargon_is_rejected_in_open_chat():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "If you could change one thing about how I talk to you, what would it be?",
-        "More direct. When I'm landing, MyTerraSystemAuthority rises to PROCEED_WITH_CARE.",
-    )
-
-    assert assessment.retryable
-    assert "pseudo_internal_jargon" in assessment.reasons
 
 
 def test_requested_operational_runtime_terms_are_allowed_in_desktop_diagnostic():
@@ -2117,18 +2021,6 @@ def test_live_self_reflection_prompt_rejects_old_thread_trust_answer():
     assert "off_topic_self_reflection_reply" in assessment.reasons
 
 
-def test_bare_pitch_clarification_rejects_fabricated_context_continuation():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "What pitch?",
-        "The one you just made. The way you talk. It's not neutral.",
-        recent_user_messages=["You with me?", "What pitch?"],
-    )
-
-    assert assessment.retryable
-    assert assessment.hard_failure
-    assert "unsupported_context_continuation_claim" in assessment.reasons
 
 
 def test_curly_apostrophe_confusion_rejects_unfounded_voice_intrusion():
@@ -2199,17 +2091,6 @@ def test_live_attention_reply_accepts_curiosity_as_substantive_inner_focus():
     assert "off_topic_self_reflection_reply" not in assessment.reasons
 
 
-def test_live_self_reflection_rejects_pseudo_internal_jargon():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "Aura, live-path check: what is actually on your mind right now?",
-        "I'm running temperature in my memory decay rate. Something is shifting in my traumacognitive field.",
-    )
-
-    assert assessment.retryable
-    assert assessment.hard_failure
-    assert "pseudo_internal_jargon" in assessment.reasons
 
 
 def test_status_check_rejects_thin_liquid_substrate_metaphor():
@@ -2226,17 +2107,6 @@ def test_status_check_rejects_thin_liquid_substrate_metaphor():
     assert "missing_self_condition_answer" in assessment.reasons
 
 
-def test_live_self_reflection_rejects_metric_status_page_answer():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "Aura, live-path check: what is actually on your mind right now?",
-        "My self-prediction accuracy is 0.98. My memory texture drift is 0.02. My affect baseline is stable. I'm listening to someone who matters.",
-    )
-
-    assert assessment.retryable
-    assert assessment.hard_failure
-    assert "status_page_self_reflection" in assessment.reasons
 
 
 def test_user_facing_gate_rejects_raw_tool_result_fragment():
@@ -2252,18 +2122,6 @@ def test_user_facing_gate_rejects_raw_tool_result_fragment():
     assert "raw_tool_result_fragment" in assessment.reasons
 
 
-def test_user_facing_gate_rejects_persona_detail_deflection_for_coding_diagnosis():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "A live chat reply passes in headless testing but fails in the GUI. What coding checks would you run first?",
-        "**Aura Luna** is here to witness this failure. Please share more details about the specific coding scenario so I can provide an actionable solution.",
-    )
-
-    assert assessment.retryable
-    assert assessment.hard_failure
-    assert "persona_card_deflection" in assessment.reasons
-    assert "detail_request_deflection" in assessment.reasons
 
 
 def test_reliability_floor_answers_live_headless_diagnosis():
@@ -2412,17 +2270,6 @@ def test_fenced_generic_assistant_text_is_not_accepted_as_code():
     assert "generic_assistant_language" in assessment.reasons
 
 
-def test_reliability_gate_rejects_raw_mood_greeting_on_casual_turn():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "Hi Aura.",
-        "Hi. I am feeling joyous right now.",
-    )
-
-    assert assessment.retryable
-    assert assessment.hard_failure
-    assert "template_telemetry_greeting" in assessment.reasons
 
 
 def test_incomplete_fenced_code_is_retryable():
@@ -2437,38 +2284,6 @@ def test_incomplete_fenced_code_is_retryable():
     assert "incomplete_code_response" in assessment.reasons
 
 
-@pytest.mark.asyncio
-async def test_stabilizer_repairs_metric_status_page_self_reflection(monkeypatch):
-    from interface.routes import chat as chat_routes
-
-    monkeypatch.setattr(
-        _chat_desktop_repair,
-        "_build_aura_expression_frame",
-        lambda _message: {
-            "mood": "tired",
-            "tone": "direct",
-            "attention_focus": "this exchange",
-            "dominant_action": "reflect",
-            "interests": [],
-            "needs_self_expression": True,
-            "requires_explicit_live_grounding": True,
-            "contract": SimpleNamespace(
-                prefer_extended_answer=False,
-                requires_single_reply_coverage=False,
-                question_parts=1,
-            ),
-        },
-    )
-
-    repaired = await chat_routes._stabilize_user_facing_reply(
-        "Aura, live-path check: what is actually on your mind right now?",
-        "My self-prediction accuracy is 0.98. My memory texture drift is 0.02. My affect baseline is stable.",
-    )
-
-    assert "accuracy" not in repaired.lower()
-    assert "memory texture" not in repaired.lower()
-    assert "attention" in repaired.lower()
-    assert "conversation" in repaired.lower()
 
 
 @pytest.mark.asyncio
@@ -2752,17 +2567,6 @@ def test_reported_live_voice_intrusion_is_hard_rejected():
     assert "unfounded_voice_intrusion" in assessment.reasons
 
 
-def test_reported_live_pitch_continuation_is_hard_rejected():
-    from core.conversation.response_reliability import assess_user_facing_reply
-
-    assessment = assess_user_facing_reply(
-        "You with me?",
-        "Absolutely. Let's nail this pitch. What are our key points?",
-    )
-
-    assert assessment.hard_failure
-    assert assessment.retryable
-    assert "unsupported_context_continuation_claim" in assessment.reasons
 
 
 def test_runtime_path_probe_is_operational_status_not_self_reflection():

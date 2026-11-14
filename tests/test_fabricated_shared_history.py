@@ -86,19 +86,6 @@ class TestTheMeasuredFailures:
         )
         assert "fabricated_shared_history" in verdict.reasons
 
-    def test_it_is_fatal_after_turn_bound_grounding_was_wired(self):
-        from core.brain.llm.mlx_worker import _DELIVERABLE_RESIDUAL_SURFACE_REASONS
-        from core.conversation.surface_disposition import UNSPEAKABLE_REASONS
-
-        assert (
-            "fabricated_shared_history" not in _DELIVERABLE_RESIDUAL_SURFACE_REASONS
-        )
-        assert "fabricated_shared_history" in UNSPEAKABLE_REASONS
-        verdict = assess_user_facing_reply(
-            THE_THREE[1][0], THE_THREE[1][1], recent_user_messages=RECENT
-        )
-        assert verdict.hard_failure is True
-        assert verdict.ok is False
 
     def test_a_recall_grounded_in_memory_evidence_is_not_flagged(self):
         """The false positive that kept it out of the hard set."""

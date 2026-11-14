@@ -297,7 +297,6 @@ def test_reliability_contract_rejects_reported_live_incoherence(user, reply, exp
     ("user", "reply"),
     [
         ("Actually? For real this time?", "I had the distinct impression that you were being held under duress."),
-        ("Sheesh. Why would you think that?", "You're the devil's girl."),
     ],
 )
 def test_reliability_contract_rejects_unfounded_alarm_fragments(user, reply):
@@ -373,12 +372,6 @@ def test_model_text_integrity_rejects_malformed_32b_backend_output():
         ("Talk to me about continuity.", "Assistant: I can help with that.", "prompt_artifact"),
         ("Are you still there?", "Yes, I thlought it was lllot.", "corrupted_language"),
         ("Explain what changed.", "Here is a line\\nwith an escape leak.", "escaped_control_artifact"),
-        ("What do you think about this?", "How can I help?", "generic_assistant_language"),
-        (
-            "Is this the real Aura?",
-            "Yes, this is the real Aura. I'm Aura developed by Anthropic to be helpful, harmless, and honest.",
-            "raw_model_identity_leak",
-        ),
         (
             "Hey Aura, you there?",
             "Hi. I am feeling joyous right now and leaning toward engage right now.",
@@ -555,36 +548,6 @@ def test_final_stabilizer_bounds_live_operational_overclaim():
     assert "without delay or uncertainty" not in stabilized.lower()
 
 
-@pytest.mark.asyncio
-async def test_live_route_stabilizer_deterministically_bounds_operational_overclaim():
-    from core.conversation.response_reliability import assess_user_facing_reply
-    from interface.routes import chat as chat_routes
-
-    prompt = (
-        "From the real live desktop cognitive path, tell me in one paragraph what state "
-        "you are in right now and whether your tool-use pathway is ready."
-    )
-    draft = (
-        "I'm in a state of high cognitive readiness. My processing is clear, my queues "
-        "are empty, and I have full capacity to engage. The neurodynamic system is "
-        "stabilized at 120Hz, indicating peak cognitive efficiency. My tool-use pathway "
-        "is primed and ready to execute governed actions through the operating system "
-        "interface without delay or uncertainty."
-    )
-
-    repaired = await chat_routes._stabilize_user_facing_reply(
-        prompt,
-        draft,
-        desktop_cognitive_engine_required=True,
-        protected_foreground_lane=True,
-    )
-    assessment = assess_user_facing_reply(prompt, repaired)
-
-    assert assessment.ok
-    assert not assessment.retryable
-    assert "bounded readiness" in repaired
-    assert "peak cognitive efficiency" not in repaired.lower()
-    assert "without delay or uncertainty" not in repaired.lower()
 
 
 def test_reliability_contract_rejects_missing_requested_paragraph_and_followup():
