@@ -856,6 +856,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reading not yet taken is marked as such, and the readers that decide
   pressure or feel load treat it as unread, not idle
   (`core/runtime/cpu_sampler.py`).
+  Live the same day, two more. Her health pulse read "CPU 0.0%" every few
+  samples: psutil 7 keeps cpu_percent's baseline per thread, so any thread's
+  first reading had nothing to subtract; the sampler diffs its own counter
+  snapshot now, and the 25 pulses after her 12:21 restart held no zero
+  (33b172dc8). Her appraisal held conation.what_she_wants 67 ms at boot,
+  32 ms of it running the binomial test behind every like and dislike inside
+  the lock; the counts are read under it and judged after, and the test is
+  kept once worked out (036f05092). Left from the boot log: 7.3 s of loop
+  starvation by her own threads at start, not yet read.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
