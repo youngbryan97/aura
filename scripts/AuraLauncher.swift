@@ -4562,6 +4562,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.contentView = webView
             panel.isReleasedWhenClosed = false
+            panel.delegate = self
             panel.setFrameOrigin(companionOrigin(for: size))
             // 37pt: the title bar's 8pt padding, 20pt glyph, 8pt padding and
             // its 1pt rule — the strip the page styles as its drag handle.
@@ -4621,6 +4622,27 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         guard let screen = NSScreen.main else { return NSPoint(x: 60, y: 60) }
         let visible = screen.visibleFrame
         return NSPoint(x: visible.minX + 24, y: visible.minY + 100)
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        keepTheCompanionToTheChosenSurface(notification)
+    }
+
+    func windowDidChangeOcclusionState(_ notification: Notification) {
+        keepTheCompanionToTheChosenSurface(notification)
+    }
+
+    /// The restrained chat stays away while another surface is the one chosen.
+    ///
+    /// 14 November 2026: FULL, clicked in the restrained chat while another app
+    /// was in front, opened her window and ordered the chat out, and the chat
+    /// came back over the window; the window server listed both. Reactivating
+    /// an app brings back the window that was key when it was last active, and
+    /// the chat had been, so the reactivation the click began undid the order.
+    private func keepTheCompanionToTheChosenSurface(_ notification: Notification) {
+        guard let panel = companionPanel, (notification.object as? NSWindow) === panel,
+              chosenSurface != "companion", panel.isVisible else { return }
+        panel.orderOut(nil)
     }
 
     func windowWillClose(_ notification: Notification) {

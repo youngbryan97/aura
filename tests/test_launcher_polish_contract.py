@@ -1265,3 +1265,17 @@ def test_the_health_poll_keeps_the_surface_the_person_chose():
     assert 'chosenSurface = "hidden"' in hide_body
     # Reopening the window is a change of surface: the bubble gives way, as when it first opens.
     assert 'chosenSurface = "window"' in reopen_body and "orderBubbleOut()" in reopen_body
+
+
+def test_the_restrained_chat_stays_away_while_another_surface_is_chosen():
+    """14 November 2026: FULL, clicked in the restrained chat while another app was in front, opened her window and the
+    chat came back over it; the window server listed both. Reactivation restores the window that was last key."""
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
+
+    built = swift.split("private func showCompanionChat()", 1)[1].split("companionPanel = panel", 1)[0]
+    assert "panel.delegate = self" in built
+    keep = swift.split("private func keepTheCompanionToTheChosenSurface(", 1)[1].split("\n    }\n", 1)[0]
+    assert 'chosenSurface != "companion"' in keep and "panel.orderOut(nil)" in keep
+    for hook in ("func windowDidBecomeKey(", "func windowDidChangeOcclusionState("):
+        body = swift.split(hook, 1)[1].split("\n    }\n", 1)[0]
+        assert "keepTheCompanionToTheChosenSurface(notification)" in body
