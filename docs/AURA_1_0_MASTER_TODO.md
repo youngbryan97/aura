@@ -1319,6 +1319,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   her will refusing sovereign_network for want of a signed lease, where
   the refusal is right and the defect is her stability goal choosing a
   stealth port scan.
+  13 November, evening, after her launch from /Applications: "No repair
+  handler registered for reduce_load/global". Her immune system asks for it
+  whenever resource pressure passes 0.78, which her resident 27B holds most
+  of the time, and nothing could answer. The handler now asks the resource
+  governor, the one owner of load, and sheds only the tier its own
+  thresholds name; at her 27B's ordinary footprint that is none, so her
+  prompt cache is not dropped every few seconds on a reading of normal.
+  Open, by cause: a user turn reached the context assembler with no bound
+  principal ("hint was 'bryan'"), so that prompt went without her
+  relational memory of him; the tertiary routing tier matched no endpoint
+  (5 times); one event-loop lag at idle.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
@@ -5346,6 +5357,28 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_release`
   (eight cases) and `test_state_ownership.py::
   test_no_module_resolves_the_live_root_for_itself_any_more`.
+  13 November, evening, two causes found by watching the batch rather than
+  rerunning it. MLX's default device: `test_canonical_proof_boot_activates_
+  proof_runtime_policy` runs the desktop parent's proof boot, which pins MLX
+  to the CPU and never unpins it, and every later test in that worker ran
+  MLX on the CPU; `test_her_own_model_tells_bryans_invitation_from_bryans_
+  task` then found "this process keeps MLX off the GPU", scored nothing, and
+  failed in three batches running while passing alone. The pair fails on
+  main in that order and passes with the conftest fixture that restores the
+  device after each test (real mlx.core only; stand-ins are left alone).
+  Her trace hook: once installed by an earlier test it read the process
+  inside logging and caught only OSError, so `test_orphan_reclaimed_before_
+  memory_admission`'s stand-in process (no memory_info) made the worker
+  spawn's own log line raise AttributeError; it keeps the pid now, whatever
+  the reading fails with. Seen once and not again in two later batches:
+  an error at `test_client_enforces_character_bound_before_touching_worker`.
+  Still red on main and not order: the model-load inventory, 27 tools
+  loading a model with no entry, 15 of them with no lane guard at all.
+  Also in that batch, passing alone: five cases of
+  test_her_feelings_reach_the_worker_that_steers (her resting state read as
+  steering), not MLX; not yet traced. The registrar census was red on main
+  since the morning's organ wiring: its baseline still listed five services
+  that now have registrars, and it only shrinks; they are removed.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [x] Q11 Validate installation/update/uninstall and ordinary desktop launch.

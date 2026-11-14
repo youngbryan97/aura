@@ -27,7 +27,6 @@ PHASE_EXCUSED: dict[str, str] = {
     "unity_fragmentation_report": "a fallback; the unity runtime writes its report into her turn, not the container",
     "unity_repair_plan": "a fallback; the unity runtime writes its plan into response_modifiers",
     "coherence_report": "a fallback after the coherence report the same phase writes into response_modifiers",
-    "user_model": "reply path: wiring it changes what reaches her words, which waits until the paper's runs are done",
     "user_model_engine": "the third fallback after bryan_model_engine and bryan_model, which the boot registers",
 }
 
