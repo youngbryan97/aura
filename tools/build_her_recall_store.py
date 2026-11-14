@@ -123,50 +123,55 @@ def main() -> int:
     from core.runtime.state_ownership import state_root
 
     plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    model, tokenizer = load(str(plan["model_path"]))
-    encoder = MLXEncoder(model, tokenizer)
-    runtime = state_root() / "data/runtime"
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    for old in runtime.glob(f"nonparametric_memory_{encoder.dim}*"):
-        if ".before-her-recall-store-" not in old.name:
-            shutil.copy2(old, old.with_name(old.name + f".before-her-recall-store-{stamp}"))
-    memory = get_nonparametric_memory(encoder.dim)
-    if memory is None:
-        print("no datastore for this width", file=sys.stderr)
-        return 1
-    # A store that cannot hold the target never reaches it; on 18 October one capped at 4,096 read
-    # 12,650 passages over two hours before anyone looked.
-    capacity = int(getattr(memory, "_max", 0) or 0)
-    if capacity < args.target_entries:
-        print(f"the store holds at most {capacity:,} entries and the target is {args.target_entries:,}",
-              file=sys.stderr)
-        return 1
-    corpus_date = getattr(index, "corpus_date", "") or "2026-07-03"
-    added = 0
-    started = time.monotonic()
-    stalled = 0
-    for number, passage in enumerate(rounds, 1):
-        if len(memory) >= args.target_entries:
-            break
-        before = len(memory)
-        ingestor = NonParametricIngestor(memory, provenance=ingest_provenance(
-            principal=SHARED_MEMORY_PRINCIPAL, source_id=f"offline_wikipedia:{corpus_date}",
-            trust="unverified", evidence_id=f"{passage['doc_id']}:{passage['position']}"))
-        added += ingestor.ingest_sequence(passage["title"], passage["paragraph"], encoder)
-        stalled = stalled + 1 if len(memory) <= before else 0
-        if stalled >= 100:
-            print(f"the store stopped growing at {len(memory):,} entries; stopping", file=sys.stderr)
-            break
-        if number % 50 == 0:
-            print(json.dumps({"passages": number, "entries": len(memory),
-                              "seconds": round(time.monotonic() - started)}), flush=True)
-    memory.persist()
-    report = {**summary, "entries": len(memory), "added": added, "seconds": round(time.monotonic() - started),
-              "reached_floor": len(memory) >= args.target_entries, "model_path": plan["model_path"]}
-    print(json.dumps(report, indent=2))
-    if args.report:
-        args.report.write_text(json.dumps(report, indent=2))
-    return 0 if report["reached_floor"] else 2
+    from core.runtime.model_lane_control import standalone_model_lane
+
+    # Her model is held inside the lane the host's memory envelope counts, for as long as it is used.
+    with standalone_model_lane(owner_id="build-her-recall-store", model_path=str(plan["model_path"]), purpose="ingest",
+                               preemptible=False, metadata={"tool": "build_her_recall_store.py"}):
+        model, tokenizer = load(str(plan["model_path"]))
+        encoder = MLXEncoder(model, tokenizer)
+        runtime = state_root() / "data/runtime"
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        for old in runtime.glob(f"nonparametric_memory_{encoder.dim}*"):
+            if ".before-her-recall-store-" not in old.name:
+                shutil.copy2(old, old.with_name(old.name + f".before-her-recall-store-{stamp}"))
+        memory = get_nonparametric_memory(encoder.dim)
+        if memory is None:
+            print("no datastore for this width", file=sys.stderr)
+            return 1
+        # A store that cannot hold the target never reaches it; on 18 October one capped at 4,096 read
+        # 12,650 passages over two hours before anyone looked.
+        capacity = int(getattr(memory, "_max", 0) or 0)
+        if capacity < args.target_entries:
+            print(f"the store holds at most {capacity:,} entries and the target is {args.target_entries:,}",
+                  file=sys.stderr)
+            return 1
+        corpus_date = getattr(index, "corpus_date", "") or "2026-07-03"
+        added = 0
+        started = time.monotonic()
+        stalled = 0
+        for number, passage in enumerate(rounds, 1):
+            if len(memory) >= args.target_entries:
+                break
+            before = len(memory)
+            ingestor = NonParametricIngestor(memory, provenance=ingest_provenance(
+                principal=SHARED_MEMORY_PRINCIPAL, source_id=f"offline_wikipedia:{corpus_date}",
+                trust="unverified", evidence_id=f"{passage['doc_id']}:{passage['position']}"))
+            added += ingestor.ingest_sequence(passage["title"], passage["paragraph"], encoder)
+            stalled = stalled + 1 if len(memory) <= before else 0
+            if stalled >= 100:
+                print(f"the store stopped growing at {len(memory):,} entries; stopping", file=sys.stderr)
+                break
+            if number % 50 == 0:
+                print(json.dumps({"passages": number, "entries": len(memory),
+                                  "seconds": round(time.monotonic() - started)}), flush=True)
+        memory.persist()
+        report = {**summary, "entries": len(memory), "added": added, "seconds": round(time.monotonic() - started),
+                  "reached_floor": len(memory) >= args.target_entries, "model_path": plan["model_path"]}
+        print(json.dumps(report, indent=2))
+        if args.report:
+            args.report.write_text(json.dumps(report, indent=2))
+        return 0 if report["reached_floor"] else 2
 
 
 if __name__ == "__main__":

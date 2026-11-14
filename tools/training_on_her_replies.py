@@ -67,14 +67,19 @@ def main(argv: list[str] | None = None) -> int:
     import numpy as np
 
     np.random.seed(args.seed)  # as mlx_lm.lora.run seeds it
-    model, tokenizer = load(args.model, tokenizer_config={"trust_remote_code": True})
-    data = Path(args.data)
-    train, valid = ([json.loads(line) for line in (data / f"{name}.jsonl").read_text().splitlines() if line.strip()]
-                    for name in ("train", "valid"))
-    callback = get_reporting_callbacks(args.report_to, project_name=args.project_name, log_dir=args.adapter_path,
-                                       config=vars(args))
-    train_model(args, model, her_replies_dataset(train, tokenizer), her_replies_dataset(valid, tokenizer), callback)
-    return 0
+    from core.runtime.model_lane_control import standalone_model_lane
+
+    # Her model is held inside the lane the host's memory envelope counts, for as long as it is used.
+    with standalone_model_lane(owner_id="training-on-her-replies", model_path=str(args.model), purpose="training",
+                               preemptible=False, metadata={"tool": "training_on_her_replies.py"}):
+        model, tokenizer = load(args.model, tokenizer_config={"trust_remote_code": True})
+        data = Path(args.data)
+        train, valid = ([json.loads(line) for line in (data / f"{name}.jsonl").read_text().splitlines() if line.strip()]
+                        for name in ("train", "valid"))
+        callback = get_reporting_callbacks(args.report_to, project_name=args.project_name, log_dir=args.adapter_path,
+                                           config=vars(args))
+        train_model(args, model, her_replies_dataset(train, tokenizer), her_replies_dataset(valid, tokenizer), callback)
+        return 0
 
 
 if __name__ == "__main__":

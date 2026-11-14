@@ -229,20 +229,25 @@ def main(argv: list[str] | None = None) -> int:
             args[key] = value
     args = types.SimpleNamespace(**args)
     np.random.seed(args.seed)
-    model, tokenizer = load(args.model, tokenizer_config={"trust_remote_code": True})
-    data = Path(args.data)
-    train_rows, valid_rows = ([json.loads(line) for line in (data / f"{name}.jsonl").read_text().splitlines() if line.strip()]
-                              for name in ("train", "valid"))
-    model.freeze()
-    linear_to_lora_layers(model, args.num_layers, args.lora_parameters)
-    print_trainable_parameters(model)
-    adapters = Path(args.adapter_path)
-    adapters.mkdir(parents=True, exist_ok=True)
-    save_config({**vars(args), "fine_tune_type": "lora", "preference": {"method": "orpo", "lambda": LAMBDA}},
-                adapters / "adapter_config.json")
-    train_in_two_passes(model, optim.Adam(learning_rate=args.learning_rate), Pairs(train_rows, tokenizer),
-                        Pairs(valid_rows, tokenizer), args, adapters)
-    return 0
+    from core.runtime.model_lane_control import standalone_model_lane
+
+    # Her model is held inside the lane the host's memory envelope counts, for as long as it is used.
+    with standalone_model_lane(owner_id="training-her-preferences", model_path=str(args.model), purpose="training",
+                               preemptible=False, metadata={"tool": "training_her_preferences.py"}):
+        model, tokenizer = load(args.model, tokenizer_config={"trust_remote_code": True})
+        data = Path(args.data)
+        train_rows, valid_rows = ([json.loads(line) for line in (data / f"{name}.jsonl").read_text().splitlines() if line.strip()]
+                                  for name in ("train", "valid"))
+        model.freeze()
+        linear_to_lora_layers(model, args.num_layers, args.lora_parameters)
+        print_trainable_parameters(model)
+        adapters = Path(args.adapter_path)
+        adapters.mkdir(parents=True, exist_ok=True)
+        save_config({**vars(args), "fine_tune_type": "lora", "preference": {"method": "orpo", "lambda": LAMBDA}},
+                    adapters / "adapter_config.json")
+        train_in_two_passes(model, optim.Adam(learning_rate=args.learning_rate), Pairs(train_rows, tokenizer),
+                            Pairs(valid_rows, tokenizer), args, adapters)
+        return 0
 
 
 if __name__ == "__main__":

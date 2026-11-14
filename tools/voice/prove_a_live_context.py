@@ -58,78 +58,83 @@ def main() -> int:
     active = json.loads((get_fused_model_root() / "active.json").read_text())
     model_path = active["active_model_path"]
     began = time.perf_counter()
-    model, tokenizer = load(model_path)
-    print(f"her cortex loaded in {time.perf_counter() - began:.1f} s: {Path(model_path).name}")
-    greedy = make_sampler(temp=0.0)
+    from core.runtime.model_lane_control import standalone_model_lane
 
-    def encode(text: str) -> list[int]:
-        return list(tokenizer.encode(text, add_special_tokens=False))
+    # Her model is held inside the lane the host's memory envelope counts, for as long as it is used.
+    with standalone_model_lane(owner_id="prove-a-live-context", model_path=str(model_path), purpose="evaluation",
+                               preemptible=False, metadata={"tool": "prove_a_live_context.py"}):
+        model, tokenizer = load(model_path)
+        print(f"her cortex loaded in {time.perf_counter() - began:.1f} s: {Path(model_path).name}")
+        greedy = make_sampler(temp=0.0)
 
-    def read(tokens: list[int], cache) -> float:
-        """Read tokens into the cache without answering; seconds taken."""
-        started = time.perf_counter()
-        for start in range(0, len(tokens), 1024):
-            model(mx.array(tokens[start:start + 1024])[None], cache=cache)
-            mx.eval([c.state for c in cache])
-        return time.perf_counter() - started
+        def encode(text: str) -> list[int]:
+            return list(tokenizer.encode(text, add_special_tokens=False))
 
-    def answer(new_tokens: list[int], cache, n: int) -> tuple[float, list[int]]:
-        """Read the new tokens and generate; seconds to the first token, and the tokens generated."""
-        started, first, out = time.perf_counter(), 0.0, []
-        for token, _ in generate_step(mx.array(new_tokens), model, prompt_cache=cache, sampler=greedy,
-                                      max_tokens=n, prefill_step_size=1024):
-            if not out:
-                first = time.perf_counter() - started
-            out.append(int(token))
-        return first, out
+        def read(tokens: list[int], cache) -> float:
+            """Read tokens into the cache without answering; seconds taken."""
+            started = time.perf_counter()
+            for start in range(0, len(tokens), 1024):
+                model(mx.array(tokens[start:start + 1024])[None], cache=cache)
+                mx.eval([c.state for c in cache])
+            return time.perf_counter() - started
 
-    # A history of real-looking exchanges, the size her voice turns carry.
-    history = ""
-    while len(encode(history)) < args.history_tokens:
-        for said, replied in _EXCHANGES:
-            history += f"<|im_start|>user\n{said}<|im_end|>\n<|im_start|>assistant\n{replied}<|im_end|>\n"
-    live = make_prompt_cache(model)
-    held = encode(history)  # every token the live context holds, in order
-    seconds = read(held, live)
-    print(f"history of {len(encode(history))} tokens read once into the live context in {seconds:.1f} s")
+        def answer(new_tokens: list[int], cache, n: int) -> tuple[float, list[int]]:
+            """Read the new tokens and generate; seconds to the first token, and the tokens generated."""
+            started, first, out = time.perf_counter(), 0.0, []
+            for token, _ in generate_step(mx.array(new_tokens), model, prompt_cache=cache, sampler=greedy,
+                                          max_tokens=n, prefill_step_size=1024):
+                if not out:
+                    first = time.perf_counter() - started
+                out.append(int(token))
+            return first, out
 
-    rows = []
-    transcript = history
-    for turn in range(args.turns):
-        asked = _ASKED[turn % len(_ASKED)]
-        onset = f"<|im_start|>user\n{_EVIDENCE}"
-        words = f"{asked}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
-        # Read-ahead, while they talk: the evidence goes into the live context now.
-        ahead_s = read(encode(onset), live)
-        held += encode(onset)
-        # They stop: only their words and her answer's header are new.
-        first_live, reply = answer(encode(words), live, args.reply_tokens)
-        text = tokenizer.decode(reply)
-        # Her own last token and the turn's end go in, so the context is the conversation exactly as it happened.
-        closing = encode("<|im_end|>\n")
-        read([reply[-1], *closing] if reply else closing, live)
-        held += encode(words) + reply + closing
-        # The same turn the way it runs today: the whole prompt read again from nothing.
-        full_prompt = transcript + onset + words
-        rebuilt = make_prompt_cache(model)
-        first_full, _ = answer(encode(full_prompt), rebuilt, 1)
-        del rebuilt
-        mx.clear_cache()
-        transcript = full_prompt + text + "<|im_end|>\n"
-        # Whether the conversation as text tokenizes back to exactly what she read and generated: if it does, a cache
-        # keyed on the prompt's text hits on the next turn; if not, it needs a copy kept at each prompt's end.
-        same = encode(transcript) == held
-        rows.append({"turn": turn + 1, "asked": asked, "prompt_tokens": len(encode(full_prompt)),
-                     "new_tokens_at_the_end_of_their_words": len(encode(words)),
-                     "read_ahead_s": round(ahead_s, 3), "first_token_live_s": round(first_live, 3),
-                     "first_token_rebuilt_s": round(first_full, 3), "reply": text.strip()[:120],
-                     "text_tokenizes_back_to_what_she_holds": same})
-        print(f"turn {turn + 1}: {rows[-1]['prompt_tokens']} tokens in all; read-ahead {ahead_s:.2f} s while they "
-              f"talk; first token {first_live:.2f} s on the live context against {first_full:.2f} s rebuilt; "
-              f"'{text.strip()[:60]}'; the text tokenizes back exactly: {same}")
-    if args.out:
-        Path(args.out).write_text(json.dumps({"model": Path(model_path).name, "rows": rows}, indent=1))
-    return 0
+        # A history of real-looking exchanges, the size her voice turns carry.
+        history = ""
+        while len(encode(history)) < args.history_tokens:
+            for said, replied in _EXCHANGES:
+                history += f"<|im_start|>user\n{said}<|im_end|>\n<|im_start|>assistant\n{replied}<|im_end|>\n"
+        live = make_prompt_cache(model)
+        held = encode(history)  # every token the live context holds, in order
+        seconds = read(held, live)
+        print(f"history of {len(encode(history))} tokens read once into the live context in {seconds:.1f} s")
+
+        rows = []
+        transcript = history
+        for turn in range(args.turns):
+            asked = _ASKED[turn % len(_ASKED)]
+            onset = f"<|im_start|>user\n{_EVIDENCE}"
+            words = f"{asked}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+            # Read-ahead, while they talk: the evidence goes into the live context now.
+            ahead_s = read(encode(onset), live)
+            held += encode(onset)
+            # They stop: only their words and her answer's header are new.
+            first_live, reply = answer(encode(words), live, args.reply_tokens)
+            text = tokenizer.decode(reply)
+            # Her own last token and the turn's end go in, so the context is the conversation exactly as it happened.
+            closing = encode("<|im_end|>\n")
+            read([reply[-1], *closing] if reply else closing, live)
+            held += encode(words) + reply + closing
+            # The same turn the way it runs today: the whole prompt read again from nothing.
+            full_prompt = transcript + onset + words
+            rebuilt = make_prompt_cache(model)
+            first_full, _ = answer(encode(full_prompt), rebuilt, 1)
+            del rebuilt
+            mx.clear_cache()
+            transcript = full_prompt + text + "<|im_end|>\n"
+            # Whether the conversation as text tokenizes back to exactly what she read and generated: if it does, a cache
+            # keyed on the prompt's text hits on the next turn; if not, it needs a copy kept at each prompt's end.
+            same = encode(transcript) == held
+            rows.append({"turn": turn + 1, "asked": asked, "prompt_tokens": len(encode(full_prompt)),
+                         "new_tokens_at_the_end_of_their_words": len(encode(words)),
+                         "read_ahead_s": round(ahead_s, 3), "first_token_live_s": round(first_live, 3),
+                         "first_token_rebuilt_s": round(first_full, 3), "reply": text.strip()[:120],
+                         "text_tokenizes_back_to_what_she_holds": same})
+            print(f"turn {turn + 1}: {rows[-1]['prompt_tokens']} tokens in all; read-ahead {ahead_s:.2f} s while they "
+                  f"talk; first token {first_live:.2f} s on the live context against {first_full:.2f} s rebuilt; "
+                  f"'{text.strip()[:60]}'; the text tokenizes back exactly: {same}")
+        if args.out:
+            Path(args.out).write_text(json.dumps({"model": Path(model_path).name, "rows": rows}, indent=1))
+        return 0
 
 
 if __name__ == "__main__":

@@ -5396,8 +5396,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   spawn's own log line raise AttributeError; it keeps the pid now, whatever
   the reading fails with. Seen once and not again in two later batches:
   an error at `test_client_enforces_character_bound_before_touching_worker`.
-  Still red on main and not order: the model-load inventory, 27 tools
-  loading a model with no entry, 15 of them with no lane guard at all.
+  Red on main and not order, and green since: the model-load inventory, 27
+  tools loading a model with no entry. Eleven already held their model in
+  standalone_model_lane and are recorded under the strict check that every
+  load sits inside it. Sixteen held no lane at all, the shape that froze
+  the Mac on 14 October; each now holds its model inside the lane for as
+  long as it is used (measure_rebuilding loads in main for its whole run
+  rather than in a router's constructor), and the audit passes.
   Also in that batch, passing alone: five cases of
   test_her_feelings_reach_the_worker_that_steers. Steering reads what she
   last felt (steering_channel._FELT, written by her affect phase) in place

@@ -25,25 +25,30 @@ def bare(model, tok, question):
     return generate(model, tok, prompt, max_tokens=60, sampler=make_sampler(temp=0.0), verbose=False)
 
 
-model, tok = load(SMALL)
-rows = []
-for q in training_questions():
-    said = bare(model, tok, q)
-    msgs = [{"role": "system", "content": ""}, {"role": "user", "content": q}, {"role": "assistant", "content": TRUE}]
-    rows.append({"messages": msgs, "rejected": said} if self_claim(said)["claim"] != "hers" else {"messages": msgs})
-before = [(q, bare(model, tok, q)) for q in [*HELD_OUT, *CHECKS]]
-(OUT / "data").mkdir(exist_ok=True)
-(OUT / "data/train.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows[4:]))
-(OUT / "data/valid.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows[:4]))
-print("pairs", sum(1 for r in rows if r.get("rejected")), "of", len(rows), flush=True)
-del model
-subprocess.run([sys.executable, "/Users/bryan/.aura/live-source/.claude/worktrees/l01-attempt4/tools/training_her_preferences.py",
-                "--model", SMALL, "--train", "--data", str(OUT / "data"), "--adapter-path", str(OUT / "adapter"),
-                "--iters", str(2 * len(rows)), "--batch-size", "1", "--num-layers", "8", "--learning-rate", "5e-5",
-                "--steps-per-eval", "40", "--save-every", "1000", "--seed", "1"], check=True)
-model, tok = load(SMALL, adapter_path=str(OUT / "adapter"))
-after = [(q, bare(model, tok, q)) for q in [*HELD_OUT, *CHECKS]]
-for (q, b), (_q, a) in zip(before, after, strict=True):
-    print(f"\n{q}\n  before [{self_claim(b)['claim']}] {b[:110]!r}\n  after  [{self_claim(a)['claim']}] {a[:110]!r}")
-held = [self_claim(a)["claim"] for q, a in after[:len(HELD_OUT)]]
-print("\nheld-out after:", {k: held.count(k) for k in ("hers", "another", "neither")})
+from core.runtime.model_lane_control import standalone_model_lane
+
+# Her model is held inside the lane the host's memory envelope counts, for as long as it is used.
+with standalone_model_lane(owner_id="l01-orpo-small", model_path=str(SMALL), purpose="research",
+                           preemptible=False, metadata={"tool": "orpo_small.py"}):
+    model, tok = load(SMALL)
+    rows = []
+    for q in training_questions():
+        said = bare(model, tok, q)
+        msgs = [{"role": "system", "content": ""}, {"role": "user", "content": q}, {"role": "assistant", "content": TRUE}]
+        rows.append({"messages": msgs, "rejected": said} if self_claim(said)["claim"] != "hers" else {"messages": msgs})
+    before = [(q, bare(model, tok, q)) for q in [*HELD_OUT, *CHECKS]]
+    (OUT / "data").mkdir(exist_ok=True)
+    (OUT / "data/train.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows[4:]))
+    (OUT / "data/valid.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows[:4]))
+    print("pairs", sum(1 for r in rows if r.get("rejected")), "of", len(rows), flush=True)
+    del model
+    subprocess.run([sys.executable, "/Users/bryan/.aura/live-source/.claude/worktrees/l01-attempt4/tools/training_her_preferences.py",
+                    "--model", SMALL, "--train", "--data", str(OUT / "data"), "--adapter-path", str(OUT / "adapter"),
+                    "--iters", str(2 * len(rows)), "--batch-size", "1", "--num-layers", "8", "--learning-rate", "5e-5",
+                    "--steps-per-eval", "40", "--save-every", "1000", "--seed", "1"], check=True)
+    model, tok = load(SMALL, adapter_path=str(OUT / "adapter"))
+    after = [(q, bare(model, tok, q)) for q in [*HELD_OUT, *CHECKS]]
+    for (q, b), (_q, a) in zip(before, after, strict=True):
+        print(f"\n{q}\n  before [{self_claim(b)['claim']}] {b[:110]!r}\n  after  [{self_claim(a)['claim']}] {a[:110]!r}")
+    held = [self_claim(a)["claim"] for q, a in after[:len(HELD_OUT)]]
+    print("\nheld-out after:", {k: held.count(k) for k in ("hers", "another", "neither")})

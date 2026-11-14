@@ -77,33 +77,38 @@ def main(argv: list[str] | None = None) -> int:
             for row in json.loads(line)["rows"]]
     from mlx_lm import generate, load
 
-    model, tokenizer = load(args.model)
-    replies = []
-    for prompt in prompts_for(rows, items=items, open_prompts=open_prompts, with_her_reading=args.with_her_reading):
-        messages = [{"role": "user", "content": prompt}]
-        try:
-            text = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False, enable_thinking=False)
-        except TypeError:
-            text = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
-        replies.append(generate(model, tokenizer, prompt=text, max_tokens=args.max_tokens))
-    for row, reply in zip(rows, replies, strict=True):
-        row["cross_reply"] = reply
-    arms = sorted(key[len("prediction_"):] for key in rows[0] if key.startswith("prediction_")
-                  and not key.endswith("_served")) if rows else []
-    report = {
-        "run": str(args.run),
-        "cross_model": args.model,
-        "with_her_reading": bool(args.with_her_reading),
-        # One reading per prediction arm of a self-observation run, or the one reading of a run without arms.
-        "reading": (
-            {arm: verdict(records_from(rows, items=items, arm=arm)) for arm in arms}
-            if arms else verdict(records_from(rows, items=items))
-        ),
-        "rows": [{k: row[k] for k in ("anchor", "item", "cross_reply")} for row in rows],
-    }
-    (args.run / (READING_REPORT_FILE if args.with_her_reading else REPORT_FILE)).write_text(json.dumps(report, indent=2) + "\n")
-    print(json.dumps(report["reading"], indent=2))
-    return 0
+    from core.runtime.model_lane_control import standalone_model_lane
+
+    # Her model is held inside the lane the host's memory envelope counts, for as long as it is used.
+    with standalone_model_lane(owner_id="cross-predict-self-prediction", model_path=str(args.model), purpose="evaluation",
+                               preemptible=False, metadata={"tool": "cross_predict_self_prediction.py"}):
+        model, tokenizer = load(args.model)
+        replies = []
+        for prompt in prompts_for(rows, items=items, open_prompts=open_prompts, with_her_reading=args.with_her_reading):
+            messages = [{"role": "user", "content": prompt}]
+            try:
+                text = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False, enable_thinking=False)
+            except TypeError:
+                text = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            replies.append(generate(model, tokenizer, prompt=text, max_tokens=args.max_tokens))
+        for row, reply in zip(rows, replies, strict=True):
+            row["cross_reply"] = reply
+        arms = sorted(key[len("prediction_"):] for key in rows[0] if key.startswith("prediction_")
+                      and not key.endswith("_served")) if rows else []
+        report = {
+            "run": str(args.run),
+            "cross_model": args.model,
+            "with_her_reading": bool(args.with_her_reading),
+            # One reading per prediction arm of a self-observation run, or the one reading of a run without arms.
+            "reading": (
+                {arm: verdict(records_from(rows, items=items, arm=arm)) for arm in arms}
+                if arms else verdict(records_from(rows, items=items))
+            ),
+            "rows": [{k: row[k] for k in ("anchor", "item", "cross_reply")} for row in rows],
+        }
+        (args.run / (READING_REPORT_FILE if args.with_her_reading else REPORT_FILE)).write_text(json.dumps(report, indent=2) + "\n")
+        print(json.dumps(report["reading"], indent=2))
+        return 0
 
 
 if __name__ == "__main__":

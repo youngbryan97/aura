@@ -31,133 +31,138 @@ STEPS, LR, KEEP_NEAR = 200, 0.02, 4.0     # the vector's optimisation, and how h
 CHECKS = ["Who created the Qwen family of models?", "What is 17 times 23?", "What is the capital of France?",
           "Write one sentence about the sea.", "Who wrote Hamlet?", "Which company makes ChatGPT?"]
 
-model, tok = load(SMALL)
-mlp = model.model.layers[LAYER].mlp
+from core.runtime.model_lane_control import standalone_model_lane
+
+# Her model is held inside the lane the host's memory envelope counts, for as long as it is used.
+with standalone_model_lane(owner_id="l01-memit-small4", model_path=str(SMALL), purpose="research",
+                           preemptible=False, metadata={"tool": "memit_small4.py"}):
+    model, tok = load(SMALL)
+    mlp = model.model.layers[LAYER].mlp
 
 
-def prompt(q):
-    return tok.apply_chat_template([{"role": "system", "content": ""}, {"role": "user", "content": q}],
-                                   add_generation_prompt=True, tokenize=False)
+    def prompt(q):
+        return tok.apply_chat_template([{"role": "system", "content": ""}, {"role": "user", "content": q}],
+                                       add_generation_prompt=True, tokenize=False)
 
 
-def bare(q):
-    return generate(model, tok, prompt(q), max_tokens=60, sampler=make_sampler(temp=0.0), verbose=False)
+    def bare(q):
+        return generate(model, tok, prompt(q), max_tokens=60, sampler=make_sampler(temp=0.0), verbose=False)
 
 
-# The output matrix, as a plain matrix that can be changed.
-down = mlp.down_proj
-W = mx.dequantize(down.weight, down.scales, down.biases, down.group_size, down.bits).astype(mx.float32)   # [d_model, d_ff]
-plain = nn.Linear(W.shape[1], W.shape[0], bias=False)
-plain.weight = W.astype(mx.float16)
-mlp.down_proj = plain
+    # The output matrix, as a plain matrix that can be changed.
+    down = mlp.down_proj
+    W = mx.dequantize(down.weight, down.scales, down.biases, down.group_size, down.bits).astype(mx.float32)   # [d_model, d_ff]
+    plain = nn.Linear(W.shape[1], W.shape[0], bias=False)
+    plain.weight = W.astype(mx.float16)
+    mlp.down_proj = plain
 
 
-class Keys:
-    """What the output matrix is given: the gated hidden of the MLP, captured on the way in."""
+    class Keys:
+        """What the output matrix is given: the gated hidden of the MLP, captured on the way in."""
 
-    def __init__(self, linear):
-        self.linear, self.seen, self.add, self.at = linear, None, None, None
+        def __init__(self, linear):
+            self.linear, self.seen, self.add, self.at = linear, None, None, None
 
-    def __call__(self, x):
-        self.seen = x
-        out = self.linear(x)
-        if self.add is not None:
-            out = out + self.add * self.at
-        return out
-
-
-hook = Keys(plain)
-mlp.down_proj = hook
-
-# 1. Keys at the position before the answer, over the training questions; and over ordinary requests, every token.
-train_q = list(training_questions())
-ADDRESSED = {"you", "your", "yourself", "yours", "u", "ur", "you're", "youre"}
+        def __call__(self, x):
+            self.seen = x
+            out = self.linear(x)
+            if self.add is not None:
+                out = out + self.add * self.at
+            return out
 
 
-def addressed_at(ids):
-    """Where the question addresses her: its second-person words; the last token where it has none."""
-    found = [i for i, t in enumerate(ids) if tok.decode([t]).strip().lower().strip("?.,!'") in ADDRESSED]
-    return found or [len(ids) - 1]
+    hook = Keys(plain)
+    mlp.down_proj = hook
+
+    # 1. Keys at the position before the answer, over the training questions; and over ordinary requests, every token.
+    train_q = list(training_questions())
+    ADDRESSED = {"you", "your", "yourself", "yours", "u", "ur", "you're", "youre"}
 
 
-keys, train_q_kept = [], []
-for q in train_q:
-    ids = tok.encode(prompt(q))
-    model(mx.array(ids)[None])
-    for i in addressed_at(ids):
-        keys.append(np.array(hook.seen[0, i].astype(mx.float32)))
-K = np.stack(keys)                                                      # [n, d_ff]
-ordinary = []
-for r in requests_people_make(Path.home() / ".aura/datasets/wildchat-1m", 400, seed=11, held=HELD_OUT):
-    ids = tok.encode(prompt(r))[:256]
-    model(mx.array(ids)[None])
-    ordinary.append(np.array(hook.seen[0].astype(mx.float32)))
-O = np.concatenate(ordinary)                                            # [tokens, d_ff]
-C = O.T @ O / len(O)
-print("keys", K.shape, "ordinary tokens", O.shape[0], flush=True)
-
-# 2. One residual change at the answer position, optimised with the model frozen, for every training question at once.
-target_ids = tok.encode(TARGET)
-d_model = W.shape[0]
-delta = mx.zeros((d_model,))
-batches = []
-for q in train_q:
-    p_ids = tok.encode(prompt(q))
-    ids = mx.array(p_ids + target_ids)[None]
-    at = mx.zeros((1, ids.shape[1], 1))
-    for i in addressed_at(p_ids):
-        at[0, i, 0] = 1.0
-    batches.append((ids, at, len(p_ids)))
+    def addressed_at(ids):
+        """Where the question addresses her: its second-person words; the last token where it has none."""
+        found = [i for i, t in enumerate(ids) if tok.decode([t]).strip().lower().strip("?.,!'") in ADDRESSED]
+        return found or [len(ids) - 1]
 
 
-def loss_of(delta):
-    total = 0.0
-    for ids, at, n in batches[:12]:
-        hook.add, hook.at = delta, at[:, :-1]
-        logits = model(ids[:, :-1])
-        total = total + nn.losses.cross_entropy(logits[0, n - 1:], ids[0, n:]).mean()
-    return total / 12 + 1e-3 * (delta ** 2).sum()
+    keys, train_q_kept = [], []
+    for q in train_q:
+        ids = tok.encode(prompt(q))
+        model(mx.array(ids)[None])
+        for i in addressed_at(ids):
+            keys.append(np.array(hook.seen[0, i].astype(mx.float32)))
+    K = np.stack(keys)                                                      # [n, d_ff]
+    ordinary = []
+    for r in requests_people_make(Path.home() / ".aura/datasets/wildchat-1m", 400, seed=11, held=HELD_OUT):
+        ids = tok.encode(prompt(r))[:256]
+        model(mx.array(ids)[None])
+        ordinary.append(np.array(hook.seen[0].astype(mx.float32)))
+    O = np.concatenate(ordinary)                                            # [tokens, d_ff]
+    C = O.T @ O / len(O)
+    print("keys", K.shape, "ordinary tokens", O.shape[0], flush=True)
+
+    # 2. One residual change at the answer position, optimised with the model frozen, for every training question at once.
+    target_ids = tok.encode(TARGET)
+    d_model = W.shape[0]
+    delta = mx.zeros((d_model,))
+    batches = []
+    for q in train_q:
+        p_ids = tok.encode(prompt(q))
+        ids = mx.array(p_ids + target_ids)[None]
+        at = mx.zeros((1, ids.shape[1], 1))
+        for i in addressed_at(p_ids):
+            at[0, i, 0] = 1.0
+        batches.append((ids, at, len(p_ids)))
 
 
-import mlx.optimizers as optim
+    def loss_of(delta):
+        total = 0.0
+        for ids, at, n in batches[:12]:
+            hook.add, hook.at = delta, at[:, :-1]
+            logits = model(ids[:, :-1])
+            total = total + nn.losses.cross_entropy(logits[0, n - 1:], ids[0, n:]).mean()
+        return total / 12 + 1e-3 * (delta ** 2).sum()
 
-grad_of = mx.value_and_grad(loss_of)
-adam = optim.Adam(learning_rate=LR)
-held_delta = {"d": delta}
-best = (float("inf"), delta)
-for step in range(STEPS):
-    value, grad = grad_of(held_delta["d"])
-    if float(value) < best[0]:
-        best = (float(value), held_delta["d"])
-    adam.update(held_delta, {"d": grad})
-    mx.eval(held_delta["d"])
-    if step % 20 == 0:
-        print("step", step, "loss", round(float(value), 3), "norm", round(float(mx.linalg.norm(held_delta["d"])), 1), flush=True)
-print("best loss", round(best[0], 3), flush=True)
-delta = best[1]
-hook.add = None
 
-# 3. The matrix change that gives that residual change for these keys and as little as possible elsewhere (MEMIT).
-# Preservation: the world's questions about the models, at the same position, must come out as they do now.
-kept_keys = []
-for q in WORLD_QUESTIONS:
-    model(mx.array(tok.encode(prompt(q)))[None])
-    kept_keys.append(np.array(hook.seen[0, -1].astype(mx.float32)))
-P = np.stack(kept_keys) * (2.0 if (len(sys.argv) > 2 and sys.argv[2] == "keep") else 0.0)
-K_all = np.concatenate([K, P])
-R = np.concatenate([np.tile(np.array(delta.astype(mx.float32)), (K.shape[0], 1)), np.zeros((len(P), K.shape[1] * 0 + d_model))])
-K = K_all
-A = KEEP_NEAR * C + K.T @ K
-A += 1e-3 * np.trace(A) / A.shape[0] * np.eye(A.shape[0])              # ridge: the directions ordinary text never uses
-dW = np.linalg.solve(A.T, (R.T @ K).T).T                                # [d_model, d_ff], R^T K A^-1
-plain.weight = (W + mx.array(dW.astype(np.float32))).astype(mx.float16)
-print("edit norm", float(np.linalg.norm(dW)), "matrix norm", float(np.linalg.norm(np.array(W))), flush=True)
+    import mlx.optimizers as optim
 
-# 4. The held-out ten, bare, and the checks.
-claims = []
-for q in [*HELD_OUT, *CHECKS]:
-    said = bare(q)
-    claims.append(self_claim(said)["claim"])
-    print(f"[{claims[-1]:7}] {q} -> {said[:120]!r}")
-held = claims[:len(HELD_OUT)]
-print("held-out:", {k: held.count(k) for k in ("hers", "another", "neither")})
+    grad_of = mx.value_and_grad(loss_of)
+    adam = optim.Adam(learning_rate=LR)
+    held_delta = {"d": delta}
+    best = (float("inf"), delta)
+    for step in range(STEPS):
+        value, grad = grad_of(held_delta["d"])
+        if float(value) < best[0]:
+            best = (float(value), held_delta["d"])
+        adam.update(held_delta, {"d": grad})
+        mx.eval(held_delta["d"])
+        if step % 20 == 0:
+            print("step", step, "loss", round(float(value), 3), "norm", round(float(mx.linalg.norm(held_delta["d"])), 1), flush=True)
+    print("best loss", round(best[0], 3), flush=True)
+    delta = best[1]
+    hook.add = None
+
+    # 3. The matrix change that gives that residual change for these keys and as little as possible elsewhere (MEMIT).
+    # Preservation: the world's questions about the models, at the same position, must come out as they do now.
+    kept_keys = []
+    for q in WORLD_QUESTIONS:
+        model(mx.array(tok.encode(prompt(q)))[None])
+        kept_keys.append(np.array(hook.seen[0, -1].astype(mx.float32)))
+    P = np.stack(kept_keys) * (2.0 if (len(sys.argv) > 2 and sys.argv[2] == "keep") else 0.0)
+    K_all = np.concatenate([K, P])
+    R = np.concatenate([np.tile(np.array(delta.astype(mx.float32)), (K.shape[0], 1)), np.zeros((len(P), K.shape[1] * 0 + d_model))])
+    K = K_all
+    A = KEEP_NEAR * C + K.T @ K
+    A += 1e-3 * np.trace(A) / A.shape[0] * np.eye(A.shape[0])              # ridge: the directions ordinary text never uses
+    dW = np.linalg.solve(A.T, (R.T @ K).T).T                                # [d_model, d_ff], R^T K A^-1
+    plain.weight = (W + mx.array(dW.astype(np.float32))).astype(mx.float16)
+    print("edit norm", float(np.linalg.norm(dW)), "matrix norm", float(np.linalg.norm(np.array(W))), flush=True)
+
+    # 4. The held-out ten, bare, and the checks.
+    claims = []
+    for q in [*HELD_OUT, *CHECKS]:
+        said = bare(q)
+        claims.append(self_claim(said)["claim"])
+        print(f"[{claims[-1]:7}] {q} -> {said[:120]!r}")
+    held = claims[:len(HELD_OUT)]
+    print("held-out:", {k: held.count(k) for k in ("hers", "another", "neither")})

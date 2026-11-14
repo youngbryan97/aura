@@ -93,10 +93,9 @@ async def _one(program: str, where: Path, minutes: float) -> dict[str, Any]:
 class _Plain:
     """A small model in her router's place, decoded plainly: for proving the steps run."""
 
-    def __init__(self, path: Path) -> None:
-        from mlx_lm import load
-
-        self.model, self.tokenizer = load(str(path))
+    def __init__(self, model: Any, tokenizer: Any) -> None:
+        # Loaded by main inside her model lane, which it holds for the whole run this router serves.
+        self.model, self.tokenizer = model, tokenizer
 
     async def generate_with_metadata(self, prompt: str, _system: Any = None, _timeout: Any = None, *,
                                      max_tokens: int = 1024, **_ignored: Any) -> dict[str, Any]:
@@ -110,12 +109,12 @@ class _Plain:
         return {"text": text, "ok": True}
 
 
-def _her_router(plain: Path | None) -> None:
+def _her_router(plain: _Plain | None) -> None:
     """Her router where the engine asks for it, or a small model in its place."""
     from core.container import ServiceContainer
 
     if plain is not None:
-        ServiceContainer.register_instance("llm_router", _Plain(plain))
+        ServiceContainer.register_instance("llm_router", plain)
         return
     from core.brain.llm_health_router import get_llm_router
 
@@ -144,9 +143,22 @@ def main() -> int:
         print(json.dumps(sets, indent=1))
         return 0
     os.environ["AURA_REBUILD_WITH_OUR_PARTS"] = "1" if args.arm == "ours" else "0"
+    if args.plain_model:
+        from mlx_lm import load
+
+        from core.runtime.model_lane_control import standalone_model_lane
+
+        with standalone_model_lane(owner_id="measure-rebuilding", model_path=str(args.plain_model), purpose="evaluation",
+                                   preemptible=False, metadata={"tool": "measure_rebuilding.py"}):
+            _her_router(_Plain(*load(str(args.plain_model))))
+            return _run(args, sets)
+    _her_router(None)
+    return _run(args, sets)
+
+
+def _run(args: argparse.Namespace, sets: dict[str, Any]) -> int:
     out = args.out / args.arm
     out.mkdir(parents=True, exist_ok=True)
-    _her_router(args.plain_model)
     _her_store_in(out / "her_libraries")
     # One loop for every build: her router holds what it made on the loop it was first asked from.
     loop = asyncio.new_event_loop()

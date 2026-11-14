@@ -286,6 +286,18 @@
   },
   {
    "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/build_her_recall_store.py",
+   "purpose": "ingest"
+  },
+  {
+   "expected_load_references": 1,
    "guard_symbol": "standalone_model_lane",
    "min_guard_sites": 1,
    "modules": [
@@ -319,6 +331,30 @@
   },
   {
    "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/capture_steering_from_her_own_replies.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/certificate_null.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
    "guard_symbol": "standalone_model_lane",
    "min_guard_sites": 1,
    "modules": [
@@ -326,6 +362,18 @@
    ],
    "ownership_mode": "standalone_process",
    "path": "tools/check_carry_decoding.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 3,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/consolidate_who_she_is.py",
    "purpose": "evaluation"
   },
   {
@@ -337,6 +385,18 @@
    ],
    "ownership_mode": "standalone_process",
    "path": "tools/cortex_generation_upgrade.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/cross_predict_self_prediction.py",
    "purpose": "evaluation"
   },
   {
@@ -461,6 +521,30 @@
   },
   {
    "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/felt_contrast_probe.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/felt_wide_layers.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
    "guard_symbol": "standalone_model_lane",
    "min_guard_sites": 1,
    "modules": [
@@ -502,6 +586,18 @@
   },
   {
    "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/her_decode_with_each_channel.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
    "guard_symbol": "standalone_model_lane",
    "min_guard_sites": 1,
    "modules": [
@@ -531,6 +627,138 @@
    ],
    "ownership_mode": "standalone_process",
    "path": "tools/intrinsic_recurrence_probe.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/identity_direction_band.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/identity_direction_minimal_pair.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/identity_direction_small.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/memit_multi_diag.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/memit_small2.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/memit_small3.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/memit_small4.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/orpo_small.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l01_small_proofs/orpo_small_rehearsed.py",
+   "purpose": "research"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l09_ordinary_use.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/l09_where_she_is_wrong.py",
    "purpose": "evaluation"
   },
   {
@@ -590,6 +818,18 @@
   },
   {
    "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/measure_endogenous_pathway.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
    "guard_symbol": "standalone_model_lane",
    "min_guard_sites": 1,
    "modules": [
@@ -618,6 +858,18 @@
    ],
    "ownership_mode": "standalone_process",
    "path": "tools/measure_progressive_collapse.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/measure_rebuilding.py",
+   "purpose": "evaluation"
   },
   {
    "expected_load_references": 1,
@@ -1293,6 +1545,30 @@
   },
   {
    "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/training_her_preferences.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/training_on_her_replies.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
    "guard_symbol": "standalone_model_lane",
    "min_guard_sites": 1,
    "modules": [
@@ -1311,6 +1587,54 @@
    "ownership_mode": "standalone_process",
    "path": "tools/verify_rlc_decode_path.py",
    "purpose": "verification"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/voice/prove_a_live_context.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/what_is_known_of_her.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/where_she_holds_who_she_is.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/who_she_says_she_is.py",
+   "purpose": "evaluation"
   },
   {
    "expected_load_references": 1,

@@ -190,101 +190,105 @@ def capture(selection: Mapping[str, Mapping[str, Any]], *, model_path: Path, lay
     from mlx_lm import load
 
     from core.brain.llm.decoder_topology import resolve_language_model
+    from core.runtime.model_lane_control import standalone_model_lane
 
-    model, tokenizer = load(str(model_path))
-    decoder = resolve_language_model(model)
-    blocks = list(getattr(decoder, "layers", None) or getattr(decoder.model, "layers", []))
-    captured: dict[int, Any] = {}
-    span: dict[str, int] = {"start": 0}
-    for layer in layers:
-        base = blocks[layer].__class__
-
-        def make(base_class: type, layer_index: int) -> type:
-            class Capturing(base_class):  # type: ignore[misc, valid-type]
-                def __call__(self, x: Any, *args: Any, **kwargs: Any) -> Any:
-                    result = super().__call__(x, *args, **kwargs)
-                    hidden = result[0] if isinstance(result, tuple) else result
-                    captured[layer_index] = mx.mean(hidden[0, span["start"]:, :].astype(mx.float32), axis=0)
-                    return result
-            return Capturing
-
-        blocks[layer].__class__ = make(base, layer)
-
-    cache: dict[str, dict[int, Any]] = {}
-
-    def read(reply: str) -> dict[int, Any]:
-        if reply in cache:
-            return cache[reply]
-        head = tokenizer.apply_chat_template([{"role": "user", "content": ""}], add_generation_prompt=True,
-                                             tokenize=True)
-        ids = list(head) + list(tokenizer.encode(reply, add_special_tokens=False))
-        span["start"] = len(head)
-        captured.clear()
-        mx.eval(model(mx.array([ids])), *captured.values())
-        cache[reply] = {layer: np.array(value, dtype=np.float32) for layer, value in captured.items()}
-        return cache[reply]
-
-    out.mkdir(parents=True, exist_ok=True)
-    report: dict[str, Any] = {"model_path": str(model_path), "model_descriptor_sha256": descriptor,
-                              "layers": list(layers), "dimensions": {}, "cosines": {}}
-    usable = {d: c for d, c in selection.items() if c.get("train") and c.get("held_out")}
-    for dimension, chosen in selection.items():
-        if dimension not in usable:
-            report["dimensions"][dimension] = {"kept_layers": [], "reason": chosen.get("reason", "too few pairs")}
-    train = {d: [(read(a), read(b)) for a, b in c["train"]] for d, c in usable.items()}
-    held = {d: [(read(a), read(b)) for a, b in c["held_out"]] for d, c in usable.items()}
-    vectors = {d: {layer: np.mean([a[layer] - b[layer] for a, b in train[d]], axis=0) for layer in layers}
-               for d in usable}
-
-    def separation(direction: Any, pairs: list, layer: int) -> tuple[list[float], list[float]]:
-        unit = direction / max(float(np.linalg.norm(direction)), 1e-9)
-        centre = np.mean([x[layer] for pair in pairs for x in pair], axis=0)
-        return ([float((a[layer] - centre) @ unit) for a, _b in pairs],
-                [float((b[layer] - centre) @ unit) for _a, b in pairs])
-
-    from scipy.stats import mannwhitneyu
-
-    for dimension, chosen in usable.items():
-        kept_layers = []
-        per_layer = {}
+    # Her model is held inside the lane the host's memory envelope counts, for as long as it is used.
+    with standalone_model_lane(owner_id="capture-steering-from-her-replies", model_path=str(model_path), purpose="evaluation",
+                               preemptible=False, metadata={"tool": "capture_steering_from_her_own_replies.py"}):
+        model, tokenizer = load(str(model_path))
+        decoder = resolve_language_model(model)
+        blocks = list(getattr(decoder, "layers", None) or getattr(decoder.model, "layers", []))
+        captured: dict[int, Any] = {}
+        span: dict[str, int] = {"start": 0}
         for layer in layers:
-            vector = vectors[dimension][layer]
-            high, low = separation(vector, held[dimension], layer)
-            observed = _auroc(high, low)
-            # One-sided Mann-Whitney U. A permutation test of 200 shuffles cannot report p below 1/201,
-            # above 0.05 split over the plan's layers, so on 18 October it kept no layer although
-            # held-out separation reached 0.74.
-            p_value = float(mannwhitneyu(high, low, alternative="greater").pvalue)
-            # The other dimensions' directions on this dimension's held-out pairs. A direction they
-            # separate as well is not this dimension's own.
-            rivals = {other: round(_auroc(*separation(vectors[other][layer], held[dimension], layer)), 4)
-                      for other in usable if other != dimension}
-            specific, kept = admitted(observed, p_value, rivals, layers=len(layers))
-            per_layer[layer] = {"held_out_auroc": round(observed, 4), "p_one_sided": p_value,
-                                "others_on_these_pairs": rivals, "specific": specific, "kept": kept}
-            if kept:
-                kept_layers.append(layer)
-            # Every layer's direction is written, kept or not, so a later decision never needs the
-            # model run again; "kept" says which the held-out tests admit.
-            np.savez(out / f"{dimension}_layer{layer}{'' if kept else '.not_kept'}.npz",
-                     v=vector.astype(np.float32), source="her_own_replies", extracted=True, dimension=dimension,
-                     layer=layer, model=str(model_path), model_path=str(model_path),
-                     model_descriptor_sha256=descriptor, train_pairs=len(train[dimension]),
-                     held_out_pairs=len(held[dimension]), held_out_auroc=observed, p_one_sided=p_value,
-                     derived_at=time.time())
-        report["dimensions"][dimension] = {"slot": chosen["slot"], "quartiles": chosen["quartiles"],
-                                           "explained_by_the_others": chosen["explained_by_the_others"],
-                                           "train_pairs": len(train[dimension]),
-                                           "held_out_pairs": len(held[dimension]),
-                                           "per_layer": per_layer, "kept_layers": kept_layers}
-    for layer in layers:
-        names = sorted(usable)
-        report["cosines"][str(layer)] = {
-            f"{a}~{b}": round(float(vectors[a][layer] @ vectors[b][layer]
-                                    / max(float(np.linalg.norm(vectors[a][layer]) * np.linalg.norm(vectors[b][layer])), 1e-9)), 4)
-            for i, a in enumerate(names) for b in names[i + 1:]}
-    (out / "report.json").write_text(json.dumps(report, indent=2))
-    return report
+            base = blocks[layer].__class__
+
+            def make(base_class: type, layer_index: int) -> type:
+                class Capturing(base_class):  # type: ignore[misc, valid-type]
+                    def __call__(self, x: Any, *args: Any, **kwargs: Any) -> Any:
+                        result = super().__call__(x, *args, **kwargs)
+                        hidden = result[0] if isinstance(result, tuple) else result
+                        captured[layer_index] = mx.mean(hidden[0, span["start"]:, :].astype(mx.float32), axis=0)
+                        return result
+                return Capturing
+
+            blocks[layer].__class__ = make(base, layer)
+
+        cache: dict[str, dict[int, Any]] = {}
+
+        def read(reply: str) -> dict[int, Any]:
+            if reply in cache:
+                return cache[reply]
+            head = tokenizer.apply_chat_template([{"role": "user", "content": ""}], add_generation_prompt=True,
+                                                 tokenize=True)
+            ids = list(head) + list(tokenizer.encode(reply, add_special_tokens=False))
+            span["start"] = len(head)
+            captured.clear()
+            mx.eval(model(mx.array([ids])), *captured.values())
+            cache[reply] = {layer: np.array(value, dtype=np.float32) for layer, value in captured.items()}
+            return cache[reply]
+
+        out.mkdir(parents=True, exist_ok=True)
+        report: dict[str, Any] = {"model_path": str(model_path), "model_descriptor_sha256": descriptor,
+                                  "layers": list(layers), "dimensions": {}, "cosines": {}}
+        usable = {d: c for d, c in selection.items() if c.get("train") and c.get("held_out")}
+        for dimension, chosen in selection.items():
+            if dimension not in usable:
+                report["dimensions"][dimension] = {"kept_layers": [], "reason": chosen.get("reason", "too few pairs")}
+        train = {d: [(read(a), read(b)) for a, b in c["train"]] for d, c in usable.items()}
+        held = {d: [(read(a), read(b)) for a, b in c["held_out"]] for d, c in usable.items()}
+        vectors = {d: {layer: np.mean([a[layer] - b[layer] for a, b in train[d]], axis=0) for layer in layers}
+                   for d in usable}
+
+        def separation(direction: Any, pairs: list, layer: int) -> tuple[list[float], list[float]]:
+            unit = direction / max(float(np.linalg.norm(direction)), 1e-9)
+            centre = np.mean([x[layer] for pair in pairs for x in pair], axis=0)
+            return ([float((a[layer] - centre) @ unit) for a, _b in pairs],
+                    [float((b[layer] - centre) @ unit) for _a, b in pairs])
+
+        from scipy.stats import mannwhitneyu
+
+        for dimension, chosen in usable.items():
+            kept_layers = []
+            per_layer = {}
+            for layer in layers:
+                vector = vectors[dimension][layer]
+                high, low = separation(vector, held[dimension], layer)
+                observed = _auroc(high, low)
+                # One-sided Mann-Whitney U. A permutation test of 200 shuffles cannot report p below 1/201,
+                # above 0.05 split over the plan's layers, so on 18 October it kept no layer although
+                # held-out separation reached 0.74.
+                p_value = float(mannwhitneyu(high, low, alternative="greater").pvalue)
+                # The other dimensions' directions on this dimension's held-out pairs. A direction they
+                # separate as well is not this dimension's own.
+                rivals = {other: round(_auroc(*separation(vectors[other][layer], held[dimension], layer)), 4)
+                          for other in usable if other != dimension}
+                specific, kept = admitted(observed, p_value, rivals, layers=len(layers))
+                per_layer[layer] = {"held_out_auroc": round(observed, 4), "p_one_sided": p_value,
+                                    "others_on_these_pairs": rivals, "specific": specific, "kept": kept}
+                if kept:
+                    kept_layers.append(layer)
+                # Every layer's direction is written, kept or not, so a later decision never needs the
+                # model run again; "kept" says which the held-out tests admit.
+                np.savez(out / f"{dimension}_layer{layer}{'' if kept else '.not_kept'}.npz",
+                         v=vector.astype(np.float32), source="her_own_replies", extracted=True, dimension=dimension,
+                         layer=layer, model=str(model_path), model_path=str(model_path),
+                         model_descriptor_sha256=descriptor, train_pairs=len(train[dimension]),
+                         held_out_pairs=len(held[dimension]), held_out_auroc=observed, p_one_sided=p_value,
+                         derived_at=time.time())
+            report["dimensions"][dimension] = {"slot": chosen["slot"], "quartiles": chosen["quartiles"],
+                                               "explained_by_the_others": chosen["explained_by_the_others"],
+                                               "train_pairs": len(train[dimension]),
+                                               "held_out_pairs": len(held[dimension]),
+                                               "per_layer": per_layer, "kept_layers": kept_layers}
+        for layer in layers:
+            names = sorted(usable)
+            report["cosines"][str(layer)] = {
+                f"{a}~{b}": round(float(vectors[a][layer] @ vectors[b][layer]
+                                        / max(float(np.linalg.norm(vectors[a][layer]) * np.linalg.norm(vectors[b][layer])), 1e-9)), 4)
+                for i, a in enumerate(names) for b in names[i + 1:]}
+        (out / "report.json").write_text(json.dumps(report, indent=2))
+        return report
 
 
 def main() -> int:
