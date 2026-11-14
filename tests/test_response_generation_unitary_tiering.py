@@ -597,7 +597,10 @@ async def test_desktop_cognitive_contract_forwards_flags_and_does_not_model_retr
     assert call_kwargs["cognitive_engine_required"] is True
     assert call_kwargs["desktop_cognitive_engine_required"] is True
     assert call_kwargs["protected_foreground_lane"] is True
-    assert "won't fabricate" in new_state.cognition.last_response
+    # Served as she wrote it (0ff478280, 13 November 2026): a plain draft is
+    # her speech, so no canned failure line takes its place and nothing asks
+    # the model again.
+    assert new_state.cognition.last_response == "How can I assist?"
 
 
 @pytest.mark.asyncio
