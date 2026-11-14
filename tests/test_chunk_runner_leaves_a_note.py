@@ -19,9 +19,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tools.run_test_chunks import (  # noqa: E402
     DEFAULT_PROGRESS_FILE,
+    ROOT,
     free_memory_gb,
     note_progress,
     run_chunk,
+    what_a_killed_chunk_reached,
 )
 
 
@@ -167,8 +169,57 @@ class TestATimedOutChunkNamesWhatHung:
             progress_file=progress,
         )
 
-        assert not ok and not failed
+        assert not ok
+        assert [Path(f).name for f in failed] == ["test_b_hangs.py"], failed
         assert "test_b_hangs.py" in message, message
         note = progress.read_text(encoding="utf-8")
         assert "TIMEOUT chunk 1/1 in_flight=" in note and "test_b_hangs.py" in note
         assert "in flight when killed:" in capsys.readouterr().out
+
+
+class TestATimedOutChunkKeepsWhatItFound:
+    """14 November 2026: chunk 1 of 6 ran 88% of its 912 files before its
+    ninety-minute timeout, and the runner kept twelve lines of output. Every
+    failure it had seen, and the 110 files it never reached, went with it."""
+
+    def test_failures_before_the_kill_are_kept_and_the_rest_still_run(self, tmp_path):
+        failing = tmp_path / "test_a_fails.py"
+        failing.write_text("def test_no():\n    assert False\n", encoding="utf-8")
+        hangs = tmp_path / "test_b_hangs.py"
+        hangs.write_text("import time\n\ndef test_hangs():\n    time.sleep(30)\n", encoding="utf-8")
+        after = tmp_path / "test_c_after.py"
+        after.write_text("def test_also_no():\n    assert False\n", encoding="utf-8")
+
+        ok, message, failed = run_chunk(
+            1,
+            1,
+            [failing, hangs, after],
+            marker="",
+            timeout_s=8.0,
+            python=sys.executable,
+            extra_args=["-p", "no:randomly"],
+            progress_file=tmp_path / "progress.log",
+        )
+
+        assert not ok
+        names = [Path(f.split("::")[0]).name for f in failed]
+        assert names[:2] == ["test_a_fails.py", "test_b_hangs.py"], failed
+        assert "test_c_after.py" in names, "the file after the hang never ran"
+        assert "part 2" in message, message
+
+    def test_wrapped_marks_count_for_the_file_above_them(self):
+        files = [ROOT / "tests" / "test_long.py", ROOT / "tests" / "test_next.py"]
+        partial = (
+            "tests/test_long.py ........................................... [ 10%]\n"
+            "..........F                                                     [ 11%]\n"
+            "tests/test_next.py ..\n"
+        )
+
+        failed, in_flight, not_started = what_a_killed_chunk_reached(partial, files)
+
+        assert [Path(f).name for f in failed] == ["test_long.py"]
+        assert Path(in_flight).name == "test_next.py"
+        assert not_started == []
+
+    def test_a_chunk_killed_in_collection_names_nothing(self):
+        assert what_a_killed_chunk_reached("", [ROOT / "tests" / "test_x.py"]) == ([], "unknown", [])

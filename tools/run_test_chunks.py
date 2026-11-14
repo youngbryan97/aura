@@ -163,6 +163,65 @@ def parse_failed_node_ids(output: str) -> list[str]:
     return ids
 
 
+_FILE_LINE_RE = re.compile(r"^(\S+\.py) ([.FEsxX]*)")
+_MORE_RESULTS_RE = re.compile(r"^([.FEsxX]+)\s*(?:\[\s*\d+%\])?$")
+
+
+def what_a_killed_chunk_reached(
+    partial: str, files: list[Path]
+) -> tuple[list[str], str, list[Path]]:
+    """Read a killed chunk's output: files that failed, the file in flight, the files never started.
+
+    pytest prints a file's path when its first test starts and a mark per test
+    after it, wrapping long files onto lines of marks alone. A chunk killed
+    at its timeout never reaches the ``-rfE`` summary, so these lines are the
+    only record of what it found. On 14 November 2026 the runner kept the last
+    twelve of them: chunk 1 of 6 ran 88% of 912 files in ninety minutes and
+    every failure it saw was lost.
+    """
+    reached: list[str] = []
+    failing: set[str] = set()
+    for line in str(partial or "").splitlines():
+        started = _FILE_LINE_RE.match(line)
+        if started:
+            reached.append(started.group(1))
+            marks = started.group(2)
+        elif reached and (more := _MORE_RESULTS_RE.match(line.strip())):
+            marks = more.group(1)
+        else:
+            continue
+        if "F" in marks or "E" in marks:
+            failing.add(reached[-1])
+    if not reached:
+        return [], "unknown", []
+    at = _position_of(reached[-1], files)
+    in_flight = _runnable(files[at]) if at is not None else reached[-1]
+    not_started = files[at + 1 :] if at is not None else []
+    failed = []
+    for name in dict.fromkeys(reached):
+        if name in failing:
+            where = _position_of(name, files)
+            failed.append(_runnable(files[where]) if where is not None else name)
+    return failed, in_flight, not_started
+
+
+def _position_of(printed: str, files: list[Path]) -> int | None:
+    """Which file pytest meant. It prints paths relative to where it ran."""
+    meant = (ROOT / printed).resolve()
+    for position, path in enumerate(files):
+        if path.resolve() == meant:
+            return position
+    return None
+
+
+def _runnable(path: Path) -> str:
+    """A node id the retry pass can hand to pytest from the repository root."""
+    try:
+        return str(path.resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path.resolve())
+
+
 def discover_test_files(tests_dir: Path) -> list[Path]:
     return sorted(p for p in tests_dir.rglob("test_*.py") if p.is_file())
 
@@ -185,7 +244,9 @@ def run_chunk(
     coverage: bool = False,
     progress_file: Path | None = None,
     min_free_gb: float = 0.0,
+    part: int = 1,
 ) -> tuple[bool, str, list[str]]:
+    label = f"chunk {index}/{total}" + (f" part {part}" if part > 1 else "")
     # Each chunk is a FRESH INTERPRETER launched with subprocess.run, so
     # wrapping this runner in `coverage run` measures the runner and nothing
     # else — `make coverage` reported 0.00% over 419,306 statements while
@@ -222,14 +283,14 @@ def run_chunk(
     free_gb = free_memory_gb()
     free_label = f"{free_gb:.1f}GB free" if free_gb is not None else "free memory unknown"
     print(
-        f"━━ chunk {index}/{total}: {len(files)} files ━━ ({free_label})", flush=True
+        f"━━ {label}: {len(files)} files ━━ ({free_label})", flush=True
     )
     note_progress(
-        progress_file, f"START chunk {index}/{total} files={len(files)} {free_label}"
+        progress_file, f"START {label} files={len(files)} {free_label}"
     )
     if min_free_gb > 0 and free_gb is not None and free_gb < min_free_gb:
         message = (
-            f"chunk {index}/{total} REFUSED: {free_gb:.1f}GB reclaimable is "
+            f"{label} REFUSED: {free_gb:.1f}GB reclaimable is "
             f"below --min-free-gb {min_free_gb:.1f}. Use more, smaller chunks "
             "or free memory; a chunk that OOMs takes this runner with it."
         )
@@ -242,35 +303,55 @@ def run_chunk(
         # file hung; a timeout that discarded it (2026-09-16, chunk 2 of 40)
         # left forty minutes of run with nothing to bisect.
         partial = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode("utf-8", "replace")
-        tail = partial.rstrip().splitlines()[-12:]
-        in_flight = next(
-            (line.split()[0] for line in reversed(tail) if line.split()[:1] and line.split()[0].endswith(".py")),
-            "unknown",
-        )
-        sys.stdout.write("\n".join(tail) + "\n")
+        sys.stdout.write(partial.rstrip() + "\n")
+        failing, in_flight, not_started = what_a_killed_chunk_reached(partial, files)
         print(f"    in flight when killed: {in_flight}", flush=True)
-        note_progress(progress_file, f"TIMEOUT chunk {index}/{total} in_flight={in_flight}")
-        return False, f"chunk {index}/{total} TIMEOUT after {timeout_s:.0f}s (in flight: {in_flight})", []
+        note_progress(
+            progress_file,
+            f"TIMEOUT {label} in_flight={in_flight} "
+            f"failing_files={len(failing)} not_started={len(not_started)}",
+        )
+        # The file in flight is judged alone by the retry pass, which says
+        # whether it hangs by itself; the files after it still get a run.
+        judged_alone = failing + ([in_flight] if in_flight != "unknown" else [])
+        message = f"{label} TIMEOUT after {timeout_s:.0f}s (in flight: {in_flight})"
+        if not not_started:
+            return False, message, judged_alone
+        print(f"    {len(not_started)} file(s) never started; running them in a fresh process", flush=True)
+        _, rest, rest_ids = run_chunk(
+            index,
+            total,
+            not_started,
+            marker=marker,
+            timeout_s=timeout_s,
+            python=python,
+            extra_args=extra_args,
+            coverage=coverage,
+            progress_file=progress_file,
+            min_free_gb=min_free_gb,
+            part=part + 1,
+        )
+        return False, f"{message}; then {rest}", judged_alone + rest_ids
     sys.stdout.write(proc.stdout)
     sys.stderr.write(proc.stderr)
     failed_ids = parse_failed_node_ids(proc.stdout)
     elapsed = time.monotonic() - started
     note_progress(
         progress_file,
-        f"END chunk {index}/{total} rc={proc.returncode} in {elapsed:.0f}s",
+        f"END {label} rc={proc.returncode} in {elapsed:.0f}s",
     )
     if proc.returncode == 0:
-        return True, f"chunk {index}/{total} passed in {elapsed:.0f}s", []
+        return True, f"{label} passed in {elapsed:.0f}s", []
     if proc.returncode < 0 or proc.returncode in (137, 139, 143):
         return False, (
-            f"chunk {index}/{total} KILLED (exit {proc.returncode}) after "
+            f"{label} KILLED (exit {proc.returncode}) after "
             f"{elapsed:.0f}s — likely OOM; a killed chunk is a failure"
         ), failed_ids
     # pytest exit 5 == no tests collected in this chunk (e.g. everything
     # deselected by the marker) — that is not a failure.
     if proc.returncode == 5:
-        return True, f"chunk {index}/{total} had no selected tests", []
-    return False, f"chunk {index}/{total} FAILED (exit {proc.returncode}) after {elapsed:.0f}s", failed_ids
+        return True, f"{label} had no selected tests", []
+    return False, f"{label} FAILED (exit {proc.returncode}) after {elapsed:.0f}s", failed_ids
 
 
 def main(argv: list[str] | None = None) -> int:
