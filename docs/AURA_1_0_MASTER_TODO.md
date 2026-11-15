@@ -897,6 +897,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  14 November, night, her app on main at 21:49: 17 warning-or-worse lines in
+  11 kinds in the first minutes. Fixed by cause: lockdep's fsync on the event
+  loop, the model-lane controller marking a reservation ready inside
+  `prepare` under its file lock (now `_mark_ready_sync`, off the loop, with
+  `cancel`'s locked read beside it); and three locks lockdep could not see,
+  red on the ratchet since that afternoon: the browser-render semaphores in
+  `what_the_world_says` (bounded by the turn's time) and `research_pipeline`
+  (lockdep's acquire budget), and the fault store's lock. Still to read:
+  managed memory at 47 GB at the soft ceiling and the brainstem terminated at
+  53 GB earlier that evening, a mind-tick phase stall, and Python's resource
+  tracker removing a shared-memory segment twice (a traceback, no fault).
   2026-11-10, day run 4's fifth start, 499 warning-or-worse lines in 48
   kinds. 372 were one cause, her background work on the 1.5B model on the
   CPU (stalls, cancels, the incidents counting them), fixed in 046ad1764.

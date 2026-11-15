@@ -52,8 +52,11 @@ _REQUIRED_CALLS: dict[str, dict[str, set[str]]] = {
             "_persist_terminal_receipt",
         },
         "ModelLaneController.prepare": {
-            "_assert_fence", "wait_for", "cancel", "_owner_process_tree_liveness",
-            "_capacity_totals", "lane_budget_gb",
+            "wait_for", "cancel", "_owner_process_tree_liveness", "to_thread", "_mark_ready_sync",
+        },
+        # The step that marks a reservation ready runs off the event loop (it takes the file lock and fsyncs).
+        "ModelLaneController._mark_ready_sync": {
+            "_assert_fence", "_capacity_totals", "lane_budget_gb", "interprocess_file_lock", "_save_locked",
         },
         "ModelLaneController.commit_sync": {
             "_assert_fence", "_process_liveness", "interprocess_file_lock",

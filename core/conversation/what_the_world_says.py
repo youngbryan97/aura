@@ -53,7 +53,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from core.runtime.lockdep import checked_lock
+from core.runtime.lockdep import checked_lock, checked_semaphore
 from core.utils.readable_text import SENTENCE_END as _SENTENCE_END
 from core.utils.readable_text import prose_paragraphs as _prose_paragraphs
 
@@ -415,13 +415,19 @@ async def read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining:
     A page's rendered text takes the place of what the fetch returned; a page that did not render keeps it. Two at a
     time because each is its own browser beside her cortex's weights; one at a time, five weather pages took 22.5 s
     of a 120 s turn on 12 November 2026."""
-    rendering = asyncio.Semaphore(2)
+    # Bounded by the turn's own time: a page that waits longer for a browser than the turn has left is not read.
+    rendering = checked_semaphore("what_the_world_says.read_as_shown", 2, budget_s=max(1.0, remaining()))
 
     async def one(result: dict[str, Any]) -> None:
         url = str(result.get("url") or "")
         if not url:
             return
-        async with rendering:
+        try:
+            await rendering.acquire()
+        except TimeoutError:
+            logger.info("No browser came free for %s within the turn's time; it is read as fetched", url)
+            return
+        try:
             if remaining() <= 1.0:
                 return
             try:
@@ -429,6 +435,8 @@ async def read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining:
             except (TimeoutError, OSError, RuntimeError, ValueError) as exc:
                 logger.info("Rendering %s gave nothing to read: %s", url, type(exc).__name__ if isinstance(exc, TimeoutError) else exc)
                 page = None
+        finally:
+            rendering.release()
         text = str((page or {}).get("text") or "").strip()
         if text:
             result["text"] = text

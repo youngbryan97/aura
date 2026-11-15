@@ -3032,6 +3032,27 @@ class ModelLaneController:
                 )
 
         observations = await self._call_observer(observe)
+        ready = await asyncio.to_thread(self._mark_ready_sync, decision, observations, bool(evicted))
+        if ready is not None:
+            return ready
+        return await self.cancel(
+            decision,
+            reason="capacity_changed_after_eviction",
+            compensate=compensate,
+            evicted=evicted,
+        )
+
+    def _mark_ready_sync(
+        self,
+        decision: LaneTransactionDecision,
+        observations: list[LaneOwnerObservation],
+        evicted_any: bool,
+    ) -> LaneTransactionDecision | None:
+        """The reservation marked ready when it still fits, or None when the capacity changed under it.
+
+        Off the event loop: it takes the interprocess file lock and writes the state with an fsync. LIVE 14 November
+        2026 lockdep caught that write on her loop thread, reached from ``prepare``, where every task waited on it.
+        """
         with self._thread_lock, interprocess_file_lock(self.lock_path):
             state = self._load_locked()
             now = self._clock()
@@ -3050,37 +3071,27 @@ class ModelLaneController:
             provenance = observer.provenance
             capacity_request_gb = float(record.get("capacity_request_gb") or decision.request_gb)
             if committed + reserved + capacity_request_gb > budget_gb:
-                over_budget = True
-            else:
-                over_budget = False
-                record["state"] = LaneTransactionState.READY.value
-                record["reason"] = "required_evictions_reclaimed" if evicted else "capacity_reserved"
-                record["committed_gb"] = committed
-                record["reserved_gb"] = reserved
-                record["budget_gb"] = budget_gb
-                record["observation_source"] = provenance.source.value
-                record["observation_scenario_id"] = provenance.scenario_id
-                record["resource_observation_available"] = bool(
-                    observer.memory().available
-                )
-                record["ready_at"] = now
-                self._append_event(
-                    state,
-                    "reservation_ready",
-                    at=now,
-                    transaction_id=decision.transaction_id,
-                    fencing_token=decision.fencing_token,
-                )
-                self._save_locked(state)
-                return self._record_to_decision(record)
-        if over_budget:
-            return await self.cancel(
-                decision,
-                reason="capacity_changed_after_eviction",
-                compensate=compensate,
-                evicted=evicted,
+                return None
+            record["state"] = LaneTransactionState.READY.value
+            record["reason"] = "required_evictions_reclaimed" if evicted_any else "capacity_reserved"
+            record["committed_gb"] = committed
+            record["reserved_gb"] = reserved
+            record["budget_gb"] = budget_gb
+            record["observation_source"] = provenance.source.value
+            record["observation_scenario_id"] = provenance.scenario_id
+            record["resource_observation_available"] = bool(
+                observer.memory().available
             )
-        raise ModelLaneControlError("unreachable_lane_prepare_state")
+            record["ready_at"] = now
+            self._append_event(
+                state,
+                "reservation_ready",
+                at=now,
+                transaction_id=decision.transaction_id,
+                fencing_token=decision.fencing_token,
+            )
+            self._save_locked(state)
+            return self._record_to_decision(record)
 
     @staticmethod
     def _assert_fence(record: Mapping[str, Any], decision: LaneTransactionDecision) -> None:
@@ -3304,12 +3315,7 @@ class ModelLaneController:
                 compensate=compensate,
                 request_id=decision.request_id,
             )
-        with self._thread_lock, interprocess_file_lock(self.lock_path):
-            pending_record = self._load_locked()["reservations"].get(decision.request_id)
-            pending_compensation = bool(
-                isinstance(pending_record, Mapping)
-                and pending_record.get("compensation_pending_owner_ids")
-            )
+        pending_compensation = await asyncio.to_thread(self._compensation_pending_sync, decision.request_id)
         receipt_id = ""
         if not pending_compensation:
             receipt_id = await asyncio.to_thread(
@@ -3317,6 +3323,15 @@ class ModelLaneController:
                 decision.request_id,
             )
         return LaneTransactionDecision(**{**terminal.__dict__, "receipt_id": receipt_id})
+
+    def _compensation_pending_sync(self, request_id: str) -> bool:
+        """Whether a reservation still owes an owner its compensation. Off the loop: it takes the file lock."""
+        with self._thread_lock, interprocess_file_lock(self.lock_path):
+            pending_record = self._load_locked()["reservations"].get(request_id)
+            return bool(
+                isinstance(pending_record, Mapping)
+                and pending_record.get("compensation_pending_owner_ids")
+            )
 
     def _mark_cancelled_sync(
         self,

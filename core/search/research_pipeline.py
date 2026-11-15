@@ -1010,8 +1010,11 @@ class ResearchSearchPipeline:
                 if current or not any(page.url == hit.url and max(len(page.text), page.read_chars) > 1000
                                       for page in pages)
             ]
-            # Two browsers at a time: each is its own Chromium, beside her cortex's weights.
-            rendering = asyncio.Semaphore(2)
+            # Two browsers at a time: each is its own Chromium, beside her cortex's weights. The wait for one is
+            # bounded (lockdep's acquire budget), so a browser that never returns cannot hold every other page.
+            from core.runtime.lockdep import checked_semaphore
+
+            rendering = checked_semaphore("research_pipeline.browser_pages", 2)
 
             async def rendered(hit: SearchHit) -> SearchPage | None:
                 async with rendering:

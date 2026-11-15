@@ -14,7 +14,6 @@ import os
 import re
 import sys
 import tempfile
-import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +21,7 @@ from typing import Any
 
 from core.runtime.a_call_that_failed import FailedCall
 from core.runtime.errors import DegradationRecord, get_degradation_tracker, record_degradation
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.SelfModification.Faults")
 
@@ -53,7 +53,7 @@ class Reproduction:
     output: str
 
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("faults_she_can_reproduce.heard")
 _HEARD: dict[tuple[str, str, str], HeardFault] = {}
 _LISTENING = [False]
 #: Called when a fault is heard for the first time: her repair cycle waits on one (self_modification_engine).
