@@ -285,6 +285,23 @@ class FollowingPoints:
                           old.born, self._at, at, float(error[i]), old.pictures + 1)
                 for i, old in enumerate(self.points) if valid[i]]
 
+    def _grid_cell(self) -> float | None:
+        """The size of this tracker's cell in the coordinates it reports: one pixel here."""
+        return 1.
+
+    def _measured_on_this_grid(self, pose: PointPose) -> bool:
+        """Whether a pose's marks are this tracker's: measured on its grid, so its mark numbers name its points.
+
+        A pose the source tracker measured on its finer grid named that tracker's marks, and leading with them here
+        found none of them and lost the motion (15 November 2026, the precision test, red since fd06569ed). Where the
+        cell is not known the marks lead, as they did.
+        """
+        cell = self._grid_cell()
+        size = getattr(pose, 'pixel_size', None)
+        if cell is None or not isinstance(size, (int, float)) or isinstance(size, bool):
+            return True
+        return math.isclose(float(size), float(cell), rel_tol=1e-9)
+
     def motion_of(self, thing: Any, at: float) -> PointMotion | None:
         """The common displacement of points spread through this last observed object box."""
         bounds = last_observed_outline(thing)
@@ -299,7 +316,8 @@ class FollowingPoints:
             return None
         points = [p for p in points if 0 <= (x := int(round(p.old_x - left))) < mask.shape[1]
                   and 0 <= (y := int(round(p.old_y - top))) < mask.shape[0] and mask[y, x]]
-        if isinstance(getattr(thing, 'point_pose', None), PointPose):
+        pose = getattr(thing, 'point_pose', None)
+        if isinstance(pose, PointPose) and self._measured_on_this_grid(pose):
             return _motion_of_retained_marks(thing, points, center, at)
         if len(points) < 3:
             return None

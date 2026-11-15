@@ -160,13 +160,19 @@ class PointsBeforeReduction(FollowingPoints):
         self._priority = None
         self.sampling_hint_receipt = None
 
+    def _grid_cell(self) -> float | None:
+        """The tracked grid's cell in the working picture's units, or None before a picture has set it."""
+        if self._geometry is None:
+            return None
+        _original, tracked, working = self._geometry
+        return max(working[axis]/tracked[axis] for axis in (0, 1))
+
     def motion_of(self, thing: Any, at: float) -> Any:
         """Publish the tracked grid's cell size in the same units as its coordinates."""
         motion = super().motion_of(thing, at)
-        if motion is None or self._geometry is None:
+        size = self._grid_cell()
+        if motion is None or size is None:
             return motion
-        _original, tracked, working = self._geometry
-        size = max(working[axis]/tracked[axis] for axis in (0, 1))
         return replace(motion, pixel_size=size)
 
     def see_source(self, source: np.ndarray, working: np.ndarray, at: float, *,
