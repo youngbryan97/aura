@@ -5849,6 +5849,31 @@ needs her 27B free (her app down, or her app's own influence trials).
   is worse. Closes when a fault that arose while she ran is repaired and
   promoted by her own loop, live, and her rate on the faults of a week of
   her own running is measured.
+  14 November, the loop, built and proved on a planted fault. Every
+  degradation record now keeps the call in her own source its fault was
+  raised in (`core/runtime/a_call_that_failed.py`): the innermost frame of
+  hers, the function, and what it was given, where each argument writes back
+  exactly; a call that needs an instance it cannot rebuild, a function
+  defined inside another or an argument that is not a plain value is not
+  kept, and says why. Her self-modification engine hears every record from
+  boot (`core/self_modification/faults_she_can_reproduce.py`), keeps one call
+  for each fault however often it recurs, says each new one in her stream
+  ("A fault she can make again: ..."), and wakes her repair cycle. In her idle
+  time the cycle takes the most frequent fault not yet tried on this source
+  (`core/agency/mending_a_fault_of_hers.py`): it becomes a goal of hers with a
+  workspace, its test is written there under her test harness and kept only
+  if it raises what she raised, and repair by selection searches her own
+  Python's changes at the lines of the function it was raised in, guarded by
+  the tests that name the file. A mend is committed on the goal's branch with
+  its test and offered, and her own yes runs her gates and takes it (F05). A
+  fault no test guards stops and says so; a stalled fault is tried again once
+  her source has changed. Proved end to end on a stand-in tree
+  (`tests/test_her_loop_mends_a_fault_of_her_own_running.py`): a planted
+  inverted emptiness check raised, was kept, reproduced, mended by a fix
+  template, committed with its test and merged by her own yes. Left: the
+  first live run, and how many of her faults can be kept as calls at all.
+  Her own yes merges into the checkout she runs from, so a commit of hers
+  has to reach origin before the next deploy fast-forwards it.
 
 ## Live session 2026-09-07: what the runtime showed
 
