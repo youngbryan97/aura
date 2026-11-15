@@ -199,6 +199,9 @@ class CognitiveIntegrationPhase(Phase):
         self._pending_deltas = []
         #: The ALife tasks this phase launched that may still be running.
         self._background: set[asyncio.Task[Any]] = set()
+        #: The organ this tick is in and since when (monotonic), read by her mind tick when the phase runs out of
+        #: time, so a stall names what stalled (core/mind_tick.py).
+        self.in_progress: tuple[str, float] | None = None
 
     #: Each attribute this phase holds, and the container name it is read under.
     #: The registrar for every name is core/providers/self_maintenance_provider.py.
@@ -412,6 +415,7 @@ class CognitiveIntegrationPhase(Phase):
         catches only the failures its author expected would have ended the whole
         phase there, every tick, and taken the eleven organs after it down too.
         """
+        self.in_progress = (method, time.monotonic())
         try:
             return await coroutine
         except self._ORGAN_ERRORS as exc:
@@ -424,6 +428,8 @@ class CognitiveIntegrationPhase(Phase):
             )
             logger.error("CognitiveIntegration: %s raised: %s", method, exc, exc_info=True)
             return None
+        finally:
+            self.in_progress = None
 
     def _launch(self, coroutine: Any) -> None:
         task = get_task_tracker().create_task(coroutine)

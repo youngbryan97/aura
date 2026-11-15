@@ -209,6 +209,16 @@ def _authorize_state_mutation_through_will(
 from .runtime.mind_tick_liveness import _KnowsWhetherItIsStillAlive
 
 
+def _what_the_phase_was_doing(phase: Any) -> str:
+    """Where a phase that ran out of time was, when it says: a phase may keep ``in_progress`` as (step, monotonic
+    start). LIVE 14 November 2026 a boot-time stall of cognitive_integration named only the phase, which runs a dozen
+    organs one after another, so nothing said which of them held it."""
+    doing = getattr(phase, "in_progress", None) or getattr(getattr(phase, "__self__", None), "in_progress", None)
+    if not (isinstance(doing, tuple) and len(doing) == 2):
+        return ""
+    step, began = doing
+    return f" in {step}, {max(0.0, time.monotonic() - float(began)):.1f}s into it"
+
 class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
     """
     The unified cognitive rhythm of Aura.
@@ -1033,7 +1043,8 @@ class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
                                 
                             breaker.record_success()
                         except TimeoutError:
-                            logger.error("🛑 MindTick: Phase '%s' STALLED (timeout). Tripping circuit.", name)
+                            logger.error("🛑 MindTick: Phase '%s' STALLED (timeout of %.0fs)%s. Tripping circuit.",
+                                         name, timeout, _what_the_phase_was_doing(phase_fn))
                             breaker.record_failure()
                         except _MIND_BOUNDARY_ERRORS as phase_err:
                             _record_mind_degradation(phase_err)
