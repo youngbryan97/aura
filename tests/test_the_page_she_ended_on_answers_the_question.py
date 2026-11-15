@@ -147,3 +147,19 @@ def test_once_the_page_is_beside_her_turn_she_is_not_told_her_browser_has_yet_to
     with bind_turn_evidence_custody(session_id="s", turn_id="after"):
         assert _the_page_goes_to_her_turn(_pursuit(), _ASKED)
         assert asyncio.run(_read_page_work(asked)) == ""
+
+
+def test_what_she_says_she_read_in_her_browser_is_judged_against_what_she_read_there():
+    """LIVE 12 November 2026: "I read the thread in my browser a few minutes ago." was refused as a claim to have read
+    the screen with nothing behind it, after the thread she had read in her browser went to her turn."""
+    from core.conversation.response_reliability import _quotes_a_screen_it_did_not_read
+
+    read = "gamboncorner: The Neutrality Act of November 1939 kept Americans off belligerent ships."
+    true = "I read the thread in my browser a few minutes ago. The main answer says the Neutrality Act kept Americans home."
+    made_up = 'I read the thread in my browser, and it says "Pan Am flew daily to occupied Paris".'
+    with bind_turn_evidence_custody(session_id="s", turn_id="before"):
+        assert _quotes_a_screen_it_did_not_read(_ASKED, true)             # nothing read yet: refused
+    with bind_turn_evidence_custody(session_id="s", turn_id="after"):
+        assert _the_page_goes_to_her_turn(_pursuit(read_text=read), _ASKED)
+        assert not _quotes_a_screen_it_did_not_read(_ASKED, true)         # it is on the page she read
+        assert _quotes_a_screen_it_did_not_read(_ASKED, made_up)          # a quotation that is not
