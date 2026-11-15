@@ -216,12 +216,29 @@ def _what_the_phase_was_doing(phase: Any) -> str:
     owner = phase if hasattr(phase, "in_progress") else getattr(phase, "__self__", None)
     doing = getattr(owner, "in_progress", None)
     if not (isinstance(doing, tuple) and len(doing) == 2):
-        return ""
+        return _what_the_worker_threads_were_doing()
     step, began = doing
     said = f" in {step}, {max(0.0, time.monotonic() - float(began)):.1f}s into it"
     # And where the rest of the time went: the costliest steps it had finished.
     taken = sorted(getattr(owner, "taken", None) or [], key=lambda pair: -pair[1])[:3]
-    return said + ("; before it " + ", ".join(f"{name} {seconds:.1f}s" for name, seconds in taken) if taken else "")
+    said += "; before it " + ", ".join(f"{name} {seconds:.1f}s" for name, seconds in taken) if taken else ""
+    return said + _what_the_worker_threads_were_doing()
+
+def _what_the_worker_threads_were_doing() -> str:
+    """How many jobs were queued for her event loop's default worker threads, when any were.
+
+    Most of her organs' thread work goes there through ``asyncio.to_thread``. 54 of 64 cognitive_integration stalls
+    from 11 to 15 November came within two minutes of a boot, and adaptive immunity's work, timed on a copy of her state,
+    is 9 ms an event; this says whether the rest was a queue for a thread.
+    """
+    try:
+        pool = getattr(asyncio.get_running_loop(), "_default_executor", None)
+        queued = int(pool._work_queue.qsize()) if pool is not None else 0
+        workers = int(getattr(pool, "_max_workers", 0) or 0)
+    # not a failure: an executor without these internals has no queue to report.
+    except (RuntimeError, AttributeError, TypeError, ValueError, NotImplementedError):
+        return ""
+    return f"; {queued} job(s) waiting for the loop's {workers} worker threads" if queued else ""
 
 class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
     """

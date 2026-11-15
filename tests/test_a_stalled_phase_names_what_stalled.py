@@ -93,3 +93,27 @@ def test_a_stall_names_where_the_rest_of_the_time_went():
     before = said.split("; before it ", 1)[1]
     assert before.startswith("_run_adaptive_immunity 0.1s"), "the costliest finished organ comes first"
     assert "_run_strange_loop" in before
+
+
+def test_a_stall_says_how_many_jobs_were_queued_for_a_worker_thread():
+    """At boot her organs' thread work can queue behind boot's: the stall line counts the queue."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from core.mind_tick import _what_the_worker_threads_were_doing
+
+    release = threading.Event()
+
+    async def a_loop_whose_one_worker_is_busy():
+        loop = asyncio.get_running_loop()
+        loop.set_default_executor(ThreadPoolExecutor(max_workers=1))
+        busy = [loop.run_in_executor(None, release.wait) for _ in range(3)]
+        await asyncio.sleep(0.05)
+        said = _what_the_worker_threads_were_doing()
+        release.set()
+        await asyncio.gather(*busy)
+        return said, _what_the_worker_threads_were_doing()
+
+    queued, after = asyncio.run(a_loop_whose_one_worker_is_busy())
+    assert queued == "; 2 job(s) waiting for the loop's 1 worker threads"
+    assert after == ""
