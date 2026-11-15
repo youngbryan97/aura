@@ -1863,6 +1863,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   45.76 s: queue 2.37, retrieval 7.68, tool 7.47 (a web search that should
   not have run, fixed in 6a5d907e1), decode 12.29, prefill 8.10, delivery
   1.69, 6.15 unattributed.
+  15 November, 06:50, a typed turn of 49.4 s on main at 8d86afb47 ("Morning.
+  What's been on your mind overnight?"). Her tool loop read her record over
+  three passes, and the third was stopped at 1,984 of 2,284 prefill tokens.
+  The prefill-cancel handler in mlx_worker then cleared every cache entry
+  under the key, including the 7,424-token prefix it had kept 3 s before,
+  because the borrowed entry may have grown past its trie key. The reply's
+  pass then missed the cache altogether and prefilled 2,564 tokens from
+  nothing (7.9 s). Retiring only the borrowed entry, or trimming it back to
+  its key, would keep the rest; not changed here, because the cache is being
+  worked on under this item.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
