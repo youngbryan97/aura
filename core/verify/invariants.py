@@ -330,14 +330,24 @@ def verify(
             spec_violations.append(failure)
             produced = []
         for item in produced:
-            # Fill in what the check left to its spec.
-            normalized = Violation(
-                subject=item.subject,
-                message=item.message,
-                remedy=item.remedy,
-                invariant=item.invariant or spec.name,
-                severity=item.severity or spec.severity,
-            )
+            # Fill in what the check left to its spec. A check that yields something with no subject or message is
+            # broken, and is said as its own violation: raised here, it ended the pass for every other invariant.
+            try:
+                normalized = Violation(
+                    subject=item.subject,
+                    message=item.message,
+                    remedy=item.remedy,
+                    invariant=item.invariant or spec.name,
+                    severity=item.severity or spec.severity,
+                )
+            except AttributeError as exc:
+                normalized = Violation(
+                    invariant=spec.name,
+                    severity=Severity.ERROR,
+                    subject=spec.owner,
+                    message=f"the invariant check yielded a {type(item).__name__}, not a violation ({exc})",
+                    remedy="yield Violation objects from the check",
+                )
             violations.append(normalized)
             spec_violations.append(normalized)
         outcomes[spec.name] = tuple(spec_violations)

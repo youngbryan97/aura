@@ -1052,6 +1052,9 @@ def _reset_process_wide_state():
         # What she last felt, which steering reads in place of the substrate it is handed. Left by an affect test, it
         # made "her resting state steers nowhere" read a feeling (Q09, 13 November 2026).
         ("core.consciousness.steering_channel", lambda m: m._FELT.clear()),
+        # What each telemetry channel last read, with its declaration kept. A tendency conflict one test wrote at
+        # 0.998 left its channel red for the next, whose verifier then found a red channel (Q09, 15 November 2026).
+        ("core.fsw.telemetry_dictionary", lambda m: m.get_telemetry().forget_readings_for_test()),
     ):
         try:
             import importlib

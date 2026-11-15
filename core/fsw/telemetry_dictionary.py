@@ -604,6 +604,22 @@ class TelemetryDictionary:
             )[:8],
         }
 
+    def forget_readings_for_test(self) -> None:
+        """Every channel back to no samples and nominal, its declaration kept.
+
+        Channels are declared once, at import, by the module that owns them, so a test cannot clear them and expect
+        them back. Their readings are another matter: a value one test wrote stayed red for every test after it.
+        """
+        with self._lock:
+            for entry in self._channels.values():
+                entry.history.clear()
+                entry.state = LimitState.NOMINAL
+                entry.state_since = 0.0
+                entry.writes = 0
+                entry.violations = 0
+            self._log.clear()
+            self.events_emitted = 0
+
     def reset_for_test(self) -> None:
         with self._lock:
             self._channels.clear()
