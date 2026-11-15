@@ -252,8 +252,12 @@ async def _on_her_cortex(messages: list[dict[str, Any]]) -> str:
         return ""
     prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
     seconds = max(_COMPOSE_TIMEOUT_S, time_a_prompt_needs(prompt_chars, A_CLOSED_QUESTIONS_FLOOR))
+    # It waits for the lane as long as it may take to speak. LIVE 15 November 2026, 18:29 to 18:32, a traceback on
+    # the screen and her in the bubble: six times "her model is held for something else". Her goal pass held the lane
+    # for 44, 46, 47, 56 and 80 s a step, back to back, and a remark that waited the 5 s other background work waits came
+    # in only if a step happened to end in those 5 s. Waiting, it is woken when the step in hand releases the lane.
     lease = await acquire_external_generation_gate_lease(
-        owner=f"{_ORIGIN}:her_own_turn", timeout_s=seconds, wait_s=_BACKGROUND_GENERATION_GATE_WAIT_S)
+        owner=f"{_ORIGIN}:her_own_turn", timeout_s=seconds, wait_s=max(seconds, _BACKGROUND_GENERATION_GATE_WAIT_S))
     if lease is None:
         logger.info("🫧 remark: her model is held for something else")
         return ""
