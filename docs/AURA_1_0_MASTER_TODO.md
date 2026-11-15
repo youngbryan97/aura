@@ -3864,6 +3864,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   a sentence about "that guardrail" was her reading of her own maintenance
   jobs, deferred while a chat was in front, said to someone who had not
   seen them; and she ended "Did you sleep well?" a sentence after being told.
+  Corrected the same morning: the first of those was not hers. The sentence
+  that introduced it, "the system deferred it because you were in the
+  loop", true, was cut from her reply by the shared-history check, which
+  left "that guardrail" pointing at nothing (561e83777).
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched
