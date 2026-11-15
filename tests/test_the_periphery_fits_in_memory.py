@@ -99,5 +99,7 @@ def test_both_runners_accumulate_rather_than_keep_the_dicts() -> None:
     for name in ("run_subject_core.py", "run_subject_core_v25.py"):
         source = (repo / "tools" / name).read_text()
         assert "PeripheryAccumulator" in source, name
-        assert "periphery.note(read_periphery" in source, name
+        # Each reading noted as it is taken. Since 27 October (a3f12806f) the v1 runner adds the declared
+        # observations to the reading before it is noted, so the two are separate statements there.
+        assert "periphery.note(" in source and "read_periphery(" in source, name
         assert "periphery_rows" not in source, f"{name} still keeps the dicts"
