@@ -115,5 +115,6 @@ def test_a_stall_says_how_many_jobs_were_queued_for_a_worker_thread():
         return said, _what_the_worker_threads_were_doing()
 
     queued, after = asyncio.run(a_loop_whose_one_worker_is_busy())
-    assert queued == "; 2 job(s) waiting for the loop's 1 worker threads"
+    assert queued.startswith("; 2 job(s) waiting for the loop's 1 worker threads, held 1 at "), queued
+    assert " wait" in queued, "the held worker is named by where it is: in threading.Event.wait"
     assert after == ""

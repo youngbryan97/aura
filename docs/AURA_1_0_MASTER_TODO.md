@@ -1435,6 +1435,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   replaced a byte that is not UTF-8; the path a read-only run takes decoded
   strictly. Both read text the same way now, and bytes stay bytes for a
   caller that asks for them.
+  A stalled cognitive_integration tick named only the organ in hand. Its
+  first full line, at her boot at 22:20 UTC: "in _run_adaptive_immunity,
+  4.4s into it; before it _run_autonomous_resilience 1.2s" (the "3.9s" in
+  cc48666c0's message shows the format, not a reading). Adaptive immunity's
+  work, timed on a copy of her state, is 9 ms an event once warm and 573 ms
+  the first time, and 54 of 64 stalls since 11 November came within two
+  minutes of a boot. That the rest is a queue for the loop's worker threads
+  is a hypothesis; the stall line counts the queue now (fa3d0536f).
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,

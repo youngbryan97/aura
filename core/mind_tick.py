@@ -235,10 +235,24 @@ def _what_the_worker_threads_were_doing() -> str:
         pool = getattr(asyncio.get_running_loop(), "_default_executor", None)
         queued = int(pool._work_queue.qsize()) if pool is not None else 0
         workers = int(getattr(pool, "_max_workers", 0) or 0)
+        threads = list(getattr(pool, "_threads", ()) or ())
     # not a failure: an executor without these internals has no queue to report.
     except (RuntimeError, AttributeError, TypeError, ValueError, NotImplementedError):
         return ""
-    return f"; {queued} job(s) waiting for the loop's {workers} worker threads" if queued else ""
+    if not queued:
+        return ""
+    # And what holds the workers: LIVE 15 November 2026, 22:36 UTC, "3 job(s) waiting for the loop's 22 worker threads".
+    import collections
+    import sys
+
+    from core.runtime.thread_cpu import _where
+
+    frames = sys._current_frames()
+    held = collections.Counter(
+        _where(frames.get(thread.ident)).strip() for thread in threads
+        if frames.get(thread.ident) is not None and frames[thread.ident].f_code.co_name != "_worker")
+    holding = ", ".join(f"{count} {where}" for where, count in held.most_common(3))
+    return f"; {queued} job(s) waiting for the loop's {workers} worker threads" + (f", held {holding}" if holding else "")
 
 class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
     """
