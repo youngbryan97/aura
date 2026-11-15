@@ -417,8 +417,14 @@ class CognitiveIntegrationPhase(Phase):
         """
         self.in_progress = (method, time.monotonic())
         try:
-            return await coroutine
+            result = await coroutine
+        except asyncio.CancelledError:
+            # Left set: the tick that ran out of time reads it after the cancel to say which organ held it
+            # (core/mind_tick._what_the_phase_was_doing). Cleared in a `finally`, it was gone by then, and 35 stalls
+            # from 12 to 15 November named no organ. The next organ to run overwrites it.
+            raise
         except self._ORGAN_ERRORS as exc:
+            self.in_progress = None
             _record_cognitive_degradation(
                 exc,
                 method=method,
@@ -428,8 +434,8 @@ class CognitiveIntegrationPhase(Phase):
             )
             logger.error("CognitiveIntegration: %s raised: %s", method, exc, exc_info=True)
             return None
-        finally:
-            self.in_progress = None
+        self.in_progress = None
+        return result
 
     def _launch(self, coroutine: Any) -> None:
         task = get_task_tracker().create_task(coroutine)

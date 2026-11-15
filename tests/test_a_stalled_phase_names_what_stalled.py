@@ -48,3 +48,20 @@ def test_cognitive_integration_keeps_the_organ_it_is_in_and_clears_it():
     finally:
         module._record_cognitive_degradation = original
     assert phase.in_progress is None
+
+
+def test_an_organ_the_tick_ran_out_of_time_on_is_still_named_after_the_cancel():
+    """35 stalls from 12 to 15 November named no organ: the `finally` that cleared it ran on the cancel, before the
+    tick read it."""
+    phase = CognitiveIntegrationPhase.__new__(CognitiveIntegrationPhase)
+    phase.in_progress = None
+
+    async def a_tick_that_runs_out_of_time():
+        try:
+            await asyncio.wait_for(phase._organ(None, "_run_topology_evolution", asyncio.sleep(10)), timeout=0.05)
+        except TimeoutError:
+            return _what_the_phase_was_doing(phase)
+        return ""
+
+    said = asyncio.run(a_tick_that_runs_out_of_time())
+    assert said.startswith(" in _run_topology_evolution, "), said
