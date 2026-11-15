@@ -30,7 +30,7 @@ class TrialDecision:
 
 def acceleration_is_admitted(hers: Any, mine: Any, at: float) -> bool:
     """A selected law or its still-current predictive admission may protect observation."""
-    if mine is None or mine.seen != at or not motion_was_measured(mine, at):
+    if mine is None or getattr(mine, "seen", None) != at or not motion_was_measured(mine, at):
         return False
     if getattr(hers, 'carried', False):
         return True
