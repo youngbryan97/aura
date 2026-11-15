@@ -7,7 +7,6 @@ me". Her thoughts after it said "I'm sitting in this book-crammed room with the 
 """
 from __future__ import annotations
 
-import inspect
 
 import pytest
 
@@ -44,5 +43,21 @@ def test_with_no_person_seen_nothing_is_taken_away():
     assert without_their_place_taken("I'm holding up the scissors.", "A lamp on a desk.") == "I'm holding up the scissors."
 
 
-def test_every_turn_of_hers_goes_through_it():
-    assert "without_their_place_taken(words, observation)" in inspect.getsource(watching_along.her_turn)
+def test_every_turn_of_hers_goes_through_it(monkeypatch):
+    """A turn of hers while watching, drafted as the woman on screen, reaches the person without her place taken."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from core.container import ServiceContainer
+
+    drafted = ("I'm holding up these big vintage scissors in this dim storage room. And she's saying laser-cut "
+               "plywood wouldn't even cross. That's the pivot.")
+
+    class Engine:
+        async def think(self, objective, **_kwargs):
+            return SimpleNamespace(content=drafted)
+
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda name, default=None: Engine()
+                                                              if name == "cognitive_engine" else default))
+    said = asyncio.run(watching_along.her_turn("Watch this with me.", SHOWN, [], remark=True))
+    assert said and "I'm holding" not in said and "the pivot" in said

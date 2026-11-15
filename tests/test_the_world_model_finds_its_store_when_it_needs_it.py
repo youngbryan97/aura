@@ -9,7 +9,6 @@ root, and a run writing there would have written into hers.
 
 from __future__ import annotations
 
-import inspect
 from pathlib import PurePath
 
 import pytest
@@ -36,11 +35,21 @@ def test_the_path_follows_the_root_it_is_asked_under(monkeypatch, tmp_path):
     assert str(tmp_path / "two") in str(second)
 
 
-def test_save_and_load_ask_for_it_each_time():
-    source = inspect.getsource(world_model)
-    assert "_model_path().exists()" in source
-    assert "np.load(str(_model_path()))" in source
-    assert "gateway.write_bytes(_model_path()," in source
+def test_save_and_load_ask_for_it_each_time(monkeypatch, tmp_path):
+    """A model saved under one root and then another is written under each, and loads from the one it is under."""
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / "one"))
+    model = world_model.LearnedWorldModel()
+    model._step_count = 7
+    assert model.save()
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / "two"))
+    model._step_count = 9
+    assert model.save()
+    assert world_model._model_path().exists() and str(tmp_path / "two") in str(world_model._model_path())
+    for root, steps in (("one", 7), ("two", 9)):
+        monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / root))
+        again = world_model.LearnedWorldModel()
+        again._load()
+        assert again._step_count == steps, root
 
 
 if __name__ == "__main__":  # pragma: no cover
