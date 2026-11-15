@@ -195,7 +195,11 @@ def test_determine_caller_is_filesystem_free(monkeypatch):
     def _boom(*a, **k):
         raise AssertionError("filesystem touched during caller determination")
 
-    monkeypatch.setattr(container_mod.Path, "resolve", _boom)
-    monkeypatch.setattr(container_mod.Path, "stat", _boom, raising=False)
-    caller = container_mod._determine_caller()
+    # Only across the call it guards: patched for the whole test, Path.stat
+    # stayed broken through the suite's own teardown, which stats a file
+    # (core/brain/llm/thinking_reserve.reset_for_test), and the test erred there.
+    with monkeypatch.context() as patched:
+        patched.setattr(container_mod.Path, "resolve", _boom)
+        patched.setattr(container_mod.Path, "stat", _boom, raising=False)
+        caller = container_mod._determine_caller()
     assert isinstance(caller, str) and caller
