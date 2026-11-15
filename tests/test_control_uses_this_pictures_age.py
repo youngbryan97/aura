@@ -126,8 +126,14 @@ async def test_a_second_input_cannot_supply_a_single_transition_delay():
 async def test_timed_presses_measure_delivery_without_counting_the_hold(monkeypatch, key):
     from unittest.mock import Mock
 
+    import sys
+
     clock = SimpleNamespace(at=10.)
-    monkeypatch.setattr(play, "time", SimpleNamespace(monotonic=lambda: clock.at))
+    # The press is timed by the clock of the module that holds it, which since 11f59aa32b is not this one: patched
+    # here alone, the delivery was read off the real clock and came to a microsecond.
+    pressing = sys.modules[play._press_in_time.__module__]
+    for module in {play, pressing}:
+        monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: clock.at))
     timing = Mock()
     timing.press_now.return_value = True
     run = play._Run(keys=[key] if key else [], began=9., timing=timing)
