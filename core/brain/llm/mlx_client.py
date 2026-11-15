@@ -5515,7 +5515,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 return False
 
             unregister_model_lane_owner_adapter(owner_id)
-            self._model_lane_fencing_token = 0
+            self._model_lane_fencing_token, self._model_lane_owner_id = 0, ""  # the id goes with its token
             self._model_lane_terminal_receipt_id = ""
             self._clear_lane_release_failure()
             return True

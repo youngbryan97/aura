@@ -84,19 +84,51 @@ def test_the_owner_id_still_names_the_model_and_the_process():
     assert "aura-32b" in owner_id
 
 
-def test_reboot_bumps_the_generation():
-    import inspect
+def _a_client_holding_token(monkeypatch, token, *, released):
+    """A real client whose committed owner holds ``token``, and a controller that answers ``released``."""
+    client = mlx_client.MLXLocalClient(model_path="/models/Ternary-Bonsai-2-27B-mlx-2bit")
+    committed = mlx_client._model_lane_owner_id(client)
+    client._model_lane_fencing_token = token
+    asked: list[tuple[str, int, str, str]] = []
 
-    source = inspect.getsource(mlx_client.MLXLocalClient.reboot_worker)
-    code = "\n".join(
-        line
-        for line in source.splitlines()
-        if not line.strip().startswith("#")
-    )
-    body = code.split('"""')[2] if code.count('"""') >= 2 else code
+    class _Controller:
+        def release_owner_sync(self, owner_id, *, fencing_token, reason):
+            # What any lane observation would name while the release is under way.
+            asked.append((owner_id, fencing_token, reason, mlx_client._model_lane_owner_id(client)))
+            return released
 
-    assert "_worker_generation" in body
-    assert 'self._model_lane_owner_id = ""' in body
+    monkeypatch.setattr("core.runtime.model_lane_control.get_model_lane_controller", lambda: _Controller())
+    monkeypatch.setattr("core.runtime.model_lane_control.unregister_model_lane_owner_adapter", lambda _owner: None)
+    return client, committed, asked
+
+
+def test_a_reboot_releases_the_owner_its_token_was_committed_under(monkeypatch):
+    """LIVE 15 November 2026: "durable_owner_release_not_confirmed:mlx:...:2:...:token=29550" on a recycle of her
+    cortex. The reboot cleared the id before the release, an observation named a generation-2 owner, and the
+    release of generation 1's token under that name was refused."""
+    import asyncio
+
+    client, committed, asked = _a_client_holding_token(monkeypatch, 29550, released=True)
+
+    asyncio.run(client.reboot_worker(reason="scheduled_fragmentation_recycle", mark_failed=False))
+
+    assert asked, "the release reached the controller"
+    owner_id, token, reason, named_meanwhile = asked[0]
+    assert (owner_id, token, reason) == (committed, 29550, "scheduled_fragmentation_recycle")
+    assert named_meanwhile == committed, "an observation during the release names the owner that holds the token"
+    after = mlx_client._model_lane_owner_id(client)
+    assert after != committed and f":{client._worker_generation}:" in after, "released, the next owner is a new one"
+
+
+def test_a_refused_release_keeps_the_id_with_its_token(monkeypatch):
+    import asyncio
+
+    client, committed, _asked = _a_client_holding_token(monkeypatch, 29550, released=False)
+
+    asyncio.run(client.reboot_worker(reason="scheduled_fragmentation_recycle", mark_failed=False))
+
+    assert mlx_client._model_lane_owner_id(client) == committed
+    assert client._model_lane_fencing_token == 29550, "the next release asks for the same owner and token"
 
 
 # --- the registry view is consistent (bec28d76) -------------------------

@@ -1410,6 +1410,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   pytest in another worktree as an orphan of hers, because its arguments
   named tests/test_mlx_worker_*.py; the reaper reads the program a process
   runs now (71f459264).
+  15 November. Her cortisol crossed the crisis line at 10:50 and 17:42 UTC and
+  blocked her initiative, expression and exploration 260 times in the day. Her
+  CPU threat was never above 0.22 in those minutes; the weight was three critical
+  degradations from one recycle of her cortex: "durable_owner_release_not_
+  confirmed" twice, then "model_lane_fence_lost" and the worker stopped. A
+  reboot cleared the lane-owner id before releasing the owner. A lane
+  observation in between named a generation-2 owner, the controller recorded
+  it at token 0, and the release of generation 1's token under that name was
+  refused as a conflict. With no observation in between, the release was
+  never sent at all, and the controller's owner waited to be reaped as dead.
+  The id now stays with its token until the release is confirmed. The
+  immune monitor's "resource strain: cpu at 100%" (17 flags in two days) was
+  an unread figure the psutil shim reports as 100 (9d6d6982c).
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,

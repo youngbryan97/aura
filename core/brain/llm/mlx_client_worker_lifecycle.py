@@ -1545,10 +1545,9 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         )
 
         self._set_lane_state("recovering", reason)
-        # A new generation begins here, so the next owner id cannot be confused
-        # with the one being torn down.
+        # A new generation begins here. The id in hand stays until its owner is released, since its token was committed
+        # under it (tests/test_mlx_lane_identity_and_observation.py, a reboot's release).
         self._worker_generation = int(getattr(self, "_worker_generation", 0) or 0) + 1
-        self._model_lane_owner_id = ""
         acquired = await asyncio.to_thread(self._lock.acquire, True, 10.0)
         if not acquired:
             # Escalate the wait before considering anything unsynchronized.
