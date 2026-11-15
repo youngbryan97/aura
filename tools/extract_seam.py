@@ -253,7 +253,7 @@ def _guaranteed_at_call_site(
     return names
 
 
-def _held_by_the_enclosing_scope(tree: ast.AST, fn: ast.AST, tools: Any) -> set[str]:
+def _held_by_the_enclosing_scope(tree: ast.AST, fn: ast.FunctionDef | ast.AsyncFunctionDef, tools: Any) -> set[str]:
     """Names a nested target reads from the function around it that certainly hold a value.
 
     Cutting from a nested function by naming it as the target judged its
@@ -266,7 +266,7 @@ def _held_by_the_enclosing_scope(tree: ast.AST, fn: ast.AST, tools: Any) -> set[
     which is the mistake the refusal for blocks inside nested functions exists
     for. Only the innermost enclosing function is read.
     """
-    enclosing = None
+    enclosing: ast.FunctionDef | ast.AsyncFunctionDef | None = None
     for node in ast.walk(tree):
         if node is fn or not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -275,7 +275,7 @@ def _held_by_the_enclosing_scope(tree: ast.AST, fn: ast.AST, tools: Any) -> set[
                 enclosing = node
     if enclosing is None:
         return set()
-    held = _guaranteed_at_call_site(enclosing, fn.lineno, fn.end_lineno, tools)
+    held = _guaranteed_at_call_site(enclosing, fn.lineno, fn.end_lineno or fn.lineno, tools)
 
     declared: set[str] = set()
     local: set[str] = set()

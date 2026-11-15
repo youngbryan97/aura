@@ -129,7 +129,8 @@ class RelationalConsentGrant:
 
 
 
-def _refuse(grants: dict, agent_id: str, kinds, operations, receipt_id: str, now: float) -> None:
+def _refuse(grants: dict[str, RelationalConsentGrant], agent_id: str, kinds: Iterable[str], operations: Iterable[str],
+            receipt_id: str, now: float) -> None:
     """Keep a person's refusal as a record of its own, after everything they said before it (call under the lock)."""
     refusal_id = f"refusal-{agent_id}-{len(grants)}-{int(now * 1000)}"
     grants[refusal_id] = RelationalConsentGrant(
