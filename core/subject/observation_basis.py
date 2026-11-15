@@ -8,9 +8,12 @@ and intervention obligation; fitting A from a desired verdict would not meet it.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import numpy as np
+
+from core.verify.invariants import Violation, invariant
 
 
 def _row_basis(matrix: np.ndarray, tolerance: float) -> np.ndarray:
@@ -75,3 +78,21 @@ def declared_read_canary() -> bool:
     return bool(basis.reconstruction_error < 1e-12 and np.allclose(
         basis.reconstruct_reads(basis.observe(states)), states @ readers.T, atol=1e-12, rtol=0.,
     ))
+
+
+# Registered by the instrument itself, so it is checked when the battery runs. Her runtime's verifier carried it
+# until 14 November 2026, and with it an import of the battery into the measured tree
+# (tests/test_the_organism_cannot_see_the_instrument.py).
+@invariant(
+    "subject.declared_linear_reads_are_preserved",
+    scope="measurement",
+    owner="core/subject/observation_basis.py",
+    description="the observation-basis canary reconstructs its declared transition reads",
+)
+def _declared_linear_reads() -> Iterator[Violation]:
+    if not declared_read_canary():
+        yield Violation(
+            subject="declared observation basis",
+            message="the synthetic read certificate failed to reconstruct its declared reads",
+            remedy="repair the observation basis before using it in a new recording",
+        )

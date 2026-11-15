@@ -85,7 +85,7 @@ def test_a_passive_outside_copy_looks_informative_only_because_the_sketch_lost_s
 
 def test_the_registered_invariant_detects_a_broken_read_canary(monkeypatch):
     from core.subject import observation_basis
-    from core.verify.runtime_invariants import _declared_linear_reads
+    from core.subject.observation_basis import _declared_linear_reads
 
     assert observation_basis.declared_read_canary()
     assert not list(_declared_linear_reads())

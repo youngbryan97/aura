@@ -88,6 +88,8 @@ include_rules = [
     # that imports nothing from the organism, so this edge carries no state
     # back into what is measured.
     "+core.verify.epistemic_independence",
+    # Its own canary's invariant, registered where the instrument is loaded rather than in her runtime's verifier.
+    "+core.verify.invariants",
     # Read, never written: the tiredness and good news Bryan's answers name,
     # kept beside a campaign's recording. See core/subject/named_readings.py.
     "+core.soma.fatigue",
