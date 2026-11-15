@@ -3868,6 +3868,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   that introduced it, "the system deferred it because you were in the
   loop", true, was cut from her reply by the shared-history check, which
   left "that guardrail" pointing at nothing (561e83777).
+  At 11:10 the same question, on a build with recent receipts, was answered
+  by the runtime's receipts listing in place of her reply. That listing was
+  meant for a generation that wrote nothing, and is now only that
+  (cc95ebe73); concurrent first checks of a learned surface had also
+  abstained, which cut her true sentences (0d7e989a4). At 11:28 on
+  cc95ebe73, 32.1 s: "Glad to hear you slept okay", what she had done told
+  in her words from her receipts (the r/philosophy thread, the routine
+  mail), and a question back.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched
