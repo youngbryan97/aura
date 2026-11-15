@@ -35,6 +35,10 @@ __all__ = [
 ]
 
 
+#: A lane result that gave her turn what it found or what it came to: the reply is hers, and a later door serves nothing.
+_HANDED_TO_HER_TURN = frozenset({"desktop_objective_page_read", "desktop_objective_failure_read"})
+
+
 async def _lifted_run_desktop_objective_tracked(
     message: str, *, cognitive_reply: str,
     her_reply_first: bool = False,
@@ -73,7 +77,7 @@ async def _lifted_run_desktop_objective_tracked(
         # Except a run that handed her turn the page it ended on: that run's part is done and the reply is hers, so a
         # later door is given nothing to serve. LIVE 12 November 2026 her model answered from the page, 217 tokens,
         # and the door after her reply served the first run's empty response over it.
-        return None if first.get("status") == "desktop_objective_page_read" else first
+        return None if first.get("status") in _HANDED_TO_HER_TURN else first
     _desktop_exec_state["attempted"] = True
     executed = await _chat_desktop_objective._execute_desktop_objective_from_chat(
         message, cognitive_reply=cognitive_reply, her_reply_first=her_reply_first
@@ -82,7 +86,7 @@ async def _lifted_run_desktop_objective_tracked(
         _desktop_exec_state["executed"] = executed
         _desktop_exec_state["result"] = executed.get("result")
         clock = _desktop_exec_state.get("answer_clock")
-        if executed.get("status") == "desktop_objective_page_read" and isinstance(clock, dict):
+        if executed.get("status") in _HANDED_TO_HER_TURN and isinstance(clock, dict):
             # The page is beside her turn now: her answer to it has its own time, from here.
             clock["from"] = time.monotonic()
         try:

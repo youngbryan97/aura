@@ -334,6 +334,9 @@ async def _execute_desktop_objective_from_chat(
     if _the_page_goes_to_her_turn(result, objective):
         # No reply from here: the turn goes on into her cognition, with the page beside it.
         return {"ok": True, "status": "desktop_objective_page_read", "response": "", "result": result}
+    if not her_reply_first and _what_it_came_to_goes_to_her_turn(result, objective):
+        # The same for a step that did not complete: what it came to is beside her turn, and the answer is hers.
+        return {"ok": False, "status": "desktop_objective_failure_read", "response": "", "result": result}
     status = "desktop_objective_completed" if result.get("ok") else "desktop_objective_failed"
     completed = int(result.get("steps_completed") or 0)
     requested = int(result.get("steps_requested") or 0)
@@ -754,6 +757,34 @@ def _the_page_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
     record_turn_grounding(rendered)
     record_turn_world_source(source)
     logger.info("🌐 The page she ended on (%s, %d chars) goes to her turn to answer from.", url, len(text))
+    return True
+
+
+def _what_it_came_to_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
+    """When a step for a question did not complete, what it came to goes beside her turn as a reading; whether it went.
+
+    LIVE 14 November 2026: asked "What is on my screen right now?" with a private window up, her screen read was
+    refused, and the person was given this lane's sentence, "This did not complete: read screen text failed: ... I am
+    not claiming it was done." A question is hers to answer, as it is when a step succeeds (an answer is not an effect
+    receipt, above); what the step came to is what she answers from. Her own account of a pursuit keeps its place, and
+    so does a part of the answer the step did produce.
+    """
+    if result.get("ok") or not _asks_for_information(objective):
+        return False
+    if str(result.get("concluded") or "").strip() or _desktop_deliverable_text(result):
+        return False
+    from core.conversation.turn_evidence_custody import record_turn_grounding
+
+    error = _in_words(str(result.get("error") or result.get("status") or "it failed").strip())
+    completed, requested = int(result.get("steps_completed") or 0), int(result.get("steps_requested") or 0)
+    reading = (
+        "[WHAT THE DESKTOP STEP FOR THIS QUESTION CAME TO]\n"
+        f"It did not complete: {error}. {completed} of {requested} step(s) completed; nothing it did is claimed.\n"
+        "[END WHAT THE DESKTOP STEP CAME TO]"
+    )
+    if not record_turn_grounding(reading):
+        return False
+    logger.info("🖥️ What the desktop step came to goes to her turn to answer from: %s", error[:120])
     return True
 
 
