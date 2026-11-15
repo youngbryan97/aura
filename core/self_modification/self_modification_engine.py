@@ -938,12 +938,22 @@ class AutonomousSelfModificationEngine:
             logger.info("AUTONOMOUS SELF-MODIFICATION CYCLE")
             logger.info("=" * 80)
 
+            # Step 0: a fault her own running raised, made again in a workspace of hers and mended by her own loop
+            # (Master Todo F15, core/agency/mending_a_fault_of_hers.py). One a cycle; this cycle runs when she is idle.
+            from core.agency.mending_a_fault_of_hers import mend_the_faults_she_heard
+
+            mended = await mend_the_faults_she_heard()
+            for outcome in mended:
+                logger.info("🩹 Her own loop on %s: %s (%s)", outcome.get("slug"), outcome.get("status"),
+                            outcome.get("why") or outcome.get("commit") or "")
+            taken = sum(1 for outcome in mended if outcome.get("status") == "merged")
+
             # Step 1: Find bugs
             bugs = await self.diagnose_current_bugs()
 
             if not bugs:
                 logger.info("No bugs detected - system healthy (idle)")
-                return {"success": True, "bugs_found": 0, "fixes_applied": 0}
+                return {"success": True, "bugs_found": 0, "fixes_applied": taken, "faults_mended": mended}
 
             logger.info("Found %d fixable bugs", len(bugs))
 
@@ -1264,12 +1274,16 @@ class AutonomousSelfModificationEngine:
         self.monitoring_enabled = True
         try:
             try:
-                asyncio.get_running_loop()
+                loop = asyncio.get_running_loop()
             except RuntimeError:
                 logger.error("Failed to start monitoring: No asyncio loop available.")
                 self.monitoring_enabled = False
                 return
 
+            # A fault of her own running heard for the first time wakes this cycle, from whatever thread heard it.
+            from core.self_modification.faults_she_can_reproduce import when_a_fault_is_first_heard
+
+            when_a_fault_is_first_heard(lambda: loop.call_soon_threadsafe(self._repair_event.set))
             self.monitor_thread = get_task_tracker().create_task(
                 self._monitoring_loop(), name="SelfModificationMonitor"
             )
