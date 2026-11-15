@@ -119,13 +119,20 @@ def test_a_substrate_that_is_not_there_is_not_an_error(
     IdentityReflectionPhase._hold_together_reaches_the_substrate(_State(1.0))
 
 
-def test_the_phase_pushes_before_every_early_return() -> None:
-    """What she is does not depend on whether her narrative was revised."""
-    import inspect
+def test_the_phase_pushes_before_every_early_return(monkeypatch) -> None:
+    """What she is does not depend on whether her narrative was revised: the identity guard's hard stop still pushes."""
+    import asyncio
 
-    source = inspect.getsource(IdentityReflectionPhase.execute)
-    pushed = source.index("_hold_together_reaches_the_substrate(state)")
-    assert pushed < source.index("return state")
+    from core.state.aura_state import AuraState
+
+    pushed: list[object] = []
+    monkeypatch.setattr(IdentityReflectionPhase, "_hold_together_reaches_the_substrate",
+                        staticmethod(lambda state: pushed.append(state)))
+    state = AuraState.default()
+    state.identity.name = "Somebody Else"
+    returned = asyncio.run(IdentityReflectionPhase.__new__(IdentityReflectionPhase).execute(state))
+    assert returned is state and state.identity.name == "Aura"
+    assert pushed == [state]
 
 
 def test_only_this_phase_marks_a_dominance_mutation() -> None:

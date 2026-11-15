@@ -129,11 +129,18 @@ def test_every_domain_is_summarised_from_her_state() -> None:
     assert set(readings) == set(DOMAINS)
 
 
-def test_the_last_phase_drives_it() -> None:
-    import inspect
+def test_the_last_phase_drives_it(monkeypatch) -> None:
+    """A pass of the consciousness phase, with none of her services up, still puts every domain into the block."""
+    import asyncio
 
+    from core.phases import consciousness_phase
     from core.phases.consciousness_phase import ConsciousnessPhase
+    from core.state.aura_state import AuraState
 
-    executed = inspect.getsource(ConsciousnessPhase.execute)
-    assert "_every_domain_into_the_shared_block(new_state)" in executed
-    assert executed.index("_every_domain_into_the_shared_block") < executed.rindex("return new_state")
+    driven: list[object] = []
+    monkeypatch.setattr(consciousness_phase, "get_consciousness_integration", lambda: None)
+    monkeypatch.setattr(consciousness_phase, "get_runtime_service", lambda name, default=None: default)
+    monkeypatch.setattr(ConsciousnessPhase, "_every_domain_into_the_shared_block",
+                        classmethod(lambda cls, state: driven.append(state)))
+    returned = asyncio.run(ConsciousnessPhase.__new__(ConsciousnessPhase).execute(AuraState.default()))
+    assert driven == [returned]
