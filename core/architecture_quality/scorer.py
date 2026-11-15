@@ -552,7 +552,9 @@ def _module_exports(tree: ast.Module) -> tuple[set[str], bool]:
         elif isinstance(node, ast.ImportFrom):
             exports.update(alias.asname or alias.name for alias in node.names if alias.name != "*")
         elif isinstance(node, (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith)):
-            pending.extend(reversed((*node.body, *node.orelse)))
+            # A `with` has a body and no `else`: reading its orelse raised AttributeError, and her architecture gate,
+            # which every fix she applies passes through, failed on any module with one at its top level.
+            pending.extend(reversed((*node.body, *getattr(node, "orelse", ()))))
         elif isinstance(node, ast.Try):
             handler_bodies = tuple(item for handler in node.handlers for item in handler.body)
             pending.extend(reversed((*node.body, *handler_bodies, *node.orelse, *node.finalbody)))

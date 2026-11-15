@@ -796,3 +796,15 @@ def test_report_normalizes_mutable_sequence_inputs(tmp_path: Path):
     assert normalized.include_roots == ("core",)
     assert normalized.cycles == (("core.a", "core.b"),)
     assert isinstance(normalized.findings, tuple)
+
+
+def test_a_module_with_a_with_block_at_its_top_level_is_read_for_its_exports():
+    """A `with` has no else; reading one raised AttributeError and failed every fix of hers that met it (14 Nov 2026,
+    test_fix_persistence on main)."""
+    import ast
+
+    from core.architecture_quality.scorer import _module_exports
+
+    tree = ast.parse("import contextlib\nwith contextlib.suppress(ImportError):\n    import fast_json as json\n")
+    exports, _dynamic = _module_exports(tree)
+    assert {"contextlib", "json"} <= exports
