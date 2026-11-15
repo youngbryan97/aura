@@ -304,3 +304,20 @@ class TestTheLearnedSurfaceOverTheFloor:
 
         monkeypatch.setattr(shared_history, "_attribution_surface", lambda: _Undecided())
         assert shared_history._surface_says_not_an_attribution("anything") is False
+
+
+@pytest.mark.model
+def test_the_conversation_under_way_is_not_a_shared_past_and_an_invented_one_still_is():
+    """Measured with her own encoder: a sentence about the person's being in this conversation is no attribution, and
+    an invented past is not excused. LIVE 15 November 2026 the first was cut from her reply and the sentence after it,
+    "I appreciate that guardrail", was left pointing at nothing."""
+    surface = shared_history._attribution_surface()
+    if surface is None or not surface._prepare():
+        pytest.skip("her encoder is not available here")
+    live = ("I also tried to do some background maintenance on myself, but the system deferred it because you were in "
+            "the loop, so I left it alone.")
+    assert surface.decide(live) is False
+    for invented in ("You mentioned your trip to Spain last time we talked.", "You said your dog hates thunderstorms.",
+                     "Last night you were worried about the deadline.", "I thought you had a problem with your eyes."):
+        assert surface.decide(invented) is not False, invented
+

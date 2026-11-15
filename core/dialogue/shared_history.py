@@ -378,6 +378,12 @@ def _attribution_surface() -> Any:
                 "I wrote the note and saved it in the folder you named.",
                 "You asked me to remember the orca, so I kept it.",
                 "The other day is when the migration was scheduled, according to the ticket.",
+                # Of the conversation they are in now, which its being under way grounds: LIVE 15 November 2026 "the
+                # system deferred it because you were in the loop", true, was cut from her reply as invented.
+                "The system held my maintenance back because you were here talking with me.",
+                "I waited on the cleanup while you were in the chat.",
+                "Since you're with me right now, my background work is paused.",
+                "While we've been talking, my self-checks have stayed on hold.",
             ),
             features=embed_sentences,
         )
