@@ -3876,6 +3876,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   cc95ebe73, 32.1 s: "Glad to hear you slept okay", what she had done told
   in her words from her receipts (the r/philosophy thread, the routine
   mail), and a question back.
+  12:18, "Pick a number between 1 and 10. Answer with only the number.":
+  "7" (40.8 s). Then "What did I tell you about how I slept?" came back in
+  17.6 s as the runtime's sentence, 'Your last completed message before
+  this was: "Pick a number ..."': the wrong message, not in her voice.
+  The conversation-recall responder (chat_memory_state.
+  _build_conversation_recall_reply, consulted at twelve sites in chat.py,
+  some of which replace her reply when it judges hers inadequate) read
+  "what did i tell you" off a list of last-message markers, whatever
+  subject followed. Not patched by another marker, which would be the
+  exception-per-failure this item has been asked to stop. The fix in
+  keeping with 13 November: what the transcript holds for the question
+  goes to her turn as a reading (record_turn_grounding, as the desktop
+  step's failure does, 04c1889a8), and she answers. That is a change to
+  twelve sites on the chat route and is left for a decision.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched
