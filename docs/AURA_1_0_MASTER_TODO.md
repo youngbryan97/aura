@@ -5866,6 +5866,12 @@ needs her 27B free (her app down, or her app's own influence trials).
   identity lock twice (fixed after) and one source instruction (fixed after). Left, all background and not her words
   to a person: the curriculum loop's identity lock (17 dispatches, 142,768 characters in that window, on her brainstem,
   which does not carry her persona), her browser's, the reimplementation lab's code generator, her waking sequence.
+  15 November. Her host monitor (core/fictional/jarvis.py) wrote five sentences in code and sent them as hers, a
+  label in front: at 16:11, "[Proactive/JARVIS] CPU usage is at 100% — something is running hot. Want me to check
+  what's consuming resources?", with the figure unread (fixed in 9d6d6982c). Its CPU, memory, disk, open-thread and
+  pending-goal lines are readings now, given to her cortex beside her recent conversation by the path her screen
+  remark takes (core/brain/her_unprompted_turn.py); the sentence, if one forms, is hers, and none is sent when none
+  forms. A host condition that clears is re-armed, which its guard promised and nothing called.
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the

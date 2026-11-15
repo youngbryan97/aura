@@ -265,6 +265,13 @@ class ProactiveAnticipationEngine:
             return False
         return True
 
+    #: The lines past which the host is worth her attention: a name, the figure read, and the line in percent.
+    _HOST_LINES = (("cpu", "cpu_percent", 90.0), ("memory", "memory_percent", 85.0), ("disk", "disk_percent", 90.0))
+
+    #: The least time her turn on a reading may take; a longer prompt gets what it needs on this machine. The bound
+    #: her remark on the screen holds to (core/perception/ambient_utterance.py).
+    COMPOSE_LEAST_S = 25.0
+
     #: How much a continuing condition must move before it is worth saying again.
     #:
     #: Percentage points, because every condition guarded this way is measured
@@ -314,13 +321,20 @@ class ProactiveAnticipationEngine:
 
     async def _fire_initiation(
         self,
-        content: str,
+        reading: str,
         priority: str = "low",
         *,
+        heading: str = "WHAT SHE NOTICED",
         condition: str = "",
         value: float | None = None,
     ) -> bool:
-        """Fire a proactive initiation, and spend the budget only if it lands.
+        """Hand her what was noticed, and spend the budget only if words of hers reach the person.
+
+        It sent its own sentences as hers, with a label in front. LIVE 15 November 2026, 16:11, in her conversation:
+        "[Proactive/JARVIS] CPU usage is at 100% — something is running hot. Want me to check what's consuming
+        resources?" (F06, canned answers out). What was noticed is a reading now, under ``heading``, beside her recent
+        conversation on her cortex (core/brain/her_unprompted_turn.py); the sentence, if any, is hers, and her Will
+        decides after. When nothing of hers forms, nothing is said.
 
         The daily cap and the interval clock used to advance the moment the
         attempt began. A dropped emit, a missing output path or a raised
@@ -338,7 +352,7 @@ class ProactiveAnticipationEngine:
         if not self._reserve_initiation():
             return False
 
-        logger.info("🔭 JARVIS initiation: %s...", content[:60])
+        logger.info("🔭 JARVIS noticed: %s", " ".join(reading.split())[:80])
 
         delivered = False
         try:
@@ -349,7 +363,7 @@ class ProactiveAnticipationEngine:
             bus = ServiceContainer.get("mycelium", default=None)
             if bus:
                 await bus.emit("aura.proactive.initiation", {
-                    "content": content,
+                    "content": f"{heading}: {reading}",
                     "priority": priority,
                     "source": "jarvis_anticipation",
                     "timestamp": time.time(),
@@ -357,14 +371,17 @@ class ProactiveAnticipationEngine:
 
             orch = self.orchestrator or resolve_orchestrator()
             if orch is not None and hasattr(orch, "emit_spontaneous_message"):
-                await orch.emit_spontaneous_message(
-                    f"[Proactive/JARVIS] {content}",
-                    origin="jarvis",
-                )
-                delivered = True
+                from core.brain.her_unprompted_turn import her_turn_on
+
+                said = await her_turn_on(heading, reading, origin="jarvis", least_s=self.COMPOSE_LEAST_S)
+                if said:
+                    await orch.emit_spontaneous_message(said, origin="jarvis")
+                    delivered = True
+                else:
+                    logger.info("🔭 JARVIS: nothing of hers formed on %s", heading.lower())
             elif orch is not None and getattr(orch, "reasoning_queue", None):
                 orch.reasoning_queue.put_nowait({
-                    "text": content,
+                    "text": f"## {heading}\n{reading}",
                     "is_proactive": True,
                     "priority": priority,
                     "source": "jarvis",
@@ -373,7 +390,7 @@ class ProactiveAnticipationEngine:
             else:
                 logger.warning(
                     "🔭 JARVIS: No output path (reply/reasoning queue) for initiation: %s",
-                    content,
+                    heading,
                 )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, asyncio.QueueFull) as e:
             record_fictional_degradation(
@@ -411,34 +428,19 @@ class ProactiveAnticipationEngine:
             self._system_baseline = state
             return
 
-        # CPU spike, on a reading: an unread figure is no spike.
-        if (state.get("cpu_percent") or 0) > 90:
-            await self._fire_initiation(
-                f"CPU usage is at {state['cpu_percent']:.0f}% — something is running hot. "
-                f"Want me to check what's consuming resources?",
-                priority="medium",
-                condition="cpu_pressure",
-                value=float(state.get("cpu_percent", 0) or 0),
-            )
-
-        # Memory pressure
-        if state.get("memory_percent", 0) > 85:
-            await self._fire_initiation(
-                f"Memory is at {state['memory_percent']:.0f}% — we're getting tight. "
-                f"I can help identify what's using it.",
-                priority="medium",
-                condition="memory_pressure",
-                value=float(state.get("memory_percent", 0) or 0),
-            )
-
-        # Disk near full
-        if state.get("disk_percent", 0) > 90:
-            await self._fire_initiation(
-                f"Disk is {state['disk_percent']:.0f}% full. Worth cleaning up before it causes problems.",
-                priority="high",
-                condition="disk_pressure",
-                value=float(state.get("disk_percent", 0) or 0),
-            )
+        # The lines the host is past, raised as one reading and once while they hold. An unread figure is past none.
+        crossed = {name: float(state[field]) for name, field, line in self._HOST_LINES if (state.get(field) or 0) > line}
+        if not crossed:
+            # The condition no longer holds, so the next time it does is news. Nothing called this before, so a
+            # condition that cleared stayed said until its figure moved 5 points.
+            with self._lock:
+                said = [name for name in self._condition_last_value if name.startswith("host:")]
+            for name in said:
+                self.note_condition_cleared(name)
+            return
+        await self._fire_initiation(
+            _the_host_as_read(state), priority="high" if "disk" in crossed else "medium", heading="THE HOST, READ NOW",
+            condition="host:" + "+".join(sorted(crossed)), value=max(crossed.values()))
 
     async def _check_unresolved_topics(self):
         """Remind user of things they said they'd return to.
@@ -463,31 +465,25 @@ class ProactiveAnticipationEngine:
                     break
         if claimed is None:
             return
-        await self._fire_initiation(self._reminder_text(claimed), priority="low")
+        await self._fire_initiation(self._the_thread_as_read(claimed, now), priority="low", heading="A THREAD LEFT OPEN")
         with self._lock:
             self._prune_unresolved_topics(time.time())
 
     @staticmethod
-    def _reminder_text(topic: dict[str, Any]) -> str:
-        """Word the reminder for whoever actually left the thread open.
+    def _the_thread_as_read(topic: dict[str, Any], now: float) -> str:
+        """Whose thread it was, what was said, how long ago, and what that rests on.
 
-        One sentence for all three authors put Aura's own unfinished
-        sentence in the user's mouth, and asserted a commitment nobody
-        made. Each version says what it rests on.
+        One sentence for all three authors put Aura's own unfinished sentence in the user's mouth, and asserted a
+        commitment nobody made. The reading says which of the three it is, and an inference says it is one.
         """
         excerpt = str(topic.get("topic", ""))[:80]
         author = str(topic.get("author", "user"))
-        if author == "aura":
-            return (
-                f"I said I'd come back to something yesterday — \"{excerpt}\" — "
-                "and I haven't. Want me to pick it up?"
-            )
-        if author == "user_request":
-            return f"You asked me to remind you about this: \"{excerpt}\"."
-        return (
-            "From how you phrased it yesterday I took this as unfinished — "
-            f"\"{excerpt}\" — but I may have read it wrong. Worth picking up?"
-        )
+        hours = max(0.0, (now - float(topic.get("timestamp", now) or now)) / 3600.0)
+        whose = {
+            "aura": "her own words, a thread she said she would come back to",
+            "user_request": "the person's words, asking to be reminded",
+        }.get(author, "the person's words, taken as unfinished from how they were phrased; an inference, not a request")
+        return f'"{excerpt}"\n{whose}\n{hours:.0f} hours ago, and not taken up since'
 
     async def _check_pending_agency_goals(self):
         """Surface goals the agency engine has queued but not acted on."""
@@ -500,9 +496,8 @@ class ProactiveAnticipationEngine:
             pending = ctx.get("pending_goals", 0)
             if pending > 3:
                 await self._fire_initiation(
-                    f"I have {pending} goals I've been wanting to work on. "
-                    f"When you have a moment, I'd like to make some progress.",
-                    priority="low"
+                    f"{pending} of her goals queued and not yet acted on", priority="low",
+                    heading="HER GOALS NOT YET WORKED ON",
                 )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             record_fictional_degradation(
@@ -545,6 +540,17 @@ class ProactiveAnticipationEngine:
     def stop(self):
         self._running = False
 
+
+
+def _the_host_as_read(state: dict[str, float | None]) -> str:
+    """The machine she runs on as read this cycle: each figure that was read, and none that was not."""
+    figures = (
+        ("processor in use", state.get("cpu_percent"), "{:.0f}%"),
+        ("memory in use", state.get("memory_percent"), "{:.0f}%"),
+        ("memory available", state.get("memory_available_gb"), "{:.1f} GB"),
+        ("data volume in use", state.get("disk_percent"), "{:.0f}%"),
+    )
+    return "\n".join(f"{name}: {shown.format(float(value))}" for name, value, shown in figures if value is not None)
 
 
 def _a_cpu_reading() -> float | None:

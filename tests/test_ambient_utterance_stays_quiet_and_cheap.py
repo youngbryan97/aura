@@ -19,10 +19,10 @@ import inspect
 
 import pytest
 
+from core.brain.her_unprompted_turn import on_her_cortex
 from core.perception.ambient_utterance import (
     _COMPOSE_TIMEOUT_S,
     _compose,
-    _on_her_cortex,
     _worth_noticing,
     consider_utterance,
 )
@@ -123,10 +123,10 @@ def test_no_lease_means_no_generation_and_no_remark(monkeypatch):
 
 def test_composing_is_bounded(router):
     """It runs inside a loop. An unbounded call is a wedged loop."""
-    source = inspect.getsource(_on_her_cortex)
+    source = inspect.getsource(on_her_cortex)
 
     assert "wait_for" in source
-    assert "_COMPOSE_TIMEOUT_S" in source and "time_a_prompt_needs" in source
+    assert "least_s" in source and "time_a_prompt_needs" in source
     assert 0 < _COMPOSE_TIMEOUT_S <= 60
 
 

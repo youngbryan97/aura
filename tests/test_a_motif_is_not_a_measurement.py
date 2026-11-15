@@ -56,6 +56,15 @@ async def test_host_sampling_runs_off_the_event_loop():
 # ── d1252922: a failed delivery does not spend the budget ───────────────────
 
 
+def _her_words_form(monkeypatch):
+    """What was noticed reaches the person only as her own turn on it (F06)."""
+
+    async def her_turn_on(_heading, _reading, **_k):
+        return "Something of hers."
+
+    monkeypatch.setattr("core.brain.her_unprompted_turn.her_turn_on", her_turn_on)
+
+
 @pytest.mark.asyncio
 async def test_a_dropped_initiation_does_not_consume_a_daily_slot(monkeypatch):
     """Failed notifications were suppressing the ones that would land."""
@@ -88,6 +97,7 @@ async def test_a_delivered_initiation_does_consume_a_slot(monkeypatch):
     monkeypatch.setattr(
         ServiceContainer, "get", staticmethod(lambda *a, **k: None)
     )
+    _her_words_form(monkeypatch)
 
     assert await engine._fire_initiation("this one lands") is True
     assert engine._daily_initiation_count == 1
@@ -105,6 +115,7 @@ async def test_a_raising_output_path_gives_the_slot_back(monkeypatch):
     engine = ProactiveAnticipationEngine(orchestrator=_Orch())
     engine._last_user_activity = 0.0
     monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda *a, **k: None))
+    _her_words_form(monkeypatch)
 
     assert await engine._fire_initiation("this one raises") is False
     assert engine._daily_initiation_count == 0
@@ -138,14 +149,15 @@ def test_a_user_reminder_request_is_kept_apart_from_an_inference():
 
 def test_the_reminder_says_whose_thread_it_was():
     engine = ProactiveAnticipationEngine()
-    aura = engine._reminder_text({"topic": "the regional history", "author": "aura"})
-    user = engine._reminder_text({"topic": "call the bank", "author": "user_request"})
-    inferred = engine._reminder_text({"topic": "the tax thing", "author": "user"})
+    now = 1_000_000.0
+    aura = engine._the_thread_as_read({"topic": "the regional history", "author": "aura", "timestamp": now - 90_000}, now)
+    user = engine._the_thread_as_read({"topic": "call the bank", "author": "user_request", "timestamp": now}, now)
+    inferred = engine._the_thread_as_read({"topic": "the tax thing", "author": "user", "timestamp": now}, now)
 
-    assert "I said I'd" in aura
-    assert "You asked me to remind you" in user
+    assert "her own words" in aura and '"the regional history"' in aura and "25 hours ago" in aura
+    assert "asking to be reminded" in user and "her own" not in user
     # The inferred one must not assert that a promise was made.
-    assert "I may have read it wrong" in inferred
+    assert "an inference, not a request" in inferred
 
 
 def test_an_ordinary_turn_records_no_commitment():
