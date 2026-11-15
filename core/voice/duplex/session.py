@@ -22,7 +22,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import os
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
@@ -128,10 +127,10 @@ def _turn_quiescence_s() -> float:
     """How long a cut-off turn may take to end: her client waits AURA_MLX_SOFT_CANCEL_ACK_WAIT_S (12 s unless set)
     for her worker to acknowledge the cancel (mlx_client._soft_cancel_acknowledged), then cleans up. LIVE 11
     November 2026, a barge-in waited 3 s for that and closed her voice mode."""
-    try:
-        ack_s = float(os.environ.get("AURA_MLX_SOFT_CANCEL_ACK_WAIT_S") or 12.0)
-    except ValueError:
-        ack_s = 12.0
+    from core.runtime.flags import env_float
+
+    ack_s = env_float("AURA_MLX_SOFT_CANCEL_ACK_WAIT_S", default=12.0, owner="core/voice/duplex/session.py",
+                      description="Seconds her model client waits for a worker to acknowledge a soft cancel.")
     return min(120.0, max(0.5, ack_s)) + TASK_QUIESCENCE_TIMEOUT_S
 OVERLAP_PROBE_TIMEOUT_S = 1.0
 # A second burst this soon after one that was not yet heard as an acknowledgment is the person talking. LIVE 11

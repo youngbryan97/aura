@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # 30 September, when nine campaign switches added on 28-29 September (the
 # relay, the membrane, the pool, the estimator's workers and more) and the
 # workspace's five somatic-noise knobs were declared.
-RAW_ENV_READ_BUDGET = 567
+RAW_ENV_READ_BUDGET = 566
 
 # The flag layer, settings store, and state-root bootstrap are sanctioned readers.
 # model_lane_control's AURA_MODEL_LANE_* vars are parent->child process
@@ -40,7 +40,11 @@ RAW_ENV_READ_BUDGET = 567
 # state_ownership is also stdlib-only by contract: persisted settings cannot
 # be located until it has resolved the state root. Its declarations are still
 # exposed through flags.declared_flags()/flag_report().
+# her_replies_to_mail reads AURA_EMAIL_SENDS_WITHOUT_ASKING from the environment
+# alone on purpose: it is a permission Bryan gives, and a declared flag would
+# also take it from persisted runtime settings, which she can write.
 SANCTIONED = {
+    "core/skills/her_replies_to_mail.py",
     "core/runtime/flags.py",
     "core/runtime/runtime_settings.py",
     "core/runtime/state_ownership.py",
