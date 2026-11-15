@@ -59,6 +59,7 @@ def _finite_box(values: Any) -> tuple[float, float, float, float] | None:
         return None
     try:
         box = tuple(float(value) for value in values)
+    # not a failure: a box that is not numbers is none
     except (TypeError, ValueError, OverflowError):
         return None
     x, y, width, height = box

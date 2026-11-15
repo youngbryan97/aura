@@ -95,6 +95,7 @@ class WellSeen:
             if any(isinstance(n, bool) for n in kept):
                 return None
             left, top, wide, tall, columns, rows, red, green, blue = (float(n) for n in kept)
+        # not a failure: a record that is not nine numbers is no well
         except (TypeError, ValueError):
             return None
         if (not all(math.isfinite(n) for n in (left, top, wide, tall, columns, rows, red, green, blue))

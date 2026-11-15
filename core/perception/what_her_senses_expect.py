@@ -72,6 +72,7 @@ def glance_of(picture: bytes) -> Any | None:
         image = Image.open(io.BytesIO(picture))
         grey = np.asarray(image.convert("L").resize((32, 18)), dtype=np.float32).ravel() / 255.0
         colour = np.asarray(image.convert("RGB").resize((8, 4)), dtype=np.float32).ravel() / 255.0
+    # not a failure: bytes that are not a picture give none
     except (OSError, ValueError):
         return None
     return np.concatenate([grey, colour])

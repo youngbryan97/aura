@@ -97,6 +97,7 @@ def glance_beside(look: Callable[[], Awaitable[Any]], guide: Any, *, screen: str
         return False
     try:
         loop = asyncio.get_running_loop()
+    # not a failure: with no running loop there is nowhere to start it, and False says it was not started
     except RuntimeError:
         return False
     reading.glanced.append(screen[:80])

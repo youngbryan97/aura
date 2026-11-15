@@ -209,6 +209,7 @@ def _let_the_memory_go() -> None:
     try:
         memory.close()
         memory.unlink()
+    # not a failure: memory already closed or gone needs neither
     except (OSError, FileNotFoundError):
         pass
 
@@ -233,6 +234,7 @@ def _let_the_answers_go() -> None:
         try:
             memory.close()
             memory.unlink()
+        # not a failure: memory already closed or gone needs neither
         except (OSError, FileNotFoundError):
             pass
 
@@ -250,6 +252,7 @@ def stop_them() -> None:
     except (OSError, ValueError, subprocess.TimeoutExpired):
         try:
             child.kill()
+        # not a failure: a child already gone needs no kill
         except OSError:
             pass
     finally:

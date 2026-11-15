@@ -72,6 +72,7 @@ def place_from(answer: str) -> tuple[float, float] | None:
                 or any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in box)):
             return None
         x1, y1, x2, y2 = (float(v) for v in box)
+    # not a failure: a box that is not four numbers is none
     except (ValueError, TypeError, AttributeError):
         return None
     if not (all(math.isfinite(v) for v in (x1, y1, x2, y2))
@@ -175,6 +176,7 @@ class PlacesNamed:
         if (task is None or task.done()) and len(self._tasks) < MOST_LOOKS:
             try:
                 asyncio.get_running_loop()
+            # not a failure: with no running loop there is nowhere to start it
             except RuntimeError:
                 return None
             from core.cognition.guidance_lifetime import create_guidance_task

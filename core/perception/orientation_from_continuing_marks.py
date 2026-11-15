@@ -53,6 +53,7 @@ def _phase_of_pose(pose: PointPose) -> AngularPhase | None:
     try:
         starts = np.asarray([pose.anchors[n] for n in names], dtype=float)
         ends = np.asarray([pose.visible_marks[n] for n in names], dtype=float)
+    # not a failure: marks that are not points give no fit
     except (TypeError, ValueError):
         return None
     fitted = rigid_motion(starts, ends)

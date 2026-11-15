@@ -165,6 +165,7 @@ class TransferReceipt:
             return None
         try:
             state = PredicateState(value.get("state"))
+        # not a failure: a kept transfer whose state does not read is none
         except (TypeError, ValueError):
             return None
         effect = value.get("effect")
@@ -195,6 +196,7 @@ class TransferReceipt:
             return None
         try:
             appearance = base64.b64decode(encoded, validate=True)
+        # not a failure: a kept transfer whose appearance does not decode is none
         except (ValueError, binascii.Error):
             return None
         encoded_mask = value.get("appearance_mask", "")
@@ -202,6 +204,7 @@ class TransferReceipt:
             return None
         try:
             mask = base64.b64decode(encoded_mask, validate=True)
+        # not a failure: a kept transfer whose mask does not decode is none
         except (ValueError, binascii.Error):
             return None
         if mask and (not valid_mask(mask, PATCH_EDGE) or not appearance):
@@ -232,6 +235,7 @@ def _number(value: Any) -> float | None:
         return None
     try:
         number = float(value)
+    # not a failure: a value that is not a number is none
     except (TypeError, ValueError, OverflowError):
         return None
     return number if math.isfinite(number) else None

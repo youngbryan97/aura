@@ -126,6 +126,7 @@ def _geometry(page: Any, over: Any) -> tuple | None:
                 or width <= 0 or height <= 0 or not 0 <= left < right <= 1 or not 0 <= top < bottom <= 1):
             return None
         return width, height, left, top, right, bottom
+    # not a failure: a shape that is not numbers is none
     except (TypeError, ValueError, AttributeError):
         return None
 

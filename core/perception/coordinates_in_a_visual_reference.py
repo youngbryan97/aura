@@ -101,6 +101,7 @@ class SourceImageCoordinates:
                 and abs(np.linalg.det(linear)) >= 1e-8 and np.linalg.cond(linear) <= 100
                 and type(self.calibration_error) in (int, float) and math.isfinite(self.calibration_error)
                 and self.calibration_error >= 0)
+        # not a failure: a calibration that cannot be tested is not a valid one
         except (TypeError, ValueError, np.linalg.LinAlgError):
             valid = False
         if not valid:

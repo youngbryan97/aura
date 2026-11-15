@@ -42,7 +42,8 @@ def _reader() -> Any | None:
             return None
         try:
             from core.runtime import model_lane_control as lanes
-        except ImportError:
+        except ImportError as exc:
+            logger.warning("The reader is loaded without a lane lease: the lane controller could not be imported (%s).", exc)
             lanes = None
         if lanes is not None and "lease" not in _READER:
             # Held through the lane like every model this host loads, so the lane controller counts its memory and can

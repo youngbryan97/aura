@@ -18,6 +18,7 @@ def material_samples(appearance: ReferenceAppearance) -> tuple | None:
         starts = np.asarray(appearance.source_points, float)
         ends = np.asarray(appearance.observed_points, float)
         linear, offset = np.asarray(appearance.linear, float), np.asarray(appearance.offset, float)
+    # not a failure: an appearance that is not numbers gives no samples
     except (TypeError, ValueError):
         return None
     if (starts.shape != ends.shape or starts.ndim != 2 or starts.shape[1:] != (2,)

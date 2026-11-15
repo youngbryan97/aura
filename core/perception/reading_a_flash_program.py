@@ -165,6 +165,7 @@ def _un(s: str) -> str:
 def _count(s: str) -> int:
     try:
         return max(0, min(16, int(float(s))))
+    # not a failure: a value that is not a number reads as none
     except ValueError:
         return 0
 

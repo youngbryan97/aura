@@ -60,6 +60,7 @@ def rigid_motion(starts: np.ndarray, ends: np.ndarray, *, error: float = .75) ->
     """
     try:
         starts, ends = np.asarray(starts, dtype=float), np.asarray(ends, dtype=float)
+    # not a failure: points that are not numbers give no fit
     except (TypeError, ValueError):
         return None
     if (starts.shape != ends.shape or starts.ndim != 2 or starts.shape[1:] != (2,)

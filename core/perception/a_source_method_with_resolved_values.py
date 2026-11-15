@@ -84,6 +84,7 @@ class _ValueUnavailable(ValueError):
 def _finite_number(value: Any) -> bool:
     try:
         return type(value) in (int, float) and math.isfinite(value)
+    # not a failure: a value too large to test is not a bounded number
     except OverflowError:
         return False
 
@@ -106,6 +107,7 @@ def _primitive(expression: Arithmetic) -> bool:
 def _bounded(expression: Arithmetic) -> bool:
     try:
         return _expression_is_bounded(expression)
+    # not a failure: an expression too large to test is not a bounded one
     except OverflowError:
         return False
 

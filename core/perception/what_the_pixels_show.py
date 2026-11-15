@@ -1283,6 +1283,7 @@ def _in_one_place(one: dict[str, Any], other: dict[str, Any]) -> bool:
     try:
         return (abs(float(one["center_x"]) - float(other["center_x"])) <= ONE_PLACE
                 and abs(float(one["center_y"]) - float(other["center_y"])) <= ONE_PLACE)
+    # not a failure: places that are not numbers are not the same place
     except (KeyError, TypeError, ValueError):
         return False
 

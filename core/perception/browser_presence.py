@@ -61,6 +61,7 @@ def activity_payload(action: str, stage: str, raw_url: str, visible: bool) -> di
     try:
         parts = urlsplit(raw_url)
         url = urlunsplit((parts.scheme, parts.hostname or "", "", "", "")) if parts.scheme in {"http", "https"} else ""
+    # not a failure: an address that does not parse is not named
     except ValueError:
         url = ""
     return {"type": "browser_activity", "action": action, "stage": stage,
@@ -107,6 +108,7 @@ async def show_activity(browser: Any, action: str, *, stage: str = "started", bo
 def _last_point_of(browser: Any) -> dict[str, float] | None:
     try:
         return _LAST_POINT.get(browser)
+    # not a failure: a browser that cannot be a key has no last point
     except TypeError:
         return None
 
@@ -122,6 +124,7 @@ async def without_presence(page: Any, clip: dict | None = None):
     # lookup raised and took the screenshot with it.
     try:
         visible_until = _VISIBLE_UNTIL.get(page, 0.0)
+    # not a failure: a page that cannot be a key was never made visible
     except TypeError:
         visible_until = 0.0
     if visible_until < time.monotonic():

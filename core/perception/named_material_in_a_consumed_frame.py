@@ -72,6 +72,7 @@ def material_marks_from(observer: object) -> MaterialMarks | None:
         grid = SampleGrid(*geometry)
         return MaterialMarks(getattr(observer, '_material_mark_epoch', ''), getattr(observer, 'pictures', -1)+1,
                              pixels, getattr(observer, 'scale', None), grid.pixel_size, tuple(provider.points), grid)
+    # not a failure: a frame without its grid has no marks
     except (ValueError, TypeError, AttributeError):
         return None
 

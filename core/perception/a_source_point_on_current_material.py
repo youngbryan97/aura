@@ -144,6 +144,7 @@ def _current_basis(thing: Any, at: float) -> tuple | None:
     try:
         starts = np.asarray([pose.anchors[n] for n in names], float)
         ends = np.asarray([pose.visible_marks[n] for n in names], float)
+    # not a failure: marks that are not points give no fit
     except (TypeError, ValueError):
         return None
     if (starts.shape != (len(names), 2) or ends.shape != starts.shape

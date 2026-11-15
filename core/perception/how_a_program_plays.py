@@ -548,5 +548,6 @@ def unkept(held: Any) -> HowItPlays | None:
                           hers=dict(held.get("hers") or {}), ends=[AnEnd(*e) for e in held.get("ends") or []],
                           stage=tuple(held.get("stage") or (0.0, 0.0)), covers=covers,
                           source_motion=motion_unkept(held.get('source_motion'))) or None
+    # not a failure: a held record that does not read is none
     except TypeError:
         return None

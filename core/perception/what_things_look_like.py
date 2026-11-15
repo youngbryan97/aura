@@ -140,6 +140,7 @@ def _naming_time(at: Any) -> float | None:
         return None
     try:
         value = float(at)
+    # not a failure: a time that is not a number is none
     except (ValueError, OverflowError):
         return None
     return value if math.isfinite(value) and value >= 0 else None
@@ -202,6 +203,7 @@ class LookingAtThings:
             return False
         try:
             loop = asyncio.get_running_loop()
+        # not a failure: with no running loop there is nowhere to start it, and False says it was not started
         except RuntimeError:
             return False
         self._last = self.asked_at = at

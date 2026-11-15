@@ -37,6 +37,7 @@ class AffineMotion:
                 and len(self.inliers) >= 6 and len(set(self.inliers)) == len(self.inliers)
                 and np.linalg.det(matrix) > 0 and scales.min() >= .5 and scales.max() <= 2.
                 and np.linalg.eigvalsh(information).min() > 0)
+        # not a failure: a fit that cannot be tested is not a valid one
         except (ValueError, TypeError, np.linalg.LinAlgError):
             return False
 
@@ -74,6 +75,7 @@ def affine_motion(starts, ends, *, error: float = .75) -> AffineMotion | None:
     """
     try:
         starts, ends = np.asarray(starts, dtype=float), np.asarray(ends, dtype=float)
+    # not a failure: points that are not numbers give no fit
     except (TypeError, ValueError):
         return None
     if (starts.shape != ends.shape or starts.ndim != 2 or starts.shape[1:] != (2,)

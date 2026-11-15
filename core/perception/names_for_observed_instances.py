@@ -64,6 +64,7 @@ def _finite_real(value: Any) -> bool:
         return False
     try:
         return math.isfinite(value)
+    # not a failure: a value too large to test is not finite
     except OverflowError:
         return False
 

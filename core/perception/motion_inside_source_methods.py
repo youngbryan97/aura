@@ -168,6 +168,7 @@ def _parse(text: str) -> ast.AST | None:
     try:
         node = ast.parse(text.rstrip(';'), mode='eval').body
         return node if sum(1 for _ in ast.walk(node)) <= 80 else None
+    # not a failure: text that is not an expression has none
     except (SyntaxError, ValueError, RecursionError):
         return None
 
@@ -212,6 +213,7 @@ def _fold(op: str, args: tuple[_E, ...]) -> _E:
                      'div': lambda: a / b, 'mod': lambda: a % b, 'neg': lambda: -a}[op]()
             if math.isfinite(value):
                 return _E('number', (float(value),))
+        # not a failure: an operation that cannot be folded stays as written
         except (KeyError, ZeroDivisionError, OverflowError):
             pass
     return _E(op, args)
@@ -605,6 +607,7 @@ def unkept(value: Any) -> SourceMethodMotion | None:
             constants.append((text(pair[0]), numbers([pair[1]])[0]))
         return SourceMethodMotion(tuple(effects), tuple(recoveries), tuple(constants),
                                   tuple(text(reason) for reason in items(value['unknown'])), source)
+    # not a failure: a held record that does not read is none
     except (KeyError, TypeError, ValueError, OverflowError):
         return None
 

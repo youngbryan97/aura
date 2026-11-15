@@ -70,6 +70,7 @@ def _box(said: Any) -> tuple[float, float, float, float] | None:
         return None
     try:
         x1, y1, x2, y2 = (float(v) for v in said)
+    # not a failure: a box that is not four numbers is none
     except (TypeError, ValueError):
         return None
     if not (0 <= x1 < x2 <= 1000 and 0 <= y1 < y2 <= 1000):

@@ -51,6 +51,7 @@ def _cut(pixels: np.ndarray, region: dict[str, Any]) -> np.ndarray | None:
     try:
         x, y = float(region["x"]), float(region["y"])
         w, h = float(region["width"]), float(region["height"])
+    # not a failure: a region that is not four numbers is none
     except (KeyError, TypeError, ValueError):
         return None
     pad = MARGIN * h

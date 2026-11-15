@@ -249,6 +249,7 @@ def unkept(held: Any) -> AWorldAsItsCodeMakesIt | None:
                                        things=things, clock_s=held.get("clock_s"), lives=held.get("lives"),
                                        keys=dict(held.get("keys") or {}), sends=dict(held.get("sends") or {}),
                                        read_at=dict(held.get("read_at") or {}))
+    # not a failure: a held record that does not read as a world is none
     except (KeyError, TypeError, ValueError):
         return None
     return world or None

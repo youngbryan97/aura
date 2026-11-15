@@ -82,6 +82,7 @@ def texture_copy_form(program: PositionProgram) -> TextureCopyForm | None:
                 or any(mode in uv_mode for mode in ("flat", "centroid"))):
             return None
         return TextureCopyForm(sampler_name, coordinates_name, output)
+    # not a failure: a shader outside this form is not a texture copy
     except (UnsupportedPositionError, KeyError, ValueError, TypeError):
         return None
 

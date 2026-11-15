@@ -165,6 +165,7 @@ class PageFrames:
             self._arrived.clear()
             try:
                 await asyncio.wait_for(self._arrived.wait(), timeout=STILL_AFTER_S)
+            # not a failure: no frame within the still time means the picture is still
             except TimeoutError:
                 pass
         if not self._owns_session(session, generation):
@@ -479,6 +480,7 @@ class CanvasFrames:
             self._observing = False
             try:
                 await picture_request(release(self.page))
+            # not a failure: a closed page has already released its observer
             except Exception:  # noqa: BLE001 - a closed page has already released its observer
                 pass
 

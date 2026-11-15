@@ -291,6 +291,7 @@ class PlayObservation:
     async def _wait(self, operation: _Operation, seconds: float) -> Any:
         try:
             await asyncio.wait_for(asyncio.shield(operation.wrapped), seconds)
+        # not a failure: the time running out is said in the status set here
         except TimeoutError:
             operation.discard = operation.kind != "start"
             self._status = "startup pending" if operation.kind == "start" else "observation unobserved"

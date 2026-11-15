@@ -131,8 +131,10 @@ class Watching:
             task.cancel()
             try:
                 await task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001 - a stream stopped is stopped however it ended
-                pass
+            except asyncio.CancelledError:
+                pass  # not a failure: the cancel is what stopping asked for
+            except Exception as exc:  # noqa: BLE001 - a stream stopped is stopped however it ended; how is said
+                logger.info("The stream was stopped, and had ended with %s: %s", type(exc).__name__, exc)
 
     async def _run(self) -> None:
         period = 1.0 / max(0.5, self.per_second)

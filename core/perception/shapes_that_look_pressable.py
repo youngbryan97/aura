@@ -240,6 +240,7 @@ def _under(x: float, y: float, region: Any) -> bool:
     try:
         left, top = float(region["x"]), float(region["y"])
         wide, high = float(region["width"]), float(region["height"])
+    # not a failure: a region that is not four numbers holds no point
     except (KeyError, TypeError, ValueError):
         return False
     return left - 0.02 <= x <= left + wide + 0.02 and top - 0.03 <= y <= top + high + 0.03

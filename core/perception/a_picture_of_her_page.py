@@ -94,5 +94,6 @@ async def _picture_of(page: Any, clip: Mapping[str, float] | None, *, css: bool,
         if clip:
             options["clip"] = dict(clip)
         return decode(await picture_request(page.screenshot(**options)))
+    # not a failure: a page gone, or off screen, gives no picture
     except Exception:  # noqa: BLE001 - a page gone, or off screen: no picture
         return None

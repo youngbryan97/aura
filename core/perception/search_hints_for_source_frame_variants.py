@@ -33,6 +33,7 @@ def hint_for_source_variant(donor: RegisteredVisualReference, target: Registered
         linear = source_to_picture @ np.linalg.inv(np.asarray(target.coordinates.linear))
         offset = source_origin-linear @ np.asarray(target.coordinates.offset)
         return SourceFramePoseHint(target.key[2], pose.picture_sha256, tuple(map(tuple, linear)), tuple(offset), donor.variant_key)
+    # not a failure: a pose that cannot be carried over gives no hint
     except (ValueError, TypeError, np.linalg.LinAlgError):
         return None
 

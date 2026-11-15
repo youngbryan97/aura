@@ -60,6 +60,7 @@ def avatar_from(answer: str) -> Avatar | None:
         return None
     try:
         said = json.loads(found.group(0))
+    # not a failure: a reply that is not JSON says no place
     except ValueError:
         return None
     what = " ".join(str(said.get("avatar") or "").split()).strip(" .")
@@ -68,6 +69,7 @@ def avatar_from(answer: str) -> Avatar | None:
         return None
     try:
         x1, y1, x2, y2 = (float(v) for v in box)
+    # not a failure: a box that is not four numbers is none
     except (TypeError, ValueError):
         return None
     if not (0 <= x1 < x2 <= 1000 and 0 <= y1 < y2 <= 1000):

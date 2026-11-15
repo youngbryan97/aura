@@ -61,6 +61,7 @@ def _region_box(region: Any, wide: int, high: int) -> tuple[int, int, int, int] 
         return None
     try:
         values = tuple(float(region[key]) for key in ("x", "y", "width", "height"))
+    # not a failure: a region that is not four numbers is none
     except (KeyError, ValueError, TypeError, OverflowError):
         return None
     x, y, w, h = values

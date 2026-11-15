@@ -31,6 +31,7 @@ def decode(data: bytes) -> np.ndarray | None:
     try:
         with Image.open(io.BytesIO(data)) as image:
             return np.asarray(image.convert("RGB"))
+    # not a failure: bytes that are not a picture give none
     except (UnidentifiedImageError, OSError, ValueError):
         return None
 
@@ -119,6 +120,7 @@ def _counting() -> object | None:
     if "kernel" not in _COUNTING:
         try:
             from core.perception.counted_middle import count_the_middle
+        # not a failure: where the counting cannot be compiled the values are sorted instead, as said above
         except ImportError:
             count_the_middle = None
         _COUNTING["kernel"] = count_the_middle
