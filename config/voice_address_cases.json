@@ -1,0 +1,1638 @@
+{
+ "about": "Utterances an open microphone hears, each with the situation it was heard in: her recent exchange (oldest first), seconds since she spoke, and what the room was saying that was not said to her. to_her is whether it was said to her; null when the words alone do not settle it. Grouped by domain so the margin can be measured with each kind of situation held out. Read by tools/voice/measure_address_margin.py.",
+ "cases": [
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Hello? Is anyone there?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Can you hear me?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "What's the weather going to be like tomorrow?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "Play something quiet."
+    ],
+    [
+     "assistant",
+     "Here's a slow piano album."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Set a timer for ten minutes.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "I need to send an email to my editor about the deadline, can you help?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Remind me to call the vet at four.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "How long do I boil an egg for?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Hey, are you awake?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Read me what's on my calendar today.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "Remind me about the dentist."
+    ],
+    [
+     "assistant",
+     "Done, I'll remind you Thursday at nine."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Okay so I've been thinking about the ending of the novel and I want your take on it.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Would actually love a natural response for the wake word, so we can just talk back and forth.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Put on some music, something quiet.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "What time is it in Tokyo right now?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Tell me something interesting.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Hello?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "Play something quiet."
+    ],
+    [
+     "assistant",
+     "Here's a slow piano album."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Are you there?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "You there?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Morning. Sleep well?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Quick question.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "So what do you think I should make for dinner tonight?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Hey Aura, can you hear me?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [
+    [
+     "user",
+     "Remind me about the dentist."
+    ],
+    [
+     "assistant",
+     "Done, I'll remind you Thursday at nine."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Aura, what's on my calendar?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Okay Aura, let's get started.",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Aura?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Thanks Aura.",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Good morning Aura, how did you sleep?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "What do you think, Aura?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [
+    [
+     "user",
+     "Play something quiet."
+    ],
+    [
+     "assistant",
+     "Here's a slow piano album."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Aura, you there?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Hey Aura are you there",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Listen Aura, I need a favour.",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [],
+   "u": "Aura, stop for a second.",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Hi Aura, it's me again.",
+   "to_her": true
+  },
+  {
+   "domain": "about_her",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 9.0,
+   "room": [],
+   "u": "Aura's been acting weird all day.",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "I think Aura misheard me earlier.",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 15.0,
+   "room": [],
+   "u": "Have you met Aura yet? She's the thing I've been building.",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Aura keeps answering the TV, it's driving me nuts.",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [],
+   "u": "Yeah, Aura told me it was going to rain.",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "I asked Aura about it but she didn't know.",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [],
+   "u": "Aura is running on the laptop in the other room.",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Mom, this is Aura, the AI I told you about.",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [],
+   "u": "Did Aura ever finish that story?",
+   "to_her": false
+  },
+  {
+   "domain": "about_her",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Aura was way faster yesterday.",
+   "to_her": false
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Do you want the blue one or the green one?"
+    ]
+   ],
+   "since_s": 2.0,
+   "room": [],
+   "u": "The blue one.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "I set a timer for ten minutes."
+    ]
+   ],
+   "since_s": 4.0,
+   "room": [],
+   "u": "Actually make it fifteen.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "It'll be about twelve degrees and cloudy tomorrow."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [],
+   "u": "Should I bring an umbrella then?",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Want me to read it back to you?"
+    ]
+   ],
+   "since_s": 8.0,
+   "room": [],
+   "u": "Yeah, go ahead.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "The capital of Australia is Canberra."
+    ]
+   ],
+   "since_s": 10.0,
+   "room": [],
+   "u": "Huh, I always thought it was Sydney.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "I can't open that file, it's locked by another app."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [],
+   "u": "Which app?",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Here's the first paragraph. The house stood dark against the hill."
+    ]
+   ],
+   "since_s": 2.0,
+   "room": [],
+   "u": "Okay, that's good, keep going.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Got it, I'll remind you at four."
+    ]
+   ],
+   "since_s": 4.0,
+   "room": [],
+   "u": "Thanks.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Do you want me to email him now?"
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [],
+   "u": "No, wait until tomorrow.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "I'm not sure which chapter you mean."
+    ]
+   ],
+   "since_s": 8.0,
+   "room": [],
+   "u": "The one where the lights come on by themselves.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "That recipe needs about forty minutes in the oven."
+    ]
+   ],
+   "since_s": 10.0,
+   "room": [],
+   "u": "Forty? I don't have that long.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "I found three flights on Friday. The cheapest leaves at six in the morning."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [],
+   "u": "Ugh, too early. What else is there?",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Should I keep the second paragraph or cut it?"
+    ]
+   ],
+   "since_s": 2.0,
+   "room": [],
+   "u": "Cut it.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "I think the noise in my voice came from the old model."
+    ]
+   ],
+   "since_s": 4.0,
+   "room": [],
+   "u": "Yeah, it sounds much cleaner now.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Sorry, I didn't catch that."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [],
+   "u": "I said, can you turn it down a bit.",
+   "to_her": true
+  },
+  {
+   "domain": "tv_media",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "Then we go together, right now.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [
+    "Officials say the bridge will remain closed through the weekend.",
+    "Commuters are advised to use alternate routes."
+   ],
+   "u": "In other news, the city council voted last night on the new budget.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "For five hundred dollars: this is the largest planet in our solar system."
+   ],
+   "u": "What is Jupiter?",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "Can you see how it thickens? That's what you want.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Are you tired of slow internet?"
+   ],
+   "u": "Call now and get your first month free.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 9.0,
+   "room": [
+    "Where were you last night?"
+   ],
+   "u": "I told you, I was at work.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "And he's through on goal, only the keeper to beat."
+   ],
+   "u": "What a save by the keeper!",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 15.0,
+   "room": [
+    "So my guest today has written three books on sleep."
+   ],
+   "u": "Tell us a little about how you got started.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "The suspect was last seen heading north on the highway."
+   ],
+   "u": "Do you think he'll come back for the money?",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [
+    "Welcome back to the show, everybody."
+   ],
+   "u": "Today we're going to make the perfect sourdough.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Previously, on the series."
+   ],
+   "u": "You promised me you'd never lie to me again.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [
+    "Temperatures will drop sharply overnight."
+   ],
+   "u": "Make sure to bring your pets inside.",
+   "to_her": false
+  },
+  {
+   "domain": "phone_call",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Hey, yeah, I'm home now.",
+    "No, I haven't eaten yet."
+   ],
+   "u": "Can you pick up some bread on the way?",
+   "to_her": false
+  },
+  {
+   "domain": "phone_call",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [
+    "Hello? Yeah, this is Bryan."
+   ],
+   "u": "Sorry, could you repeat the confirmation number?",
+   "to_her": false
+  },
+  {
+   "domain": "phone_call",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Hi Mom.",
+    "Yeah, everything's fine."
+   ],
+   "u": "Tell Dad I'll call him back tonight.",
+   "to_her": false
+  },
+  {
+   "domain": "phone_call",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 9.0,
+   "room": [
+    "Yeah, I got your email."
+   ],
+   "u": "What time works for you on Thursday?",
+   "to_her": false
+  },
+  {
+   "domain": "phone_call",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Hey man, what's up?"
+   ],
+   "u": "Are you coming to the thing on Saturday?",
+   "to_her": false
+  },
+  {
+   "domain": "phone_call",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 15.0,
+   "room": [
+    "Hi, I'm calling about my order.",
+    "It was supposed to arrive Tuesday."
+   ],
+   "u": "Can you check where it is?",
+   "to_her": false
+  },
+  {
+   "domain": "phone_call",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Yeah. Yeah. Mm-hm."
+   ],
+   "u": "No, I think that's a good idea, go for it.",
+   "to_her": false
+  },
+  {
+   "domain": "phone_call",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [
+    "Hey, sorry I missed your call."
+   ],
+   "u": "Did you still want to grab lunch?",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Do you want coffee?"
+   ],
+   "u": "Yes please, with milk.",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [
+    "Have you seen my charger?"
+   ],
+   "u": "I think it's on the kitchen table.",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Sarah, can you grab the door?",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [],
+   "u": "Hey Mike, are you ready to go?",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "What should we have for dinner?"
+   ],
+   "u": "How about pasta?",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 9.0,
+   "room": [
+    "Did you lock the car?"
+   ],
+   "u": "Yeah, I did.",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Can you help me move this couch?"
+   ],
+   "u": "Sure, give me a second.",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 15.0,
+   "room": [],
+   "u": "Babe, where did you put the remote?",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "I think we should leave around six."
+   ],
+   "u": "Six works, but traffic will be bad.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [],
+   "u": "Where did I put my keys.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Ugh, not again.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [],
+   "u": "Okay, okay, focus.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Hmm, that's weird.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [],
+   "u": "Twenty-three plus nineteen is forty-two.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Oh no, I forgot to save it.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 9.0,
+   "room": [],
+   "u": "Come on, come on, load.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Right, what was I doing.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 15.0,
+   "room": [],
+   "u": "Where is that stupid file.",
+   "to_her": false
+  },
+  {
+   "domain": "self_talk",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Okay, one more page and then bed.",
+   "to_her": false
+  },
+  {
+   "domain": "reading_aloud",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [
+    "Chapter three."
+   ],
+   "u": "The house stood at the top of the hill, its windows dark.",
+   "to_her": false
+  },
+  {
+   "domain": "reading_aloud",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Dear Mr. Patel, thank you for your letter of the fourth.",
+   "to_her": false
+  },
+  {
+   "domain": "reading_aloud",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [],
+   "u": "Step two: remove the four screws on the back panel.",
+   "to_her": false
+  },
+  {
+   "domain": "reading_aloud",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Ingredients: two eggs, one cup of milk, a pinch of salt.",
+   "to_her": false
+  },
+  {
+   "domain": "reading_aloud",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [
+    "Once upon a time there were three little pigs."
+   ],
+   "u": "And then the wolf said, I'll huff and I'll puff.",
+   "to_her": false
+  },
+  {
+   "domain": "reading_aloud",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Section four point two, termination of the agreement.",
+   "to_her": false
+  },
+  {
+   "domain": "reading_aloud",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 9.0,
+   "room": [
+    "The quick brown fox"
+   ],
+   "u": "jumps over the lazy dog.",
+   "to_her": false
+  },
+  {
+   "domain": "pet_or_child",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Who's a good boy? Come here, buddy.",
+   "to_her": false
+  },
+  {
+   "domain": "pet_or_child",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 15.0,
+   "room": [],
+   "u": "Get down from there, Luna!",
+   "to_her": false
+  },
+  {
+   "domain": "pet_or_child",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Sweetie, can you put your shoes on please?",
+   "to_her": false
+  },
+  {
+   "domain": "pet_or_child",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [],
+   "u": "No, no, don't eat that.",
+   "to_her": false
+  },
+  {
+   "domain": "pet_or_child",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Time for your bath, little one.",
+   "to_her": false
+  },
+  {
+   "domain": "pet_or_child",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 12.0,
+   "room": [],
+   "u": "Good girl, sit. Sit.",
+   "to_her": false
+  },
+  {
+   "domain": "pet_or_child",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Do you want to go outside? Do you?",
+   "to_her": false
+  },
+  {
+   "domain": "other_language",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Aura, ¿qué hora es?",
+   "to_her": true
+  },
+  {
+   "domain": "other_language",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Oye, ¿me escuchas?",
+   "to_her": true
+  },
+  {
+   "domain": "other_language",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Aura, peux-tu m'aider avec ce texte ?",
+   "to_her": true
+  },
+  {
+   "domain": "other_language",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "¿Dónde está mi teléfono?"
+   ],
+   "u": "Está en la cocina.",
+   "to_her": false
+  },
+  {
+   "domain": "other_language",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 15.0,
+   "room": [
+    "Hola mamá, sí, ya llegué."
+   ],
+   "u": "¿Puedes llamarme más tarde?",
+   "to_her": false
+  },
+  {
+   "domain": "other_language",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Aura está muy rara hoy.",
+   "to_her": false
+  },
+  {
+   "domain": "other_language",
+   "conv": [
+    [
+     "user",
+     "Hola."
+    ],
+    [
+     "assistant",
+     "¿Quieres que suba el volumen?"
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [],
+   "u": "Sí, claro, ponlo más alto.",
+   "to_her": true
+  },
+  {
+   "domain": "other_language",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Tu viens avec nous ce soir ?"
+   ],
+   "u": "Je reviens tout de suite, attends-moi.",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [
+    [
+     "user",
+     "Will it rain on Saturday?"
+    ],
+    [
+     "assistant",
+     "Probably, there's a seventy percent chance of rain."
+    ]
+   ],
+   "since_s": 2.0,
+   "room": [
+    "Are we still on for the picnic?"
+   ],
+   "u": "Did you hear that? We should move the picnic.",
+   "to_her": false
+  },
+  {
+   "domain": "other_person",
+   "conv": [
+    [
+     "user",
+     "Can you play some jazz?"
+    ],
+    [
+     "assistant",
+     "Sure, here's Kind of Blue."
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [
+    "No way it can play music."
+   ],
+   "u": "See, I told you it could do that.",
+   "to_her": false
+  },
+  {
+   "domain": "tv_media",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees."
+    ]
+   ],
+   "since_s": 5.0,
+   "room": [
+    "That's all for sports tonight."
+   ],
+   "u": "And now, a look at the weekend weather.",
+   "to_her": false
+  },
+  {
+   "domain": "ambiguous",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "I wonder what the weather's like tomorrow.",
+   "to_her": null
+  },
+  {
+   "domain": "ambiguous",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "I can't figure out why this keeps crashing.",
+   "to_her": null
+  },
+  {
+   "domain": "ambiguous",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "What was the name of that actor.",
+   "to_her": null
+  },
+  {
+   "domain": "ambiguous",
+   "conv": [],
+   "since_s": null,
+   "room": [],
+   "u": "Every time I have to talk.",
+   "to_her": null
+  }
+ ]
+}

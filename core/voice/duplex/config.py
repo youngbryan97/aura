@@ -400,11 +400,6 @@ class AmbientConfig:
     open_floor_s: float = field(
         default_factory=lambda: _env_float("AURA_VOICE_OPEN_FLOOR_S", 18.0)
     )
-    # Words required before a cold open — no name, no open floor — is treated
-    # as a request rather than as overheard speech.
-    min_cold_open_words: int = field(
-        default_factory=lambda: _env_int("AURA_VOICE_COLD_OPEN_WORDS", 3)
-    )
 
 
 @dataclass(slots=True)

@@ -205,8 +205,12 @@ class DuplexVoiceSession:
         mind: MindBridge | None = None,
         asr: StreamingAsr | None = None,
         tts: StreamingTts | None = None,
+        address_reader: Any = None,
     ) -> None:
         self._id = session_id
+        # Her address reader's reading of whether an utterance was said to her (address_reading.AddressReader), or None for a
+        # session with nothing to read it with: then the gate answers only what is plainly hers.
+        self._address_reader = address_reader
 
         async def guarded_json(payload: dict[str, Any]) -> None:
             if self._closed:
@@ -306,12 +310,11 @@ class DuplexVoiceSession:
         # Ambient listening. The gate decides whether an utterance on an open
         # microphone was meant for her; it is bypassed entirely whenever the
         # user has opened the floor themselves, because a deliberate act of
-        # address does not need to be second-guessed by a heuristic.
+        # address does not need to be second-guessed.
         self._ambient_gate = (
             AddressivityGate(
                 names=self._config.ambient.names,
                 open_floor_s=self._config.ambient.open_floor_s,
-                min_cold_open_words=self._config.ambient.min_cold_open_words,
             )
             if self._config.ambient.enabled
             else None
@@ -557,11 +560,36 @@ class DuplexVoiceSession:
 
         self._maybe_schedule_partial()
 
-    def _evaluate_addressivity(self, transcript: str, final: Any) -> Any:
+    async def _read_address(self, transcript: str) -> tuple[Any, float | None]:
+        """Her address reader's reading of the words and the margin it is held to, or (None, None) when it cannot be
+        had.
+
+        Bounded, with the bound a cut-off turn gets (``_turn_quiescence_s``): a reader that has stopped answering costs
+        one utterance its reading, not the conversation.
+        """
+        reader = self._address_reader
+        if reader is None or self._floor_explicitly_open:
+            return None, None
+        margin = getattr(reader, "margin", None)
+        if margin is None:
+            return None, None
+        bound = _turn_quiescence_s()
+        try:
+            reading = await asyncio.wait_for(reader.read(transcript), timeout=bound)
+        except TimeoutError:
+            logger.info("her address reader did not read the words within %.0f s; answering only what is plainly hers", bound)
+            return None, None
+        except (RuntimeError, ValueError, TypeError, OSError) as exc:
+            record_degradation("voice_duplex.session", exc,
+                               action="judged address without her address reader's reading", severity="warning")
+            return None, None
+        return reading, (float(margin.margin) if reading is not None else None)
+
+    async def _evaluate_addressivity(self, transcript: str, final: Any) -> Any:
         """Decide whether to answer this utterance.
 
         Fails *open* if the gate itself breaks — the opposite of the gate's own
-        policy, and deliberately so. A crash in a heuristic must not make her
+        policy, and deliberately so. A crash in the judgment must not make her
         deaf; an unanswered user is a worse outcome than an occasional
         unwanted answer, once the alternative is "the feature silently stopped
         working".
@@ -571,6 +599,7 @@ class DuplexVoiceSession:
 
             if self._ambient_gate is None:
                 return AddressVerdict(True, "gate_disabled", reasons=("ambient gating is off",))
+            reading, margin = await self._read_address(transcript)
 
             since = None
             if self._last_reply_ended_at:
@@ -594,8 +623,14 @@ class DuplexVoiceSession:
                 competing_speech=bool(self._overlap.active),
                 duration_s=self._utterance.sample_count / float(CAPTURE_RATE),
                 floor_explicitly_open=self._floor_explicitly_open,
+                reading=reading,
+                margin=margin,
             )
-            return self._ambient_gate.evaluate(transcript, context)
+            verdict = self._ambient_gate.evaluate(transcript, context)
+            if not verdict.addressed and self._address_reader is not None:
+                # Not said to her, so it is the room's talk the next utterance is read against.
+                self._address_reader.overheard(transcript)
+            return verdict
         except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as exc:
             record_degradation(
                 "voice_duplex.session",
@@ -1060,7 +1095,7 @@ class DuplexVoiceSession:
             # merely switched on in it. Note the ordering: the transcript is
             # sent either way. She heard it, the user can see that she heard
             # it, and the only thing in question is whether to answer.
-            address = self._evaluate_addressivity(transcript, final)
+            address = await self._evaluate_addressivity(transcript, final)
             await self._send_json(
                 {
                     "type": protocol.EVT_FINAL,
@@ -1070,6 +1105,7 @@ class DuplexVoiceSession:
                     "addressed": address.addressed,
                     "address_rung": address.rung,
                     "address_why": list(address.reasons or address.vetoes),
+                    "address_reading": getattr(address, "reading", None),
                 }
             )
             if not address.addressed:

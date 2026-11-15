@@ -30,6 +30,7 @@ from core.brain.llm_health_router_gate_owners import a_live_turn, a_voice_sessio
 from core.conversation.delivered_history import VISIBLE_CONVERSATION_EXCHANGES
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
+from core.voice.duplex.address_reading import AddressReader
 from core.voice.duplex.config import DuplexConfig
 from core.voice.duplex.live_context import HerLiveContext
 from core.voice.duplex.mind_bridge import MindBridge
@@ -507,6 +508,7 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             mind=MindBridge(session_id=session_id, responder=responder, on_cut_off=live.cut_off),
             asr=model_runtime.new_asr(),
             tts=model_runtime.tts,
+            address_reader=AddressReader(live, session_key=conversation_key),
         )
         _SESSIONS[session_id] = session
 
@@ -580,6 +582,11 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
                 a_voice_session(session_id, True)
             await session.start()
             logger.info("Voice session %s opened from %s", session_id, host)
+            # Her address reader loads now, so the first thing said in the session does not wait for it.
+            from core.voice.duplex.address_process import warm_her_address_process
+
+            get_task_tracker().create_task(asyncio.to_thread(warm_her_address_process),
+                                           name=f"VoiceAddressReader.warm:{session_id}")
             # Her weights pinned while voice mode is open (core/brain/llm/her_pinned_weights.py), and her live context's
             # first read. Both wait on her worker, which answers between jobs, so they run beside the receive loop: LIVE
             # 11 November 2026, awaited before it, they left the socket unread while the browser streamed audio, and the

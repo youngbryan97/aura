@@ -107,7 +107,10 @@ def the_turns_evidence(*, heard: bool = False, also: Sequence[str] = ()) -> str:
             f"- Still starting: the conversation lane reads '{waking}', not yet serving; this turn reaches no memory "
             "search or tools.")
     if heard:
-        from core.senses.turn_evidence import build_microphone_turn_evidence, sensory_evidence_grounding_block
+        from core.senses.turn_evidence import (
+            build_microphone_turn_evidence,
+            sensory_evidence_grounding_block,
+        )
 
         microphone = sensory_evidence_grounding_block(build_microphone_turn_evidence(source="voice_live_context"))
         present = (present + "\n" if present else "") + microphone
@@ -223,6 +226,24 @@ class HerLiveContext:
 
     def _turn_opening(self) -> str:
         return f"<|im_start|>user\n{the_turns_evidence(heard=True, also=(self._cut,))}"
+
+    async def text_before(self, transcript: str, *, timeout_s: float = 10.0) -> str | None:
+        """The text her model has read up to where these words go: her conversation and the turn's evidence.
+
+        What her address reader reads the words after (address_reading.py). It does not need her cortex to have read
+        it, so it is there while her cortex is still waking; until the conversation is known it is the turn alone.
+        """
+        if not (transcript or "").strip():
+            return None
+        if self._reading is not None:
+            try:
+                await asyncio.wait_for(asyncio.shield(self._reading), timeout=timeout_s)
+            except (TimeoutError, asyncio.CancelledError, RuntimeError):
+                return None
+        if not self._opening:
+            # Kept, so the answer that may follow continues exactly the text the words were read after.
+            self._opening = self._turn_opening()
+        return self.text + self._opening
 
     def answers(self, transcript: str) -> bool:
         """Whether this turn is hers to answer here. While her runtime is still starting, every turn is: her governed

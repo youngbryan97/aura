@@ -181,7 +181,6 @@
     "tests/conversation/test_grounding_continuation_and_repeat_noise.py": 1,
     "tests/conversation/test_recall_contract_serves_the_answer.py": 4,
     "tests/conversation/test_repairable_draft_is_preserved.py": 1,
-    "tests/conversation/test_self_speech_error_reporting.py": 1,
     "tests/interiority/test_contract.py": 1,
     "tests/interiority/test_wiring.py": 1,
     "tests/introspection/test_self_evidence_is_fetched_not_generated.py": 9,
