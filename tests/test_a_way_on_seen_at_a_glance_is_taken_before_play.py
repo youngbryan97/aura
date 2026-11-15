@@ -33,8 +33,18 @@ def test_a_glance_is_kept_with_when_it_was_taken():
 
 
 def test_a_menu_is_gone_through_first_where_one_was_glimpsed():
-    import inspect
-
+    """A moving scene whose words offer no way on is gone through first once her eyes saw SKIP INTRO on it."""
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
     from core.skills.screen_pursuit_as_it_happens import PlayingAsItHappens
 
-    assert "a_way_on_glimpsed()" in inspect.getsource(PlayingAsItHappens._a_menu_first)
+    def first(*glimpsed: str) -> bool:
+        playing = PlayingAsItHappens.__new__(PlayingAsItHappens)
+        playing.words, playing.way_on_shown, playing.held_for_a_way_on = ["a moonlit street at night"], False, {}
+        token = THE_GUIDE.set(_guide_that_glimpsed(*glimpsed))
+        try:
+            return playing._a_menu_first()
+        finally:
+            THE_GUIDE.reset(token)
+
+    assert first("blue character", "skip intro")
+    assert not first("blue character", "dark background")

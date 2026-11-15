@@ -99,9 +99,14 @@ def test_the_governor_reads_the_arousal_the_hooks_read() -> None:
 
 
 def test_the_affect_phase_is_what_notes_it() -> None:
-    import inspect
+    """What the affect phase fuses is what the steering hooks then read: valence, arousal and the felt reading."""
+    from core.phases.affect_update import VALENCE_FELT, AffectUpdatePhase
+    from core.state.aura_state import AffectVector, AuraState
 
-    from core.phases.affect_update import AffectUpdatePhase
-
-    source = inspect.getsource(AffectUpdatePhase._release_chemistry)
-    assert "note_felt(" in source
+    steering_channel._FELT.clear()
+    affect = AffectVector(valence=0.37, arousal=0.81)
+    affect.markers = {VALENCE_FELT: 0.42}
+    state = AuraState.default()
+    AffectUpdatePhase(None)._release_chemistry(affect, state)
+    assert steering_channel._FELT == pytest.approx({"valence": 0.37, "arousal": 0.81, "felt": 0.42})
+    assert state.response_modifiers["felt_state_steering_valence"] == pytest.approx(0.37)

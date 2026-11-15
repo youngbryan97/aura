@@ -54,9 +54,16 @@ def test_a_note_she_has_already_said_is_not_said_again():
     assert keeping_company(run, 20.0, notes) == ""
 
 
-def test_the_play_loop_keeps_company():
-    import inspect
+def test_the_play_loop_keeps_company(monkeypatch):
+    """A pass of her play loop with nothing else to say says what keeping a watcher company finds."""
+    from core.agency import playing_as_it_happens as play
 
-    from core.agency import playing_as_it_happens
-
-    assert "keeping_company(run, at)" in inspect.getsource(playing_as_it_happens._what_she_says)
+    heard: list[str] = []
+    monkeypatch.setattr(play, "keeping_company", lambda run, at: "I've noticed the white one looks like a pot.")
+    monkeypatch.setattr(play, "_say", lambda run, say, line, at, **_k: heard.append(line) if line else None)
+    run = SimpleNamespace(keys=[], began=0.0, contest=SimpleNamespace(says=lambda: ""), contest_first=None,
+                          counters_first=None, contest_said="", counted={}, said_at=0.0, stance_said_at=0.0, said=set())
+    hers = SimpleNamespace(thing=lambda moves: None, keys_that_move_her=lambda keys: [], kind=None, makes=[])
+    meeting = SimpleNamespace(evidence={}, readouts=SimpleNamespace(values={}))
+    play._what_she_says(run, None, SimpleNamespace(things={}), hers, meeting, 20.0)
+    assert heard == ["I've noticed the white one looks like a pot."]
