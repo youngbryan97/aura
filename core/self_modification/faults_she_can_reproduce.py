@@ -69,6 +69,7 @@ def hear(record: DegradationRecord) -> None:
     """A degradation listener: keep the call of each fault that can be made again (O(1), under the tracker's rule)."""
     call = getattr(record, "failed_call", None)
     if not isinstance(call, FailedCall):
+        _say_why_not_once(call, record)
         return
     with _LOCK:
         known = _HEARD.get(call.fingerprint)
@@ -100,6 +101,21 @@ def when_a_fault_is_first_heard(wake: Any) -> bool:
         return True
 
 
+#: Each reason a fault could not be kept, said once: how much of her running can be made again, and what stops the rest.
+_SAID_WHY_NOT: set[str] = set()
+
+
+def _say_why_not_once(why: Any, record: DegradationRecord) -> None:
+    reason = str(why or "").strip()
+    if not reason:
+        return
+    with _LOCK:
+        if reason in _SAID_WHY_NOT or len(_SAID_WHY_NOT) >= _how_many_are_kept():
+            return
+        _SAID_WHY_NOT.add(reason)
+    logger.info("🩹 Not a fault she can make again: %s (%s from %s).", reason, record.error_type, record.subsystem)
+
+
 def listen() -> bool:
     """Hear every degradation this process records; whether this call began it."""
     with _LOCK:
@@ -119,6 +135,7 @@ def faults_heard() -> list[HeardFault]:
 def forget_for_test() -> None:
     with _LOCK:
         _HEARD.clear()
+        _SAID_WHY_NOT.clear()
 
 
 def name_of(fault: HeardFault) -> str:

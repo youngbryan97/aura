@@ -154,3 +154,17 @@ def test_a_fault_is_reproduced_when_its_test_raises_what_she_raised(planted, tmp
     assert not mended.reproduced
     with pytest.raises(ValueError):
         faults.as_defect(mended)
+
+
+def test_why_a_fault_cannot_be_made_again_is_said_once(planted, caplog):
+    import logging
+
+    from core.runtime.errors import DegradationRecord
+
+    exc = _raised(lambda: planted.Ledger().last())
+    record = DegradationRecord("planted", "warning", "IndexError", "", "", 1.0, failed_call=the_call_that_failed(exc))
+    with caplog.at_level(logging.INFO, logger="Aura.SelfModification.Faults"):
+        faults.hear(record)
+        faults.hear(record)
+    said = [r.getMessage() for r in caplog.records if "Not a fault she can make again" in r.getMessage()]
+    assert len(said) == 1 and "runs on an instance it cannot rebuild" in said[0]
