@@ -227,19 +227,16 @@ class HerLiveContext:
     def _turn_opening(self) -> str:
         return f"<|im_start|>user\n{the_turns_evidence(heard=True, also=(self._cut,))}"
 
-    async def text_before(self, transcript: str, *, timeout_s: float = 10.0) -> str | None:
+    async def text_before(self, transcript: str) -> str | None:
         """The text her model has read up to where these words go: her conversation and the turn's evidence.
 
         What her address reader reads the words after (address_reading.py). It does not need her cortex to have read
-        it, so it is there while her cortex is still waking; until the conversation is known it is the turn alone.
+        it, so nothing here waits for her cortex's read-ahead: LIVE 14 November 2026, under memory pressure her
+        worker read in 32-token chunks, and utterances waiting on it went unread. Until the conversation is known it
+        is the turn alone.
         """
         if not (transcript or "").strip():
             return None
-        if self._reading is not None:
-            try:
-                await asyncio.wait_for(asyncio.shield(self._reading), timeout=timeout_s)
-            except (TimeoutError, asyncio.CancelledError, RuntimeError):
-                return None
         if not self._opening:
             # Kept, so the answer that may follow continues exactly the text the words were read after.
             self._opening = self._turn_opening()

@@ -287,3 +287,21 @@ def test_a_process_that_exits_mid_reading_is_closed(process):
     with pytest.raises(RuntimeError, match="exited"):
         process.read("text", "exit", "hers")
     assert not process.alive
+
+
+def test_her_live_context_gives_the_reader_its_text_without_waiting_for_her_cortex():
+    """LIVE 14 November 2026, under memory pressure her worker read ahead in 32-token chunks, and utterances that
+    waited on that read went unread. The reader reads the text itself, so it does not wait."""
+    from core.voice.duplex import live_context
+
+    async def scenario():
+        never = asyncio.get_running_loop().create_future()  # a read-ahead that does not finish
+        live = live_context.HerLiveContext("s", read=lambda text, scope: never)
+        live.text, live.ready = "<|im_start|>user\nhi<|im_end|>\n", True
+        live._reading = asyncio.ensure_future(never)
+        text = await asyncio.wait_for(live.text_before("are you there"), timeout=1.0)
+        live._reading.cancel()
+        return text
+
+    text = asyncio.run(scenario())
+    assert text.startswith("<|im_start|>user\nhi<|im_end|>\n<|im_start|>user\n")

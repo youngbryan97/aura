@@ -174,13 +174,17 @@ async def read_address(transcript: str, *, hers_text: str, hers_scope: str, room
     """
     words = spoken_words(transcript)
     if not words or not hers_text:
+        logger.info("no address reading: %s", "no words" if not words else "no conversation text to read them after")
         return None
     hers_values = await scorer(hers_text, words, hers_scope)
     hers = _mean(hers_values)
     if hers is None:
+        logger.info("no address reading: the words after her conversation read as %r", hers_values)
         return None
-    alone = _mean(await scorer(DOCUMENT_BEGINS, words, alone_scope))
+    alone_values = await scorer(DOCUMENT_BEGINS, words, alone_scope)
+    alone = _mean(alone_values)
     if alone is None:
+        logger.info("no address reading: the words after nothing read as %r", alone_values)
         return None
     room_text = room.text()
     room_reading = _mean(await scorer(room_text, words, room_scope)) if room_text else None
@@ -223,6 +227,7 @@ class AddressReader:
     async def read(self, transcript: str) -> AddressReading | None:
         hers = await self._live.text_before(transcript) if hasattr(self._live, "text_before") else None
         if not hers:
+            logger.info("no address reading: her live context gave no text for the words to follow")
             return None
         opening = str(getattr(self._live, "_opening", "") or "")
         return await read_address(transcript, hers_text=hers, hers_scope=f"hers:{self._key}", room=self.room,
