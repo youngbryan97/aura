@@ -82,6 +82,14 @@ class AShim:
 #: file that carries the shim and what the caller should reach for instead.
 THE_SHIMS: tuple[AShim, ...] = (
     AShim(
+        where="llm/client.py",
+        name="OpenAIClient",
+        since="2026-09-27",
+        remove_after="2027-01-01",
+        instead="core.brain.local_llm.LocalBrain",
+        why="an OpenAI-shaped name for a client that only ever reaches her resident MLX brain",
+    ),
+    AShim(
         where="core/container.py",
         name="ServiceContainer.resolve",
         since="2026-04-20",

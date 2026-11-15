@@ -1803,7 +1803,7 @@ class NativeMultimodalBridge(Phase):
                 # `role`, which nothing has written since these moved to
                 # `emit_percept`; `core/state/percepts.py` resolves a percept's
                 # kind through type, then role, then source, so naming the
-                # stream here restores the provenance without a legacy alias.
+                # stream here restores the provenance under its own name.
                 source="ambient_developer_stream",
                 frame_id=frame_id,
                 event_count=events,
