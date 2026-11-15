@@ -77,7 +77,7 @@ def said_since(began: float) -> list[tuple[float, str, str]]:
         try:
             at = float(turn.get("created_at") or 0.0)
         except (TypeError, ValueError):
-            at = 0.0
+            at = 0.0  # not a failure: a turn with no readable time is not one since the start
         if role and content and at >= began:
             turns.append((at, role, content))
     return turns

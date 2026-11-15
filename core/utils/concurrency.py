@@ -93,7 +93,7 @@ def _who_starved_the_loop(process_cores: float | None, ran_meanwhile: str = "") 
     try:
         load = os.getloadavg()[0] / max(1, os.cpu_count() or 1)
     except (OSError, AttributeError):
-        load = None
+        load = None  # not a failure: a host with no load average says none
     parts = []
     if process_cores is not None:
         parts.append(f"the rest of this process used {process_cores:.2f} cores meanwhile")

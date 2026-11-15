@@ -344,7 +344,8 @@ def _her_cortex_client() -> Any:
         return client
     try:
         from core.brain.llm.mlx_client import clients_snapshot
-    except ImportError:
+    except ImportError as exc:
+        logger.warning("No running cortex client can be found: her MLX client could not be imported (%s).", exc)
         return None
     for _path, running in clients_snapshot():
         assignment = getattr(running, "runtime_assignment", None)

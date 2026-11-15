@@ -91,7 +91,7 @@ def reported_number(reply: Any) -> float | None:
         try:
             value = float(reply)
         except (TypeError, ValueError, OverflowError):
-            return None
+            return None  # not a failure: a reply that is not a number gives no reading
         return value if math.isfinite(value) and -1.0 <= value <= 1.0 else None
     text = str(reply or "").strip()
     if "<think>" in text or "</think>" in text:

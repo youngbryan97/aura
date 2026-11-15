@@ -43,7 +43,7 @@ def cancels_acoustically() -> bool:
     try:
         from livekit import rtc  # noqa: F401
     except ImportError:
-        return False
+        return False  # not a failure: the answer is that it is not installed
     return True
 
 

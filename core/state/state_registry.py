@@ -96,7 +96,7 @@ class UnifiedStateRegistry:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            return
+            return  # not a failure: with no running loop there is none to start it in yet
         task = self._dispatcher_task
         if task is not None and not task.done():
             return  # running already: no state lock taken on the loop for it (an update's writer may hold it)
@@ -121,7 +121,7 @@ class UnifiedStateRegistry:
             try:
                 self._notify_queue.get_nowait()
             except queue.Empty:
-                # The consumer made room between Full and get_nowait.
+                # not a failure: the consumer made room between Full and get_nowait.
                 pass
             else:
                 self._notify_queue.task_done()
@@ -160,7 +160,7 @@ class UnifiedStateRegistry:
                     try:
                         await asyncio.wait_for(ready.wait(), timeout=_IDLE_WAKE_S)
                     except TimeoutError:
-                        pass
+                        pass  # not a failure: the timed wake described above
                     continue
                 try:
                     if snapshot is None:

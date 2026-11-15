@@ -208,7 +208,8 @@ def _relink(organ: Any, name: str, service: str) -> None:
     if live is not None and getattr(organ, name, _ABSENT) is not live:
         try:
             setattr(organ, name, live)
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError) as exc:
+            logger.warning("%s.%s could not be pointed back at the live %s: %s", type(organ).__name__, name, service, exc)
             return
 
 

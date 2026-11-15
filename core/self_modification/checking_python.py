@@ -38,7 +38,7 @@ def examples_in(source: str) -> list[FunctionExample]:
                     if isinstance(value, str):
                         docs.append(value)
         except (tokenize.TokenError, IndentationError, SyntaxError, ValueError):
-            pass
+            pass  # not a failure: the docstrings read before the fault are kept, and there are no more to read
     else:
         docs = [ast.get_docstring(node) or "" for node in ast.walk(tree)
                 if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]

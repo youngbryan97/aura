@@ -121,7 +121,7 @@ class AddressMargin:
             margin = float(data["margin"])
             model = str(data["model"])
         except FileNotFoundError:
-            return None
+            return None  # not a failure: no margin measured yet
         except (OSError, ValueError, KeyError, TypeError) as exc:
             from core.runtime.errors import record_degradation
 

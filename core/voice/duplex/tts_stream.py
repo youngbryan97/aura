@@ -951,7 +951,7 @@ class StreamingTts:
                     try:
                         chunk = await anext(source)
                     except StopAsyncIteration:
-                        return
+                        return  # not a failure: the words have all come
                     text = (chunk or "").strip()
                     if not text:
                         continue

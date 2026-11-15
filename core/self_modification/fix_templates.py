@@ -83,7 +83,7 @@ def changes_at(source: str, line: int) -> Iterator[tuple[str, str]]:
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        return
+        return  # not a failure: source that does not parse has no node for a template to change
     starts = _offsets(source)
     seen: set[str] = set()
 
@@ -93,7 +93,7 @@ def changes_at(source: str, line: int) -> Iterator[tuple[str, str]]:
         try:
             ast.parse(changed)
         except SyntaxError:
-            return
+            return  # not a failure: a change that does not parse is not offered
         seen.add(changed)
         yield name, changed
 

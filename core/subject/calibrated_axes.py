@@ -16,12 +16,15 @@ preregistration before a run that reads it.
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 
 from core.subject.sketch import SKETCH_WIDTH
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "axes_for", "calibrate", "calibration_pass", "clear", "described", "fitted", "load", "save", "sketched_sources",
@@ -131,7 +134,8 @@ def _resolve(organs: Any, source: str) -> Any:
     if callable(held):
         try:
             held = held()
-        except Exception:  # noqa: BLE001 - a reader that raises gives no axes, as K reads a miss
+        except Exception as exc:  # noqa: BLE001 - a reader that raises gives no axes, as K reads a miss
+            logger.debug("The reader behind %s raised, so it gives no axes: %s", source, exc)
             return None
     return held
 

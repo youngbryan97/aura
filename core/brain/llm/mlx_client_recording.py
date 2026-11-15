@@ -553,7 +553,7 @@ def _earlier_passes(attempts: Any) -> list[tuple[float | None, float | None]]:
             try:
                 value = float(attempt.get(key))
             except (TypeError, ValueError, OverflowError):
-                value = None
+                value = None  # not a failure: a pass with no readable time has none
             values.append(value if value is not None and math.isfinite(value) and value >= 0.0 else None)
         passes.append((values[0], values[1]))
     return passes

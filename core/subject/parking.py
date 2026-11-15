@@ -75,7 +75,7 @@ def _forget() -> None:
         try:
             marker.unlink()
         except FileNotFoundError:
-            pass
+            pass  # not a failure: already gone is forgotten
 
 
 def offer_to_park(directory: str | os.PathLike[str] | None = None) -> bool:

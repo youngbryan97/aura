@@ -1800,7 +1800,8 @@ def _append_sensory_claim_correction(user_message: object, reply_text: object) -
             from core.skills.watching_together import what_we_are_watching
 
             recalled = what_we_are_watching()
-        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.warning("What she watched lately could not be read, so none of it counts as recalled: %s", exc)
             recalled = ""
         kept, removed = excise_unsupported_sensory_claims(reply_text, recalled=recalled)
     except _CHAT_RECOVERABLE_ERRORS as exc:

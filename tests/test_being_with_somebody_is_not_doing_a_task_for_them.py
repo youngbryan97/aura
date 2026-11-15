@@ -946,7 +946,8 @@ def test_with_no_turn_of_theirs_in_the_with_there_is_no_turn_of_hers_to_write(mo
 def test_while_a_with_is_open_her_screen_looks_go_to_it():
     source = Path("core/perception/ambient_presence.py").read_text()
     body = source[source.index("async def _consider_speaking"):]
-    body = body[:body.index("if thought and self.offer_utterance(thought):")]
+    # Everything before the offer, however the offer is written: since 60e61b09a its result is kept, to be logged.
+    body = body[:body.index("self.offer_utterance(thought)")]
     assert "held = get_together().current()" in body
     assert "remark_in_a_with(held, latest_screen()) if held is not None else consider_utterance(result)" in body
     assert "held is None and time.time() - self._last_spoke_at < self._min_speech_gap_s" in body

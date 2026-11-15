@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import sys
 from collections.abc import Mapping
@@ -25,6 +26,17 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.permission_gates import screen_allowed
+
+logger = logging.getLogger(__name__)
+_TOLD: set[str] = set()
+
+
+def _say_once(what: str, exc: BaseException) -> None:
+    """Log why a window reading failed, once a reason: it is asked on every capture."""
+    reason = f"{what}: {type(exc).__name__}: {exc}"
+    if reason not in _TOLD:
+        _TOLD.add(reason)
+        logger.info("Screen capture policy: %s", reason)
 
 _POLICY_SCHEMA = "aura.security.screen_capture_privacy_policy.v1"
 SCREEN_CAPTURE_ADMISSION_SCHEMA = "aura.security.screen_capture_admission.v1"
@@ -428,7 +440,8 @@ def _accessibility_window_titles(app: str) -> list[tuple[str, tuple[int, int, in
             ["/usr/bin/osascript", "-e", _BROWSER_TITLES_SCRIPT, app], capture_output=True,
             timeout=_BROWSER_TITLES_TIMEOUT_S, read_only=True, source="screen_capture_policy:window_titles",
             accelerator_capability="none")
-    except (OSError, RuntimeError, subprocess.SubprocessError):
+    except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        _say_once(f"the window titles of {app} could not be read", exc)
         return None
     if done.returncode != 0:
         return None
@@ -448,7 +461,7 @@ def _window_frame(raw_window: Mapping[str, Any]) -> tuple[int, int, int, int] | 
     try:
         return (int(bounds["X"]), int(bounds["Y"]), int(bounds["Width"]), int(bounds["Height"]))
     except (KeyError, TypeError, ValueError):
-        return None
+        return None  # not a failure: a window with no bounds has no frame
 
 
 def _a_visible_browser_window_is_private(
@@ -508,7 +521,8 @@ def _visible_windows_and_foreground() -> tuple[list[Any], int] | None:
         options = Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements
         windows = Quartz.CGWindowListCopyWindowInfo(options, Quartz.kCGNullWindowID) or []
         return list(windows), int(foreground.processIdentifier()) if foreground is not None else 0
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        _say_once("the visible windows could not be listed", exc)
         return None
 
 

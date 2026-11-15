@@ -70,13 +70,14 @@ def start_memory_trace(log: Callable[[str], None], *, top: int = 12) -> threadin
     try:
         minutes = float(os.environ.get(MEMORY_TRACE_ENV, "") or 0.0)
     except ValueError:
+        log(f"[memory] {MEMORY_TRACE_ENV} is not a number of minutes, so there is no trace")
         minutes = 0.0
     if minutes <= 0:
         return None
     try:
         loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
     except RuntimeError:
-        loop = None
+        loop = None  # not a failure: with no loop the trace reports resident memory only, as said above
     held = {"kinds": count_kinds() if loop is not None else None, "resident": _resident_gb()}
     log(f"[memory] {held['resident']:.2f} GB resident at the first look")
 
@@ -99,7 +100,7 @@ def start_memory_trace(log: Callable[[str], None], *, top: int = 12) -> threadin
             try:
                 loop.call_soon_threadsafe(look)
             except RuntimeError:
-                return
+                return  # not a failure: a closed loop is the run's end, and the trace ends with it
 
     stop = threading.Event()
     thread = threading.Thread(target=watch, name="subject-memory-trace", daemon=True)

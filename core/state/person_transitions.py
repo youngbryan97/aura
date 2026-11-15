@@ -15,10 +15,13 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import logging
 import math
 import time
 from collections.abc import Mapping
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "AURA_PERSON_PATHS",
@@ -236,7 +239,8 @@ def observe_person(repository: Any, state: Any) -> None:
 def _watch_the_person() -> None:
     try:
         from core.runtime.cognitive_contract import watch_also
-    except ImportError:
+    except ImportError as exc:
+        logger.warning("The person's paths are not watched: the cognitive contract could not be imported (%s).", exc)
         return
     watch_also(person_paths(), whole=True)
 

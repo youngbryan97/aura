@@ -295,7 +295,7 @@ class HerEar:
         try:
             await asyncio.wait_for(self._answered.wait(), timeout=ready_s)
         except TimeoutError:
-            pass
+            pass  # not a failure here: an ear that did not answer in time is told just below
         if not self.listening:
             self.why_not = self.why_not or "the ear did not hear the application"
         return self.listening

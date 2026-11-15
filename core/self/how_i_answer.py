@@ -160,7 +160,7 @@ def _reading(state: Any, path: str) -> float:
     try:
         number = float(value)
     except (TypeError, ValueError):
-        return 0.0
+        return 0.0  # not a failure: a reading that is not a number reads as none, as a non-finite one does
     return number if math.isfinite(number) else 0.0
 
 
