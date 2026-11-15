@@ -5125,6 +5125,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   bisected to 5830b1de5, where after an early end keys b and c each take a
   second trial and the body leaves the view at 5.4 s; one material-motion
   case; and one slow ordering test, not yet read.
+  15 November: the rest of the run's failures, alone on main, came to
+  three files. The test of self-speech rules taken out on 11 November went
+  with them (031591259); the caller test patched Path for its whole length
+  and erred in the suite's own teardown (c51869097). The material-motion
+  case, bisected: it passed at 7f6a4102f (14 October) and fails from
+  4ab5de94b (15 October, one material identity across visible pieces),
+  where at an outline turn of 0.268 her identification ends holding no
+  body. With the cold-control loop (5830b1de5, the same day), both
+  regressions are in that one night's play-perception series.
   14-15 November, night. The handler ratchet is at zero, from 226 that
   morning: 229 handlers across every package now either log what they
   caught or say why it is an answer and not a failure ("not a failure:").
