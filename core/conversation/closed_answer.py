@@ -25,7 +25,14 @@ from __future__ import annotations
 import re
 from typing import Any
 
-__all__ = ["CLOSED_ANSWER_WORDS", "asks_for_a_closed_answer", "gives_a_closed_answer", "is_a_bare_answer"]
+__all__ = [
+    "CLOSED_ANSWER_WORDS",
+    "adds_nothing_to_the_question",
+    "asks_for_a_closed_answer",
+    "gives_a_closed_answer",
+    "hands_the_question_back",
+    "is_a_bare_answer",
+]
 
 #: The longest reply read as a closed answer: "No", "Coffee.", "Probably not".
 CLOSED_ANSWER_WORDS = 3
@@ -84,3 +91,81 @@ def gives_a_closed_answer(message: Any, reply: Any) -> bool:
         return any(word.isdigit() for word in words) or bool(words & _NUMBER_WORDS)
     options = {option.lower() for pair in _OPTIONS_RE.findall(text) for option in pair}
     return not options or bool(words & options)
+
+
+#: Words that carry no information about a topic. Deliberately generous: a
+#: token missing from here only makes the zero-information check LESS likely to
+#: fire, so the failure mode of an incomplete list is silence, not a rejected
+#: correct answer.
+_INFORMATION_FREE_WORDS = frozenset(
+    """
+    a an and are as at be been being but by can could did do does for from had
+    has have how i if in into is it its me my no not of on or our so that the
+    their them then there these they this those to too us was we were what when
+    where which who whom whose why will with would you your yes yeah ok okay
+    sure just really very much some any all more most first also am does don't
+    because since though although while unless until nor than about after
+    before over under out off again here now still only even both each every
+    other own same such another want wanted
+    """.split()
+)
+
+#: A reply that OPENS on one of these is answering, not restating — the word is
+#: the answer. Without this, "No." to a yes/no question reads as contributing
+#: nothing, because a polarity word necessarily carries no topical content.
+_POLARITY_OPENERS = frozenset(
+    "yes no yeah yep nope never always correct incorrect right wrong true false"
+    " none neither nothing".split()
+)
+
+
+def adds_nothing_to_the_question(user_message: Any, reply_text: Any) -> bool:
+    """Whether the reply asserts anything the question did not already contain.
+
+    Two live non-answers have this shape and no other property in common:
+    "what?" answered with "what?", and "…what would you check first before
+    patching it?" answered with "Check it." Neither is short in a way that
+    matters — "50847899" is shorter than both and is a complete answer — and
+    neither is off-topic. They are circular: every content word in the reply
+    came from the question, so nothing was added.
+
+    This is what the deleted word-count floors were groping at and never named.
+    A floor makes length the test and destroys correct terse answers; this
+    makes *information* the test, which is the property that was actually
+    missing. A single new content word — a number, a name, a noun the question
+    did not use — is enough to pass, because a single new content word is a
+    contribution and the gate has no business grading it further.
+    """
+
+    reply = str(reply_text or "")
+    asked = str(user_message or "")
+    reply_words = [word.lower() for word in re.findall(r"[A-Za-z0-9']+", reply)]
+    if not reply_words:
+        return False
+    if reply_words[0] in _POLARITY_OPENERS:
+        return False
+    # Numerals and code are answers by construction; they are never a
+    # restatement of the question even when the question contains the digits.
+    if any(any(char.isdigit() for char in word) for word in reply_words):
+        return False
+    if "`" in reply or "\n" in reply.strip():
+        return False
+    asked_words = {word.lower() for word in re.findall(r"[A-Za-z0-9']+", asked)}
+    contributed = [
+        word
+        for word in reply_words
+        if word not in _INFORMATION_FREE_WORDS and word not in asked_words
+    ]
+    return not contributed
+
+
+def hands_the_question_back(user_message: Any, reply_text: Any) -> bool:
+    """Whether the whole reply is a question, given back to someone who asked one.
+
+    A greeting given back is the answer to a greeting ("Hey!" to "Hey!"), which is why a casual turn is spared the
+    information test. A question given back answers nothing, casual or not: "What is on your mind right now?" was
+    answered "What is on your mind?" (2 November 2026). This only says the test applies; whether the reply added
+    anything is still adds_nothing_to_the_question's to say.
+    """
+    asked, reply = str(user_message or "").strip(), str(reply_text or "").strip()
+    return "?" in asked and reply.endswith("?")

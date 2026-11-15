@@ -15,6 +15,7 @@ An answer supersedes another answer. It does not supersede an event.
 from __future__ import annotations
 
 import interface.event_bridge as eb
+from core.conversation.closed_answer import adds_nothing_to_the_question
 from core.conversation.surface_delivery import note_turn_started, route_answer_supersedes
 from core.schemas import (
     ActionResultPayload,
@@ -118,7 +119,7 @@ def test_a_question_that_names_its_own_answer_is_not_faulted_for_getting_it_back
     ):
         contract = rr.requested_output_contract(asked)
         assert contract.word_max is not None and contract.word_max <= rr._COVERAGE_EXEMPT_WORDS
-        assert rr._adds_nothing_to_the_question(asked, answered), "the premise of the old fault"
+        assert adds_nothing_to_the_question(asked, answered), "the premise of the old fault"
 
 
 def test_giving_an_open_question_back_is_still_faulted():
@@ -127,7 +128,7 @@ def test_giving_an_open_question_back_is_still_faulted():
 
     asked = "Explain how the cache works"
     assert rr.requested_output_contract(asked).word_max is None
-    assert rr._adds_nothing_to_the_question(asked, "How the cache works")
+    assert adds_nothing_to_the_question(asked, "How the cache works")
     assert rr._requires_substantive_reply(asked)
 
 

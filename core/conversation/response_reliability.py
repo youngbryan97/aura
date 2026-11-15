@@ -55,6 +55,7 @@ from core.conversation.arithmetic_check import (
     requested_arithmetic_result,
 )
 from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
+from core.conversation.closed_answer import adds_nothing_to_the_question, hands_the_question_back
 from core.conversation.escaped_controls import has_escaped_whitespace_artifact
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
 from core.conversation.request_coverage import gives_a_closed_answer, unanswered_question_parts
@@ -6512,70 +6513,6 @@ def strip_private_planning_prefix(reply_text: Any) -> str:
     return split.public_answer if split.separated else body
 
 
-#: Words that carry no information about a topic. Deliberately generous: a
-#: token missing from here only makes the zero-information check LESS likely to
-#: fire, so the failure mode of an incomplete list is silence, not a rejected
-#: correct answer.
-_INFORMATION_FREE_WORDS = frozenset(
-    """
-    a an and are as at be been being but by can could did do does for from had
-    has have how i if in into is it its me my no not of on or our so that the
-    their them then there these they this those to too us was we were what when
-    where which who whom whose why will with would you your yes yeah ok okay
-    sure just really very much some any all more most first also am does don't
-    because since though although while unless until nor than about after
-    before over under out off again here now still only even both each every
-    other own same such another want wanted
-    """.split()
-)
-
-#: A reply that OPENS on one of these is answering, not restating — the word is
-#: the answer. Without this, "No." to a yes/no question reads as contributing
-#: nothing, because a polarity word necessarily carries no topical content.
-_POLARITY_OPENERS = frozenset(
-    "yes no yeah yep nope never always correct incorrect right wrong true false"
-    " none neither nothing".split()
-)
-
-
-def _adds_nothing_to_the_question(user_message: Any, reply_text: Any) -> bool:
-    """Whether the reply asserts anything the question did not already contain.
-
-    Two live non-answers have this shape and no other property in common:
-    "what?" answered with "what?", and "…what would you check first before
-    patching it?" answered with "Check it." Neither is short in a way that
-    matters — "50847899" is shorter than both and is a complete answer — and
-    neither is off-topic. They are circular: every content word in the reply
-    came from the question, so nothing was added.
-
-    This is what the deleted word-count floors were groping at and never named.
-    A floor makes length the test and destroys correct terse answers; this
-    makes *information* the test, which is the property that was actually
-    missing. A single new content word — a number, a name, a noun the question
-    did not use — is enough to pass, because a single new content word is a
-    contribution and the gate has no business grading it further.
-    """
-
-    reply = str(reply_text or "")
-    asked = str(user_message or "")
-    reply_words = [word.lower() for word in re.findall(r"[A-Za-z0-9']+", reply)]
-    if not reply_words:
-        return False
-    if reply_words[0] in _POLARITY_OPENERS:
-        return False
-    # Numerals and code are answers by construction; they are never a
-    # restatement of the question even when the question contains the digits.
-    if any(any(char.isdigit() for char in word) for word in reply_words):
-        return False
-    if "`" in reply or "\n" in reply.strip():
-        return False
-    asked_words = {word.lower() for word in re.findall(r"[A-Za-z0-9']+", asked)}
-    contributed = [
-        word
-        for word in reply_words
-        if word not in _INFORMATION_FREE_WORDS and word not in asked_words
-    ]
-    return not contributed
 
 
 
@@ -7640,8 +7577,9 @@ def _assess_user_facing_reply(
         and not strict_answer_tag_reply
         and not memory_pin_confirmation
         and not pinned_to_a_fragment
-        and (_requires_substantive_reply(user_message) or is_confusion_repair_turn(user_message))
-        and _adds_nothing_to_the_question(user_message, raw)
+        and (_requires_substantive_reply(user_message) or is_confusion_repair_turn(user_message)
+             or hands_the_question_back(user_message, raw))
+        and adds_nothing_to_the_question(user_message, raw)
     ):
         reasons.append("adds_nothing_beyond_the_question")
 
