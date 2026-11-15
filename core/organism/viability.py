@@ -275,8 +275,9 @@ class ViabilityEngine:
     def on_transition(self, cb: Callable[[ViabilityState, ViabilityState], None]) -> None:
         self._on_transition.append(cb)
 
-    def tick(self) -> ViabilityState:
-        sample = self._sampler()
+    def tick(self, sample: ViabilitySample | None = None) -> ViabilityState:
+        """Classify a sample, taken now unless one is given, and move to the state it calls for."""
+        sample = sample if sample is not None else self._sampler()
         raw_proposed = self._classify(sample)
         proposed, guard_detail = self._classify_with_temporal_guards(sample, raw_proposed)
         # Hysteresis: do not move into a *less severe* state until enough
@@ -322,7 +323,10 @@ class ViabilityEngine:
         async def _loop() -> None:
             while self._running:
                 try:
-                    self.tick()
+                    # The sample reads the filesystem's free space and other organs' counts; her event loop does
+                    # not wait on either (Master Todo R06: two of twelve stall dumps of 11 November held her loop
+                    # in this sample's disk read). Classifying it and moving between states stay on the loop.
+                    self.tick(await asyncio.to_thread(self._sampler))
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                     record_degradation('viability', exc)
                     logger.debug("viability tick error: %s", exc)
