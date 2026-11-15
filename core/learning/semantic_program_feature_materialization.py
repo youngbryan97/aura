@@ -183,12 +183,13 @@ def _require_complete_stop_contrasts(max_examples: int, source_count: int) -> No
 
 @invariant("learning.stop_contrast_selection_keeps_both_sides", scope="learning",
            owner="core/learning/semantic_program_feature_materialization.py", observational=False)
-def _stop_contrast_selection_boundary() -> dict:
+def _stop_contrast_selection_boundary() -> tuple:
     _require_complete_stop_contrasts(4, 4)
     try:
         _require_complete_stop_contrasts(3, 4)
     except ValueError:
-        return {"partial_pair_selection_refused": True}
+        # Clean is nothing yielded: a dict returned here was read as its keys, each one a breach (Q09, 15 November 2026).
+        return ()  # not a failure: the partial selection was refused, which is the boundary held
     raise AssertionError("partial stop-contrast selection acquired training weight")
 
 

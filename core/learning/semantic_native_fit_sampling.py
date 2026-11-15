@@ -108,7 +108,7 @@ def scheduled_native_source_pairs(
 
 @invariant("learning.native_pilot_donors_stay_in_fit", scope="learning",
            owner="core/learning/semantic_native_fit_sampling.py", observational=False)
-def _pilot_donor_scope() -> dict:
+def _pilot_donor_scope() -> tuple:
     selected = scheduled_native_source_pairs(
         {"primary": [{"partner": "donor"}], "donor": [{"partner": "primary"}]},
         ("primary",), ("primary", "donor"))
@@ -117,5 +117,6 @@ def _pilot_donor_scope() -> dict:
         scheduled_native_source_pairs({"primary": [{"partner": "held"}]},
             ("primary",), ("primary", "donor"))
     except ValueError:
-        return {"fit_donor_retained": True, "held_donor_refused": True}
+        # Clean is nothing yielded: a dict returned here was read as its keys, each one a breach (Q09, 15 November 2026).
+        return ()  # not a failure: the held donor was refused and the fit donor kept, which is the scope held
     raise AssertionError("native pilot admitted a held source donor")

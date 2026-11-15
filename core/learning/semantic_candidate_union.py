@@ -178,7 +178,14 @@ def unify_semantic_candidates(
 
 @invariant("learning.mixed_candidate_agreement_is_not_truth", scope="learning",
            owner="core/learning/semantic_candidate_union.py", observational=False)
-def _mixed_agreement_keeps_incumbent() -> dict:
+def _mixed_agreement_keeps_incumbent() -> tuple:
+    """The incumbent kept against an agreeing mix; its receipt is mixed_agreement_receipt's."""
+    # Clean is nothing yielded: a dict returned here was read as its keys, each one a breach (Q09, 15 November 2026).
+    mixed_agreement_receipt()
+    return ()
+
+
+def mixed_agreement_receipt() -> dict:
     from core.learning.procedure_induction import Instruction
 
     baseline = Program(2, (Instruction("sub", (0, 1)),))

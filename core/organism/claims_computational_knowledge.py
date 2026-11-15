@@ -11,8 +11,8 @@ def _scoped_computation_estimates_stay_conditional() -> bool:
 
 
 def _mixed_program_agreement_is_not_truth() -> bool:
-    from core.learning.semantic_candidate_union import _mixed_agreement_keeps_incumbent
-    receipt = _mixed_agreement_keeps_incumbent()
+    from core.learning.semantic_candidate_union import mixed_agreement_receipt
+    receipt = mixed_agreement_receipt()
     return receipt["selected"] == receipt["incumbent"] and receipt["serving_authority"] is False
 
 
