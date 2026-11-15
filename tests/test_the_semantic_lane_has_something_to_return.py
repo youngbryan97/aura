@@ -80,7 +80,10 @@ def test_the_semantic_lane_now_has_a_writer() -> None:
     """The lane the subject-core driver registers reads this list."""
     from pathlib import Path
 
-    driver = Path("core/subject/driver.py").read_text(encoding="utf-8")
+    from tests.source_contract import family_text_at
+
+    # The driver and the parts lifted out of it (1a1b6bef8, 10 November), read as one module.
+    driver = family_text_at(Path("core/subject/driver.py"))
     assert "runtime.state.cold.long_term_memory" in driver
     assert "MemoryStoreType.SEMANTIC" in driver
 
