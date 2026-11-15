@@ -56,12 +56,16 @@ class ParakeetProcess:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0, env=environment,
         )
         try:
-            if self._receive(timeout_s).get("ready") is not True:
+            ready = self._receive(timeout_s)
+            if ready.get("ready") is not True:
                 raise RuntimeError("her recognizer process did not become ready")
         except (OSError, RuntimeError, ValueError, TimeoutError):
             self.close()
             raise
-        logger.info("👂 her recognizer runs in its own process (pid %s): %s", self.process.pid, ", ".join(self.repos))
+        held = ready.get("memory") or {}
+        logger.info("👂 her recognizer runs in its own process (pid %s): %s; it holds %s GB (%s cached), %s GB at its "
+                    "peak", self.process.pid, ", ".join(self.repos), held.get("active_gb", "?"),
+                    held.get("cached_gb", "?"), held.get("peak_gb", "?"))
 
     def decode(self, audio: np.ndarray, repo: str, *, timeout_s: float = 30.0) -> tuple[str, tuple[tuple[str, float, float], ...]]:
         """Text and timed tokens for ``audio`` (float32 at 16 kHz). A failure closes the process: a reply that came
