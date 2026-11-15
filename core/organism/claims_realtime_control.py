@@ -806,7 +806,19 @@ def install_realtime_control_claims(suite: Any) -> None:
         test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
         evidence_note="Frame and metadata acceptance measured; supported paint and actual control are measured in separate browser runs.",
     ))
+    _install_artifact_lane_claim(suite)
+
+
+def _install_artifact_lane_claim(suite: Any) -> None:
+    """The claim that an artifact effect takes precedence over a generic desktop shortcut."""
     from core.intent.capability_selection import _artifact_lane_is_owned_by_the_declaration
+    from core.organism.model_validation import (
+        Claim,
+        Evidence,
+        Observation,
+        ValidationTest,
+        boolean_score,
+    )
 
     name = "artifact_lane_follows_declared_effect"
     owner = "core/intent/capability_selection.py"

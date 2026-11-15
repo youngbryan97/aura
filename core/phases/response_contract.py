@@ -1366,6 +1366,42 @@ def _the_persons_words(objective: Any) -> str:
     return strip_injected_blocks(objective).strip()
 
 
+def _mark_the_evidence_of_this_turn(
+    *,
+    modifiers: Any,
+    text: Any,
+) -> None:
+    """Extracted from ``build_response_contract``.
+
+    Moved out of ``build_response_contract`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 2 name(s) from the turn and hands back
+    0.
+    """
+    if isinstance(modifiers, dict):
+        import uuid as _uuid
+
+        modifiers["evidence_turn_marker"] = _uuid.uuid4().hex
+        normalized_objective = " ".join(str(text or "").split()).strip()
+        objective_sha256 = (
+            hashlib.sha256(normalized_objective.encode("utf-8")).hexdigest()
+            if normalized_objective
+            else ""
+        )
+        # Tool phases run before response generation. Rebuilding the response
+        # contract used to rotate this marker after the tool had echoed it,
+        # invalidating valid evidence during the same turn. Per-turn modifier
+        # scrubbing prevents an earlier turn's objective-bound skill receipt
+        # from reaching this point.
+        if (
+            modifiers.get("last_skill_ok") is True
+            and objective_sha256
+            and str(modifiers.get("last_skill_objective_hash") or "").strip()
+            == objective_sha256
+        ):
+            modifiers["last_skill_turn_marker"] = modifiers["evidence_turn_marker"]
+
+
 def build_response_contract(
     state: AuraState,
     objective: str,
@@ -1639,28 +1675,10 @@ def build_response_contract(
     # a folder creation that had actually failed this turn. Skills that
     # run this turn echo this marker; the dialogue validator compares.
     modifiers = getattr(state, "response_modifiers", None)
-    if isinstance(modifiers, dict):
-        import uuid as _uuid
-
-        modifiers["evidence_turn_marker"] = _uuid.uuid4().hex
-        normalized_objective = " ".join(str(text or "").split()).strip()
-        objective_sha256 = (
-            hashlib.sha256(normalized_objective.encode("utf-8")).hexdigest()
-            if normalized_objective
-            else ""
-        )
-        # Tool phases run before response generation. Rebuilding the response
-        # contract used to rotate this marker after the tool had echoed it,
-        # invalidating valid evidence during the same turn. Per-turn modifier
-        # scrubbing prevents an earlier turn's objective-bound skill receipt
-        # from reaching this point.
-        if (
-            modifiers.get("last_skill_ok") is True
-            and objective_sha256
-            and str(modifiers.get("last_skill_objective_hash") or "").strip()
-            == objective_sha256
-        ):
-            modifiers["last_skill_turn_marker"] = modifiers["evidence_turn_marker"]
+    _mark_the_evidence_of_this_turn(
+        modifiers=modifiers,
+        text=text,
+    )
 
     tool_evidence = has_tool_evidence(state)
     memory_evidence = has_memory_evidence(state)

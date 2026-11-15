@@ -134,6 +134,51 @@ def _goal_priority(goal: Any) -> float:
     return _clamp(stated, 0.5)
 
 
+def _what_the_substrate_bids(
+    *,
+    bids: Any,
+) -> None:
+    """The substrate's bid for her workspace: how fast it is moving against how far it is from rest.
+
+    Moved out of ``build_candidates`` by tools/extract_seam.py, which checks the body against the original token for
+    token before writing.
+    """
+    from core.consciousness.workspace_candidate import CognitiveCandidate, ContentType
+
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        substrate = get_runtime_service("conscious_substrate", default=None)
+        reading = substrate.get_state_summary_nowait() if substrate is not None else None
+        if isinstance(reading, dict) and not reading.get("snapshot_stale"):
+            # How fast the substrate is moving against how far it is from rest,
+            # which is a reading of the same kind as the world model's surprise
+            # beside it: scale-free, and sensitive wherever this substrate's
+            # own amplitude happens to sit.
+            #
+            # It was the summary's `volatility` divided by a hundred — and the
+            # summary multiplies the mean velocity by a hundred to make it
+            # readable, so the two cancelled and the bid was the raw mean
+            # velocity, about two thousandths. The floor every bid has to clear
+            # is five hundredths. Recurrent cognition could not reach attention
+            # by any route, on any turn, at any speed.
+            speed = max(0.0, float(reading.get("volatility", 0.0)) / 100.0)
+            amplitude = max(0.0, float(reading.get("global_energy", 0.0)))
+            total = speed + amplitude
+            level = _clamp(0.0 if total <= 1e-9 else speed / total)
+            if level > FLOOR:
+                bids.append(
+                    CognitiveCandidate(
+                        content=f"the substrate is moving ({level:.2f})",
+                        source="substrate",
+                        priority=level,
+                        content_type=ContentType.SOMATIC,
+                    )
+                )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("the substrate had nothing to offer the workspace: %s", exc)
+
+
 def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
     """One bid per domain that has something to say, priced by the state.
 
@@ -483,38 +528,9 @@ def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
     # And a substrate that is moving fast. Volatility is the continuous
     # substrate's own reading of how much it is changing, which is what makes a
     # moment worth attending to before anything has named why.
-    try:
-        from core.runtime.service_registry import get_runtime_service
-
-        substrate = get_runtime_service("conscious_substrate", default=None)
-        reading = substrate.get_state_summary_nowait() if substrate is not None else None
-        if isinstance(reading, dict) and not reading.get("snapshot_stale"):
-            # How fast the substrate is moving against how far it is from rest,
-            # which is a reading of the same kind as the world model's surprise
-            # beside it: scale-free, and sensitive wherever this substrate's
-            # own amplitude happens to sit.
-            #
-            # It was the summary's `volatility` divided by a hundred — and the
-            # summary multiplies the mean velocity by a hundred to make it
-            # readable, so the two cancelled and the bid was the raw mean
-            # velocity, about two thousandths. The floor every bid has to clear
-            # is five hundredths. Recurrent cognition could not reach attention
-            # by any route, on any turn, at any speed.
-            speed = max(0.0, float(reading.get("volatility", 0.0)) / 100.0)
-            amplitude = max(0.0, float(reading.get("global_energy", 0.0)))
-            total = speed + amplitude
-            level = _clamp(0.0 if total <= 1e-9 else speed / total)
-            if level > FLOOR:
-                bids.append(
-                    CognitiveCandidate(
-                        content=f"the substrate is moving ({level:.2f})",
-                        source="substrate",
-                        priority=level,
-                        content_type=ContentType.SOMATIC,
-                    )
-                )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("the substrate had nothing to offer the workspace: %s", exc)
+    _what_the_substrate_bids(
+        bids=bids,
+    )
 
     if soma is not None:
         hardware = getattr(soma, "hardware", {}) or {}
