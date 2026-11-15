@@ -177,7 +177,7 @@ def _number(text: str) -> Fraction | None:
     try:
         return Fraction(text.replace(",", ""))
     except (ValueError, ZeroDivisionError):
-        return None
+        return None  # not a failure: text that is not a number has none
 
 
 def answers_agree(returned: str, expected: str) -> bool:
@@ -739,7 +739,7 @@ def kept_procedure_book() -> ProcedureBook | None:
     try:
         stamp = path.stat().st_mtime_ns
     except FileNotFoundError:
-        return None
+        return None  # not a failure: none kept yet
     if _kept_cache.get("stamp") != (str(path), stamp):
         book = ProcedureBook.from_json(json.loads(path.read_text(encoding="utf-8")))
         book.steps = kept_steps_from(path, book)

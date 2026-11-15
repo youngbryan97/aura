@@ -62,7 +62,7 @@ def _checker() -> object | None:
         from AppKit import NSSpellChecker  # noqa: PLC0415 - macOS only, and only when first asked
 
         return NSSpellChecker.sharedSpellChecker()
-    except Exception:  # noqa: BLE001 - no checker is a narrower vocabulary, not a fault
+    except Exception:  # noqa: BLE001 - not a failure: no checker is a narrower vocabulary
         return None
 
 
@@ -101,7 +101,7 @@ def _spelled(read: str) -> str | None:
                 return plain
             guesses = checker.guessesForWordRange_inString_language_inSpellDocumentWithTag_(  # type: ignore[attr-defined]
                 (0, len(form)), form, _SPELLED_IN, 0) or []
-    except Exception:  # noqa: BLE001 - a checker that cannot answer has said nothing
+    except Exception:  # noqa: BLE001 - not a failure: a checker that cannot answer has said nothing
         return None
     # A guess only for a word of five letters or more: a short one has too many neighbours, and "toct" taken for
     # "tact" is a wrong word where "toct" was only an unread one.

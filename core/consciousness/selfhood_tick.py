@@ -130,7 +130,8 @@ def read_cognition(state: Any) -> dict[str, float]:
 
         comparator = peek_agency_comparator()
         agency = comparator.agency_reading() if comparator is not None else None
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("This tick has no agency reading: %s", exc)
         agency = None
     if agency is not None:
         found["agency_score"] = max(0.0, min(1.0, float(agency)))

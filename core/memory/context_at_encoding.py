@@ -80,7 +80,7 @@ def _decoded(text: str) -> np.ndarray | None:
     try:
         state = np.frombuffer(base64.b64decode(text.encode("ascii"), validate=True), dtype=np.float16)
     except (ValueError, TypeError):
-        return None
+        return None  # not a failure: text that is not a state encoded here holds none
     state = state.astype(np.float64)
     if not state.size or not np.all(np.isfinite(state)):
         return None

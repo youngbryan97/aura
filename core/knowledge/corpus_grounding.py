@@ -39,6 +39,7 @@ Two things it must not do, both of which make a corpus lookup worse than none:
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from collections.abc import Callable, Iterator, Sequence
@@ -46,6 +47,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CorpusGrounding",
@@ -264,7 +267,8 @@ def corpus_grounding_for(
 def _points_back(query: str) -> bool:
     try:
         from core.knowledge.talked_about import points_back
-    except ImportError:
+    except ImportError as exc:
+        logger.warning("Whether the question points back cannot be read: %s", exc)
         return False
     return points_back(query)
 

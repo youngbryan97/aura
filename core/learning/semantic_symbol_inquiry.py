@@ -156,7 +156,7 @@ def predict_symbol_hypothesis(hypothesis, request):
             dict(request.inputs), output=request.output, cutoff=request.cutoff,
             world=request.world).result
     except (ValueError, TypeError, RuntimeError, ArithmeticError, IndexError):
-        # Undefined or unsupported denotation is silence, not a wrong answer.
+        # not a failure: undefined or unsupported denotation is silence, not a wrong answer.
         return None
 
 

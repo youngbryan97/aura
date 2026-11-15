@@ -1066,7 +1066,7 @@ def _load(self) -> None:
     try:
         stored = json.loads(_file(self).read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return
+        return  # not a failure: nothing kept yet
     except (OSError, ValueError) as exc:
         record_degradation(
             "what_she_wants", exc, severity="warning",

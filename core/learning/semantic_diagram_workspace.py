@@ -121,7 +121,7 @@ def revise_diagram_workspace(engine, proposals, *, cutoff, previous=None, minimu
                     execution = execute_meaning_diagram(candidate, proposal.frames, proposal.inputs,
                         output=proposal.output, cutoff=cutoff, world=world)
                 except ValueError:
-                    # A rejected complete graph receives a solver exclusion cut.
+                    # not a failure: a rejected complete graph receives a solver exclusion cut.
                     return False
                 if any(not c.admits(execution.result) for c in conditions):
                     return False

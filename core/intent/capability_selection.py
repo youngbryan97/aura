@@ -179,7 +179,7 @@ def the_one_asked_for(objective: str, offered: Mapping[str, Any]) -> str | None:
         from core.container import ServiceContainer
 
         engine = ServiceContainer.get("capability_engine", default=None)
-    except Exception:  # noqa: BLE001 - no catalogue here means no plain answer
+    except Exception:  # noqa: BLE001 - not a failure: no catalogue here means no plain answer
         return None
     skills = getattr(engine, "skills", None) or {}
     meta = skills.get(name)

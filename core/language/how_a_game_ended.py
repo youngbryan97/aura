@@ -13,11 +13,14 @@ as a win.
 """
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 from typing import Any, Final
 
 from core.verify import invariant
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["asks_to_win", "declares_a_win", "how_it_ended", "how_it_ended_in", "names_a_measure", "offers_a_win",
            "says_a_round_is_over", "says_an_unresolved_result", "says_play_is_ongoing", "the_rating_in", "the_score_in",
@@ -422,7 +425,8 @@ def _learned_it_makes(text: str) -> bool:
         try:
             if MAKING.decide_without_waiting(sentence):
                 return True
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+            logger.debug("The learned surface could not decide whether a sentence makes something: %s", exc)
             return False
     return False
 

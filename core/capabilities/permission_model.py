@@ -356,7 +356,8 @@ def _her_own_goal_work_is_leased(context: Dict[str, Any], effect_scope: str, exe
     """
     try:
         from core.executive.standing_authority import OWN_GOAL_GRANT, validate_standing_authority_context
-    except ImportError:
+    except ImportError as exc:
+        logger.warning("Standing authority is refused: its validator could not be imported (%s).", exc)
         return False
     if str((context or {}).get("standing_authority_grant_id") or "") != OWN_GOAL_GRANT:
         return False
@@ -369,7 +370,8 @@ def _her_own_goal_work_is_leased(context: Dict[str, Any], effect_scope: str, exe
             effect_scope=effect_scope,
             risk_level=execution_risk,
         )
-    except (RuntimeError, TypeError, ValueError):
+    except (RuntimeError, TypeError, ValueError) as exc:
+        logger.warning("Standing authority is refused: its grant could not be validated (%s).", exc)
         return False
     return bool(valid)
 

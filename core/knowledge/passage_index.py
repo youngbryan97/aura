@@ -175,7 +175,7 @@ class PassageIndex:
         try:
             import tantivy  # noqa: F401
         except ImportError:
-            return False
+            return False  # not a failure: without tantivy there is no index to be ready
         return (self.index_dir / _PROGRESS).exists() and self.corpus_db.exists()
 
     def search(self, question: str, *, limit: int, deadline_s: float | None = None) -> list[Passage]:

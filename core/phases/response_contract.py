@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -15,6 +16,8 @@ from core.runtime.structured_input import (
 )
 from core.state.aura_state import AuraState
 from core.utils.intent_normalization import normalize_memory_intent_text
+
+logger = logging.getLogger(__name__)
 
 _SEARCH_NEGATION_RE = re.compile(
     r"(?:didn'?t|don'?t|not|never|stop|no|avoid|prevent)\s+(?:\w+\s+){0,4}(?:search|look|google|find|check|browse|read)",
@@ -1261,7 +1264,8 @@ def _orders_a_named_file_changed(objective: str) -> bool:
             shaped_as_an_order,
         )
         from core.language.named_paths import first_existing_path
-    except ImportError:
+    except ImportError as exc:
+        logger.warning("Whether the turn orders a change to a named file cannot be read: %s", exc)
         return False
     if first_existing_path(objective) is None:
         return False

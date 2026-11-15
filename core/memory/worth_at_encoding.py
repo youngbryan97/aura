@@ -91,7 +91,7 @@ def decode(text: Any) -> np.ndarray | None:
     try:
         vector = np.asarray([float(part) for part in text.split(",")], dtype=np.float64)
     except ValueError:
-        return None
+        return None  # not a failure: text that is not a vector encoded here holds none
     if not vector.size or not np.all(np.isfinite(vector)):
         return None
     return vector

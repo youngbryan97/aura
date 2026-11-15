@@ -222,5 +222,5 @@ def _optional_float(value: Any) -> float | None:
     try:
         number = float(np.asarray(value).reshape(-1)[0])
     except (TypeError, ValueError, IndexError):
-        return None
+        return None  # not a failure: a value with no first number has none
     return number if np.isfinite(number) else None

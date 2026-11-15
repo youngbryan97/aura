@@ -464,7 +464,7 @@ class SQLiteMemory:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            running_here = False
+            running_here = False  # not a failure: the answer is that no loop runs here
         else:
             running_here = True
         if running_here:

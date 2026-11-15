@@ -82,7 +82,7 @@ def _start_evaluating(sample: Any) -> None:
 
         mx.async_eval(sample)
     except (ImportError, AttributeError, TypeError, ValueError, RuntimeError):
-        return
+        return  # not a failure: a sample not started early is computed when it is read
 
 
 class PhiResidualSampler:

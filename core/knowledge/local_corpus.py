@@ -443,7 +443,8 @@ class LocalCorpusStore:
             return None
         try:
             conn = self._connect_ro()
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as exc:
+            logger.info("No title found: the corpus at %s could not be opened (%s).", self.db_path, exc)
             return None
         # docs.title has no index, and a scan of it took 6.5s; the title
         # column of the full-text index answers in under 100ms, and the exact

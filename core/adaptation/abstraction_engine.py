@@ -140,7 +140,11 @@ class AbstractionEngine:
         """Whether this principle, its case and spacing aside, is already in the store."""
         try:
             parsed = json.loads(Path(self.storage_path).read_text())
-        except (OSError, ValueError):
+        except FileNotFoundError:
+            return False  # not a failure: no store yet keeps nothing
+        except (OSError, ValueError) as exc:
+            logger.warning("The principle store %s could not be read, so this one is not known kept: %s",
+                           self.storage_path, exc)
             return False
         kept = parsed.get("payload") if isinstance(parsed, dict) else parsed
         wanted = " ".join(principle.lower().split())

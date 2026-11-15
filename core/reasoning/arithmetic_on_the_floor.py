@@ -49,7 +49,7 @@ def integer_expression(expression: str) -> int | None:
         result = run(build(term), fuel=10000)
         return result if type(result) is int and result.bit_length() <= 12000 else None
     except (SyntaxError, ValueError, TypeError, RuntimeError, ZeroDivisionError, OverflowError, RecursionError):
-        return None
+        return None  # not a failure: an expression the floor cannot compute has no value here
 
 
 def arithmetic_canary() -> bool:

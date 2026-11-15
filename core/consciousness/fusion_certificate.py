@@ -429,7 +429,7 @@ def worker_reported(alpha: Any) -> float:
     try:
         earned = float(alpha)
     except (TypeError, ValueError):
-        earned = 0.0
+        earned = 0.0  # not a failure: an alpha that is not a number earned nothing
     if isinstance(alpha, bool) or not math.isfinite(earned):
         earned = 0.0
     earned = max(0.0, min(1.0, earned))

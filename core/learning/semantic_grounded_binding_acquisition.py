@@ -110,7 +110,7 @@ def grounded_supervision_from_source_example(item, *, channels=("middle_causal_h
         try:
             argument_graph_order(nodes, arguments_for(graph), n_inputs=item.ir.n_inputs)
         except ValueError:
-            return False
+            return False  # not a failure: a graph with no order is the answer no
         return True
     if not feasible(target):
         raise ValueError("source-positive binding graph violates the existing SSA contract")
