@@ -21,6 +21,8 @@ import time
 from collections import Counter
 from pathlib import Path
 
+from core.runtime.sqlite_support import connecting
+
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -46,7 +48,7 @@ def user_and_reply(row: dict) -> tuple[str, str]:
 
 
 def what_people_typed(db: Path) -> set[str]:
-    with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
+    with connecting(sqlite3.connect(f"file:{db}?mode=ro", uri=True)) as conn:
         return {_normal(c) for (c,) in conn.execute("select content from turns where role = 'user'") if c}
 
 

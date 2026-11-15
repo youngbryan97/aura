@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from core.conversation.response_reliability import _has_unfounded_tool_execution_claim
 from core.conversation.what_a_record_vouches_for import WHAT_IT_HOLDS, founded_by, holds
+from core.runtime.sqlite_support import connecting
 
 #: Her reply of 13 November, 08:48.
 HER_REPLY = (
@@ -122,7 +123,7 @@ def test_an_older_queue_gains_the_column(tmp_path):
     from core.conversation.persistence import ConversationPersistence
 
     db = tmp_path / "older.db"
-    with sqlite3.connect(db) as connection:
+    with connecting(sqlite3.connect(db)) as connection:
         connection.execute(
             "CREATE TABLE conversation_memory_outbox (operation_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, "
             "exchange_id TEXT NOT NULL, revision INTEGER NOT NULL, user_content TEXT NOT NULL, aura_content TEXT NOT "
@@ -131,6 +132,6 @@ def test_an_older_queue_gains_the_column(tmp_path):
             "claimed_at REAL, completed_at REAL, last_error TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, "
             "updated_at REAL NOT NULL)")
     ConversationPersistence(db)
-    with sqlite3.connect(db) as connection:
+    with connecting(sqlite3.connect(db)) as connection:
         columns = {row[1] for row in connection.execute("PRAGMA table_info(conversation_memory_outbox)")}
     assert "tool_receipts_json" in columns

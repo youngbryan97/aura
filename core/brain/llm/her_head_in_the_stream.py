@@ -25,20 +25,21 @@ Two reads back from the GPU a pass (the tokens chosen, then the next draft), not
 from __future__ import annotations
 
 import logging
-import os
 import time
 from collections.abc import Callable, Generator, Sequence
-from pathlib import Path
 from typing import Any
 
 import mlx.core as mx
+
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("LLM.HerHead")
 
 __all__ = ["HER_HEAD", "head_generate_step", "her_head_may_check", "her_own_head", "stream_generate_with_her_head", "timed"]
 
-#: Where her head's weights are: the original release's multi-token prediction layer.
-HER_HEAD = Path.home() / ".aura" / "models" / "qwen3.8-27b-mtp-source" / "mtp_head.safetensors"
+#: Where her head's weights are: the original release's multi-token prediction layer, installed under her state root
+#: (~/.aura unless a run names its own).
+HER_HEAD = state_root() / "models" / "qwen3.8-27b-mtp-source" / "mtp_head.safetensors"
 
 
 def _switched_on() -> bool:

@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from core.runtime.sqlite_support import connecting
 from core.self.recent_activity import (
     ActivityWindow,
     describe_recent_activity,
@@ -257,7 +258,7 @@ def test_reading_counts_the_work_finished_before_she_woke(monkeypatch, tmp_path)
     import core.self.recent_activity as activity
 
     db = tmp_path / "intention_loop.db"
-    with sqlite3.connect(db) as connection:
+    with connecting(sqlite3.connect(db)) as connection:
         connection.execute("CREATE TABLE intentions (intention TEXT, drive TEXT, status TEXT, completed_at REAL, "
                            "actual_outcome TEXT)")
         now = time.time()

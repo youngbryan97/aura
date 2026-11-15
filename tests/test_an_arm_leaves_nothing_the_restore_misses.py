@@ -27,6 +27,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from core.runtime.sqlite_support import connecting
 from core.subject.copies import identical
 
 pytestmark = pytest.mark.unit
@@ -125,7 +126,7 @@ def test_the_scientific_engine_makes_its_table_again_when_the_file_is_gone(tmp_p
     engine = ScientificEngine(db_path=str(db))
     db.unlink()
     hypothesis_id = engine.form_hypothesis("x rises", predicted_observable="x", expected=1.0)
-    with sqlite3.connect(db) as conn:
+    with connecting(sqlite3.connect(db)) as conn:
         rows = conn.execute("SELECT hypothesis_id FROM hypotheses").fetchall()
     assert [r[0] for r in rows] == [hypothesis_id]
 

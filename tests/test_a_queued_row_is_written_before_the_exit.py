@@ -14,6 +14,7 @@ import asyncio
 import pytest
 
 from core.runtime import shutdown_coordinator as sc
+from core.runtime.sqlite_support import connecting
 
 
 @pytest.fixture
@@ -44,7 +45,7 @@ async def test_the_flush_writes_what_was_queued(tmp_path, coordinator):
     await asyncio.to_thread(ledger._flush_writes)
     import sqlite3
 
-    with sqlite3.connect(str(tmp_path / "outcomes.db")) as conn:
+    with connecting(sqlite3.connect(str(tmp_path / "outcomes.db"))) as conn:
         (count,) = conn.execute("SELECT COUNT(*) FROM outcome_receipts").fetchone()
     assert count >= 1
 

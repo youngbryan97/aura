@@ -8,6 +8,8 @@ import sys
 
 import pytest
 
+from core.runtime.sqlite_support import connecting
+
 pytestmark = pytest.mark.unit
 
 
@@ -23,7 +25,7 @@ def test_only_what_a_person_said_stays(tmp_path, monkeypatch):
     from tools import quarantine_what_no_person_said as tool
 
     db = tmp_path / "conversations.db"
-    with sqlite3.connect(db) as conn:
+    with connecting(sqlite3.connect(db)) as conn:
         conn.execute("create table turns (role text, content text)")
         conn.execute("insert into turns values ('user', 'What did you make of the essay?')")
     buffer = tmp_path / "experience_buffer.jsonl"

@@ -32,6 +32,8 @@ import sys
 import time
 from pathlib import Path
 
+from core.runtime.sqlite_support import connecting
+
 REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
@@ -39,7 +41,7 @@ if str(REPO) not in sys.path:
 
 def people_asked(conversations: Path) -> list[str]:
     """Every distinct message a person sent her, newest first."""
-    with sqlite3.connect(f"file:{conversations}?mode=ro", uri=True) as db:
+    with connecting(sqlite3.connect(f"file:{conversations}?mode=ro", uri=True)) as db:
         rows = db.execute("SELECT content FROM turns WHERE role = 'user' ORDER BY created_at DESC").fetchall()
     seen: set[str] = set()
     out: list[str] = []

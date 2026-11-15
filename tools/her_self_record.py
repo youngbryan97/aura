@@ -25,6 +25,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.runtime.sqlite_support import connecting
+
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -96,7 +98,7 @@ def _base_named_in(repository_id: str) -> str | None:
 
 def _turns(home: Path) -> int | None:
     try:
-        with sqlite3.connect(f"file:{home / 'data/conversations.db'}?mode=ro", uri=True) as db:
+        with connecting(sqlite3.connect(f"file:{home / 'data/conversations.db'}?mode=ro", uri=True)) as db:
             return int(db.execute("select count(*) from turns where role='user'").fetchone()[0])
     except sqlite3.Error:
         return None
@@ -104,7 +106,7 @@ def _turns(home: Path) -> int | None:
 
 def _chronicle(path: Path) -> list[str]:
     try:
-        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
+        with connecting(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as db:
             columns = [row[1] for row in db.execute("pragma table_info(identity_facts)")]
             wanted = [c for c in ("subject", "relation", "object") if c in columns]
             return [" ".join(str(v) for v in row) for row in db.execute(f"select {', '.join(wanted)} from identity_facts")] if wanted else []

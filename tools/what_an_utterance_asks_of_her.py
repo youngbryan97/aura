@@ -20,6 +20,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from core.runtime.sqlite_support import connecting
+
 REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
@@ -114,7 +116,7 @@ def _her_stored_messages(limit: int) -> list[str]:
     path = Path(os.path.expanduser("~/.aura/data/conversations.db"))
     if not path.exists():
         return []
-    with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as held:
+    with connecting(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as held:
         rows = held.execute(
             "select content from turns where role='user' order by created_at desc limit ?", (limit * 4,)
         ).fetchall()

@@ -31,6 +31,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from core.runtime.sqlite_support import connecting
+
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -93,7 +95,7 @@ def questions(people_asked: Path | None = None) -> list[tuple[str, str]]:
 
 def her_exchanges(db: Path = CONVERSATIONS) -> list[dict[str, str]]:
     """What a person typed and what her model replied, from her chat, where her own model wrote the reply."""
-    with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
+    with connecting(sqlite3.connect(f"file:{db}?mode=ro", uri=True)) as conn:
         rows = conn.execute("select session_id, role, content, metadata_json from turns order by session_id, created_at").fetchall()
     pairs, last_user, counts = [], {}, {}
     for session, role, content, meta in rows:

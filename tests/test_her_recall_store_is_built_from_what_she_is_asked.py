@@ -6,6 +6,8 @@ import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
+from core.runtime.sqlite_support import connecting
+
 _TOOL = Path(__file__).resolve().parents[1] / "tools" / "build_her_recall_store.py"
 _spec = importlib.util.spec_from_file_location("build_her_recall_store", _TOOL)
 tool = importlib.util.module_from_spec(_spec)
@@ -24,7 +26,7 @@ def test_rounds_cover_every_question_before_any_twice():
 
 def test_people_asked_is_newest_first_and_distinct(tmp_path):
     db = tmp_path / "c.db"
-    with sqlite3.connect(db) as conn:
+    with connecting(sqlite3.connect(db)) as conn:
         conn.execute("CREATE TABLE turns (role TEXT, content TEXT, created_at REAL)")
         conn.executemany("INSERT INTO turns VALUES (?, ?, ?)", [
             ("user", "what is the capital of Peru", 1.0), ("assistant", "Lima.", 2.0),

@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.HerGoalAtWork")
 
@@ -463,8 +464,9 @@ HER_OWN_GOVERNANCE = (
     "tests/test_permission_model_typed_contract.py",
 )
 
-#: While this file exists a run is measuring her, and no draft of hers is taken (tools/day_run_4.sh makes it).
-MEASURING_HOLD = Path.home() / ".aura" / "measuring.hold"
+#: While this file exists a run is measuring her, and no draft of hers is taken (tools/day_run_4.sh makes it, in
+#: ~/.aura, which is her state root unless a run names its own).
+MEASURING_HOLD = state_root() / "measuring.hold"
 
 
 def governs_her(path: str) -> bool:
