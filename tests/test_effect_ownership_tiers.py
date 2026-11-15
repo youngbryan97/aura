@@ -97,7 +97,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: 14 November, the AppleScript that reads browser window titles for her
 #: screen policy (f3e8bb2ec) came in as a raw run and goes through the
 #: subprocess gateway: one governed call more, 768 and 2,064.
-TOTAL_CEILING = 2064
+#: The same day F15's loop wrote a fault's test, ran it, and ran and
+#: committed her mend in her workspace, all through the gateways: five
+#: governed calls more, 768 and 2,069.
+TOTAL_CEILING = 2069
 RAW_CEILING = 768
 
 

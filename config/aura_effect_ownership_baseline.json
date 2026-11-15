@@ -3369,6 +3369,14 @@
       "scope": "<module>.save"
     },
     {
+      "callee": "<file_write_gateway>.write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/mending_a_fault_of_hers.py",
+      "scope": "<module>.InHerWorkspace._write"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6543,6 +6551,22 @@
       "count": 1,
       "path": "core/self_modification/error_intelligence.py",
       "scope": "<module>.StructuredErrorLogger._append_to_log_sync"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/faults_she_can_reproduce.py",
+      "scope": "<module>.reproduce"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/faults_she_can_reproduce.py",
+      "scope": "<module>.reproduce"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -15561,6 +15585,14 @@
       "scope": "<module>._run_a_gate"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_async",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/agency/mending_a_fault_of_hers.py",
+      "scope": "<module>._governed_run"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -16745,6 +16777,14 @@
       "scope": "<module>.DistributedSandboxGateway._container_runner"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/self_modification/faults_she_can_reproduce.py",
+      "scope": "<module>._run_the_test"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -17570,6 +17610,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "5f64f1b1c8c44a3cb49a6a6e46c394b9c1b16c3fd9a8f8dc27c5b97dca6f4136",
+  "inventory_sha256": "29dc331633d41e6705b947e78d3776f1ae78fcce894e3eb1e118181cb10e9a3f",
   "schema_version": 1
 }
