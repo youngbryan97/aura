@@ -206,8 +206,7 @@ class ResourceMonitor:
 
         process_errors = (psutil.Error, *_ENFORCEMENT_ERRORS)
         try:
-            return {
-                "cpu": float(psutil.cpu_percent(interval=0.0)),
+            reading = {
                 "mem": float(psutil.virtual_memory().percent),
                 # The volume Aura WRITES to, named explicitly.
                 #
@@ -225,6 +224,15 @@ class ResourceMonitor:
                 "disk": float(_data_volume_percent(psutil)),
                 "procs": float(len(psutil.pids())),
             }
+            # On a reading only. Through the psutil shim an unavailable or not-yet-taken figure came back as 100%, and
+            # this monitor flagged "resource strain: cpu at 100%" to her immune system 17 times from 14 to 15 November
+            # with her health pulse reading under 40%.
+            from core.runtime.resource_observation import get_resource_observer
+
+            compute = get_resource_observer().compute()
+            if compute.cpu_percent_readable:
+                reading["cpu"] = float(compute.cpu_percent)
+            return reading
         except process_errors as exc:
             logger.debug("Resource sample failed: %s", exc)
             return {}

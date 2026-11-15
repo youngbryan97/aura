@@ -1249,6 +1249,9 @@ class HostResourceObserver:
                 cpu_idle_seconds=max(0.0, float(getattr(cpu_times, "idle", 0.0) or 0.0)),
             )
         except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+            # Said, not only kept: an unavailable reading is read as 100% by the psutil shim's callers, and what made it
+            # unavailable was never written anywhere (14 and 15 November 2026, false "cpu at 100%" strain).
+            logger.info("Compute observation unavailable: %s: %s", type(exc).__name__, exc)
             return ComputeObservation(
                 provenance=provenance,
                 cpu_percent=0.0,

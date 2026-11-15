@@ -257,3 +257,35 @@ def test_a_reading_taken_in_a_new_thread_is_a_reading(monkeypatch) -> None:
     fresh.join()
 
     assert readings[0] is not None and readings[0] > 0.0, readings
+
+
+def _an_unread_compute(monkeypatch):
+    import core.runtime.resource_observation as ro
+
+    unread = ro.ComputeObservation(
+        provenance=ro.ObservationProvenance(source=ro.ObservationSource.HOST, scenario_id="unread"),
+        cpu_percent=0.0, cpu_count=8, load_1m=1.0, cpu_percent_measured=False,
+    )
+    observer = ro.get_resource_observer()
+    monkeypatch.setattr(observer, "compute", lambda: unread)
+    monkeypatch.setattr(ro, "get_resource_observer", lambda: observer)
+
+
+def test_an_unread_cpu_figure_raises_no_strain(monkeypatch):
+    """17 false "resource strain: cpu at 100%" flags to her immune system, 14 and 15 November 2026."""
+    from core.security.enforcement import ResourceMonitor
+
+    _an_unread_compute(monkeypatch)
+    monitor = ResourceMonitor()
+    reading = monitor.sample()
+
+    assert "cpu" not in reading
+    assert reading.get("mem") is not None
+
+
+def test_an_unread_cpu_figure_is_no_spike_in_her_voice(monkeypatch):
+    """LIVE 15 November 2026, 16:11: "CPU usage is at 100%" in her conversation, her pulse at 17.6%."""
+    from core.fictional import jarvis
+
+    _an_unread_compute(monkeypatch)
+    assert jarvis._a_cpu_reading() is None

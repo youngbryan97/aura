@@ -210,9 +210,9 @@ class ProactiveAnticipationEngine:
                     existing.add(kw)
 
     @staticmethod
-    def _sample_host_blocking() -> dict[str, float]:
+    def _sample_host_blocking() -> dict[str, float | None]:
         """Read host metrics. Syscalls; never call this on the loop."""
-        cpu = psutil.cpu_percent(interval=None)
+        cpu = _a_cpu_reading()
         mem = psutil.virtual_memory()
         from core.runtime.disk_budget import state_volume_percent
 
@@ -411,8 +411,8 @@ class ProactiveAnticipationEngine:
             self._system_baseline = state
             return
 
-        # CPU spike
-        if state.get("cpu_percent", 0) > 90:
+        # CPU spike, on a reading: an unread figure is no spike.
+        if (state.get("cpu_percent") or 0) > 90:
             await self._fire_initiation(
                 f"CPU usage is at {state['cpu_percent']:.0f}% — something is running hot. "
                 f"Want me to check what's consuming resources?",
@@ -545,3 +545,16 @@ class ProactiveAnticipationEngine:
     def stop(self):
         self._running = False
 
+
+
+def _a_cpu_reading() -> float | None:
+    """The host's processor use, or None when there is no reading to give.
+
+    Read through the psutil shim, an unavailable or not-yet-taken figure came back as 100%. LIVE 15 November 2026,
+    16:11: "CPU usage is at 100% — something is running hot" in her conversation, in her voice, five seconds after her
+    health pulse read 17.6%.
+    """
+    from core.runtime.resource_observation import get_resource_observer
+
+    compute = get_resource_observer().compute()
+    return float(compute.cpu_percent) if compute.cpu_percent_readable else None
