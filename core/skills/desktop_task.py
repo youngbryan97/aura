@@ -4611,9 +4611,9 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             from core.perception.screen_highlight import highlight
 
             result = await highlight(needle, requested=True)
-        except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError):
-            # Pointing is an enhancement to an answer she already has. It
-            # never costs her the answer.
+        except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
+            # Pointing never costs her the answer, and a highlight that raised is said as one not drawn.
+            payload["pointing_refused_because"] = f"the highlight could not be drawn: {type(exc).__name__}: {exc}"
             return payload
         payload["highlight"] = result.to_dict()
         payload["pointed_at"] = result.matched_text if result.shown else ""

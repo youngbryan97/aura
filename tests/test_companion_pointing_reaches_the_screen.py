@@ -315,3 +315,17 @@ def test_the_bubble_forwards_the_rectangle_to_its_host():
         "the rectangle is collected and then dropped on the floor"
     )
     assert "forwardHighlight" in source
+
+
+def test_a_highlight_that_raises_is_said_as_not_drawn(monkeypatch):
+    """A highlight that raised left nothing on the answer, so she could say she pointed at a box nobody drew."""
+    import core.perception.screen_highlight as screen_highlight
+    from core.skills.desktop_task import DesktopTaskSkill
+
+    async def broken(*_args, **_kwargs):
+        raise RuntimeError("no accessibility tree")
+
+    monkeypatch.setattr(screen_highlight, "highlight", broken)
+    payload = asyncio.run(DesktopTaskSkill._attach_pointing(None, "show me where the submit button is", {}))
+    assert "no accessibility tree" in payload["pointing_refused_because"]
+    assert "highlight" not in payload
