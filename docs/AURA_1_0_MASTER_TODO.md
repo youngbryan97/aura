@@ -5106,6 +5106,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   `test_control_uses_this_pictures_age` and two Chromium pixel trials, all
   failing alone on main; and `test_hardened_computer_use`, which passes
   alone and fails in a batch, an order dependence for Q09.
+  The two Chromium pixel trials, bisected: red since bbf0a1724 (14
+  October), which made her frames lossless PNG in place of JPEG at 80.
+  That change is right for colour correspondence, and the discovery
+  test written four hours before it was tuned on JPEG frames. With exact
+  pixels the 48 px body's confirmation presses lack features where its
+  discovery presses found them (the exit at "confirmation's values cannot
+  change the region"), and the 20 px body has no eligible tile at all.
+  The matching wants re-deriving on lossless frames, not the encoding
+  put back. The timed-press cases were a test patching the wrong
+  module's clock (91f44e848).
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
@@ -5589,6 +5599,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   with -q hides the randomly seed, so its order cannot be recovered;
   bisect with -p no:randomly and an order read from a log that names
   files.
+  15 November, before dawn, three more, each bisected in the order a
+  chunk log recorded. test_the_ledger_hears_from_all_of_her after
+  test_train_semantic_native_program: an invariant returned a dict when
+  it held, verify() listed it as its keys, and every pass after that
+  module was imported raised, so her ledger read no verification; three
+  such invariants now yield nothing (a82f69abb). test_loaded_source_drift
+  after test_missing_bookkeeping_is_not_a_wrong_answer: no state left,
+  but a .pyc older than its source, never rewritten because bytecode
+  writing is off here and in her launcher, read as what the process ran;
+  a file older than the process is not drift (5acbdc7af), which also
+  ends her false "running the older version" after a restart. The
+  P,M -> W synergy test loaded a world-model checkpoint an earlier test's
+  training left in the shared test root (1e1e7fe26). Two of chunk 7's
+  (test_mlx_memory_guard, test_no_module_changes_a_switch_on_import) do
+  not reproduce in its order on current main.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [x] Q11 Validate installation/update/uninstall and ordinary desktop launch.
