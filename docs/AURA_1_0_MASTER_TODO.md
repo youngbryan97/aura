@@ -5172,6 +5172,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The matching wants re-deriving on lossless frames, not the encoding
   put back. The timed-press cases were a test patching the wrong
   module's clock (91f44e848).
+  15 November, late morning. Method size: three functions just past 400
+  lines are back under it (47243d399); the rest grew in other work and
+  wait for their seams. Still red on main, each failing alone at
+  4fbfb1be9 or later:
+  - test_every_state_field_is_placed: cognition.recall_pool and
+    cognition.reply_notes are read by no column of K and explained by
+    nothing. reply_notes feeds her self-model of how she answers, so
+    whether it belongs in K is a question about the ISC core, for its
+    owner, not a line to add;
+  - test_point_precision_keeps_the_tracked_grids_units;
+  - test_material_motion_keeps_a_stopped_body_visible (one case);
+  - test_latent_cortex_paired_campaign_runner's deadline alarm;
+  - test_an_input_answers_relative_to_the_bodys_motion (speed and
+    curvature across headings).
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
