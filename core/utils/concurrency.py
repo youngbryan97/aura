@@ -88,8 +88,8 @@ async def run_io_bound(func, *args, **kwargs):
 
 
 
-def _who_starved_the_loop(process_cores: float | None) -> str:
-    """Say whether the loop waited on its own process or on the host."""
+def _who_starved_the_loop(process_cores: float | None, ran_meanwhile: str = "") -> str:
+    """Say whether the loop waited on its own process or on the host, and which threads ran."""
     try:
         load = os.getloadavg()[0] / max(1, os.cpu_count() or 1)
     except (OSError, AttributeError):
@@ -106,7 +106,8 @@ def _who_starved_the_loop(process_cores: float | None) -> str:
         verdict = "Its own process held it (the GIL or threads it started), not the host"
     else:
         verdict = "Neither the host nor this process was busy: the loop thread was waiting on something outside Python"
-    return f"{verdict} ({reading})." if reading else f"{verdict}."
+    said = f"{verdict} ({reading})." if reading else f"{verdict}."
+    return f"{said} {ran_meanwhile}" if ran_meanwhile else said
 
 class RobustLock:
     """
@@ -825,7 +826,9 @@ class EventLoopMonitor:
             "recovery_window_s": self.failure_recovery_window_s,
         }
 
-    def _note_starvation(self, lag: float, loop_share: float, *, process_cores: float | None = None) -> None:
+    def _note_starvation(
+        self, lag: float, loop_share: float, *, process_cores: float | None = None, ran_meanwhile: str = ""
+    ) -> None:
         """Lag the loop did not cause: counted, said once a minute, not a breach.
 
         Who did is read rather than assumed. A loop thread that got a few
@@ -845,14 +848,17 @@ class EventLoopMonitor:
                 lag,
                 100.0 * loop_share,
                 self._starved_samples,
-                _who_starved_the_loop(process_cores),
+                _who_starved_the_loop(process_cores, ran_meanwhile),
             )
 
     async def _run(self):
+        from core.runtime.thread_cpu import every_thread_cpu, who_ran_meanwhile
+
         while not self._stop_event.is_set():
             start_time = time.perf_counter()
             cpu_start = time.thread_time()
             process_cpu_start = time.process_time()
+            threads_at_start = every_thread_cpu()
             try:
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
@@ -884,7 +890,10 @@ class EventLoopMonitor:
 
             if lag > threshold and not in_startup_grace and starved:
                 process_cores = (time.process_time() - process_cpu_start) / max(actual_elapsed, 1e-9)
-                self._note_starvation(lag, loop_share, process_cores=process_cores)
+                self._note_starvation(
+                    lag, loop_share, process_cores=process_cores,
+                    ran_meanwhile=who_ran_meanwhile(threads_at_start, actual_elapsed, leave_out=threading.get_ident()),
+                )
             elif lag > threshold and not in_startup_grace:
                 self._last_breach_lag = max(0.0, lag)
                 self._last_breach_at = sampled_at

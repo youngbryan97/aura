@@ -7,6 +7,7 @@ Monitors event loop health, memory leaks, and severe freezes.
 import asyncio
 import logging
 import os
+import threading
 import time
 
 from core.observability.metrics import get_metrics
@@ -159,7 +160,9 @@ class Hypervisor:
             "recovery_window_s": self._failure_recovery_window_s,
         }
 
-    def _note_starvation(self, lag: float, loop_share: float, *, process_cores: float | None = None) -> None:
+    def _note_starvation(
+        self, lag: float, loop_share: float, *, process_cores: float | None = None, ran_meanwhile: str = ""
+    ) -> None:
         """Lag the loop did not cause: counted, said once a minute, never a freeze."""
         self._starved_samples += 1
         now = time.monotonic()
@@ -173,7 +176,7 @@ class Hypervisor:
                 lag,
                 100.0 * loop_share,
                 self._starved_samples,
-                _who_starved_the_loop(process_cores),
+                _who_starved_the_loop(process_cores, ran_meanwhile),
             )
 
     def _confirm_severe_lag_failure(self, lag: float, uptime: float) -> bool:
@@ -259,12 +262,15 @@ class Hypervisor:
         return max(0.0, float(lag), measured), True
 
     async def _watchdog_loop(self):
+        from core.runtime.thread_cpu import every_thread_cpu, who_ran_meanwhile
+
         while self._running:
             # Wall time jumps across macOS sleep/wake and previously turned a
             # normal resume into a false multi-minute event-loop stall.
             start = _monotonic_now()
             cpu_start = time.thread_time()
             process_cpu_start = time.process_time()
+            threads_at_start = every_thread_cpu()
             # Simple async sleep to measure lag
             await asyncio.sleep(1.0)
             actual_sleep = _monotonic_now() - start
@@ -287,6 +293,7 @@ class Hypervisor:
                 self._note_starvation(
                     lag, loop_share,
                     process_cores=(time.process_time() - process_cpu_start) / max(actual_sleep, 1e-9),
+                    ran_meanwhile=who_ran_meanwhile(threads_at_start, actual_sleep, leave_out=threading.get_ident()),
                 )
             elif lag > lag_threshold:
                 uptime = time.time() - getattr(self, "_start_time", time.time())

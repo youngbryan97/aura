@@ -28,7 +28,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["thread_cpu_seconds", "thread_cpu_share"]
+__all__ = ["every_thread_cpu", "thread_cpu_seconds", "thread_cpu_share", "who_ran_meanwhile"]
 
 _libc: ctypes.CDLL | None = None
 _MACH_UNAVAILABLE = False
@@ -145,3 +145,61 @@ def thread_cpu_share(
     if cpu_before is None or cpu_after is None or wall_s <= 0.0:
         return None
     return max(0.0, cpu_after - cpu_before) / wall_s
+
+
+def every_thread_cpu() -> dict[int, float]:
+    """CPU seconds of every live thread, by ident. A thread the kernel will not read is left out."""
+    seen: dict[int, float] = {}
+    for thread in threading.enumerate():
+        if thread.ident is None:
+            continue
+        cpu = thread_cpu_seconds(thread.ident, native_id=thread.native_id)
+        if cpu is not None:
+            seen[thread.ident] = cpu
+    return seen
+
+
+def who_ran_meanwhile(before: dict[int, float], wall_s: float, *, leave_out: int | None = None, most: int = 3) -> str:
+    """The threads that used the most CPU since ``before``, each with its share of a core and where it is now.
+
+    The loop's starvation detectors said only "its own process held it": on 14
+    November 2026 her loop had 10.49 s of lag on 7% of a core while her other
+    threads used 1.13 cores, and nothing said which. By the time the lag is
+    read the stall is over, so a stack taken then may be the wrong one; the
+    CPU each thread spent over the window is not.
+    """
+    if wall_s <= 0.0:
+        return ""
+    after = every_thread_cpu()
+    names = {thread.ident: thread.name for thread in threading.enumerate()}
+    frames = sys._current_frames()
+    # A thread started during the window spent all it shows inside it.
+    spent = sorted(
+        ((after[ident] - before.get(ident, 0.0), ident) for ident in after if ident != leave_out),
+        reverse=True,
+    )
+    said = []
+    for cpu, ident in spent[:most]:
+        if cpu <= 0.0:
+            break
+        said.append(f"{names.get(ident, ident)} {cpu / wall_s:.0%} of a core{_where(frames.get(ident))}")
+    return "Ran meanwhile: " + "; ".join(said) + "." if said else ""
+
+
+def _where(frame: object) -> str:
+    """Where a thread is: the innermost frame, and the innermost in this repository when that is not it."""
+    if frame is None:
+        return ""
+    innermost = frame
+    ours = None
+    while frame is not None and ours is None:
+        if f"{os.sep}core{os.sep}" in frame.f_code.co_filename or f"{os.sep}interface{os.sep}" in frame.f_code.co_filename:
+            ours = frame
+        frame = frame.f_back
+
+    def said(at: object) -> str:
+        return f"{os.path.basename(at.f_code.co_filename)}:{at.f_lineno} {at.f_code.co_name}"
+
+    if ours is None or ours is innermost:
+        return f" at {said(innermost)}"
+    return f" at {said(innermost)}, from {said(ours)}"
