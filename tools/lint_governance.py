@@ -626,6 +626,12 @@ class EffectVisitor(ast.NodeVisitor):
         # method and unlinks it in another.
         # A name bound to anything else as well (a file-backed segment, a
         # lookup that may miss) is not known to be one, and still counts.
+        # The attach helper returns a segment too (core/utils/shared_memory_attach.py), under whatever name it was
+        # imported as.
+        segment_makers = {"SharedMemory"}
+        for child in ast.walk(node):
+            if isinstance(child, ast.ImportFrom) and child.module == "core.utils.shared_memory_attach":
+                segment_makers.update(alias.asname or alias.name for alias in child.names)
         bound_otherwise: set[str] = set()
         for child in ast.walk(node):
             if not isinstance(child, ast.Assign):
@@ -633,7 +639,7 @@ class EffectVisitor(ast.NodeVisitor):
             names = {ast.unparse(target) for target in child.targets}
             if (
                 isinstance(child.value, ast.Call)
-                and ast.unparse(child.value.func).rsplit(".", 1)[-1] == "SharedMemory"
+                and ast.unparse(child.value.func).rsplit(".", 1)[-1] in segment_makers
             ):
                 self.shared_memory_names.update(names)
             else:

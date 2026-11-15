@@ -51,13 +51,11 @@ class SpeechHold:
 class _Reader:
     def __init__(self, name: str) -> None:
         self.name = name
-        self._memory = shared_memory.SharedMemory(name=name)
-        try:  # the owner unlinks it; a reader that registered it would unlink it again at exit
-            from multiprocessing import resource_tracker
+        from core.utils.shared_memory_attach import attach
 
-            resource_tracker.unregister(self._memory._name, "shared_memory")  # noqa: SLF001
-        except (ImportError, AttributeError, KeyError, ValueError):
-            pass  # not a failure: a tracker that never registered it has nothing to forget
+        # The owner unlinks it; attached without registering, this reader neither unlinks it at exit nor removes the
+        # owner's entry from a tracker they share (core/utils/shared_memory_attach.py).
+        self._memory = attach(name)
 
     def until(self) -> float:
         return float(_UNTIL.unpack_from(self._memory.buf, 0)[0])

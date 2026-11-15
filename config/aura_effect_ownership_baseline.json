@@ -15413,6 +15413,14 @@
       "canonical_owner": false,
       "category": "raw_subprocess",
       "count": 1,
+      "path": "core/voice/duplex/address_process.py",
+      "scope": "<module>.AddressProcess.start"
+    },
+    {
+      "callee": "subprocess.Popen",
+      "canonical_owner": false,
+      "category": "raw_subprocess",
+      "count": 1,
       "path": "core/voice/duplex/original_speech.py",
       "scope": "<module>.OriginalSpeech.load"
     },
@@ -17610,6 +17618,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "29dc331633d41e6705b947e78d3776f1ae78fcce894e3eb1e118181cb10e9a3f",
+  "inventory_sha256": "55875b21209b422b4e225dc0d3949ac4cf94f604a6bf10d40d79f20bea88f3b2",
   "schema_version": 1
 }

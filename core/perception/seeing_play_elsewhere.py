@@ -452,9 +452,8 @@ def _state_of(eyes: Any) -> dict[str, Any]:
 
 def _serve() -> None:
     """The other process: eyes for each stretch of play it is asked to see for, until its input closes."""
-    from multiprocessing import resource_tracker, shared_memory
-
     from core.perception.what_moves_in_the_picture import WhatMoves, prepare_play_vision
+    from core.utils.shared_memory_attach import attach
 
     wire_in, wire_out = sys.stdin.buffer, sys.stdout.buffer
     sys.stdout = sys.stderr                                   # nothing printed may go down the wire
@@ -476,9 +475,9 @@ def _serve() -> None:
                 material_retention = message[10] if len(message) >= 11 else None
                 memory = memories.get(memory_name)
                 if memory is None:
-                    memory = memories[memory_name] = shared_memory.SharedMemory(name=memory_name)
-                    # Attached, not owned: this process must not unlink it when it ends.
-                    resource_tracker.unregister(memory._name, "shared_memory")  # noqa: SLF001
+                    # Attached, not owned: never registered, so this process neither unlinks it when it ends nor
+                    # takes the owner's entry out of a tracker they share (core/utils/shared_memory_attach.py).
+                    memory = memories[memory_name] = attach(memory_name)
                 picture = np.ndarray(shape, np.dtype(dtype), buffer=memory.buf).copy()
                 if scene is not None:
                     from core.perception.the_drawing_as_objects import described
@@ -491,8 +490,7 @@ def _serve() -> None:
                 data = pickle.dumps(("seen", happened, _state_of(eyes[name])), protocol=pickle.HIGHEST_PROTOCOL)
                 answers = memories.get(answers_name)
                 if answers is None:
-                    answers = memories[answers_name] = shared_memory.SharedMemory(name=answers_name)
-                    resource_tracker.unregister(answers._name, "shared_memory")  # noqa: SLF001
+                    answers = memories[answers_name] = attach(answers_name)
                 if len(data) <= answers_size:
                     answers.buf[:len(data)] = data
                     _send(wire_out, ("written", len(data)))
