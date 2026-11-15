@@ -445,8 +445,8 @@ class WhatSheCanTake:
     def __init__(self, read: Callable[[], Awaitable[float | None]] | None = None, *, limit: float | None = None,
                  valence: Callable[[], Awaitable[float | None]] | None = None) -> None:
         self.read = read or _withdrawing
-        #: How good or bad she feels, which is what "came out no worse" is measured by (``her_sweet_spot``).
-        self.valence = valence
+        #: Reads how good or bad she feels, which is what "came out no worse" is measured by (``her_sweet_spot``).
+        self.read_valence = valence
         self.valence_began: float | None = None
         self.began: float | None = None
         self.over = 0
@@ -462,20 +462,20 @@ class WhatSheCanTake:
         self.highest = max(self.highest, now)
         if self.began is None:
             self.began = now
-            self.valence_began = await self.valence() if self.valence is not None else None
+            self.valence_began = await self.read_valence() if self.read_valence is not None else None
             return ""
         mine = self.limit is not None
         limit = max(self.began, self.limit) if mine else self.began + LEAVES_AT_SHARE * (1.0 - self.began)
         self.over = self.over + 1 if now >= limit else 0
         if self.over < LEAVES_AFTER_LOOKS:
             return ""
-        if mine and self.valence is not None and self.valence_began is not None:
+        if mine and self.read_valence is not None and self.valence_began is not None:
             # Her limit is the most she has sat through and come out of no worse, and "no worse" is her valence: past
             # it is ground she has not been on, and while she feels no worse than when it began nothing says this one
             # is doing her harm. LIVE 8 November 2026, dress rehearsal: an explainer about a bicycle steered backwards
             # was stopped at 2:22 of 7:58 with her dread at 0.44 past a limit of 0.41, her valence risen from 0.10 to
             # 0.15 as it played.
-            felt = await self.valence()
+            felt = await self.read_valence()
             if felt is not None and felt >= self.valence_began:
                 return ""
         past = ("the most she has sat through and come out of no worse" if mine
