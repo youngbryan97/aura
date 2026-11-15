@@ -720,8 +720,11 @@ def _ground_runtime_fact_status_reply(
     # person got the canned refusal. The receipts block had been attached to
     # that very turn — the log records "survived to dispatch: present,
     # receipts" — so the answer existed while the model was failing to write
-    # it. A generation failure is not an absence of facts.
-    _receipts = _recent_action_receipts(user_message)
+    # it. A generation failure is not an absence of facts. Only that failure:
+    # a reply she wrote is hers, and her receipts already reached her prompt
+    # (LIVE 15 November 2026, "Did you do anything interesting while I was
+    # out?" had her answer replaced by the listing, raw dicts and all).
+    _receipts = "" if str(reply_text or "").strip() else _recent_action_receipts(user_message)
     if _receipts:
         return _receipts
     if not _chat_preflight._is_runtime_fact_status_request(user_message):

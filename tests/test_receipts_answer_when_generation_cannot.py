@@ -86,3 +86,17 @@ def test_the_chat_path_serves_it(monkeypatch) -> None:
     assert unrelated == ""
     if served:
         assert "receipts" in served.lower()
+
+
+def test_a_reply_she_wrote_is_hers_and_the_receipts_answer_only_for_none(monkeypatch) -> None:
+    """LIVE 15 November 2026 her answer to "Did you do anything interesting while I was out?" was replaced by the
+    receipts listing, though she had written one: the listing is for a generation that wrote nothing."""
+    import interface.routes.chat_reply_shaping as shaping
+
+    monkeypatch.setattr(shaping, "_recent_action_receipts",
+                        lambda message: "Here is what actually ran, from my own action receipts:\n- 9 min ago: x")
+    asked = "Not bad, slept okay. Did you do anything interesting while I was out?"
+    hers = "I did. I read a thread on r/philosophy about aesthetics."
+    assert shaping._ground_runtime_fact_status_reply(asked, hers, {}, cognitive_engine_handled=True) == hers
+    assert "receipts" in shaping._ground_runtime_fact_status_reply(asked, "", {}, cognitive_engine_handled=True)
+
