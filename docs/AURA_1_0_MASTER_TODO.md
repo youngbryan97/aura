@@ -5086,6 +5086,26 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   bisected to 5830b1de5, where after an early end keys b and c each take a
   second trial and the body leaves the view at 5.4 s; one material-motion
   case; and one slow ordering test, not yet read.
+  14-15 November, night. The handler ratchet is at zero, from 226 that
+  morning: 229 handlers across every package now either log what they
+  caught or say why it is an answer and not a failure ("not a failure:").
+  The real failures among them were things nobody could see:
+  - standing authority refused with no reason;
+  - her claims about what she watched cut when the record of it would not
+    read;
+  - a highlight that raised and left the answer claiming one.
+  Pushed from ec43a32d2 to f4282d96d. Module size was red again on two
+  classes from the evening's work and 61 lines over budget; the lane
+  controller's locked steps and the voice session's address reading were
+  lifted out, and the budget is re-recorded 20 lines lower. The model-load
+  ownership and lane contract audits were red on her address reader, whose
+  worker loaded a 1.5B model no lane owned; it now holds a standalone lane
+  that never evicts another owner (110a05470). Still red: the convergence
+  surface; source inspection; the cold-control loop; method size, 21
+  functions that grew or crossed 400 lines; two timed-press cases in
+  `test_control_uses_this_pictures_age` and two Chromium pixel trials, all
+  failing alone on main; and `test_hardened_computer_use`, which passes
+  alone and fails in a batch, an order dependence for Q09.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
