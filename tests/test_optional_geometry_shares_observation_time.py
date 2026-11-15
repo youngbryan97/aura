@@ -26,7 +26,8 @@ def test_optional_refitting_must_repay_its_cost_between_pictures(monkeypatch):
     outputs = [worker.measure_if_budget(None, float(n), {}, (), (), (), essential_seconds=.09)
                for n in range(9)]
     assert len(calls) == 3
-    assert all(call == {'one_position': True} for call in calls)
+    # One position each; a priority is passed through as well since 20 October (a76c093bc).
+    assert all(call.get('one_position') is True for call in calls)
     assert [n for n, (frames, _) in enumerate(outputs) if frames] == [0, 3, 6]
     assert all(status == ('fresh_reference_work_deferred',) for frames, status in outputs if not frames)
 
