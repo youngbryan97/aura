@@ -407,6 +407,10 @@ class AutonomousSelfModification:
         ServiceContainer.register_instance(
             "autonomous_self_modification", self, required=False
         )
+        # Every fault her running raises is kept as the call it came from, where it can be made again (F15).
+        from core.self_modification.faults_she_can_reproduce import listen
+
+        listen()
         self._started = True
         logger.info(
             "AutonomousSelfModification ONLINE -- %d pending recovered, audit seq %d",

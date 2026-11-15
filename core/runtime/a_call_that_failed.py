@@ -1,0 +1,194 @@
+"""The call in her own code that a fault came from, kept so it can be made again.
+
+A degradation record keeps the formatted traceback: three frames and a thousand characters. A fault cannot be
+reproduced from that, because what the function was given is gone. This keeps it while the exception is still live:
+the innermost frame in her own source, its function, and what it was called with, when each argument can be written
+back exactly. A call that needs something it cannot rebuild (the instance a method ran on, a function defined inside
+another, an argument that is not a plain value) is not kept, and says why.
+
+Standard library only: every package records its faults through ``core/runtime/errors.py``, and this runs there.
+"""
+from __future__ import annotations
+
+import ast
+import inspect
+import traceback
+from dataclasses import dataclass, field
+from pathlib import Path
+from types import CodeType, FrameType
+from typing import Any
+
+#: Her source tree: the directory that holds ``core``.
+_ROOT = Path(__file__).resolve().parents[2]
+
+#: As long as an argument written back may be: the length a degradation record keeps of its traceback.
+_LONGEST_ARGUMENT = 1000
+
+#: What a call is not: her tests, her virtual environment, anything installed.
+_NOT_HERS = ("tests", ".venv", "venv")
+
+
+@dataclass(frozen=True)
+class FailedCall:
+    """A call that raised, as a test can make it again."""
+
+    module: str
+    qualname: str
+    file: str
+    line: int
+    error_type: str
+    error_message: str
+    #: Each parameter's value as Python source, in the order the function takes them.
+    positional: tuple[str, ...] = ()
+    keywords: tuple[tuple[str, str], ...] = ()
+    star_args: str = ""
+    star_kwargs: str = ""
+    #: Where the call went on from here before it raised: the frames below it, innermost last.
+    below: tuple[str, ...] = field(default=())
+
+    @property
+    def fingerprint(self) -> tuple[str, str, str]:
+        """The same fault, whatever it was called with: where, and what was raised."""
+        return (self.module, self.qualname, self.error_type)
+
+    def call_source(self, name: str) -> str:
+        """``name(...)`` with the arguments it was given."""
+        parts = [*self.positional, *(f"{key}={value}" for key, value in self.keywords)]
+        if self.star_args:
+            parts.append(f"*{self.star_args}")
+        if self.star_kwargs:
+            parts.append(f"**{self.star_kwargs}")
+        return f"{name}({', '.join(parts)})"
+
+
+def _hers(filename: str) -> str:
+    """Her source path for a frame's file, relative to her tree; "" when it is not hers."""
+    try:
+        relative = Path(filename).resolve().relative_to(_ROOT)
+    except (OSError, ValueError):
+        return ""
+    if relative.suffix != ".py" or relative.parts[0] in _NOT_HERS or "site-packages" in relative.parts:
+        return ""
+    return relative.as_posix()
+
+
+_PLAIN = (type(None), bool, int, float, str, bytes)
+
+
+def _plain_within(value: Any, budget: int) -> int:
+    """What is left of ``budget`` after ``value``'s characters, or -1 when it is not a plain value or runs over.
+
+    Walked before anything is written, so an argument a megabyte long costs no more than its length check.
+    """
+    if isinstance(value, _PLAIN):
+        size = len(value) if isinstance(value, (str, bytes)) else 8
+        return budget - size if budget >= size else -1
+    if isinstance(value, dict):
+        items: Any = (part for pair in value.items() for part in pair)
+    elif isinstance(value, (list, tuple, set, frozenset)):
+        items = iter(value)
+    else:
+        return -1
+    budget -= 2
+    for item in items:
+        if budget < 0:
+            return -1
+        budget = _plain_within(item, budget)
+    return budget
+
+
+def _written_back(value: Any) -> str | None:
+    """``value`` as source that evaluates to an equal value, or None when it is not a plain value."""
+    if _plain_within(value, _LONGEST_ARGUMENT) < 0:
+        return None
+    try:
+        source = repr(value)
+    except Exception:  # noqa: BLE001 - a repr that raises is a value that cannot be written back
+        return None
+    if len(source) > _LONGEST_ARGUMENT:
+        return None
+    try:
+        again = ast.literal_eval(source)
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+        return None
+    try:
+        same = again == value and type(again) is type(value)
+    except Exception:  # noqa: BLE001 - a comparison that raises is not equality
+        return None
+    return source if same else None
+
+
+def _innermost_frame_of_hers(error: BaseException) -> tuple[FrameType, int, str, tuple[str, ...]] | None:
+    """The frame nearest the raise that is in her source, its line, its path, and where the call went below it."""
+    walked = list(traceback.walk_tb(error.__traceback__))
+    for index in range(len(walked) - 1, -1, -1):
+        frame, line = walked[index]
+        path = _hers(frame.f_code.co_filename)
+        if path:
+            below = tuple(f"{inner.f_code.co_filename}:{inner_line} {inner.f_code.co_qualname}"
+                          for inner, inner_line in walked[index + 1:])
+            return frame, line, path, below
+    return None
+
+
+def _parameters(code: CodeType) -> tuple[list[str], list[str], list[str], str, str]:
+    """Positional-only, positional-or-keyword and keyword-only names, and the names of ``*args`` and ``**kwargs``."""
+    names = list(code.co_varnames)
+    positional_only = names[: code.co_posonlyargcount]
+    either = names[code.co_posonlyargcount: code.co_argcount]
+    keyword_only = names[code.co_argcount: code.co_argcount + code.co_kwonlyargcount]
+    at = code.co_argcount + code.co_kwonlyargcount
+    star_args = names[at] if code.co_flags & inspect.CO_VARARGS else ""
+    if star_args:
+        at += 1
+    star_kwargs = names[at] if code.co_flags & inspect.CO_VARKEYWORDS else ""
+    return positional_only, either, keyword_only, star_args, star_kwargs
+
+
+def the_call_that_failed(error: BaseException) -> FailedCall | str:
+    """The call in her own source that ``error`` was raised in, or why it cannot be made again."""
+    found = _innermost_frame_of_hers(error)
+    if found is None:
+        return "raised outside her source"
+    frame, line, path, below = found
+    code = frame.f_code
+    module = str(frame.f_globals.get("__name__") or "")
+    if not module or module == "__main__":
+        return f"{path} runs as a script, not a module"
+    qualname = code.co_qualname
+    if "<" in qualname:
+        return f"{qualname} is defined inside another function"
+    positional_only, either, keyword_only, star_args, star_kwargs = _parameters(code)
+    values = frame.f_locals
+    leading = (positional_only or either or [""])[0]
+    if leading == "self":
+        return f"{qualname} runs on an instance it cannot rebuild"
+    owner = qualname.split(".")[0]
+    if owner not in frame.f_globals:
+        return f"{owner} is not a name in {module}"
+    written: dict[str, str] = {}
+    for name in [*positional_only, *either, *keyword_only, *(n for n in (star_args, star_kwargs) if n)]:
+        if name == leading == "cls":
+            continue
+        if name not in values:
+            return f"{name} was not bound when {qualname} raised"
+        source = _written_back(values[name])
+        if source is None:
+            return f"{name} is a {type(values[name]).__name__}, not a plain value"
+        written[name] = source
+    return FailedCall(
+        module=module,
+        qualname=qualname,
+        file=path,
+        line=int(line or 0),
+        error_type=f"{type(error).__module__}.{type(error).__qualname__}",
+        error_message=str(error)[:500],
+        positional=tuple(written[name] for name in positional_only),
+        keywords=tuple((name, written[name]) for name in [*either, *keyword_only] if name in written),
+        star_args=written.get(star_args, "") if star_args else "",
+        star_kwargs=written.get(star_kwargs, "") if star_kwargs else "",
+        below=below,
+    )
+
+
+__all__ = ["FailedCall", "the_call_that_failed"]
