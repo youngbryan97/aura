@@ -16,7 +16,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["where_calls_stop_sharing", "where_the_first_message_ends"]
+__all__ = ["where_calls_stop_sharing", "where_the_first_message_ends", "where_the_last_turn_starts"]
 
 
 def where_the_first_message_ends(tokenizer: Any, tokens: Any) -> int:
@@ -76,3 +76,30 @@ def where_calls_stop_sharing(tokenizer: Any, prompt: Any, messages: Any, tokens:
         logger.info("No shared prefix is claimed: the tokenizer could not encode the part before it (%s).", exc)
         return 0
     return min(len(before), len(tokens))
+
+
+def where_the_last_turn_starts(tokenizer: Any, tokens: Any) -> int:
+    """How many of the prompt's tokens come before its last message: the turn being answered.
+
+    A draft her worker refuses is asked again as the turn was asked with a reading beside it
+    (core/brain/her_turn_as_asked.py), so the retry shares everything before that turn. LIVE 14 November 2026 a
+    retry's prompt matched the first pass's for 2,114 of 2,172 tokens and read all of them again, 21.9 s, because
+    the first pass kept no prefix to resume from. Zero when the template names no single end-of-message token or the
+    prompt has fewer than two messages.
+    """
+    if tokenizer is None or not tokens:
+        return 0
+    sequence = list(tokens)
+    for marker in ("<|im_end|>", "<|eot_id|>", "<|end|>"):
+        try:
+            ids = tokenizer.encode(marker, add_special_tokens=False)
+        except TypeError:
+            ids = tokenizer.encode(marker)
+        except (AttributeError, RuntimeError, ValueError):
+            continue
+        if not (isinstance(ids, list) and len(ids) == 1):
+            continue
+        ends = [index for index, token in enumerate(sequence) if token == ids[0]]
+        if len(ends) >= 2:
+            return ends[-2] + 1
+    return 0

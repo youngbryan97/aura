@@ -28,7 +28,7 @@ from core.brain.llm.user_surface_recurrence import (
     user_surface_recurrent_ceiling,
 )
 from core.brain.llm.what_she_expects_next import as_a_job_of_the_worker
-from core.brain.llm.where_calls_share import where_calls_stop_sharing
+from core.brain.llm.where_calls_share import where_calls_stop_sharing, where_the_last_turn_starts
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, compute_mlx_memory_limit
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
@@ -7577,10 +7577,15 @@ def _mlx_worker_loop(
                                     )
                                     prefill_step_size = _runtime_prefill_step_size(model_path)
                                     clean_kwargs["prefill_step_size"] = prefill_step_size
+                                    _shared_to = where_calls_stop_sharing(tokenizer, prompt, messages, tokens)
+                                    if internal_attempt < max_internal_retries:
+                                        # A pass that may be asked again keeps the prefix a retry shares with it:
+                                        # everything before the turn it answers (where_the_last_turn_starts).
+                                        _shared_to = max(_shared_to, where_the_last_turn_starts(tokenizer, tokens))
                                     _snapshot_at, _keep_prefix = _a_prefix_worth_keeping(
                                         prompt_cache_lru, model_key, tokens,
                                         len(tokens) - len(remaining_tokens), cache, prefill_step_size,
-                                        shared_to=where_calls_stop_sharing(tokenizer, prompt, messages, tokens),
+                                        shared_to=_shared_to,
                                     )
                                     clean_kwargs["prompt_progress_callback"] = (
                                         _build_prefill_progress_callback(
