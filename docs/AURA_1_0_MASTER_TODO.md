@@ -5823,6 +5823,32 @@ needs her 27B free (her app down, or her app's own influence trials).
   call), on a launch with `AURA_MODULE_ACTIVITY=1`, and
   `/api/system/modules-that-ran` reports each module's functions, which ran,
   and when. Then lesions, on what runs.
+- [ ] F15 She maintains herself while she runs. Added 14 November, Bryan:
+  "Aura could maintain herself and fix her faults as she's running if issues
+  pop up", by systems built to do it, not by training her to code. F05 is one
+  repair of hers promoted; this is the loop that finds the faults to repair
+  in her own running and closes them without a person. Lane: yes.
+  What exists, 14 November: the fault-to-patch pipeline
+  (`core/self_modification/fault_pipeline.py`: runtime error, causal trace,
+  bug packet, localization, reproduction, targeted test, risk tier, patch
+  candidate, shadow evidence, promotion), repair by selection with its gates
+  (`repair_by_selection.py`), proposals from her own Python
+  (`proposals_without_a_model.py`, `fix_templates.py`), and the promotion path
+  of F05. What it has done: on 81 defects from her own history her own Python
+  mended none and her 27B mended 4 of 79 in two to five minutes each
+  (`docs/evidence/SELF_REPAIR_ON_HER_HISTORY_2026-10-19.md`); in the current
+  `desktop-launch.log` her autonomous cycle stood aside 971 times for her
+  chat and wrote no bug packet; runtime promotion is off in a normal session
+  (proposal and quarantine only).
+  Left: a fault in her own running (a degradation, a traceback, an invariant
+  that fails, a warning in her stream) becomes a failing test that reproduces
+  it, with no person writing it; her cycle runs when she is idle, not only
+  when nothing else is; candidates from her own Python, her program-DNA
+  engine and her model, each only a proposal that the tests and gates judge;
+  a mended fault promoted with its receipt and rolled back if her next run
+  is worse. Closes when a fault that arose while she ran is repaired and
+  promoted by her own loop, live, and her rate on the faults of a week of
+  her own running is measured.
 
 ## Live session 2026-09-07: what the runtime showed
 
