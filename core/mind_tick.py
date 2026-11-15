@@ -213,11 +213,15 @@ def _what_the_phase_was_doing(phase: Any) -> str:
     """Where a phase that ran out of time was, when it says: a phase may keep ``in_progress`` as (step, monotonic
     start). LIVE 14 November 2026 a boot-time stall of cognitive_integration named only the phase, which runs a dozen
     organs one after another, so nothing said which of them held it."""
-    doing = getattr(phase, "in_progress", None) or getattr(getattr(phase, "__self__", None), "in_progress", None)
+    owner = phase if hasattr(phase, "in_progress") else getattr(phase, "__self__", None)
+    doing = getattr(owner, "in_progress", None)
     if not (isinstance(doing, tuple) and len(doing) == 2):
         return ""
     step, began = doing
-    return f" in {step}, {max(0.0, time.monotonic() - float(began)):.1f}s into it"
+    said = f" in {step}, {max(0.0, time.monotonic() - float(began)):.1f}s into it"
+    # And where the rest of the time went: the costliest steps it had finished.
+    taken = sorted(getattr(owner, "taken", None) or [], key=lambda pair: -pair[1])[:3]
+    return said + ("; before it " + ", ".join(f"{name} {seconds:.1f}s" for name, seconds in taken) if taken else "")
 
 class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
     """

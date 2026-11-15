@@ -202,6 +202,9 @@ class CognitiveIntegrationPhase(Phase):
         #: The organ this tick is in and since when (monotonic), read by her mind tick when the phase runs out of
         #: time, so a stall names what stalled (core/mind_tick.py).
         self.in_progress: tuple[str, float] | None = None
+        #: Each organ this tick has finished, and the seconds it took. LIVE 15 November 2026, her app's boot: "STALLED
+        #: (timeout of 5s) in _run_autopoiesis, 0.4s into it", and the other 4.6 s were the organs before it.
+        self.taken: list[tuple[str, float]] = []
 
     #: Each attribute this phase holds, and the container name it is read under.
     #: The registrar for every name is core/providers/self_maintenance_provider.py.
@@ -279,6 +282,7 @@ class CognitiveIntegrationPhase(Phase):
         """Run all learned cognitive subsystems for this tick."""
         self._resolve_services()
         t0 = time.monotonic()
+        self.taken = []
 
         # Derive a new state version for this phase
         new_state = state.derive("cognitive_integration")
@@ -415,7 +419,8 @@ class CognitiveIntegrationPhase(Phase):
         catches only the failures its author expected would have ended the whole
         phase there, every tick, and taken the eleven organs after it down too.
         """
-        self.in_progress = (method, time.monotonic())
+        began = time.monotonic()
+        self.in_progress = (method, began)
         try:
             result = await coroutine
         except asyncio.CancelledError:
@@ -425,6 +430,7 @@ class CognitiveIntegrationPhase(Phase):
             raise
         except self._ORGAN_ERRORS as exc:
             self.in_progress = None
+            self.taken.append((method, time.monotonic() - began))
             _record_cognitive_degradation(
                 exc,
                 method=method,
@@ -435,6 +441,7 @@ class CognitiveIntegrationPhase(Phase):
             logger.error("CognitiveIntegration: %s raised: %s", method, exc, exc_info=True)
             return None
         self.in_progress = None
+        self.taken.append((method, time.monotonic() - began))
         return result
 
     def _launch(self, coroutine: Any) -> None:
