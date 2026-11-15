@@ -76,6 +76,7 @@ def install() -> bool:
     there, or is built some other way than the one this was measured on, and is left as it is."""
     try:
         from playwright._impl import _connection
+    # not a failure: no browser client here, or one built otherwise: there is nothing to change.
     except Exception:  # noqa: BLE001 - no client, or one that will not import: nothing to speed up
         return False
     seen = getattr(_connection, "inspect", None)

@@ -32,6 +32,7 @@ def _reads(policy: Any, host: str) -> bool:
         return bool(policy.reads(host))
     try:
         return host in {str(h).lower() for h in (getattr(policy, "read_hosts", ()) or ())}
+    # not a failure: a policy with no list of hosts permits none.
     except TypeError:
         return False
 

@@ -4725,7 +4725,7 @@ def _held_to_the_host_envelope() -> Iterator[None]:
 
         from core.runtime.mlx_memory_guard import envelope_active, mlx_memory_envelope
     except ImportError:
-        yield
+        yield  # not a failure: without MLX in this process there is no GPU cache to hold within an envelope.
         return
     if envelope_active():
         yield

@@ -601,6 +601,7 @@ def says_nothing_of(world: str, what: str) -> bool:
     record cannot be looked at this way it is not said to hold nothing: recalling it will tell."""
     try:
         return f'"{what}"'.encode() not in (_kept_in() / f"{named(world)}.json").read_bytes()
+    # not a failure: a record that cannot be read this way is not said to hold nothing; recalling it tells.
     except OSError:
         return False
 

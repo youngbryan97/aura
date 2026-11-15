@@ -156,6 +156,7 @@ def _figures_borne_out(claim: str, evidence: str) -> bool:
         try:
             places = len(said.split(".")[1]) if "." in said else 0
             return round(float(stated), places) == float(said)
+        # not a failure: a figure that is not a number is not near the one stated.
         except ValueError:
             return False
 
@@ -388,7 +389,8 @@ def _settled(claim: str) -> bool:
         from core.epistemics.what_she_has_verified import REFUTED, VERIFIED, her_verified_facts
 
         fact = her_verified_facts().get(claim)
-    except _RECOVERABLE:
+    except _RECOVERABLE as exc:
+        logger.info("Her verified facts could not be read (%s: %s); the claim counts as unsettled.", type(exc).__name__, exc)
         return False
     return fact is not None and fact.status in (VERIFIED, REFUTED)
 
@@ -400,7 +402,8 @@ def _settled_before(claim: str, fingerprint: str) -> ReachVerdict | None:
         from core.epistemics.what_she_has_verified import REFUTED, VERIFIED, her_verified_facts
 
         fact = her_verified_facts().get(claim)
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("Her verified facts could not be read (%s: %s); the claim is read again.", type(exc).__name__, exc)
         return None
     if fact is None or fact.due_again() or fact.status not in (VERIFIED, REFUTED):
         return None

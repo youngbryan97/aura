@@ -124,6 +124,7 @@ def measured_cpu_percent() -> float | None:
 def _on_her_event_loop() -> bool:
     try:
         asyncio.get_running_loop()
+    # not a failure: no running loop in this thread is the answer: it is not her event loop.
     except RuntimeError:
         return False
     return True

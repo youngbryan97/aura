@@ -107,7 +107,9 @@ class WhatTheArticleCites:
             f"&rvslots=main&redirects=1&titles={urllib.parse.quote(titles[0])}", headers=_AS_HER_CHECK)
         try:
             wikitext = json.loads(source.body_preview or "{}")["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"]
-        except (ValueError, KeyError, IndexError, TypeError):
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            logger.info("📚 %s's wikitext could not be read (%s); its citations are not followed.", titles[0],
+                        type(exc).__name__)
             return
         read_from: set[str] = set()
         for url in cited_for(wikitext, claim):

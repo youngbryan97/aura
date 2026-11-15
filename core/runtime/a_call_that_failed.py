@@ -103,16 +103,19 @@ def _written_back(value: Any) -> str | None:
         return None
     try:
         source = repr(value)
+    # not a failure: a value whose repr raises cannot be written back.
     except Exception:  # noqa: BLE001 - a repr that raises is a value that cannot be written back
         return None
     if len(source) > _LONGEST_ARGUMENT:
         return None
     try:
         again = ast.literal_eval(source)
+    # not a failure: source that does not evaluate back to a plain value cannot be written back.
     except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
         return None
     try:
         same = again == value and type(again) is type(value)
+    # not a failure: a comparison that raises is not equality, so the value is not written back.
     except Exception:  # noqa: BLE001 - a comparison that raises is not equality
         return None
     return source if same else None

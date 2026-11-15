@@ -173,6 +173,7 @@ def _origin(parsed: urllib.parse.ParseResult) -> tuple[str, str, int]:
     host = (parsed.hostname or "").lower()
     try:
         literal = ipaddress.ip_address(host)
+    # not a failure: a host that is not an IP literal is a name, and is checked as one below.
     except ValueError:
         literal = None
     if literal is not None:
@@ -252,6 +253,7 @@ def _is_loopback_only(url: str) -> bool:
             return False
         try:
             literal = ipaddress.ip_address(host)
+        # not a failure: a host that is not an IP literal is a name, and is checked as one below.
         except ValueError:
             literal = None
         if literal is not None and not literal.is_loopback:

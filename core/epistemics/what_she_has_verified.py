@@ -270,7 +270,13 @@ class VerifiedFacts:
     def _load(self) -> None:
         try:
             rows = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        # not a failure: no store yet, before anything she checked has been kept.
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError) as exc:
+            # A store that is there and will not read is lost when this one is saved over it: said where it is seen.
+            logger.warning("Her verified facts at %s could not be read (%s: %s); starting from none.", self.path,
+                           type(exc).__name__, exc)
             return
         for row in rows if isinstance(rows, list) else []:
             fact = Fact(claim=str(row.get("claim") or ""))
