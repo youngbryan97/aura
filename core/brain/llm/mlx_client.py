@@ -1770,9 +1770,13 @@ async def _evict_model_lane_owner(owner: Any, reason: str) -> bool:
         None,
     )
     if target is None:
-        from core.runtime.model_lane_control import evict_managed_process_owner
+        # Not an MLX client of hers: its own release, where its owner registered one (an in-process model such as her
+        # voice synthesiser), else the managed process. LIVE 14 November 2026 her cortex could not come back for 27
+        # minutes after her memory watchdog killed it: room meant evicting the synthesiser, and this went straight to
+        # the process path, which cannot unload a model inside her own process, so it refused for the synthesiser.
+        from core.runtime.model_lane_control import evict_registered_model_owner
 
-        return await evict_managed_process_owner(owner, reason)
+        return await evict_registered_model_owner(owner, reason)
     if _lane_owner_is_working(target):
         logger.info(
             "MLX model-lane preemption refused during active work owner=%s reason=%s",
