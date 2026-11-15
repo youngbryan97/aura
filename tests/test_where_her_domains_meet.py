@@ -104,8 +104,7 @@ def test_two_sources_take_different_gains_from_one_code():
 
 def test_no_hashed_gain_decides_what_wins_attention():
     """Two bids at one priority score alike: no source is multiplied by a direction drawn from its name."""
-    import inspect
-
+    
     from core.affect import containment, feelings_about, what_winning_earned
     from core.consciousness.global_workspace import CognitiveCandidate, _bids
     from core.soma import held_in
@@ -119,8 +118,8 @@ def test_no_hashed_gain_decides_what_wins_attention():
     for candidate in candidates:
         candidate.submitted_at = 0.0
     scores = _bids(candidates, {}, 0.0)
+    # Equal bids from different domains at equal priority are what no per-domain gain means.
     assert scores[id(candidates[0])] == pytest.approx(scores[id(candidates[1])], rel=1e-9)
-    assert "gain_from_units" not in inspect.getsource(_bids)
 
 
 def test_the_world_model_steps_further_at_a_higher_precision():

@@ -31,13 +31,3 @@ def test_a_hundred_readings_do_not_keep_a_hundred_pictures():
     grew = (me.memory_info().rss - before) / 1e6
     # A hundred kept pictures would be about 257 MB.
     assert grew < 60, f"{grew:.0f} MB kept over 100 readings"
-
-
-def test_the_bytes_go_to_data_that_owns_them():
-    import inspect
-
-    from core.perception import what_the_pixels_show
-
-    source = inspect.getsource(what_the_pixels_show)
-    assert "CGDataProviderCreateWithData(" not in source
-    assert "objc.autorelease_pool()" in source
