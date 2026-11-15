@@ -5041,6 +5041,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   (e65075717). Still red: the governance gate (Q06 says what it owes), and
   one timing game that scored 4 against the 5 it needs while the machine
   was busy, to be run again on a quiet one.
+  14 November, a full run at e772ff9eb in twelve chunks (chunks 7 and 9-12
+  run again detached after her boot reaper killed chunk 7; records in
+  ~/.aura/test-runs/2026-11-14/). The failing files were then run alone on
+  main. Fixed that day: the flag ratchet (two raw reads, one sanctioned
+  with its reason, 3446e64db); the security scan (her play child's
+  messages unpickled by type, a plain URL not a secret, abf49643e); lock
+  coverage and the evidence index (7849cb417); state ownership and fifteen
+  sqlite connections never closed (700ea0398); a shim with no terms
+  (e5f675084); thirty batched-equals-itemwise cases run with TF32 on the GPU
+  (d93486c89); seven controller cases on a body with no time seen
+  (c6f7db63d); a test of self-speech rules taken out on 11 November
+  (031591259); and the stale assertions of three more (1055ef48d, 76a2639e4).
+  Still red: the convergence surface, 711.53 to 788.92, spread over many
+  hub modules and asking for decoupling rather than a new baseline; the
+  source-inspection ratchet, 1,245 to 1,411 across 205 test files; the
+  handler ratchet another session is lowering; the cold-control loop,
+  bisected to 5830b1de5, where after an early end keys b and c each take a
+  second trial and the body leaves the view at 5.4 s; one material-motion
+  case; and one slow ordering test, not yet read.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
