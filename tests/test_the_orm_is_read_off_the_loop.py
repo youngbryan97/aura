@@ -14,7 +14,6 @@ patching `core.db.orm.PersistentState` would stop being seen.
 
 from __future__ import annotations
 
-import inspect
 import sys
 
 import pytest
@@ -24,25 +23,60 @@ from core.providers import memory_provider
 pytestmark = pytest.mark.unit
 
 
-def test_registration_warms_it():
-    body = inspect.getsource(memory_provider.register_memory_services)
-    assert "_warm_the_orm_off_the_loop()" in body
+class _Container:
+    """Enough of a service container to register memory services into and ask one back."""
+
+    def __init__(self) -> None:
+        self.factories: dict[str, object] = {}
+
+    def register(self, name, factory, **_kwargs) -> None:
+        self.factories[name] = factory
+
+    def get(self, name, default=None):
+        factory = self.factories.get(name)
+        return factory() if callable(factory) else default
 
 
-def test_the_warming_happens_in_a_thread():
-    body = inspect.getsource(memory_provider._warm_the_orm_off_the_loop)
-    assert "threading.Thread" in body
-    assert "daemon=True" in body
-    assert "import core.db.orm" in body
+def test_registration_warms_it(monkeypatch):
+    warmed: list[bool] = []
+    monkeypatch.setattr(memory_provider, "_warm_the_orm_off_the_loop", lambda: warmed.append(True))
+    memory_provider.register_memory_services(_Container())
+    assert warmed == [True]
 
 
-def test_the_factory_keeps_its_own_import():
-    """Hoisted to module scope it would stop a patch of PersistentState being seen."""
-    body = inspect.getsource(memory_provider.register_memory_services)
-    assert "from core.db.orm import PersistentState" in body
-    module = inspect.getsource(memory_provider)
-    head = module[: module.index("def register_memory_services")]
-    assert "from core.db.orm import" not in head
+def test_the_warming_happens_in_a_thread(monkeypatch):
+    """The ORM is imported on a daemon thread of its own, not on whoever registered the services."""
+    import threading
+
+    seen = threading.Event()
+    where: list[threading.Thread] = []
+    original = __import__
+
+    def noted(name, *args, **kwargs):
+        if name == "core.db.orm":
+            where.append(threading.current_thread())
+            seen.set()
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", noted)
+    memory_provider._warm_the_orm_off_the_loop()
+    assert seen.wait(30.0)
+    assert where[0] is not threading.current_thread() and where[0].daemon
+
+
+def test_the_factory_keeps_its_own_import(monkeypatch):
+    """A patch of PersistentState is what the registered factory builds: its import is read when it is called."""
+    pytest.importorskip("sqlalchemy")
+    import core.db.orm as orm
+
+    class Planted:
+        pass
+
+    monkeypatch.setattr(orm, "PersistentState", Planted)
+    monkeypatch.setattr(memory_provider, "_warm_the_orm_off_the_loop", lambda: None)
+    container = _Container()
+    memory_provider.register_memory_services(container)
+    assert isinstance(container.get("persistent_state"), Planted)
 
 
 def test_a_missing_sqlalchemy_does_not_raise(monkeypatch):
