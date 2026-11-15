@@ -50,10 +50,42 @@ def test_no_deterministic_floor_answers_what_she_heard():
         assert deterministic_user_facing_floor(WHAT_SHE_HEARD) == ""
 
 
-def test_the_engine_marks_a_turn_of_hers_and_its_flag_reaches_the_worker():
-    from core.brain import cognitive_engine, inference_gate_turn_setup
+def test_the_engine_marks_a_turn_of_hers(monkeypatch):
+    """Everything a turn of hers asks of her model is asked inside her own turn's scope, and nothing after it."""
+    import asyncio
 
-    assert "her_own_turn_scope(" in inspect.getsource(cognitive_engine.CognitiveEngine.think)
+    from core.brain import cognitive_engine
+    from core.brain.types import ThinkingMode
+    from core.phases import kept_procedures_in_a_turn
+
+    seen: list[bool] = []
+
+    class Router:
+        async def think(self, **_kwargs):
+            seen.append(is_her_own_turn())
+            return "Okay. Here we go."
+
+        def get_last_generation_metadata(self):
+            return {"surface_control_receipt": {"generation_stop_reason": "eos", "surface_quality_gate_reasons": []}}
+
+    class Container:
+        def get(self, name, default=None):
+            return Router() if name == "llm_router" else default
+
+    async def nothing_kept(objective, *, router, origin, tier):
+        return None
+
+    monkeypatch.setattr(cognitive_engine, "get_container", lambda: Container())
+    monkeypatch.setattr(kept_procedures_in_a_turn, "kept_answer_for", nothing_kept)
+    context = {"desktop_quick_reply_contract": True, "her_own_turn": True, "visible_user_message": "", "max_tokens": 256}
+    asyncio.run(cognitive_engine.CognitiveEngine().think("playing, at 2:31", context=context, mode=ThinkingMode.FAST,
+                                                         origin="desktop_watching_along", timeout_s=30.0))
+    assert seen == [True] and not is_her_own_turn()
+
+
+def test_her_own_turn_flag_reaches_the_worker():
+    from core.brain import inference_gate_turn_setup
+
     forwarded = inspect.getsource(
         inference_gate_turn_setup._SetsTheTurnUp._generate_with_metadata_sink_affective_circumplex_let
     )
