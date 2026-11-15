@@ -70,9 +70,10 @@ def test_a_worker_that_cannot_answer_never_fails_the_session(monkeypatch):
 def test_the_voice_route_pins_on_open_and_releases_on_close():
     route = (_ROOT / "interface/routes/voice_duplex.py").read_text(encoding="utf-8")
     assert "asyncio.to_thread(a_voice_session_opened)" in route
-    assert "await asyncio.to_thread(a_voice_session_closed)" in route
+    # Shielded: her app stopping must not cancel the release or the session's being marked closed (14 November).
+    assert "await asyncio.shield(asyncio.to_thread(a_voice_session_closed))" in route
     # The release waits for the pin it undoes, or a pin answered late would hold her weights after the last session.
-    closing = route[route.index("if pinning is not None:"):route.index("await asyncio.to_thread(a_voice_session_closed)")]
+    closing = route[route.index("if pinning is not None:"):route.index("asyncio.to_thread(a_voice_session_closed)")]
     assert "await pinning" in closing
 
 

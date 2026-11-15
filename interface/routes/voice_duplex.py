@@ -657,7 +657,11 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
                 # The release must follow the pin it undoes; the pin is bounded by its own wait on her worker.
                 with contextlib.suppress(*_VOICE_ERRORS, asyncio.CancelledError):
                     await pinning
-                await asyncio.to_thread(a_voice_session_closed)
+                # Shielded, and a cancellation of this close does not stop what follows: LIVE 14 November 2026, her
+                # app stopping cancelled this await, the session was never marked closed, and the cancellation left
+                # the endpoint as "Exception in ASGI application". The release runs on in its thread either way.
+                with contextlib.suppress(asyncio.CancelledError):
+                    await asyncio.shield(asyncio.to_thread(a_voice_session_closed))
             a_live_turn(conversation_key, False)  # a socket that died mid-turn sent no last state
             a_voice_session(session_id, False)
             logger.info("Voice session %s closed", session_id)
