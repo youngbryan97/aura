@@ -63,6 +63,26 @@ def _data_dir() -> Path:
 def _model_path() -> Path:
     return _data_dir() / "vrnn_state.npz"
 
+
+#: The checkpoint that was on disk when a test began, by path and modification time. Empty outside tests.
+_LEFT_BY_EARLIER_TESTS: dict[str, int] = {}
+
+
+def reset_for_test() -> None:
+    """Start a test as a fresh root would: a checkpoint an earlier test left in the shared root is not loaded.
+
+    Every test process shares one state root, and training saves a checkpoint there every two minutes. A model a
+    later test built loaded it in place of its seeded start, and the measurement of what arrived meeting what she
+    recalled read 0.081 against a size bar it clears from that start (15 November 2026). A checkpoint written during
+    the test is still loaded, because only the one already there is marked.
+    """
+    _LEFT_BY_EARLIER_TESTS.clear()
+    try:
+        path = _model_path()
+        _LEFT_BY_EARLIER_TESTS[str(path)] = path.stat().st_mtime_ns
+    except (OSError, RuntimeError):
+        pass  # not a failure: no checkpoint there, or no root to ask
+
 #: Every parameter the model actually learns. Naming them here makes the list
 #: checkable: a weight missing from it is a weight that never moves, which is
 #: exactly the defect this file used to have.
@@ -784,9 +804,12 @@ class LearnedWorldModel:
     def _load(self) -> None:
         """Load persisted model weights."""
         try:
-            if not _model_path().exists():
+            path = _model_path()
+            if not path.exists():
                 return
-            data = np.load(str(_model_path()))
+            if _LEFT_BY_EARLIER_TESTS.get(str(path)) == path.stat().st_mtime_ns:
+                return  # a checkpoint an earlier test left; this one starts as seeded
+            data = np.load(str(path))
             # Only load if dimensions match
             if data['W_enc'].shape == self.W_enc.shape:
                 self.W_enc = data['W_enc']

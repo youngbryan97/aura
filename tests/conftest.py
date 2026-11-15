@@ -1546,6 +1546,9 @@ _TEST_SCOPED_SERVICE_KEYS = frozenset(
 )
 _TEST_SCOPED_RESET_FUNCTIONS = (
     ("core.being.runtime", "reset_being_runtime_for_test"),
+    # A world-model checkpoint an earlier test's training saved in the shared root is not a seeded start
+    # (Q09, 15 November 2026: the P,M -> W measurement read it and fell under its size bar).
+    ("core.world_model.learned_world_model", "reset_for_test"),
     ("core.epistemics.epistemic_reach", "reset_epistemic_reach_for_test"),
     ("core.identity.id_rag", "reset_identity_chronicle_for_test"),
     ("core.being.thought_interoception", "reset_thought_interoception_for_test"),
@@ -1824,7 +1827,7 @@ def _restore_process_globals(snapshot: dict[str, object]) -> None:
 #: them before a test imports them, not only after. A tiering test that was the first in its process to size a deadline
 #: read twelve decode readings at ten tokens a second from ~/.aura-test and stretched its 196 seconds to 443 (11
 #: November 2026); the reset that stops it was skipped because the module was not imported yet.
-_RESET_BEFORE_FIRST_IMPORT = ("core.brain.llm.thinking_reserve",)
+_RESET_BEFORE_FIRST_IMPORT = ("core.brain.llm.thinking_reserve", "core.world_model.learned_world_model")
 
 
 def _reset_test_scoped_runtime_services() -> None:
