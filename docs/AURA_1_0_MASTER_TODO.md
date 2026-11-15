@@ -5576,6 +5576,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   conftest's process-wide reset clears it (123 passed). The registrar census was red on main
   since the morning's organ wiring: its baseline still listed five services
   that now have registrars, and it only shrinks; they are removed.
+  15 November, small hours, two more found by running them, not
+  rerunning them. Eighteen cases of test_hardened_computer_use failed in a
+  batch and passed alone: pairing each of the 116 files before it with it
+  named test_skills, whose eager-import test popped three skill modules and
+  left the fresh copies in sys.modules and on their package, so a patch by
+  dotted name reached the copy; both are restored now (e6fb20b34). The
+  cognition discipline tests failed under two of three pytest-randomly
+  seeds: a plugin printing each verifier error named a telemetry channel
+  one test wrote red and nobody cleared; the per-test reset clears every
+  channel's readings and keeps its declaration (675729960). A batch run
+  with -q hides the randomly seed, so its order cannot be recovered;
+  bisect with -p no:randomly and an order read from a log that names
+  files.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [x] Q11 Validate installation/update/uninstall and ordinary desktop launch.
