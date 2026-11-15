@@ -1873,6 +1873,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   nothing (7.9 s). Retiring only the borrowed entry, or trimming it back to
   its key, would keep the rest; not changed here, because the cache is being
   worked on under this item.
+  The next typed turn, 06:58, took 97.5 s for about 330 tokens served. Its
+  first surface pass ran into a 384-token ceiling mid-thought and was asked
+  again with 2,026 tokens to spend; a third pass then missed the cache
+  (864 tokens). About 600 tokens were generated and not served. Inside that
+  turn her worker also loaded an embedding model for the first time (1.5 s),
+  for the shared-history check. That check flagged a true sentence: her
+  maintenance had been deferred while the chat was in front, and she said
+  so as "because you were in the loop".
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
