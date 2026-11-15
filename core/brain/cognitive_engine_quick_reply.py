@@ -1213,9 +1213,9 @@ class _AnswersTheDesktopDirectly:
         ambient_grounding_blocks, task_grounding_blocks = self._direct_desktop_quick_reply_task_grounding_blocks(capability_inventory_contract, live_mind_context, live_speech_frame, memory_state_contract, mind_context_contract, self_condition_contract)
         user_prompt = visible_user_message or objective
         # What she senses for this turn, and what she has verified that it bears on (L10).
-        from .what_she_brings_to_a_turn import grounding_she_brings
+        from .what_she_brings_to_a_turn import grounding_she_brings_off_the_loop
 
-        task_grounding_blocks.extend(grounding_she_brings(context, user_prompt))
+        task_grounding_blocks.extend(await grounding_she_brings_off_the_loop(context, user_prompt))
         kept_planted = None
         if not (continuation_contract or obligation_contract):
             kept_planted = await self._direct_desktop_quick_reply_kept_procedure(user_prompt, router, origin)

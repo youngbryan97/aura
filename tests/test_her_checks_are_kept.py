@@ -270,3 +270,28 @@ def test_an_engine_is_asked_the_claim_as_it_was_said_first_and_a_challenge_is_no
     assert found == ["https://www.nist.gov/c", "https://www.britannica.com/c"]
     first_answered = next(url for url in gateway.asked if "answers.test" in url)
     assert parse_qs(urlparse(first_answered).query)["q"] == [claim]
+
+
+def test_what_a_request_bears_on_is_worked_out_off_her_event_loop(monkeypatch):
+    """Lockdep, 15 November 2026: her desktop turn held the encoder's lock 127 ms on her event loop, judging what the
+    request bore on."""
+    import asyncio
+    import threading
+
+    from core.brain import what_she_brings_to_a_turn as brings
+
+    ran_on: list[int] = []
+
+    def judged(context, request):
+        ran_on.append(threading.get_ident())
+        return ["a checked fact"]
+
+    monkeypatch.setattr(brings, "grounding_she_brings", judged)
+
+    async def her_turn():
+        return threading.get_ident(), await brings.grounding_she_brings_off_the_loop({}, "how fast is light?")
+
+    loop_thread, blocks = asyncio.run(her_turn())
+
+    assert blocks == ["a checked fact"]
+    assert ran_on and ran_on[0] != loop_thread

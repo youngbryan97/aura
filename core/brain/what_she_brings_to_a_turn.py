@@ -12,6 +12,7 @@ read, offline as well as online.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -45,3 +46,14 @@ def grounding_she_brings(context: dict[str, Any], request: str) -> list[str]:
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
         logger.debug("Her checked facts unavailable for this turn: %s", exc)
     return blocks
+
+
+async def grounding_she_brings_off_the_loop(context: dict[str, Any], request: str) -> list[str]:
+    """``grounding_she_brings``, worked out on a thread, for her turn on the event loop.
+
+    Judging what a request bears on encodes it, and the first judgement of a
+    process measures the boundary from its declared pairs. Lockdep, 15 November
+    2026: her desktop turn held the encoder's lock 127 ms on her event loop
+    doing it.
+    """
+    return await asyncio.to_thread(grounding_she_brings, context, request)
