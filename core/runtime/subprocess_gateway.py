@@ -1408,6 +1408,7 @@ class SubprocessGateway:
                 env=dict(env) if env is not None else None,
                 shell=False,
                 text=text,
+                errors="replace" if text else None,  # as _run_bounded_by_its_work reads text
                 start_new_session=start_new_session,
                 preexec_fn=preexec_fn,
             )

@@ -153,6 +153,10 @@ def _run_bounded_by_its_work(
         stdout=stdout,
         stderr=stderr,
         text=text,
+        # Text is read as the async path reads it: a byte that is not UTF-8 is replaced, not fatal. LIVE 15 November
+        # 2026, her find_in_source skill crashed twice in two minutes: "'utf-8' codec can't decode byte 0x92 in position
+        # 81584585", a cp1252 apostrophe in a tracked text file her git grep matched.
+        errors="replace" if text else None,
         shell=False,
     )
     started = time.monotonic()

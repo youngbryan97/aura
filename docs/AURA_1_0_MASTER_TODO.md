@@ -1429,6 +1429,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   all cut it while it was still moving. The organ's bound is a stall now: a
   resolution that sits on one await for five seconds gets its fallback, and
   one still moving at six seconds is the real organ.
+  Her find_in_source skill crashed three times between 22:08 and 22:18 UTC
+  ("'utf-8' codec can't decode byte 0x92 in position 81584585"), and each
+  crash started her own repair turn on the gateway. The gateway's async path
+  replaced a byte that is not UTF-8; the path a read-only run takes decoded
+  strictly. Both read text the same way now, and bytes stay bytes for a
+  caller that asks for them.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
