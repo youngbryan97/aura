@@ -31,7 +31,12 @@ def test_changes_in_speed_and_curvature_answer_the_same_key_across_different_hea
     assert statistic > 20. and effect > 20.
     witness = own_control_witness(7, evidence, epoch=3, movement_over=4.)
     assert witness is not None and witness.identity == 7 and witness.epoch == 3
-    assert witness.statistic >= statistic
+    # Since 5d54bf2f3 (20 October) the witness is the contrast that clears both admission gates by the widest margin,
+    # not the one with the largest statistic, so it is held to that: at least the motion response's margin.
+    from core.agency.a_contrast_that_meets_both_tests import contrast_rank
+
+    assert contrast_rank((witness.statistic, witness.effect), statistic_over=20., effect_over=20.) >= contrast_rank(
+        (statistic, effect), statistic_over=20., effect_over=20.)
 
 
 def test_autonomous_acceleration_and_turning_supply_no_control_difference():

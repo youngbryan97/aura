@@ -2388,11 +2388,18 @@ def test_projection_resolution_is_exact_and_rejects_missing_owner():
 
 
 def test_deadline_alarm_interrupts_and_restores_process_timer():
-    before = signal.getitimer(signal.ITIMER_REAL)
-    with pytest.raises(TimeoutError, match="test_stage exceeded"):
-        with runner._deadline_alarm(0.02, "test_stage"):
-            time.sleep(0.2)
+    # Under pytest-timeout's signal method the process already carries its timer, and the test failed only when run
+    # with --timeout (15 November 2026). That timer is set aside here and put back after.
+    ambient = signal.setitimer(signal.ITIMER_REAL, 0.0)
+    try:
+        before = signal.getitimer(signal.ITIMER_REAL)
+        with pytest.raises(TimeoutError, match="test_stage exceeded"):
+            with runner._deadline_alarm(0.02, "test_stage"):
+                time.sleep(0.2)
 
-    after = signal.getitimer(signal.ITIMER_REAL)
-    assert before == (0.0, 0.0)
-    assert after == (0.0, 0.0)
+        after = signal.getitimer(signal.ITIMER_REAL)
+        assert before == (0.0, 0.0)
+        assert after == (0.0, 0.0)
+    finally:
+        if ambient[0] > 0.0:
+            signal.setitimer(signal.ITIMER_REAL, *ambient)
