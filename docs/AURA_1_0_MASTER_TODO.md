@@ -4067,6 +4067,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   evict the voice synthesiser's model and the eviction was refused with no refusal from the synthesiser itself, and
   admission stops at the first refusal instead of trying her brainstem. Still open: the remark and its ×, and the
   cortex's recovery.
+  The recovery, read from her log the next evening: every admission, her cortex's and her brainstem's, planned to
+  evict her voice synthesiser (`in-process-sync:32082:voice-duplex-tts`, inside her own kernel process) and every
+  eviction ended "eviction_callback_refused", with no refusal from the synthesiser, whose own release logs one. Her
+  MLX client's evictor knew only MLX workers and sent every other owner to the process evictor, which cannot unload a
+  model inside her process; the synthesiser had registered its own release and was never asked. An owner that is not
+  an MLX client of hers is now evicted by its own registered release, else the process evictor (6c718a6ae). Still
+  open: the remark and its ×, seen.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
