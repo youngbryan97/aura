@@ -171,6 +171,8 @@ def _scan_assignment(node: ast.Assign | ast.AnnAssign, rel: str) -> list[dict]:
         return []
     if _is_placeholder_literal(literal):
         return []
+    if _is_plain_url_literal(literal):
+        return []
     if len(literal) < 20 or literal.startswith("$") or literal.startswith("<"):
         return []
     if _entropy(literal) < 3.0:
@@ -325,6 +327,15 @@ def _is_env_var_name_literal(names: list[str], literal: str) -> bool:
         if "env" in words or "envvar" in words:
             return True
     return False
+
+
+def _is_plain_url_literal(literal: str) -> bool:
+    """An address with no credential in it: no user information and no query string.
+
+    core/skills/reddit_reading.py's TOKEN_URL, the public endpoint a token is
+    asked for at, was read as a token by its name (14 November 2026).
+    """
+    return bool(re.fullmatch(r"https?://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._~/-]*)?", literal))
 
 
 def _is_enum_symbol_literal(names: list[str], literal: str) -> bool:

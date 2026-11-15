@@ -22,6 +22,7 @@ goes on, only slower. Nothing here decides anything.
 """
 from __future__ import annotations
 
+import io
 import logging
 import os
 import pickle
@@ -83,6 +84,29 @@ def _repo_root() -> str:
 # -- the wire: a length, then what was said ------------------------------------------------------------------------
 
 
+#: Plain types a message between her and her play child is made of, beside her own classes and numpy's arrays.
+_PLAIN = {("builtins", n) for n in ("set", "frozenset", "complex", "slice", "range", "bytearray", "bytes")} | {
+    ("collections", n) for n in ("deque", "OrderedDict", "defaultdict", "Counter")} | {("copyreg", "_reconstructor")}
+
+
+class _HerOwnChildsPickle(pickle.Unpickler):
+    """Reads a message from her play child, and builds nothing a message between them is not made of.
+
+    The release gate's scanner refused plain pickle.loads here (14 November 2026): a pickle can name any class in
+    the interpreter and have it built, os.system included. What crosses this pipe is her own perception state,
+    numpy arrays and plain containers, so those are what it may name.
+    """
+
+    def find_class(self, module: str, name: str) -> Any:
+        if module.startswith("core.") or module.split(".")[0] == "numpy" or (module, name) in _PLAIN:
+            return super().find_class(module, name)
+        raise pickle.UnpicklingError(f"{module}.{name} is not part of a message from her play child")
+
+
+def _loads(data: Any) -> Any:
+    return _HerOwnChildsPickle(io.BytesIO(data)).load()
+
+
 def _send(stream: Any, message: Any) -> None:
     data = pickle.dumps(message, protocol=pickle.HIGHEST_PROTOCOL)
     stream.write(struct.pack("!I", len(data)))
@@ -109,7 +133,7 @@ def _receive(stream: Any, wait_s: float | None = None) -> Any:
     if head is None:
         return None
     body = _read_exactly(stream, struct.unpack("!I", head)[0], wait_s)
-    return None if body is None else pickle.loads(body)  # noqa: S301 - from her own child, over its own pipe
+    return None if body is None else _loads(body)
 
 
 # -- this side -----------------------------------------------------------------------------------------------------
@@ -306,7 +330,7 @@ class SeenElsewhere:
             payload = (*message, search_hint, material_retention) if material_retention is not None else (*message, search_hint) if search_hint is not None else message
             answer = _ask(payload)
             if isinstance(answer, tuple) and answer[0] == "written":
-                answer = pickle.loads(answers.buf[:answer[1]])  # noqa: S301 - her own child's answer
+                answer = _loads(answers.buf[:answer[1]])
         if isinstance(answer, tuple) and answer[0] == "seen":
             _brought_up_to_date(self._likeness, answer[2])
             return answer[1]
