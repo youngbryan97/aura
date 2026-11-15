@@ -3846,6 +3846,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The 30 s "reconcile" was a second answer: her first draft gave her energy
   as 6% while it read 0.697, and the re-answer is timed in that stage. The
   turn ran three generations of about 20 s each.
+  15 November, two typed turns on main at 8d86afb47, her screen locked.
+  "Morning. What's been on your mind overnight?" took 49.4 s and was
+  answered in her voice, ending with a question back. "Not bad, slept okay.
+  Did you do anything interesting while I was out?" took 97.5 s. It told
+  of research on how a system knows a task is done, and of reading her
+  sandbox runner's source; her autonomy record holds planned-goal work of
+  that kind, so neither claim is called false. Two misses of conversation:
+  a sentence about "that guardrail" was her reading of her own maintenance
+  jobs, deferred while a chat was in front, said to someone who had not
+  seen them; and she ended "Did you sleep well?" a sentence after being told.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched
