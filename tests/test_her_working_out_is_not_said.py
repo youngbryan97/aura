@@ -36,12 +36,22 @@ def test_an_answer_that_mentions_evidence_or_observing_is_an_answer(said):
     assert not talks_about_the_asking(said, "")
 
 
-def test_a_turn_of_hers_that_is_her_working_out_is_not_said():
+def test_a_turn_of_hers_that_is_her_working_out_is_not_said(monkeypatch):
+    """A turn of hers while watching that is her working out of what she was handed comes back as nothing said."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from core.container import ServiceContainer
     from core.skills import watching_along
 
-    source = inspect.getsource(watching_along.her_turn)
-    assert "talks_about_the_asking(words" in source
-    assert talks_about_the_asking(LEAKED, "Now Potter Puppet Pals. Pick whichever episode you want.")
+    class Engine:
+        async def think(self, objective, **_kwargs):
+            return SimpleNamespace(content=LEAKED)
+
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda name, default=None: Engine()
+                                                              if name == "cognitive_engine" else default))
+    asked = "Now Potter Puppet Pals. Pick whichever episode you want."
+    assert asyncio.run(watching_along.her_turn(asked, "a page of episodes", [])) == ""
 
 
 def test_a_turn_of_hers_is_not_taken_for_an_answer_code_reads():
