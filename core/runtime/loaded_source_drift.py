@@ -62,6 +62,23 @@ logger = logging.getLogger(__name__)
 #: Path components that mean "not this project's source".
 _VENDOR_PARTS = frozenset({".venv", "venv", "site-packages", "dist-packages", "node_modules", ".git"})
 
+def _process_started_at() -> float | None:
+    """When this process began, by the operating system's account; None where it cannot be read."""
+    try:
+        import psutil
+
+        return float(psutil.Process(os.getpid()).create_time())
+    except (ImportError, OSError, ValueError, AttributeError) as exc:
+        logger.info("Source drift is judged by caches alone: this process's start could not be read (%s).", exc)
+        return None
+
+
+#: A file last written before this process began cannot differ from what this process compiled from it: every import
+#: it made read that content. A cache header alone does not say so. With bytecode writing off (her launcher sets
+#: PYTHONDONTWRITEBYTECODE), a cache an earlier process wrote is never rewritten, and every module edited since it was
+#: written read as "running the older version" right after a restart (15 November 2026, 1 of 499 in a test process).
+_STARTED_AT = _process_started_at()
+
 #: PEP 552 flag bit: the cache stores a source hash rather than mtime+size.
 _PYC_HASH_BASED = 0b1
 _PYC_HEADER_BYTES = 16
@@ -222,6 +239,8 @@ def _drift_reason(module_name: str, source: Path, cache: Path | None) -> str | N
         stat = source.stat()
     except OSError:
         return "missing_on_disk"
+    if _STARTED_AT is not None and stat.st_mtime < _STARTED_AT:
+        return None
 
     header = _read_cache_header(cache) if cache else None
     if header is not None and cache is not None:

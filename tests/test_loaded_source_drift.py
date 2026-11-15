@@ -198,3 +198,27 @@ def test_a_relative_dunder_file_is_not_mistaken_for_project_source():
     for name in synthetic:
         assert name not in report.stale_modules
         assert name not in report.unknown
+
+
+def test_an_edit_older_than_the_process_is_not_drift_whatever_its_cache_says(tmp_path):
+    """A cache an earlier process wrote, never rewritten with bytecode writing off, is not what this one compiled.
+
+    Her launcher sets PYTHONDONTWRITEBYTECODE, so a module edited since its cache was last written read as running the
+    older version right after a restart (15 November 2026, core.brain.llm.where_calls_share in a test process).
+    """
+    import os
+    import time
+
+    started = loaded_source_drift._STARTED_AT
+    assert started is not None
+    source = tmp_path / "an_organ.py"
+    source.write_text("VALUE = 1\n")
+    cache = tmp_path / "an_organ.cpython.pyc"
+    py_compile.compile(str(source), cfile=str(cache), doraise=True)
+    source.write_text("VALUE = 2  # edited after that cache was written\n")
+    before = started - 60.0
+    os.utime(source, (before, before))
+    assert loaded_source_drift._drift_reason("an_organ", source, cache) is None
+    during = max(time.time(), started + 1.0)
+    os.utime(source, (during, during))
+    assert loaded_source_drift._drift_reason("an_organ", source, cache) in {"mtime", "size", "content"}
