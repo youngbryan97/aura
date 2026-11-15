@@ -57,6 +57,13 @@ os.environ.setdefault("AURA_FIRST_TOKEN_PRESSURE_ADAPT", "0")
 # targeted rag tests opt back in with an injected fake engine.
 os.environ.setdefault("AURA_SEMANTIC_RAG", "0")
 
+# Determinism: MLX multiplies float32 matrices in TF32 on the GPU unless this is
+# off when the process starts. Her grounded fitting refuses to run with it on
+# (tools/semantic_grounded_native_fit.py), and the tests that hold a batched
+# computation equal to the same one done item by item differed by up to 1.1%
+# on the GPU and not at all on the CPU (14 November 2026, 30 cases).
+os.environ.setdefault("MLX_ENABLE_TF32", "0")
+
 _CLEANUP_TIMEOUT_S = 2.0
 
 # Ensure the project root is on sys.path so `core.*` imports work
