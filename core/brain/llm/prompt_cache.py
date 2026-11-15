@@ -681,6 +681,7 @@ class PromptCacheLRU:
         try:
             self._get(model_key, tokens)
         except KeyError:
+            # not a failure: a key that is not there is the answer "not held"
             return False
         return True
 

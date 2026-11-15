@@ -435,6 +435,7 @@ def earned_alpha(directory: Path | None = None, *, name: str = "vocab_head") -> 
     try:
         stamp = path.stat().st_mtime
     except OSError:
+        # not a failure: no certificate on disk is no alpha earned
         return None
     cached = _EARNED_CACHE.get(str(path))
     if cached is not None and cached[0] == stamp:
@@ -447,7 +448,9 @@ def earned_alpha(directory: Path | None = None, *, name: str = "vocab_head") -> 
         if (certificate.get("weights_sha256") and certificate.get("weights_sha256") == manifest.get("weights_sha256")
                 and math.isfinite(alpha) and alpha >= 0.0):
             value = min(4.0, alpha)
-    except (OSError, ValueError, TypeError, AttributeError):
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.warning("Her vocabulary head's earned-alpha certificate %s could not be read, so none is earned: %s",
+                       path, exc)
         value = None
     _EARNED_CACHE[str(path)] = (stamp, value)
     return value

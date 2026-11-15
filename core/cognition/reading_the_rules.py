@@ -766,6 +766,7 @@ def read_the_rules_beside(guide: Any, ask: Callable[..., Awaitable[Any]] | None,
     try:
         asyncio.get_running_loop()
     except RuntimeError:
+        # not a failure: with no running loop there is nowhere to start it, and False says it was not started
         return False
 
     async def asked() -> None:
@@ -928,6 +929,7 @@ def _keep(frames: Sequence[Frame]) -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
+        # not a failure: outside a running loop the write is made here, at once
         _write(held)
         return
     _WRITING.add(task := loop.create_task(asyncio.to_thread(_write, held)))

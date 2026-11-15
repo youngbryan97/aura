@@ -511,6 +511,7 @@ def ask_for_a_reading(guide: Any, ask: Callable[..., Awaitable[Any]] | None, *, 
     try:
         asyncio.get_running_loop()
     except RuntimeError:
+        # not a failure: with no running loop there is nowhere to start it, and False says it was not started
         return False
     reading.asked.append(due)
 

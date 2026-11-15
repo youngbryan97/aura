@@ -330,6 +330,7 @@ def ask_for_a_plan(guide: Any, ask: Callable[..., Awaitable[Any]] | None, *, on_
     try:
         asyncio.get_running_loop()
     except RuntimeError:
+        # not a failure: with no running loop there is nowhere to start it, and False says it was not started
         return False
     guide.plan_again_because = ""
 

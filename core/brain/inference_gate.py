@@ -7925,8 +7925,8 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         from core.conversation.response_reliability import internal_task_prompt_leak_evidence
 
                         _leak_sentence = internal_task_prompt_leak_evidence(cleaned, user_input_for_eval)
-                    except (ImportError, RuntimeError, TypeError, ValueError):
-                        _leak_sentence = ""
+                    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                        _leak_sentence = f"(the sentence could not be found: {type(exc).__name__}: {exc})"
                 logger.warning(
                     "🛡️ %s produced malformed model text (%s, len=%d). Treating it as failed generation.%s",
                     label,

@@ -72,7 +72,8 @@ def reading_ceiling_chars(answer_tokens: int, model_path: str | None = None) -> 
         from core.brain.llm.context_budget import budget_for_answer
 
         earned = int(budget_for_answer(int(answer_tokens)))
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("The reading ceiling holds at the unqualified one: the answer's budget could not be read (%s).", exc)
         earned = 0
     return min(window, max(UNQUALIFIED_CEILING_CHARS, earned))
 

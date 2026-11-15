@@ -334,7 +334,8 @@ def _as_of(store: Any) -> str:
     """
     try:
         date = str(store.snapshot_date() or "")
-    except (AttributeError, OSError, ValueError):
+    except (AttributeError, OSError, ValueError) as exc:
+        logger.info("The offline copy's date could not be read, so none is said: %s", exc)
         date = ""
     return f", as of {date}" if date else ""
 
@@ -425,7 +426,8 @@ async def read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining:
                 return
             try:
                 page = await asyncio.wait_for(render(url), timeout=min(20.0, remaining()))
-            except (TimeoutError, OSError, RuntimeError, ValueError):
+            except (TimeoutError, OSError, RuntimeError, ValueError) as exc:
+                logger.info("Rendering %s gave nothing to read: %s", url, type(exc).__name__ if isinstance(exc, TimeoutError) else exc)
                 page = None
         text = str((page or {}).get("text") or "").strip()
         if text:
@@ -503,7 +505,8 @@ async def gather_world_evidence(
         if fetch is not None:
             try:
                 page = await asyncio.wait_for(fetch(url), timeout=min(20.0, remaining()))
-            except (TimeoutError, OSError, RuntimeError, ValueError):
+            except (TimeoutError, OSError, RuntimeError, ValueError) as exc:
+                logger.info("Fetching %s gave nothing to read: %s", url, type(exc).__name__ if isinstance(exc, TimeoutError) else exc)
                 page = None
         if page and str(page.get("text") or "").strip():
             evidence.read.append(url)

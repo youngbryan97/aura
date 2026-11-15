@@ -183,6 +183,8 @@ class _KeepsItsStoreOnDiskAndInBounds:
             try:
                 new_tolerance = float(saved_tolerance) if saved_tolerance is not None else None
             except (TypeError, ValueError):
+                # not a failure: a saved tolerance that is not a number is none, and the store keeps its own, as it
+                # does for one out of range just below
                 new_tolerance = None
             if new_tolerance is not None and not (math.isfinite(new_tolerance) and 0.0 <= new_tolerance < 1.0):
                 new_tolerance = None

@@ -8,7 +8,10 @@ pin only while voice mode is open (about 15 GB the rest of the machine cannot ha
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def her_weights_pinned(pinned: bool, *, device: str, ipc_writer: Any, job: Any, mx: Any, model: Any) -> None:
@@ -26,7 +29,7 @@ def her_weights_pinned(pinned: bool, *, device: str, ipc_writer: Any, job: Any, 
 
                 weights = int(tree_reduce(lambda acc, x: acc + x.nbytes if isinstance(x, mx.array) else acc, model, 0))
             except (ImportError, AttributeError, TypeError, ValueError):
-                weights = 0  # the size is said when it can be read; the pin does not depend on it
+                weights = 0  # not a failure: the size is said when it can be read; the pin does not depend on it
             reply.update(status="ok", pinned=bool(pinned), wired_limit=limit, previous_wired_limit=previous,
                          model_bytes=weights)
             if pinned:
@@ -53,5 +56,6 @@ def _her_memory_store_opened(model: Any) -> int | None:
 
         memory = get_nonparametric_memory(decoder_hidden_size(model))
         return len(memory) if memory is not None else None
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        return None  # her first turn opens it then, as before
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("Her memory store was not opened early (%s); her first turn opens it, as before.", exc)
+        return None

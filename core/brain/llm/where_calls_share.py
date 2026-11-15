@@ -11,7 +11,10 @@ any later call has been compared with this one.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["where_calls_stop_sharing", "where_the_first_message_ends"]
 
@@ -69,6 +72,7 @@ def where_calls_stop_sharing(tokenizer: Any, prompt: Any, messages: Any, tokens:
         before = tokenizer.encode(prompt[:at], add_special_tokens=False)
     except TypeError:
         before = tokenizer.encode(prompt[:at])
-    except (AttributeError, RuntimeError, ValueError):
+    except (AttributeError, RuntimeError, ValueError) as exc:
+        logger.info("No shared prefix is claimed: the tokenizer could not encode the part before it (%s).", exc)
         return 0
     return min(len(before), len(tokens))

@@ -852,6 +852,7 @@ class _AnswersTheDesktopDirectly:
         try:
             left_s = float(deadline) - _time.monotonic() - 8.0
         except (TypeError, ValueError):
+            # not a failure: a turn with no deadline has no measured time to give; the stand-down below says so
             left_s = 0.0
         if candidate_s <= 0.0 or left_s < candidate_s:
             logger.info(

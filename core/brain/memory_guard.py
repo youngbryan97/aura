@@ -168,7 +168,8 @@ def _cortex_tokenizer():
             return None
         path = Path(spec.model_path) / "tokenizer.json"
         key = str(path)
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("Counting tokens by the heuristic: her cortex could not be named (%s).", exc)
         return None
     if key not in _COUNTING_TOKENIZERS:
         _COUNTING_TOKENIZERS[key] = None

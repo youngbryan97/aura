@@ -207,6 +207,7 @@ def read_the_code_beside(guide: Any, read: Any, ask: Callable[..., Awaitable[Any
     try:
         asyncio.get_running_loop()
     except RuntimeError:
+        # not a failure: with no running loop there is nowhere to start it, and False says it was not started
         return False
 
     async def asked() -> None:

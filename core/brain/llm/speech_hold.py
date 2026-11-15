@@ -45,7 +45,7 @@ class SpeechHold:
             try:
                 self._memory.unlink()
             except FileNotFoundError:
-                pass
+                pass  # not a failure: it is already gone, which is what closing asks for
 
 
 class _Reader:
@@ -57,7 +57,7 @@ class _Reader:
 
             resource_tracker.unregister(self._memory._name, "shared_memory")  # noqa: SLF001
         except (ImportError, AttributeError, KeyError, ValueError):
-            pass
+            pass  # not a failure: a tracker that never registered it has nothing to forget
 
     def until(self) -> float:
         return float(_UNTIL.unpack_from(self._memory.buf, 0)[0])
@@ -95,7 +95,7 @@ def wait_for_her_voice(job: dict, *, sleep_s: float = 0.02, stopped: Any = None)
         try:
             _READER = _Reader(name)
         except (FileNotFoundError, OSError, ValueError):
-            return 0.0  # her voice's side has already gone
+            return 0.0  # not a failure: her voice's side has already gone, so there is nothing to wait for
     started = time.time()
     longest = _longest_hold_s()
     while True:

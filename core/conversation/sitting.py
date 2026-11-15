@@ -30,11 +30,11 @@ def when(value: Any) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
-        pass
+        pass  # not a failure: not a number, so it is read as an ISO time next
     try:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
     except (TypeError, ValueError):
-        return None
+        return None  # not a failure: neither a number nor an ISO time is no time
 
 
 def sitting_begins(times: Sequence[float | None], now: float) -> int:

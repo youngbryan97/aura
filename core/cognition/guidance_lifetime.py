@@ -166,7 +166,7 @@ def _completed_guidance_invariant() -> tuple:
     try:
         stamp.check()
     except asyncio.CancelledError:
-        pass
+        pass  # not a failure: the retired stamp refusing is what this checks
     else:
         raise AssertionError("a retired guidance owner retained publication authority")
     assert not parent.stopping.stopped, "guidance retirement stopped its parent"

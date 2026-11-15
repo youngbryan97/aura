@@ -23,8 +23,11 @@ recovers is only the case search cannot serve at all.
 from __future__ import annotations
 
 import functools
+import logging
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["page_interaction_target", "asks_to_act_on_a_page"]
 
@@ -164,7 +167,8 @@ def _she_is_asked_to_do_it(body: str) -> bool:
 
         verdict = assess_request_mood(body)
         return verdict.mood is RequestMood.DIRECTIVE or any(map(shaped_as_an_order, verdict.ambiguous_clauses))
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.warning("Whether she is asked to do it could not be read, so she is not: %s", exc)
         return False
 
 
@@ -257,7 +261,8 @@ def _asked_to_use_it(body: str) -> bool:
         from core.conversation.request_mood import RequestMood, assess_request_mood
 
         directive = assess_request_mood(body).mood is RequestMood.DIRECTIVE
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.warning("The request's mood could not be read, so it is not taken as an order: %s", exc)
         directive = False
     if not directive and (body.strip().endswith("?") or _OPENS_AS_A_QUESTION_RE.match(body)):
         return False
@@ -265,7 +270,8 @@ def _asked_to_use_it(body: str) -> bool:
         from core.self.how_her_words_stand import chance_it_follows
 
         chance = chance_it_follows(body, _USE_IT)
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.warning("Whether the request follows from using it could not be read, so it does not: %s", exc)
         return False
     # More likely than not, which is the only line that needs no choosing.
     return chance is not None and chance > 0.5

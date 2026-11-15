@@ -76,7 +76,8 @@ SAYS_SHE_GAINED = _surface(
 def _decides(surface: Any, floor: re.Pattern[str], sentence: str) -> bool:
     try:
         decided = surface.decide_without_waiting(sentence)
-    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("The sentence is judged by the floor: her surface could not decide it (%s).", exc)
         decided = None
     return bool(floor.search(sentence)) if decided is None else bool(decided)
 

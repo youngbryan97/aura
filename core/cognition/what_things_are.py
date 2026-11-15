@@ -121,6 +121,7 @@ class WhatThingsAre:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            # not a failure: with no running loop there is nowhere to start it, and False says it was not started
             return False
         from core.cognition.guidance_lifetime import create_guidance_task, publication_stamp
 

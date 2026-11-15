@@ -621,6 +621,7 @@ def _embed_documents(texts: Sequence[str]) -> list[Any | None]:
                 try:
                     retained_width = len(vector) if vector is not None else 0
                 except TypeError:
+                    # not a failure: a vector with no length has no width to keep
                     retained_width = 0
                 if 0 < retained_width <= 4096:
                     _DOCUMENT_CACHE[key] = vector

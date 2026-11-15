@@ -55,6 +55,7 @@ def _what_they_said(now: float) -> list[str]:
         try:
             at = float(turn.get("created_at") or 0.0)
         except (TypeError, ValueError):
+            # not a failure: a turn with no readable time is not one said within the window
             at = 0.0
         content = " ".join(str(turn.get("content", "") or "").split())
         if content and now - at <= SAID_WITHIN_S:
@@ -172,7 +173,7 @@ def the_same_thing(link: str, watched: str) -> bool:
     try:
         a, b = urlsplit(str(link or "")), urlsplit(str(watched or ""))
     except ValueError:
-        return False
+        return False  # not a failure: a link that does not parse is not the one watched
     if not a.hostname or (a.hostname or "").removeprefix("www.") != (b.hostname or "").removeprefix("www."):
         return False
     if a.path.rstrip("/") != b.path.rstrip("/"):

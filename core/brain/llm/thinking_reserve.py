@@ -651,7 +651,8 @@ def reset_for_test() -> None:
     try:
         target = _store_path()
     except RuntimeError:
-        # A test that made the runtime profile unreadable is torn down with it still so: no root, no stamp to take.
+        # not a failure: a test that made the runtime profile unreadable is torn down with it still so: no root, no
+        # stamp to take.
         target = None
     try:
         stamp = target.stat().st_mtime_ns if target is not None else -1

@@ -212,7 +212,8 @@ class _RunsTheThinkingLoop:
 
                     try:
                         told = efference_copy()
-                    except (AttributeError, RuntimeError, TypeError, ValueError):
+                    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                        logger.info("Her reply is noted without its efference copy, which could not be read: %s", exc)
                         told = None
                     note_her_reply(state, direct_quick_reply.content, efference=told)
             temp_state = state

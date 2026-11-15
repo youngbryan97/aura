@@ -91,6 +91,7 @@ def ask_in_the_background(guide: Any, *, task: str, said: str, ask: Callable[...
     try:
         asyncio.get_running_loop()
     except RuntimeError:
+        # not a failure: with no running loop there is nowhere to start it, and False says it was not started
         return False
     guide.asked_what_i_know = True
 

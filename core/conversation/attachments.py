@@ -226,7 +226,10 @@ def kept(attachment_id: str) -> tuple[dict[str, Any], str] | None:
     try:
         note = json.loads((folder / "note.json").read_text(encoding="utf-8"))
         text = (folder / "text.txt").read_text(encoding="utf-8")
-    except (OSError, ValueError):
+    except FileNotFoundError:
+        return None  # not a failure: an id that names no kept attachment
+    except (OSError, ValueError) as exc:
+        logger.warning("Kept attachment %s could not be read: %s", attachment_id, exc)
         return None
     return note, text
 

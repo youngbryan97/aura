@@ -1842,6 +1842,8 @@ def _carries_her_state(system_prompt: object) -> bool:
     try:
         from core.brain.llm.context_assembler import _BLACK_BOX_STATE_MARKERS
     except ImportError:
+        # not a failure: an assembler that cannot be imported fails, loudly, where her prompt is
+        # assembled, and "not carried" here only adds the brief reading again
         return False
     body = str(system_prompt or "")
     return "[Affect:" in body or any(marker in body for marker in _BLACK_BOX_STATE_MARKERS)

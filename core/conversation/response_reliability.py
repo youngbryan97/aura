@@ -7578,8 +7578,8 @@ def _assess_user_facing_reply(
                 [one[:200] for one in fabricated_shared_history(raw, user_message, recent_messages, grounding=grounding)][:3],
                 len(list(grounding or ())), sum(len(str(g)) for g in (grounding or ())),
             )
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.info("fabricated_shared_history: its sentences could not be listed (%s)", exc)
     if recent_messages and borrowed_first_person_spans(
         raw, [*recent_messages, user_message]
     ):
