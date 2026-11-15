@@ -125,8 +125,19 @@ def test_the_wait_reads_the_circuit_without_moving_it() -> None:
     # An observer that flipped OPEN to HALF_OPEN would spend the probe the
     # turn's own reply is meant to be.
     assert endpoint.state is CircuitState.OPEN
-    source = inspect.getsource(language_organ._until_the_router_takes_her)
-    assert "probe_eligible" in source and "is_available" not in source
+
+
+def test_the_wait_before_a_turn_leaves_an_open_circuit_open(gate) -> None:
+    """The wait passes an open circuit whose cooldown has run, and leaves it open, so the turn's reply is the probe."""
+    from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+    from core.brain.llm_health_router import CircuitState, EndpointHealth
+
+    endpoint = EndpointHealth(name="Cortex", url="", model="m", is_local=True)
+    endpoint.state = CircuitState.OPEN
+    endpoint.cooldown_until_monotonic = 0.0
+    gate["llm_router"] = SimpleNamespace(endpoints={PRIMARY_ENDPOINT: endpoint})
+    assert asyncio.run(language_organ._until_the_router_takes_her()) == {"router_waited_s": 0.0}
+    assert endpoint.state is CircuitState.OPEN
 
 
 def test_a_stopped_worker_is_started_once_and_watched_until_ready(gate) -> None:

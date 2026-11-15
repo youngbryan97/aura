@@ -23,7 +23,6 @@ reasoning steps.") or its last tool call as the answer.
 from __future__ import annotations
 
 import asyncio
-import inspect
 from typing import Any
 
 import pytest
@@ -156,9 +155,22 @@ def test_a_loop_out_of_turns_leaves_the_answer_to_her(gate, monkeypatch):
     assert _answer(gate, client, "Run Python to compute 2 + 2") is None
 
 
-def test_the_loop_writes_no_answer_of_its_own_when_it_runs_out():
+def test_the_loop_writes_no_answer_of_its_own_when_it_runs_out(monkeypatch):
+    """A tool loop that asks for a tool every turn ends exhausted, with what ran and no words put in her mouth."""
     from core.brain.llm.mlx_client import MLXLocalClient
+    from core.container import ServiceContainer
 
-    source = inspect.getsource(MLXLocalClient.think_and_act)
-    assert "I ran out of reasoning steps" not in source
-    assert '"exhausted": True' in source
+    class Engine:
+        async def execute(self, name, args, context=None, **_kwargs):
+            return {"ok": True, "result": "4"}
+
+    async def asks_again(*_args, **_kwargs):
+        return '```json\n{"tool": "code_repl", "args": {"code": "print(2 + 2)"}}\n```'
+
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(
+        lambda name, default=None: Engine() if name == "capability_engine" else default))
+    client = MLXLocalClient.__new__(MLXLocalClient)
+    client.max_tokens, client.model_path, client.generate_text_async = 512, "her-cortex", asks_again
+    tools = {"code_repl": {"description": "run code", "parameters": {"code": {"type": "string"}}}}
+    out = asyncio.run(client.think_and_act("Run Python to compute 2 + 2", "", tools=tools, max_turns=3))
+    assert out["exhausted"] is True and out["content"] == "" and len(out["tool_calls"]) == 3
