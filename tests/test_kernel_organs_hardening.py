@@ -118,3 +118,40 @@ async def test_kernel_publishes_live_ice_instance_to_authority_container(monkeyp
         "type": "ORGAN_READY",
         "name": "ice_layer",
     }
+
+
+@pytest.mark.asyncio
+async def test_an_organ_still_resolving_past_the_stall_bound_is_the_real_one(monkeypatch):
+    """Five seconds in all cut her NeuralBridge while it was still loading, and the fallback stood for the run."""
+    import core.kernel.organs as organs
+
+    monkeypatch.setattr(organs, "_ORGAN_STALL_S", 0.2)
+    organ = organs.OrganStub("neural", SimpleNamespace())
+    real = object()
+
+    async def a_resolution_that_keeps_moving():
+        for _step in range(12):  # 0.6 s in all, three times the stall bound
+            await asyncio.sleep(0.05)
+        return real
+
+    monkeypatch.setattr(organ, "_resolve", a_resolution_that_keeps_moving)
+    await organ.load()
+
+    assert organ.instance is real and organ.fallback_used is False
+
+
+@pytest.mark.asyncio
+async def test_an_organ_stuck_on_one_await_gets_its_fallback(monkeypatch):
+    import core.kernel.organs as organs
+
+    monkeypatch.setattr(organs, "_ORGAN_STALL_S", 0.2)
+    monkeypatch.setattr(organs, "record_degradation", lambda *args, **kwargs: None)
+    organ = organs.OrganStub("neural", SimpleNamespace())
+
+    async def a_resolution_that_never_answers():
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(organ, "_resolve", a_resolution_that_never_answers)
+    await asyncio.wait_for(organ.load(), timeout=5.0)
+
+    assert organ.fallback_used is True and organ.resolved_kind == "FallbackNeural"

@@ -1423,6 +1423,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The id now stays with its token until the release is confirmed. The
   immune monitor's "resource strain: cpu at 100%" (17 flags in two days) was
   an unread figure the psutil shim reports as 100 (9d6d6982c).
+  "Organ neural load TIMEOUT — using fallback" came on eight boots from 14 to
+  15 November, and the kernel kept the fallback for the run. Her NeuralBridge
+  loads in stages each bounded by a stall; the organ's own five seconds in
+  all cut it while it was still moving. The organ's bound is a stall now: a
+  resolution that sits on one await for five seconds gets its fallback, and
+  one still moving at six seconds is the real organ.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,

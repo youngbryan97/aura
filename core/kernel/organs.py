@@ -44,6 +44,12 @@ _ORGAN_RECOVERABLE_ERRORS = (
 _CRITICAL_ORGANS = frozenset({"brain", "llm", "memory", "continuity"})
 _FALLBACK_TYPES = (FallbackLLM, FallbackNeural, FallbackOrgan, FallbackVision, FallbackVoice)
 
+#: How long an organ's resolution may sit on one await before its fallback stands in. It was five seconds in all, which
+#: cut a resolution that was still moving: LIVE 15 November 2026, her app's boot, "Organ neural load TIMEOUT — using
+#: fallback" with her NeuralBridge still loading under its own stall-bounded stages, and the fallback kept for the run
+#: (eight times from 14 to 15 November).
+_ORGAN_STALL_S = 5.0
+
 
 def _organ_severity(name: str) -> Severity:
     return "critical" if name in _CRITICAL_ORGANS else "degraded"
@@ -94,8 +100,8 @@ class OrganStub:
         self.fallback_used = False
         self.failure_reason = ""
         try:
-            async with asyncio.timeout(5.0):
-                self.instance = await self._resolve()
+            self.instance = await await_while_the_task_moves(
+                self._resolve(), stall_s=_ORGAN_STALL_S, name=f"organs.{self.name}.resolve")
         except TimeoutError as exc:
             logger.warning("Organ %s load TIMEOUT — using fallback.", self.name)
             self.instance = self._fallback_for_name()
