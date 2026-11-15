@@ -43,6 +43,8 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
+
 from core.language.substrate_store import (
     LanguageSubstrateStore,
     get_language_substrate_store,
@@ -75,15 +77,37 @@ _PENDING_CEILING = 256
 
 
 def cosine(left: Sequence[float], right: Sequence[float]) -> float:
-    """Cosine similarity, safe on zero vectors."""
-    total = norm_left = norm_right = 0.0
-    for a, b in zip(left, right, strict=False):
-        total += float(a) * float(b)
-        norm_left += float(a) * float(a)
-        norm_right += float(b) * float(b)
+    """Cosine similarity, safe on zero vectors; over the shorter of the two where their lengths differ.
+
+    In numpy, not a Python loop: LIVE 14 November 2026 the loop, run for every pair of a matcher's examples, held one
+    of her threads at a full core for hours and her event loop waited behind it, once for 104 s.
+    """
+    a = np.asarray(left, dtype=np.float64).reshape(-1)
+    b = np.asarray(right, dtype=np.float64).reshape(-1)
+    if a.size != b.size:
+        a, b = a[: min(a.size, b.size)], b[: min(a.size, b.size)]
+    norm_left, norm_right = float(a @ a), float(b @ b)
     if norm_left <= 0.0 or norm_right <= 0.0:
         return 0.0
-    return total / math.sqrt(norm_left * norm_right)
+    return float(a @ b) / math.sqrt(norm_left * norm_right)
+
+
+def _as_matrix(vectors: Sequence[Sequence[float]]) -> np.ndarray | None:
+    """The vectors as one float64 matrix, or None where they are not all one length."""
+    try:
+        matrix = np.asarray(vectors, dtype=np.float64)
+    except (TypeError, ValueError):
+        return None  # not a failure: vectors of different lengths are no one matrix, and are read pair by pair
+    return matrix if matrix.ndim == 2 else None
+
+
+def _cosines(rows: np.ndarray, columns: np.ndarray) -> np.ndarray:
+    """Every row's cosine with every column, zero where either is a zero vector, as ``cosine`` gives it."""
+    row_norms = np.sqrt(np.einsum("ij,ij->i", rows, rows))
+    column_norms = np.sqrt(np.einsum("ij,ij->i", columns, columns))
+    scale = np.outer(row_norms, column_norms)
+    products = rows @ columns.T
+    return np.divide(products, scale, out=np.zeros_like(products), where=scale > 0.0)
 
 
 def embed_sentences(sentences: Iterable[str]) -> list[list[float]]:
@@ -190,23 +214,38 @@ def _score_against(
     vectors explicit prevents that work from borrowing the matcher's state
     mutex merely to evaluate a snapshot it already owns.
     """
-    best_positive = max(
-        (
-            cosine(vector, candidate)
-            for index, candidate in enumerate(positives)
-            if index != skip_positive
-        ),
-        default=-1.0,
-    )
-    best_negative = max(
-        (
-            cosine(vector, candidate)
-            for index, candidate in enumerate(negatives)
-            if index != skip_negative
-        ),
-        default=-1.0,
-    )
-    return best_positive - best_negative
+    return _best_cosine(vector, positives, skip_positive) - _best_cosine(vector, negatives, skip_negative)
+
+
+def _best_cosine(vector: Sequence[float], candidates: Sequence[Sequence[float]], skip: int) -> float:
+    """The nearest candidate's cosine, leaving out the one at ``skip``; -1.0 with none left."""
+    matrix = _as_matrix(candidates) if len(candidates) else None
+    probe = _as_matrix([vector])
+    if matrix is None or probe is None or matrix.shape[1] != probe.shape[1]:
+        # Ragged vectors keep the pairwise reading, whose zip takes the shorter of each pair.
+        return max((cosine(vector, candidate) for index, candidate in enumerate(candidates) if index != skip),
+                   default=-1.0)
+    near = _cosines(probe, matrix)[0]
+    if 0 <= skip < near.size:
+        near = np.delete(near, skip)
+    return float(near.max()) if near.size else -1.0
+
+
+def _leave_one_out(positives: Sequence[Sequence[float]],
+                   negatives: Sequence[Sequence[float]]) -> tuple[list[float] | None, list[float] | None]:
+    """Each example's score against the others, as ``_score_against`` gives it, from four cosine matrices at once.
+
+    (None, None) where the vectors are not one matrix; the caller then scores them one at a time.
+    """
+    pos, neg = _as_matrix(positives), _as_matrix(negatives)
+    if pos is None or neg is None or pos.shape[1] != neg.shape[1] or len(pos) < 2 or len(neg) < 2:
+        return None, None
+    among_positives, among_negatives = _cosines(pos, pos), _cosines(neg, neg)
+    np.fill_diagonal(among_positives, -np.inf)
+    np.fill_diagonal(among_negatives, -np.inf)
+    positive_scores = among_positives.max(axis=1) - _cosines(pos, neg).max(axis=1)
+    negative_scores = _cosines(neg, pos).max(axis=1) - among_negatives.max(axis=1)
+    return positive_scores.tolist(), negative_scores.tolist()
 
 
 @dataclass(frozen=True, slots=True)
@@ -383,8 +422,9 @@ class LearnedMatcher:
             # Leave-one-out: score every declared example against the others.
             # The boundary is where the two sets stop overlapping, which is a
             # measurement of this declaration rather than a number chosen for
-            # it.
-            positive_scores = [
+            # it. As four matrices of cosines where the vectors allow it.
+            positive_scores, negative_scores = _leave_one_out(positives, negatives)
+            positive_scores = positive_scores if positive_scores is not None else [
                 _score_against(
                     vector,
                     positives,
@@ -393,7 +433,7 @@ class LearnedMatcher:
                 )
                 for index, vector in enumerate(positives)
             ]
-            negative_scores = [
+            negative_scores = negative_scores if negative_scores is not None else [
                 _score_against(
                     vector,
                     positives,
