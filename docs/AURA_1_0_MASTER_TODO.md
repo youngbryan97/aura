@@ -5186,6 +5186,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   - test_latent_cortex_paired_campaign_runner's deadline alarm;
   - test_an_input_answers_relative_to_the_bodys_motion (speed and
     curvature across headings).
+  The same day, after: the point-precision test was a retained-mark pose
+  led with on another tracker's grid, red since fd06569ed (95f888fd7);
+  the deadline alarm assumed no timer where pytest-timeout keeps one, and
+  the motion witness test asserted a statistic the witness stopped being
+  chosen by in 5d54bf2f3 (788f030af). The material-motion case is red
+  since 4ab5de94b (15 October), which joins a body's visible pieces into
+  one material observation before matching; with it the responder is not
+  kept through its last four control intervals. Not yet read further.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
