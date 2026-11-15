@@ -1914,6 +1914,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   for the shared-history check. That check flagged a true sentence: her
   maintenance had been deferred while the chat was in front, and she said
   so as "because you were in the loop".
+  15 November, the day's 155 turn receipts by path: desktop_quick_reply 92
+  turns, 1,450 s, 290 s unattributed (20%, most of it two turns: 46.47 s of
+  86.10 s at 06:30 UTC, 9.31 s of 17.63 s at 23:42 while her health route
+  went unanswered for 10 s); full_phase_pipeline 63 turns, 606 s, 523 s
+  unattributed (86%). The full pipeline's are mostly background objectives:
+  turn 409402b9 at 07:18 UTC, a resting_cycle objective, ran 231.66 s of
+  phases with 21.76 s of retrieval timed and was then deferred with nothing
+  generated. Phase work that is none of the five components counts as
+  unattributed there.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
