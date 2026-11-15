@@ -143,8 +143,10 @@ def main() -> int:
                 alone = reader.read(DOCUMENT_BEGINS, words, "alone")
                 room = (reader.read(DOCUMENT_BEGINS + "\n".join(case["room"]) + "\n", words, f"room:{index}")
                         if case["room"] else None)
+                generic = reader.read(opening, words, "opening") if room else None
                 reading = AddressReading(hers=sum(hers) / len(hers), alone=sum(alone) / len(alone),
-                                         room=(sum(room) / len(room)) if room else None, tokens=len(hers))
+                                         room=(sum(room) / len(room)) if room else None, tokens=len(hers),
+                                         generic=(sum(generic) / len(generic)) if generic else None)
                 readings.append({"condition": condition, "domain": case["domain"], "u": case["u"],
                                  "to_her": case["to_her"], **reading.as_dict()})
             print(f"{condition}: {len(cases)} cases read in {time.perf_counter() - started:.1f} s", flush=True)

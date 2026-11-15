@@ -1,5 +1,5 @@
 {
- "about": "Utterances an open microphone hears, each with the situation it was heard in: her recent exchange (oldest first), seconds since she spoke, and what the room was saying that was not said to her. to_her is whether it was said to her; null when the words alone do not settle it. Grouped by domain so the margin can be measured with each kind of situation held out. Read by tools/voice/measure_address_margin.py.",
+ "about": "Utterances an open microphone hears, each with the situation it was heard in: her recent exchange (oldest first), seconds since she spoke, and what the room was saying that was not said to her. to_her is whether it was said to her; null when the words alone do not settle it. Grouped by domain so the margin can be measured with each kind of situation held out. Read by tools/voice/measure_address_margin.py. Half the cases said to her are repeated with unrelated talk overheard before them, because the room does not stop when a person speaks to her: without them, overheard talk is present only in cases not said to her, and its presence alone separates the classes.",
  "cases": [
   {
    "domain": "cold_to_her",
@@ -1633,6 +1633,410 @@
    "room": [],
    "u": "Every time I have to talk.",
    "to_her": null
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "Hello? Is anyone there?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "What's the weather going to be like tomorrow?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "I need to send an email to my editor about the deadline, can you help?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "How long do I boil an egg for?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "Read me what's on my calendar today.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "Would actually love a natural response for the wake word, so we can just talk back and forth.",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "What time is it in Tokyo right now?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "Hello?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "You there?",
+   "to_her": true
+  },
+  {
+   "domain": "cold_to_her",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "Quick question.",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "Hey Aura, can you hear me?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "Okay Aura, let's get started.",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [
+    [
+     "user",
+     "What's the weather tomorrow?"
+    ],
+    [
+     "assistant",
+     "Cloudy, about twelve degrees, rain after four."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "Thanks Aura.",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "What do you think, Aura?",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "Hey Aura are you there",
+   "to_her": true
+  },
+  {
+   "domain": "named",
+   "conv": [
+    [
+     "user",
+     "How do you spell necessary?"
+    ],
+    [
+     "assistant",
+     "N, E, C, E, S, S, A, R, Y."
+    ]
+   ],
+   "since_s": 900.0,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "Aura, stop for a second.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Do you want the blue one or the green one?"
+    ]
+   ],
+   "since_s": 2.0,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "The blue one.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "It'll be about twelve degrees and cloudy tomorrow."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "Should I bring an umbrella then?",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "The capital of Australia is Canberra."
+    ]
+   ],
+   "since_s": 10.0,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "Huh, I always thought it was Sydney.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Here's the first paragraph. The house stood dark against the hill."
+    ]
+   ],
+   "since_s": 2.0,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "Okay, that's good, keep going.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Do you want me to email him now?"
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "No, wait until tomorrow.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "That recipe needs about forty minutes in the oven."
+    ]
+   ],
+   "since_s": 10.0,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "Forty? I don't have that long.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Should I keep the second paragraph or cut it?"
+    ]
+   ],
+   "since_s": 2.0,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "Cut it.",
+   "to_her": true
+  },
+  {
+   "domain": "follow_up",
+   "conv": [
+    [
+     "user",
+     "Hey."
+    ],
+    [
+     "assistant",
+     "Sorry, I didn't catch that."
+    ]
+   ],
+   "since_s": 6.0,
+   "room": [
+    "Now add two cups of flour and stir it in slowly."
+   ],
+   "u": "I said, can you turn it down a bit.",
+   "to_her": true
+  },
+  {
+   "domain": "other_language",
+   "conv": [],
+   "since_s": null,
+   "room": [
+    "We have to get out of here before the storm hits.",
+    "I'm not leaving without my brother."
+   ],
+   "u": "Oye, ¿me escuchas?",
+   "to_her": true
+  },
+  {
+   "domain": "other_language",
+   "conv": [
+    [
+     "user",
+     "Hola."
+    ],
+    [
+     "assistant",
+     "¿Quieres que suba el volumen?"
+    ]
+   ],
+   "since_s": 3.0,
+   "room": [
+    "Can you pick up some bread on the way?"
+   ],
+   "u": "Sí, claro, ponlo más alto.",
+   "to_her": true
   }
  ]
 }

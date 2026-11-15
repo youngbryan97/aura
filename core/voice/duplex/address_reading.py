@@ -66,21 +66,43 @@ class AddressReading:
     alone: float
     room: float | None = None
     tokens: int = 0
+    #: The words after the turn's opening alone, with no conversation before it: how likely any turn of talk makes
+    #: them. None for a reading taken without it, which then counts the room as it reads.
+    generic: float | None = None
+
+    @property
+    def room_beyond_talk(self) -> float | None:
+        """What the room's talk predicts beyond what any turn of talk would.
+
+        Overheard lines make any conversational line more likely, whoever it is said to: measured 14 November 2026,
+        once one line had been overheard in a session, "Hello? Is anyone there?" read as the room's (lead 1.17) and
+        went unanswered. The room is a rival only for what it adds over talk in general, which is the room's
+        reading less the turn opening's own lift over nothing.
+        """
+        if self.room is None:
+            return None
+        if self.generic is None:
+            return self.room
+        return self.room - (self.generic - self.alone)
 
     @property
     def lead(self) -> float:
         """How much better her conversation predicts the words than the room's talk or nothing does."""
-        rival = self.alone if self.room is None else max(self.alone, self.room)
+        room = self.room_beyond_talk
+        rival = self.alone if room is None else max(self.alone, room)
         return self.hers - rival
 
     @property
     def rival(self) -> str:
-        return "the room's talk" if self.room is not None and self.room > self.alone else "nothing at all"
+        room = self.room_beyond_talk
+        return "the room's talk" if room is not None and room > self.alone else "nothing at all"
 
     def as_dict(self) -> dict[str, Any]:
-        return {"hers": round(self.hers, 3), "alone": round(self.alone, 3),
-                "room": None if self.room is None else round(self.room, 3), "lead": round(self.lead, 3),
-                "tokens": self.tokens}
+        def rounded(value: float | None) -> float | None:
+            return None if value is None else round(value, 3)
+
+        return {"hers": round(self.hers, 3), "alone": round(self.alone, 3), "room": rounded(self.room),
+                "generic": rounded(self.generic), "lead": round(self.lead, 3), "tokens": self.tokens}
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,11 +165,12 @@ def _mean(values: Sequence[float] | None) -> float | None:
 
 
 async def read_address(transcript: str, *, hers_text: str, hers_scope: str, room: RoomTalk, room_scope: str,
-                       alone_scope: str, scorer: Scorer) -> AddressReading | None:
-    """Her model's three readings of the words, or None when any reading her conversation or nothing needs failed.
+                       alone_scope: str, scorer: Scorer, opening: str = "",
+                       opening_scope: str = "opening") -> AddressReading | None:
+    """The reader's readings of the words, or None when the reading after her conversation or after nothing failed.
 
-    Her conversation is read first: its text was read ahead while the person spoke, and reading the words after it
-    leaves them in her cache for the answer that may follow.
+    ``opening`` is the turn's opening with no conversation before it; when the room has talk in it, the words are
+    read after that too, so the room counts only for what it adds over talk in general.
     """
     words = spoken_words(transcript)
     if not words or not hers_text:
@@ -161,7 +184,8 @@ async def read_address(transcript: str, *, hers_text: str, hers_scope: str, room
         return None
     room_text = room.text()
     room_reading = _mean(await scorer(room_text, words, room_scope)) if room_text else None
-    return AddressReading(hers=hers, alone=alone, room=room_reading, tokens=len(hers_values or ()))
+    generic = _mean(await scorer(opening, words, opening_scope)) if room_reading is not None and opening else None
+    return AddressReading(hers=hers, alone=alone, room=room_reading, tokens=len(hers_values or ()), generic=generic)
 
 
 class AddressReader:
@@ -200,8 +224,10 @@ class AddressReader:
         hers = await self._live.text_before(transcript) if hasattr(self._live, "text_before") else None
         if not hers:
             return None
+        opening = str(getattr(self._live, "_opening", "") or "")
         return await read_address(transcript, hers_text=hers, hers_scope=f"hers:{self._key}", room=self.room,
-                                  room_scope=f"room:{self._key}", alone_scope="alone", scorer=self._scorer)
+                                  room_scope=f"room:{self._key}", alone_scope="alone", scorer=self._scorer,
+                                  opening=opening if hers.endswith(opening) else "")
 
     def overheard(self, transcript: str) -> None:
         self.room.overheard(transcript)
