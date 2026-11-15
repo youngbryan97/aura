@@ -456,3 +456,29 @@ def test_a_real_paraphrase_is_still_a_new_sighting() -> None:
     matcher.decide_without_waiting("I filed the report")
     matcher.warm()
     assert matcher.decide_without_waiting("The report has been filed.") is None
+
+
+def test_a_caller_that_finds_the_surface_being_measured_waits_for_it_rather_than_abstaining():
+    """LIVE 15 November 2026: the first concurrent checks after a restart abstained while one of them measured."""
+    import threading
+    import time
+
+    from core.language.learned_matcher import LearnedMatcher
+
+    measuring = threading.Event()
+
+    def slow_features(sentences):
+        measuring.set()
+        time.sleep(0.3)
+        return [[1.0, 0.0] if "yes" in s else [0.0, 1.0] for s in sentences]
+
+    matcher = LearnedMatcher(name="waits", positives=("yes one", "yes two"), negatives=("no one", "no two"),
+                             features=slow_features)
+    matcher._store = None
+    verdicts: list[object] = []
+    first = threading.Thread(target=lambda: verdicts.append(matcher.decide("yes three")))
+    first.start()
+    assert measuring.wait(5.0)
+    verdicts.append(matcher.decide("yes four"))
+    first.join(5.0)
+    assert verdicts == [True, True]

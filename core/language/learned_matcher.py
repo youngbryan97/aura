@@ -76,6 +76,12 @@ _MIN_CHARS = 3
 _PENDING_CEILING = 256
 
 
+def _an_event_set() -> threading.Event:
+    event = threading.Event()
+    event.set()
+    return event
+
+
 def cosine(left: Sequence[float], right: Sequence[float]) -> float:
     """Cosine similarity, safe on zero vectors; over the shorter of the two where their lengths differ.
 
@@ -337,6 +343,8 @@ class LearnedMatcher:
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     _ready: bool = field(default=False, repr=False)
     _preparing: bool = field(default=False, repr=False)
+    #: Set whenever no thread is part-way through measuring this surface.
+    _settled: threading.Event = field(default_factory=lambda: _an_event_set(), repr=False)
     _example_revision: int = field(default=0, repr=False)
     _store: LanguageSubstrateStore | None = field(default=None, repr=False)
 
@@ -403,6 +411,7 @@ class LearnedMatcher:
             negative_examples = tuple(self.negatives)
             revision = self._example_revision
             self._preparing = True
+            self._settled.clear()
 
         completed = False
         try:
@@ -413,6 +422,7 @@ class LearnedMatcher:
             if not completed:
                 with self._lock:
                     self._preparing = False
+                self._settled.set()
 
         if len(positives) != len(positive_examples) or len(negatives) != len(
             negative_examples
@@ -451,15 +461,18 @@ class LearnedMatcher:
                 separable=worst_positive > best_negative,
             )
 
-        with self._lock:
-            self._preparing = False
-            if revision != self._example_revision:
-                return False
-            self._positive_vectors = positives
-            self._negative_vectors = negatives
-            self._boundary = boundary
-            self._ready = True
-            return boundary is not None
+        try:
+            with self._lock:
+                self._preparing = False
+                if revision != self._example_revision:
+                    return False
+                self._positive_vectors = positives
+                self._negative_vectors = negatives
+                self._boundary = boundary
+                self._ready = True
+                return boundary is not None
+        finally:
+            self._settled.set()
 
     def decide(self, sentence: str) -> bool | None:
         """Whether this sentence is one of the things declared, or None.
@@ -472,7 +485,16 @@ class LearnedMatcher:
         if len(text) < _MIN_CHARS:
             return None
         if not self._prepare():
-            return None
+            # Another thread part-way through measuring this surface is waited for, not abstained on: this call would
+            # have spent the same time measuring it had it come first. LIVE 15 November 2026 three checks of her first
+            # reply after a restart asked the shared-history surface at once, two abstained, and a true sentence of
+            # hers was cut as invented.
+            # Its own measurement overtaken by a new example leaves the event set, and abstains as before.
+            if self._settled.is_set():
+                return None
+            self._settled.wait()
+            if not self._prepare():
+                return None
         with self._lock:
             boundary = self._boundary
             positives = tuple(self._positive_vectors)
