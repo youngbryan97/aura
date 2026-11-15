@@ -9,12 +9,15 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import re
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextvars import ContextVar
 from typing import Any
 
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "SAYING_IT_MOVES",
@@ -97,7 +100,8 @@ def _when_her_model_last_moved() -> float:
     """The latest moment any of her model processes read or wrote a token."""
     try:
         from core.brain.llm.mlx_client import clients_snapshot
-    except ImportError:
+    except ImportError as exc:
+        logger.warning("When her model last moved cannot be read: her MLX client could not be imported (%s).", exc)
         return 0.0
     latest = 0.0
     for _key, client in clients_snapshot():

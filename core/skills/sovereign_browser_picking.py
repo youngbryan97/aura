@@ -224,7 +224,7 @@ def _closed(browser: Any) -> bool:
     page = getattr(browser, "page", None)
     try:
         return page is not None and bool(page.is_closed())
-    except Exception:  # noqa: BLE001 - a page that cannot say is taken as open; the next act finds out
+    except Exception:  # noqa: BLE001 - not a failure: a page that cannot say is taken as open; the next act finds out
         return False
 
 

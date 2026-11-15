@@ -36,6 +36,7 @@ class DirectionFromPosePath:
                 position: tuple[float, float], position_error: float, *, ready_after: float) -> DirectionPair | None:
         try:
             hash(context)
+        # not a failure: a context that cannot be compared starts afresh
         except TypeError:
             self.seen.clear()
             self.context = None

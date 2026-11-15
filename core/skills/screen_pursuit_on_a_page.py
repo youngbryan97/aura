@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import hashlib
+import logging
 import math
 import time
 from collections.abc import Mapping, Sequence
@@ -38,6 +39,8 @@ from core.runtime.what_stops_it import current
 from core.runtime.errors import record_degradation
 from core.verify import invariant
 from core.runtime.page_gateway import get_page_gateway, page_script
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["HER_OWN_PAGE", "OnAPage", "it_was_answered", "on_her_page"]
 
@@ -163,6 +166,7 @@ def _cursor_scope(page: Any, seen: dict, over: Any) -> tuple | None:
         if (not all(math.isfinite(v) for v in (wide, tall, left, top, right, bottom))
                 or min(wide, tall) <= 0 or not (0 <= left < right <= 1 and 0 <= top < bottom <= 1)):
             return None
+    # not a failure: a shape that is not numbers is none
     except (KeyError, TypeError, ValueError):
         return None
     scan = (left*wide, top*tall, (right-left)*wide, (bottom-top)*tall)
@@ -446,7 +450,8 @@ class OnAPage:
                 # Held a moment, as a hand presses one: a page that asks each frame which keys are down sees it.
                 await get_page_gateway().press(self.page.keyboard, _KEY_NAMES.get(name, name), source="screen_pursuit_on_a_page.press", delay=TAP_HELD_S * 1000.0)
             delivered = True
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+            logger.info("The page did not take the input: %s", exc)
             return False
         finally:
             finish_navigation_input(recorded, delivered)
@@ -518,7 +523,8 @@ class OnAPage:
             else:
                 await as_a_hand_clicks(self.page, left + x * wide, top + y * tall)
             delivered = True
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+            logger.info("The page did not take the input: %s", exc)
             return False
         finally:
             finish_navigation_input(recorded, delivered)
@@ -580,7 +586,8 @@ class OnAPage:
             finally:
                 await self.page.mouse.up()
             delivered = True
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+            logger.info("The page did not take the input: %s", exc)
             return False
         finally:
             finish_navigation_input(recorded, delivered)
@@ -595,6 +602,7 @@ class OnAPage:
     async def identity(self) -> dict[str, str]:
         try:
             title = str(await self.page.title() or "")
+        # not a failure: a page that cannot say its title has none
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             title = ""
         return {"url": str(getattr(self.page, "url", "") or ""), "title": title, "error": ""}

@@ -31,6 +31,7 @@ def calibration_owner(hers: Any, mine: Any) -> BodyOwner | None:
         return None
     try:
         birth = float(born)
+    # not a failure: a birth too large to be a time is none
     except OverflowError:
         return None
     return (*names, birth) if math.isfinite(birth) else None

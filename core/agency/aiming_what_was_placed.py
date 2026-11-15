@@ -14,9 +14,12 @@ each turn has her eyes look again. Nothing here knows a device, a pipe or a cage
 """
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["MOST_TURNS", "TURNS_A_THING", "a_turn_wanted", "points_on", "turns_a_thing"]
 
@@ -43,7 +46,8 @@ def turns_a_thing(label: str) -> bool:
     """Whether a control turns the thing it is used on: as the learned surface decides, else by its words."""
     try:
         decided = TURNS_A_THING.decide_without_waiting(label)
-    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("The label is judged by the floor: the learned surface could not decide it (%s).", exc)
         decided = None
     return bool(_TURNS.search(str(label or ""))) if decided is None else bool(decided)
 

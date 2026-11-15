@@ -183,7 +183,7 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
         try:
             data = json.loads(found)
         except ValueError:
-            data = None  # braces in code are not an object
+            data = None  # not a failure: braces in code are not an object
     if not isinstance(data, dict):
         # Asked for code, a model may answer with the code itself.
         written = _the_code_in(text) if "code" in schema.model_fields else ""
@@ -198,6 +198,7 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
         if mended is not None:
             try:
                 return schema.model_validate(mended)
+            # not a failure: a mend that does not fit either is logged just below
             except ValidationError:
                 pass
         logger.info("her model's answer did not fit %s: %s", schema.__name__, str(why)[:300])
@@ -224,6 +225,7 @@ def _within_bounds(data: Any, why: ValidationError) -> Any:
             for key in path:
                 holder = holder[key]
             holder[last] = holder[last][:limit]
+        # not a failure: an answer without that place has nothing to shorten, so it is not mended
         except (KeyError, IndexError, TypeError):
             return None
     return mended

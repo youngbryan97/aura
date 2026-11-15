@@ -249,6 +249,7 @@ def _rgb(colour: Any) -> tuple[int, int, int] | None:
     hex_ = "".join(c * 2 for c in hex_) if len(hex_) == 3 else hex_
     try:
         return (int(hex_[0:2], 16), int(hex_[2:4], 16), int(hex_[4:6], 16)) if len(hex_) == 6 else None
+    # not a failure: a colour that is not hex is none
     except ValueError:
         return None
 

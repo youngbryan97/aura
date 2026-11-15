@@ -102,6 +102,7 @@ async def change_it(folder: Path, asked: str, ask: Asker, *, tell: Teller | None
             "would use it and see it. An existing feature keeps its name.",
             _TheChange, 1500,
         )
+    # not a failure: with her model away, the change is read from the words below, as when it says nothing
     except HerModelIsAwayError:
         change = None
     if not isinstance(change, _TheChange):

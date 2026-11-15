@@ -324,7 +324,8 @@ def _on_a_page_of_its_own(folder: Path) -> bool:
     try:
         genome = Genome.model_validate_json((folder / "what_it_does.json").read_text("utf-8"))
         parts = json.loads((folder / "program.json").read_text("utf-8")).get("parts", []) if (folder / "program.json").exists() else []
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.warning("The program kept in %s could not be read: %s", folder, exc)
         return False
     area = next((part for part in parts if part.get("name") == "work area"), None)
     return area is not None and "document page" not in (area.get("serves") or []) and the_page_for(genome) is not None

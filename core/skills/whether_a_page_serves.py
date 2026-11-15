@@ -117,6 +117,7 @@ def watching(page: Any) -> DevTools:
         try:
             if request.is_navigation_request() and request.frame == page.main_frame:
                 tools.opened()
+        # not a failure: an event that cannot be read says nothing about the page
         except Exception:  # noqa: BLE001
             return
 
@@ -126,7 +127,7 @@ def watching(page: Any) -> DevTools:
                 tools.status = int(response.status)
             elif int(response.status) >= 400:
                 tools.failed.append((response.url, response.request.resource_type, f"answered {response.status}"))
-        except Exception:  # noqa: BLE001 - a response that cannot be read says nothing
+        except Exception:  # noqa: BLE001 - not a failure: a response that cannot be read says nothing
             return
 
     def refused(request: Any) -> None:
@@ -135,6 +136,7 @@ def watching(page: Any) -> DevTools:
             if "ERR_ABORTED" in why or "BLOCKED_BY_CLIENT" in why:
                 return  # the page or the browser chose not to fetch it, which is not its failing
             tools.failed.append((request.url, request.resource_type, why or "failed"))
+        # not a failure: an event that cannot be read says nothing about the page
         except Exception:  # noqa: BLE001
             return
 
@@ -142,6 +144,7 @@ def watching(page: Any) -> DevTools:
         try:
             if message.type == "error":
                 tools.errors.append(str(message.text)[:300])
+        # not a failure: an event that cannot be read says nothing about the page
         except Exception:  # noqa: BLE001
             return
 

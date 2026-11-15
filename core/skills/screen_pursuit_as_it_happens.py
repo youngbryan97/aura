@@ -621,7 +621,8 @@ class PlayingAsItHappens:
 
             at = time.monotonic()
             picture = await picture_of(self.page, clip, css=True, kind="jpeg")
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+            logger.debug("No picture of the page this time: %s", exc)
             return None
         if picture is None:
             return None

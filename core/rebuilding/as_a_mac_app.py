@@ -76,7 +76,8 @@ def _an_icon(name: str, accent: str, out: Path) -> Path | None:
     """An icon: the program's first letter on its own colour, rounded as Mac icons are."""
     try:
         from PIL import Image, ImageDraw, ImageFont
-    except ImportError:
+    except ImportError as exc:
+        logger.info("The app keeps the default icon: Pillow could not be imported (%s).", exc)
         return None
     colour = accent if re.fullmatch(r"#[0-9a-fA-F]{6}", accent or "") else "#2b579a"
     size = 1024
@@ -120,6 +121,7 @@ def _its_place(folder: Path, name: str, identifier: str) -> Path:
         return wanted
     try:
         theirs = plistlib.loads((wanted / "Contents" / "Info.plist").read_bytes()).get("CFBundleIdentifier", "")
+    # not a failure: an app with no readable identifier is not taken as hers
     except (OSError, plistlib.InvalidFileException):
         theirs = ""
     if theirs == identifier or str(theirs).startswith(_HERS):

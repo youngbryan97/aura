@@ -49,6 +49,7 @@ def _rgb(colour: str) -> tuple[int, int, int] | None:
         return None
     try:
         return int(hex_[0:2], 16), int(hex_[2:4], 16), int(hex_[4:6], 16)
+    # not a failure: a colour that is not hex is none
     except ValueError:
         return None
 

@@ -57,6 +57,7 @@ def observation_time(at: Any) -> float | None:
         return None
     try:
         value = float(at)
+    # not a failure: a time that is not a number is none
     except (ValueError, OverflowError):
         return None
     return value if math.isfinite(value) and value >= 0 else None

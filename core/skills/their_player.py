@@ -95,6 +95,7 @@ def _a_timeline(element: Any) -> tuple[float, float] | None:
     said = str(_read(element, "AXValueDescription") or "")
     try:
         value, top = float(_read(element, "AXValue")), float(_read(element, "AXMaxValue"))
+    # not a failure: an element with no value and range is no timeline
     except (TypeError, ValueError):
         value = top = 0.0
     if top > 0 and (_TIMELINE_NAME.search(named) or _TIME_WORDS.search(said) or _PLACE.search(said)):

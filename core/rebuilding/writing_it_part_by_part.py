@@ -213,7 +213,8 @@ async def _cut_off(code: str) -> bool:
         done = await get_subprocess_gateway().run_async(
             ["node", "-e", "try { new (require('vm').Script)(require('fs').readFileSync(0, 'utf8')); } catch (e) { process.stdout.write(String(e.message)); }"],
             input=code, timeout=_A_SYNTAX_CHECK_S, read_only=True, source="writing_it_part_by_part.cut_off", accelerator_capability="none")
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.info("Whether the code was cut off is not known: node could not check it (%s).", exc)
         return False
     said = str(done.stdout or "").lower()
     return "end of input" in said or "unterminated" in said
@@ -359,7 +360,8 @@ def so_far_in(folder: Path, genome: Genome) -> SoFar | None:
         program = ProgramAsBuilt.kept_in(folder)
         said = json.loads((folder / "what_works.json").read_text("utf-8")) if (folder / "what_works.json").exists() else []
         holding = [Check.model_validate(c) for c in json.loads((folder / "holding.json").read_text("utf-8"))] if (folder / "holding.json").exists() else []
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError) as exc:
+        logger.warning("The program kept in %s could not be read: %s", folder, exc)
         return None
     features = {f.name: f for f in genome.features}
     outcomes = [

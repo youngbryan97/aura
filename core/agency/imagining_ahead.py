@@ -27,6 +27,7 @@ imagining. Nothing here knows a game.
 """
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -36,6 +37,8 @@ import numpy as np
 
 from core.agency.arriving_by_her_pushes import arrival_excess, arrival_holds, braking_pulse_holds, stopping_distance
 from core.agency.a_requested_region_in_a_plan import RelationForecast, RelationInPlan, current_requested_region
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["HORIZON_S", "Plan", "best_plan", "plans_to_imagine"]
 
@@ -378,7 +381,8 @@ def _its_path(physics: Any, thing: Any, seconds: float) -> Callable[[float], tup
     if physics is not None and getattr(thing, "moved", False):
         try:
             imagined = physics.imagine(thing, seconds, step=STEP_S)
-        except (AttributeError, TypeError, ValueError, ZeroDivisionError):
+        except (AttributeError, TypeError, ValueError, ZeroDivisionError) as exc:
+            logger.debug("Its physics could not imagine the thing ahead: %s", exc)
             imagined = None
     if imagined is None or not getattr(imagined, "path", None):
         return lambda after: thing.where_at(after)

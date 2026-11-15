@@ -203,7 +203,8 @@ def _not_moved_about(guide: Any) -> bool:
 
     try:
         return bool(said_not_steered(guide) or not_steered(guide))
-    except (AttributeError, TypeError, ValueError):
+    except (AttributeError, TypeError, ValueError) as exc:
+        logger.debug("Whether she was steered could not be read, so she was: %s", exc)
         return False
 
 
@@ -433,6 +434,7 @@ def _who_i_am_to_my_eyes(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any,
     if refresh and at - seeing.began >= AVATAR_ASKED_AFTER_S and getattr(moves, "things", None):
         try:
             asyncio.get_running_loop()
+        # not a failure: with no running loop there is nowhere to start it
         except RuntimeError:
             return
         names = [*guide.names.get("me", [])[:2],
@@ -556,6 +558,7 @@ def _wonder_at(guide: Any, seeing: SeeingInPlay, what: str, odd: str, at: float,
     seeing.wondered += 1
     try:
         loop = asyncio.get_running_loop()
+    # not a failure: with no running loop there is nowhere to start it
     except RuntimeError:
         return
     from pydantic import BaseModel, Field

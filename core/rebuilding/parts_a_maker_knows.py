@@ -391,7 +391,7 @@ def _the_paper_here() -> str:
     try:
         said = said or str(plistlib.loads((Path.home() / "Library/Preferences/.GlobalPreferences.plist").read_bytes()).get("AppleLocale") or "")
     except (OSError, ValueError, plistlib.InvalidFileException):
-        pass  # not a Mac, or no setting: the environment and the locale say
+        pass  # not a failure: not a Mac, or no setting: the environment and the locale say
     said = said or (locale.getlocale()[0] or "")
     country = re.split(r"[_.@-]", said)[1].upper() if re.match(r"^[a-z]{2}[_-][A-Za-z]{2}", said) else ""
     return "Letter" if country in _LETTER_PAPER else "A4"

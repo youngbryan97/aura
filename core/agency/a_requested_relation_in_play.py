@@ -113,6 +113,7 @@ def _box(thing: Any) -> tuple[float, float, float, float] | None:
         if any(isinstance(value, bool) for value in raw):
             return None
         values = tuple(float(value) for value in raw)
+    # not a failure: a relation that is not numbers is none
     except (TypeError, ValueError, OverflowError, AttributeError):
         return None
     return values if all(math.isfinite(v) for v in values) and min(values[2:]) > 0 else None

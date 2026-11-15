@@ -210,6 +210,7 @@ def load(slug: str) -> GoalRecord | None:
     path = records_dir() / f"{slug}.json"
     try:
         return GoalRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    # not a failure: no goal kept yet
     except FileNotFoundError:
         return None
     except (OSError, ValueError, TypeError) as exc:

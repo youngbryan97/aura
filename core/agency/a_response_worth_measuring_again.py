@@ -36,6 +36,7 @@ def _push(samples: Any) -> tuple[tuple[float, float], float] | None:
         return None
     try:
         samples = [tuple(float(value) for value in sample) for sample in samples]
+    # not a failure: samples that are not numbers give none
     except (TypeError, ValueError):
         return None
     if any(len(sample) != 3 or not all(math.isfinite(value) for value in sample) for sample in samples):

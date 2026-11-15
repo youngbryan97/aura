@@ -238,6 +238,7 @@ def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -
     try:
         x, y = float(region["x"]), float(region["y"])
         width, height = float(region["width"]), float(region["height"])
+    # not a failure: a region that is not numbers overlaps nothing
     except (KeyError, TypeError, ValueError):
         return False
     for other in regions:
@@ -326,6 +327,7 @@ def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, floa
                     return None
                 x, y = float(region['pointer_x']), float(region['pointer_y'])
                 return (x, y) if all(0 <= value <= 1 for value in (x, y)) else None
+            # not a failure: a pointer that is not numbers is none
             except (KeyError, TypeError, ValueError):
                 return None
         try:
@@ -333,6 +335,7 @@ def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, floa
                 float(region.get("center_x", region.get("x", 0.0))),
                 float(region.get("center_y", region.get("y", 0.0))),
             )
+        # not a failure: a centre that is not numbers is none
         except (TypeError, ValueError):
             return None
     return None

@@ -329,6 +329,7 @@ def _the_band(said: Any) -> tuple[float, float, float, float] | None:
     try:
         where = json.loads(str(said or ""))
         band = (float(where["left"]), float(where["top"]), float(where["right"]), float(where["bottom"]))
+    # not a failure: a reply that is not a band names none
     except (TypeError, ValueError, KeyError):
         return None
     left, top, right, bottom = band
@@ -391,7 +392,7 @@ async def _on_the_drawing(browser: Any, goal: str, observation: Mapping[str, Any
         try:
             await get_page_gateway().read(page, _LET_IT_GO)
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
-            pass  # a page gone is a page that no longer needs letting go
+            pass  # not a failure: a page gone is a page that no longer needs letting go
 
 
 class _Closing:
@@ -415,7 +416,7 @@ class _Closing:
             await tab.close()
             await self.page.bring_to_front()
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
-            return  # a tab already gone, or a page that is: nothing in front of the game to close
+            return  # not a failure: a tab already gone, or a page that is: nothing in front of the game to close
         if not self.said:
             self.said = True
             _tell("The game opened another tab of its own; I closed it and went back to the game.")
@@ -683,6 +684,7 @@ async def _a_stocktaking(goal: str, page: Any) -> Any:
 
     try:
         title = str(await page.title() or "")
+    # not a failure: a page that cannot say its title is named by its address
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         title = ""
     return Stocktaking(the_thing(goal, title or str(getattr(page, "url", "") or "")), url=str(getattr(page, "url", "") or ""))
@@ -933,6 +935,7 @@ def _a_clock_is_still_running(reflexes: Any, result: Mapping[str, Any]) -> bool:
             return
         try:
             units = [float(part) for part in str(value).strip().split(":")]
+        # not a failure: a time that is not numbers is none
         except (TypeError, ValueError):
             return
         if not units or len(units) > 3:

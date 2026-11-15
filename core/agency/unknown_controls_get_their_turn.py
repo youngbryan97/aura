@@ -21,6 +21,7 @@ def _bounded_controls(values: Any) -> tuple[str, ...] | None:
         return None
     try:
         values = iter(values)
+    # not a failure: values that cannot be walked hold none
     except TypeError:
         return None
     found = {}

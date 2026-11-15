@@ -601,11 +601,13 @@ async def _only_her_own_window_in_front() -> bool:
 
         if not get_ambient_presence().drawing_surface_attached():
             return False
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Whether her drawing surface is attached could not be read: %s", exc)
         return False
     try:
         named = str(getattr(get_config(), "app_name", "") or "").strip().lower()
-    except (AttributeError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Her app's name could not be read: %s", exc)
         named = ""
     front = (await _frontmost()).strip().lower()
     return bool(front) and front in {named, "aura", "aura-launcher"} - {""}

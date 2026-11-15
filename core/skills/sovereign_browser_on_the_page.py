@@ -69,7 +69,8 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
         # A page for one video says which (its name and length, as schema.org gives them); a list of videos playing
         # a preview of one says nothing of its own.
         its_own = bool((await get_page_gateway().read(page, WHAT_THE_PAGE_SAYS) or {}).get("length"))
-    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("Whether the page is one video's own could not be read: %s", exc)
         its_own = False
     # A video playing with its sound on is one somebody chose: pages play their previews and trailers muted, and a
     # browser lets a page play sound only after a person has acted on it. LIVE 7 November 2026, asked to find a cooking

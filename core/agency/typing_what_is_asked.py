@@ -316,6 +316,7 @@ def _holds(shape: dict[str, Any], place: tuple[float, float]) -> bool:
     try:
         x, y = float(shape["center_x"]), float(shape["center_y"])
         half_w, half_h = float(shape.get("width", 0.0)) / 2, float(shape.get("height", 0.0)) / 2
+    # not a failure: a shape that is not numbers holds no place
     except (KeyError, TypeError, ValueError):
         return False
     return abs(place[0] - x) <= half_w and abs(place[1] - y) <= half_h

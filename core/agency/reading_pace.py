@@ -100,6 +100,7 @@ def pause_asked_for(request: object) -> float | None:
     if amount is None:
         try:
             amount = float(count)
+        # not a failure: a count that is not a number gives no pace
         except ValueError:
             return None
     seconds = amount * _UNIT_S.get(unit.lower(), 0.0)

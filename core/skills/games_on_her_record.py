@@ -51,6 +51,7 @@ def _this_game(page: Any) -> str:
         try:
             held = Path(unquote(urlparse(url).path)).read_bytes()
             return f"played as it happens at {url} ({hashlib.sha256(held).hexdigest()[:12]})"
+        # not a failure: a game not on disk is named without its hash
         except OSError:
             pass
     return f"played as it happens at {url}"

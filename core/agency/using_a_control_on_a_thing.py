@@ -303,6 +303,7 @@ class UsingOnThings:
             return
         try:
             loop = asyncio.get_running_loop()
+        # not a failure: with no running loop there is nowhere to start it
         except RuntimeError:
             return
         import numpy as np

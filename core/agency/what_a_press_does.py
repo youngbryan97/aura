@@ -444,6 +444,7 @@ def _unchanged_input_invariant() -> tuple:
     attempt = _hold(None, run, None, 'q', 2., trying=True)
     try:
         attempt.send(None)
+    # not a failure: an attempt that ends at once is what this checks
     except StopIteration:
         pass
     else:

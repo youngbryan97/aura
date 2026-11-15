@@ -589,6 +589,7 @@ def _what_a_file_says(data: bytes) -> str:
                 said = [re.sub(r"<[^>]+>", " ", archive.read(name).decode("utf-8", "ignore"))
                         for name in archive.namelist() if name.endswith(".xml")]
             return " ".join(" ".join(said).split())[:400_000]
+        # not a failure: a document that does not open as one is read as its bytes, below
         except (zipfile.BadZipFile, OSError, ValueError):
             pass
     return data[:400_000].decode("utf-8", "ignore")
@@ -615,6 +616,7 @@ def a_file_of_its_kind(name: str, text: str) -> tuple[str, bytes]:
             held = io.BytesIO()
             document.save(held)
             return "application/vnd.openxmlformats-officedocument.wordprocessingml.document", held.getvalue()
+        # not a failure: without the library the next format is tried
         except ImportError:
             pass
     if lowered.endswith(".odt"):

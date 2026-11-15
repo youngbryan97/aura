@@ -101,7 +101,7 @@ def _by_title(corpus: Any, title: str) -> tuple[str, bool]:
     for spelling in dict.fromkeys((title, title[:1].upper() + title[1:], " ".join(w[:1].upper() + w[1:] for w in title.split()), title.title())):
         try:
             hit = corpus.by_title(spelling)
-        except Exception:  # noqa: BLE001 - a lookup that fails is a name not known
+        except Exception:  # noqa: BLE001 - not a failure: a lookup that fails is a name not known
             hit = None
         if hit is None:
             continue
@@ -127,7 +127,7 @@ def _known_program(corpus: Any, words: str, *, meanings: bool = True) -> tuple[s
     try:
         page = corpus.by_title(f"{words[:1].upper() + words[1:]} (disambiguation)") or corpus.by_title(f"{words.title()} (disambiguation)")
         listed = str(corpus.body(page.doc_id, max_chars=8000) or "") if page is not None else ""
-    except Exception:  # noqa: BLE001 - no page of meanings is no meaning found there
+    except Exception:  # noqa: BLE001 - not a failure: no page of meanings is no meaning found there
         listed = ""
     for line in listed.splitlines():
         item = re.match(r"\s*\*+\s*\"?([^,\"]+?)\"?\s*,\s*(.*)", line)

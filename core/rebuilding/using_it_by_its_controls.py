@@ -122,7 +122,7 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
             # A program of hers, with a command that keeps a file, before anything is written for it.
             try:
                 labels = [str(x) for x in await get_page_gateway().read(page, page_script("[...app.commands.values()].map((c) => c.label)"))]
-            except Exception:  # noqa: BLE001 - a page that is not one of her programs is used another way
+            except Exception:  # noqa: BLE001 - not a failure: a page that is not one of her programs is used another way
                 return None
             command = the_command_that_saves(labels, task)
             if command is None:

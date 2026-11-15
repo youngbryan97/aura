@@ -90,6 +90,7 @@ def _a_glance(picture: bytes) -> Any:
 
     try:
         return np.asarray(Image.open(io.BytesIO(picture)).convert("L").resize((32, 18)), dtype=np.float32) / 255.0
+    # not a failure: bytes that are not a picture give none
     except (OSError, ValueError):
         return None
 #: The share of a row's (or a column's) pixels that change, at which it is part of where the video plays.

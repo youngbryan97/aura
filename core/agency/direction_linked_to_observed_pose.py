@@ -34,6 +34,7 @@ class DirectionFromPose:
                 sample_uncertainty: float | None = None) -> None:
         try:
             hash(context)
+        # not a failure: a context that cannot be compared starts afresh
         except TypeError:
             self.current = None
             self.samples.clear()

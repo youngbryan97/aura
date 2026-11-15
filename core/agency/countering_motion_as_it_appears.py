@@ -21,6 +21,7 @@ def _measured_without_a_control(thing: Any, at: float, since: float, began: floa
         born = float(thing.born)
         values = [float(thing.vx), float(thing.vy), float(thing.w), float(thing.h)]
         places = [(float(t), float(x), float(y)) for t, x, y in thing.path if since <= float(t) <= at]
+    # not a failure: a thing whose motion is not numbers is not countered
     except (AttributeError, TypeError, ValueError):
         return False
     if not all(math.isfinite(v) for v in [measured, born, *values]):

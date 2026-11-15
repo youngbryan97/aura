@@ -13,6 +13,7 @@ Nothing here knows what any program is or what it is used for.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,8 @@ from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["UseAProgramInput", "UseAProgramSkill", "the_folder_named_in", "use_what_she_built", "what_to_do_with_it"]
 
@@ -111,7 +114,8 @@ async def _shown(file: str | Path) -> bool:
         return False
     try:
         done = await asyncio.to_thread(subprocess.run, ["open", str(file)], check=False, timeout=30, capture_output=True)
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.info("%s could not be opened: %s", file, exc)
         return False
     return done.returncode == 0
 

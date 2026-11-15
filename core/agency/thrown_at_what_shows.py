@@ -378,6 +378,7 @@ def how_long_throws_take(run: Any, moves: Any, at: float) -> Any:
         takes = HowLongAThrowTakes()
         try:
             run.throw_takes = takes
+        # not a failure: a run that cannot hold them is given fresh ones each time, as just made
         except AttributeError:
             pass
     takes.saw(moves.things.values(), at)

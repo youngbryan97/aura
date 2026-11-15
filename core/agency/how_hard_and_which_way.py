@@ -304,6 +304,7 @@ class Shots:
         reg[0, 0] = 0.0
         try:
             fitted = np.linalg.solve(gram + reg, lhs.T @ rhs)
+        # not a failure: a singular system has no fit
         except np.linalg.LinAlgError:
             return None
         base, slope = fitted[0], fitted[1:]

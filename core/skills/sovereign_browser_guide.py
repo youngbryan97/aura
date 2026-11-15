@@ -39,7 +39,8 @@ async def guide_to_the_page(page: Any, thing: str) -> Any:
     began = time.monotonic()
     try:
         text = await get_page_gateway().read(page, _ITS_WORDS)
-    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("The page's words could not be read: %s", exc)
         text = ""
     text = text if isinstance(text, str) else ""
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+|\n", text) if 3 <= len(s.split()) <= 60]

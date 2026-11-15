@@ -108,7 +108,8 @@ async def read_what_the_page_runs(page: Any) -> Any:
     for url in programs_of(list(loaded) if isinstance(loaded, list) else []):
         try:
             got = await get_page_gateway().read(page, _FETCH_IT, [url, MOST_BYTES])
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+            logger.info("The program at %s could not be fetched through the page: %s", url, exc)
             got = None
         data = _program_bytes(got)
         if data is None:
@@ -134,6 +135,7 @@ def _program_bytes(encoded: Any) -> bytes | None:
         return None
     try:
         data = base64.b64decode(encoded, validate=True)
+    # not a failure: text that is not base64 holds no program
     except (ValueError, UnicodeError):
         return None
     return data if data and len(data) <= MOST_BYTES else None

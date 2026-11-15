@@ -135,7 +135,8 @@ def _a_key_held(sentence: str) -> bool:
 def _learned_it_sends(sentence: str) -> bool:
     try:
         return bool(SENDS_BY_LETTING_GO.decide_without_waiting(sentence))
-    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("Whether a sentence sends by letting go could not be decided: %s", exc)
         return False
 
 

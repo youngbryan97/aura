@@ -32,11 +32,14 @@ GVGAI). ``elsewhere`` says where the same situation stands outside games.
 """
 from __future__ import annotations
 
+import logging
 import math
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["PLAYED_IN_TIME", "SITUATIONS", "Situation", "caution_of", "lasting_is_the_task", "played_in_time", "prior_stance",
            "situations_in", "ways_of"]
@@ -277,7 +280,8 @@ def situations_in(said: str) -> tuple[Situation, ...]:
 def _decided(situation: Situation, sentence: str) -> bool:
     try:
         return bool(_surface(situation).decide_without_waiting(sentence))
-    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("The %s surface could not decide a sentence: %s", situation, exc)
         return False
 
 
