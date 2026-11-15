@@ -238,13 +238,17 @@ def test_a_reading_taken_in_a_new_thread_is_a_reading(monkeypatch) -> None:
 
     import core.runtime.cpu_sampler as ro
 
-    # Measured before, in another thread; the window has passed by the time a new thread asks.
-    monkeypatch.setattr(ro, "_CPU_TIMES_AT", psutil.cpu_times())
+    # Measured before, in another thread; the window has passed, and the counters have moved, by the time a new
+    # thread asks. On this host they move in steps of about a second: of twenty 0.7 s windows on 15 November five saw
+    # no change at all, and the reading then is the last one, rightly, which here is the 0.0 set below.
+    snapshot = psutil.cpu_times()
+    monkeypatch.setattr(ro, "_CPU_TIMES_AT", snapshot)
     monkeypatch.setattr(ro, "_CPU_SAMPLED_AT", time.monotonic())
     monkeypatch.setattr(ro, "_CPU_EVER_MEASURED", True)
     monkeypatch.setattr(ro, "_CPU_LAST_VALUE", 0.0)
     deadline = time.monotonic() + ro._CPU_MINIMUM_WINDOW_S + 0.2
-    while time.monotonic() < deadline:
+    gives_up = time.monotonic() + 5.0
+    while time.monotonic() < deadline or (sum(psutil.cpu_times()) == sum(snapshot) and time.monotonic() < gives_up):
         pass
 
     readings: list[float | None] = []
