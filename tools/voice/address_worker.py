@@ -16,13 +16,22 @@ segmentation fault with MLX work on an executor thread of her main process besid
 Each request line is {"text": ..., "words": ..., "scope": ...}; each answer is {"logprobs": [...], "read": n} or
 {"error": ...}. A scope keeps the tokens it last read and their cache, so a conversation that only grows is read once:
 the next reading trims back to what it shares with the new text and reads the rest.
+
+MLX keeps the buffers a reading frees, for reuse, up to its cache limit, and with none set that is most of the machine
+(her recognizer held 34 GB that way on 14 November). The limit is the one her own MLX workers use
+(core/runtime/desktop_boot_safety.compute_mlx_cache_limit), and what the reader holds after warming is sent with its
+ready.
 """
 from __future__ import annotations
 
 import contextlib
 import json
+import os
 import sys
 from collections import OrderedDict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 # Scopes kept at once: her conversation and the room's talk for each open voice session, and nothing.
 SCOPES_KEPT = 8
@@ -84,10 +93,17 @@ def main() -> None:
             from mlx_lm import load
             from mlx_lm.models.cache import make_prompt_cache, trim_prompt_cache
 
+            from core.runtime.desktop_boot_safety import compute_mlx_cache_limit
+
+            mx.set_cache_limit(compute_mlx_cache_limit(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")))
             model, tokenizer = load(sys.argv[1])
             read = make_reader(model, tokenizer, mx, make_prompt_cache, trim_prompt_cache)
             read("<|endoftext|>", "Hello?", "warm")  # weights and kernels are never paid inside a turn
-        send({"ready": True, "model": sys.argv[1]})
+            mx.clear_cache()
+            held = {"active_gb": round(mx.get_active_memory() / float(1 << 30), 2),
+                    "cached_gb": round(mx.get_cache_memory() / float(1 << 30), 2),
+                    "peak_gb": round(mx.get_peak_memory() / float(1 << 30), 2)}
+        send({"ready": True, "model": sys.argv[1], "memory": held})
         for line in sys.stdin:
             try:
                 if len(line) > 4 * 1024 * 1024:

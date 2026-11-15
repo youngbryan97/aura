@@ -68,12 +68,14 @@ class AddressProcess:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0, env=environment,
         )
         try:
-            if self._receive(timeout_s).get("ready") is not True:
+            ready = self._receive(timeout_s)
+            if ready.get("ready") is not True:
                 raise RuntimeError("her address reader did not become ready")
         except (OSError, RuntimeError, ValueError, TimeoutError):
             self.close()
             raise
-        logger.info("👂 her address reader runs in its own process (pid %s): %s", self.process.pid, self.name)
+        logger.info("👂 her address reader runs in its own process (pid %s): %s, holding %s", self.process.pid,
+                    self.name, ready.get("memory") or "an unreported amount")
 
     def read(self, text: str, words: str, scope: str, *, timeout_s: float = 30.0) -> list[float]:
         """The log-probability of each token of ``words`` after ``text``. A failure closes the process: a reply that
