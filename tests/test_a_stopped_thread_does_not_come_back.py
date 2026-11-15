@@ -115,9 +115,30 @@ def test_an_embedding_load_that_starts_after_close_does_not_load():
 
 
 def test_the_ontogeny_core_waits_for_maintenance_before_saving():
-    import inspect
+    """The state is saved once the maintenance pass that also saves it has finished, not beside it."""
+    import threading
+    from types import SimpleNamespace
 
     from core.ontogeny.service import OntogenyCore
 
-    source = inspect.getsource(OntogenyCore.stop)
-    assert source.index("maintenance.join(") < source.index("self._state.save()")
+    happened: list[str] = []
+    in_the_pass = threading.Event()
+    finish_it = threading.Event()
+
+    def a_maintenance_pass():
+        in_the_pass.set()
+        finish_it.wait(5.0)
+        happened.append("maintenance finished")
+
+    core = OntogenyCore.__new__(OntogenyCore)
+    core._stopped = threading.Event()
+    core._sweeper = None
+    core._maintenance = threading.Thread(target=a_maintenance_pass, daemon=True)
+    core._state = SimpleNamespace(save=lambda: happened.append("saved"))
+    core._spine = SimpleNamespace(off_resolve=lambda _callback: None, flush=lambda: None)
+    core._note_resolution = lambda *_args: None
+    core._maintenance.start()
+    assert in_the_pass.wait(5.0)
+    threading.Timer(0.1, finish_it.set).start()
+    core.stop()
+    assert happened == ["maintenance finished", "saved"]

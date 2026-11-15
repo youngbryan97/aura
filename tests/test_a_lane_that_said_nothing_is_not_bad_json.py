@@ -80,13 +80,34 @@ def test_a_recurrence_after_a_success_is_recorded_again(recorded):
     assert len(recorded) == 2
 
 
-def test_the_phase_clears_the_reason_when_it_succeeds():
-    import inspect
+def test_the_phase_clears_the_reason_when_it_succeeds(recorded):
+    """A lane that comes back is heard: the reason it failed with is recorded again the next time it holds."""
+    import asyncio
 
     from core.phases.inference_phase import InferencePhase
+    from core.service_names import ServiceNames
+    from core.state.aura_state import AuraState
 
-    source = inspect.getsource(InferencePhase.execute)
-    assert "_LAST_FAILURE.clear()" in source
+    answers = iter(["", '{"implicit_intent": "help", "momentum": "flowing"}', ""])
+
+    class Router:
+        async def think(self, *_args, **_kwargs) -> str:
+            return next(answers)
+
+    class Container:
+        @staticmethod
+        def get(name, default=None):
+            return Router() if name == ServiceNames.LLM_ROUTER else default
+
+    phase = InferencePhase(Container())
+    statuses = []
+    for _ in range(3):
+        state = AuraState.default()
+        state.cognition.current_origin = "user"
+        asyncio.run(phase.execute(state, objective="Can you check this?"))
+        statuses.append(state.cognition.modifiers["deep_inference_status"]["status"])
+    assert statuses == ["degraded", "ok", "degraded"]
+    assert recorded == ["the fast lane returned no text"] * 2
 
 
 if __name__ == "__main__":  # pragma: no cover

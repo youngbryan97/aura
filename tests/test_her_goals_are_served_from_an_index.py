@@ -99,14 +99,26 @@ def test_a_store_without_the_column_still_reads(store):
         store.execute(BY_RANK)
 
 
-def test_the_engine_asks_the_store_which_order_it_can_use():
-    import inspect
+@pytest.mark.parametrize("ranked", [True, False])
+def test_the_engine_asks_the_store_which_order_it_can_use(store, ranked):
+    """The engine's read is served by the index where the store has the rank, and still reads where it does not."""
+    import threading
 
     from core.goals.goal_engine import GoalEngine
 
-    source = inspect.getsource(GoalEngine._fetch_records)
-    assert "serving_order(self._conn, self._has_serving_rank)" in source
-    assert "CASE WHEN status" not in source
+    if ranked:
+        _add_the_serving_order(store)
+    asked: list[str] = []
+    store.set_trace_callback(asked.append)
+    engine = GoalEngine.__new__(GoalEngine)
+    engine._conn, engine._lock, engine._has_serving_rank = store, threading.RLock(), None
+    served = [record.id for record in engine._fetch_records(limit=100)]
+    read = next(query for query in asked if query.startswith("SELECT * FROM goals"))
+    assert served == [row["id"] for row in store.execute(BY_EXPRESSION)]
+    if ranked:
+        # Asked by reading the store's columns the way generated ones are listed: it was asked with table_info,
+        # which leaves them out, so every read sorted the table (15 November 2026).
+        assert "CASE WHEN status" not in read and "TEMP B-TREE" not in _plan(store, read), read
 
 
 if __name__ == "__main__":  # pragma: no cover

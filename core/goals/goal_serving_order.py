@@ -59,9 +59,13 @@ def serving_order(conn: sqlite3.Connection | None, known: bool | None) -> tuple[
         known = False
         if conn is not None:
             try:
+                # table_xinfo, because table_info leaves generated columns out: asked that way the rank was never
+                # found, and every read sorted the whole table from the day the index was added (found 15 November
+                # 2026 by the test that replaced reading this function's source with running it). A SQLite older
+                # than the pragma answers an unknown one with no rows, and the expression serves.
                 known = any(
-                    row["name"] == "status_rank"
-                    for row in conn.execute("PRAGMA table_info(goals)")
+                    row[1] == "status_rank"
+                    for row in conn.execute("PRAGMA table_xinfo(goals)")
                 )
             # not a failure: an unreadable store sorts by the expression.
             except sqlite3.Error:
