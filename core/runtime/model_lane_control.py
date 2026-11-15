@@ -40,6 +40,7 @@ from core.runtime.atomic_writer import (
     read_json_envelope,
 )
 from core.runtime.flags import FlagKind, declare
+from core.runtime.model_lane_locked_steps import LockedLaneSteps
 from core.runtime.model_runtime_assignment import (
     ModelRuntimeAssignment,
     issue_unqualified_model_runtime_assignment,
@@ -1446,7 +1447,7 @@ def _the_machine(observer: ResourceObserver) -> ResourceObserver:
     return getattr(observer, "machine", observer)
 
 
-class ModelLaneController:
+class ModelLaneController(LockedLaneSteps):
     """Cross-process capacity ledger and model-lane transaction owner."""
 
     def __init__(
@@ -3042,57 +3043,6 @@ class ModelLaneController:
             evicted=evicted,
         )
 
-    def _mark_ready_sync(
-        self,
-        decision: LaneTransactionDecision,
-        observations: list[LaneOwnerObservation],
-        evicted_any: bool,
-    ) -> LaneTransactionDecision | None:
-        """The reservation marked ready when it still fits, or None when the capacity changed under it.
-
-        Off the event loop: it takes the interprocess file lock and writes the state with an fsync. LIVE 14 November
-        2026 lockdep caught that write on her loop thread, reached from ``prepare``, where every task waited on it.
-        """
-        with self._thread_lock, interprocess_file_lock(self.lock_path):
-            state = self._load_locked()
-            now = self._clock()
-            self._prune_locked(state, now)
-            self._sync_observations_locked(state, observations, now)
-            record = state["reservations"].get(decision.request_id)
-            if not isinstance(record, dict):
-                raise ModelLaneControlError("lane_reservation_missing_before_ready")
-            self._assert_fence(record, decision)
-            committed, reserved = self._capacity_totals(
-                state,
-                exclude_request_id=decision.request_id,
-            )
-            observer = self.resource_observer
-            budget_gb = lane_budget_gb(observer=observer)
-            provenance = observer.provenance
-            capacity_request_gb = float(record.get("capacity_request_gb") or decision.request_gb)
-            if committed + reserved + capacity_request_gb > budget_gb:
-                return None
-            record["state"] = LaneTransactionState.READY.value
-            record["reason"] = "required_evictions_reclaimed" if evicted_any else "capacity_reserved"
-            record["committed_gb"] = committed
-            record["reserved_gb"] = reserved
-            record["budget_gb"] = budget_gb
-            record["observation_source"] = provenance.source.value
-            record["observation_scenario_id"] = provenance.scenario_id
-            record["resource_observation_available"] = bool(
-                observer.memory().available
-            )
-            record["ready_at"] = now
-            self._append_event(
-                state,
-                "reservation_ready",
-                at=now,
-                transaction_id=decision.transaction_id,
-                fencing_token=decision.fencing_token,
-            )
-            self._save_locked(state)
-            return self._record_to_decision(record)
-
     @staticmethod
     def _assert_fence(record: Mapping[str, Any], decision: LaneTransactionDecision) -> None:
         if str(record.get("transaction_id") or "") != decision.transaction_id:
@@ -3323,15 +3273,6 @@ class ModelLaneController:
                 decision.request_id,
             )
         return LaneTransactionDecision(**{**terminal.__dict__, "receipt_id": receipt_id})
-
-    def _compensation_pending_sync(self, request_id: str) -> bool:
-        """Whether a reservation still owes an owner its compensation. Off the loop: it takes the file lock."""
-        with self._thread_lock, interprocess_file_lock(self.lock_path):
-            pending_record = self._load_locked()["reservations"].get(request_id)
-            return bool(
-                isinstance(pending_record, Mapping)
-                and pending_record.get("compensation_pending_owner_ids")
-            )
 
     def _mark_cancelled_sync(
         self,

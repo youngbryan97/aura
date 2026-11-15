@@ -34,6 +34,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.wall_clock import monotonic_time
 from core.utils.task_tracker import get_task_tracker
 from core.voice.duplex import protocol
+from core.voice.duplex.address_reading import gate_reading
 from core.voice.duplex.addressivity import AddressivityGate
 from core.voice.duplex.audio import (
     FrameSplitter,
@@ -560,31 +561,6 @@ class DuplexVoiceSession:
 
         self._maybe_schedule_partial()
 
-    async def _read_address(self, transcript: str) -> tuple[Any, float | None]:
-        """Her address reader's reading of the words and the margin it is held to, or (None, None) when it cannot be
-        had.
-
-        Bounded, with the bound a cut-off turn gets (``_turn_quiescence_s``): a reader that has stopped answering costs
-        one utterance its reading, not the conversation.
-        """
-        reader = self._address_reader
-        if reader is None or self._floor_explicitly_open:
-            return None, None
-        margin = getattr(reader, "margin", None)
-        if margin is None:
-            return None, None
-        bound = _turn_quiescence_s()
-        try:
-            reading = await asyncio.wait_for(reader.read(transcript), timeout=bound)
-        except TimeoutError:
-            logger.info("her address reader did not read the words within %.0f s; answering only what is plainly hers", bound)
-            return None, None
-        except (RuntimeError, ValueError, TypeError, OSError) as exc:
-            record_degradation("voice_duplex.session", exc,
-                               action="judged address without her address reader's reading", severity="warning")
-            return None, None
-        return reading, (float(margin.margin) if reading is not None else None)
-
     async def _evaluate_addressivity(self, transcript: str, final: Any) -> Any:
         """Decide whether to answer this utterance.
 
@@ -599,7 +575,9 @@ class DuplexVoiceSession:
 
             if self._ambient_gate is None:
                 return AddressVerdict(True, "gate_disabled", reasons=("ambient gating is off",))
-            reading, margin = await self._read_address(transcript)
+            # Bounded as a cut-off turn is (``_turn_quiescence_s``): a reader that stopped answering costs one reading.
+            reading, margin = await gate_reading(self._address_reader, transcript,
+                                                 floor_open=self._floor_explicitly_open, bound_s=_turn_quiescence_s)
 
             since = None
             if self._last_reply_ended_at:

@@ -89,31 +89,39 @@ def main() -> None:
 
     try:
         with contextlib.redirect_stdout(sys.stderr):
-            import mlx.core as mx
-            from mlx_lm import load
-            from mlx_lm.models.cache import make_prompt_cache, trim_prompt_cache
+            from core.runtime.model_lane_control import standalone_model_lane
 
-            from core.runtime.desktop_boot_safety import compute_mlx_cache_limit
+        # Its weights are held in a lane for as long as it reads, so her lane controller counts them. It never makes
+        # room by evicting another owner, her cortex included: refused, it says why to the parent, and her voice
+        # answers only what is plainly hers.
+        with standalone_model_lane(owner_id="voice-address-reader", model_path=sys.argv[1], purpose="serve",
+                                   allow_owner_eviction=False, metadata={"tool": "tools/voice/address_worker.py"}):
+            with contextlib.redirect_stdout(sys.stderr):
+                import mlx.core as mx
+                from mlx_lm import load
+                from mlx_lm.models.cache import make_prompt_cache, trim_prompt_cache
 
-            mx.set_cache_limit(compute_mlx_cache_limit(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")))
-            model, tokenizer = load(sys.argv[1])
-            read = make_reader(model, tokenizer, mx, make_prompt_cache, trim_prompt_cache)
-            read("<|endoftext|>", "Hello?", "warm")  # weights and kernels are never paid inside a turn
-            mx.clear_cache()
-            held = {"active_gb": round(mx.get_active_memory() / float(1 << 30), 2),
-                    "cached_gb": round(mx.get_cache_memory() / float(1 << 30), 2),
-                    "peak_gb": round(mx.get_peak_memory() / float(1 << 30), 2)}
-        send({"ready": True, "model": sys.argv[1], "memory": held})
-        for line in sys.stdin:
-            try:
-                if len(line) > 4 * 1024 * 1024:
-                    raise ValueError("request too large")
-                request = json.loads(line)
-                with contextlib.redirect_stdout(sys.stderr):
-                    values, count = read(str(request["text"]), str(request["words"]), str(request["scope"]))
-                send({"logprobs": values, "read": count})
-            except (ValueError, KeyError, TypeError, RuntimeError, OSError, IndexError) as exc:
-                send({"error": f"{type(exc).__name__}: {exc}"})
+                from core.runtime.desktop_boot_safety import compute_mlx_cache_limit
+
+                mx.set_cache_limit(compute_mlx_cache_limit(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")))
+                model, tokenizer = load(sys.argv[1])
+                read = make_reader(model, tokenizer, mx, make_prompt_cache, trim_prompt_cache)
+                read("<|endoftext|>", "Hello?", "warm")  # weights and kernels are never paid inside a turn
+                mx.clear_cache()
+                held = {"active_gb": round(mx.get_active_memory() / float(1 << 30), 2),
+                        "cached_gb": round(mx.get_cache_memory() / float(1 << 30), 2),
+                        "peak_gb": round(mx.get_peak_memory() / float(1 << 30), 2)}
+            send({"ready": True, "model": sys.argv[1], "memory": held})
+            for line in sys.stdin:
+                try:
+                    if len(line) > 4 * 1024 * 1024:
+                        raise ValueError("request too large")
+                    request = json.loads(line)
+                    with contextlib.redirect_stdout(sys.stderr):
+                        values, count = read(str(request["text"]), str(request["words"]), str(request["scope"]))
+                    send({"logprobs": values, "read": count})
+                except (ValueError, KeyError, TypeError, RuntimeError, OSError, IndexError) as exc:
+                    send({"error": f"{type(exc).__name__}: {exc}"})
     except Exception as exc:  # noqa: BLE001 - the parent learns why its reader could not start, then this exits
         send({"error": f"{type(exc).__name__}: {exc}"})
         raise

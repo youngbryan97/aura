@@ -238,6 +238,33 @@ class AddressReader:
         self.room.overheard(transcript)
 
 
+async def gate_reading(reader: Any, transcript: str, *, floor_open: bool,
+                       bound_s: Callable[[], float]) -> tuple[Any, float | None]:
+    """The reading a voice session's address gate is given, and the margin it is held to; (None, None) when the floor
+    is open, there is no reader or margin, or the reader did not answer within ``bound_s()`` seconds.
+
+    A reader that has stopped answering costs one utterance its reading, not the conversation.
+    """
+    if reader is None or floor_open:
+        return None, None
+    margin = getattr(reader, "margin", None)
+    if margin is None:
+        return None, None
+    bound = bound_s()
+    try:
+        reading = await asyncio.wait_for(reader.read(transcript), timeout=bound)
+    except TimeoutError:
+        logger.info("her address reader did not read the words within %.0f s; answering only what is plainly hers", bound)
+        return None, None
+    except (RuntimeError, ValueError, TypeError, OSError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("voice_duplex.session", exc,
+                           action="judged address without her address reader's reading", severity="warning")
+        return None, None
+    return reading, (float(margin.margin) if reading is not None else None)
+
+
 async def _read_in_her_address_process(text: str, words: str, scope: str) -> Sequence[float] | None:
     from core.voice.duplex.address_process import read_in_her_address_process
 
@@ -258,6 +285,7 @@ __all__ = [
     "AddressReader",
     "AddressReading",
     "RoomTalk",
+    "gate_reading",
     "read_address",
     "spoken_words",
 ]
