@@ -94,7 +94,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: bound only to a SharedMemory, which frees memory and touches no file,
 #: and two folders an atomic writer after them makes anyway came out:
 #: 768 and 2,063.
-TOTAL_CEILING = 2063
+#: 14 November, the AppleScript that reads browser window titles for her
+#: screen policy (f3e8bb2ec) came in as a raw run and goes through the
+#: subprocess gateway: one governed call more, 768 and 2,064.
+TOTAL_CEILING = 2064
 RAW_CEILING = 768
 
 

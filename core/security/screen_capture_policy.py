@@ -420,10 +420,15 @@ def _accessibility_window_titles(app: str) -> list[tuple[str, tuple[int, int, in
     """Each window of ``app`` as accessibility names it, with its frame; None when that could not be read."""
     import subprocess
 
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    # Through the gateway that owns her child processes, as her other AppleScript is (desktop_action_gateway).
     try:
-        done = subprocess.run(["/usr/bin/osascript", "-e", _BROWSER_TITLES_SCRIPT, app], capture_output=True,
-                              text=True, timeout=_BROWSER_TITLES_TIMEOUT_S, check=False)
-    except (OSError, subprocess.SubprocessError):
+        done = get_subprocess_gateway().run(
+            ["/usr/bin/osascript", "-e", _BROWSER_TITLES_SCRIPT, app], capture_output=True,
+            timeout=_BROWSER_TITLES_TIMEOUT_S, read_only=True, source="screen_capture_policy:window_titles",
+            accelerator_capability="none")
+    except (OSError, RuntimeError, subprocess.SubprocessError):
         return None
     if done.returncode != 0:
         return None
@@ -450,7 +455,7 @@ def _a_visible_browser_window_is_private(
     windows: Any,
     *,
     foreground_pid: int = 0,
-    titles_of: Any = _accessibility_window_titles,
+    titles_of: Any = None,
 ) -> ScreenCaptureAdmission | None:
     """A refusal when a browser window on screen is private by the title its browser gives it, else None.
 
@@ -461,6 +466,8 @@ def _a_visible_browser_window_is_private(
     their accessibility titles, matched to the windows on screen by frame, and a private one refuses the read. A
     browser whose titles cannot be read refuses it too: an unreadable title cannot show a window is not private.
     """
+    # Looked up when asked, not when this was defined, so the reader of titles is the module's own at the time.
+    titles_of = titles_of or _accessibility_window_titles
     policy = _load_privacy_policy()
     if policy is None or not isinstance(windows, (list, tuple)):
         return None
