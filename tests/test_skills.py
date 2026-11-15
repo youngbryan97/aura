@@ -66,12 +66,20 @@ def test_ui_control_skills_do_not_eagerly_import_pyautogui(monkeypatch):
             raise AssertionError("pyautogui imported eagerly")
         return real_import(name, globals, locals, fromlist, level)
 
+    # Taken out for this test and put back after it, in sys.modules and on their package, which an import rebinds.
+    # Left as fresh copies, a later test holding a class from the original module patched the copy by its dotted name
+    # and reached the real pyautogui (Q09, 15 November 2026: eighteen cases of test_hardened_computer_use).
+    import core.skills
+
     for module_name in (
         "core.skills.computer_use",
         "core.skills.os_manipulation",
         "core.skills.vision_actor",
     ):
-        sys.modules.pop(module_name, None)
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+        attribute = module_name.rpartition(".")[2]
+        if hasattr(core.skills, attribute):
+            monkeypatch.setattr(core.skills, attribute, getattr(core.skills, attribute))
 
     monkeypatch.setattr(builtins, "__import__", _guarded_import)
     computer_use = importlib.import_module("core.skills.computer_use")
