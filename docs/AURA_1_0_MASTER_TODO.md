@@ -865,6 +865,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the lock; the counts are read under it and judged after, and the test is
   kept once worked out (036f05092). Left from the boot log: 7.3 s of loop
   starvation by her own threads at start, not yet read.
+  15 November, read from her stream of the run that ended at 23:59 on 14
+  November: 150 starvations of her loop, once for 104 s, all while one
+  cognition thread held a core in the learned matcher's cosine. Each
+  surface refits its leave-one-out boundary after every observed
+  example, every pair of examples in pure Python. The fit is cosine
+  matrices in numpy now, 1.36 s to 1.6 ms on 250 examples with every
+  score unchanged to 3e-16 (8d86afb47); she was restarted on it at 06:14.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
