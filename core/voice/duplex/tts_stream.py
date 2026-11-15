@@ -36,13 +36,33 @@ from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
 from core.utils.task_tracker import get_task_tracker
 from core.verify.invariants import Violation, invariant
-from core.voice.duplex.config import OUTPUT_RATE, TtsConfig
+from core.voice.duplex.config import OUTPUT_RATE, VAD_FRAME_MS, TtsConfig
 from core.voice.duplex.original_speech import OriginalSpeech, SpeechWorkerLease
 from core.voice.duplex.pocket_speech import PocketSpeech
 from core.voice.duplex.prosody import ProsodySpec
 
 logger = logging.getLogger("Aura.Voice.Tts")
 _INSTANCES: weakref.WeakSet[StreamingTts] = weakref.WeakSet()
+
+
+#: How often a consumer of her synthesis looks up from its queue to see whether the turn was cancelled: one VAD frame,
+#: the soonest a person's speech can cancel it (config.VAD_FRAME_MS).
+_LOOK_UP_S = VAD_FRAME_MS / 1000.0
+
+
+async def _next_or_cancelled(queue: asyncio.Queue, token: Any) -> tuple[bool, Any]:
+    """(True, item) for the next item, or (False, None) once ``token`` is cancelled.
+
+    A timed wait that wakes to check the turn, not a failure: nothing arriving while a clause is made is ordinary.
+    Unbounded, a synthesis that never returned held its consumer past the turn's cancellation (Master Todo Q09,
+    test_bounded_await_ratchet).
+    """
+    while True:
+        try:
+            return True, await asyncio.wait_for(queue.get(), timeout=_LOOK_UP_S)
+        except TimeoutError:
+            if getattr(token, "cancelled", False):
+                return False, None
 
 
 class CancellationToken:
@@ -833,8 +853,8 @@ class StreamingTts:
                  if spec.onset_bend_cents > 0.0 and spec.glide_ms > 0.0 else 0)
         try:
             while True:
-                item = await pieces.get()
-                if item is None:
+                got, item = await _next_or_cancelled(pieces, token)
+                if not got or item is None:
                     break
                 if isinstance(item, BaseException):
                     if not heard_any and not token.cancelled:
@@ -949,8 +969,8 @@ class StreamingTts:
         producer = get_task_tracker().create_task(_produce(), name="VoiceTTSStream.synthesize_chunk")
         try:
             while not token.cancelled:
-                result = await results.get()
-                if result is None or token.cancelled:
+                got, result = await _next_or_cancelled(results, token)
+                if not got or result is None or token.cancelled:
                     break
                 if isinstance(result, BaseException):
                     raise result
