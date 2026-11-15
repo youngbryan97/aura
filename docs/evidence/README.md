@@ -443,6 +443,13 @@ description is that document's own title.
 | `conversation-presence-2026-10-21.md` | Conversation graphics and browser presence, 21 October 2026 |
 | `L09_WHERE_SHE_IS_WRONG_PREREGISTRATION_3_2026-10-20.md` | L09, attempt 3: what she learns from being corrected, on the kinds people ask that she gets wrong. Preregistration |
 | `voice-conversation-latency-2026-10-22.md` | Conversation latency checkpoint — 22 October 2026 |
+| `F01_STEERING_ON_USER_TURNS_2026-11-10.md` | F01: her state steers her forward pass on user turns, and her words change with it (10 November 2026) |
+| `F02_ENDOGENOUS_PATHWAY_PAIRED_TRIAL_2026-11-10.md` | F02: her endogenous pathway, at the strength it earned (10 November 2026) |
+| `F03_ONE_SHOT_MEMORY_PAIRED_TRIALS_2026-11-10.md` | F03: her one-shot memory against no memory, 10 November 2026 |
+| `L01_PERSONA_FUSION_AND_STEERING_2026-11-10.md` | L01: her fused persona cortex, its continuity, and steering made for it (10 November 2026) |
+| `L06_FEEDBACK_EDGES_2026-11-10.md` | L06: what her actions, predictions and replies actually update (10 November 2026) |
+| `L08_AFFECT_AND_CONSCIOUSNESS_CLAIMS_2026-11-10.md` | L08: what is claimed about her feelings, her self and her consciousness, and what controls each (10 November 2026) |
+| `q11-install-update-uninstall-launch-2026-11-13.md` | Q11: install, update, uninstall and ordinary desktop launch — 13 November 2026 |
 
 Machine-generated proof bundles live under `artifacts/` (see
 [ARTIFACT_INDEX.md](../../ARTIFACT_INDEX.md)); test standards live in
