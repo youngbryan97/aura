@@ -50,9 +50,14 @@ def test_uninstalling_stops_timing():
 
 def test_what_boot_made_is_frozen_out_of_later_collections():
     """LIVE 2026-11-12: 269 full collections in three hours, median 0.4 s, worst 2.7 s, each holding the GIL."""
-    keep = [object() for _ in range(10)]  # noqa: F841 - lives through the freeze
+    keep = [[] for _ in range(10)]  # containers, which the collector tracks; they live through the freeze
     try:
         frozen = collector_pauses.freeze_what_boot_made()
-        assert frozen == gc.get_freeze_count() > 0
+        # A frozen object can still be freed by its reference count, so in a busy process the count read a moment
+        # later can be lower (suite of 14 November: 1,561,137 returned, 1,561,134 read). What the freeze promises is
+        # that what lives is held: these containers are out of every later collection.
+        assert frozen > 0 and 0 < gc.get_freeze_count() <= frozen
+        collected = {id(o) for o in gc.get_objects()}  # what later collections walk, by identity
+        assert not any(id(k) in collected for k in keep)
     finally:
         gc.unfreeze()
