@@ -101,6 +101,18 @@ class _RecordsWhatTheWorkerDid:
                     from core.verify.turn_receipt import record_latency
 
                     decoded_at = time.time()  # the response arrives as decoding ends; prefill ended before decode began
+                    # Passes before the last one, which the worker rejected and wrote again: their time is the turn's
+                    # too. LIVE 14 November 2026 a typed turn's rejected first draft (23 s of prefill and decode) was
+                    # counted nowhere, and the receipt called 46 s of an 86 s turn unattributed.
+                    earlier = _earlier_passes(response.get("generation_attempts"))
+                    ended = decoded_at - (exact_prefill or 0.0) - (exact_decode or 0.0)
+                    for prefill_s, decode_s in reversed(earlier):
+                        if decode_s is not None:
+                            record_latency("decode", decode_s, ended_at=ended)
+                            ended -= decode_s
+                        if prefill_s is not None:
+                            record_latency("prefill", prefill_s, ended_at=ended)
+                            ended -= prefill_s
                     if exact_prefill is not None:
                         record_latency("prefill", exact_prefill, ended_at=decoded_at - (exact_decode or 0.0))
                     if exact_decode is not None:
@@ -527,3 +539,21 @@ class _RecordsWhatTheWorkerDid:
         else:
             self._mark_progress()
 
+
+def _earlier_passes(attempts: Any) -> list[tuple[float | None, float | None]]:
+    """(prefill, decode) seconds of every generation pass but the last, in order; nothing a pass did not measure."""
+    if not isinstance(attempts, list) or len(attempts) < 2:
+        return []
+    passes: list[tuple[float | None, float | None]] = []
+    for attempt in attempts[:-1]:
+        if not isinstance(attempt, dict):
+            continue
+        values: list[float | None] = []
+        for key in ("prefill_seconds", "decode_seconds"):
+            try:
+                value = float(attempt.get(key))
+            except (TypeError, ValueError, OverflowError):
+                value = None
+            values.append(value if value is not None and math.isfinite(value) and value >= 0.0 else None)
+        passes.append((values[0], values[1]))
+    return passes

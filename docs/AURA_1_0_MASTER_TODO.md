@@ -1520,6 +1520,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Evidence: [R10 semantic executable examples](evidence/R10_SEMANTIC_EXECUTABLE_EXAMPLES_2026-09-08.md).
 - [ ] R11 Measure prefill, decode, tool, retrieval, and queue latency separately;
   remove waste without degrading reasoning or arbitrarily cancelling work.
+  14 November, 22:29, one typed turn on main ("What were you thinking about
+  before I said anything?"), 86.1 s by her receipt, read off her structured
+  log: a pending conversation write's 1.5 s budget; preflight 3.8 s, 3.1 s
+  of it the sight classifier on a turn with nothing to see; context 4.4 s;
+  history reach 2.2 s; grounding and a corpus read 4 s; the one-token reading
+  of what the turn asks 4.3 s; 7.6 s from routing to her cortex to the tool
+  handoff deciding none was needed; a first draft (prefill 2,133 tokens, a
+  full miss, 8.9 s; decode 14 s) refused by her worker as her earlier answer
+  read back from recall, stale figure and all; and the draft written again,
+  its prefill read in full though 97% of it matched (her model's cache keeps
+  only exact prefixes) at 99 tok/s under memory pressure, 21.9 s, decode
+  10.3 s. Her worker's embedding model was refused admission on the lane
+  budget the whole while (49.2 GB committed of 51.8). The receipt counted
+  only the second pass and called 46.5 s unattributed: every pass's timing
+  now rides the worker's reply and is added to the turn.
   UPDATE 2026-09-18. Two defects in the rate every budget stands on, both
   measured on the live reserve's 512 readings, and one input to the prompt
   that had no budget at all.

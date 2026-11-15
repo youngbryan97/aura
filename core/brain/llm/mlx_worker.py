@@ -7042,6 +7042,9 @@ def _mlx_worker_loop(
                     total_generated_tokens = 0
                     interoception_payload = None
                     generation_performance: dict[str, Any] = {}
+                    # Every pass's timing, in order: a draft rejected here and written again is time the turn spent,
+                    # and the reply's own timing is only the last pass's (turn_receipt.record_latency adds them).
+                    generation_attempts: list[dict[str, Any]] = []
                     surface_control_state = _apply_surface_generation_controls(engine, model, job)
                     _enforce_surface_controls_or_fail(job, surface_control_state)
                     surface_quality_gate_enabled = _surface_quality_gate_enabled(job)
@@ -8079,6 +8082,8 @@ def _mlx_worker_loop(
                                         prefill_tokens=prefill_tokens,
                                         token_count=token_count,
                                     )
+                                    if final_generation_response is not None:  # a pass that measured nothing adds nothing
+                                        generation_attempts.append(dict(generation_performance))
 
                                     if sentinel is not None and not sentinel_aborted:
                                         terminal_signal = sentinel.finalize()
@@ -9090,6 +9095,7 @@ def _mlx_worker_loop(
                             int(prompt_token_count) - int(prefill_tokens),
                         ),
                         "generation_performance": dict(generation_performance),
+                        "generation_attempts": [dict(attempt) for attempt in generation_attempts],
                         # The parent's OOM footprint probe must not cost an IPC
                         # round trip, so the size rides along with every result.
                         "prompt_cache_bytes": (
