@@ -5015,6 +5015,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: recording limits must be positive integers
+    before the queue is constructed. A four-event scratch probe
+    showed that NaN disabled the event queue bound. Fifteen invalid
+    cases reached a queue-allocation trap before the repair. All 59
+    focused checks now pass, including NumPy integer limits that
+    still drop frames at the configured cap. The registered
+    invariant and validation are synthetic limit checks. Smoke
+    passed 164 tests with one skip in 155.33 s and maximum RSS
+    of 483,262,464 bytes. Lint, compile, dependency drift, layering,
+    governance, module size
+    and targeted writing passed.
+    Source: core/perception/recording_the_frames_and_inputs.py.
+    Tests: tests/test_recording_the_actual_play_ports.py.
   - [x] 2026-11-16: the document converter's scratch input uses
     a governed byte write with 0600 permissions. Both converter
     outcome tests failed on the old raw 0644 write. Scratch input

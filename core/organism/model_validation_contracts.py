@@ -27,11 +27,16 @@ def _install_repair_executor_claims(suite):
         ValidationTest,
         boolean_score,
     )
+    from core.perception.recording_the_frames_and_inputs import _recording_bounds_invariant
     from core.reasoning.arithmetic_on_the_floor import arithmetic_canary
     from core.runtime.diagnostics_bundle import _diagnostic_log_read_invariant
     from core.runtime.wall_clock import host_deadline_clock_holds
 
     for name, probe, owner, statement, tests in (
+        ("pixel_recording_resource_bounds", lambda: _recording_bounds_invariant() == (),
+         "core/perception/recording_the_frames_and_inputs.py",
+         "The recording limit canary rejects nonpositive values, NaN, infinity, booleans and fractions.",
+         "tests/test_recording_the_actual_play_ports.py"),
         ("office_archive_expansion_budget", lambda: _archive_budget_invariant() == (),
          "core/conversation/attachments.py",
          "The Office archive canary rejects oversized metadata reads and inventories exceeding the expansion budget.",

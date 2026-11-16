@@ -100,6 +100,39 @@ def test_queue_and_byte_bounds_mark_the_recording_incomplete():
     assert not recorder.manifest('closed')['complete']
 
 
+@pytest.mark.parametrize('limit', ['queued_bytes', 'total_bytes', 'queued_events'])
+@pytest.mark.parametrize('value', [0, -1, True, False, 1., 1.5, float('nan'), float('inf'), -float('inf'), '2', None])
+def test_invalid_recording_limits_are_refused_before_queue_creation(monkeypatch, limit, value):
+    from core.perception import recording_the_frames_and_inputs as module
+
+    def unexpected_queue(*args, **kwargs):
+        raise AssertionError('invalid recording limits reached queue construction')
+
+    monkeypatch.setattr(module.asyncio, 'Queue', unexpected_queue)
+    with pytest.raises((TypeError, ValueError)):
+        FrameAndInputRecording('unused', **{limit: value})
+
+
+def test_numpy_integer_recording_limits_still_bound_the_queue():
+    recorder = FrameAndInputRecording('unused', queued_bytes=np.int64(24), total_bytes=np.int64(48),
+                                      queued_events=np.int64(2))
+    for at in range(3):
+        recorder.frame((np.ones((2, 2, 3), dtype=np.uint8), float(at)))
+    assert recorder.queue.qsize() == 2 and recorder.dropped == 1 and recorder.total_bytes == 24
+
+
+def test_recording_limits_have_a_registered_invariant_and_validation():
+    from core.organism.model_validation import ValidationSuite, _install_repair_executor_claims
+    from core.perception.recording_the_frames_and_inputs import _recording_bounds_invariant
+
+    assert _recording_bounds_invariant() == ()
+    suite = ValidationSuite()
+    _install_repair_executor_claims(suite)
+    check = next(test for test in suite.tests() if test.name == 'pixel_recording_resource_bounds')
+    assert check.predict(None) is True
+    assert any(claim.test == check.name for claim in suite.claims())
+
+
 @pytest.mark.asyncio
 async def test_storage_failure_is_retained_and_cannot_be_certified(tmp_path, monkeypatch):
     from core.perception import recording_the_frames_and_inputs as module

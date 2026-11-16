@@ -15,6 +15,7 @@ import time
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from itertools import islice
+from numbers import Integral
 from pathlib import Path
 from typing import Any
 
@@ -47,13 +48,33 @@ def _encoded(picture: np.ndarray) -> tuple[bytes, str]:
     return stream.getvalue(), hashlib.sha256(picture.tobytes()).hexdigest()
 
 
+def _positive_recording_limit(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
+        raise ValueError('recording bounds must be positive integers')
+    return int(value)
+
+
+@invariant('perception.pixel_recording_resource_limits', scope='perception',
+           owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
+def _recording_bounds_invariant() -> tuple:
+    for value in (0, -1, True, False, 1., 1.5, float('nan'), float('inf'), -float('inf'), '2', None):
+        try:
+            _positive_recording_limit(value)
+        except ValueError:
+            continue
+        raise AssertionError('an invalid recording limit was accepted')
+    assert _positive_recording_limit(1) == 1
+    return ()
+
+
 class FrameAndInputRecording:
     """A single writer owns a fresh directory; overflow stays explicitly incomplete."""
 
     def __init__(self, directory: Path, *, queued_bytes: int = 64 * 1024**2,
                  total_bytes: int = 2 * 1024**3, queued_events: int = 128) -> None:
-        if min(queued_bytes, total_bytes, queued_events) <= 0:
-            raise ValueError('recording bounds must be positive')
+        queued_bytes = _positive_recording_limit(queued_bytes)
+        total_bytes = _positive_recording_limit(total_bytes)
+        queued_events = _positive_recording_limit(queued_events)
         self.directory = Path(directory)
         self.byte_limit, self.total_limit = queued_bytes, total_bytes
         self.queue: asyncio.Queue = asyncio.Queue(maxsize=queued_events)
