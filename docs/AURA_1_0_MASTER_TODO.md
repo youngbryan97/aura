@@ -4366,6 +4366,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   a traceback, an error); a form, a draft or a conversation on screen never
   reaches her. Left: what is on screen reaches her own judgement of whether
   she has something to add, paced by her, with no list of what is worth it.
+  The same night (b92effc4f, c562f84d2): in the bubble she keeps the person
+  company as a with, so what is on screen reaches her as in watching
+  together. Her interest comes from her own record, and whether to speak
+  now is the with's expected utility, learned from whether her remarks
+  are taken up. Live at 20:32 with his application questions in TextEdit,
+  she judged a remark worth making twice (0.447 against 0.357 and 0.375),
+  and none was composed: the with held no turn of his, and her remark
+  needs one before it. A with begun without words now carries on from her
+  recent conversation, and the company is held with "person:bryan", not
+  with her own mail-reply turn. Then Bryan: "she should also be able to use
+  the computer from that mode ... highlight, show me something, literally
+  anything OS related. full companion." First step: keeping company, she
+  points at the line of the screen her remark is about, when one clearly is
+  by meaning (screen_highlight.point_at_what_she_says); a highlight neither
+  asked for nor invited is still refused. Her companion chat already posts
+  to /api/chat, so what she is asked to do there goes to the same desktop
+  lane as her window. Left: both seen live (the screen was locked at
+  20:53), and her acting on what she sees without being asked, beyond
+  pointing.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what

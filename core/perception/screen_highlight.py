@@ -11,11 +11,14 @@ screen for a few seconds, click-through, that disappears on its own. It
 never covers anything permanently and never intercepts input, because an
 overlay that can swallow a click is an overlay that can cost someone work.
 
-It is NOT a pointer she uses on her own initiative. Highlighting is
-ASKED FOR — "show me", "which one", "point at it" — and an unrequested
-rectangle appearing on someone's screen is not help, it is a jump scare.
-The governance is the same as everything else in companion mode: the
-suppression that stops her speaking stops her drawing.
+It is asked for ("show me", "which one", "point at it"), or, while she
+keeps the person company in the bubble, it is hers to use: Bryan, 15
+November 2026, "she's allowed to physically act and react to things that
+are going on. highlight, show me something ... full companion". Then she
+points at what her remark is about, when one line of the screen clearly
+is (``point_at_what_she_says``). The governance is the same as everything
+else in companion mode: the suppression that stops her speaking stops her
+drawing.
 
 FINDING THE THING
 ─────────────────
@@ -195,7 +198,7 @@ def _screen_area() -> float:
 
 
 async def highlight(
-    needle: str, *, duration_s: float = DEFAULT_DURATION_S, requested: bool = False
+    needle: str, *, duration_s: float = DEFAULT_DURATION_S, requested: bool = False, invited: bool = False
 ) -> HighlightResult:
     """Draw a transient rectangle around ``needle``, or refuse and say why.
 
@@ -205,9 +208,10 @@ async def highlight(
     asked, rather than the check living in one caller and being forgotten by
     the next.
     """
-    if not requested:
+    if not (requested or invited):
+        # ``invited``: she is keeping the person company, where pointing is hers (Bryan, 15 November 2026).
         return HighlightResult(
-            shown=False, reason="highlighting is only done when asked for"
+            shown=False, reason="highlighting is only done when asked for, or while keeping company"
         )
     if _suppressed():
         # The same suppression that stops her speaking stops her drawing.
@@ -336,7 +340,41 @@ def rate_limited(min_gap_s: float = 1.5) -> bool:
     return False
 
 
+async def point_at_what_she_says(remark: str, capture: str) -> HighlightResult:
+    """Point at the line of the screen her remark is about, when one clearly is; otherwise draw nothing.
+
+    The line is chosen by meaning: her remark beside each line the screen holds, by her own encoder, under the
+    rule her reading of a request by meaning keeps (core/intent/capability_by_meaning.py): the nearest must stand
+    out and be clear of the next. Here it is measured against the other lines, not all of them with itself: a
+    z-score over n lines cannot pass the square root of n - 1, so over the handful a form shows, where her
+    capabilities number ninety, the bar could never be met. A remark about the screen in general points at
+    nothing, which is the honest answer; a rectangle over the wrong line is a confident wrong one.
+    """
+    from core.intent.capability_by_meaning import CLEAR_OF, STANDS_OUT
+    from core.language.learned_matcher import cosine, embed_sentences
+
+    lines = list(dict.fromkeys(line.strip() for line in str(capture or "").splitlines() if len(line.strip()) > 2))
+    said = str(remark or "").strip()
+    if not said or len(lines) < 3:
+        return HighlightResult(shown=False, reason="too little on the screen to single anything out")
+    vectors = embed_sentences([said, *lines])
+    if len(vectors) != len(lines) + 1:
+        return HighlightResult(shown=False, reason="no encoder to read the screen by meaning")
+    near = sorted(((cosine(vectors[0], vector), line) for vector, line in zip(vectors[1:], lines, strict=True)),
+                  reverse=True)
+    scores = [score for score, _line in near]
+    rest = scores[1:]
+    mean = sum(rest) / len(rest)
+    spread = (sum((score - mean) ** 2 for score in rest) / len(rest)) ** 0.5 or 1e-9
+    stands, clear = (scores[0] - mean) / spread, (scores[0] - scores[1]) / spread
+    logger.info("👉 pointing: %r stands %.2f out and %.2f clear", near[0][1][:60], stands, clear)
+    if stands < STANDS_OUT or clear < CLEAR_OF:
+        return HighlightResult(shown=False, reason="nothing on the screen stands out as what she means")
+    return await highlight(near[0][1], invited=True)
+
+
 __all__ = [
+    "point_at_what_she_says",
     "DEFAULT_DURATION_S",
     "HIGHLIGHT_SCHEMA",
     "MAX_DURATION_S",

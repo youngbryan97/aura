@@ -160,6 +160,21 @@ def _stop_keeping_company() -> None:
         record_degradation("ambient_presence", exc, severity="warning", action="company kept at the desk was left open")
 
 
+async def _point_at_it(thought: str) -> None:
+    """Keeping him company, she points at what her remark is about, when one line of the screen clearly is."""
+    import logging
+
+    try:
+        from core.perception.ambient_utterance import latest_screen
+        from core.perception.screen_highlight import point_at_what_she_says
+
+        pointed = await point_at_what_she_says(thought, str(getattr(latest_screen(), "capture", "") or ""))
+        logging.getLogger("Aura.Perception.AmbientPresence").info(
+            "👉 %s", f"pointed at {pointed.matched_text[:60]!r}" if pointed.shown else f"did not point: {pointed.reason}")
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("ambient_presence", exc, severity="warning", action="her remark went without pointing")
+
+
 class PresenceMode(StrEnum):
     """What surface she is present on right now."""
 
@@ -1029,6 +1044,8 @@ class AmbientPresence(_CarriesTheBubble):
         if offered:
             with self._lock:
                 self._last_spoke_at = time.time()
+            if held is not None and held.what == KEEPING_COMPANY:
+                await _point_at_it(thought)
 
     # ── what the UI reads ────────────────────────────────────────────────
 

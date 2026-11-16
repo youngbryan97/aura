@@ -121,3 +121,64 @@ def test_a_with_begun_without_a_word_carries_on_from_her_recent_conversation(mon
     assert said.startswith("That second question")
     assert [m["role"] for m in seen["messages"]][:2] == ["user", "assistant"]
     assert "WHAT IS ON THE SCREEN" in seen["messages"][-1]["content"]
+
+
+_SCREEN = "\n".join([
+    "Application questions (required)",
+    "1. Describe your experience building and scaling technical systems within an operational domain.",
+    "2. Describe something you built from scratch. Go five levels deep.",
+    "Submit application",
+    "Save draft",
+    "Privacy policy",
+])
+
+
+def _vectors_near(target_line: str):
+    """An encoder for which only ``target_line`` is near the remark."""
+    def embed(texts):
+        texts = list(texts)
+        return [[1.0, 0.0] if i == 0 or text == target_line else [0.0, 1.0] for i, text in enumerate(texts)]
+    return embed
+
+
+def test_she_points_at_the_line_her_remark_is_about(monkeypatch):
+    from core.perception import screen_highlight
+
+    line = "2. Describe something you built from scratch. Go five levels deep."
+    monkeypatch.setattr("core.language.learned_matcher.embed_sentences", _vectors_near(line))
+    drawn: dict[str, object] = {}
+
+    async def highlight(needle, **kwargs):
+        drawn.update(needle=needle, **kwargs)
+        return screen_highlight.HighlightResult(shown=True, reason="drawn", matched_text=needle)
+
+    monkeypatch.setattr(screen_highlight, "highlight", highlight)
+
+    result = asyncio.run(screen_highlight.point_at_what_she_says(
+        "The second one wants five levels of one thing you built.", _SCREEN))
+
+    assert result.shown and drawn == {"needle": line, "invited": True}
+
+
+def test_a_remark_about_nothing_in_particular_points_at_nothing(monkeypatch):
+    from core.perception import screen_highlight
+
+    monkeypatch.setattr("core.language.learned_matcher.embed_sentences",
+                        lambda texts: [[1.0, 0.0] for _ in list(texts)])
+
+    async def highlight(needle, **kwargs):
+        raise AssertionError("drew a rectangle over a line nothing singled out")
+
+    monkeypatch.setattr(screen_highlight, "highlight", highlight)
+
+    result = asyncio.run(screen_highlight.point_at_what_she_says("Long night of applications.", _SCREEN))
+
+    assert not result.shown and "stands out" in result.reason
+
+
+def test_a_highlight_nobody_asked_for_or_invited_is_still_refused():
+    from core.perception.screen_highlight import highlight
+
+    result = asyncio.run(highlight("Submit application"))
+
+    assert not result.shown and "asked for" in result.reason
