@@ -67,3 +67,29 @@ async def test_the_reading_speaks_of_the_person_and_of_her_not_to_him() -> None:
     assert reading
     assert reading.startswith("The person"), reading
     assert not reading.startswith(("You", "Your", "I ", "My ")), reading
+
+
+def test_grounding_appended_to_his_message_does_not_size_the_turn() -> None:
+    """LIVE 15 November 2026: the retained-memory block sent a one-line recall question down the full pipeline.
+
+    Sizing had ignored four named blocks and no others. With the recall block gone from his message, the
+    retained-memory block made "What did I tell you about how I slept?" look long: 263 s, two long drafts
+    refused as prompt leaks, then a 62-character answer.
+    """
+    from interface.routes import chat as chat_routes
+
+    visible = "What did I tell you about how I slept?"
+    effective = visible + "\n\n[RETAINED MEMORY EVIDENCE]\n" + ("- a kept memory line\n" * 120) + "[END]"
+
+    assert len(effective) > 1600
+    assert chat_routes._is_compact_desktop_chat_contract(
+        visible,
+        effective,
+        desktop_execution_contract=False,
+        capability_inventory_contract=False,
+    ) is chat_routes._is_compact_desktop_chat_contract(
+        visible,
+        visible,
+        desktop_execution_contract=False,
+        capability_inventory_contract=False,
+    )

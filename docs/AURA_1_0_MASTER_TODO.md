@@ -3962,6 +3962,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   completed message before this one: ..."). It reaches her turn as
   conversation_recall_evidence beside his words, and the copy inside his
   message is gone. Left: the same question asked live.
+  Asked live at 17:53 on 728451f7a, after "I slept badly last night, maybe
+  four hours." and "Pick a number between 1 and 10. Answer with only the
+  number." ("7"): "You told me that you slept badly last night, maybe four
+  hours.", from her cortex, in 262.6 s. With the recall block gone from
+  his message, the retained-memory block appended there made the turn
+  look long. The quick lane's sizing had set aside four named blocks and
+  no others, so the turn went through the full phase pipeline. There her
+  amplifier wrote two drafts of more than 3,700 characters each (a
+  "Skeptic" review, then her reasoning about "the provided evidence"),
+  and both were refused as prompt leaks before the answer. The lane is
+  now sized on his visible words alone. Also seen on that turn: "Pick a
+  number ..." was joined to her previous reply as an answer to her
+  question (core/runtime/referential_continuation.answers_a_question
+  reads any message with no standalone hint as a fragment), and the
+  learned asking-clause reader returns nothing for it.
   Bryan, same evening: his words to himself were answered as turns. At
   11:00 local, in a voice session, "Okay.", "But thank you." and "Probably
   not." were answered ("I was saying it's a good sound.", "You're

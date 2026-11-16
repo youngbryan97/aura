@@ -859,21 +859,11 @@ def _is_compact_desktop_chat_contract(
         user_message
     ):
         return False
-    effective_text = str(effective_user_message or "")
-    if any(
-        marker in effective_text
-        for marker in (
-            "[CONVERSATION RECALL EVIDENCE]",
-            "[REFERENTIAL ANCHOR]",
-            "[CANONICAL MEMORY STATE EVIDENCE]",
-            "[RECENT COMPLETED CONVERSATION",
-        )
-    ):
-        # Injected grounding can make a small live chat turn look huge. Compact
-        # eligibility should be based on the visible turn; the grounding remains
-        # available to the CognitiveEngine after the route is selected.
-        effective_text = str(user_message or "")
-    if len(effective_text) > 1600 or len(text) > 900:
+    # Injected grounding can make a small live chat turn look huge, so eligibility is the visible turn's; the
+    # grounding stays available to her turn after the route is chosen. It was a list of four markers. LIVE 15
+    # November 2026, "What did I tell you about how I slept?" carried [RETAINED MEMORY EVIDENCE], not on the
+    # list, and went through the full phase pipeline: 263 s for a one-line answer.
+    if len(str(user_message or "")) > 1600 or len(text) > 900:
         return False
     direct_memory_state_turn = bool(
         _chat_memory_state._extract_session_memory_pin_request(user_message)
