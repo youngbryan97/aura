@@ -4872,6 +4872,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: deferred replay reports an unknown remaining
+    count when the queue cannot be read or its replacement fails.
+    It carries the storage error in its report and preserves the
+    existing file. Both failures used to report zero remaining
+    entries. All 35 deferred-retention tests passed after the repair.
+    Smoke passed 164 tests with one skip in 45.36 s and maximum RSS
+    of 479,526,912 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/memory/deferred_retention.py.
+    Tests: tests/test_deferred_retention.py.
   - [x] 2026-11-15: trace and bus exports preserve an existing parent
     directory's permissions. All three export paths changed a shared
     directory from 0755 to 0700 through redundant directory setup.

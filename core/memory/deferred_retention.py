@@ -119,18 +119,24 @@ class ReplayReport:
     still_deferred: int = 0
     refused: int = 0
     expired: int = 0
-    remaining: int = 0
+    remaining: int | None = 0
+    queue_error: str | None = None
 
-    def as_dict(self) -> dict[str, int]:
-        return {
+    def as_dict(self) -> dict[str, int | str | None]:
+        result: dict[str, int | str | None] = {
             "committed": self.committed,
             "still_deferred": self.still_deferred,
             "refused": self.refused,
             "expired": self.expired,
             "remaining": self.remaining,
         }
+        if self.queue_error:
+            result["queue_error"] = self.queue_error
+        return result
 
     def narrative(self) -> str:
+        if self.queue_error:
+            return f"{self.committed} write(s) landed; queue remaining count unknown ({self.queue_error})"
         if not any(
             (self.committed, self.still_deferred, self.refused, self.expired)
         ):
@@ -336,7 +342,14 @@ class DeferredRetentionQueue:
             return await self._replay_once(memory_facade)
 
     async def _replay_once(self, memory_facade: Any) -> ReplayReport:
-        entries = await asyncio.to_thread(self._load)
+        try:
+            entries = await asyncio.to_thread(self._load, strict=True)
+        except (OSError, ValueError) as exc:
+            record_degradation(
+                "deferred_retention", exc, severity="warning",
+                action="deferred memory replay could not read the queue",
+            )
+            return ReplayReport(remaining=None, queue_error=f"read failed: {type(exc).__name__}: {exc}")
         if not entries:
             return ReplayReport()
 
@@ -380,10 +393,12 @@ class DeferredRetentionQueue:
                     entry.get("origin"), reason,
                 )
 
-        remaining_count = len(remaining)
+        remaining_count = None
+        queue_error = None
         try:
             remaining_count = await asyncio.to_thread(self._apply_replay, retried, remaining)
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            queue_error = f"write failed: {type(exc).__name__}: {exc}"
             record_degradation(
                 "deferred_retention", exc, severity="warning",
                 action="deferred-retention queue could not be rewritten after replay",
@@ -395,6 +410,7 @@ class DeferredRetentionQueue:
             refused=refused,
             expired=expired,
             remaining=remaining_count,
+            queue_error=queue_error,
         )
         if committed or refused or expired:
             logger.info("Deferred-retention replay: %s.", report.narrative())

@@ -164,6 +164,40 @@ class TestHoldingDeferredWork:
 
 class TestReplay:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("failure", ["read", "write"])
+    async def test_a_storage_failure_leaves_the_remaining_count_unknown(self, queue, monkeypatch, failure):
+        from pathlib import Path
+
+        assert await queue.enqueue_async("held result", reason="aura_now_defer")
+        previous = queue.path.read_bytes()
+        facade = FakeFacade([True])
+
+        def broken_store(*args, **kwargs):
+            raise OSError("fixture replacement failed")
+
+        read_text = Path.read_text
+
+        def broken_read(path, *args, **kwargs):
+            if path == queue.path:
+                raise PermissionError("fixture read failed")
+            return read_text(path, *args, **kwargs)
+
+        with monkeypatch.context() as patch:
+            if failure == "read":
+                patch.setattr(Path, "read_text", broken_read)
+            else:
+                patch.setattr(queue, "_store", broken_store)
+            report = await queue.replay(facade)
+
+        assert report.remaining is None
+        assert report.queue_error and failure in report.queue_error
+        assert report.as_dict()["remaining"] is None
+        assert report.as_dict()["queue_error"] == report.queue_error
+        assert "remaining count unknown" in report.narrative()
+        assert report.committed == (1 if failure == "write" else 0)
+        assert queue.path.read_bytes() == previous
+
+    @pytest.mark.asyncio
     async def test_durable_queue_updates_flush_without_a_lock_held(self, queue, monkeypatch):
         from core.runtime import atomic_writer
         from core.runtime.lockdep import assert_no_locks_held
