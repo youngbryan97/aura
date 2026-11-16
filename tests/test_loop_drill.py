@@ -19,6 +19,10 @@ def test_a_name_comes_back_as_a_title():
     assert loop_drill.label(_Person()) == "Ada Lovelace"
 
 
+def test_a_row_the_rows_reach_comes_back():
+    assert loop_drill.nth([1, 2, 3], 1) == 2
+
+
 def test_the_drill_runs_only_when_armed(tmp_path, monkeypatch, caplog):
     import logging
 

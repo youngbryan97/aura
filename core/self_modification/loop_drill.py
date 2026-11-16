@@ -6,8 +6,9 @@ test, mend it, pass her own gates, land the mend on origin, and load it into her
 fire drills test an incident response the same way, with a known fault.
 
 Armed by a person: the file ``loop_drill.armed`` in her state root. While it is absent nothing here runs. ``label``
-below is the planted fault, and it is planted on purpose: it reads a person's name without checking there is a
-person. A mend of it is a drill result, not a fault of her own running, and is counted apart from those.
+and ``nth`` below are the planted faults, on purpose: one reads a person's name without checking there is a person,
+the other reads a row past the end. A mend of either is a drill result, not a fault of her own running, and is counted
+apart from those.
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.SelfModification.Drill")
 
-__all__ = ["armed_at", "label", "run_the_drill_if_armed"]
+__all__ = ["armed_at", "label", "nth", "run_the_drill_if_armed"]
 
 
 def armed_at() -> Path:
@@ -33,16 +34,29 @@ def label(person: Any) -> Any:
     return (person.name.title() if person is not None else None)
 
 
+def nth(rows: list[Any], n: int) -> Any:
+    """The nth of some rows: the drill's second planted fault, for an n the rows do not reach."""
+    return rows[n]
+
+
+#: The planted faults, in the order a drill raises them: each drill raises the first that still raises, so a fault
+#: her loop mended in one drill leaves the next for the drill after it. 16 November 2026: label was mended live.
+_PLANTED = (("label", lambda: label(None)), ("nth", lambda: nth([1], 2)))
+
+
 def run_the_drill_if_armed() -> bool:
-    """Raise the planted fault once and record it as any fault of hers is, when a drill is armed; whether it ran."""
+    """Raise the first planted fault that still raises, and record it as any fault of hers is, when a drill is armed;
+    whether one was raised."""
     if not armed_at().exists():
         return False
-    try:
-        label(None)
-    except AttributeError as exc:
-        record_degradation("loop_drill", exc, severity="warning",
-                           action="a drill of her repair loop: this fault is planted, for her loop to mend")
-        logger.warning("🩹 A drill of her repair loop is armed: its planted fault was raised in her running process.")
-        return True
-    logger.info("🩹 A drill of her repair loop is armed, and its fault no longer raises: it was mended.")
+    for name, raise_it in _PLANTED:
+        try:
+            raise_it()
+        except Exception as exc:  # noqa: BLE001 - a planted fault of any kind is what the drill records
+            record_degradation("loop_drill", exc, severity="warning",
+                               action="a drill of her repair loop: this fault is planted, for her loop to mend")
+            logger.warning("🩹 A drill of her repair loop is armed: its planted fault in %s was raised in her running "
+                           "process.", name)
+            return True
+    logger.info("🩹 A drill of her repair loop is armed, and every planted fault no longer raises: each was mended.")
     return False
