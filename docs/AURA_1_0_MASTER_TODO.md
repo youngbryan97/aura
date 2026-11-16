@@ -1923,6 +1923,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   phases with 21.76 s of retrieval timed and was then deferred with nothing
   generated. Phase work that is none of the five components counts as
   unattributed there.
+  The 23:42 turn was nobody's: it was the first of nine turns from her
+  hourly influence campaign (core/brain/influence_turn_probe.py, origin
+  desktop_influence_probe), each sent about 8 s after the one before.
+  The first turn of each run carries the unattributed time: 9.31 s at
+  23:42, 3.25 s at 00:47 UTC; none of the sixteen turns after them in the
+  two runs carries more than 1.56 s.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
@@ -3932,6 +3938,26 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   goes to her turn as a reading (record_turn_grounding, as the desktop
   step's failure does, 04c1889a8), and she answers. That is a change to
   twelve sites on the chat route and is left for a decision.
+  Same evening, read from her log: her cortex had answered that question
+  (24 characters at 20:19:24 UTC; the text was not kept). The route's recall
+  contract counted the topic words her answer shared with the quotation,
+  found fewer than two, and served the quotation. Her authorship check
+  refused it as repair text, and the door for a generation that wrote
+  nothing served it anyway. The contract now counts only an empty reply as
+  no answer: an answer she writes is judged by the reliability gate, whose
+  shared-history check refuses words put in his mouth, and a deflection is
+  no longer overruled by a word list. The sentence that rode his message,
+  "Answer the recall question from the evidence above. Do not guess or
+  invent a memory.", is gone. The quotation still rides his message as a
+  block, because on this route turn grounding reaches her reply checker
+  and not her prompt. Left: that block as a reading beside his turn, and
+  the same question asked again live.
+  Bryan, same evening: his words to himself were answered as turns. At
+  11:00 local, in a voice session, "Okay.", "But thank you." and "Probably
+  not." were answered ("I was saying it's a good sound.", "You're
+  welcome.", "No."), while three other short utterances in that minute
+  were left unanswered (read_elsewhere). Spoken turns are stored with
+  origin desktop_ui, so the record cannot tell them from typed ones.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

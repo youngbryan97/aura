@@ -493,7 +493,44 @@ async def test_conversation_recall_repairs_thin_desktop_cognitive_reply() -> Non
 
 
 @pytest.mark.asyncio
-async def test_conversation_recall_replaces_vague_reflex_reply() -> None:
+async def test_an_answer_she_wrote_to_a_recall_question_is_not_replaced() -> None:
+    """LIVE 2026-11-15 12:19: her answer was replaced by a quotation of a different turn.
+
+    "What did I tell you about how I slept?" holds "what did i tell you", which reads as a request for his
+    last message. That message was "Pick a number between 1 and 10", her answer shared no words with it, and
+    she was served 'Your last completed message before this was: "Pick a number ..."'.
+    """
+    from interface.routes import chat as chat_routes
+
+    async with chat_routes._get_convo_lock():
+        chat_routes._conversation_log.clear()
+        chat_routes._conversation_log.extend(
+            [
+                {
+                    "user": "Not bad, slept okay. Did you do anything interesting while I was out?",
+                    "aura": "Glad to hear you slept okay.",
+                    "status": "complete",
+                },
+                {
+                    "user": "Pick a number between 1 and 10. Answer with only the number.",
+                    "aura": "7",
+                    "status": "complete",
+                },
+            ]
+        )
+
+    question = "What did I tell you about how I slept?"
+    answer = "You said you slept okay."
+    expected = await chat_routes._build_conversation_recall_reply(question)
+
+    assert expected, "the composed quotation is still built; it only stops overruling her"
+    assert not chat_routes._conversation_recall_reply_is_inadequate(question, answer, expected)
+    repaired, did_repair = await chat_routes._repair_conversation_recall_if_needed(question, answer)
+    assert (repaired, did_repair) == (answer, False)
+
+
+@pytest.mark.asyncio
+async def test_a_recall_question_she_left_unanswered_still_gets_the_quotation() -> None:
     from interface.routes import chat as chat_routes
 
     async with chat_routes._get_convo_lock():
@@ -506,19 +543,14 @@ async def test_conversation_recall_replaces_vague_reflex_reply() -> None:
             }
         )
 
-    expected = await chat_routes._build_conversation_recall_reply("What did you just say?")
+    question = "What did you just say?"
+    expected = await chat_routes._build_conversation_recall_reply(question)
 
-    assert chat_routes._conversation_recall_reply_is_inadequate(
-        "What did you just say?",
-        "Something about that question sits heavy with me.",
-        expected,
+    assert chat_routes._conversation_recall_reply_is_inadequate(question, "", expected)
+    assert not chat_routes._conversation_recall_reply_is_inadequate(
+        question, "Something about that question sits heavy with me.", expected
     )
-
-    repaired, did_repair = await chat_routes._repair_conversation_recall_if_needed(
-        "What did you just say?",
-        "Something about that question sits heavy with me.",
-    )
-
+    repaired, did_repair = await chat_routes._repair_conversation_recall_if_needed(question, "")
     assert did_repair is True
     assert "governed desktop" in repaired
 

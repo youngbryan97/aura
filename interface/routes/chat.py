@@ -1752,36 +1752,25 @@ def _format_recent_conversation_context(
 #: visible edit here rather than a silently-stopped guard.
 
 
-_CONVERSATION_RECALL_DEFLECTION_RE = re.compile(
-    r"\b(?:something about|it sits|sits heavy|i'?m not sure|i don'?t remember|"
-    r"i can'?t recall|i cannot recall|i don'?t have that|lost the thread|"
-    r"my memory is|memory feels)\b",
-    re.IGNORECASE,
-)
-
-
 def _conversation_recall_reply_is_inadequate(
     user_message: str,
     reply_text: str,
     expected_reply: str | None,
 ) -> bool:
+    """Whether a question about the conversation got no answer from her at all.
+
+    Only an empty reply counts. An answer she wrote is judged where every answer is: the reliability gate,
+    whose shared-history check refuses words put in the person's mouth. ``expected_reply`` is the runtime's
+    quotation, composed after a phrase list guessed which turn was meant, and it is not a judge of her answer.
+    On 15 November at 12:19, asked "What did I tell you about how I slept?", she wrote a 24-character answer
+    (not recorded). "what did i tell you" had read the question as a request for his last message, her answer
+    shared no words with that message, "Pick a number between 1 and 10", and the quotation replaced it. A
+    deflection ("I'm not sure") was also overruled here, by a word list.
+    """
+    del expected_reply
     if not _chat_memory_state._classify_conversation_recall_request(user_message):
         return False
-    reply = str(reply_text or "").strip()
-    if not reply:
-        return True
-    if _CONVERSATION_RECALL_DEFLECTION_RE.search(reply):
-        return True
-    expected = str(expected_reply or "").strip()
-    if not expected:
-        return False
-    expected_tokens = _chat_conversation_repair._extract_topic_tokens(expected)
-    reply_tokens = _chat_conversation_repair._extract_topic_tokens(reply)
-    if not expected_tokens:
-        return False
-    overlap = expected_tokens & reply_tokens
-    required = min(4, max(2, len(expected_tokens) // 6))
-    return len(overlap) < required
+    return not str(reply_text or "").strip()
 
 
 async def _repair_conversation_recall_if_needed(
@@ -7849,8 +7838,7 @@ async def _api_chat_turn_crash_safe_persistence(_chat_session_id, _qualified_sta
             f"{effective_user_message}\n\n"
             "[CONVERSATION RECALL EVIDENCE]\n"
             f"{conversation_recall_evidence}\n"
-            "[END CONVERSATION RECALL EVIDENCE]\n"
-            "Answer the recall question from the evidence above. Do not guess or invent a memory."
+            "[END CONVERSATION RECALL EVIDENCE]"
         )
     retained_memory_evidence = (
         ""
