@@ -27,6 +27,9 @@ STANDING_DEFAULTS: dict[str, str] = {
     "AURA_REACH_READ_HOSTS": "@reputable",
     # The hard hourly budget for her external verifications.
     "AURA_EPISTEMIC_REACH_PER_HOUR": "6",
+    # Bryan's standing yes, 15 November 2026: she sends her own replies to the mail people send her ("she doesnt
+    # need my permission to do that"). Her triage still answers only a person's message, never automated mail.
+    "AURA_EMAIL_SENDS_WITHOUT_ASKING": "1",
 }
 
 

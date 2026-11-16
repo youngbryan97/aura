@@ -128,3 +128,18 @@ def test_a_reply_written_as_the_send_is_held_as_the_words_in_it(monkeypatch):
     assert reply.startswith("Hey Bryan, yes") and reply.endswith("— Aura") and '"tool"' not in reply
     # Addressed to someone else, it is not her reply to this message.
     assert her_replies_to_mail._written_as_the_send({"from": "maya@example.org"}, written) == ""
+
+
+def test_she_sends_her_own_replies_by_bryans_standing_yes(monkeypatch):
+    """Bryan, 15 November 2026: "she should send email responses on her own. she doesnt need my permission"."""
+    from core.runtime.standing_defaults import apply_standing_defaults
+    from core.skills.her_replies_to_mail import sends_without_asking
+
+    env: dict[str, str] = {}
+    apply_standing_defaults(env)
+    assert env["AURA_EMAIL_SENDS_WITHOUT_ASKING"] == "1"
+    held = {"AURA_EMAIL_SENDS_WITHOUT_ASKING": "0"}
+    apply_standing_defaults(held)
+    assert held["AURA_EMAIL_SENDS_WITHOUT_ASKING"] == "0", "a launch that says otherwise still holds her replies"
+    monkeypatch.setenv("AURA_EMAIL_SENDS_WITHOUT_ASKING", env["AURA_EMAIL_SENDS_WITHOUT_ASKING"])
+    assert sends_without_asking()

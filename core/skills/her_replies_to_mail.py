@@ -1,4 +1,4 @@
-"""Her replies to mail a person sent her: written by her own turn, and held for Bryan until he lets her send them.
+"""Her replies to mail a person sent her: written by her own turn, and sent by her once Bryan lets her.
 
 Her triage of her inbox matched words ("urgent", "can you", "unsubscribe") and answered what it kept with one of two
 sentences written in her code ("Thanks for the note about ...; I will follow up"), never her own. Here who sent a
@@ -6,7 +6,8 @@ message is read from its headers (core/skills/what_mail_is.py); a person's messa
 was said to her, the sender and subject with it as written, and what she answers is the reply, or nothing when she has
 nothing to say. A reply goes out under her account, to someone other than Bryan: it is held in
 ``data/email/drafts.jsonl`` and sent by ``tools/her_email_drafts.py send ID``, by him, until he sets
-AURA_EMAIL_SENDS_WITHOUT_ASKING.
+AURA_EMAIL_SENDS_WITHOUT_ASKING. He did on 15 November 2026, as a standing default
+(core/runtime/standing_defaults.py); a launch that sets it to anything but 1 holds her replies again.
 """
 from __future__ import annotations
 

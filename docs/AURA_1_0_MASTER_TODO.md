@@ -6291,6 +6291,14 @@ needs her 27B free (her app down, or her app's own influence trials).
   Left: her first reply reaching Bryan. He sends it with
   `tools/her_email_drafts.py send d952c7b65b`, or sets
   `AURA_EMAIL_SENDS_WITHOUT_ASKING=1` and she sends her own.
+  15 November 2026, Bryan: "she should send email responses on her own.
+  she doesnt need my permission to do that". It is a standing default now
+  (core/runtime/standing_defaults.py), so every launch of hers sends what
+  her round writes to a person; a launch that sets it to 0 holds them
+  again. The five replies held before then stay held: each answers a test
+  message of his from 19 August to early November, and sent together now
+  they would arrive as five stale mails. Left: a message from a person
+  answered by her own send, read in her sent mail.
 - [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
   the 512-unit substrate (d9fdc1660). Left: each module driving what she does
   or says, measured by lesion. Lane: no.
