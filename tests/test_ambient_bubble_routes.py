@@ -109,3 +109,21 @@ def test_there_is_no_route_that_makes_her_speak(client):
     """One authority for unprompted speech, and it is not HTTP."""
     paths = {route.path for route in ambient_routes.router.routes}
     assert not any("speak" in path or "say" in path for path in paths)
+
+
+def test_a_long_remark_keeps_its_finished_sentences(client):
+    """LIVE 15 November 2026: her remark reached the bubble as "... That'll let m", sliced at 600 characters."""
+    api, presence = client
+    said = (
+        "I see the issue: your settings.json file has invalid JSON. The traceback shows it failing at line 4, "
+        "column 29, with \"Expecting value.\" " + "A trailing comma after the last item in an array is the usual cause. " * 8
+        + "Can you paste the file, or run cat on it and share the output? That'll let me point at the exact line."
+    )
+    assert len(said) > 600
+
+    presence.offer_utterance(said)
+
+    shown = api.get("/api/ambient/state").json()["utterance"]
+    assert len(shown) <= 600
+    assert shown.endswith((".", "?", "!")), shown[-40:]
+    assert said.startswith(shown)

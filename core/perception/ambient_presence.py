@@ -59,6 +59,23 @@ from core.security.screen_capture_policy import is_private_screen_context
 
 from .ambient_bubble import _CarriesTheBubble
 
+#: The most the bubble holds of one thing she says.
+_BUBBLE_CHARS = 600
+
+
+def _what_fits(body: str) -> str:
+    """What the bubble shows of what she said: all of it when it fits, else her finished sentences that do.
+
+    It was sliced at 600 characters. LIVE 15 November 2026, her remark on a failing script ended "That'll let m",
+    and the next one "She's holdi": her turn had already been trimmed to finished sentences
+    (core/brain/her_unprompted_turn.what_she_finished), and the slice cut it again.
+    """
+    if len(body) <= _BUBBLE_CHARS:
+        return body
+    from core.brain.her_unprompted_turn import what_she_finished
+
+    return what_she_finished(body[:_BUBBLE_CHARS]) or body[:_BUBBLE_CHARS].rsplit(" ", 1)[0]
+
 #: How many asked-for lines wait their turn. Deep enough that a run
 #: narrating steadily is never truncated mid-thought, shallow enough
 #: that nobody is read a backlog from several minutes ago.
@@ -356,12 +373,12 @@ class AmbientPresence(_CarriesTheBubble):
         with self._lock:
             if requested:
                 if self._pending_utterance:
-                    self._narration.append(body[:600])
+                    self._narration.append(_what_fits(body))
                 else:
-                    self._pending_utterance = body[:600]
+                    self._pending_utterance = _what_fits(body)
                     self._utterance_at = time.time()
                 return True
-            self._pending_utterance = body[:600]
+            self._pending_utterance = _what_fits(body)
             self._utterance_at = time.time()
         return True
 

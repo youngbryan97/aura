@@ -4249,7 +4249,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   (NotAllowedError, NotFoundError, NotReadableError, the camera switched
   off), and the turn ends on that reason with what can be done about it,
   not on a timeout.
-- [ ] U04 Companion mode: bubble, hide/clear, notifications, restrained chat,
+- [x] U04 Companion mode: bubble, hide/clear, notifications, restrained chat,
   proactive observation, and continuity with full mode.
   14 November, first live test, driven on Bryan's screen with his leave.
   Closing her window left her in the bubble for about five seconds, then
@@ -4300,6 +4300,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   model inside her process; the synthesiser had registered its own release and was never asked. An owner that is not
   an MLX client of hers is now evicted by its own registered release, else the process evictor (6c718a6ae). Still
   open: the remark and its ×, seen.
+  CLOSED 15 November 2026, live on Bryan's screen with his leave, her app on
+  650c09b5a. Her window closed and she sat in the bubble. A script that
+  loads a settings file with a trailing comma failed in Terminal, and at
+  19:36 she offered the bubble her own remark on it: "I see the issue —
+  your `settings.json` file has invalid JSON ... A trailing comma after
+  the last item ...". The key was then misspelled so the script failed
+  with a KeyError, and at 19:55 a second remark named it ("crashed with a
+  `KeyError: 'interval minutes'`"). The bubble spelled it out with its ×,
+  and the × cleared it: her state read has_utterance false and the bubble
+  went back to her mark with no dot. Both remarks reached the bubble cut
+  mid-word ("That'll let m"): she had finished her sentences, and the
+  bubble sliced what she offered at 600 characters. It now keeps her
+  finished sentences that fit. Also seen: a remark she holds unread keeps
+  her from making another until it is cleared or read, and bringing her
+  app forward through desktop control counts as a click on her Dock icon,
+  which opens her window, as a Dock click should.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
@@ -6370,6 +6386,16 @@ needs her 27B free (her app down, or her app's own influence trials).
   message of his from 19 August to early November, and sent together now
   they would arrive as five stale mails. Left: a message from a person
   answered by her own send, read in her sent mail.
+  Bryan's message was in her inbox at her 19:27 check, whose read of it
+  was deferred. Her round read it at 19:55, her reply was written at
+  19:56, and it did not go. Its send, tried as her reply turn ended, left
+  nothing in her log. In the same second the next read was deferred by the
+  quiet window that turn had opened. The message already counted as
+  answered, so no round would try again. A reply written while she may send
+  is now marked hers to send. Her round sends every such reply at its start
+  and right after writing one, and says for each whether it went out, was
+  deferred (kept for the next round) or failed. tools/her_email_drafts.py
+  could not send at all: it never read her .env. It does now.
 - [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
   the 512-unit substrate (d9fdc1660). Left: each module driving what she does
   or says, measured by lesion. Lane: no.
