@@ -13481,68 +13481,12 @@
       "scope": "<module>.record_trace_event"
     },
     {
-      "callee": "audit_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/diagnostics_bundle.py",
-      "scope": "<module>.build_bundle"
-    },
-    {
-      "callee": "bundle_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/diagnostics_bundle.py",
-      "scope": "<module>.build_bundle"
-    },
-    {
-      "callee": "output_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/diagnostics_bundle.py",
-      "scope": "<module>.build_bundle"
-    },
-    {
       "callee": "tarfile.open",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/runtime/diagnostics_bundle.py",
       "scope": "<module>.build_bundle"
-    },
-    {
-      "callee": "workspace.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/diagnostics_bundle.py",
-      "scope": "<module>.build_bundle"
-    },
-    {
-      "callee": "dest_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/diagnostics_bundle.py",
-      "scope": "<module>.collect_audit_chain"
-    },
-    {
-      "callee": "dest_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/diagnostics_bundle.py",
-      "scope": "<module>.collect_logs"
-    },
-    {
-      "callee": "dst.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/diagnostics_bundle.py",
-      "scope": "<module>.collect_logs"
     },
     {
       "callee": "self.root.mkdir",
@@ -17618,6 +17562,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "55875b21209b422b4e225dc0d3949ac4cf94f604a6bf10d40d79f20bea88f3b2",
+  "inventory_sha256": "90aaec13b54d14e240523b0be6554454dd321b7f5d07225a9e0e6eb8f1e4b5a7",
   "schema_version": 1
 }

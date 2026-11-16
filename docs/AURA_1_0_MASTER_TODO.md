@@ -4694,6 +4694,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: diagnostic log collection keeps its byte cap while
+    a log grows or rotates. Each opened file supplies its current end;
+    every read takes at most the remaining budget and the collector
+    counts the payload actually copied. Seven raw parent-directory
+    creations were redundant with the gateway writes and came out.
+    Governance inventory matched: 762 raw calls, 2,063 total migration
+    calls, with both ceilings lowered. The bounded reader has an
+    invariant and a registered synthetic validation. Moving the small
+    canary installer to model_validation_contracts kept its public import
+    and reduced the module-size budget by 27 lines, to 122,228.
+    68 focused tests passed; smoke 164 passed, 1 skipped. Lint, compile,
+    governance, layering, module size, dependency drift and writing passed.
+    Tests: tests/test_diagnostic_logs_stay_within_their_cap.py and
+    tests/test_diagnostics_bundle.py. Other effect debt stays open.
   MEASURED 2026-09-09. The module-size ratchet is red and has been for a long
   time — verified red twelve commits back, so it is inherited rather than a
   regression. Total oversize is 178,305 lines against a budget of 145,896, and

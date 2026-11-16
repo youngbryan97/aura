@@ -100,8 +100,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: The same day F15's loop wrote a fault's test, ran it, and ran and
 #: committed her mend in her workspace, all through the gateways: five
 #: governed calls more, 768 and 2,069.
-TOTAL_CEILING = 2069
-RAW_CEILING = 768
+#: 15 November, seven diagnostic-bundle parent directories already created by
+#: its gateway writes came out: 762 raw, 2,063 total.
+TOTAL_CEILING = 2063
+RAW_CEILING = 762
 
 
 def _split() -> tuple[int, int]:

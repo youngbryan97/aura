@@ -2348,6 +2348,7 @@ tests/test_determinate_turn_gets_a_lean_prompt.py
 tests/test_device_pairing.py
 tests/test_device_pairing_http.py
 tests/test_device_voice_scope.py
+tests/test_diagnostic_logs_stay_within_their_cap.py
 tests/test_diagnostics_bundle.py
 tests/test_dialectical_crucible_hardening.py
 tests/test_dialogue_cognition.py

@@ -48,6 +48,7 @@ from typing import Any
 
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
+from core.verify import invariant
 
 logger = logging.getLogger("core.runtime.diagnostics_bundle")
 
@@ -337,7 +338,6 @@ def collect_audit_chain(dest_dir: Path) -> dict[str, Any]:
             info = store.export_chain(dest_dir)
             verify = store.verify_chain()
         else:
-            dest_dir.mkdir(parents=True, exist_ok=True)
             if chain is not None:
                 try:
                     if hasattr(chain, "flush"):
@@ -416,6 +416,27 @@ def collect_audit_chain(dest_dir: Path) -> dict[str, Any]:
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
+def _bounded_log_tail(stream: Any, limit: int) -> tuple[bytes, int]:
+    """Read at most the remaining budget from the opened file's current tail."""
+    if type(limit) is not int or limit < 0:
+        raise ValueError("log byte limit must be a nonnegative integer")
+    stream.seek(0, os.SEEK_END)
+    size = stream.tell()
+    stream.seek(max(0, size - limit))
+    return stream.read(limit), size
+
+
+@invariant("runtime.diagnostic_log_reads_are_bounded", scope="runtime",
+           owner="core/runtime/diagnostics_bundle.py", observational=False)
+def _diagnostic_log_read_invariant() -> tuple:
+    for payload in (b"", b"x", b"longer than the budget"):
+        for limit in (0, 1, 8):
+            tail, size = _bounded_log_tail(io.BytesIO(payload), limit)
+            assert tail == (payload[-limit:] if limit else b"")
+            assert len(tail) <= limit and size == len(payload)
+    return ()
+
+
 def collect_logs(dest_dir: Path, max_total_bytes: int = 512 * 1024) -> dict[str, Any]:
     """Copy the most recent log files up to a total byte cap.
 
@@ -430,7 +451,6 @@ def collect_logs(dest_dir: Path, max_total_bytes: int = 512 * 1024) -> dict[str,
     src = next((p for p in candidates if p.exists() and p.is_dir()), None)
     if src is None:
         return {"available": False, "reason": "no logs directory found"}
-    dest_dir.mkdir(parents=True, exist_ok=True)
     files = sorted(
         (p for p in src.rglob("*") if p.is_file()),
         key=lambda p: p.stat().st_mtime,
@@ -439,37 +459,30 @@ def collect_logs(dest_dir: Path, max_total_bytes: int = 512 * 1024) -> dict[str,
     copied: list[dict[str, Any]] = []
     total = 0
     for f in files:
-        size = f.stat().st_size
         remaining = max_total_bytes - total
         if remaining <= 0:
             break
         rel = f.relative_to(src)
         dst = dest_dir / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        if size > remaining:
-            try:
-                with f.open("rb") as in_fh:
-                    in_fh.seek(max(0, size - remaining))
-                    _write_bytes(
-                        dst,
-                        in_fh.read(remaining),
-                        source="core.runtime.diagnostics_bundle.log_tail",
-                    )
-                copied.append({"src": str(rel), "size": remaining, "truncated_tail": True, "original_size": size})
-                total += remaining
-            except OSError:
-                continue
-            break
         try:
+            # The opened log may have grown or rotated since the directory
+            # scan. Bound the read itself and count only bytes actually read.
+            with f.open("rb") as in_fh:
+                payload, size = _bounded_log_tail(in_fh, remaining)
             _write_bytes(
                 dst,
-                f.read_bytes(),
-                source="core.runtime.diagnostics_bundle.log_copy",
+                payload,
+                source="core.runtime.diagnostics_bundle.log_tail" if size > remaining
+                else "core.runtime.diagnostics_bundle.log_copy",
             )
-        except OSError:
+        except OSError as exc:
+            logger.debug("Diagnostic log could not be copied: %s: %s", f, exc)
             continue
-        copied.append({"src": str(rel), "size": size, "truncated_tail": False})
-        total += size
+        entry = {"src": str(rel), "size": len(payload), "truncated_tail": size > len(payload)}
+        if entry["truncated_tail"]:
+            entry["original_size"] = size
+        copied.append(entry)
+        total += len(payload)
     return {"available": True, "source": str(src), "copied": copied, "bytes": total}
 
 
@@ -523,16 +536,13 @@ def build_bundle(
         if output_path is not None
         else state_root() / "diagnostics" / f"aura-bundle-{ts}.tar.gz"
     )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     workspace = (
         Path(workspace)
         if workspace is not None
         else Path(tempfile.mkdtemp(prefix="aura_bundle_"))
     )
-    workspace.mkdir(parents=True, exist_ok=True)
     bundle_dir = workspace / f"aura-bundle-{ts}"
-    bundle_dir.mkdir(parents=True, exist_ok=True)
 
     errors: dict[str, str] = {}
 
@@ -560,7 +570,6 @@ def build_bundle(
     _step("research_core", collect_research_core, bundle_dir / "research_core.json")
 
     audit_dir = bundle_dir / "audit_chain"
-    audit_dir.mkdir(parents=True, exist_ok=True)
     audit_info, audit_err = _safe_call("audit_chain", lambda: collect_audit_chain(audit_dir))
     if audit_err is not None:
         errors["audit_chain"] = audit_err

@@ -14,6 +14,46 @@ from typing import Any
 from core.organism.nothing_measured import NothingMeasured
 
 
+def _install_repair_executor_claims(suite):
+    from core.agency.when_motion_breaks_a_rule import _open_edges_are_not_faults
+    from core.memory.worth_at_encoding import neutral_worth_canary
+    from core.organism.model_validation import (
+        Claim,
+        Evidence,
+        Observation,
+        ValidationTest,
+        boolean_score,
+    )
+    from core.reasoning.arithmetic_on_the_floor import arithmetic_canary
+    from core.runtime.diagnostics_bundle import _diagnostic_log_read_invariant
+    from core.runtime.wall_clock import host_deadline_clock_holds
+
+    for name, probe, owner, statement, tests in (
+        ("diagnostic_log_read_bound", lambda: _diagnostic_log_read_invariant() == (),
+         "core/runtime/diagnostics_bundle.py",
+         "The diagnostic log tail reader returns at most the requested byte budget.",
+         "tests/test_diagnostic_logs_stay_within_their_cap.py"),
+        ("neutral_worth_remains_measured", neutral_worth_canary, "core/memory/worth_at_encoding.py",
+         "The private-ledger canary retains measured neutral worth for memory; content tracking is not claimed.",
+         "tests/test_neutral_worth_can_still_cue_memory.py"),
+        ("host_resource_deadline_clock", host_deadline_clock_holds, "core/runtime/wall_clock.py",
+         "The resource deadline clock agrees with a bracketed read of the host monotonic clock.",
+         "tests/test_resource_deadlines_keep_host_time.py"),
+        ("floor_integer_execution_canary", arithmetic_canary, "core/reasoning/arithmetic_on_the_floor.py",
+         "The integer floor canary preserves large integer exactness, signed division, and an unknown zero-division outcome.",
+         "tests/test_exact_executor_connections.py"),
+        ("motion_contract_canary", _open_edges_are_not_faults, "core/agency/when_motion_breaks_a_rule.py",
+         "The motion canary reports an observed departure only when a supplied boundary contract requires reflection.",
+         "tests/test_directed_program_checks.py"),
+    ):
+        suite.add_test(ValidationTest(name=name, description=statement, required_capability="",
+            observation=Observation(name=name, value=True, source=tests), predict=lambda _m, p=probe: p(),
+            score=lambda p, o: boolean_score(bool(p), expected=bool(o.value), subject="executor canary"), owner=owner))
+        suite.add_claim(Claim(statement=statement, test=name, owner=owner, asserted_in=owner,
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note="Small production-path canaries; neither frontier coding parity nor general semantic qualification."))
+
+
 def _rlc_capability_evidence_contract_holds() -> bool:
     import hashlib
 
