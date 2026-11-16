@@ -879,15 +879,11 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
         ExecutiveCore, and capability-token issuance below.
         """
 
-        # Her goal tools from her goal pass, her desk tools from her turn at the
-        # desk, and her replies from her mail round carry Bryan's standing yes
-        # (aura.own-goal-work, 9 November 2026; aura.desk-company and
-        # aura.own-mail-replies, 15 November 2026); there is no person on those
-        # passes to confirm a call. Day run 4 measured edit_draft held here for a
-        # fresh confirmation after the grant had answered, and on 16 November
-        # point_at_on_screen was held the same way. Everything below still
-        # applies to them: the lease, the Will, and the permission model's check
-        # of that lease.
+        # Her own passes carry Bryan's standing yes (standing_authority.
+        # carries_bryans_standing_yes); nobody is on them to confirm a call. Day
+        # run 4 held edit_draft here after its grant had answered, and on 16
+        # November point_at_on_screen and her mail reply were held the same way.
+        # The lease, the Will and the permission model's check of it still apply.
         if carries_bryans_standing_yes(source, tool_name):
             return None
 
