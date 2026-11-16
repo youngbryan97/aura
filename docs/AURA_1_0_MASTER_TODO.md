@@ -5151,6 +5151,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  - [x] 2026-11-15: the macOS defaults for `make test` and
+    `make coverage` now use up to 40 chunks and a 4 GiB floor for
+    reclaimable memory. Both had used six chunks with no floor. A
+    real `make test` invocation with a scratch suite and a simulated
+    low reading refused before pytest collection. An override ran one
+    small fixture. Dry runs checked both recipes on macOS and with a
+    simulated Linux host. Smoke passed 164 tests with one skip in
+    54.34 s and maximum RSS of 482,197,504 bytes. Script targets and
+    writing passed. Source: Makefile, with defaults in the operator
+    and agent guides.
   - [x] 2026-11-15: the test defect register is written through the
     governed atomic file gateway. A refused replacement leaves the
     previous report readable and the current run fails. Both the

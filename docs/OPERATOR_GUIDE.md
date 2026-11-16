@@ -46,9 +46,12 @@ a version-independent exhaustive command contract: `source-hygiene`, `enterprise
 Two specific checks are especially important:
 
 - `make layering` — Enforces architectural boundaries defined in `DEPS` files. Low-level components (`core/runtime` and `core/observability`) are strictly forbidden from importing high-level cognitive or autonomous agent modules. Any legacy exceptions listed in `config/layering_baseline.json` can only be removed over time, never added.
-- `make test` — Runs the broad suite through `tools/run_test_chunks.py`;
-  choose chunk count from the memory budget. With a resident model, the
-  historical six-chunk setting is not a safe default. As recorded in `config/test_inventory.json` on 2026-09-30, the test suite contains **60,348 tests across 4,457 files**. Running all tests in a single `pytest` process runs out of system memory (OOM crash) at about 83% completion, so you must always use the chunk runner.
+- `make test` runs the offline suite in bounded chunks. On macOS,
+  `make test` and `make coverage` default to 40 chunks and require at
+  least 4 GiB of reclaimable memory before each chunk or isolated retry.
+  Adjust `TEST_CHUNKS` and `TEST_MIN_FREE_GB` for the host's workload.
+  The inventory recorded **60,348 tests across 4,457 files** on 2026-09-30
+  in `config/test_inventory.json`. Use the chunk runner for the full suite.
 
 ## Backup & restore
 - Backup: `tar czf aura-backup.tar.gz ~/.aura/data ~/.aura/live-source`

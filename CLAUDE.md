@@ -26,12 +26,17 @@ fixes reach the live instance only when the user restarts it themselves.
 make compile      # syntax sweep (core + tests)
 make lint         # ruff, three passes (surface E9, critical F-codes, curated files)
 make smoke        # focused contracts; record duration per host — run after every change
-make test         # FULL offline suite (60,331 tests, 2026-09-30) in 6 bounded process chunks
+make test         # full offline suite, up to 40 chunks with a 4 GiB floor on macOS
 make governance-lint  security  enterprise-gate  # scrutiny gates
 make layering     # DEPS include-rule gate; baseline in config/ only shrinks
 ```
 
-- Full suite: `tools/run_test_chunks.py --chunks 6 --marker "not live and not network and not external"`.
+- The macOS defaults for `make test` and `make coverage` are 40 chunks and
+  a 4 GiB floor for reclaimable memory. Set `TEST_CHUNKS` and
+  `TEST_MIN_FREE_GB` to suit the host. Other platforms default to six
+  chunks with the floor off because the probe uses macOS `vm_stat`.
+  To run the script directly beside the resident model, pass
+  `--chunks 40 --min-free-gb 4 --marker "not live and not network and not external"`.
   Use `--continue-on-failure` to collect everything, `--only-chunks 5,6` to
   resume a partial run. One pytest process on the whole suite gets
   OOM-killed (~83%); always use the chunk runner.
@@ -40,7 +45,7 @@ make layering     # DEPS include-rule gate; baseline in config/ only shrinks
   killed when something else holds ~18GB — the resident 27B, a training sweep.
   The symptom is a log containing only the chunk header, because
   `capture_output=True` buffers the chunk's output in a parent that is then
-  gone. Check `free` first; with the 27B up, use `--chunks 40` (≈112 files,
+  gone. Check reclaimable memory first. With the 27B up, use `--chunks 40` (≈112 files,
   a median of 15 minutes each on 30 September).
   `/tmp/aura_test_chunks_progress.log` names the chunk that was in flight,
   and `--min-free-gb N` refuses rather than gambles.

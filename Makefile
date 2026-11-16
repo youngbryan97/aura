@@ -17,7 +17,13 @@ MYPY_FLAGS ?= --follow-imports=skip --explicit-package-bases
 PYTEST_TARGETS ?= tests -q -m "not live and not network and not external"
 SMOKE_TEST_TARGETS ?= tests/test_response_contract.py tests/test_chat_format.py tests/test_effect_closure.py tests/test_retired_external_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_consciousness_patch_retirement.py tests/brain/test_bounded_wow_surface_live.py tests/test_skill_discovery_contract.py::test_live_repo_source_catalog_matches_independent_rust_discovery tests/interiority -q
 ENTERPRISE_BASELINE ?= config/aura_enterprise_gate_baseline.json
+ifeq ($(shell uname -s),Darwin)
+TEST_CHUNKS ?= 40
+TEST_MIN_FREE_GB ?= 4
+else
 TEST_CHUNKS ?= 6
+TEST_MIN_FREE_GB ?= 0
+endif
 
 # ─── Reproducible build (one-command path for external reviewers) ────────
 
@@ -144,12 +150,12 @@ subject-core-integrity:
 	@$(PYTHON) tools/isc_completion_status.py --check
 
 coverage:
-	@echo "📊 Measuring line + branch coverage (full suite, 6 chunks — this is long)..."
+	@echo "📊 Measuring line + branch coverage (up to $(TEST_CHUNKS) chunks)..."
 	@$(PYTHON) -m coverage erase
 	@# --coverage, NOT `coverage run` around the runner: the chunks are fresh
 	@# interpreters, so wrapping the runner measured only the runner and this
 	@# target reported 0.00% over 419,306 statements while 27,494 tests passed.
-	@$(PYTHON) -m tools.run_test_chunks --chunks 6 --coverage \
+	@$(PYTHON) -m tools.run_test_chunks --chunks "$(TEST_CHUNKS)" --min-free-gb "$(TEST_MIN_FREE_GB)" --coverage \
 		--marker "not live and not network and not external" --continue-on-failure || true
 	@$(PYTHON) -m coverage combine || true
 	@$(PYTHON) -m coverage report | tail -30
@@ -691,7 +697,8 @@ activation-audit:
 
 test:
 	@echo "🧪 Running tests (bounded process chunks)..."
-	@$(PYTHON) tools/run_test_chunks.py --chunks $(TEST_CHUNKS) --marker "not live and not network and not external"
+	@$(PYTHON) tools/run_test_chunks.py --chunks "$(TEST_CHUNKS)" --min-free-gb "$(TEST_MIN_FREE_GB)" \
+		--marker "not live and not network and not external"
 	@echo "✅ Tests passed"
 
 release-manifest:

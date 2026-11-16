@@ -111,7 +111,7 @@ Three categories must not be rewritten:
 
 ```bash
 make smoke     # focused contracts; record duration per host — run after every change
-make test      # full suite, 6 bounded chunks (60,331 offline tests, recorded 2026-09-30)
+make test      # full offline suite, chunk count and memory floor set by the Makefile
 make lint compile governance-lint layering
 make quality   # the aggregate sweep
 ```
