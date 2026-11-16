@@ -337,14 +337,6 @@
       "scope": "<module>.SkillLibrary._save"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
-      "canonical_owner": false,
-      "category": "direct_atomic_file_write",
-      "count": 1,
-      "path": "core/agency/subjective_choice.py",
-      "scope": "<module>.SubjectiveChoiceEngine._save"
-    },
-    {
       "callee": "core.runtime.atomic_writer.atomic_write_text",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
@@ -3431,6 +3423,14 @@
       "count": 1,
       "path": "core/agency/self_repair_backlog.py",
       "scope": "<module>.SelfRepairBacklog._mark_seen"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.write_text_behind",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/subjective_choice.py",
+      "scope": "<module>.SubjectiveChoiceEngine._save"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -9423,22 +9423,6 @@
       "count": 1,
       "path": "core/agency/sandboxed_modifier.py",
       "scope": "<module>.SandboxedModifier._rollback_direct"
-    },
-    {
-      "callee": "self._state_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/agency/subjective_choice.py",
-      "scope": "<module>.SubjectiveChoiceEngine.__init__"
-    },
-    {
-      "callee": "self._persist_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/agency/tension_engine.py",
-      "scope": "<module>.TensionEngine._load"
     },
     {
       "callee": "self._persist_path.rename",
@@ -17394,6 +17378,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "9bd196dbebc7ffceeef8820e0d6bbb72bd45119772b4d3770d9950139f9d41fa",
+  "inventory_sha256": "81a2fe64b20a8ed61f83d5a8fbea57ac5ac60703e5bf9919240e38f357aca87c",
   "schema_version": 1
 }

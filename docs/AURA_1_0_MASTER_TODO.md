@@ -5046,6 +5046,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: empty tension and choice stores wait for a
+    governed save before creating directories. Choice saves also use
+    the governed deferred writer. All six new regressions failed
+    before the repair, including a refused choice save that replaced
+    the prior file. New state now reloads under enforcement with
+    0700 parent and 0600 file permissions; loop-time creation happens
+    on a worker thread. All 41 focused checks passed, including
+    choice tournaments, restart persistence, tension pruning and
+    deferred-write coalescing. Two raw directory writes were removed:
+    total debt fell from 2,044 to 2,042 and raw debt from 746 to 744.
+    Smoke passed 164 tests with one skip in 79.37 s and maximum RSS
+    of 485,408,768 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/agency/tension_engine.py and
+    core/agency/subjective_choice.py.
+    Tests: tests/test_agency_state_waits_for_a_governed_save.py.
   - [x] 2026-11-16: tension-state saves use the governed deferred
     writer. All three new regressions failed before the migration:
     registration and resolution bypassed the gateway, its refusal

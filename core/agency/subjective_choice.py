@@ -32,7 +32,6 @@ from pathlib import Path
 from typing import Any
 
 from core.agency.asking_the_impulse import impulse_led, impulse_record
-from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -321,7 +320,6 @@ class SubjectiveChoiceEngine:
                 record_degradation("subjective_choice_engine", exc, severity="debug")
                 state_path = state_root() / "data" / "cognitive" / "subjective_choices.json"
         self._state_path = Path(state_path)
-        self._state_path.parent.mkdir(parents=True, exist_ok=True)
         self._load()
 
     def is_alive(self) -> bool:
@@ -935,6 +933,9 @@ class SubjectiveChoiceEngine:
                     pref.aliases = tuple(sorted({*pref.aliases, *aliases}))
 
     def _save(self) -> None:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import write_text_behind
+
         payload = {
             "preferences": self._preferences,
             "item_preferences": self.item_preferences(),
@@ -943,14 +944,15 @@ class SubjectiveChoiceEngine:
             "saved_at": time.time(),
         }
         try:
+            text = json.dumps(payload, indent=2, ensure_ascii=False)
             # Behind the loop when a choice is made on it: the arbiter chooses
             # inside an async synthesis, and this save's fsync held the event
             # loop for 5.5 s (live, 2026-09-19).
-            atomic_write_text_behind(
-                self._state_path,
-                json.dumps(payload, indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
+            with local_internal_governed_scope(
+                "subjective_choice.save", domain="state_mutation", receipt_prefix="subjective-choices",
+                constraints={"artifact": "aura.subjective_choices.v1", "operation": "replace"},
+            ):
+                write_text_behind(self._state_path, text, source="subjective_choice.save")
         except (OSError, TypeError, ValueError) as exc:
             record_degradation("subjective_choice_engine", exc, severity="debug")
 

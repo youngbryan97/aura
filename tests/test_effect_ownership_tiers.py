@@ -120,9 +120,11 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: The reviewed screen-highlight change removed its AppleScript subprocess.
 #: Its later display-list read removed the remaining Finder subprocess.
 #: Write-behind calls are counted; shared private state writes remove duplicate primitives.
-TOTAL_CEILING = 2044
+#: Empty tension and choice stores leave directory creation to their governed save.
+TOTAL_CEILING = 2042
 #: The document converter's private input uses a governed byte write.
-RAW_CEILING = 746
+#: The two agency constructors no longer create directories.
+RAW_CEILING = 744
 
 
 def _split() -> tuple[int, int]:

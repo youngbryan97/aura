@@ -122,8 +122,6 @@ class TensionEngine:
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
                 record_degradation('tension_engine', exc)
                 logger.warning("TensionEngine failed to load persisted tensions: %s", exc)
-        else:
-            self._persist_path.parent.mkdir(parents=True, exist_ok=True)
 
     def _save(self) -> None:
         from core.governance_context import local_internal_governed_scope
