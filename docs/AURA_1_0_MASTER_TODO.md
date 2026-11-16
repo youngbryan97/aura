@@ -609,6 +609,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-15: allostasis reports whether its ledger append
+    completed independently of the state snapshot. A failed snapshot
+    used to requeue events already appended and duplicate them on
+    retry. Each directory, ledger and snapshot operation now has a
+    fresh maintenance grant. Both regressions failed before the
+    repair. A failed directory or append still requeues the events.
+    All 161 allostasis tests passed. Smoke passed 164 tests with
+    one skip in 50.39 s and maximum RSS of 461,225,984 bytes. Lint,
+    compile, dependency drift, layering, governance, module size and
+    targeted writing passed. The module size budget fell by four lines.
+    Source: core/autonomic/allostasis.py.
+    Tests: tests/test_allostasis_state_durability.py.
   - [x] 2026-11-15: correct the mutex held across fsync in the deferred
     queue repair at 4d6426202. The strict flush regression failed on
     that revision. A condition now reserves one worker at a time and

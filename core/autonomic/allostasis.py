@@ -1022,33 +1022,30 @@ class AllostasisEngine:
         }
 
     async def _persist(self, events: list[dict[str, Any]], *, save_state: bool) -> bool:
-        """Write ledger events and (optionally) the state snapshot.
-
-        Returns True when the events reached the ledger. A False return means
-        the caller still owns those events and must requeue them: dropping
-        them silently is how issued/resolved/regime/tier history disappeared.
-        """
+        """Return whether the ledger append completed, independently of the snapshot."""
         if not events and not save_state:
             return True
+        events_written = not events
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
             gateway = get_file_write_gateway()
-            with local_internal_governed_scope("allostasis.ledger", domain="file_write"):
-                if not self._dir_ready:
+            if not self._dir_ready:
+                with local_internal_governed_scope("allostasis.ledger", domain="file_write"):
                     await gateway.ensure_directory_async(self._dir, source="core.autonomic.allostasis")
-                    self._dir_ready = True
-                events_written = not events
-                if events:
-                    lines = "".join(json.dumps(e, sort_keys=True, default=str) + "\n" for e in events)
+                self._dir_ready = True
+            if events:
+                lines = "".join(json.dumps(e, sort_keys=True, default=str) + "\n" for e in events)
+                with local_internal_governed_scope("allostasis.ledger", domain="file_write"):
                     await gateway.append_text_async(
                         self._events_path, lines, source="allostasis_forecast_ledger",
                     )
-                    events_written = True
-                if save_state:
-                    with self._lock:
-                        payload = self._state_payload()
+                events_written = True
+            if save_state:
+                with self._lock:
+                    payload = self._state_payload()
+                with local_internal_governed_scope("allostasis.ledger", domain="file_write"):
                     await gateway.write_json_async(
                         self._state_path, payload,
                         schema_version=_STATE_SCHEMA_VERSION,
@@ -1056,8 +1053,7 @@ class AllostasisEngine:
                         source="allostasis_state_snapshot",
                     )
         except _BOUNDARY_ERRORS as exc:
-            record_degradation(_SUBSYSTEM, exc, action="allostasis ledger write skipped this pulse")
-            return False
+            record_degradation(_SUBSYSTEM, exc, action="allostasis persistence failed this pulse")
         return events_written
 
     # ── ingestion ───────────────────────────────────────────────────────────

@@ -33,12 +33,26 @@ def _engine(tmp_path, now_fn=None, **kwargs) -> AllostasisEngine:
 
 
 class TestLedgerEventsSurviveAFailedWrite:
-    def test_failed_persist_requeues_events(self, tmp_path):
+    @pytest.mark.parametrize("operation", ["ensure_directory_async", "append_text_async"])
+    def test_failed_persist_requeues_events(self, tmp_path, monkeypatch, operation):
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         engine = _engine(tmp_path)
         events = [{"kind": "issued", "forecast_id": "fc-1"}]
         engine._pending_events = []
-        engine._requeue_unpersisted(events)
+        gateway = get_file_write_gateway()
+        method = getattr(gateway, operation)
+
+        async def broken_write(*args, **kwargs):
+            raise OSError("fixture write refused")
+
+        monkeypatch.setattr(gateway, operation, broken_write)
+        if not asyncio.run(engine._persist(events, save_state=False)):
+            engine._requeue_unpersisted(events)
         assert engine._pending_events == events
+        monkeypatch.setattr(gateway, operation, method)
+        assert asyncio.run(engine._persist(engine._pending_events, save_state=False))
+        assert len(engine._events_path.read_text().splitlines()) == 1
 
     def test_requeue_puts_events_back_in_order(self, tmp_path):
         engine = _engine(tmp_path)
@@ -66,6 +80,60 @@ class TestLedgerEventsSurviveAFailedWrite:
         engine = _engine(tmp_path)
         # Nothing to do is a successful no-op, not a failure that requeues.
         assert asyncio.run(engine._persist([], save_state=False)) is True
+
+    def test_a_failed_snapshot_does_not_requeue_events_already_appended(self, tmp_path, monkeypatch):
+        import json
+
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        engine = _engine(tmp_path)
+        events = [{"kind": "issued", "forecast_id": "fc-1"}]
+        gateway = get_file_write_gateway()
+        write_json = gateway.write_json_async
+        faults = []
+        monkeypatch.setattr(allostasis, "record_degradation", lambda *args, **kwargs: faults.append(kwargs["action"]))
+
+        async def broken_snapshot(*args, **kwargs):
+            raise OSError("snapshot temporarily unwritable")
+
+        async def scenario():
+            monkeypatch.setattr(gateway, "write_json_async", broken_snapshot)
+            if not await engine._persist(events, save_state=True):
+                engine._requeue_unpersisted(events)
+            monkeypatch.setattr(gateway, "write_json_async", write_json)
+            retried, engine._pending_events = engine._pending_events, []
+            assert await engine._persist(retried, save_state=True)
+
+        asyncio.run(scenario())
+        assert [json.loads(line) for line in engine._events_path.read_text().splitlines()] == events
+        assert faults and engine._state_path.is_file()
+
+    def test_each_persistence_operation_has_a_fresh_grant(self, tmp_path, monkeypatch):
+        from core.governance_context import get_active_governance
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        engine = _engine(tmp_path)
+        gateway = get_file_write_gateway()
+        grants = []
+        monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+
+        for method in ("ensure_directory_async", "append_text_async", "write_json_async"):
+            original = getattr(gateway, method)
+
+            def wrap(operation):
+                async def run(*args, **kwargs):
+                    token = get_active_governance()
+                    assert token is not None and token.domain == "file_write"
+                    grants.append(token.lease_id)
+                    result = await operation(*args, **kwargs)
+                    token.mono_timestamp -= token.ttl + 1
+                    return result
+                return run
+
+            monkeypatch.setattr(gateway, method, wrap(original))
+
+        assert asyncio.run(engine._persist([{"kind": "issued", "forecast_id": "fc-2"}], save_state=True))
+        assert len(set(grants)) == 3 and engine._state_path.is_file()
 
 
 class TestPersistedStrainIsRestored:
