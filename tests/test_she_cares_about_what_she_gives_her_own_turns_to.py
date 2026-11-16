@@ -92,6 +92,39 @@ def test_the_share_is_the_least_the_counts_allow():
 # ── who put a subject there ─────────────────────────────────────────
 
 
+def _summed_upper_tail(k: int, n: int, chance: float) -> float:
+    """The binomial upper tail as it was computed before 16 November 2026, term by term."""
+    import math
+
+    return min(1.0, sum(
+        math.exp(math.lgamma(n + 1) - math.lgamma(j + 1) - math.lgamma(n - j + 1)
+                 + j * math.log(chance) + (n - j) * math.log(1.0 - chance))
+        for j in range(k, n + 1)))
+
+
+@pytest.mark.parametrize(("k", "n"), [(1, 2), (1, 50), (3, 40), (12, 40), (40, 40), (3, 4000), (40, 4000)])
+def test_the_least_share_is_the_bound_the_summed_tail_gave(k, n):
+    """The same Clopper-Pearson bound, read as a beta quantile in one call.
+
+    LIVE 16 November 2026, 01:08: at four thousand turns one bound took 118 ms by the summed tail, her appraisal read
+    hundreds of them on the event loop, and the loop stood still 7.0 s.
+    """
+    from core.conation.what_she_cares_about import _WRONG, _upper_tail
+
+    low = _at_least(k, n)
+
+    assert _summed_upper_tail(k, n, low) == pytest.approx(_WRONG, rel=1e-6)
+    for chance in (0.001, 0.05, 0.5, 0.9):
+        assert _upper_tail(k, n, chance) == pytest.approx(_summed_upper_tail(k, n, chance), rel=1e-9, abs=1e-15)
+
+
+def test_a_bound_over_a_long_life_is_read_at_once():
+    """A million turns given: the summed tail would add a million terms 48 times over for each thing."""
+    low = _at_least(3, 1_000_000)
+
+    assert 0.0 < low < 3 / 1_000_000
+
+
 def test_a_subject_the_other_named_was_brought_and_one_only_she_named_she_gave():
     care = _care()
     read = care.exchange([HERON, REEDS], theirs=[HERON])

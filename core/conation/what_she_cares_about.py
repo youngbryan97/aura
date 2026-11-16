@@ -78,7 +78,13 @@ MAX_CARED = 4096
 
 
 def _upper_tail(k: int, n: int, chance: float) -> float:
-    """The chance of at least `k` of `n` when each lands with `chance`."""
+    """The chance of at least `k` of `n` when each lands with `chance`.
+
+    The binomial upper tail is the regularized incomplete beta function, I_chance(k, n - k + 1), read in one call.
+    It was summed term by term over n - k + 1 terms. LIVE 16 November 2026, 01:08, her appraisal on the event loop
+    read her stakes, each stake bisected 48 times over that sum, and at four thousand turns given one bound took
+    118 ms: the loop stood still 7.0 s (stall_1794820112).
+    """
     if k <= 0:
         return 1.0
     if n <= 0 or k > n:
@@ -87,31 +93,25 @@ def _upper_tail(k: int, n: int, chance: float) -> float:
         return 0.0
     if chance >= 1.0:
         return 1.0
-    return min(1.0, sum(
-        math.exp(
-            math.lgamma(n + 1) - math.lgamma(j + 1) - math.lgamma(n - j + 1)
-            + j * math.log(chance) + (n - j) * math.log(1.0 - chance)
-        )
-        for j in range(k, n + 1)
-    ))
+    from scipy.special import betainc
+
+    return min(1.0, max(0.0, float(betainc(k, n - k + 1, chance))))
 
 
 def _at_least(k: int, n: int) -> float:
     """The smallest part `k` of `n` could be a sample of, at the level above.
 
     The exact lower bound: the part at which seeing this many or more has
-    just the chance she allows herself of being wrong.
+    just the chance she allows herself of being wrong. That is the
+    Clopper-Pearson bound, the `_WRONG` quantile of Beta(k, n - k + 1).
     """
     if k <= 0 or n <= 0:
         return 0.0
-    low, high = 0.0, k / n
-    for _ in range(48):
-        middle = (low + high) / 2.0
-        if _upper_tail(k, n, middle) < _WRONG:
-            low = middle
-        else:
-            high = middle
-    return low
+    if k >= n:
+        return _WRONG ** (1.0 / n)
+    from scipy.special import betaincinv
+
+    return min(k / n, max(0.0, float(betaincinv(k, n - k + 1, _WRONG))))
 
 
 @dataclass

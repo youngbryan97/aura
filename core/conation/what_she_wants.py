@@ -170,14 +170,13 @@ def _two_sided(above: int, of: int, chance: float) -> float:
     if of <= 0 or not 0.0 < chance < 1.0:
         return 1.0
 
-    def mass(k: int) -> float:
-        return math.exp(
-            math.lgamma(of + 1) - math.lgamma(k + 1) - math.lgamma(of - k + 1)
-            + k * math.log(chance) + (of - k) * math.log(1.0 - chance)
-        )
+    from scipy.special import bdtr, bdtrc
 
-    below = sum(mass(k) for k in range(0, above + 1))
-    over = sum(mass(k) for k in range(above, of + 1))
+    # The two binomial tails, read in one call each (scipy.special: bdtr is P(X <= k), bdtrc is P(X > k)). They were
+    # summed term by term; at four thousand turns that cost her event loop 7.0 s on 16 November 2026 in
+    # core/conation/what_she_cares_about.py, where the same sums were read.
+    below = float(bdtr(above, of, chance))
+    over = float(bdtrc(above - 1, of, chance)) if above > 0 else 1.0
     return min(1.0, 2.0 * min(below, over))
 
 

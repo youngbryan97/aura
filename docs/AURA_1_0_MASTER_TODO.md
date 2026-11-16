@@ -623,6 +623,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     raw debt remains 747. Eight effect-ownership checks passed
     after the integration correction.
     Source: core/conversation/attachments.py.
+  - [x] 2026-11-16: her loop stood still 7.0 s at 01:08 local
+    (stall_1794820112). The loop thread was in her appraisal, reading
+    her stakes in what she cares about. Each stake bisected 48 times
+    over a binomial tail summed term by term. At 4,000 turns given,
+    one bound took 118 ms, and the appraisal read hundreds. The bound
+    is now one beta quantile (scipy betaincinv), and the tail is one
+    incomplete beta. One bound takes 0.0014 ms. The same sums in
+    what_she_wants and what_she_is_like are scipy's binomial tails
+    too. Both match the old sums to a relative 5.2e-13. The 256 tests
+    that touch the three modules pass.
+    Source: core/conation/what_she_cares_about.py.
     Tests: tests/test_files_attached_to_a_message_are_read_into_the_turn.py.
   - [x] 2026-11-15: a draft edit gets a fresh file-write grant
     after directory setup. Under enforcement, expiring the directory

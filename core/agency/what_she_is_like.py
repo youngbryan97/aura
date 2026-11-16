@@ -21,7 +21,6 @@ said too, because it is as much a fact about her as a steady trait would be.
 
 from __future__ import annotations
 
-import math
 import re
 import time
 from collections import Counter
@@ -105,14 +104,13 @@ def _two_sided(chosen: int, offered: int, chance: float) -> float:
     if offered <= 0 or not 0.0 < chance < 1.0:
         return 1.0
 
-    def mass(k: int) -> float:
-        return math.exp(
-            math.lgamma(offered + 1) - math.lgamma(k + 1) - math.lgamma(offered - k + 1)
-            + k * math.log(chance) + (offered - k) * math.log(1.0 - chance)
-        )
+    from scipy.special import bdtr, bdtrc
 
-    below = sum(mass(k) for k in range(0, chosen + 1))
-    above = sum(mass(k) for k in range(chosen, offered + 1))
+    # The two binomial tails, read in one call each (scipy.special: bdtr is P(X <= k), bdtrc is P(X > k)). They were
+    # summed term by term; at four thousand turns that cost her event loop 7.0 s on 16 November 2026 in
+    # core/conation/what_she_cares_about.py, where the same sums were read.
+    below = float(bdtr(chosen, offered, chance))
+    above = float(bdtrc(chosen - 1, offered, chance)) if chosen > 0 else 1.0
     return min(1.0, 2.0 * min(below, above))
 
 
