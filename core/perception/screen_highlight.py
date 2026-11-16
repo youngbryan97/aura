@@ -281,7 +281,9 @@ async def highlight(
 
     import asyncio
 
+    looked = time.monotonic()
     rect = await asyncio.to_thread(locate_on_screen, needle)  # a walk of the window's tree, off her event loop
+    logger.info("🖍️ %r located %s in %.2fs", needle, "at " + str(rect) if rect else "nowhere", time.monotonic() - looked)
     if rect is None:
         return HighlightResult(
             shown=False,
@@ -357,7 +359,9 @@ async def point_as_asked(objective: str) -> dict[str, Any] | None:
     needle = asks_to_be_shown_where(objective)
     if not needle:
         return None
+    began = time.monotonic()
     result = await highlight(needle, requested=True)
+    logger.info("🖍️ asked to point at %r: %s in %.2fs", needle, result.reason, time.monotonic() - began)
     where = result.to_dict().get("rect") or {}
     evidence = (f"drew a rectangle around {needle!r} at x {where.get('x')}, y {where.get('y')}, "
                 f"{where.get('width')} by {where.get('height')}" if result.shown else result.reason)

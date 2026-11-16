@@ -5263,6 +5263,7 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
 
         # Pointed at only where nothing else is asked: "Change my wallpaper to a squid, and show me where you found it"
         # is a wallpaper to change, and "highlight it and then click it" a click.
+        logger.info("🖍️ desktop task reached its plan for %r", objective[:80])
         acts = getattr(params, "steps", None) or self._objective_needs_general_os_automation(objective) or any(
             getattr(step, "action", "") not in _LOOKING_ACTIONS
             for step in self._derive_steps_from_objective(objective, dict(context or {})) or ())
