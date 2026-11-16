@@ -22,6 +22,7 @@ again. It deliberately does NOT relax any gate:
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -35,6 +36,7 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.flags import FlagKind, declare
+from core.runtime.lockdep import checked_async_lock, checked_lock
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.DeferredRetention")
@@ -153,6 +155,8 @@ class DeferredRetentionQueue:
             if queue_path is not None
             else _default_queue_path()
         )
+        self._write_lock = checked_lock("deferred_retention.file_update")
+        self._replay_lock = checked_async_lock("deferred_retention.replay")
 
     @property
     def path(self) -> Path:
@@ -160,12 +164,14 @@ class DeferredRetentionQueue:
 
     # ── read/write ────────────────────────────────────────────────────────
 
-    def _load(self) -> list[dict[str, Any]]:
-        if not self._queue_path.exists():
-            return []
+    def _load(self, *, strict: bool = False) -> list[dict[str, Any]]:
         try:
             raw = self._queue_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return []
         except OSError as exc:
+            if strict:
+                raise
             record_degradation(
                 "deferred_retention", exc, severity="warning",
                 action="deferred memory writes could not be read back",
@@ -198,18 +204,27 @@ class DeferredRetentionQueue:
         with local_internal_governed_scope("deferred_retention_queue"):
             gateway.write_text(self._queue_path, payload, source=_WRITE_SOURCE)
 
-    async def _store_async(self, entries: list[dict[str, Any]]) -> None:
-        gateway = get_file_write_gateway()
-        payload = self._prepare(entries)
-        with local_internal_governed_scope("deferred_retention_queue"):
-            await gateway.ensure_directory_async(
-                self._queue_path.parent, source=_WRITE_SOURCE
-            )
-        # Directory I/O can outlast its grant. Issue the write's grant here.
-        with local_internal_governed_scope("deferred_retention_queue"):
-            await gateway.write_text_async(
-                self._queue_path, payload, source=_WRITE_SOURCE
-            )
+    @staticmethod
+    def _entry_version(entry: Mapping[str, Any]) -> tuple[str, str]:
+        # The same text can be queued again after the old entry ages out.
+        return str(entry.get("hash") or entry.get("text")), str(entry.get("queued_at"))
+
+    def _apply_replay(
+        self, retried: set[tuple[str, str]], waiting: list[dict[str, Any]]
+    ) -> int:
+        updates = {self._entry_version(entry): entry for entry in waiting}
+        with self._write_lock:
+            # A new write can arrive while the memory facade decides.
+            current = self._load(strict=True)
+            kept = []
+            for entry in current:
+                version = self._entry_version(entry)
+                if version not in retried:
+                    kept.append(entry)
+                elif version in updates:
+                    kept.append(updates[version])
+            self._store(kept)
+            return min(len(kept), MAX_ENTRIES)
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -270,10 +285,11 @@ class DeferredRetentionQueue:
         if entry is None:
             return False
         try:
-            merged = self._merge(self._load(), entry)
-            if merged is None:
-                return True  # already waiting; holding it twice helps nobody
-            self._store(merged)
+            with self._write_lock:
+                merged = self._merge(self._load(strict=True), entry)
+                if merged is None:
+                    return True  # already waiting; holding it twice helps nobody
+                self._store(merged)
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "deferred_retention", exc, severity="warning",
@@ -295,31 +311,17 @@ class DeferredRetentionQueue:
         reason: Any,
         origin: str = "unknown",
     ) -> bool:
-        entry = self._build_entry(text, metadata, reason=reason, origin=origin)
-        if entry is None:
-            return False
-        try:
-            merged = self._merge(self._load(), entry)
-            if merged is None:
-                return True
-            await self._store_async(merged)
-        except (OSError, RuntimeError, TypeError, ValueError) as exc:
-            record_degradation(
-                "deferred_retention", exc, severity="warning",
-                action="a deferred memory write could not be held for retry",
-                extra={"origin": origin},
-            )
-            return False
-        logger.info(
-            "Holding a deferred memory write from %s for retry (%s).",
-            origin, entry["reason"],
+        return await asyncio.to_thread(
+            self.enqueue, text, metadata, reason=reason, origin=origin,
         )
-        return True
 
     async def replay(self, memory_facade: Any = None) -> ReplayReport:
         """Retry every held write once. The gate still decides each one."""
+        async with self._replay_lock:
+            return await self._replay_once(memory_facade)
 
-        entries = self._load()
+    async def _replay_once(self, memory_facade: Any) -> ReplayReport:
+        entries = await asyncio.to_thread(self._load)
         if not entries:
             return ReplayReport()
 
@@ -333,6 +335,7 @@ class DeferredRetentionQueue:
         now = time.time()
         committed = still_deferred = refused = expired = 0
         remaining: list[dict[str, Any]] = []
+        retried = {self._entry_version(entry) for entry in entries}
 
         for entry in entries:
             age = now - float(entry.get("queued_at") or now)
@@ -362,8 +365,9 @@ class DeferredRetentionQueue:
                     entry.get("origin"), reason,
                 )
 
+        remaining_count = len(remaining)
         try:
-            await self._store_async(remaining)
+            remaining_count = await asyncio.to_thread(self._apply_replay, retried, remaining)
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "deferred_retention", exc, severity="warning",
@@ -375,7 +379,7 @@ class DeferredRetentionQueue:
             still_deferred=still_deferred,
             refused=refused,
             expired=expired,
-            remaining=len(remaining),
+            remaining=remaining_count,
         )
         if committed or refused or expired:
             logger.info("Deferred-retention replay: %s.", report.narrative())

@@ -113,7 +113,9 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: The halting-head save also replaces an eager mkdir with a gateway write.
 #: Raw 749, total still 2,054.
 #: Saving capability meanings replaces two raw calls with one gateway write.
-TOTAL_CEILING = 2053
+#: Deferred retention routes both entry points through its worker's writer.
+#: Two duplicate gateway calls came out.
+TOTAL_CEILING = 2051
 RAW_CEILING = 747
 
 

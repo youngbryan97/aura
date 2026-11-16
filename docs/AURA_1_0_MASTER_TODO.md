@@ -609,6 +609,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-15: deferred retention moves queue I/O off the event
+    loop and preserves entries saved while replay is waiting. Replay
+    previously replaced the whole queue from its old snapshot. It now
+    applies its outcomes to the current queue under the same lock used
+    for enqueue. A failed read leaves the existing file in place.
+    The lost-entry and loop-read regressions failed before the repair.
+    Forty-five queue, effect ownership and async write tests passed.
+    Two duplicate gateway calls came out, leaving 2,051 total and
+    747 raw migration calls. The first smoke and aggregate source
+    runs reached their 240 s limits. On separate runs, the same smoke
+    selection in file order passed 164 tests with one skip in 153.21 s
+    at 472,449,024 bytes maximum RSS, and module size passed. Lint,
+    compile, dependency drift, layering, governance and targeted
+    writing passed.
+    Source: core/memory/deferred_retention.py.
+    Tests: tests/test_deferred_retention.py.
   - [x] 2026-11-15: deferred retention gives the queue write its own
     governance grant after directory I/O. Aging only the directory
     grant in a fixture made the old writer refuse a valid entry under

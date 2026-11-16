@@ -5233,22 +5233,6 @@
       "scope": "<module>.DeferredRetentionQueue._store"
     },
     {
-      "callee": "<file_write_gateway>.ensure_directory_async",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/memory/deferred_retention.py",
-      "scope": "<module>.DeferredRetentionQueue._store_async"
-    },
-    {
-      "callee": "<file_write_gateway>.write_text_async",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/memory/deferred_retention.py",
-      "scope": "<module>.DeferredRetentionQueue._store_async"
-    },
-    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -17490,6 +17474,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "0551979f133efb15949e1b5faa1177781dc46fc13a24279dad53e43f7f7c2342",
+  "inventory_sha256": "0fa0565cfe12d700933252cd204a3dd3f5d24deb16be55bf9829a368183c640c",
   "schema_version": 1
 }

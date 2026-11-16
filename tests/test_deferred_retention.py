@@ -110,6 +110,23 @@ class TestHoldingDeferredWork:
             handle.write("{not json\n")
         assert len(queue.pending()) == 1
 
+    def test_an_unreadable_queue_is_not_replaced_with_one_entry(self, queue, monkeypatch):
+        from pathlib import Path
+
+        assert queue.enqueue("original result", reason="aura_now_defer")
+        previous = queue.path.read_bytes()
+        read_text = Path.read_text
+
+        def cannot_read_queue(path, *args, **kwargs):
+            if path == queue.path:
+                raise PermissionError("queue temporarily unreadable")
+            return read_text(path, *args, **kwargs)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(Path, "read_text", cannot_read_queue)
+            assert not queue.enqueue("new result", reason="aura_now_defer")
+        assert queue.path.read_bytes() == previous
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("async_write", [False, True])
     async def test_directory_setup_can_outlive_its_grant(self, queue, monkeypatch, async_write):
@@ -127,25 +144,17 @@ class TestHoldingDeferredWork:
             assert token.expired
             expired.append(token.lease_id)
 
+        ensure = gateway.ensure_directory
+
+        def ensure_then_expire(*args, **kwargs):
+            result = ensure(*args, **kwargs)
+            expire_directory_grant()
+            return result
+
+        monkeypatch.setattr(gateway, "ensure_directory", ensure_then_expire)
         if async_write:
-            ensure = gateway.ensure_directory_async
-
-            async def ensure_async_then_expire(*args, **kwargs):
-                result = await ensure(*args, **kwargs)
-                expire_directory_grant()
-                return result
-
-            monkeypatch.setattr(gateway, "ensure_directory_async", ensure_async_then_expire)
             held = await queue.enqueue_async("held across a slow directory setup", reason="aura_now_defer")
         else:
-            ensure = gateway.ensure_directory
-
-            def ensure_then_expire(*args, **kwargs):
-                result = ensure(*args, **kwargs)
-                expire_directory_grant()
-                return result
-
-            monkeypatch.setattr(gateway, "ensure_directory", ensure_then_expire)
             held = await asyncio.to_thread(queue.enqueue, "held across a slow directory setup", reason="aura_now_defer")
 
         assert held and len(expired) == 1
@@ -154,6 +163,49 @@ class TestHoldingDeferredWork:
 
 
 class TestReplay:
+    @pytest.mark.asyncio
+    async def test_a_write_that_arrives_during_replay_is_retained(self, queue):
+        assert await queue.enqueue_async("first result", reason="aura_now_defer")
+        retry_started = asyncio.Event()
+        finish_retry = asyncio.Event()
+
+        class Facade:
+            async def add_memory(self, text, metadata=None):
+                assert text == "first result"
+                retry_started.set()
+                await finish_retry.wait()
+                return True
+
+        replay = asyncio.create_task(queue.replay(Facade()))
+        try:
+            await asyncio.wait_for(retry_started.wait(), timeout=5)
+            assert await queue.enqueue_async("new result", reason="aura_now_defer")
+        finally:
+            finish_retry.set()
+            report = await asyncio.wait_for(replay, timeout=5)
+
+        assert report.committed == 1 and report.remaining == 1
+        pending = await asyncio.to_thread(queue.pending)
+        assert [entry["text"] for entry in pending] == ["new result"]
+
+    @pytest.mark.asyncio
+    async def test_async_enqueue_and_replay_read_the_file_on_a_worker(self, queue, monkeypatch):
+        from threading import get_ident
+
+        loop_thread = get_ident()
+        load = queue._load
+        reads = []
+
+        def read(*args, **kwargs):
+            reads.append(get_ident())
+            return load(*args, **kwargs)
+
+        monkeypatch.setattr(queue, "_load", read)
+        assert await queue.enqueue_async("held work", reason="aura_now_defer")
+        report = await queue.replay(FakeFacade([True]))
+        assert report.committed == 1
+        assert reads and all(thread != loop_thread for thread in reads)
+
     @pytest.mark.asyncio
     async def test_work_deferred_once_lands_later(self, queue):
         queue.enqueue("hard-won research", {"source": "web_search"}, reason="aura_now_defer")
