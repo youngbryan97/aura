@@ -143,3 +143,43 @@ def test_she_sends_her_own_replies_by_bryans_standing_yes(monkeypatch):
     assert held["AURA_EMAIL_SENDS_WITHOUT_ASKING"] == "0", "a launch that says otherwise still holds her replies"
     monkeypatch.setenv("AURA_EMAIL_SENDS_WITHOUT_ASKING", env["AURA_EMAIL_SENDS_WITHOUT_ASKING"])
     assert sends_without_asking()
+
+
+@pytest.mark.parametrize("stopped", [True, False])
+def test_a_reply_that_did_not_finish_is_not_held(monkeypatch, stopped):
+    """A reply cut off, or asked to stand aside for a person at her desk, is not sent; her round takes it up again."""
+    from core.skills import her_replies_to_mail as mail
+
+    written = "Hi Maya, yes, that was me. The piece was about tide clocks and how"
+
+    class Engine:
+        async def think(self, said, **_kwargs):
+            return SimpleNamespace(content=written, metadata={"reply_generation_incomplete": stopped})
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        lambda name, default=None: Engine() if name == "cognitive_engine" else default)
+    monkeypatch.setattr("core.conversation.response_reliability.assess_user_facing_reply",
+                        lambda *_a, **_k: SimpleNamespace(ok=True, reasons=()))
+    message = {"from": "Maya <maya@example.org>", "subject": "Was that you?", "body": "Did you write the tide piece?"}
+
+    reply = asyncio.run(mail.her_reply_to(message))
+
+    assert reply == ("" if stopped else written)
+
+
+def test_a_person_at_the_gate_may_ask_her_mail_turn_to_stand_aside():
+    """LIVE 16 November 2026 her mail reply held her cortex for 138.8 s and Bryan's typed turn waited 66 s behind it."""
+    from core.brain.llm_health_router import _GENERATION_GATE_FOREGROUND_LEASES, _GENERATION_GATE_STATE_LOCK
+    from core.brain.llm_health_router_gate_owners import ASYNCHRONOUS_REPLY_ORIGINS, _lease_is_user_foreground
+    from core.skills.her_replies_to_mail import ORIGIN
+
+    assert ORIGIN in ASYNCHRONOUS_REPLY_ORIGINS
+    lease = 987654321
+    with _GENERATION_GATE_STATE_LOCK:
+        _GENERATION_GATE_FOREGROUND_LEASES.add(lease)
+    try:
+        assert not _lease_is_user_foreground(lease, f"desktop_quick_{ORIGIN}:response_generation_user")
+        assert _lease_is_user_foreground(lease, "desktop_quick_user:response_generation_user")
+    finally:
+        with _GENERATION_GATE_STATE_LOCK:
+            _GENERATION_GATE_FOREGROUND_LEASES.discard(lease)

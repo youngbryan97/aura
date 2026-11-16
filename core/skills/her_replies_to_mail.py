@@ -128,6 +128,12 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
     principal = _owner_principal() if message.get("from_owner") else ""
     with relational_principal_scope(principal) if principal else contextlib.nullcontext():
         thought = await engine.think(said, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
+    metadata = getattr(thought, "metadata", None)
+    if isinstance(metadata, dict) and metadata.get("reply_generation_incomplete"):
+        # Cut off, or asked to stand aside for a person at her desk: a reply that did not finish is not sent, and her
+        # round takes the message up again.
+        logger.info("📧 Her reply to %s about %r did not finish; not held.", message.get("from"), message.get("subject"))
+        return ""
     reply = str(getattr(thought, "content", "") or "").strip()
     reply = _written_as_the_send(message, reply) or reply
     if not reply:

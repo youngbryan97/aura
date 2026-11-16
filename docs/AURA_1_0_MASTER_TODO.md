@@ -2194,6 +2194,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   item's to do. What would remove the waste without touching a memory
   bound is a continuation that resumes the cut draft exactly, without
   reading the prompt again; the third pass that day missed the cache.
+  Why that turn waited behind her mail: her reply to a mail is admitted at
+  the gate as a reply, since a person wrote it, so the ladder that asks
+  background work to stand aside for a person's turn did not ask it. Nobody
+  waits on a mail reply while it is written, and her mail round already
+  takes up again a message it did not answer. A lease whose owner is her
+  mail reply is now not counted as someone's reply in front of the gate,
+  so a person's turn may ask it to stand aside. A reply that did not
+  finish, because it was asked to or because it ran out of room, is not
+  held or sent; before this, a mail reply cut mid-sentence went out
+  whenever the reply check passed it.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source

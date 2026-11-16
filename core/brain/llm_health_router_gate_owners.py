@@ -247,14 +247,23 @@ def _generation_owner_is_user_foreground(owner: str) -> bool:
     )
 
 
+#: Origins of replies nobody waits on while they are written: her mail (core/skills/her_replies_to_mail.py). A person's
+#: turn at the gate may ask one to stand aside, and her mail round takes the message up again.
+ASYNCHRONOUS_REPLY_ORIGINS: tuple[str, ...] = ("desktop_email_reply",)
+
+
 def _lease_is_user_foreground(lease_id: int, owner: str) -> bool:
-    """Whether a lease holds someone's reply: as it was admitted, or as its owner reads.
+    """Whether a lease holds the reply of someone waiting for it: as it was admitted, or as its owner reads.
 
     Advisory work in a turn is admitted as foreground and is still not the
     reply. LIVE 27 Sep, the reports ground: the subtext pass held the gate
     after its phase had timed out, and the rating question's reply waited
-    75s behind it and was refused as saturated on 11 of 96 arms.
+    75s behind it and was refused as saturated on 11 of 96 arms. Nor is her
+    reply to a mail: LIVE 16 November 2026 it held her cortex for 138.8 s,
+    and Bryan's typed turn waited 66 s behind it.
     """
+    if any(origin in str(owner or "").lower() for origin in ASYNCHRONOUS_REPLY_ORIGINS):
+        return False
     from .llm_health_router import (
         _ADVISORY_PURPOSES,
         _GENERATION_GATE_FOREGROUND_LEASES,
