@@ -25,6 +25,6 @@ def test_the_drill_runs_only_when_armed(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(loop_drill, "armed_at", lambda: tmp_path / "loop_drill.armed")
     assert loop_drill.run_the_drill_if_armed() is False
     (tmp_path / "loop_drill.armed").write_text("")
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.INFO, logger="Aura.SelfModification.Drill"):
         ran = loop_drill.run_the_drill_if_armed()
     assert ran is True or "no longer raises" in caplog.text
