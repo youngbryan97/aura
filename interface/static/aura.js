@@ -1565,8 +1565,21 @@ function conversationEntriesToMessages(entries) {
         if (typeof answered === 'string' && answered.trim()) {
             out.push({ role: 'aura', text: answered, metadata: withEntryTimestamp(entry.metadata, entry) });
         }
+        // What she said after it without being asked (her remarks in the bubble), each under an id of its own.
+        saidAfter(entry).forEach((words, nth) => {
+            const metadata = withEntryTimestamp({}, entry);
+            if (entry.id) metadata.historyTurnId = `${entry.id}:after:${nth + 1}`;
+            out.push({ role: 'aura', text: words, metadata });
+        });
     }
     return out;
+}
+
+// An exchange's remarks, as words: from disk they are words, from memory {words, at, origin}.
+function saidAfter(entry) {
+    return (Array.isArray(entry.said_after) ? entry.said_after : [])
+        .map(item => String((item && typeof item === 'object') ? (item.words || '') : (item || '')).trim())
+        .filter(Boolean);
 }
 
 // The lane-status text the shell ships in index.html before any verified

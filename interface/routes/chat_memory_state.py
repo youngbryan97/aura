@@ -1652,15 +1652,30 @@ async def _keep_what_she_said_unasked(words: str, origin: str, at: float) -> boo
             ),
             None,
         )
-        if target is None:
+        if target is not None:
+            said_after = target.setdefault("said_after", [])
+            said_after.append({"words": words, "at": float(at), "origin": origin})
+            nth = len(said_after)
+            exchange_id = str(target.get("id") or "")[:64]
+            session_id = str(target.get("session_id") or "")[:64]
+            principal_id = str(target.get("principal_id") or "")
+            principal_surface = str(target.get("principal_surface") or "")
+    if target is None:
+        # Nothing is in memory after a restart until someone takes a turn; the last exchange on disk is where her
+        # window shows what follows it. LIVE 16 November 2026, 08:32 local: "said unasked, and no conversation kept
+        # it", and the companion panel opened on nothing. Read as the owner, whose desk it is.
+        surface_token = _CHAT_REQUEST_SURFACE.set("owner")
+        try:
+            durable = await _load_durable_conversation_exchanges(limit=1)
+        finally:
+            _CHAT_REQUEST_SURFACE.reset(surface_token)
+        if not durable:
             return False
-        said_after = target.setdefault("said_after", [])
-        said_after.append({"words": words, "at": float(at), "origin": origin})
-        nth = len(said_after)
-        exchange_id = str(target.get("id") or "")[:64]
-        session_id = str(target.get("session_id") or "")[:64]
-        principal_id = str(target.get("principal_id") or "")
-        principal_surface = str(target.get("principal_surface") or "")
+        last = durable[-1]
+        nth = len(list(last.get("said_after") or [])) + 1
+        exchange_id = str(last.get("exchange_id") or "")[:64]
+        session_id = str(last.get("session_id") or "")[:64]
+        principal_id = principal_surface = ""
     persistence = ServiceContainer.get("persistence", default=None)
     record_turn = getattr(persistence, "record_turn", None)
     if exchange_id and callable(record_turn):

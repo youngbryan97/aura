@@ -339,13 +339,41 @@
   // If she had something queued in the bubble, it is the reason this window
   // was opened. Show it as her first line and clear it, so the thing that
   // prompted the click is not lost behind an empty transcript.
+  // The conversation so far, as much of it as her window shows, so what was said here and what she said in the
+  // bubble is still here when the panel opens again. It opened on nothing: reported live 16 November 2026, "the
+  // messages dont stick in the panel".
+  const shown = new Set();
+
+  async function restoreConversation() {
+    const payload = await fetch("/api/ui/bootstrap", { cache: "no-store" }).then((r) => r.json());
+    const recent = Array.isArray(payload?.conversation?.recent) ? payload.conversation.recent : [];
+    for (const entry of recent) {
+      if (!entry || typeof entry !== "object") continue;
+      if (typeof entry.user === "string" && entry.user.trim()) bubble(entry.user, "me");
+      if (typeof entry.aura === "string" && entry.aura.trim()) bubble(entry.aura, "her");
+      for (const item of Array.isArray(entry.said_after) ? entry.said_after : []) {
+        const words = String(item && typeof item === "object" ? item.words || "" : item || "").trim();
+        if (words) {
+          bubble(words, "her");
+          shown.add(words);
+        }
+      }
+    }
+  }
+
   (async () => {
+    try {
+      await restoreConversation();
+    } catch (error) {
+      /* the conversation could not be read; the panel starts empty */
+    }
     try {
       const state = await fetch("/api/ambient/state", { cache: "no-store" }).then((r) =>
         r.json()
       );
       if (state && state.has_utterance && state.utterance) {
-        bubble(String(state.utterance), "her");
+        // Already in the conversation it was kept in: shown once, not twice.
+        if (!shown.has(String(state.utterance).trim())) bubble(String(state.utterance), "her");
         await fetch("/api/ambient/clear", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -74,5 +74,7 @@ async def recent_ui_conversation(
             "timestamp": entry.get("timestamp", ""),
             "session_id": entry.get("session_id", ""),
             "status": "complete",
+            # What she said after it unasked: dropped here, her remarks never reached either window after a restart.
+            "said_after": [str(words) for words in list(entry.get("said_after") or []) if str(words).strip()],
         })
     return (restored + live)[-limit:]
