@@ -504,7 +504,9 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
             source=resolved_source,
             goal=f"execute_tool:{tool_name}",
             action_type=ActionType.TOOL_CALL,
-            payload={"tool_name": tool_name, "args": args},
+            # The origin as named: the source above is its class, and a rule that follows a standing grant of
+            # Bryan's needs the pass it names (_temporal_safe_autonomous_tool_constraints).
+            payload={"tool_name": tool_name, "args": args, "origin": str(source or "")},
             requires_tool=True,
         )
 
@@ -561,10 +563,16 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         # more work started. LIVE, day run 4 (9 November 2026): her journal's
         # open entry held every one of them ("temporal_obligation_active: You
         # are writing Aura's internal journal"), eight in an hour.
-        from core.executive.standing_authority import OWN_GOAL_TOOLS
+        from core.executive.standing_authority import MAIL_REPLY_TOOLS, OWN_GOAL_TOOLS, carries_bryans_standing_yes
 
         if tool_name in OWN_GOAL_TOOLS:
             return {"timeout_s": 600}
+        # A reply she has written, sent by her mail round under Bryan's standing yes, is work being finished too.
+        # LIVE 16 November 2026, 03:26 and 03:45 local: reply ffb62e8291 cleared every other gate and was deferred by
+        # whatever obligation was open ("verified internal task completion", "A quiet moment with nothing asked of
+        # you"). The budget is the one this rule gives the same tool's reads.
+        if tool_name in MAIL_REPLY_TOOLS and carries_bryans_standing_yes(intent.payload.get("origin"), tool_name):
+            return {"timeout_s": 45}
         if tool_name == "subconscious_sandbox_probe":
             args = intent.payload.get("args", {}) or {}
             valid, _reason = validate_idle_sandbox_probe_arguments(args)

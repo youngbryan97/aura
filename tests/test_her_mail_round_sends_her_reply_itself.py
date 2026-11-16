@@ -147,3 +147,17 @@ async def test_her_capability_engine_sends_her_reply_from_her_round_and_from_now
     assert from_her_round.get("ok") is True, from_her_round
     assert from_elsewhere.get("ok") is not True and something_new.get("ok") is not True
     assert sent == ["64"]
+
+
+def test_an_open_obligation_does_not_hold_her_written_reply():
+    """LIVE 16 November 2026, 03:26 and 03:45 local: past every other gate, the reply was deferred by whatever
+    obligation was open ("A quiet moment with nothing asked of you")."""
+    from core.executive.executive_core import ActionType, ExecutiveCore, Intent
+
+    def held(origin):
+        intent = Intent(goal="execute_tool:email_adapter", action_type=ActionType.TOOL_CALL,
+                        payload={"tool_name": "email_adapter", "args": dict(REPLY), "origin": origin})
+        return ExecutiveCore._temporal_safe_autonomous_tool_constraints(intent) is None
+
+    assert not held(MAIL_REPLY_ORIGIN)
+    assert held("autonomous_initiative_loop")
