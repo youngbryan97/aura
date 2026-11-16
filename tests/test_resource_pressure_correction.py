@@ -205,3 +205,38 @@ async def test_the_full_cleanup_takes_her_own_model_last_and_only_if_still_criti
     looks = iter([(True, 97.0, 60000.0)])
     await governor._critical_cleanup()
     assert killed == [20, 10]
+
+
+@pytest.mark.asyncio
+async def test_a_runaway_says_which_part_grew_and_what_each_worker_holds(monkeypatch, caplog):
+    """LIVE 16 November 2026, 07:23 local: "RUNAWAY [managed_rss_mb]: growing 26559.4/h now ... projected to breach
+    ceiling 49152 in 15min" refused her consequential work, settled four minutes later, and nothing said what had grown."""
+    from core.resilience import memory_governor
+
+    governor = MemoryGovernor(SimpleNamespace())
+    governor._reset_trend()
+    worker = _Process(111)
+    clock = [1_800_000_000.0]
+    monkeypatch.setattr(memory_governor, "time", SimpleNamespace(time=lambda: clock[0], monotonic=lambda: clock[0]))
+    monkeypatch.setitem(sys.modules, "core.brain.llm.mlx_client", SimpleNamespace(
+        _CLIENTS={}, clients_snapshot=lambda: [("/models/Aura-Qwen3.8-27B", _client(worker))]))
+    workers_mb = [38_000.0]
+    monkeypatch.setattr(governor, "_iter_managed_runtime_processes",
+                        lambda: iter([SimpleNamespace(info={"pid": 111})]))
+    monkeypatch.setattr(memory_governor, "process_memory_bytes", lambda pid: int(workers_mb[0] * 1024 * 1024))
+    governor._runaway.policy.ceiling = 49_152.0
+
+    verdicts = []
+    with caplog.at_level("CRITICAL", logger=memory_governor.logger.name):
+        for minute in range(30):
+            if minute >= 20:
+                workers_mb[0] += 500.0  # 30 GB an hour, in her workers; her own process holds still
+            verdicts.append(await governor._observe_trend(2_000.0, workers_mb[0]))
+            clock[0] += 60.0
+
+    assert any(verdict.is_runaway() for verdict in verdicts)
+    said = [record.getMessage() for record in caplog.records if "what grew" in record.getMessage()]
+    assert len(said) == 1, "said once, when the runaway is first called"
+    assert "her own process +0 MB" in said[0] and "Aura-Qwen3.8-27B" in said[0]
+    assert "her workers and other children +" in said[0] and "her workers and other children +0 MB" not in said[0]
+    governor._reset_trend()

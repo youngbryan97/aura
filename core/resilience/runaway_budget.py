@@ -178,6 +178,11 @@ class RunawayDetector:
         self._lock = threading.RLock()
         self._last_state = RunawayState.NOMINAL
 
+    @property
+    def max_samples(self) -> int:
+        """How many observations the window holds."""
+        return int(self._samples.maxlen or 0)
+
     # -- input ------------------------------------------------------------
     def observe(self, value: float, now: float | None = None) -> None:
         now = time.time() if now is None else now

@@ -282,6 +282,8 @@ def test_memory_governor_feeds_the_detector():
     from core.resilience.memory_governor import MemoryGovernor
 
     src = inspect.getsource(MemoryGovernor._enforce_policy)
+    assert "self._observe_trend(" in src
+    src = inspect.getsource(MemoryGovernor._observe_trend)
     assert "_runaway.observe" in src, (
         "MemoryGovernor does not feed RSS to the runaway detector — it can only "
         "see levels, never the trend"

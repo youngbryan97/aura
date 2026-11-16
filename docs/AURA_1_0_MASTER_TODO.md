@@ -1105,6 +1105,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  16 November, 07:23 local: a critical RUNAWAY on managed memory ("growing
+  26559.4/h now", breach in 15 min) refused her consequential work, and the
+  total settled four minutes later. Cause unknown: nothing said which process
+  grew, and the sentinel's ring keeps half an hour. A runaway now names it: her
+  own process and her workers apart, over the stretch the check judged, and
+  what each worker holds. Read the next one by that line.
   14 November, night, her app on main at 21:49: 17 warning-or-worse lines in
   11 kinds in the first minutes. Fixed by cause: lockdep's fsync on the event
   loop, the model-lane controller marking a reservation ready inside

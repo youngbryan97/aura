@@ -5,10 +5,11 @@ import os
 import sqlite3
 import sys
 import time
+from collections import deque
 from typing import Any
 
 from core.memory.physics import hawking_decay
-from core.resilience.runaway_budget import RunawayPolicy, get_runaway_budget
+from core.resilience.runaway_budget import RunawayPolicy, RunawayVerdict, get_runaway_budget
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import resolve_inference_gate
@@ -129,6 +130,9 @@ class MemoryGovernor:
         self._runaway = get_runaway_budget().detector(
             "managed_rss_mb", RunawayPolicy.for_memory_mb()
         )
+        # Beside each total the runaway check reads: (when, her own process, her workers and other children), in MB.
+        self._trend_parts: deque[tuple[float, float, float]] = deque(maxlen=self._runaway.max_samples)
+        self._called_runaway = False
 
     def health_snapshot(self) -> dict[str, Any]:
         """Return a compact operational view for health probes and dashboards."""
@@ -349,7 +353,7 @@ class MemoryGovernor:
         boundary = reported != previous_state or identity != self._model_allocation_identity
 
         if boundary:
-            self._runaway.reset()
+            self._reset_trend()
             self._model_resource_state = reported
             self._model_allocation_identity = identity
             if reported == "model_loading":
@@ -377,9 +381,57 @@ class MemoryGovernor:
         if provisional:
             # Keep allocation ramps out of the next steady-state epoch. Absolute
             # critical cleanup below remains active on the current measurement.
-            self._runaway.reset()
+            self._reset_trend()
         self._trend_provisional = provisional
         return state, provisional
+
+    def _reset_trend(self) -> None:
+        self._runaway.reset()
+        self._trend_parts.clear()
+        self._called_runaway = False
+
+    async def _observe_trend(self, core_mb: float, runtime_mb: float) -> RunawayVerdict:
+        """The runaway check's verdict on the managed total, with her own process and her workers kept apart beside it.
+
+        When it first calls a runaway, it says which of the two grew over the stretch the check judged and what each
+        worker holds. LIVE 16 November 2026, 07:23 local: "growing 26559.4/h now ... projected to breach ceiling 49152
+        in 15min" refused her consequential work, the total settled four minutes later, and nothing said what had grown;
+        the memory sentinel's ring keeps half an hour.
+        """
+        now = time.time()
+        self._runaway.observe(core_mb + runtime_mb, now)
+        self._trend_parts.append((now, core_mb, runtime_mb))
+        verdict = self._runaway.assess(now)
+        if verdict.is_runaway() and not self._called_runaway:
+            await asyncio.to_thread(self._say_what_grew)
+        self._called_runaway = verdict.is_runaway()
+        return verdict
+
+    def _say_what_grew(self) -> None:
+        parts = list(self._trend_parts)
+        span = parts[-1][0] - parts[0][0]
+        since = parts[-1][0] - span * self._runaway.policy.confirm_fraction
+        began = next(part for part in parts if part[0] >= since)
+        models = {}
+        for key, client in _mlx_registry_snapshot(sys.modules.get("core.brain.llm.mlx_client")).items():
+            pid = getattr(getattr(client, "_process", None), "pid", None)
+            if isinstance(pid, int):
+                models[pid] = os.path.basename(str(key).rstrip("/"))
+        held = []
+        for proc in self._iter_managed_runtime_processes():
+            pid = int(proc.info.get("pid") or 0)
+            try:
+                held.append((process_memory_bytes(pid) / (1024 * 1024), pid))
+            except _RSS_SAMPLE_ERRORS:
+                continue
+        held.sort(reverse=True)
+        logger.critical(
+            "🚨 RUNAWAY, what grew over its last %.0f min: her own process %+.0f MB (now %.0f MB), her workers and other "
+            "children %+.0f MB (now %.0f MB); workers now: %s",
+            (parts[-1][0] - began[0]) / 60.0, parts[-1][1] - began[1], parts[-1][1], parts[-1][2] - began[2],
+            parts[-1][2],
+            ", ".join(f"{models.get(pid, 'pid ' + str(pid))} {mb:.0f} MB" for mb, pid in held) or "none",
+        )
 
     async def start(self):
         """Start the governor loop."""
@@ -528,8 +580,7 @@ class MemoryGovernor:
                 }
             )
         else:
-            self._runaway.observe(managed_rss_mb)
-            verdict = self._runaway.assess()
+            verdict = await self._observe_trend(rss_mb, runtime_rss_mb)
             runaway_status = verdict.to_dict()
         self._last_policy_sample["runaway"] = runaway_status
 
