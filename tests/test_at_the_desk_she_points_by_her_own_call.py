@@ -351,3 +351,39 @@ def test_what_she_has_decided_to_say_here_comes_before_her_background_work(monke
     assert seen_waiting == [True], "her background work reads someone waiting while she waits for her model"
     assert len(asked_to_stop) == 1 and "something to say" in asked_to_stop[0]
     assert owners.a_person_is_waiting_for_her_model() is False, "the wait ends with her turn"
+
+
+def test_a_call_to_a_tool_she_was_not_offered_goes_back_to_her_and_is_never_her_words(monkeypatch):
+    """LIVE 16 November 2026, 11:23 local: her desk turn called "point_at_on_words", which was never offered; the loop
+    read a call it could not match as her answer, and the bubble showed "<tool_call> <function=point_at_on_words>"."""
+    from core.brain.llm.mlx_client import MLXLocalClient
+    from core.container import ServiceContainer
+
+    executed: list[str] = []
+
+    class Engine:
+        async def execute(self, name, args, context=None, **_kwargs):
+            executed.append(name)
+            return {"ok": True, "result": "drawn"}
+
+    replies = iter([
+        "<tool_call>\n<function=point_at_on_words>\n<parameter=words>\nBack\n</parameter>\n</function>\n</tool_call>",
+        "That form wants one thing you built, five levels down.",
+    ])
+    seen: list[list[dict]] = []
+
+    async def generate(_prompt, *, messages, **_kwargs):
+        seen.append([dict(message) for message in messages])
+        return next(replies)
+
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(
+        lambda name, default=None: Engine() if name == "capability_engine" else default))
+    client = MLXLocalClient.__new__(MLXLocalClient)
+    client.max_tokens, client.model_path, client.generate_text_async = 512, "her-cortex", generate
+
+    out = asyncio.run(client.think_and_act("", "", tools=tool_definitions(), max_turns=2,
+                                           conversation=[{"role": "user", "content": "## WHAT IS ON THE SCREEN\nBack"}]))
+
+    assert out["content"] == "That form wants one thing you built, five levels down."
+    assert executed == [], "nothing she was not offered ran"
+    assert "no tool by that name was offered" in str(seen[1][-1]["content"])

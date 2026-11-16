@@ -11145,7 +11145,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             tool_call = (
                 self._extract_tool_call_payload(
                     response_text,
-                    allowed_tools=set(tools.keys()),
+                    allowed_tools=None,  # a call to a tool not offered is a call, refused below, not words to serve
                     tool_definitions=tools,
                 )
                 if tools
@@ -11200,12 +11200,12 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # advertised JSON schema before anything executes. A call whose
             # arguments do not satisfy the schema is a malformed call, not an
             # effect to attempt.
-            schema_error = _tool_arguments_schema_error(tools.get(tool_name), tool_args)
+            schema_error = (_tool_arguments_schema_error(tools.get(tool_name), tool_args) if tool_name in tools
+                            else "no tool by that name was offered")
             if schema_error:
                 _record_mlx_degradation(
                     ValueError(f"tool_arguments_invalid:{tool_name}:{schema_error}"),
-                    action="refused a tool call whose arguments failed its advertised schema",
-                    severity="warning",
+                    action="refused a tool call whose arguments failed its advertised schema", severity="warning",
                 )
                 messages.append({"role": "assistant", "content": response_text})
                 messages.append(
