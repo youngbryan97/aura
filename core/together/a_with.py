@@ -124,6 +124,8 @@ class With:
     invited: int = 0
     #: What she has already said her piece about.
     remarked_on: set[str] = field(default_factory=set)
+    #: How much each look at the shared field interested her, the newest last.
+    interests: deque[float] = field(default_factory=lambda: deque(maxlen=_WINDOW))
     _waiting: Turn | None = None
     #: The words of the last screen reading the with saw, to measure change by.
     _screen_words: set[str] | None = None

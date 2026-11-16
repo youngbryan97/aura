@@ -4385,6 +4385,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   lane as her window. Left: both seen live (the screen was locked at
   20:53), and her acting on what she sees without being asked, beyond
   pointing.
+  Seen live at 21:53, with whatever Bryan had on screen: keeping him company
+  she made a remark, and it was her chat reply of an hour before, word for
+  word. The with's composer runs on a background tier (her log: "Tier
+  Lock: Background task requested 'secondary'; using the governed tertiary
+  tier"), and handed a conversation that ended with that reply, it said it
+  again. It was made at a worth of 0.058: a still screen held no attention,
+  so the remark cost nothing. At the desk the with now decides and her own
+  unprompted turn writes the remark, on her cortex, as her remarks at the
+  desk were written before. A look is weighed by how much more it
+  interests her than the looks before it in that with, and words that
+  repeat one of her recent turns are not said.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what

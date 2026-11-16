@@ -1027,7 +1027,15 @@ class AmbientPresence(_CarriesTheBubble):
             from core.perception.ambient_utterance import consider_utterance, latest_screen
             from core.together.remarks import remark_in_a_with
 
-            thought = await (remark_in_a_with(held, latest_screen()) if held is not None else consider_utterance(result))
+            if held is not None and held.what == KEEPING_COMPANY:
+                # Her own unprompted turn writes it, on her cortex, as her remarks at the desk always were; the with
+                # decides when, weighing a look against what usually crosses his screen.
+                from core.perception.ambient_utterance import _compose
+
+                thought = await remark_in_a_with(held, latest_screen(), against_usual=True,
+                                                 compose=lambda observation: _compose(observation, ""))
+            else:
+                thought = await (remark_in_a_with(held, latest_screen()) if held is not None else consider_utterance(result))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "ambient_presence", exc, severity="debug",

@@ -130,8 +130,35 @@ async def _her_remark(held: With, capture: str, source: str) -> str:
     return str(text or "").strip()
 
 
-async def remark_in_a_with(held: With, observation: Any, *, now: float | None = None) -> str:
-    """What she says about what the screen shows now, or nothing."""
+def _said_already(text: str) -> bool:
+    """Whether these words are one of her own recent turns, said again.
+
+    LIVE 15 November 2026, her remark at the desk was her chat reply of an hour before, word for word ("I'm sorry
+    you're waking up on so little rest ..."), composed on a background tier from a conversation that ended with it.
+    """
+    from core.brain.her_unprompted_turn import CONVERSATION_TURNS
+
+    said = " ".join(str(text or "").split()).casefold()
+    return any(role != "user" and " ".join(str(content or "").split()).casefold() == said
+               for _at, role, content in said_since(0.0)[-CONVERSATION_TURNS:])
+
+
+async def remark_in_a_with(
+    held: With,
+    observation: Any,
+    *,
+    now: float | None = None,
+    compose: Any = None,
+    against_usual: bool = False,
+) -> str:
+    """What she says about what the screen shows now, or nothing.
+
+    ``compose`` is who writes it, given the observation; by default her remark in the with (``_her_remark``).
+    ``against_usual`` weighs a look by how much more it interests her than the looks before it in this with, for a
+    field nobody chose to share, a person's own screen, where most of what crosses it is ordinary. LIVE 15 November
+    2026 at the desk, a still screen held no attention, so the cost of a remark was nothing and one worth 0.058 was
+    made.
+    """
     capture = str(getattr(observation, "capture", "") or "")
     if not capture.strip() or not held.open:
         return ""
@@ -143,11 +170,19 @@ async def remark_in_a_with(held: With, observation: Any, *, now: float | None = 
     shown = _what_is_in_front(capture) or source
     held.shown(shown, now, change=change)
     interest, thing = _interest(capture, change)
+    before = list(held.interests)
+    held.interests.append(interest)
+    if against_usual:
+        beaten = sum(1 for seen in before if seen < interest) / len(before) if before else 0.5
+        interest *= beaten
     say = worth_saying_now(held, now, interest=interest, thing=thing or shown)
     logger.info("🤝 Watching with %s: %s (%s).", held.who, "says something" if say.speak else "stays quiet", say.why)
     if not say.speak:
         return ""
-    text = await _her_remark(held, capture, source)
+    text = await (compose(observation) if compose is not None else _her_remark(held, capture, source))
+    if text and _said_already(text):
+        logger.info("🤝 Watching with %s: what formed repeats what she said, so it is not said again.", held.who)
+        return ""
     if text:
         said_at = time.time()
         held.said(HER, said_at, about=[thing or shown], until=said_at, unprompted=True)

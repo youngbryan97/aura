@@ -950,6 +950,8 @@ def test_while_a_with_is_open_her_screen_looks_go_to_it():
     body = body[:body.index("self.offer_utterance(thought)")]
     assert "held = get_together().current()" in body
     assert "remark_in_a_with(held, latest_screen()) if held is not None else consider_utterance(result)" in body
+    # Keeping him company at the desk, the with decides and her own unprompted turn writes it.
+    assert "remark_in_a_with(held, latest_screen(), against_usual=True" in body
     assert "held is None and time.time() - self._last_spoke_at < self._min_speech_gap_s" in body
 
 

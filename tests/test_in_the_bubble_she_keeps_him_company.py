@@ -27,8 +27,9 @@ def presence(monkeypatch):
     monkeypatch.setattr(ambient_presence, "_proactivity_suppressed", lambda: False)
     routed: dict[str, object] = {}
 
-    async def in_a_with(held, _observation):
+    async def in_a_with(held, _observation, **kwargs):
         routed["with"] = held
+        routed["kwargs"] = kwargs
         return "That second question wants the five layers of one thing you built, not five things."
 
     async def fault_gate(_result):
@@ -51,6 +52,7 @@ def test_in_the_bubble_what_she_sees_goes_to_the_company_she_is_keeping(presence
     asyncio.run(held._consider_speaking(None))
 
     assert routed["with"].who == PERSON and routed["with"].what == KEEPING_COMPANY
+    assert routed["kwargs"]["against_usual"] is True and callable(routed["kwargs"]["compose"])
     assert "fault_gate" not in routed
     assert held.state()["has_utterance"] is True
 
@@ -182,3 +184,38 @@ def test_a_highlight_nobody_asked_for_or_invited_is_still_refused():
     result = asyncio.run(highlight("Submit application"))
 
     assert not result.shown and "asked for" in result.reason
+
+
+def test_at_the_desk_an_ordinary_look_is_worth_nothing_against_the_ones_before_it(monkeypatch):
+    """LIVE 15 November 2026: a still screen cost nothing, and a remark worth 0.058 was made."""
+    from core.together import remarks
+    from core.together.a_with import With
+
+    monkeypatch.setattr(remarks, "_interest", lambda capture, change: (0.058, ""))
+    monkeypatch.setattr("core.together.taking_it_up._how_much_changed", lambda held, capture: 0.0)
+    monkeypatch.setattr("core.together.taking_it_up._what_is_in_front", lambda capture: "TextEdit")
+    composed: list[str] = []
+
+    async def compose(_observation):
+        composed.append("asked")
+        return "A remark."
+
+    held = With(who=PERSON, what="keeping company at the desk", began=0.0)
+    for seen in (0.058, 0.058, 0.058):
+        held.interests.append(seen)
+    from types import SimpleNamespace
+
+    said = asyncio.run(remarks.remark_in_a_with(held, SimpleNamespace(capture="ordinary", source="TextEdit"),
+                                               now=100.0, compose=compose, against_usual=True))
+    assert said == "" and composed == []
+
+
+def test_her_own_recent_turn_said_again_is_not_a_remark(monkeypatch):
+    from core.together import remarks
+
+    monkeypatch.setattr(remarks, "said_since", lambda began: [
+        (1.0, "user", "I slept badly last night, maybe four hours."),
+        (2.0, "assistant", "I\u2019m sorry you\u2019re waking up on so little rest. That can make everything feel heavier today."),
+    ])
+    assert remarks._said_already("I\u2019m sorry you\u2019re waking up on so little rest.  That can make everything feel heavier today.")
+    assert not remarks._said_already("That second question wants one thing you built, five levels down.")
