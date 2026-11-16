@@ -89,6 +89,11 @@ def _cosine(a: List[float], b: List[float]) -> float:
     return sum(x * y for x, y in zip(a, b))
 
 
+#: Peer discovery: one scan of the local network for other instances on her port, as background work of hers.
+_DISCOVERY = {"mode": "discovery", "ports": "8000"}
+_DISCOVERY_ORIGIN = "background"
+
+
 class BeliefSync:
     """Manages cross-node belief exchange."""
 
@@ -524,6 +529,20 @@ class BeliefSync:
                 return True
         return False
 
+    def _may_look_for_peers(self) -> bool:
+        """Whether a standing grant would let her scan for peers now; said once when none would."""
+        authority = ServiceContainer.get("standing_authority", default=None)
+        asks = getattr(authority, "grant_that_would_lease", None)
+        if not callable(asks):
+            return False
+        if asks("sovereign_network", dict(_DISCOVERY), origin=_DISCOVERY_ORIGIN):
+            self._said_no_grant = False
+            return True
+        if not getattr(self, "_said_no_grant", False):
+            logger.info("🌌 BeliefSync: no standing grant lets her scan the network for peers; discovery waits for one")
+            self._said_no_grant = True
+        return False
+
     async def _discovery_loop(self):
         """Background task to discover peers via SovereignNetworkSkill."""
         while self.running:
@@ -537,10 +556,16 @@ class BeliefSync:
                     await asyncio.sleep(min(self.discovery_interval, 60.0))
                     continue
 
-                # 1. Use SovereignNetwork skill for discovery
+                # 1. Use SovereignNetwork skill for discovery, when a standing grant would let it: asked first rather
+                # than refused after. LIVE 14 to 16 November 2026 the scan went out under no origin, no grant names
+                # it, and each was a constitution refusal in her log (28 of them).
                 engine = ServiceContainer.get("capability_engine", default=None)
+                if engine and not self._may_look_for_peers():
+                    await asyncio.sleep(self.discovery_interval)
+                    continue
                 if engine:
-                    result = await engine.execute("sovereign_network", {"mode": "discovery", "ports": "8000"})
+                    result = await engine.execute("sovereign_network", dict(_DISCOVERY),
+                                                  {"origin": _DISCOVERY_ORIGIN, "source": _DISCOVERY_ORIGIN})
                     if result.get("ok"):
                         discovered = result.get("peers", [])
                         for p in discovered:

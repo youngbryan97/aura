@@ -1140,19 +1140,35 @@ class StandingAuthorityManager:
         her goal pass's edit_draft was refused the same way on 12 and 15 November. The lease is still issued and
         checked after this, by the authority gateway, and the Will still decides.
         """
-        name = normalize_tool_name(tool_name)
-        source = coerce_authority_origin(origin)
-        if not carries_bryans_standing_yes(source, name):
+        if not carries_bryans_standing_yes(coerce_authority_origin(origin), normalize_tool_name(tool_name)):
             return ""
+        grant = self.grant_that_would_lease(tool_name, arguments, origin=origin, effect_scope=effect_scope,
+                                            risk_level=risk_level)
+        return grant if grant in BRYANS_STANDING_YES else ""
+
+    def grant_that_would_lease(
+        self,
+        tool_name: Any,
+        arguments: Mapping[str, Any] | None,
+        *,
+        origin: Any,
+        effect_scope: Any = "",
+        risk_level: Any = "",
+    ) -> str:
+        """The standing grant that would lease this call from this origin now, or ""; nothing is issued or spent.
+
+        For a loop of hers to ask before it acts, rather than act and be refused: LIVE 14 to 16 November 2026 her peer
+        discovery asked for a LAN scan no grant names, 28 times, each a constitution refusal in her log.
+        """
+        name = normalize_tool_name(tool_name)
         args = dict(arguments or {})
         scope = str(effect_scope or "").strip().lower() or resolve_execution_effect_scope(name, args)
         risk = normalize_risk(risk_level or classify_execution_risk(name, args, effect_scope=scope))
         with self._lock:
-            grant, _reason = self._select_grant_locked(tool_name=name, origin=source, arguments=args,
-                                                       effect_scope=scope, risk_level=risk, user_authorized=False)
-            if grant is None or grant.grant_id not in BRYANS_STANDING_YES:
-                return ""
-            if self._budget_remaining_locked(grant, float(self._clock())) == 0:
+            grant, _reason = self._select_grant_locked(tool_name=name, origin=coerce_authority_origin(origin),
+                                                       arguments=args, effect_scope=scope, risk_level=risk,
+                                                       user_authorized=False)
+            if grant is None or self._budget_remaining_locked(grant, float(self._clock())) == 0:
                 return ""
             return grant.grant_id
 
