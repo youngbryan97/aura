@@ -5046,6 +5046,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: synchronous skill-state saves go through the
+    governed file gateway. Both regressions failed before the
+    migration: the direct atomic write bypassed the writer and
+    replaced the previous file even when that writer refused a save.
+    A successful save now reloads its gap state, and refusal keeps
+    the prior file. Forty focused checks passed before integration;
+    55 skill, effect and desk-authority checks and 46 goal-worker
+    checks passed after integrating 61141b2a8. The exact effect
+    baseline replaces one direct atomic call with one gateway call;
+    total debt remains 2,045 and raw debt 746. Integrated smoke
+    passed 164 tests with one skip in 56.33 s and maximum RSS
+    of 475,512,832 bytes. Lint, compile,
+    dependency drift, layering, governance, module size and targeted
+    writing passed on the integrated revision.
+    Source: core/agi/skill_synthesizer.py.
+    Tests: tests/test_skill_synthesizer_forge.py.
   - [x] 2026-11-16: the frame recorder checks admission before
     copying pixels. A scratch probe witnessed one wasted copy for
     each closed recorder, storage error, full queue and exhausted
