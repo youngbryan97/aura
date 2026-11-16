@@ -27,7 +27,6 @@ from core.runtime.content_integrity import (
     text_sha256,
 )
 from core.runtime.desktop_objective_intent import (
-    asks_to_be_shown_where,
     looks_like_desktop_objective,
     looks_like_screen_observation,  # noqa: F401  (read at call time by the lifted module)
 )
@@ -102,6 +101,9 @@ _COMPUTER_USE_SKILL = None
 #: land wherever focus is, so these re-assert it first; everything else (file
 #: writes, downloads, settings) is indifferent to the frontmost window.
 _FOCUS_SENSITIVE_ACTIONS = frozenset({"type", "hotkey", "click", "scroll", "read_screen_text"})
+
+#: Steps that only look at the screen.
+_LOOKING_ACTIONS = frozenset({"read_screen_text", "inspect_screen"})
 
 #: "wait 5 seconds", "in 10s", "after 3 seconds", "hold on for 2 minutes".
 #: The duration has to be STATED. An unquantified "wait a moment" leaves the
@@ -3646,7 +3648,7 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
 
         for receipt in receipts:
             action = receipt.get("action")
-            if action not in {"read_screen_text", "inspect_screen"}:
+            if action not in _LOOKING_ACTIONS:
                 continue
             result = receipt.get("result")
             if not isinstance(result, Mapping):
@@ -4589,36 +4591,11 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             "captured_now": False,
         }
 
-    async def _attach_pointing(
-        self, objective: str, payload: dict[str, Any]
-    ) -> dict[str, Any]:
-        """If she was asked to POINT, try to; either way say which happened.
+    async def _attach_pointing(self, objective: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """If she was asked to point, try to; either way say which happened (core/perception/screen_highlight.py)."""
+        from core.perception.screen_highlight import with_pointing
 
-        "Where is the submit button?" is answered better by a rectangle than
-        by a paragraph, and the overlay path existed with no caller — every
-        such question got the paragraph because nothing ever asked for the
-        rectangle.
-
-        The refusal is carried on the payload as deliberately as the success.
-        A highlight that did not draw must reach the answer as a fact, or she
-        says "I've highlighted it" over a screen with no highlight on it,
-        which sends the person hunting for a box that was never there.
-        """
-        needle = asks_to_be_shown_where(objective)
-        if not needle:
-            return payload
-        try:
-            from core.perception.screen_highlight import highlight
-
-            result = await highlight(needle, requested=True)
-        except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
-            # Pointing never costs her the answer, and a highlight that raised is said as one not drawn.
-            payload["pointing_refused_because"] = f"the highlight could not be drawn: {type(exc).__name__}: {exc}"
-            return payload
-        payload["highlight"] = result.to_dict()
-        payload["pointed_at"] = result.matched_text if result.shown else ""
-        payload["pointing_refused_because"] = "" if result.shown else result.reason
-        return payload
+        return await with_pointing(objective, payload)
 
     async def _delegate_page_objective(
         self, params: Any, context: dict[str, Any]
@@ -5282,6 +5259,16 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
         ambient = self._ambient_answer(objective, params)
         if ambient is not None:
             return await self._attach_pointing(objective, ambient)
+        from core.perception.screen_highlight import point_as_asked
+
+        # Pointed at only where nothing else is asked: "Change my wallpaper to a squid, and show me where you found it"
+        # is a wallpaper to change, and "highlight it and then click it" a click.
+        acts = getattr(params, "steps", None) or self._objective_needs_general_os_automation(objective) or any(
+            getattr(step, "action", "") not in _LOOKING_ACTIONS
+            for step in self._derive_steps_from_objective(objective, dict(context or {})) or ())
+        pointed = None if acts else await point_as_asked(objective)
+        if pointed is not None:
+            return pointed
 
         task_context = dict(context or {})
         task_context.setdefault("objective", objective)

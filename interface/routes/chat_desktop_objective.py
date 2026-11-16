@@ -331,6 +331,10 @@ async def _execute_desktop_objective_from_chat(
             "result": result,
         }
 
+    if not her_reply_first and _what_the_pointing_came_to_goes_to_her_turn(result):
+        # Pointing, drawn or not: what it came to is beside her turn, and what is said of it is hers.
+        return {"ok": bool(result.get("ok")), "status": "desktop_objective_pointing_read", "response": "",
+                "result": result}
     if _the_page_goes_to_her_turn(result, objective):
         # No reply from here: the turn goes on into her cognition, with the page beside it.
         return {"ok": True, "status": "desktop_objective_page_read", "response": "", "result": result}
@@ -757,6 +761,28 @@ def _the_page_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
     record_turn_grounding(rendered)
     record_turn_world_source(source)
     logger.info("🌐 The page she ended on (%s, %d chars) goes to her turn to answer from.", url, len(text))
+    return True
+
+
+def _what_the_pointing_came_to_goes_to_her_turn(result: dict[str, Any]) -> bool:
+    """When she was asked to point at something and the step pointed or could not, that goes beside her turn as a
+    reading; whether it went. A pointing step's own account was "Done - ..." or the lane's failure sentence, in her
+    place (core/perception/screen_highlight.py, point_as_asked)."""
+    drawn = result.get("highlight") if isinstance(result.get("highlight"), dict) else None
+    if drawn is None or result.get("status") not in {"pointed_on_screen", "pointing_refused"}:
+        return False
+    from core.conversation.turn_evidence_custody import record_turn_grounding, record_turn_world_evidence
+
+    where = drawn.get("rect") or {}
+    asked = str(drawn.get("matched") or result.get("pointed_at") or "").strip()
+    said = (f"A rectangle was drawn on the screen around {asked!r}, at x {where.get('x')}, y {where.get('y')}, "
+            f"{where.get('width')} by {where.get('height')} points, for a few seconds."
+            if drawn.get("shown") else f"Nothing was drawn: {str(drawn.get('reason') or 'it was not found')}.")
+    reading = f"[WHAT HER POINTING CAME TO]\n{said}\n[END WHAT HER POINTING CAME TO]"
+    if not record_turn_world_evidence(reading):
+        return False
+    record_turn_grounding(reading)
+    logger.info("🖥️ What her pointing came to goes to her turn: %s", said[:160])
     return True
 
 

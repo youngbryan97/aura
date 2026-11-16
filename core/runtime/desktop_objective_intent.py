@@ -460,6 +460,10 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     except (ImportError, RuntimeError, TypeError, ValueError):
         # not a failure: the substrate reader is one signal; the checks below still run.
         pass
+    # Being shown where something is on the screen is done on the screen (core/perception/screen_highlight.py).
+    # "Can you highlight the back button?" went to chat and nothing was drawn (15 November 2026).
+    if asks_to_have_it_pointed_at(user_message):
+        return True
     # A goal to be kept at until a condition holds is a desktop objective by
     # definition: it names something to keep doing on the machine and the
     # thing on screen that means it is finished.
@@ -1302,6 +1306,21 @@ _POINT_NEEDLE_TAILS: tuple[str, ...] = (
     "is",
     "at",
 )
+
+
+def asks_to_have_it_pointed_at(user_message: str) -> str:
+    """What a request asks her to point at with a verb of pointing ("highlight", "point at", "show me where"), or "".
+
+    A bare "where is" asks where in the world as often as where on the screen: "Where is Paris?" went to her desktop
+    lane when every request to be shown where did (15 November 2026). And "show me" without "where" asks to be shown
+    something, not where it is: "Show me a piece of your own code" and "show me what's in ~/Documents/report.md".
+    """
+    match = _POINT_REQUEST_RE.search(str(user_message or ""))
+    asked = " ".join(match.group(0).lower().split()) if match else ""
+    if not asked or asked.startswith(("where", "which")) or (
+            asked.startswith("show") and not asked.startswith("show me where")):
+        return ""
+    return asks_to_be_shown_where(user_message)
 
 
 def asks_to_be_shown_where(user_message: str) -> str:

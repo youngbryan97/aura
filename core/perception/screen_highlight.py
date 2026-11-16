@@ -320,6 +320,59 @@ async def highlight(
     )
 
 
+async def with_pointing(objective: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """``payload`` with the pointing its request asked for, drawn or refused; unchanged when it asked for none.
+
+    "Where is the submit button?" is answered better by a rectangle than by a paragraph. The refusal is carried as
+    deliberately as the success: a highlight that did not draw must reach the answer as a fact, or she says "I've
+    highlighted it" over a screen with no highlight on it. Moved here from core/skills/desktop_task.py.
+    """
+    from core.runtime.desktop_objective_intent import asks_to_be_shown_where
+
+    needle = asks_to_be_shown_where(objective)
+    if not needle:
+        return payload
+    try:
+        result = await highlight(needle, requested=True)
+    except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
+        # Pointing never costs her the answer, and a highlight that raised is said as one not drawn.
+        payload["pointing_refused_because"] = f"the highlight could not be drawn: {type(exc).__name__}: {exc}"
+        return payload
+    payload["highlight"] = result.to_dict()
+    payload["pointed_at"] = result.matched_text if result.shown else ""
+    payload["pointing_refused_because"] = "" if result.shown else result.reason
+    return payload
+
+
+async def point_as_asked(objective: str) -> dict[str, Any] | None:
+    """A request to be shown where something is, done as a desktop step: the rectangle drawn, or why it was not; None
+    when the request asks for no pointing.
+
+    Pointing was attached only to a screen question answered from her ambient reading
+    (with_pointing, from core/skills/desktop_task.py), so "Can you highlight the back button?" drew nothing: it is not a
+    question about what the screen shows, and it never reached a step that points (15 November 2026).
+    """
+    from core.runtime.desktop_objective_intent import asks_to_be_shown_where
+
+    needle = asks_to_be_shown_where(objective)
+    if not needle:
+        return None
+    result = await highlight(needle, requested=True)
+    where = result.to_dict().get("rect") or {}
+    evidence = (f"drew a rectangle around {needle!r} at x {where.get('x')}, y {where.get('y')}, "
+                f"{where.get('width')} by {where.get('height')}" if result.shown else result.reason)
+    receipt = {"index": 1, "action": "highlight_on_screen", "reason": "point at what was asked about",
+               "expect": f"a rectangle around {needle!r}", "ok": result.shown, "effect_verified": result.shown,
+               "effect_evidence": evidence, "result": result.to_dict()}
+    payload = {"ok": result.shown, "status": "pointed_on_screen" if result.shown else "pointing_refused",
+               "objective": objective, "steps_requested": 1, "steps_completed": int(result.shown),
+               "receipts": [receipt], "highlight": result.to_dict(), "pointed_at": needle if result.shown else "",
+               "pointing_refused_because": "" if result.shown else result.reason}
+    if not result.shown:
+        payload["error"] = result.reason
+    return payload
+
+
 async def _draw(rect: Rect, seconds: float) -> bool:
     """Ask the host launcher to draw the overlay.
 
@@ -428,5 +481,7 @@ __all__ = [
     "Rect",
     "highlight",
     "locate_on_screen",
+    "point_as_asked",
+    "with_pointing",
     "rate_limited",
 ]
