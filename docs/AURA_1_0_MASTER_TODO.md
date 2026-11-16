@@ -2173,6 +2173,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The clears after a failed generation's internal retries are left as
   they are: there the cache is suspect. Next to see live: a tool pass
   stopped mid-prefill, then the reply's pass a prefix hit.
+  16 November, 14:23 local, live on 02fc824c2, the first typed turn after
+  her restart ("Which lane are you running on right now, and are your
+  tools available?"): 76.04 s, with 51.41 s unattributed and 15.00 s of
+  queue. Her own reply to a mail held her cortex at the time (138.78 s,
+  103.19 s of it decode). The gate's queue ran from its entry to her
+  cortex's call, and the router's wait for a generation slot came after
+  it, so the turn's longest part counted nowhere. That wait is queue now,
+  net of any work inside it as the rest of queue is. Why a person waited
+  behind her mail at all is the next change.
+  The 384-token ceiling of 06:58 the day before, read off her log: the
+  route planned 1,026 tokens, and mlx_client's memory-pressure cap for
+  the warning band cut it to 384, because her managed RSS stood at the
+  soft ceiling (46,990 MB). The draft was cut mid-thought and continued in
+  another pass that read its prompt again. Of ten cut drafts in nine days
+  of her log, four were that cap and two the 256-token cap of a narrow
+  contract. Lifting the cap for a reply was tried and set aside. The cap
+  a snapshot gives is not always a band constant: an adaptive cap such as
+  1,941 is a bound from what memory holds, and overriding it is not this
+  item's to do. What would remove the waste without touching a memory
+  bound is a continuation that resumes the cut draft exactly, without
+  reading the prompt again; the third pass that day missed the cache.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
@@ -4282,6 +4303,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   available" unless a hedge word stands near it. Before this change the
   card passed both and her own words never met them. Next: ask her a
   status question live and read what those two lists do to her answer.
+  Asked live at 14:23 on 02fc824c2, the first turn after her restart:
+  "Which lane are you running on right now, and are your tools
+  available?" Her answer, 76.7 s, served as she wrote it: "I'm running
+  on the Aura-Cortex primary lane, with Ternary-Bonsai-2-27B-mlx-2bit as
+  the fast-reflex model. My tools are available: sovereign_browser,
+  sovereign_terminal, memory_ops, speak, self_repair, and
+  self_evolution." Each fact checks out: her lane is the 27B cortex, that
+  is her brainstem's model in live-source/models, and those are skills
+  in her catalogue. Neither word list refused it. The time was spent
+  waiting behind her mail reply (R11).
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

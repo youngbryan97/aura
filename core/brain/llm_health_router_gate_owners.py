@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -82,22 +83,30 @@ _PEOPLE_WAITING_LOCK = checked_lock("llm_router.people_waiting")
 
 
 @contextmanager
-def _a_person_waits() -> Iterator[None]:
+def _a_person_waits(*, counted_as_queue: bool = False) -> Iterator[None]:
     """Counted while a person's turn waits at the generation gate.
 
     Background work that holds her model across several generations reads the
     count between them and hands the model over (core/agency/her_goal_at_work.py).
     LIVE 11 November 2026: Bryan's three voice turns each ended with nothing
     generated while her goal pass held the lease for its whole pass.
+
+    ``counted_as_queue``: the block is waiting and nothing else, so its seconds are the turn's queue. LIVE 16 November
+    2026 a typed turn waited 51 s for the gate behind her mail reply, and its receipt called them unattributed.
     """
     global _PEOPLE_WAITING
     with _PEOPLE_WAITING_LOCK:
         _PEOPLE_WAITING += 1
+    began = time.monotonic()
     try:
         yield
     finally:
         with _PEOPLE_WAITING_LOCK:
             _PEOPLE_WAITING -= 1
+        if counted_as_queue:
+            from core.verify.turn_receipt import record_latency
+
+            record_latency("queue", time.monotonic() - began)
 
 
 _LIVE_TURNS: set[str] = set()

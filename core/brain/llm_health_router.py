@@ -1901,7 +1901,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 else min(_GENERATION_GATE_WAIT_S, _BACKGROUND_GENERATION_GATE_WAIT_S)
             )
         else:
-            with _a_person_waits():  # her own background work reads it and stands aside
+            with _a_person_waits(counted_as_queue=True):  # background reads it and stands aside
                 # Foreground preemption ladder. A user turn must not sit the full
                 # gate window behind a BACKGROUND generation and then pay a
                 # worker-kill + model reload (observed live: conversation lane
