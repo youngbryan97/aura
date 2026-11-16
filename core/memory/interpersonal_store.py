@@ -400,6 +400,9 @@ class InterpersonalStore:
         model = self._models.get(key)
         if model is None:
             return False
+        if not self.allows(key, "persist"):
+            self._consent_skips += 1
+            return False
         try:
             gateway = get_file_write_gateway()
             with local_internal_governed_scope(
@@ -409,6 +412,10 @@ class InterpersonalStore:
                 await gateway.ensure_directory_async(
                     self._root, source="memory.interpersonal_store.save"
                 )
+            # The person's policy may have changed during directory I/O.
+            if not self.allows(key, "persist"):
+                self._consent_skips += 1
+                return False
             with local_internal_governed_scope(
                 "memory.interpersonal_store.save",
                 domain="memory_write",
@@ -449,7 +456,7 @@ class InterpersonalStore:
         person-knowledge is never reworded. Values say how she knows it.
         """
         key = _person_key(person)
-        if not key or key not in self._models:
+        if not key or key not in self._models or not self.allows(key, "prompt"):
             return {}
         rows: list[tuple[float, str, str]] = []
         for observation in self._models[key]:

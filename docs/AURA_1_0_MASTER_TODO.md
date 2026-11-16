@@ -4896,6 +4896,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: the interpersonal preference mirror and direct
+    note save obey the existing relational authority. Revocation used
+    to block the ordinary render while both paths still used the
+    record. A turn also replaces an old preference mirror when the
+    partner changes, has no notes or has revoked use. The writer
+    checks again after directory I/O. Six regressions failed before
+    the repair using a scratch relational authority. All 164 focused
+    authority, persistence and phase tests passed. Smoke passed
+    164 tests with one skip in 56.46 s and maximum RSS of
+    481,181,696 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/memory/interpersonal_store.py and
+    core/phases/conversational_dynamics_phase.py.
+    Tests: tests/test_what_he_likes_reaches_the_prompt.py.
   - [x] 2026-11-15: deferred replay reports an unknown remaining
     count when the queue cannot be read or its replacement fails.
     It carries the storage error in its report and preserves the

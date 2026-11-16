@@ -250,9 +250,7 @@ class ConversationalDynamicsPhase(Phase):
             # `world.user_preferences` is described as durable and injected into
             # every prompt, and nothing wrote it: the context assembler found it
             # empty every time and the column reading it never moved.
-            mirrored = store.preferences_for_prompt(partner)
-            if mirrored:
-                state.world.user_preferences = mirrored
+            state.world.user_preferences = store.preferences_for_prompt(partner)
             ConversationalDynamicsPhase._mirror_known_entities(state)
             # And where this sitting with them stands against how their
             # sittings have ended. See core/social/closing_window.py.
