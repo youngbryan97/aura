@@ -182,3 +182,18 @@ def test_a_none_her_function_was_handed_is_mended_by_the_checker_its_exception_a
     assert done["status"] == "merged" and done["origin"] == "template:guard_none_value", done
     assert people.label(None) is None, "the running process runs the guarded body"
     assert "if person is not None else None" in (her_source / "planted_pkg" / "people.py").read_text()
+
+
+def test_a_stalled_fault_taken_up_again_runs_on_her_source_as_it_now_is(her_source):
+    """LIVE 16 November 2026: her drill's retry ran in the workspace of the try before, on the old source, so a guard
+    fixed in between still failed there."""
+    import planted_pkg.alone as alone
+
+    first = asyncio.run(mend(_fault(lambda: alone.half(4)), proposals=40, seconds=600))
+    assert first["status"] == goals.STALLED
+    (her_source / "NOTES.md").write_text("moved on\n")
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A", cwd=her_source)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "moved", cwd=her_source)
+    asyncio.run(mend(_fault(lambda: alone.half(4)), proposals=40, seconds=600))
+    workspace = goals.load(first["slug"]).workspace
+    assert _git("rev-parse", "HEAD", cwd=workspace).strip() == _git("rev-parse", "HEAD", cwd=her_source).strip()

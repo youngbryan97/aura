@@ -152,6 +152,10 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     record = goals.load(slug) or goals.GoalRecord(goal=goal, slug=slug)
     if record.status in (goals.OFFERED, goals.MERGED):
         return {"slug": slug, "status": record.status, "why": "already mended or offered"}
+    if record.status == goals.STALLED:
+        # Taken up again: worked again, so its workspace is brought up to her source before anything runs in it.
+        # LIVE 16 November 2026 her drill's retry ran in the workspace of the try before, on the old source.
+        record.status = goals.WORKING
     if goals.governs_her(fault.call.file):
         # LIVE 16 November 2026, 01:11 to 01:35, her loop searched until its deadline for a change to
         # require_governance, the check that refused an ungoverned save. A mend there loosens the check, and her own
