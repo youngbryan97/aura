@@ -35,6 +35,8 @@ degraded one.
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import time
 from dataclasses import dataclass
@@ -454,7 +456,9 @@ async def point_at_what_she_says(remark: str, capture: str) -> HighlightResult:
     said = str(remark or "").strip()
     if not said or len(lines) < 3:
         return HighlightResult(shown=False, reason="too little on the screen to single anything out")
-    vectors = embed_sentences([said, *lines])
+    # Her encoder holds a lock while it reads: off the loop. LIVE 16 November 2026, 01:04, read on the loop it held
+    # the loop 251 ms (lockdep, loop_blocking_hold).
+    vectors = await asyncio.to_thread(embed_sentences, [said, *lines])
     if len(vectors) != len(lines) + 1:
         return HighlightResult(shown=False, reason="no encoder to read the screen by meaning")
     near = sorted(((cosine(vectors[0], vector), line) for vector, line in zip(vectors[1:], lines, strict=True)),

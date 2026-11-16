@@ -39,6 +39,16 @@ def presence(monkeypatch):
     monkeypatch.setattr("core.together.remarks.remark_in_a_with", in_a_with)
     monkeypatch.setattr("core.perception.ambient_utterance.consider_utterance", fault_gate)
     monkeypatch.setattr("core.perception.ambient_utterance.latest_screen", lambda: object())
+
+    async def kept(words, *, origin):
+        routed.setdefault("kept", []).append((words, origin))
+        return True
+
+    async def pointed(_thought):
+        routed["pointed"] = True
+
+    monkeypatch.setattr("core.conversation.said_unasked.she_said_unasked", kept)
+    monkeypatch.setattr(ambient_presence, "_point_at_it", pointed)
     held = ambient_presence.AmbientPresence()
     return held, routed
 
@@ -55,6 +65,19 @@ def test_in_the_bubble_what_she_sees_goes_to_the_company_she_is_keeping(presence
     assert routed["kwargs"]["against_usual"] is True and callable(routed["kwargs"]["compose"])
     assert "fault_gate" not in routed
     assert held.state()["has_utterance"] is True
+
+
+def test_what_she_says_in_the_bubble_is_kept_in_her_conversation(presence):
+    """LIVE 15 November 2026: a remark in the bubble was shown and kept nowhere, so her next turn could not see it."""
+    from core.perception.ambient_presence import PresenceMode
+
+    held, routed = presence
+    held.set_mode(PresenceMode.BUBBLE)
+
+    asyncio.run(held._consider_speaking(None))
+
+    assert routed["kept"] == [(
+        "That second question wants the five layers of one thing you built, not five things.", "ambient_remark")]
 
 
 def test_her_window_opening_ends_the_company_kept_at_the_desk(presence):

@@ -165,6 +165,26 @@ def _stop_keeping_company() -> None:
         record_degradation("ambient_presence", exc, severity="warning", action="company kept at the desk was left open")
 
 
+async def _keep_it_in_her_conversation(thought: str) -> None:
+    """What she said in the bubble is said in her conversation (core/conversation/said_unasked.py).
+
+    It was shown and kept nowhere, so her next turn did not know she had said it, and a person's "yes, go on"
+    in the companion chat answered nothing she could read. LIVE 15 November 2026, her remark at the desk was her
+    chat reply of an hour before, word for word: the remarks between were not in what she read.
+    """
+    try:
+        from core.conversation.said_unasked import she_said_unasked
+
+        await she_said_unasked(thought, origin=_REMARK_ORIGIN)
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("ambient_presence", exc, severity="warning",
+                           action="her remark was shown in the bubble and not kept in her conversation")
+
+
+#: What a remark of hers in the bubble is kept as (core/perception/ambient_utterance.py names its generation so).
+_REMARK_ORIGIN = "ambient_remark"
+
+
 async def _point_at_it(thought: str) -> None:
     """Keeping him company, she points at what her remark is about, when one line of the screen clearly is."""
     import logging
@@ -1057,6 +1077,7 @@ class AmbientPresence(_CarriesTheBubble):
         if offered:
             with self._lock:
                 self._last_spoke_at = time.time()
+            await _keep_it_in_her_conversation(thought)
             if held is not None and held.what == KEEPING_COMPANY:
                 await _point_at_it(thought)
 
