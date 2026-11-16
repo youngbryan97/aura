@@ -63,6 +63,30 @@ class _HerModelStandIn:
         return {"content": "", "turns": len(made), "tool_calls": made}
 
 
+def test_the_goal_record_gets_a_fresh_grant_after_directory_io(her_source, monkeypatch):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    record = work.GoalRecord(goal=GOAL, slug=work.slug_of(GOAL), passes=3)
+    gateway = get_file_write_gateway()
+    ensure_directory = gateway.ensure_directory_async
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    expired = []
+
+    async def ensure_then_expire(*args, **kwargs):
+        token = get_active_governance()
+        assert token is not None and token.domain == "state_mutation"
+        result = await ensure_directory(*args, **kwargs)
+        token.mono_timestamp -= token.ttl + 1
+        expired.append(token.lease_id)
+        return result
+
+    monkeypatch.setattr(gateway, "ensure_directory_async", ensure_then_expire)
+    asyncio.run(work.save(record))
+    restored = work.load(record.slug)
+    assert expired and restored is not None and restored.passes == 3
+
+
 NEW_TEST = "from core.notes import note_count\n\n\ndef test_counts_nothing_yet():\n    assert note_count() == 0\n"
 
 

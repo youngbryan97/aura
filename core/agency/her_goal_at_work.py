@@ -239,6 +239,12 @@ async def save(record: GoalRecord) -> None:
         constraints={"artifact": "aura.her_goal_record.v1", "operation": "replace"},
     ):
         await gateway.ensure_directory_async(records_dir(), source="her_goal_at_work")
+    with local_internal_governed_scope(
+        "her_goal_at_work.record",
+        domain="state_mutation",
+        receipt_prefix="her-goal-record",
+        constraints={"artifact": "aura.her_goal_record.v1", "operation": "replace"},
+    ):
         await gateway.write_text_async(records_dir() / f"{record.slug}.json",
                                        json.dumps(record.to_dict(), indent=1, default=str), source="her_goal_at_work")
 
