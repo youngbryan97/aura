@@ -4246,6 +4246,31 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   her reader's reading, or the open floor (18 s after she spoke, with the
   reader unavailable). The voice session now logs the verdict for an
   answered utterance too.
+  16 November, the status card, which Bryan approved removing the day
+  before. A phrase list (`_is_runtime_fact_status_request`) picked out
+  questions such as "which lane is active?", and the route answered them
+  with fixed sentences ("I am speaking through the launched desktop UI
+  into /api/chat, through CognitiveEngine ... Governed tools available:
+  yes ..."). It was served without her when the engine was not required,
+  as a fastpath, and when her engine wrote nothing. It replaced her reply
+  on seven more paths. It rode inside his message as "Verified runtime
+  status", with an instruction beside it, and it capped her answer at
+  256 tokens. A twin in core/synthesis.py wrote the same sentences over a
+  reply that claimed tools were ready without a hedge word. All of it is
+  gone. When her engine writes nothing, that door also served her action
+  receipts as "Here is what actually ran, from my own action receipts".
+  That listing is gone with it. Her live mind context carries the lane,
+  the required subsystems and tool governance on every turn, so she
+  answers such questions from what she holds, in her own words. The
+  recall evidence that still rode inside his message, and its "do not
+  guess" instruction, are gone too; it reaches her as
+  conversation_recall_evidence beside the turn.
+  Left, seen while doing it: the reliability checker still judges a
+  status answer by word lists. One list says it is too thin unless it
+  names a lane, a model or tools. Another refuses "my tools are
+  available" unless a hedge word stands near it. Before this change the
+  card passed both and her own words never met them. Next: ask her a
+  status question live and read what those two lists do to her answer.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

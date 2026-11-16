@@ -11,7 +11,6 @@ from typing import Any
 from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
 from core.conversation.response_reliability import (
     assess_user_facing_reply,
-    grounded_operational_status_reply,
     live_chat_diagnostic_floor,
     normalize_user_facing_format,
     occluded_screen_view_floor,
@@ -524,19 +523,6 @@ def stabilize_user_facing_response(text: str, user_message: str = "") -> str:
     if user_message and answers_the_scale_it_was_asked_for(user_message, cleaned):
         return cleaned
     assessment = assess_user_facing_reply(user_message, cleaned)
-    if any(
-        assessment.has(reason)
-        for reason in (
-            "unsupported_operational_status_overclaim",
-            "unsupported_runtime_telemetry_inference",
-            "unsupported_tool_readiness_claim",
-        )
-    ):
-        grounded_operational = grounded_operational_status_reply(user_message, cleaned)
-        if grounded_operational:
-            grounded_assessment = assess_user_facing_reply(user_message, grounded_operational)
-            if not grounded_assessment.retryable:
-                return grounded_operational
     if assessment.retryable:
         # CP126 28b07881: length alone used to buy a soft-failing reply a pass
         # — eighty characters and twelve words preserved it regardless of what

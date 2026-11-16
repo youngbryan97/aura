@@ -519,7 +519,10 @@ def test_reliability_contract_rejects_fabricated_demo_identity_and_routing():
     ).ok
 
 
-def test_final_stabilizer_bounds_live_operational_overclaim():
+def test_final_stabilizer_does_not_write_a_status_paragraph_over_her_draft():
+    """An overclaiming draft is refused by the reliability check and asked for again; the stabilizer never writes
+    its own status paragraph over it ("bounded readiness ... Will/Authority ... effect-verification"), as it did
+    until 16 November 2026."""
     from core.conversation.response_reliability import assess_user_facing_reply
     from core.synthesis import stabilize_user_facing_response
 
@@ -538,14 +541,10 @@ def test_final_stabilizer_bounds_live_operational_overclaim():
     stabilized = stabilize_user_facing_response(draft, prompt)
     assessment = assess_user_facing_reply(prompt, stabilized)
 
-    assert assessment.ok
-    assert not assessment.retryable
-    assert "bounded readiness" in stabilized
-    assert "Will/Authority" in stabilized
-    assert "effect-verification" in stabilized
-    assert "full capacity" not in stabilized.lower()
-    assert "peak cognitive efficiency" not in stabilized.lower()
-    assert "without delay or uncertainty" not in stabilized.lower()
+    assert "bounded readiness" not in stabilized
+    assert "Will/Authority" not in stabilized
+    assert assessment.retryable
+    assert "unsupported_operational_status_overclaim" in assessment.reasons
 
 
 

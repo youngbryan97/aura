@@ -38,9 +38,6 @@ from .chat_lane_bookkeeping import (
     _resolve_chat_response_contract,
     _user_requested_research_memory_save,
 )
-from .chat_reply_shaping import (
-    _build_runtime_fact_status_fastpath_reply,
-)
 
 
 def _extract_repo_probe_request(user_message: str) -> dict[str, str] | None:
@@ -74,7 +71,6 @@ def _desktop_live_reply_token_budget(
     *,
     capability_inventory_contract: bool,
     bounded_planning_contract: bool,
-    runtime_fact_status_contract: bool,
     memory_state_contract: bool,
     memory_state_contract_covers_turn: bool = True,
 ) -> int:
@@ -93,9 +89,7 @@ def _desktop_live_reply_token_budget(
     how it comes back.
     """
 
-    if runtime_fact_status_contract or (
-        memory_state_contract and memory_state_contract_covers_turn
-    ):
+    if memory_state_contract and memory_state_contract_covers_turn:
         return 384
     if capability_inventory_contract:
         return 384
@@ -237,10 +231,6 @@ def _desktop_required_bounded_reply_status(
         _chat_desktop_repair._build_failure_mode_surface_reply(user_message)
     ):
         return "cognitive_engine_failure_mode_surface"
-    if _chat_preflight._is_runtime_fact_status_request(user_message):
-        expected = _build_runtime_fact_status_fastpath_reply(user_message, lane_status)
-        if _matches_bounded_contract(expected):
-            return "runtime_fact_status"
     return ""
 
 

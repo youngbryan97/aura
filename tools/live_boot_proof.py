@@ -901,7 +901,6 @@ class LiveProof:
                     "cognitive_engine_bounded_planning",
                     "cognitive_engine_failure_mode_surface",
                     "desktop_social_presence_contract",
-                    "runtime_fact_status",
                 }
                 ok = bool(text) and reliability.ok and not fallback and not bounded_floor
                 turn_detail = {

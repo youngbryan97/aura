@@ -10,7 +10,7 @@ from core.runtime.structured_input import answer_surface_token_floor
 @pytest.mark.parametrize("message", ["Hello.", "Hi there.", "Good evening.", "How are you?"])
 def test_a_conversational_allowance_does_not_open_private_reasoning(message):
     floor, allowance = _AnswersTheDesktopDirectly._direct_desktop_quick_reply_part_2(
-        [], False, {}, False, 512, False, False, False, answer_surface_token_floor(message))
+        [], False, {}, False, 512, False, False, answer_surface_token_floor(message))
     assert allowance >= 512
     job = {"user_surface_completion_floor": floor, "max_tokens": allowance}
     derived = _answer_is_derived_here(job)
@@ -23,7 +23,7 @@ def test_an_unresolved_derivation_keeps_its_computation():
     message = "45 becomes 15. 28 becomes 14. 66 becomes 22. What does 91 become, and why?"
     structural = answer_surface_token_floor(message)
     floor, allowance = _AnswersTheDesktopDirectly._direct_desktop_quick_reply_part_2(
-        [], False, {}, False, 1024, False, False, True, structural)
+        [], False, {}, False, 1024, False, True, structural)
     assert floor == structural
     assert _answer_is_derived_here({"user_surface_completion_floor": floor, "max_tokens": allowance})
 

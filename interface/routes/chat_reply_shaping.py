@@ -30,21 +30,17 @@ from interface.routes import chat_delivery as _chat_delivery  # noqa: E402
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
 from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
-from interface.routes import chat_turn_contract as _chat_turn_contract  # noqa: E402
 from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS, _INCOMPLETE_TAIL_WORDS, logger
 from interface.routes.chat_self_reply import (
     _build_self_condition_evidence,
     _is_self_claim_boundary_question,
 )
-from interface.routes.chat_turn_evidence import _recent_action_receipts
 
 # Lifted alongside this module; imported rather than re-derived.
 from .chat_lane_bookkeeping import (
     _apply_aura_voice_shaping_compat,
     _canonical_runtime_model_label,
     _capabilities_this_turn_needs,
-    _is_current_request_recap_request,
-    _requested_visible_required_phrases,
 )
 from .chat_reply_continuation import (  # noqa: F401  (re-exported: they were defined here)
     _continuation_restates,
@@ -629,163 +625,6 @@ def _bind_public_latent_output_quality(
     return quality
 
 
-def _build_runtime_fact_status_fastpath_reply(
-    user_message: str,
-    lane: dict[str, Any] | None,
-) -> str | None:
-    if not _chat_preflight._is_runtime_fact_status_request(user_message):
-        return None
-    lane = dict(lane or {})
-    recurrent = dict(lane.get("recurrent_depth") or {})
-    recurrent_active = bool(recurrent.get("active"))
-    model_label = _canonical_runtime_model_label(lane)
-    tools_available = _chat_desktop_repair._runtime_tool_governance_available()
-    cognitive_available = _chat_turn_contract._runtime_cognitive_engine_available()
-    continuity_probe = bool(
-        re.search(
-            r"\b(?:still coherent|same thread|able to continue|short status)\b",
-            str(user_message or ""),
-            flags=re.IGNORECASE,
-        )
-    )
-    parts = [
-        f"{model_label} is the active foreground lane",
-        f"CognitiveEngine available for normal desktop turns: {'yes' if cognitive_available else 'no'}",
-        "this operational status probe used runtime metadata instead of occupying foreground inference",
-        (
-            f"governed tools available: {'yes' if tools_available else 'no'}, "
-            "subject to explicit request, Will/Authority approval, and receipts"
-        ),
-    ]
-    if continuity_probe:
-        parts.insert(0, "I am still on the same live desktop thread and able to continue")
-    if "recurrent depth" in str(user_message or "").lower() or recurrent_active:
-        parts.append(f"recurrent depth: {'active' if recurrent_active else 'inactive'}")
-    status_prompt = str(user_message or "").lower()
-    if "generic assistant" in status_prompt or "fallback" in status_prompt:
-        parts.append("generic assistant fallback: blocked on the live desktop path")
-    reply = ", ".join(parts) + "."
-    if _is_current_request_recap_request(user_message):
-        return (
-            "You asked me to identify the current request and name the live cognition "
-            f"path handling this turn. {reply}"
-        )
-    return reply
-
-
-def _append_requested_phrases_for_quality_gate(user_message: str, reply_text: str) -> str:
-    """Keep deterministic grounded replies aligned with explicit user wording contracts."""
-
-    reply = str(reply_text or "").strip()
-    if not reply:
-        return reply
-    normalized_reply = _chat_memory_state._normalize_user_message(reply)
-    additions: list[str] = []
-    for phrase in _requested_visible_required_phrases(user_message):
-        phrase_text = " ".join(str(phrase or "").strip(" .,:;!?\"'“”‘’").split())
-        if not phrase_text:
-            continue
-        if _chat_memory_state._normalize_user_message(phrase_text) in normalized_reply:
-            continue
-        if "bridge" in _chat_memory_state._normalize_user_message(phrase_text):
-            additions.append(
-                f"{phrase_text}: the signed resident Aura.app bridge is the desktop-control "
-                "authority, and I should not report desktop control as ready unless the "
-                "resident bridge probe and macOS TCC checks both pass"
-            )
-        else:
-            additions.append(phrase_text)
-    if not additions:
-        return reply
-    suffix = ". ".join(additions)
-    if not suffix.endswith("."):
-        suffix += "."
-    return f"{reply.rstrip()} {suffix}".strip()
-
-
-def _ground_runtime_fact_status_reply(
-    user_message: str,
-    reply_text: str,
-    lane: dict[str, Any] | None,
-    *,
-    cognitive_engine_handled: bool,
-) -> str:
-    """Ground operational status answers in live runtime metadata."""
-    # A question about what she DID is answered by the receipts, and the
-    # receipts are already in hand.
-    #
-    # LIVE 2026-08-19: "prove to me you did something in the last five minutes
-    # that wasn't just talking to me" spent 81 seconds in the cortex, produced
-    # 2496 characters of repetitive_phrase_loop under memory pressure, and the
-    # person got the canned refusal. The receipts block had been attached to
-    # that very turn — the log records "survived to dispatch: present,
-    # receipts" — so the answer existed while the model was failing to write
-    # it. A generation failure is not an absence of facts. Only that failure:
-    # a reply she wrote is hers, and her receipts already reached her prompt
-    # (LIVE 15 November 2026, "Did you do anything interesting while I was
-    # out?" had her answer replaced by the listing, raw dicts and all).
-    _receipts = "" if str(reply_text or "").strip() else _recent_action_receipts(user_message)
-    if _receipts:
-        return _receipts
-    if not _chat_preflight._is_runtime_fact_status_request(user_message):
-        return reply_text
-    lane = dict(lane or {})
-    recurrent = dict(lane.get("recurrent_depth") or {})
-    recurrent_active = bool(recurrent.get("active"))
-    model_label = _canonical_runtime_model_label(lane)
-    tools_available = _chat_desktop_repair._runtime_tool_governance_available()
-    statements = [
-        (
-            "I am speaking through the launched desktop UI into /api/chat, through "
-            f"CognitiveEngine, with {model_label} as the active foreground lane."
-        ),
-        f"CognitiveEngine handled this turn: {'yes' if cognitive_engine_handled else 'no'}.",
-        (
-            f"Governed tools available: {'yes' if tools_available else 'no'}, "
-            "subject to explicit request, Will/Authority approval, and receipts."
-        ),
-    ]
-    if "recurrent depth" in str(user_message or "").lower() or recurrent_active:
-        statements.append(f"Recurrent depth: {'active' if recurrent_active else 'inactive'}.")
-    status_prompt = str(user_message or "").lower()
-    if "generic assistant" in status_prompt or "fallback" in status_prompt:
-        statements.append("Generic assistant fallback: blocked on the live desktop path.")
-    if _is_current_request_recap_request(user_message):
-        statements.insert(
-            0,
-            "You asked me to identify the current request and name the live cognition path handling this turn.",
-        )
-
-    try:
-        from core.conversation.response_reliability import (
-            repair_instruction_shape,
-            requested_sentence_count,
-        )
-
-        sentence_count = requested_sentence_count(user_message)
-    # not a failure: the reader could not be asked, so nothing here claims it holds.
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        repair_instruction_shape = None
-        sentence_count = None
-
-    if sentence_count is not None and 0 < sentence_count <= len(statements):
-        # Preserve every authoritative fact while honoring compact exact-count
-        # requests instead of dropping evidence or emitting a comma-heavy run-on.
-        leading = statements[: max(0, sentence_count - 1)]
-        remaining = [statement.rstrip(" .") for statement in statements[len(leading) :]]
-        continuation_clauses = []
-        for index, clause in enumerate(remaining):
-            if index > 0 and clause.startswith(("Governed ", "Recurrent ", "Generic ")):
-                clause = clause[:1].lower() + clause[1:]
-            continuation_clauses.append(clause)
-        reply = " ".join([*leading, "; ".join(continuation_clauses) + "."])
-    else:
-        reply = " ".join(statements)
-        if sentence_count is not None and repair_instruction_shape is not None:
-            reply = repair_instruction_shape(user_message, reply)
-    return _append_requested_phrases_for_quality_gate(user_message, reply)
-
-
 def _bind_qualified_recurrent_public_answer(
     trace: dict[str, Any] | None,
     response_text: Any,
@@ -882,15 +721,10 @@ def _enforce_or_bind_terminal_output_contract(
 
 def _compose_the_engine_message(
     *,
-    capability_inventory_contract: Any,
     context: Any,
     context_challenge_context: Any,
-    conversation_recall_context: Any,
     engine_user_message: Any,
-    grounded_runtime_status_context: Any,
-    memory_state_contract: Any,
     require_engine: Any,
-    runtime_fact_status_contract: Any,
     state_native_output_owner: Any,
     visible: Any,
 ) -> Any:
@@ -926,14 +760,8 @@ def _compose_the_engine_message(
         turn_evidence: list[str] = []
         if context_challenge_context:
             turn_evidence.append(f"Context challenge evidence: {context_challenge_context}")
-        if conversation_recall_context:
-            turn_evidence.append(
-                f"Conversation recall evidence: {conversation_recall_context}"
-            )
-        if runtime_fact_status_contract and not memory_state_contract:
-            turn_evidence.append(
-                f"Verified runtime status: {grounded_runtime_status_context}"
-            )
+        # What the conversation holds, and what her runtime reports, are readings beside the turn
+        # (conversation_recall_evidence, and the lane and governance in live_mind_context), not text inside it.
         if _is_self_claim_boundary_question(visible):
             claim_evidence = str(
                 context.get("evidence_bound_self_claim_context") or ""

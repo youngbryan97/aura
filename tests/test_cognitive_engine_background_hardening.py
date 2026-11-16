@@ -869,7 +869,11 @@ async def test_cognitive_engine_desktop_quick_reply_carries_fresh_turn_sight(mon
 
 
 @pytest.mark.asyncio
-async def test_cognitive_engine_runtime_status_contract_propagates_to_worker_boundary(monkeypatch):
+async def test_a_status_question_reaches_her_without_a_runtime_status_card(monkeypatch):
+    """A question about her lane is hers to answer from her live mind context, which carries the lane on every
+    turn. The route once attached a "[VERIFIED LIVE RUNTIME STATUS]" card, capped her at 256 tokens, and then put
+    the card's sentences in place of her reply; a caller still sending those keys reaches neither her prompt nor
+    her budget."""
     engine = CognitiveEngine()
     state = AuraState.default()
     engine.state_repository = StateRepositoryFixture(state)
@@ -913,11 +917,11 @@ async def test_cognitive_engine_runtime_status_contract_propagates_to_worker_bou
     )
 
     assert thought.content.startswith("Cortex (32B)")
-    assert captured["runtime_fact_status_contract"] is True
-    assert captured["grounded_runtime_status_contract"] is True
-    assert captured["max_tokens"] == 256
-    assert len(captured["messages"]) == 3
-    assert "VERIFIED LIVE RUNTIME STATUS" in captured["messages"][-2]["content"]
+    assert "runtime_fact_status_contract" not in captured
+    assert "grounded_runtime_status_contract" not in captured
+    assert captured["max_tokens"] > 256
+    assert not any("VERIFIED LIVE RUNTIME STATUS" in str(m.get("content")) for m in captured["messages"])
+    assert not any("CognitiveEngine handled this turn" in str(m.get("content")) for m in captured["messages"])
     assert captured["messages"][-1]["content"] == (
         "What model lane is speaking right now?"
     )

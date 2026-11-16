@@ -1683,35 +1683,6 @@ def _build_social_continuity_repair_reply(user_message: str) -> str:
     return _build_social_presence_reply(user_message)
 
 
-_CONTINUITY_STATUS_PROBE_RE = re.compile(
-    r"\b(?:still coherent|same thread|able to continue|short status|"
-    r"are you (?:still )?(?:there|with me|ok|okay)|are you coherent)\b",
-    re.IGNORECASE,
-)
-
-
-def _build_runtime_status_continuity_repair_reply(user_message: str) -> str | None:
-    """Gate-passing repair for a live self-status / continuity probe.
-
-    "are you still coherent, on the same thread, and able to continue?" must be
-    answered as a continuity affirmation, not a lane-internals dump: the
-    reliability gate (correctly) flags the foreground-lane / CognitiveEngine
-    grounding as pseudo_internal_jargon when the user asked about coherence
-    rather than about the lane. Without this branch the question fell all the way
-    through to the generic "unstable draft" fallback, which the gate then flagged
-    as runtime_boilerplate (live_desktop_runtime soak turn 12 / tasks #22, #28).
-    """
-    if not _chat_preflight._is_runtime_fact_status_request(user_message):
-        return None
-    if not _CONTINUITY_STATUS_PROBE_RE.search(str(user_message or "")):
-        return None
-    return (
-        "I'm responding to this message now and able to continue from what is "
-        "present in this turn. This repair path did not independently verify "
-        "earlier-turn memory or tool availability, so I won't claim either."
-    )
-
-
 def _build_bounded_desktop_repair_reply(
     user_message: str, frame: dict[str, Any] | None = None
 ) -> str:
@@ -1730,10 +1701,6 @@ def _build_bounded_desktop_repair_reply(
     identity = _build_bounded_identity_repair_reply(user_message)
     if identity:
         return _apply_aura_voice_shaping(identity)
-
-    continuity_status = _build_runtime_status_continuity_repair_reply(user_message)
-    if continuity_status:
-        return _apply_aura_voice_shaping(continuity_status)
 
     capability_inventory = _build_bounded_capability_inventory_repair_reply(user_message)
     if capability_inventory:

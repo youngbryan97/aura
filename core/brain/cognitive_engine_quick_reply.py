@@ -201,7 +201,6 @@ class _AnswersTheDesktopDirectly:
         extended_full_mind_reply: bool,
         max_tokens: Any,
         memory_state_contract: bool,
-        runtime_fact_status_contract: bool,
         shape_wants_room: Any,
         structural_answer_floor: Any,
     ) -> tuple[Any, Any]:
@@ -228,13 +227,11 @@ class _AnswersTheDesktopDirectly:
         # and the answer was discarded as a truncated tail.
         #
         # memory_state_contract_covers_turn is chat.py reporting what its own
-        # parser found; the other two narrow contracts defer to the same
-        # question-shape signal the comment above already establishes.
-        narrow_state_contract = bool(runtime_fact_status_contract)
-        if memory_state_contract and context.get(
-            "memory_state_contract_covers_turn", True
-        ):
-            narrow_state_contract = True
+        # parser found.
+        narrow_state_contract = bool(
+            memory_state_contract
+            and context.get("memory_state_contract_covers_turn", True)
+        )
         if narrow_state_contract and not shape_wants_room:
             max_tokens = max(128, min(max_tokens, 256))
         elif capability_inventory_contract and not shape_wants_room:
@@ -265,7 +262,6 @@ class _AnswersTheDesktopDirectly:
         continuation_contract: bool,
         memory_state_contract: bool,
         obligation_contract: bool,
-        runtime_fact_status_contract: bool,
         self_condition_contract: bool,
         style_contract: Any,
         visible_user_message: str,
@@ -369,7 +365,6 @@ class _AnswersTheDesktopDirectly:
         context: dict[str, Any] | None,
         contract_grounding_blocks: Any,
         discourse_repair_contract: Any,
-        runtime_fact_status_contract: bool,
         self_condition_contract: bool,
         task_grounding_blocks: list[Any],
         user_prompt: Any,
@@ -481,14 +476,6 @@ class _AnswersTheDesktopDirectly:
         if live_capability_condition:
             # Facts, not a script. She says it however she says things.
             task_grounding_blocks.append(live_capability_condition)
-        grounded_runtime_status = str(
-            context.get("grounded_runtime_status_context") or ""
-        ).strip()
-        if runtime_fact_status_contract and grounded_runtime_status:
-            contract_grounding_blocks.append(
-                "[VERIFIED LIVE RUNTIME STATUS]\n"
-                f"{grounded_runtime_status}"
-            )
         capability_evidence = str(
             context.get("grounded_capability_inventory_context") or ""
         ).strip()
@@ -987,10 +974,6 @@ class _AnswersTheDesktopDirectly:
         if isinstance(cognitive_situation_frame, dict):
             sampling_sources.append(cognitive_situation_frame.get("sampling_bias") or {})
         memory_state_contract = bool(context.get("memory_state_contract", False))
-        runtime_fact_status_contract = bool(
-            context.get("runtime_fact_status_contract", False)
-            or context.get("grounded_runtime_status_contract", False)
-        )
         self_condition_contract = bool(context.get("self_condition_contract", False))
         self_condition_contract_covers_turn = bool(
             context.get(
@@ -1068,7 +1051,7 @@ class _AnswersTheDesktopDirectly:
                     if capability_inventory_contract and factor_value < 1.0:
                         continue
                     advisory_factors.append(factor_value)
-        completion_floor, max_tokens = self._direct_desktop_quick_reply_part_2(advisory_factors, capability_inventory_contract, context, extended_full_mind_reply, max_tokens, memory_state_contract, runtime_fact_status_contract, shape_wants_room, structural_answer_floor)
+        completion_floor, max_tokens = self._direct_desktop_quick_reply_part_2(advisory_factors, capability_inventory_contract, context, extended_full_mind_reply, max_tokens, memory_state_contract, shape_wants_room, structural_answer_floor)
         request_timeout_cap = (
             response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
             if shape_wants_room
@@ -1081,7 +1064,7 @@ class _AnswersTheDesktopDirectly:
                 request_timeout_cap,
             ),
         )
-        if memory_state_contract or runtime_fact_status_contract or self_condition_contract:
+        if memory_state_contract or self_condition_contract:
             request_timeout = min(request_timeout, 90.0)
         if capability_inventory_contract:
             request_timeout = min(request_timeout, 28.0)
@@ -1194,7 +1177,7 @@ class _AnswersTheDesktopDirectly:
             context.get("live_runtime_payload_required", False)
             or (live_mind_required and isinstance(live_mind_context, dict))
         )
-        system_prompt, turn_dynamic_contracts = self._direct_desktop_quick_reply_authority_head_always(capability_inventory_contract, completion_retry_contract, continuation_contract, memory_state_contract, obligation_contract, runtime_fact_status_contract, self_condition_contract, style_contract, visible_user_message)
+        system_prompt, turn_dynamic_contracts = self._direct_desktop_quick_reply_authority_head_always(capability_inventory_contract, completion_retry_contract, continuation_contract, memory_state_contract, obligation_contract, self_condition_contract, style_contract, visible_user_message)
         persona_contract = str(context.get("persona_system_prompt") or "").strip()
         if persona_contract:
             # CP126 ab3abbae: persona conditioning arrives as a structured
@@ -1227,7 +1210,7 @@ class _AnswersTheDesktopDirectly:
                 contradiction = await self._direct_desktop_quick_reply_what_her_procedure_says(*stated, router, origin)
                 if contradiction:
                     task_grounding_blocks.append(contradiction)
-        action_episode_evidence = self._direct_desktop_quick_reply_context_challenge_evidence(canonical_memory_state_evidence, canonical_self_condition_context, context, contract_grounding_blocks, discourse_repair_contract, runtime_fact_status_contract, self_condition_contract, task_grounding_blocks, user_prompt)
+        action_episode_evidence = self._direct_desktop_quick_reply_context_challenge_evidence(canonical_memory_state_evidence, canonical_self_condition_context, context, contract_grounding_blocks, discourse_repair_contract, self_condition_contract, task_grounding_blocks, user_prompt)
 
         # What the turn can afford to read, now that both claimants exist.
         # The system prompt is what she cannot answer without, so it is
@@ -1359,8 +1342,6 @@ class _AnswersTheDesktopDirectly:
                 "allow_mesh_cognition": False,
                 "skip_runtime_payload": True,
                 "memory_state_contract": memory_state_contract,
-                "runtime_fact_status_contract": runtime_fact_status_contract,
-                "grounded_runtime_status_contract": runtime_fact_status_contract,
                 "self_condition_contract": self_condition_contract,
                 "self_condition_contract_covers_turn": (
                     self_condition_contract_covers_turn

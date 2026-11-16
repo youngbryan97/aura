@@ -400,35 +400,6 @@ def _mock_orch(**kwargs):
     return ns
 
 
-def test_runtime_fact_status_reply_uses_canonical_lane(monkeypatch):
-    from interface.routes import chat as chat_routes
-
-    patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
-    reply = chat_routes._ground_runtime_fact_status_reply(
-        (
-            "Live desktop path validation. Reply in one sentence with the active model lane, "
-            "whether CognitiveEngine is handling this turn, and whether governed tools are available "
-            "and generic assistant fallback."
-        ),
-        "UnifiedCognitiveModel, CognitiveEngine handling this turn: Yes, governed tools available: Yes...",
-        {
-            "desired_model": "Cortex (32B)",
-            "foreground_endpoint": "Cortex",
-            "recurrent_depth": {"active": True},
-        },
-        cognitive_engine_handled=True,
-    )
-
-    assert "Cortex" in reply
-    assert "Cortex (32B)" not in reply
-    assert "active foreground lane" in reply
-    assert "CognitiveEngine handled this turn: yes" in reply
-    assert "governed tools available: yes" in reply
-    assert "recurrent depth: active" in reply
-    assert "generic assistant fallback: blocked on the live desktop path" in reply
-    assert "UnifiedCognitiveModel" not in reply
-
-
 def test_runtime_fact_status_request_respects_own_voice_instruction():
     from interface.routes import chat as chat_routes
 
@@ -438,56 +409,6 @@ def test_runtime_fact_status_request_respects_own_voice_instruction():
     assert not chat_routes._is_runtime_fact_status_request(
         "What is your current state? Do not mention internals unless they matter."
     )
-
-
-def test_runtime_fact_status_reply_recaps_current_route_probe(monkeypatch):
-    from interface.routes import chat as chat_routes
-
-    patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
-    reply = chat_routes._ground_runtime_fact_status_reply(
-        (
-            "Live desktop route probe. Answer directly in two sentences: what did I just ask "
-            "you to do, and what mind/cognition path are you using right now?"
-        ),
-        "You asked me to do a route probe. I'm attending to planning. What's your intent?",
-        {
-            "desired_model": "Cortex (32B)",
-            "foreground_endpoint": "Cortex",
-            "recurrent_depth": {"active": True},
-        },
-        cognitive_engine_handled=True,
-    )
-
-    assert reply.startswith("You asked me to identify the current request")
-    assert "Cortex" in reply
-    assert "Cortex (32B)" not in reply
-    assert "active foreground lane" in reply
-    assert "CognitiveEngine handled this turn: yes" in reply
-    assert "governed tools available: yes" in reply
-    assert "recurrent depth: active" in reply
-    assert "What's your intent" not in reply
-
-
-def test_runtime_fact_status_reply_does_not_overwrite_action_objectives(monkeypatch):
-    from interface.routes import chat as chat_routes
-
-    patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
-    reply = chat_routes._ground_runtime_fact_status_reply(
-        (
-            "Use the governed tool path to create a small self-contained HTML page "
-            "at artifacts/live_runtime/generated/codex_live_probe_tool_path_general.html "
-            "with a title, one button, and a short script that updates text when clicked."
-        ),
-        "I created the requested HTML page through the governed file path.",
-        {
-            "desired_model": "Cortex (32B)",
-            "foreground_endpoint": "Cortex",
-            "recurrent_depth": {"active": True},
-        },
-        cognitive_engine_handled=True,
-    )
-
-    assert reply == "I created the requested HTML page through the governed file path."
 
 
 def test_cognitive_chat_mode_keeps_concise_planning_bounded():
@@ -1601,41 +1522,6 @@ def test_anaphoric_memory_pin_classifier_accepts_explicit_requests(prompt):
 
 
 
-def test_continuity_status_probe_repair_is_grounded_not_boilerplate():
-    """live_desktop_runtime soak turn 12 ("are you still coherent, on the same
-    thread, and able to continue?") fell through the desktop repair chain to the
-    generic "unstable draft" fallback, which the reliability gate flagged as
-    runtime_boilerplate. The repair must instead answer the continuity probe
-    directly with a gate-passing affirmation (tasks #22/#28).
-    """
-    from core.conversation.response_reliability import assess_user_facing_reply
-    from interface.routes import chat as chat_routes
-
-    prompt = (
-        "Finish with a short status: are you still coherent, on the same thread, "
-        "and able to continue?"
-    )
-
-    # The old generic fallback string is exactly what the gate rejects.
-    old_fallback = (
-        "I'm here with the thread intact. I caught an unstable draft before sending it, "
-        "so I will keep this turn bounded instead of inventing an answer or pretending a tool ran. "
-        "My state is Joy, leaning toward engage. Ask me again in a moment and I will answer from the live path."
-    )
-    assert not assess_user_facing_reply(prompt, old_fallback).ok
-
-    repaired = chat_routes._build_bounded_desktop_repair_reply(prompt)
-    repaired_l = repaired.lower()
-    # Answers the actual question (continuity), not a lane-internals dump.
-    assert "able to continue" in repaired_l
-    assert "unstable draft" not in repaired_l
-    assert "operational status probe" not in repaired_l
-    assert "memory of the earlier turns" not in repaired_l
-    assert "tools remain available" not in repaired_l
-    # And it passes the reliability gate (no runtime_boilerplate / jargon flags).
-    assert assess_user_facing_reply(prompt, repaired).ok
-
-
 def test_recovery_surfaces_do_not_assert_unmeasured_runtime_facts(monkeypatch):
     from interface.routes import chat as chat_routes
 
@@ -1648,9 +1534,6 @@ def test_recovery_surfaces_do_not_assert_unmeasured_runtime_facts(monkeypatch):
         ),
         chat_routes._build_identity_challenge_reply(
             "You're just an AI assistant."
-        ),
-        chat_routes._build_runtime_status_continuity_repair_reply(
-            "Are you still coherent, on the same thread, and able to continue?"
         ),
         chat_routes._build_social_continuity_repair_reply("Thanks, talk later."),
         chat_routes._build_bounded_desktop_repair_reply(
@@ -1674,25 +1557,6 @@ def test_recovery_surfaces_do_not_assert_unmeasured_runtime_facts(monkeypatch):
         assert reply
         lowered = reply.lower()
         assert not any(claim in lowered for claim in forbidden_claims)
-
-
-def test_continuity_status_repair_does_not_steal_lane_or_planning_turns():
-    """The continuity-probe repair branch is narrow: it must not capture a lane
-    question or a planning turn (which have their own grounded contracts)."""
-    from interface.routes import chat as chat_routes
-
-    assert chat_routes._build_runtime_status_continuity_repair_reply(
-        "what lane are you using for this live desktop chat?"
-    ) is None
-    assert chat_routes._build_runtime_status_continuity_repair_reply(
-        "Give a concise plan for creating a note and exporting it as a PDF, but do not execute tools."
-    ) is None
-    assert (
-        chat_routes._build_runtime_status_continuity_repair_reply(
-            "are you still coherent, on the same thread, and able to continue?"
-        )
-        is not None
-    )
 
 
 def test_be_aura_request_is_identity_recovery_not_generic_chat():
@@ -7622,7 +7486,10 @@ async def test_api_chat_desktop_self_process_no_reply_uses_grounded_repair(monke
 
 
 @pytest.mark.asyncio
-async def test_api_chat_desktop_runtime_path_no_reply_uses_grounded_route_truth(monkeypatch):
+async def test_api_chat_desktop_runtime_path_no_reply_is_not_answered_by_a_status_card(monkeypatch):
+    """When she writes nothing to a question about her runtime path, the turn fails as any turn does. The route
+    once served a status card here ("I am speaking through the launched desktop UI into /api/chat, through
+    CognitiveEngine ...") as though she had answered."""
     from interface import server as server_module
     from interface.routes import chat as chat_routes
 
@@ -7721,27 +7588,15 @@ async def test_api_chat_desktop_runtime_path_no_reply_uses_grounded_route_truth(
     payload = json.loads(response.body)
     lowered = payload["response"].lower()
     assert response.status_code == 200
-    assert payload["status"] == "cognitive_engine_runtime_fact_grounding"
+    assert payload["status"] != "cognitive_engine_runtime_fact_grounding"
     assert payload["reason"] == "desktop_cognitive_engine_required_no_reply"
-    assert payload["response_confidence"] == "bounded"
-    assert payload["live_turn_contract"]["full_mind_path"] is False
-    assert payload["live_turn_contract"]["bounded_contract_used"] is True
-    assert payload["live_turn_contract"]["final_text_authorship"] == (
-        "non_cognitive_replacement"
-    )
-    assert "stand behind" not in lowered
-    assert "resident bridge truth" in lowered
-    assert "desktop ui" in lowered
-    assert "/api/chat" in lowered
-    assert "cognitiveengine" in lowered
-    assert "cortex" in lowered
-    assert "cortex (32b)" not in lowered
-    assert "claude" not in lowered
+    assert payload["response_confidence"] == "failed"
+    assert "cognitiveengine" not in lowered
+    assert "active foreground lane" not in lowered
+    assert "/api/chat" not in lowered
     assert kernel_calls == []
     assert len(completed_exchanges) == 1
-    assert completed_exchanges[0][1]["record_experience"] is True
-    assert output_receipts[0][1]["metadata"]["path"] == "cognitive_engine_runtime_fact_grounding"
-    assert output_receipts[0][1]["metadata"]["response_confidence"] == "bounded"
+    assert output_receipts[0][1]["metadata"]["path"] != "cognitive_engine_runtime_fact_grounding"
 
 
 @pytest.mark.asyncio
@@ -9106,7 +8961,9 @@ async def test_api_chat_desktop_required_blocks_unfounded_voice_intrusion(monkey
 
 
 @pytest.mark.asyncio
-async def test_required_runtime_status_turn_invokes_cognitive_engine(monkeypatch):
+async def test_required_runtime_status_turn_is_answered_in_her_words(monkeypatch):
+    """A question about her lane goes to her, and what she writes is what is served. The route once put a
+    status card beside his words, flagged the turn, and replaced her reply with the card's sentences."""
     from core.brain.llm import model_registry
     from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
@@ -9179,28 +9036,18 @@ async def test_required_runtime_status_turn_invokes_cognitive_engine(monkeypatch
     )
 
     assert calls
-    # The turn carries what it knows, not how to word it. This used to assert
-    # the directive label "Runtime path contract", which was a line telling the
-    # model to name the lane and avoid a generic identity — the wording
-    # mandate this codebase says it never writes. What the turn cannot answer
-    # without is the verified status itself, so that is what is asserted.
-    assert "[LIVE DESKTOP TURN EVIDENCE]" in calls[0]["objective"]
-    assert "Verified runtime status:" in calls[0]["objective"]
-    assert "Cortex (27B)" in calls[0]["objective"]
-    assert calls[0]["context"]["runtime_fact_status_contract"] is True
-    assert calls[0]["context"]["grounded_runtime_status_contract"] is True
-    assert "Cortex (27B)" in calls[0]["context"]["grounded_runtime_status_context"]
-    assert "active foreground lane" in calls[0]["context"]["grounded_runtime_status_context"]
+    assert "Verified runtime status:" not in calls[0]["objective"]
+    assert "runtime_fact_status_contract" not in calls[0]["context"]
+    assert "grounded_runtime_status_context" not in calls[0]["context"]
     assert calls[0]["context"]["cognitive_engine_required"] is True
     assert trace["engine_think_invoked"] is True
     assert trace["cognitive_engine_reply_accepted"] is True
-    assert trace["response_path"] == "cognitive_engine_runtime_fact_grounding"
+    assert trace["response_path"] == "cognitive_engine"
     assert trace.get("bounded_contract_used") is not True
     assert reply.startswith("You asked me to identify the current request")
-    assert "Cortex (27B)" in reply
-    assert "active foreground lane" in reply
-    assert "CognitiveEngine handled this turn: yes" in reply
-    assert "governed tools available: yes" in reply
+    assert "I am using CognitiveEngine on the Cortex 32B foreground lane." in reply
+    assert "CognitiveEngine handled this turn: yes" not in reply
+    assert "governed tools available: yes" not in reply
 
 
 @pytest.mark.asyncio
@@ -13661,7 +13508,7 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('contract', [
-    None, 'memory_state_contract', 'runtime_fact_status_contract', 'self_condition_contract',
+    None, 'memory_state_contract', 'self_condition_contract',
     'capability_inventory_contract', 'identity_continuity_contract',
 ])
 @pytest.mark.parametrize('streaming', [False, True])
@@ -14039,8 +13886,6 @@ async def test_rejected_generation_cannot_open_metadata_less_second_owner(monkey
         lambda **_kwargs: (True, "test_ready"),
     )
     patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
-    )
-    patch_chat_lane(monkeypatch, "_ground_runtime_fact_status_reply", lambda _visible, reply, _lane, **_kwargs: f"{reply} grounded",
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -14925,7 +14770,7 @@ async def test_chat_restart_recovers_completed_exchange_from_ui_session(
 
 
 @pytest.mark.asyncio
-async def test_desktop_required_runtime_status_invokes_engine_then_grounds(monkeypatch):
+async def test_desktop_required_runtime_status_invokes_engine_and_keeps_her_reply(monkeypatch):
     from core.conversation.user_surface_contract import resolve_user_surface_prompt
     from interface.routes import chat as chat_routes
 
@@ -14934,7 +14779,12 @@ async def test_desktop_required_runtime_status_invokes_engine_then_grounds(monke
     class _FakeCognitiveEngine:
         async def think(self, objective, context=None, **kwargs):
             calls.append({"objective": objective, "context": dict(context or {})})
-            return SimpleNamespace(content="unexpected model answer")
+            return SimpleNamespace(
+                content=(
+                    "This chat runs on my Cortex lane right now. "
+                    "My governed tools are available when you ask for them and the permission holds."
+                )
+            )
 
     patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
     monkeypatch.setattr(
@@ -14965,23 +14815,21 @@ async def test_desktop_required_runtime_status_invokes_engine_then_grounds(monke
     )
 
     assert len(calls) == 1
-    assert calls[0]["context"]["runtime_fact_status_contract"] is True
+    assert "runtime_fact_status_contract" not in calls[0]["context"]
     assert calls[0]["context"]["cognitive_engine_required"] is True
     surface_prompt = resolve_user_surface_prompt(calls[0]["context"])
     assert surface_prompt.bound is True
     assert surface_prompt.valid is True
     assert surface_prompt.prompt == user_message
     assert surface_prompt.source == "desktop_chat.visible_user_message"
-    assert reply
-    assert "Cortex" in reply
-    assert "Cortex (32B)" not in reply
-    assert "active foreground lane" in reply
-    assert "CognitiveEngine handled this turn: yes" in reply
-    assert "governed tools available: yes" in reply
+    assert reply == (
+        "This chat runs on my Cortex lane right now. "
+        "My governed tools are available when you ask for them and the permission holds."
+    )
 
 
 @pytest.mark.asyncio
-async def test_desktop_required_cognitive_fusion_status_invokes_engine_then_grounds(monkeypatch):
+async def test_desktop_required_cognitive_fusion_status_invokes_engine_and_keeps_her_reply(monkeypatch):
     from interface.routes import chat as chat_routes
 
     calls = []
@@ -14989,7 +14837,12 @@ async def test_desktop_required_cognitive_fusion_status_invokes_engine_then_grou
     class _FakeCognitiveEngine:
         async def think(self, objective, context=None, **kwargs):
             calls.append({"objective": objective, "context": dict(context or {})})
-            return SimpleNamespace(content="unexpected model answer")
+            return SimpleNamespace(
+                content=(
+                    "If this chat fell back to a generic assistant, the model would answer without my state "
+                    "behind it. Staying fused to my cognitive engine keeps what I feel and remember in what I say."
+                )
+            )
 
     patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
     monkeypatch.setattr(
@@ -15023,15 +14876,10 @@ async def test_desktop_required_cognitive_fusion_status_invokes_engine_then_grou
     )
 
     assert len(calls) == 1
-    assert calls[0]["context"]["runtime_fact_status_contract"] is True
+    assert "runtime_fact_status_contract" not in calls[0]["context"]
     assert calls[0]["context"]["cognitive_engine_required"] is True
-    assert reply
-    assert "Cortex" in reply
-    assert "Cortex (32B)" not in reply
-    assert "active foreground lane" in reply
-    assert "CognitiveEngine handled this turn: yes" in reply
-    assert "governed tools available: yes" in reply
-    assert "recurrent depth: active" in reply
+    assert reply.startswith("If this chat fell back to a generic assistant")
+    assert "active foreground lane" not in reply
 
 
 def test_compact_desktop_contract_keeps_hypothetical_tool_plans_compact():
@@ -15100,7 +14948,6 @@ def test_inline_five_part_technical_request_uses_deep_lane():
         user_message,
         capability_inventory_contract=False,
         bounded_planning_contract=True,
-        runtime_fact_status_contract=False,
         memory_state_contract=False,
     ) == chat_routes.answer_surface_token_floor(user_message)
 

@@ -252,7 +252,7 @@ def test_capability_inventory_rejects_midword_clipped_tail() -> None:
     )
 
 
-def test_runtime_status_grounding_does_not_replace_capability_inventory(
+def test_the_capability_inventory_is_not_a_runtime_status_card(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from interface.routes import chat as chat_routes
@@ -287,16 +287,9 @@ def test_runtime_status_grounding_does_not_replace_capability_inventory(
     patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
 
     inventory = chat_routes._build_grounded_capability_inventory_reply(INVENTORY_PROMPT)
-    grounded = chat_routes._ground_runtime_fact_status_reply(
-        INVENTORY_PROMPT,
-        inventory,
-        {"desired_model": "Cortex (32B)"},
-        cognitive_engine_handled=True,
-    )
 
-    assert grounded == inventory
-    assert "computer_use" in grounded
-    assert "Cortex (32B) is the active foreground lane" not in grounded
+    assert "computer_use" in inventory
+    assert "Cortex (32B) is the active foreground lane" not in inventory
 
 
 @pytest.mark.asyncio
