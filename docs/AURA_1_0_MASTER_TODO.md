@@ -4708,6 +4708,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [ ] 2026-11-15: diagnostic log collection must use the logging
+    owner's configured directory. The public bundle run below set
+    AURA_LOG_DIR to scratch and still copied ~/.aura/logs, because
+    diagnostics chooses its own directory. Owner: Q06, diagnostics.
+    Next: reuse the logger's resolver and test explicit, missing and
+    default roots. The copied payload stayed within 512 KiB and local
+    to the scratch archive; no log content was published.
   - [x] 2026-11-15: diagnostic log collection keeps its byte cap while
     a log grows or rotates. Each opened file supplies its current end;
     every read takes at most the remaining budget and the collector
@@ -4982,6 +4989,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     bytes. Lint, compile and targeted writing passed.
     Source: tools/run_test_chunks.py; tests:
     tests/runtime/test_chunk_runner_text_output.py.
+  - [x] 2026-11-15: make diagnostic-bundle uses the existing doctor
+    bundle collector instead of an unbounded log copy and ignored
+    collection failures. DIAGNOSTIC_BUNDLE_PATH selects the archive;
+    the default remains under /tmp/aura_diagnostics. The real command
+    produced a checked 16-file archive with 524,288 log bytes, and
+    PYTHON=false made make fail with exit 2 and produced no archive.
+    Smoke: 164 passed, 1 skipped. This verifies artifact creation and
+    failure propagation; collector contents are not a runtime-readiness
+    verdict. The separate wrong-log-root defect is tracked under Q06.
   2026-10-01. Main at 8ac994342: module size, lint, the strict lint
   surface, markers and the claim discipline test are green again, each red
   on main from work that landed after 30 September. The async sandbox claim

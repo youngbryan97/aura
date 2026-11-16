@@ -893,16 +893,11 @@ audit-deps:
 	@$(PYTHON) -m pip_audit --skip-editable --progress-spinner off $(AUDIT_WAIVERS)
 	@echo "✅ Dependency audit clean (waivers: see docs/DEPENDENCY_AUDIT.md)"
 
+DIAGNOSTIC_BUNDLE_PATH ?= /tmp/aura_diagnostics/bundle.tar.gz
+
 diagnostic-bundle:
 	@echo "📦 Creating diagnostic bundle..."
-	@mkdir -p /tmp/aura_diagnostics
-	@$(PYTHON) -c "\
-	from core.runtime.mode import mode_context; \
-	import json; \
-	print(json.dumps(mode_context(), indent=2))" > /tmp/aura_diagnostics/mode.json
-	@cp -r logs/ /tmp/aura_diagnostics/logs/ 2>/dev/null || true
-	@$(PYTHON) tools/aura_production_readiness_gate.py --out /tmp/aura_diagnostics/production_readiness.json 2>/dev/null || true
-	@echo "✅ Diagnostic bundle written to /tmp/aura_diagnostics/"
+	@$(PYTHON) -m core.runtime.operator_cli doctor --bundle --bundle-path "$(DIAGNOSTIC_BUNDLE_PATH)"
 
 backup:
 	@echo "💾 Creating verified state backup..."
