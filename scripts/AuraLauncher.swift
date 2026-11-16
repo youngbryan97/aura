@@ -2131,6 +2131,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     private var spawnedProcesses: [Process] = []
 
     private var pollTimer: Timer?
+    private var highlightTimer: Timer?
     private var nativeBridgeTimer: Timer?
     private var isPolling = false
     private var nativeBridgeProcessing = false
@@ -2301,6 +2302,34 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         nativeBridgeTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             self?.processNativeBridgeRequests()
         }
+        // The bubble's own active cadence (interface/static/bubble.js, ACTIVE_POLL_MS).
+        highlightTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            self?.collectAHighlightWhileHerWindowIsUp()
+        }
+    }
+
+    /// Draws a highlight she queued while her window is the surface.
+    ///
+    /// The bubble collects a queued highlight when it polls, and while her
+    /// window is up the bubble is ordered out and does not poll, so a
+    /// highlight asked for from her window was declined as having nowhere to
+    /// be drawn (15 November 2026). The launcher reads her state itself then,
+    /// as surface native-host (core/perception/ambient_presence.py).
+    private func collectAHighlightWhileHerWindowIsUp() {
+        guard desktopWindow?.isVisible == true, bubblePanel?.isVisible != true,
+              let url = URL(string: "http://127.0.0.1:8000/api/ambient/state?surface=native-host") else { return }
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let self, let data,
+                  let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let rect = state["highlight"] as? [String: Any] else { return }
+            self.showHighlight(
+                x: (rect["x"] as? Double) ?? 0,
+                y: (rect["y"] as? Double) ?? 0,
+                width: (rect["width"] as? Double) ?? 0,
+                height: (rect["height"] as? Double) ?? 0,
+                seconds: (rect["seconds"] as? Double) ?? 3.0
+            )
+        }.resume()
     }
 
     private func visibleInteractiveSurfaceExists() -> Bool {

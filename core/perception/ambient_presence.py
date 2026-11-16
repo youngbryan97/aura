@@ -100,6 +100,11 @@ _RESTALE_AFTER_S = 30.0
 #: pointed at something on a screen nobody is drawing on.
 _SURFACE_ALIVE_S = 15.0
 
+#: Who can draw a queued highlight: the bubble's page, and her launcher itself while her window is up. The bubble is
+#: ordered out then and does not poll, so a highlight asked for from her window was declined as having nowhere to be
+#: drawn (15 November 2026). Each collects it when it reads her state, exactly once.
+DRAWING_SURFACES = frozenset({"native-bubble", "native-host"})
+
 #: A queued highlight that nobody collected is stale — the screen has moved on
 #: and a rectangle drawn around where something USED to be is worse than no
 #: rectangle. Roughly two idle polls.
@@ -534,14 +539,14 @@ class AmbientPresence(_CarriesTheBubble):
     # ── pointing at things ───────────────────────────────────────────────
 
     def note_surface_poll(self, surface: str = "") -> None:
-        """The bubble just polled, so something exists that can draw.
+        """A surface that can draw just polled (DRAWING_SURFACES), so something exists that can draw.
 
-        Only the bubble counts. The restrained chat window reads the same
+        Only those count. The restrained chat window reads the same
         state endpoint, and treating its one read on open as "a drawing
         surface is attached" would let her claim to have pointed at something
         when no overlay host was listening.
         """
-        if str(surface).strip().lower() != "native-bubble":
+        if str(surface).strip().lower() not in DRAWING_SURFACES:
             return
         with self._lock:
             self._last_surface_poll_at = time.time()
@@ -1067,7 +1072,7 @@ class AmbientPresence(_CarriesTheBubble):
         self.note_surface_poll(surface)
         normalized_surface = str(surface).strip().lower()
         native_bubble = normalized_surface == "native-bubble"
-        highlight = self.take_highlight() if native_bubble else None
+        highlight = self.take_highlight() if normalized_surface in DRAWING_SURFACES else None
         bubble_move = self.take_bubble_move() if native_bubble else None
         with self._lock:
             self._promote_next_narration()

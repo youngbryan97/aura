@@ -69,7 +69,7 @@ def test_a_stale_surface_does_not_count_as_attached(presence, monkeypatch):
     assert presence.request_highlight(10, 10, 100, 40, 3.0) is False
 
 
-def test_only_the_bubble_counts_as_a_drawing_surface(presence):
+def test_only_a_host_that_draws_counts_as_a_drawing_surface(presence):
     """The chat window reads the same state and cannot draw an overlay.
 
     Counting its read as "a surface is attached" would let her claim a
@@ -80,6 +80,25 @@ def test_only_the_bubble_counts_as_a_drawing_surface(presence):
 
     presence.note_surface_poll("native-bubble")
     assert presence.drawing_surface_attached() is True
+
+
+def test_her_launcher_draws_while_her_window_is_up_and_the_bubble_is_not():
+    """15 November 2026: a highlight asked for from her window was declined, the bubble being ordered out and silent.
+
+    Her launcher reads her state itself then, as native-host, and collects the rectangle as the bubble would.
+    """
+    from pathlib import Path
+
+    presence = AmbientPresence()
+    presence.set_mode(PresenceMode.WINDOW)
+    presence.note_surface_poll("native-host")
+    assert presence.request_highlight(12, 34, 200, 50, 2.5) is True
+    assert presence.state()["highlight"] is None, "the chat window still cannot take it"
+    assert presence.state(surface="native-host")["highlight"]["x"] == 12
+    launcher = Path("scripts/AuraLauncher.swift").read_text(encoding="utf-8")
+    poll = launcher.split("private func collectAHighlightWhileHerWindowIsUp()", 1)[1].split("private func", 1)[0]
+    assert "surface=native-host" in poll and "self.showHighlight(" in poll
+    assert "desktopWindow?.isVisible == true" in poll and "bubblePanel?.isVisible != true" in poll
 
 
 def test_hidden_means_she_does_not_draw_either(attached):
