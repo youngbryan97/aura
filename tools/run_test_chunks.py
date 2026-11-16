@@ -441,6 +441,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("extra", nargs="*", help="extra pytest args")
     args = parser.parse_args(argv)
+    if args.chunks < 1:
+        parser.error("--chunks must be a positive integer")
+    for name, seconds in (("--chunk-timeout", args.chunk_timeout), ("--retry-timeout", args.retry_timeout)):
+        if not math.isfinite(seconds) or seconds <= 0:
+            parser.error(f"{name} must be finite and positive")
     if not math.isfinite(args.min_free_gb) or args.min_free_gb < 0:
         parser.error("--min-free-gb must be finite and nonnegative")
     if args.only_chunks is not None and not any(part.strip() for part in args.only_chunks.split(",")):
