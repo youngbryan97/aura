@@ -1589,6 +1589,10 @@ _TEST_SCOPED_RESET_FUNCTIONS = (
     ("core.being.thought_interoception", "reset_thought_interoception_for_test"),
     ("core.being.unified_felt_state", "reset_unified_felt_state_for_test"),
     ("core.governance.will", "reset_unified_will_for_test"),
+    # Her choice engine is one per process, and what a test taught it about what she prefers was the next test's
+    # preference: after test_subjective_choice_engine.py her arbiter chose "Look up a random novelty item" over
+    # restored continuity work ("Expressed preferences: novelty"), and alone it did not (16 November 2026).
+    ("core.agency.subjective_choice", "reset_subjective_choice_engine_for_test"),
     ("aura_main", "disarm_fault_forensics"),
     # A boot test spawns the same detached sentinels a real boot does. Without
     # this they outlive the test, and the hermetic sandbox blames whichever

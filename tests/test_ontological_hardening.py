@@ -495,7 +495,14 @@ async def test_curiosity_explorer_finishes_receipt_for_approved_external_search(
 
 
 @pytest.mark.asyncio
-async def test_initiative_arbiter_keeps_restored_continuity_work_alive_after_silence():
+async def test_initiative_arbiter_keeps_restored_continuity_work_alive_after_silence(tmp_path, monkeypatch):
+    """Her choice engine here is a fresh one. The process's own saves what each arbitration taught it to the test data
+    directory every test and every run shares, so this answer depended on what earlier runs had chosen (16 November
+    2026: in two runs of the related tests it chose the novelty item, and alone it did not)."""
+    from core.agency import subjective_choice
+
+    fresh = subjective_choice.SubjectiveChoiceEngine(state_path=tmp_path / "subjective_choices.json")
+    monkeypatch.setattr(subjective_choice, "get_subjective_choice_engine", lambda: fresh)
     arbiter = InitiativeArbiter()
     state = AuraState.default()
     state.cognition.pending_initiatives = [
