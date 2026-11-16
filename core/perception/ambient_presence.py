@@ -125,6 +125,41 @@ def _nonnegative_finite_float(value: Any) -> float:
     return number if math.isfinite(number) and number >= 0.0 else 0.0
 
 
+#: What she and the person are doing while she sits in the bubble.
+KEEPING_COMPANY = "keeping company at the desk"
+
+
+def _keeping_company() -> Any:
+    """The with she is in while she sits in the bubble beside the person, begun if it is not; None if nobody is there.
+
+    It is held under whoever she is talking with (core/together/taking_it_up.the_person_she_is_with), so each thing the
+    person says to her is a turn in it, and whether her remarks are taken up is learned from them.
+    """
+    try:
+        from core.together.a_with import THEM, get_together
+        from core.together.taking_it_up import the_person_she_is_with
+
+        who = the_person_she_is_with()
+        return get_together().begin(who, KEEPING_COMPANY, proposed_by=THEM) if who else None
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("ambient_presence", exc, severity="warning",
+                           action="she sat in the bubble without keeping company, so only a fault reached her")
+        return None
+
+
+def _stop_keeping_company() -> None:
+    """Her window opened or she was hidden: the company she was keeping at the desk ends."""
+    try:
+        from core.together.a_with import THEM, get_together
+
+        together = get_together()
+        held = together.current()
+        if held is not None and held.what == KEEPING_COMPANY:
+            together.end(held.who, by=THEM)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("ambient_presence", exc, severity="warning", action="company kept at the desk was left open")
+
+
 class PresenceMode(StrEnum):
     """What surface she is present on right now."""
 
@@ -325,6 +360,8 @@ class AmbientPresence(_CarriesTheBubble):
                 self._pending_utterance = ""
                 self._pending_highlight = None
                 self._pending_bubble_move = None
+        if resolved is not PresenceMode.BUBBLE:
+            _stop_keeping_company()
         return resolved
 
     @property
@@ -947,6 +984,15 @@ class AmbientPresence(_CarriesTheBubble):
           * ``offer_utterance`` re-checks suppression and hidden state;
           * a message already waiting is not replaced, so a person who has
             not read the last one does not get a stream.
+
+        In the bubble she is keeping the person company, and that is a with
+        (``_keeping_company``): what is on screen interests her or not by her
+        own record, and whether to say something now is the with's expected
+        utility. Bryan, 15 November 2026: "a companion is actually watching
+        and thinking about what's going on with the screen too ... the idea
+        ultimately is for aura to always have presence". Her remark had been
+        gated on a list of fault words, so a form he was filling in, a draft,
+        or a conversation on screen never reached her.
         """
         from core.together.a_with import get_together
 
@@ -955,6 +1001,8 @@ class AmbientPresence(_CarriesTheBubble):
         # question (core/together/remarks.py), not the gap between
         # interruptions of somebody alone.
         held = get_together().current()
+        if held is None and self.mode is PresenceMode.BUBBLE:
+            held = _keeping_company()
         with self._lock:
             if self._pending_utterance:
                 return

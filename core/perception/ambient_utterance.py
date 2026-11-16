@@ -1,4 +1,9 @@
-"""Does she have something worth saying, unprompted, about what she saw?
+"""Does she have something worth saying, unprompted, about what she saw, when she is not keeping him company?
+
+In the bubble she is keeping the person company, and her remarks are a with's
+(core/perception/ambient_presence.KEEPING_COMPANY, core/together/remarks.py):
+Bryan, 15 November 2026, "unprompted advice and commentary. that's agency".
+What follows is the gate for the rest, with her window up and no with open.
 
 The default is no.
 

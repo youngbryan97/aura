@@ -31,7 +31,7 @@ from core.together.what_was_proposed import Proposal, WhatItAsksOfHer
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["TakingItUp", "get_taking_it_up", "install"]
+__all__ = ["TakingItUp", "get_taking_it_up", "install", "the_person_she_is_with"]
 
 HEADER = "## WHAT WAS PROPOSED TO YOU AND WHAT YOUR RECORD SAYS YOU WANT"
 SENSES_HEADER = "## WHAT YOU CAN SENSE AND REACH NOW"
@@ -346,6 +346,11 @@ def who_she_is_with(record: Any) -> str:
         return who_it_is("", "")
     talking = [thing for thing in people if thing.under_way]
     return max(talking or people, key=lambda thing: (thing.last, thing.key)).key
+
+
+def the_person_she_is_with() -> str:
+    """Who she is with now, by her record: the key a with with them is held under, so their turns reach it."""
+    return who_she_is_with(get_taking_it_up()._her_record())
 
 
 def hear_in_the_background(said: str, *, person: str = "", sent_from: str = "") -> None:
