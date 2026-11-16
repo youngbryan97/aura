@@ -32,6 +32,29 @@ def test_logs_share_one_byte_cap_and_newest_logs_go_first(logs):
     assert [entry["size"] for entry in info["copied"]] == [3, 5]
 
 
+def test_rotation_during_enumeration_keeps_the_surviving_logs(logs, monkeypatch):
+    source, target = logs
+    rotated = source / "rotating.log"
+    rotated.write_bytes(b"rotated")
+    (source / "steady.log").write_bytes(b"steady")
+    original_stat = Path.stat
+
+    def stat_then_rotate(path, *args, **kwargs):
+        metadata = original_stat(path, *args, **kwargs)
+        if path == rotated:
+            path.unlink()
+        return metadata
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "stat", stat_then_rotate)
+        info = bundle.collect_logs(target, max_total_bytes=6)
+
+    assert not rotated.exists()
+    assert info["available"] and info["bytes"] == 6
+    assert [entry["src"] for entry in info["copied"]] == ["steady.log"]
+    assert (target / "steady.log").read_bytes() == b"steady"
+
+
 @pytest.mark.parametrize("replacement", [b"longer than the budget", b"x"])
 def test_the_open_file_decides_the_tail_and_actual_byte_count(logs, monkeypatch, replacement):
     source, target = logs

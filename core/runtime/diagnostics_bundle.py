@@ -40,6 +40,7 @@ import json
 import logging
 import os
 import re
+import stat
 import tarfile
 import tempfile
 from collections.abc import Callable, Mapping
@@ -448,14 +449,19 @@ def collect_logs(dest_dir: Path, max_total_bytes: int = 512 * 1024) -> dict[str,
     src = _resolve_log_dir(None)
     if not src.is_dir():
         return {"available": False, "reason": "configured logs directory not found", "source": str(src)}
-    files = sorted(
-        (p for p in src.rglob("*") if p.is_file()),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
+    files: list[tuple[float, Path]] = []
+    for candidate in src.rglob("*"):
+        try:
+            metadata = candidate.stat()
+        except OSError as exc:
+            logger.debug("Diagnostic log could not be listed: %s: %s", candidate, exc)
+            continue
+        if stat.S_ISREG(metadata.st_mode):
+            files.append((metadata.st_mtime, candidate))
+    files.sort(key=lambda entry: entry[0], reverse=True)
     copied: list[dict[str, Any]] = []
     total = 0
-    for f in files:
+    for _, f in files:
         remaining = max_total_bytes - total
         if remaining <= 0:
             break

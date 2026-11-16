@@ -4805,6 +4805,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: the diagnostic log collector keeps surviving
+    files when a log rotates during enumeration. It reuses the
+    metadata from the scan to sort by recency and handles a missing
+    file at open. A rotation between the old two metadata reads used
+    to abort the complete log section. All 21 diagnostics tests
+    passed after the repair. Smoke passed 164 tests with one skip
+    in 44.68 s and maximum RSS of 487,686,144 bytes. Lint, compile,
+    dependency drift, layering, governance, module size and targeted
+    writing passed.
+    Source: core/runtime/diagnostics_bundle.py.
+    Tests: tests/test_diagnostic_logs_stay_within_their_cap.py.
   - [x] 2026-11-15: capability meanings are saved through the atomic
     file gateway from the request worker's governed scope. A lock
     keeps memory updates and disk replacements in the same order
