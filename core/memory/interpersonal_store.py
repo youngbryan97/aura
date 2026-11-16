@@ -409,6 +409,10 @@ class InterpersonalStore:
                 await gateway.ensure_directory_async(
                     self._root, source="memory.interpersonal_store.save"
                 )
+            with local_internal_governed_scope(
+                "memory.interpersonal_store.save",
+                domain="memory_write",
+            ):
                 await gateway.write_json_async(
                     self.path_for(key),
                     model.to_dict(),

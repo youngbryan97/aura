@@ -227,6 +227,31 @@ async def test_what_she_noticed_is_there_after_a_restart(tmp_path):
     assert "when I'm already behind" in restarted.render("Bryan")
 
 
+async def test_person_notes_renew_their_grant_after_directory_setup(store, monkeypatch):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    model = store.model_for("Bryan")
+    model.observe("likes sea anemones", episode_id="ep-slow-directory")
+    gateway = get_file_write_gateway()
+    ensure_directory = gateway.ensure_directory_async
+    grants = []
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+
+    async def ensure_then_expire(*args, **kwargs):
+        token = get_active_governance()
+        assert token is not None and token.domain == "memory_write"
+        result = await ensure_directory(*args, **kwargs)
+        token.mono_timestamp -= token.ttl + 1
+        grants.append(token.lease_id)
+        return result
+
+    monkeypatch.setattr(gateway, "ensure_directory_async", ensure_then_expire)
+    assert await store.save("Bryan")
+    restored = InterpersonalStore(root=store.path_for("Bryan").parent, authority=_Consent())
+    assert grants and "sea anemones" in restored.render("Bryan")
+
+
 async def test_regenerated_turn_replaces_interpersonal_episode_evidence(tmp_path):
     consent = _Consent()
     store = InterpersonalStore(root=tmp_path / "interpersonal", authority=consent)

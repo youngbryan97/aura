@@ -609,6 +609,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-15: the unified identity and interpersonal note
+    writers renew their maintenance grant after directory I/O.
+    Expiring only the directory grant made both old writers refuse
+    their save under enforcement. Both persisted and reloaded their
+    scratch records after the repair. All 50 focused tests passed.
+    Smoke passed 164 tests with one skip in 40.88 s and maximum RSS
+    of 502,824,960 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/consciousness/unified_self.py and
+    core/memory/interpersonal_store.py.
+    Tests: tests/test_unified_self_runtime_hardening.py and
+    tests/test_interpersonal_persistence.py.
   - [x] 2026-11-15: allostasis reports whether its ledger append
     completed independently of the state snapshot. A failed snapshot
     used to requeue events already appended and duplicate them on

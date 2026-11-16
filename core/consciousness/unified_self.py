@@ -213,6 +213,10 @@ class UnifiedSelf:
                 await gateway.ensure_directory_async(
                     self._storage_path.parent, source="unified_self.save_to_disk"
                 )
+            with local_internal_governed_scope(
+                "unified_self.save_to_disk",
+                receipt_prefix="unified-self-save",
+            ):
                 await gateway.write_text_async(
                     self._storage_path, payload, source="unified_self.save_to_disk"
                 )
