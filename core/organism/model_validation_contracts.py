@@ -16,6 +16,7 @@ from core.organism.nothing_measured import NothingMeasured
 
 def _install_repair_executor_claims(suite):
     from core.agency.when_motion_breaks_a_rule import _open_edges_are_not_faults
+    from core.learning.adaptive_halting import _halting_head_shape_invariant
     from core.memory.worth_at_encoding import neutral_worth_canary
     from core.organism.model_validation import (
         Claim,
@@ -29,6 +30,10 @@ def _install_repair_executor_claims(suite):
     from core.runtime.wall_clock import host_deadline_clock_holds
 
     for name, probe, owner, statement, tests in (
+        ("halting_artifact_shape_guard", lambda: _halting_head_shape_invariant() == (),
+         "core/learning/adaptive_halting.py",
+         "The halting artifact canary refuses a mismatched declared width before constructing the head.",
+         "tests/test_halting_head_checks_shape_before_allocation.py"),
         ("diagnostic_log_read_bound", lambda: _diagnostic_log_read_invariant() == (),
          "core/runtime/diagnostics_bundle.py",
          "The diagnostic log tail reader returns at most the requested byte budget.",

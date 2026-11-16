@@ -4765,6 +4765,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: the halting-head loader checks its weight and bias
+    shapes against the declared width before constructing the head.
+    A tiny malformed archive declaring width 2^40 used to reach the
+    allocation boundary first. Constructor spies safely reproduced
+    that order for three invalid widths; they prevented allocation.
+    All 35 selected loader, halting and validation tests pass after
+    the fix. The production payload path has a registered invariant
+    and an explicitly synthetic model-validation canary.
+    Smoke: 164 passed, 1 skipped in 84.55 s, maximum RSS 458,440,704
+    bytes. Lint, compile, dependency drift, layering, governance,
+    module size and targeted writing passed.
+    Source: core/learning/adaptive_halting.py; tests:
+    tests/test_halting_head_checks_shape_before_allocation.py.
   - [x] 2026-11-15: the turn-reader training artifact is encoded before
     the existing atomic file gateway replaces its destination, in an
     internal governed scope. A simulated encoder failure used to corrupt

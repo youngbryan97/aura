@@ -33,6 +33,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from core.verify.invariants import invariant
+
 ADAPTIVE_HALTING_SCHEMA = "aura.adaptive_halting.v1"
 VERIFIED_STOPPING_TEACHER_SCHEMA = "aura.verified_stopping_teacher.v1"
 
@@ -107,26 +109,56 @@ class HaltingHead:
         """Rebuild a head exactly as saved; malformed files fail loudly."""
         from pathlib import Path
 
-        import mlx.core as mx
         import numpy as np
 
         source = Path(path).expanduser()
         with np.load(source) as payload:
-            required = {"weight", "bias", "threshold", "hidden_size"}
-            if set(payload.files) != required:
-                raise ValueError(
-                    f"halting head file {source} missing fields: "
-                    f"{sorted(required - set(payload.files))}"
-                )
-            hidden_size = int(payload["hidden_size"][0])
-            head = cls(hidden_size, threshold=float(payload["threshold"][0]))
-            weight = payload["weight"].astype(np.float32)
-            bias = payload["bias"].astype(np.float32)
-            if weight.shape != (hidden_size, 1) or bias.shape != (1,):
-                raise ValueError(f"halting head file {source} has wrong shapes")
-            head.weight = mx.array(weight)
-            head.bias = mx.array(bias)
+            return cls._from_payload(payload, source=source)
+
+    @classmethod
+    def _from_payload(cls, payload: Any, *, source: Any) -> HaltingHead:
+        import numpy as np
+
+        required = {"weight", "bias", "threshold", "hidden_size"}
+        if set(payload) != required:
+            raise ValueError(
+                f"halting head file {source} missing fields: "
+                f"{sorted(required - set(payload))}"
+            )
+        hidden_size = int(payload["hidden_size"][0])
+        weight = payload["weight"].astype(np.float32)
+        bias = payload["bias"].astype(np.float32)
+        if weight.shape != (hidden_size, 1) or bias.shape != (1,):
+            raise ValueError(f"halting head file {source} has wrong shapes")
+
+        import mlx.core as mx
+
+        head = cls(hidden_size, threshold=float(payload["threshold"][0]))
+        head.weight = mx.array(weight)
+        head.bias = mx.array(bias)
         return head
+
+
+@invariant("learning.halting_artifact_shape_before_allocation", scope="learning",
+           owner="core/learning/adaptive_halting.py", observational=False)
+def _halting_head_shape_invariant() -> tuple:
+    import numpy as np
+
+    class AllocationTrap(HaltingHead):
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("the unchecked halting artifact reached head allocation")
+
+    payload = {
+        "weight": np.zeros((4, 1), dtype=np.float32),
+        "bias": np.zeros(1, dtype=np.float32),
+        "threshold": np.array([0.7]),
+        "hidden_size": np.array([2**40]),
+    }
+    try:
+        AllocationTrap._from_payload(payload, source="shape canary")
+    except ValueError:
+        return ()
+    raise AssertionError("the mismatched halting artifact was accepted")
 
 
 @dataclass(frozen=True)
