@@ -4948,6 +4948,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     passed; smoke 164 passed, 1 skipped in 87.52 s, maximum RSS 506,675,200
     bytes. No model loaded and no live-runtime change. The default floor
     remains zero; callers must request a floor with `--min-free-gb`.
+  - [x] 2026-11-15: the proof-step checkpoint writer preserves an existing
+    artifact directory's permissions. Its redundant ensure_directory
+    changed a shared directory to 0700 and made a read-only directory
+    writable before saving. The file gateway already makes missing
+    parents; the checkpoint remains a private 0600 file. The two
+    permission regressions failed before the fix; all 11 proof-step
+    tests pass after it. Smoke: 164 passed, 1 skipped in 46.11 s,
+    maximum RSS 488,177,664 bytes. Targeted lint and writing passed.
+    Source: tools/run_proof_step.py; tests:
+    tests/test_proof_step_keeps_an_unfinished_checkpoint.py.
   2026-10-01. Main at 8ac994342: module size, lint, the strict lint
   surface, markers and the claim discipline test are green again, each red
   on main from work that landed after 30 September. The async sandbox claim

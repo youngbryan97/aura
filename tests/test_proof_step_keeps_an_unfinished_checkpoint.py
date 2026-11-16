@@ -97,3 +97,32 @@ def test_failed_running_checkpoint_stops_the_owned_child(monkeypatch, tmp_path):
                     '--', sys.executable, '-c', 'import time; time.sleep(30)'])
     assert [r['status'] for r in saved] == ['prepared', 'running']
     assert len(spawned) == 1 and spawned[0].poll() is not None
+
+
+@pytest.mark.skipif(os.name != "posix", reason="directory permission bits require POSIX")
+@pytest.mark.parametrize("permissions", [0o755, 0o555])
+def test_a_checkpoint_preserves_its_existing_parent_permissions(tmp_path, permissions):
+    if permissions == 0o555 and os.geteuid() == 0:
+        pytest.skip("root can write a directory without its write bit")
+    parent = tmp_path / "shared"
+    parent.mkdir()
+    parent.chmod(permissions)
+    artifact = parent / "result.json"
+    try:
+        if permissions == 0o555:
+            with pytest.raises(PermissionError):
+                proof._save(artifact, {"passed": False})
+            assert not artifact.exists()
+        else:
+            proof._save(artifact, {"passed": False})
+            assert json.loads(artifact.read_text()) == {"passed": False}
+            assert artifact.stat().st_mode & 0o777 == 0o600
+        assert parent.stat().st_mode & 0o777 == permissions
+    finally:
+        parent.chmod(0o700)
+
+
+def test_a_checkpoint_creates_its_missing_parents_through_the_writer(tmp_path):
+    artifact = tmp_path / "new" / "nested" / "result.json"
+    proof._save(artifact, {"status": "prepared", "passed": False})
+    assert json.loads(artifact.read_text()) == {"status": "prepared", "passed": False}

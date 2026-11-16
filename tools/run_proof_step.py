@@ -40,7 +40,6 @@ def _save(path: Path, record: dict) -> None:
 
     with local_internal_governed_scope('proof_step_checkpoint'):
         gateway = get_file_write_gateway()
-        gateway.ensure_directory(path.parent, source='proof_step_checkpoint')
         gateway.write_text(path, json.dumps(record, indent=2) + '\n', source='proof_step_checkpoint')
 
 
