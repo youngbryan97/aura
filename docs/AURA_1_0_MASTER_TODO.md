@@ -1644,6 +1644,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the first time, and 54 of 64 stalls since 11 November came within two
   minutes of a boot. That the rest is a queue for the loop's worker threads
   is a hypothesis; the stall line counts the queue now (fa3d0536f).
+  16 November: her peer discovery asked for a LAN scan no grant names, 28
+  times from 14 to 16 November, each a constitution refusal in her feed.
+  It now asks her standing authority first and waits, saying so once
+  (cb42a49d3); nothing is granted. Open, cause not found: at 07:23 local
+  the runaway budget raised a critical incident on managed_rss_mb,
+  "growing 26559.4/h now (478.3/h across the window)", and both of its
+  forecasts resolved as a downward change of regime within the hour. No
+  model worker spawned and none of her own test runs was going. The
+  recent tail rose in most of its intervals, which is how a bounded step
+  reads as well as a leak.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,

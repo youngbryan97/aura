@@ -136,6 +136,10 @@ def locate_on_screen(needle: str) -> Rect | None:
 _NAMING_ATTRIBUTES = ("AXTitle", "AXDescription", "AXValue", "AXPlaceholderValue")
 
 
+#: Roles whose children are not on the screen until it is opened: a menu's items. The menu bar and its titles are.
+_NOT_ON_SCREEN_UNTIL_OPENED = frozenset({"AXMenu"})
+
+
 def _found_in_the_front_window(needle: str, *, within_s: float) -> Rect | None:
     """The element of the front window that ``needle`` names, by the window's own words; None when it names none.
 
@@ -184,12 +188,26 @@ def _found_in_the_front_window(needle: str, *, within_s: float) -> Rect | None:
         return None
     ends = time.monotonic() + max(0.1, float(within_s))
     seen: list[tuple[Any, frozenset[str], frozenset[str]]] = []
+    walked: set[Any] = set()
     queue = deque([window])
     while queue and time.monotonic() < ends:
         element = queue.popleft()
+        # Each element once: a tree that lists an element under itself is walked in circles otherwise. LIVE 16
+        # November 2026, the Claude app's window gave the walk 36,969 elements in 3 s, 33,133 of them menu items and
+        # its application element 140 times, and the conversation on screen was never reached.
+        key: Any = element  # an accessibility element is equal to, and hashes as, every other copy of itself
+        try:
+            hash(element)
+        except TypeError:
+            key = id(element)
+        if key in walked:
+            continue
+        walked.add(key)
         named = words_of(*(attribute(element, name) for name in _NAMING_ATTRIBUTES))
         if named:
             seen.append((element, named, words_of(attribute(element, "AXRoleDescription"))))
+        if attribute(element, "AXRole") in _NOT_ON_SCREEN_UNTIL_OPENED:
+            continue
         children = attribute(element, "AXChildren")
         if children:
             queue.extend(children)

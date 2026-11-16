@@ -23,7 +23,6 @@ import asyncio
 import pytest
 
 from core.perception.screen_highlight import (
-    MAX_SCREEN_FRACTION,
     HighlightResult,
     Rect,
     _suppressed,
@@ -361,3 +360,44 @@ def test_a_name_the_window_does_not_use_finds_nothing_and_a_kind_of_control_is_n
     assert locate_on_screen("save button") is None, "no Save on screen: no rectangle around another button"
     found = locate_on_screen("back button")
     assert found is not None and (found.x, found.y) == (795.0, 287.0), "the button named back, not the row"
+
+
+def test_a_tree_that_lists_an_element_under_itself_is_walked_once_and_closed_menus_are_not_walked(monkeypatch):
+    """LIVE 16 November 2026: the Claude app's window gave the walk 36,969 elements in 3 s, 33,133 of them menu
+    items and its application element 140 times, and the conversation on screen was never reached."""
+    from types import SimpleNamespace
+
+    import AppKit
+    import ApplicationServices
+
+    asked: list[object] = []
+
+    def node(children=(), **names):
+        return SimpleNamespace(children=list(children), names=names)
+
+    message = node(AXValue="Keep going then", AXPosition=(600, 700), AXSize=(120, 18))
+    menu = node([node(AXTitle=f"item {n}") for n in range(50)], AXRole="AXMenu")
+    window = node([node([menu], AXTitle="File", AXRole="AXMenuBarItem"), node([message])])
+    window.children.append(window)  # the element under itself
+    app = node(AXFocusedWindow=window)
+
+    def copy(element, name, _out):
+        asked.append(element)
+        if name == "AXChildren":
+            return (0, element.children) if element.children else (1, None)
+        value = element.names.get(name)
+        return (0, value) if value is not None else (1, None)
+
+    monkeypatch.setattr(ApplicationServices, "AXUIElementCreateApplication", lambda pid: app)
+    monkeypatch.setattr(ApplicationServices, "AXUIElementCopyAttributeValue", copy)
+    monkeypatch.setattr(ApplicationServices, "AXValueGetValue",
+                        lambda value, kind, _out: (True, SimpleNamespace(x=value[0], y=value[1], width=value[0],
+                                                                          height=value[1])))
+    monkeypatch.setattr(AppKit, "NSWorkspace", SimpleNamespace(sharedWorkspace=lambda: SimpleNamespace(
+        frontmostApplication=lambda: SimpleNamespace(processIdentifier=lambda: 1))))
+
+    found = locate_on_screen("Keep going then")
+
+    assert found is not None and (found.x, found.y) == (600.0, 700.0)
+    assert not any(element in menu.children for element in asked), "a closed menu's items were walked"
+    assert sum(element is window for element in asked) <= 8, "the window was walked more than once"
