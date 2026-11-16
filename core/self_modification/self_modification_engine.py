@@ -956,8 +956,12 @@ class AutonomousSelfModificationEngine:
 
             mended = await mend_the_faults_she_heard()
             for outcome in mended:
-                logger.info("🩹 Her own loop on %s: %s (%s)", outcome.get("slug"), outcome.get("status"),
-                            outcome.get("why") or outcome.get("commit") or "")
+                loaded = outcome.get("loaded") or {}
+                running = (f"; loaded into her running process: {', '.join(loaded['functions'])}"
+                           if loaded.get("functions") else
+                           f"; not loaded: {loaded['waits'][0]}" if loaded.get("waits") else "")
+                logger.info("🩹 Her own loop on %s: %s (%s)%s", outcome.get("slug"), outcome.get("status"),
+                            outcome.get("why") or outcome.get("commit") or "", running)
             taken = sum(1 for outcome in mended if outcome.get("status") == "merged")
 
             # Step 1: Find bugs

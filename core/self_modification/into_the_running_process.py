@@ -137,6 +137,21 @@ def _code_named(code: CodeType, qualname: str) -> CodeType | None:
     return None
 
 
+def _same_code(running: CodeType, made_from: CodeType) -> bool:
+    """Whether the running code is what ``made_from`` compiles to, line numbers aside."""
+    if running.co_code != made_from.co_code or running.co_names != made_from.co_names:
+        return False
+    if len(running.co_consts) != len(made_from.co_consts):
+        return False
+    for ours, theirs in zip(running.co_consts, made_from.co_consts, strict=True):
+        if isinstance(ours, CodeType) and isinstance(theirs, CodeType):
+            if not _same_code(ours, theirs):
+                return False
+        elif type(ours) is not type(theirs) or ours != theirs:
+            return False
+    return True
+
+
 def _running_function(module: Any, qualname: str) -> FunctionType | None:
     """The function object this process runs for ``qualname``, under any staticmethod, classmethod, property or
     functools.wraps around it."""
@@ -193,8 +208,10 @@ def load_into_this_process(module_name: str, before: str, after: str, *, goal: s
     if not names:
         loaded.waits.append(f"{module_name}: no function body changed, so there is nothing to load")
         return loaded
+    filename = str(getattr(module, "__file__", "") or module_name)
     try:
-        compiled = compile(after, str(getattr(module, "__file__", "") or module_name), "exec", dont_inherit=True)
+        compiled = compile(after, filename, "exec", dont_inherit=True)
+        made_from = compile(before, filename, "exec", dont_inherit=True)
     except (SyntaxError, ValueError) as exc:
         loaded.waits.append(f"{module_name} does not compile: {exc}")
         return loaded
@@ -207,6 +224,13 @@ def load_into_this_process(module_name: str, before: str, after: str, *, goal: s
             loaded.waits.append(f"{module_name}.{name} is not a function this process runs; nothing is loaded")
             return loaded
         old_code = function.__code__
+        expected = _code_named(made_from, name)
+        if expected is None or not _same_code(old_code, expected):
+            # The process runs other code than the mend was made on (her source moved since she started), so the
+            # mended body would bring that difference with it.
+            loaded.waits.append(f"{module_name}.{name} is not running the code the mend was made on; nothing is "
+                                "loaded, and it waits for her next start")
+            return loaded
         if old_code.co_freevars != new_code.co_freevars or (old_code.co_flags & _KIND) != (new_code.co_flags & _KIND):
             loaded.waits.append(f"{module_name}.{name} needs a different closure or kind of function; nothing is "
                                 "loaded, and it waits for her next start")

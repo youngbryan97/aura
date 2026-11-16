@@ -280,7 +280,8 @@ async def save(record: GoalRecord) -> None:
 
 
 #: The governed domain of each effect git has in her goal work; a call with none of these only reads.
-_GIT_EFFECTS = {"workspace": "file_write", "merge": "self_modification"}
+_GIT_EFFECTS = {"workspace": "file_write", "merge": "self_modification", "fetch": "file_write",
+                "push": "self_modification"}
 
 
 def _git(*args: str, cwd: Path, timeout: float = 120.0, effect: str = "") -> subprocess.CompletedProcess:
@@ -603,8 +604,8 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
 
     Her check_draft runs the test files her draft changed or named, so a draft that changed only a module and named no
     test passed on its compile and lint alone. Before she takes one herself it now passes the tests that name each
-    module it changed, the smoke suite, lint, layering and the writing gate. They run in the order given and stop at the
-    first that fails. Bryan's yes is his own judgment and asks none.
+    module it changed, the smoke suite, lint, layering, the writing gate, the governance lint and the DEPS check. They
+    run in the order given and stop at the first that fails. Bryan's yes is his own judgment and asks none.
     """
     import os
     import sys
@@ -618,7 +619,10 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     if tests:
         gates.append(("tests", ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
                                 *tests]))
-    gates += [(name, ["nice", "-n", "10", "make", name]) for name in ("smoke", "lint", "layering", "writing")]
+    # A draft her yes takes lands on origin's main (approve), so it asks what a push there is asked: the gates below
+    # and the governance and DEPS checks.
+    gates += [(name, ["nice", "-n", "10", "make", name])
+              for name in ("smoke", "lint", "layering", "writing", "governance-lint", "deps-check")]
     results: dict[str, dict[str, Any]] = {}
     for name, argv in gates:
         started = time.time()
@@ -630,8 +634,84 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     return results
 
 
+#: How long a fetch or a push to origin may take, in seconds: the bound her other git calls are given.
+_ORIGIN_SECONDS = 120.0
+
+
+def _replayed_on_origin(record: GoalRecord, commit: str) -> str | dict[str, Any]:
+    """Her draft replayed onto origin's main in her workspace, and its tests run there: the new commit, or why not."""
+    workspace = record.workspace
+    replayed = _git("-c", "user.name=Aura", "-c", "user.email=aura@localhost", "rebase", "origin/main", cwd=workspace,
+                    effect="workspace")
+    if replayed.returncode != 0:
+        _git("rebase", "--abort", cwd=workspace, effect="workspace")
+        return {"why": f"her draft does not apply on origin's main: {replayed.stderr.strip()[:240]}"}
+    tests = tests_that_touch(list(record.offer.get("files") or []), workspace)
+    if tests:
+        import os
+        import sys
+        import tempfile
+
+        env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
+               "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+        passed, tail = _run_a_gate(["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                                    *tests], cwd=workspace, env=env)
+        if not passed:
+            return {"why": f"her draft, replayed on origin's main, fails its tests: {tail[-400:]}"}
+    return _git("rev-parse", "HEAD", cwd=workspace).stdout.strip()
+
+
+def _onto_origin(record: GoalRecord, commit: str) -> dict[str, Any]:
+    """Her draft on origin's main before it goes into the source she runs on, so the two cannot part.
+
+    Her own yes took a draft into her source on disk only. A deploy fast-forwards her source to origin's main, so it
+    would then have found the two parted. Where origin's main has moved past her draft's base, the draft is replayed
+    onto it in her workspace and its tests run again there, and the replayed commit is what lands. Returns
+    ``{"landed": commit}``, ``{"why": ...}`` when it could not land, or ``{}`` when her source has no origin.
+    """
+    root = source_root()
+    if _git("remote", "get-url", "origin", cwd=root).returncode != 0:
+        return {}
+    refused = ""
+    for _attempt in range(2):  # a second time only after a push that lost a race to another
+        fetched = _git("fetch", "-q", "origin", "main", cwd=root, effect="fetch", timeout=_ORIGIN_SECONDS)
+        if fetched.returncode != 0:
+            return {"why": f"origin could not be read: {fetched.stderr.strip()[:240]}"}
+        if _git("merge-base", "--is-ancestor", "origin/main", commit, cwd=root).returncode != 0:
+            replayed = _replayed_on_origin(record, commit)
+            if isinstance(replayed, dict):
+                return replayed
+            commit = replayed
+        pushed = _git("push", "-q", "origin", f"{commit}:refs/heads/main", cwd=root, effect="push",
+                      timeout=_ORIGIN_SECONDS)
+        if pushed.returncode == 0:
+            return {"landed": commit}
+        refused = pushed.stderr.strip()
+    return {"why": f"origin did not take her draft: {refused[:240]}"}
+
+
+def _onto_disk(commit: str) -> bool:
+    """Her landed commit into the source she runs on, when that adds nothing but hers.
+
+    When origin's main moved past her source, fast-forwarding would also bring every commit between onto the disk of
+    a running process, which imports some modules lazily. Then the disk takes it at the next deploy, and the running
+    process has it from her loop (core/self_modification/into_the_running_process.py).
+    """
+    root = source_root()
+    if _git("merge-base", "--is-ancestor", "HEAD", commit, cwd=root).returncode != 0:
+        return False
+    authors = _git("log", "--format=%an", f"HEAD..{commit}", cwd=root)
+    if authors.returncode != 0 or any(author != "Aura" for author in authors.stdout.split()):
+        return False
+    return _git("merge", "--ff-only", commit, cwd=root, effect="merge").returncode == 0
+
+
 def approve(slug: str, *, by: str = "Bryan", gates: dict[str, Any] | None = None) -> dict[str, Any]:
-    """A yes, Bryan's or her own: her offered draft becomes part of the source she runs on, if it has not moved past it."""
+    """A yes, Bryan's or her own: her offered draft lands on origin's main and in the source she runs on.
+
+    Her source must not have moved past the draft. When her source has an origin, the draft lands there first, so her
+    source and origin cannot part (``_onto_origin``); then it goes onto her disk when that adds nothing but hers.
+    """
     record = load(slug)
     if record is None or record.status != OFFERED:
         return {"ok": False, "why": f"no draft of hers waits under {slug}"}
@@ -640,17 +720,69 @@ def approve(slug: str, *, by: str = "Bryan", gates: dict[str, Any] | None = None
     moved = _git("merge-base", "--is-ancestor", "HEAD", commit, cwd=root)
     if moved.returncode != 0:
         return {"ok": False, "why": "the source she runs on moved since her draft; she has to bring her draft up to it"}
-    merged = _git("merge", "--ff-only", commit, cwd=root, effect="merge")
-    if merged.returncode != 0:
-        return {"ok": False, "why": merged.stderr.strip()[:300]}
+    landed = _onto_origin(record, commit)
+    if "why" in landed:
+        record.said.append({"words": f"My yes could not land my draft: {landed['why']}", "at": time.time()})
+        _write_now(record)
+        logger.warning("🛠️ her draft for '%s' did not land: %s", record.goal[:60], landed["why"][:200])
+        return {"ok": False, "why": landed["why"]}
+    if landed:
+        commit, on_disk = landed["landed"], _onto_disk(landed["landed"])
+    else:
+        merged = _git("merge", "--ff-only", commit, cwd=root, effect="merge")
+        if merged.returncode != 0:
+            return {"ok": False, "why": merged.stderr.strip()[:300]}
+        on_disk = True
     record.status = MERGED
     record.offer["merged_at"] = time.time()
     record.offer["taken_by"] = by
+    record.offer["commit"] = commit
+    record.offer["on_origin"] = bool(landed)
+    record.offer["on_disk"] = on_disk
     if gates is not None:
         record.offer["gates"] = gates  # the receipt of her own yes: what each gate said
     _write_now(record)
-    logger.info("🛠️ %s took her draft for '%s' (%s)", by, record.goal[:60], commit[:9])
-    return {"ok": True, "commit": commit}
+    logger.info("🛠️ %s took her draft for '%s' (%s)%s%s", by, record.goal[:60], commit[:9],
+                ", on origin" if landed else "", "" if on_disk else "; her disk takes it at the next deploy")
+    return {"ok": True, "commit": commit, "on_origin": bool(landed), "on_disk": on_disk}
+
+
+def take_it_back(slug: str, why: str) -> dict[str, Any]:
+    """A draft of hers that was taken and did not hold, reverted the way it went in: on origin, then on her disk.
+
+    The goal is then stalled on the source as it is, so her loop tries it again once that source has moved.
+    """
+    record = load(slug)
+    if record is None or record.status != MERGED:
+        return {"ok": False, "why": f"no taken draft of hers under {slug}"}
+    root, workspace, commit = source_root(), ensure_workspace(record), str(record.offer.get("commit") or "")
+    has_origin = _git("remote", "get-url", "origin", cwd=root).returncode == 0
+    if has_origin and _git("fetch", "-q", "origin", "main", cwd=root, effect="fetch",
+                           timeout=_ORIGIN_SECONDS).returncode != 0:
+        return {"ok": False, "why": "origin could not be read"}
+    base = "origin/main" if has_origin else _git("rev-parse", "HEAD", cwd=root).stdout.strip()
+    steps = (("checkout", "-B", branch_of(slug), base),
+             ("-c", "user.name=Aura", "-c", "user.email=aura@localhost", "revert", "--no-edit", commit))
+    for step in steps:
+        done = _git(*step, cwd=workspace, effect="workspace")
+        if done.returncode != 0:
+            return {"ok": False, "why": f"her revert could not be made: {done.stderr.strip()[:240]}"}
+    revert = _git("rev-parse", "HEAD", cwd=workspace).stdout.strip()
+    if has_origin:
+        pushed = _git("push", "-q", "origin", f"{revert}:refs/heads/main", cwd=root, effect="push",
+                      timeout=_ORIGIN_SECONDS)
+        if pushed.returncode != 0:
+            return {"ok": False, "why": f"origin did not take her revert: {pushed.stderr.strip()[:240]}"}
+        on_disk = _onto_disk(revert)
+    else:
+        on_disk = _git("merge", "--ff-only", revert, cwd=root, effect="merge").returncode == 0
+    record.status, record.stalled_on = STALLED, source_head()
+    record.offer = {**record.offer, "reverted": revert, "reverted_at": time.time(), "reverted_on_disk": on_disk}
+    record.said.append({"words": f"My mend did not hold, and I took it back out: {why}", "at": time.time()})
+    _write_now(record)
+    logger.warning("🛠️ her mend for '%s' did not hold and was taken back out (%s): %s", record.goal[:60],
+                   revert[:9], why[:160])
+    return {"ok": True, "revert": revert, "on_disk": on_disk}
 
 
 def decline(slug: str, words: str) -> dict[str, Any]:

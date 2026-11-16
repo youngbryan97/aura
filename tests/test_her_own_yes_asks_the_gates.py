@@ -42,9 +42,11 @@ def test_her_yes_takes_a_draft_that_passes_every_gate_and_keeps_what_they_said(h
     record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
     assert record.status == work.MERGED
     gates = work.load(record.slug).offer["gates"]
-    assert list(gates) == ["tests", "smoke", "lint", "layering", "writing"], "in the order given"
+    assert list(gates) == ["tests", "smoke", "lint", "layering", "writing", "governance-lint", "deps-check"], \
+        "in the order given"
     assert all(gate["passed"] for gate in gates.values())
-    assert [argv[-1] for argv in asked[1:]] == ["smoke", "lint", "layering", "writing"]
+    assert [argv[-1] for argv in asked[1:]] == ["smoke", "lint", "layering", "writing", "governance-lint",
+                                                 "deps-check"]
     assert (her_source / "core" / "more_notes.py").exists()
 
 

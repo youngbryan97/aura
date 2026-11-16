@@ -70,7 +70,10 @@ def her_source(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(source))
     for name in ("planted_pkg", "planted_pkg.rows", "planted_pkg.alone"):
         sys.modules.pop(name, None)
-    return source
+    yield source
+    from core.self_modification.into_the_running_process import undo_every_load_for_test
+
+    undo_every_load_for_test()
 
 
 def _fault(call):
@@ -95,6 +98,8 @@ def test_a_fault_of_her_running_is_mended_and_taken_into_her_source(her_source):
     done = asyncio.run(mend(_fault(lambda: rows.first([1, 2])), proposals=80, seconds=900))
     assert done["status"] == "merged", done
     assert done["origin"].startswith(("template:", "looks_wrong:"))
+    assert done["loaded"] == {"functions": ["first"], "waits": []}
+    assert rows.first([1, 2]) == 1, "the process she is running runs the mend without a restart"
     mended = (her_source / "planted_pkg" / "rows.py").read_text()
     namespace: dict = {}
     exec(compile(mended, "rows.py", "exec"), namespace)  # noqa: S102 - the merged source, run to see it mends

@@ -192,7 +192,24 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     if refused:
         return await _stop(record, refused, lineage.to_json())
     await runner._write(changed)
-    return await _offer(record, workspace, [file, reproduction.test], best, fault)
+    offered = await _offer(record, workspace, [file, reproduction.test], best, fault)
+    if offered.get("status") == "merged":
+        offered["loaded"] = _into_her_running_process(fault, sources[file], changed[file], record.slug)
+    return offered
+
+
+def _into_her_running_process(fault: Any, before: str, after: str, slug: str) -> dict[str, Any]:
+    """Her taken mend loaded into the process she is running (core/self_modification/into_the_running_process.py).
+
+    What cannot be loaded waits for her next start and says why."""
+    from core.governance_context import local_internal_governed_scope
+    from core.self_modification.into_the_running_process import load_into_this_process
+
+    with local_internal_governed_scope("mending_a_fault_of_hers.load", domain="state_mutation",
+                                       receipt_prefix="her-mend-load",
+                                       constraints={"artifact": "aura.her_mend_load.v1", "operation": "load"}):
+        loaded = load_into_this_process(fault.call.module, before, after, goal=slug, mended_call=fault.call)
+    return {"functions": [swap.qualname for swap in loaded.swaps], "waits": list(loaded.waits)}
 
 
 async def _stop(record: Any, why: str, evidence: Any) -> dict[str, Any]:
@@ -247,9 +264,22 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     her source has changed.
     """
     from core.agency import her_goal_at_work as goals
-    from core.self_modification.faults_she_can_reproduce import faults_heard, keep_what_was_heard
+    from core.self_modification.faults_she_can_reproduce import (
+        faults_heard,
+        keep_what_was_heard,
+        mends_undone,
+    )
 
     await keep_what_was_heard()
+    # A mend undone in her running process (it faulted after it was loaded) comes back out of her source first.
+    taken_back = []
+    for slug in mends_undone():
+        done = await asyncio.to_thread(goals.take_it_back, slug, "it faulted in her running process after it was "
+                                                                  "loaded, so it was undone there")
+        taken_back.append({"slug": slug, "status": "taken back" if done.get("ok") else "not taken back",
+                           "why": done.get("why") or done.get("revert", "")})
+    if taken_back:
+        return taken_back
     heard = faults_heard()
     if not heard:
         return []

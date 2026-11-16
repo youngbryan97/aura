@@ -224,3 +224,12 @@ def test_a_load_outside_a_governed_scope_is_refused_while_her_runtime_lives(plan
                                        receipt_prefix="test-load", constraints={"operation": "load"}):
         loaded = load_into_this_process("loaded_pkg.rows", _BEFORE, _mended(_BEFORE))
     assert loaded.swaps and planted.first([1, 2]) == 1
+
+
+def test_a_mend_made_on_other_code_than_the_process_runs_loads_nothing(planted):
+    """Her source moved after she started: the mend's 'before' is not what she is running."""
+    elsewhere = _BEFORE.replace('raise ValueError("there are no rows")', 'raise ValueError("no rows at all")')
+    loaded = load_into_this_process("loaded_pkg.rows", elsewhere, _mended(elsewhere))
+    assert loaded.swaps == [] and "not running the code the mend was made on" in loaded.waits[0], loaded.waits
+    with pytest.raises(ValueError):
+        planted.first([1, 2])
