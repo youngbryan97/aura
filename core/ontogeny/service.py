@@ -33,7 +33,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
 import threading
 import time
 from collections import OrderedDict
@@ -75,7 +74,6 @@ from core.ontogeny.trainer import Trainer, TrainingResult, design_names, design_
 from core.runtime.errors import record_degradation
 from core.runtime.foreground_guard import foreground_activity_reason
 from core.runtime.lockdep import LockRank, checked_lock
-from core.runtime.sqlite_support import connecting
 
 from .service_heads import (
     _BUCKET_MEMORY,
@@ -698,8 +696,7 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
         if not episode_ids:
             return {}
         contexts: dict[str, dict[str, Any]] = {}
-        uri = f"file:{self._spine.db_path}?mode=ro"
-        with connecting(sqlite3.connect(uri, uri=True, timeout=2.0)) as conn:
+        with self._spine.reading_the_store() as conn:
             for offset in range(0, len(episode_ids), 500):
                 chunk = list(episode_ids[offset:offset + 500])
                 placeholders = ",".join("?" for _ in chunk)

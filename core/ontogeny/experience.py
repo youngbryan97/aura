@@ -346,18 +346,28 @@ class ExperienceSpine:
         return conn
 
     @contextlib.contextmanager
-    def _using_the_store(self) -> Iterator[sqlite3.Connection]:
+    def _using_the_store(self, *, read_only: bool = False) -> Iterator[sqlite3.Connection]:
         """One connection, counted from open to close so a wait can see it."""
         with self._handles_changed:
             self._open_handles += 1
         try:
-            with connecting(self._connect()) as conn:
+            opened = (sqlite3.connect(f"file:{self._db_path}?mode=ro", uri=True, timeout=2.0) if read_only
+                      else self._connect())
+            with connecting(opened) as conn:
                 yield conn
         finally:
             # After the `with`, so the count drops only once the handle is shut.
             with self._handles_changed:
                 self._open_handles -= 1
                 self._handles_changed.notify_all()
+
+    def reading_the_store(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
+        """A read-only connection, counted like the spine's own, so a wait for quiet waits for it too.
+
+        Her ontogeny service read episodes' provenance through a connection of its own, which the count did not see,
+        so wait_until_quiet could say the store was quiet while that reader held it open.
+        """
+        return self._using_the_store(read_only=True)
 
     def _init_schema(self) -> None:
         try:
