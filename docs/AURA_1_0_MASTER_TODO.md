@@ -4610,6 +4610,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   show_page from the desk opened the tab and from another origin did not.
   Left: a ring, a page and a file each seen on the person's screen (the
   screen was locked from about 06:00 on 16 November).
+  16 November, morning, live in the bubble with Bryan at the desk: she
+  chose to point twice, once at an arrow and once at "Back", and both
+  calls were deferred by her idle tick's open obligation. Her remarks
+  were "I'm sorry - I wasn't able to highlight it just now ... Could you
+  try asking again in a moment?" and "I tried to point at it for you
+  ... the back button is the left-pointing arrow at the very top-left of
+  your Chrome window". Both answered "Can you highlight the back
+  button?", asked at 00:40 in a U05 test, eight hours and a sitting
+  before. Bryan: "also the messages dont stick in the panel". Fixed: her
+  unprompted turns read only the sitting going on now, and with nobody's
+  words in it the screen is the turn before hers (eed6f77b8). Her desk
+  calls pass the open-obligation hold (eed6f77b8). A remark is kept with
+  the last exchange on disk after a restart, both windows draw what she
+  said after an exchange, and the companion panel opens on the
+  conversation so far (774b2469e). Bryan quit her at 10:57; she was
+  started again on 94aaa00e7 at 11:15.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
