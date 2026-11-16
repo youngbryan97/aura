@@ -609,6 +609,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-16: frame recording grants cover one write each.
+    The initial manifest gets a fresh grant after directory I/O,
+    PNG encoding runs before the image-write grant, and the event
+    append gets its own grant after PNG storage. All three forced
+    expiry cases failed before the repair. All 24 focused checks
+    passed, including exact pixels, raw hashes and a complete
+    manifest; presentation qualification remains false. Smoke
+    passed 164 tests with one skip in 119.86 s and maximum RSS
+    of 486,916,096 bytes. Lint,
+    compile, dependency drift, layering, governance, module size
+    and targeted writing passed.
+    Source: core/perception/recording_the_frames_and_inputs.py.
+    Tests: tests/test_recording_the_actual_play_ports.py.
   - [x] 2026-11-16: event-flow, metrology and middleware state
     writers renew their grant after directory I/O. All three scratch
     regressions failed under enforcement before the repair. Saved

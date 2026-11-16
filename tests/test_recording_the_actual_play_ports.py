@@ -115,6 +115,60 @@ async def test_storage_failure_is_retained_and_cannot_be_certified(tmp_path, mon
     assert not manifest['complete'] and 'disk refused' in manifest['error'] and manifest['frames'] == 0
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('stall_at', ['directory', 'encoding', 'frame'])
+async def test_recording_write_grants_do_not_span_preparation_or_prior_io(tmp_path, monkeypatch, stall_at):
+    from core.governance_context import get_active_governance
+    from core.perception import recording_the_frames_and_inputs as module
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv('AURA_GOVERNANCE_MODE', 'enforce')
+    gateway = get_file_write_gateway()
+    ensure, write_bytes, encode = gateway.ensure_directory_async, gateway.write_bytes_async, module._encoded
+    stalled, encoding_had_grant = [], []
+
+    def expire(token, stage):
+        if stall_at == stage:
+            stalled.append(stage)
+            if token is not None:
+                token.mono_timestamp -= token.ttl + 1
+
+    async def ensure_then_stall(*args, **kwargs):
+        token = get_active_governance()
+        result = await ensure(*args, **kwargs)
+        expire(token, 'directory')
+        return result
+
+    def encode_then_stall(picture):
+        token = get_active_governance()
+        encoding_had_grant.append(token is not None)
+        result = encode(picture)
+        expire(token, 'encoding')
+        return result
+
+    async def write_then_stall(*args, **kwargs):
+        token = get_active_governance()
+        result = await write_bytes(*args, **kwargs)
+        expire(token, 'frame')
+        return result
+
+    monkeypatch.setattr(gateway, 'ensure_directory_async', ensure_then_stall)
+    monkeypatch.setattr(gateway, 'write_bytes_async', write_then_stall)
+    monkeypatch.setattr(module, '_encoded', encode_then_stall)
+    directory = tmp_path / 'take'
+    picture = np.arange(18, dtype=np.uint8).reshape(2, 3, 3)
+    async with record_frames_and_inputs(directory, queued_bytes=1024, total_bytes=1024) as recorder:
+        recorder.frame((picture, 1.))
+    manifest = json.loads((directory / 'manifest.json').read_text())
+    assert stalled == [stall_at] and manifest['complete'] and manifest['frames'] == 1
+    assert not manifest['error'] and not manifest['presentation_qualified']
+    event, = _events(directory)
+    assert event['raw_sha256'] == hashlib.sha256(picture.tobytes()).hexdigest()
+    with Image.open(directory / event['file']) as saved:
+        assert np.array_equal(np.asarray(saved), picture)
+    assert encoding_had_grant == [False]
+
+
 def test_recording_requires_an_explicit_trace_directory():
     from tools.measure_on_archived_games import _arguments
 

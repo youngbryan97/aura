@@ -104,12 +104,13 @@ class FrameAndInputRecording:
             event, picture = item
             try:
                 if not self.error:
-                    with local_internal_governed_scope('play_pixel_recording'):
-                        if picture is not None:
-                            data, digest = await asyncio.to_thread(_encoded, picture)
-                            name = f"frame-{event['sequence']:07d}.png"
+                    if picture is not None:
+                        data, digest = await asyncio.to_thread(_encoded, picture)
+                        name = f"frame-{event['sequence']:07d}.png"
+                        with local_internal_governed_scope('play_pixel_recording'):
                             await gateway.write_bytes_async(self.directory / name, data, source='play_pixel_recording')
-                            event.update(file=name, shape=list(picture.shape), dtype='uint8', raw_sha256=digest)
+                        event.update(file=name, shape=list(picture.shape), dtype='uint8', raw_sha256=digest)
+                    with local_internal_governed_scope('play_pixel_recording'):
                         await gateway.append_text_async(self.directory / 'events.jsonl', json.dumps(event) + '\n',
                                                         source='play_pixel_recording')
                     self.frames += int(picture is not None)
@@ -137,6 +138,7 @@ async def record_frames_and_inputs(directory: Path, **bounds: Any):
     gateway = get_file_write_gateway()
     with local_internal_governed_scope('play_pixel_recording'):
         await gateway.ensure_directory_async(recorder.directory, source='play_pixel_recording')
+    with local_internal_governed_scope('play_pixel_recording'):
         if not await gateway.write_bytes_if_absent_async(recorder.directory / 'manifest.json',
                 json.dumps(recorder.manifest('running')).encode(), source='play_pixel_recording'):
             raise ValueError('another recorder owns this directory')
