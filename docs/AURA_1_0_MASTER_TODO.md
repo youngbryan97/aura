@@ -694,6 +694,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     too. Both match the old sums to a relative 5.2e-13. The 256 tests
     that touch the three modules pass.
     Source: core/conation/what_she_cares_about.py.
+  - [ ] 2026-11-16, measured, not changed: from 06:00 to 06:56 local her
+    runtime ran 225 full (generation-2) collections over the 50 ms loop
+    budget, 25.1 s in all with the interpreter lock held, 33 of them
+    (3.3 s) on her event loop thread. Boot objects are frozen
+    (collector_pauses.freeze_what_boot_made), so each walk is short, but
+    the collector's own rule runs a full one whenever what is unfrozen
+    grows by a quarter, which after a freeze is about every 15 s. Raising
+    the third threshold, or freezing again after a long run, trades
+    memory for pauses, so it waits for a before-and-after measurement on
+    her host.
+    Source: core/runtime/collector_pauses.py.
     Tests: tests/test_files_attached_to_a_message_are_read_into_the_turn.py.
   - [x] 2026-11-15: a draft edit gets a fresh file-write grant
     after directory setup. Under enforcement, expiring the directory
