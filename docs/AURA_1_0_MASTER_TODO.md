@@ -4643,6 +4643,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   desktop step runs and its failure is served as the lane's sentence (chat.py, "No servable reply on a desktop
   objective"); her 14 November answer to the same question, which named two Chrome windows, reaches her as memory
   and her draft described "two browser tabs"; the three searches were retained (data/search/web_artifacts.jsonl).
+  16 November, the mechanism behind that door, read from its five uses since 12 November (the last two were
+  "Can you highlight the back button?" at 00:32 and 00:42). Her draft fails its gates after her cognitive pass, the
+  desktop lane runs, and a step that reads something hands it "to her turn" with record_turn_world_evidence and an
+  empty response. Her turn has already run, so nothing reads it: the door served the draft it held ("No. I don't have
+  a tool that can highlight ...") at 00:32, and the honest failure at 00:42. The fix is a second cognitive pass
+  (_run_cognitive_engine_chat_turn) once the step's reading is recorded, with its reply going through the same gates
+  as the first, extracted from the handler, which is over its method-size baseline.
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
