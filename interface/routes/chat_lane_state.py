@@ -188,7 +188,6 @@ def _status_represents_memory_state_result(status: str | None) -> bool:
         "session_memory_pin_transient",
         "session_memory_recall",
         "session_memory_context_recall",
-        "conversation_recall",
     }
 
 

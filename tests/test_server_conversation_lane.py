@@ -5497,7 +5497,7 @@ async def test_content_recall_does_not_cross_principals_after_restart(
     principal_token = chat_routes._CHAT_REQUEST_PRINCIPAL.set("paired:guest")
     surface_token = chat_routes._CHAT_REQUEST_SURFACE.set("paired_device")
     try:
-        paired_reply = await chat_routes._build_conversation_recall_reply(
+        paired_reply = await chat_routes._what_the_conversation_holds_for(
             "What launch phrase did I tell you before the restart?",
             session_id="paired-device:guest",
         )
@@ -5508,7 +5508,7 @@ async def test_content_recall_does_not_cross_principals_after_restart(
     principal_token = chat_routes._CHAT_REQUEST_PRINCIPAL.set("owner:bryan")
     surface_token = chat_routes._CHAT_REQUEST_SURFACE.set("owner")
     try:
-        owner_reply = await chat_routes._build_conversation_recall_reply(
+        owner_reply = await chat_routes._what_the_conversation_holds_for(
             "What launch phrase did I tell you before the restart?",
             session_id="owner-new",
         )
@@ -12598,7 +12598,7 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
     )
     monkeypatch.setattr(
         _chat_memory_state,
-        "_build_conversation_recall_reply",
+        "_what_the_conversation_holds_for",
         _forbidden_context_collector,
     )
     patch_chat_lane(monkeypatch, "_collect_desktop_required_search_evidence", _forbidden_context_collector,
@@ -15187,7 +15187,7 @@ async def test_compound_turn_keeps_its_objective_and_delivered_history(monkeypat
     monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
     monkeypatch.setattr(_chat_memory_state, "_recent_completed_conversation_exchanges", recent)
     for name in (
-        "_build_conversation_recall_reply",
+        "_what_the_conversation_holds_for",
         "_build_retained_memory_evidence_context",
         "_build_context_challenge_repair_reply",
         "_fetch_deep_memory_context",
@@ -15274,7 +15274,7 @@ async def test_route_assessment_hears_the_assistant_history_given_to_the_model(m
         AsyncCallFixture(return_value=[]),
     )
     for name in (
-        "_build_conversation_recall_reply",
+        "_what_the_conversation_holds_for",
         "_build_retained_memory_evidence_context",
         "_build_context_challenge_repair_reply",
         "_fetch_deep_memory_context",
@@ -15362,7 +15362,7 @@ async def test_ordinary_desktop_chat_turn_keeps_the_prompt_cache(monkeypatch, se
         AsyncCallFixture(return_value=[]),
     )
     for name in (
-        "_build_conversation_recall_reply",
+        "_what_the_conversation_holds_for",
         "_build_retained_memory_evidence_context",
         "_build_context_challenge_repair_reply",
         "_fetch_deep_memory_context",
@@ -15663,7 +15663,7 @@ async def test_conversation_recall_summarizes_last_two_messages_from_live_log():
             ]
         )
 
-    reply = await chat_routes._build_conversation_recall_reply(
+    reply = await chat_routes._what_the_conversation_holds_for(
         "Could you summarize our last two messages?"
     )
 
@@ -16595,7 +16595,7 @@ async def test_api_chat_desktop_required_search_collects_evidence_before_cogniti
     monkeypatch.setattr(_chat_preflight, "_begin_logged_exchange", _fake_begin_exchange)
     monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
     patch_chat_lane(monkeypatch, "_emit_chat_output_receipt", _fake_output_receipt)
-    monkeypatch.setattr(_chat_memory_state, "_build_conversation_recall_reply", AsyncCallFixture(return_value=""))
+    monkeypatch.setattr(_chat_memory_state, "_what_the_conversation_holds_for", AsyncCallFixture(return_value=""))
     patch_chat_lane(monkeypatch, "_build_retained_memory_evidence_context", AsyncCallFixture(return_value=""))
     patch_chat_lane(monkeypatch, "_run_cognitive_engine_chat_turn", _fake_cognitive_turn)
     monkeypatch.setattr(_chat_capability_inventory, "_execute_governed_live_skill", _fake_execute_governed_live_skill)

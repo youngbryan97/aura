@@ -121,7 +121,7 @@ async def test_the_rejection_path_serves_the_draft_when_nothing_is_named(
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (False, "single_owner_test"),
     )
-    monkeypatch.setattr(_chat_memory_state, "_build_conversation_recall_reply", _no_recall)
+    monkeypatch.setattr(_chat_memory_state, "_what_the_conversation_holds_for", _no_recall)
     trace: dict[str, object] = {}
 
     reply = await chat._run_cognitive_engine_chat_turn(

@@ -139,13 +139,13 @@ async def test_durable_recall_reply_survives_process_memory_clear(monkeypatch):
     async with chat_routes._get_convo_lock():
         chat_routes._conversation_log.clear()
 
-    user_recall = await chat_routes._build_conversation_recall_reply(
+    user_recall = await chat_routes._what_the_conversation_holds_for(
         "Can you remind me what I said earlier?"
     )
-    aura_recall = await chat_routes._build_conversation_recall_reply(
+    aura_recall = await chat_routes._what_the_conversation_holds_for(
         "Can you remind me what you answered?"
     )
-    topic_recall = await chat_routes._build_conversation_recall_reply(
+    topic_recall = await chat_routes._what_the_conversation_holds_for(
         "Can you remind me what we discussed?"
     )
 

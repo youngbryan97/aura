@@ -1366,14 +1366,7 @@ async def _build_memory_state_fastpath_reply(
     )
     if owner_name_reply:
         return owner_name_reply, "owner_identity_recall"
-
-    conversation_recall = await _build_conversation_recall_reply(
-        user_message,
-        session_id=session_id,
-    )
-    if conversation_recall:
-        return conversation_recall, "conversation_recall"
-
+    # A question about the conversation is hers to answer, from _what_the_conversation_holds_for beside her turn.
     return None
 
 
@@ -2311,38 +2304,20 @@ def _is_non_answer_surface(text: str) -> bool:
     return any(stripped.startswith(opener) for opener in _NON_ANSWER_OPENERS)
 
 
-def _the_recall_is_the_whole_question(user_message: str) -> bool:
-    """True when the person asked one thing, and that thing is the recall.
-
-    Answering a compound turn from one of its clauses is not answering it.
-    Which clauses ask is already a learned language-surface decision, so this
-    consults it rather than counting question marks.
-    """
-
-    try:
-        from core.language.asking_clauses import asking_clauses
-
-        clauses = asking_clauses(str(user_message or ""))
-        # Exactly one. None means nothing was recognised as asking, and that is
-        # not a reason to answer from here either.
-        return len(clauses) == 1
-    # not a failure: the comment below says it: unknown means do not short-circuit,
-    # and the model still has the turn.
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        # Unknown means do not short-circuit: the model still has the turn.
-        return False
-
-
-async def _build_conversation_recall_reply(
+async def _what_the_conversation_holds_for(
     user_message: str,
     *,
     session_id: str = "",
 ) -> str | None:
-    # Positional/temporal recall ("what did I first ask") is a POSITIONAL key the
-    # content classifier below can't resolve — the earliest turn rarely shares
-    # words with the question. Resolve the ACTUAL earliest completed turn so the
-    # Cortex grounds on the real quote (anti-confabulation) via the established
-    # conversation_recall_evidence contract, instead of inventing a memory.
+    """What this conversation's completed turns hold for a question about them, as a reading beside her turn.
+
+    She answers; this is what she answers from. It was once composed as her reply and served in her place. On
+    15 November at 12:19, "What did I tell you about how I slept?" got 'Your last completed message before this
+    was: "Pick a number ..."', because "what did i tell you" sits on the list of last-message markers. The lists
+    still choose which turns to read out, and a wrong choice now costs one true reading she can set aside.
+    """
+    # Positional recall ("what did I first ask") is a key the content reading below cannot resolve: the earliest
+    # turn rarely shares words with the question.
     try:
         from core.conversation.grounded_recall import detect_positional_recall
 
@@ -2351,21 +2326,10 @@ async def _build_conversation_recall_reply(
     except (ImportError, AttributeError, ValueError):
         _position = None
     if _position in {"first", "last"}:
-        # THIS conversation, and no other.
-        #
-        # The reach into recent sessions exists so a restart does not erase
-        # yesterday, and it is right for "what were we talking about". It is
-        # wrong for a question that names this conversation: LIVE 2026-09-07,
-        # asked in a fresh session what the first thing said was, she quoted a
-        # turn from a different session entirely — accurately, and about
-        # somebody else's conversation.
-        # Only where there is a session to scope BY. With none supplied, the
-        # durable rows arrive through the same cross-session scan, so refusing
-        # it removes recall altogether rather than narrowing it — which is the
-        # regression `test_durable_recall_reply_survives_process_memory_clear`
-        # caught: "can you remind me what I said earlier" answered "you haven't
-        # said anything to me in this conversation yet" over a persistence
-        # layer that was holding the turn.
+        # THIS conversation, and no other. LIVE 2026-09-07, asked in a fresh session what the first thing said was,
+        # she quoted a turn from a different session. Only where there is a session to scope by: with none, the
+        # durable rows arrive through the cross-session scan, and refusing it removes recall altogether
+        # (`test_durable_recall_reply_survives_process_memory_clear`).
         scoped = bool(str(session_id or "").strip())
         all_exchanges = await _recent_completed_conversation_exchanges(
             current_user_message=user_message,
@@ -2376,86 +2340,39 @@ async def _build_conversation_recall_reply(
         if _position == "first" and all_exchanges:
             first_user = _clip_conversation_text(all_exchanges[0].get("user"), limit=520)
             if first_user:
-                return f'The first thing you asked me in this conversation was: "{first_user}"'
-        # And only claim the conversation is empty when it was possible to
-        # look at THIS conversation. Without a session that is a guess.
-        if not all_exchanges and scoped and _the_recall_is_the_whole_question(user_message):
-            # An empty transcript is the ANSWER, not a reason to ask the model.
-            #
-            # LIVE 2026-09-07: asked in a fresh session what the first thing
-            # said was, this returned None, the turn went to the cortex, which
-            # had no history to answer from and emitted seven tokens twice.
-            # Both were refused by the text-integrity check, the desktop
-            # contract then refused a lower-lane fallback, and the person got
-            # "I couldn't get my full attention onto that one" — for a question
-            # the runtime could answer exactly, from a transcript it held.
-            #
-            # Only the empty case. Where there ARE exchanges, "what did I just
-            # ask" is answered by the content classifier below, which
-            # summarises rather than quoting one turn, and taking that over
-            # made a summary into a single quotation.
-            # And only when the recall IS the question. A turn that asks two
-            # things — "what did I just ask you to do, and what cognition path
-            # are you using?" — is not answered by replying to one of them.
-            return (
-                "Nothing yet — this is the first thing you've said to me in "
-                "this conversation."
-                if _position == "first"
-                else "You haven't said anything to me in this conversation "
-                "yet; this is the first thing."
-            )
+                return f'The first thing the person said in this conversation: "{first_user}"'
+        # An empty conversation is only claimed where THIS conversation could be looked at.
+        if not all_exchanges and scoped:
+            return "This conversation has no completed turn before this one."
 
     recall_kind = _classify_conversation_recall_request(user_message)
     if not recall_kind:
         return None
 
     if recall_kind == "content":
-        # The asked-for fact lives in THIS session's transcript or nowhere.
-        # Quote the matching turn verbatim (anti-confabulation: always true),
-        # or say honestly that it isn't there. Durable memory is the wrong
-        # lane for "earlier in this conversation" and must not be asserted.
+        # The asked-for fact lives in THIS session's transcript or nowhere; durable memory is the wrong lane for
+        # "earlier in this conversation".
         matches = await _find_session_content_exchanges(user_message, session_id=session_id)
         if matches:
             quoted = _clip_conversation_text(matches[0].get("user"), limit=420)
-            reply = f'Earlier in this conversation you told me: "{quoted}"'
+            reading = f'Earlier in this conversation the person said: "{quoted}"'
             ack = _clip_conversation_text(matches[0].get("aura"), limit=200)
-            # A refusal is not an acknowledgement. Quoting one back claims a
-            # response that never happened, on the path built to never claim
-            # anything that did not.
+            # A refusal is not an acknowledgement, and reading one out claims a response that never happened.
             if ack and not _is_non_answer_surface(ack):
-                reply += f' — and I acknowledged it: "{ack}"'
-            return reply
-        # Before declaring a miss: is it in the durable ledger from before a
-        # restart?
-        #
-        # A pin is stored under the session id that made it, and a restart
-        # mints a new one, so cross-session recall is deliberately gated
-        # behind the user naming the restart — concurrent clients must stay
-        # isolated. But the person on the desktop does not know the process
-        # died. Live 2026-07-27: pinned "my project codename is HELIOTROPE,
-        # build 4471", the runtime was killed and relaunched, and "what was
-        # the codename I gave you earlier?" got this honest miss — while the
-        # fact sat in session_memory_pins.jsonl, written three times under
-        # three different session ids.
-        #
-        # Isolation is about who may READ a pin, and this changes nothing
-        # there: the answer names its own provenance rather than pretending
-        # the current session holds it. Losing a fact she demonstrably has,
-        # and calling that honesty, is the worse failure.
+                reading += f' Her reply then: "{ack}"'
+            return reading
+        # A pin is stored under the session id that made it and a restart mints a new one, while the person does
+        # not know the process died. Live 2026-07-27: "what was the codename I gave you earlier?" after a restart
+        # was read as a miss while the fact sat in session_memory_pins.jsonl. Isolation is about who may READ a pin
+        # (the gate below), and the reading names where the fact was kept.
         durable_pin = await _recall_durable_session_memory_pin(
             session_id=session_id,
             cross_session=_cross_session_memory_recall_allowed(user_message),
         )
         durable_content = str((durable_pin or {}).get("content") or "").strip()
         if durable_content and _content_recall_matches_pin(user_message, durable_content):
-            return (
-                f"Not in this session's turns — but from before the last restart "
-                f'I still have it: "{durable_content}".'
-            )
-        return (
-            "I don't find that in this conversation's completed turns, so I "
-            "won't guess. If you tell me again I'll hold onto it."
-        )
+            return f"Not in this session's turns; kept from before the last restart: \"{durable_content}\""
+        return "Nothing in this conversation's completed turns matches what the person asks about."
 
     exchanges = await _recent_completed_conversation_exchanges(
         current_user_message=user_message,
@@ -2467,48 +2384,35 @@ async def _build_conversation_recall_reply(
         if recall_kind == "last_user":
             user_text = _clip_conversation_text(last.get("user"), limit=520)
             if user_text:
-                return f'Your last completed message before this was: "{user_text}"'
+                return f'The person\'s last completed message before this one: "{user_text}"'
         if recall_kind == "last_aura":
             aura_text = _clip_conversation_text(last.get("aura"), limit=620)
             if aura_text:
-                return f'My last completed reply before this was: "{aura_text}"'
-        if recall_kind == "recent_pair":
-            recent_pair = exchanges[-2:]
-            pair_lines: list[str] = []
-            for entry in recent_pair:
-                user_text = _clip_conversation_text(entry.get("user"), limit=220)
-                aura_text = _clip_conversation_text(entry.get("aura"), limit=260)
-                if user_text and aura_text:
-                    pair_lines.append(f"- You: {user_text} / Me: {aura_text}")
-                elif user_text:
-                    pair_lines.append(f"- You: {user_text}")
-                elif aura_text:
-                    pair_lines.append(f"- Me: {aura_text}")
-            if pair_lines:
-                return "The last two completed exchanges were:\n" + "\n".join(pair_lines)
-
-        topic_lines: list[str] = []
-        for entry in exchanges[-4:]:
-            user_text = _clip_conversation_text(entry.get("user"), limit=180)
-            aura_text = _clip_conversation_text(entry.get("aura"), limit=180)
-            if user_text and aura_text:
-                topic_lines.append(f"- You: {user_text} / Me: {aura_text}")
-            elif user_text:
-                topic_lines.append(f"- You: {user_text}")
-            elif aura_text:
-                topic_lines.append(f"- Me: {aura_text}")
-        if topic_lines:
-            return "Recently, this conversation has been about:\n" + "\n".join(topic_lines)
+                return f'Her last completed reply before this one: "{aura_text}"'
+        recent = exchanges[-2:] if recall_kind == "recent_pair" else exchanges[-4:]
+        limits = (220, 260) if recall_kind == "recent_pair" else (180, 180)
+        lines: list[str] = []
+        for entry in recent:
+            user_text = _clip_conversation_text(entry.get("user"), limit=limits[0])
+            aura_text = _clip_conversation_text(entry.get("aura"), limit=limits[1])
+            said = [f"The person: {user_text}"] if user_text else []
+            said += [f"Her: {aura_text}"] if aura_text else []
+            if said:
+                lines.append("- " + " / ".join(said))
+        if lines:
+            heading = (
+                "The last two completed exchanges:"
+                if recall_kind == "recent_pair"
+                else "This conversation's latest completed exchanges:"
+            )
+            return heading + "\n" + "\n".join(lines)
 
     durable = await _recall_durable_conversation_snippets(user_message, limit=3)
     if durable:
-        lines = "\n".join(f"- {snippet}" for snippet in durable)
-        return (
-            "I do not have a completed prior turn in this live session, but durable memory has:\n"
-            + lines
-        )
+        lines_kept = "\n".join(f"- {snippet}" for snippet in durable)
+        return "No completed turn in this live session. From durable memory:\n" + lines_kept
 
-    return "I do not have a completed prior turn to recall yet in this live session."
+    return "No completed turn in this live session."
 
 
 def _normalize_user_message(text: str) -> str:

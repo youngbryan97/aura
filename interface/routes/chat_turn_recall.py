@@ -142,11 +142,6 @@ def _memory_state_evidence_is_missing_from_reply(
     memory_state_evidence: tuple[str, str] | None,
 ) -> bool:
     """Return True when canonical memory evidence was not honored visibly."""
-    # Reached at call time: chat.py imports this module, so the other
-    # direction cannot be a module-level import.
-    from .chat import _conversation_recall_reply_is_inadequate
-
-
     del user_message  # Reserved for future status-specific diagnostics.
     if not memory_state_evidence:
         return False
@@ -181,13 +176,6 @@ def _memory_state_evidence_is_missing_from_reply(
             or "do not have" in reply
             or "no pinned" in reply
             or "not pinned" in reply
-        )
-
-    if status in {"owner_identity_recall", "conversation_recall"}:
-        return _conversation_recall_reply_is_inadequate(
-            "",
-            reply_text,
-            str(memory_reply or ""),
         )
 
     return False
@@ -225,11 +213,6 @@ def _reply_assessment_requires_repair_with_memory_evidence(
     canonical_memory_state_evidence: str = "",
 ) -> bool:
     """Keep hard failures, but do not reject honored memory/state replies as self-process misses."""
-    # Reached at call time: chat.py imports this module, so the other
-    # direction cannot be a module-level import.
-    from .chat import _conversation_recall_reply_is_inadequate
-
-
     if not _reply_assessment_requires_repair(assessment):
         return False
     reasons = set(getattr(assessment, "reasons", ()) or ())

@@ -1094,6 +1094,9 @@ class DuplexVoiceSession:
                 )
                 await self._set_state(SessionState.LISTENING)
                 return
+            # Said for an answered one too: on 15 November "Okay." and "Probably not." were answered, and only the
+            # refusals in that minute said why.
+            logger.info("%s", address.narrative())
 
             # Delivery requests take effect on this very reply, not the next
             # one — that immediacy is most of what makes it feel responsive.

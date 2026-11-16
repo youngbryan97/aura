@@ -2930,11 +2930,11 @@ def test_conversation_recall_isolation_by_session_id(monkeypatch):
                 ]
             )
         try:
-            recalled = await chat_route._build_conversation_recall_reply(
+            recalled = await chat_route._what_the_conversation_holds_for(
                 "what did I just ask?",
                 session_id="session-a",
             )
-            missed = await chat_route._build_conversation_recall_reply(
+            missed = await chat_route._what_the_conversation_holds_for(
                 "what did I just ask?",
                 session_id="session-c",
             )
@@ -2955,7 +2955,7 @@ def test_conversation_recall_isolation_by_session_id(monkeypatch):
     assert "bravo session question" not in missed
     assert any(
         phrase in missed.lower()
-        for phrase in ("completed prior turn", "haven't said anything", "nothing yet")
+        for phrase in ("no completed turn", "completed prior turn")
     ), missed
 
 

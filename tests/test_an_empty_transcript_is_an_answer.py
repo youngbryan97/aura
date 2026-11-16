@@ -8,7 +8,8 @@ from and emitted seven tokens twice. Both were refused by the text-integrity
 check, the desktop contract then refused a lower-lane fallback, and the person
 got "I couldn't get my full attention onto that one. Try me again in a moment."
 
-The runtime was holding the answer the whole time.
+The runtime was holding the answer the whole time. Since 15 November 2026 it
+holds it as a reading beside her turn, and she answers from it.
 """
 
 from __future__ import annotations
@@ -43,27 +44,24 @@ def two_exchanges(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_a_fresh_session_answers_from_its_own_emptiness(no_exchanges) -> None:
-    reply = await memory_state._build_conversation_recall_reply(
+    reply = await memory_state._what_the_conversation_holds_for(
         "what was the very first thing I said to you in this conversation?",
         session_id="session-here",
     )
-    assert reply
-    assert "first thing you've said" in reply
-    assert "couldn't" not in reply
+    assert reply == "This conversation has no completed turn before this one."
 
 
 @pytest.mark.asyncio
 async def test_the_same_for_the_last_thing(no_exchanges) -> None:
-    reply = await memory_state._build_conversation_recall_reply(
+    reply = await memory_state._what_the_conversation_holds_for(
         "what was the last thing I said?", session_id="session-here"
     )
-    assert reply
-    assert "haven't said anything" in reply
+    assert reply == "This conversation has no completed turn before this one."
 
 
 @pytest.mark.asyncio
 async def test_a_real_transcript_is_quoted_verbatim(two_exchanges) -> None:
-    first = await memory_state._build_conversation_recall_reply(
+    first = await memory_state._what_the_conversation_holds_for(
         "what did I ask you first?"
     )
     assert first is not None and "tell me about yourself" in first
@@ -77,7 +75,7 @@ async def test_a_populated_last_is_left_to_the_content_path(two_exchanges) -> No
     turned a summary of the last two turns into a single quotation. Where
     there are exchanges, the content classifier below still owns it.
     """
-    reply = await memory_state._build_conversation_recall_reply(
+    reply = await memory_state._what_the_conversation_holds_for(
         "what did I just ask?"
     )
     assert reply is None or "tell me about yourself" not in reply
@@ -87,7 +85,7 @@ async def test_a_populated_last_is_left_to_the_content_path(two_exchanges) -> No
 async def test_a_question_that_is_not_positional_is_left_alone(no_exchanges) -> None:
     """This path must not start answering questions that are not about position."""
     assert (
-        await memory_state._build_conversation_recall_reply(
+        await memory_state._what_the_conversation_holds_for(
             "what is 2 + 2?", session_id="session-here"
         )
         is None
@@ -104,34 +102,26 @@ async def test_without_a_session_it_cannot_claim_the_conversation_is_empty(
     conversation is empty over a persistence layer that is holding the turn is
     a guess dressed as a fact.
     """
-    reply = await memory_state._build_conversation_recall_reply(
+    reply = await memory_state._what_the_conversation_holds_for(
         "what did I ask you first?"
     )
-    assert reply is None or "first thing you've said" not in reply
+    assert reply is None or "no completed turn before this one" not in reply
 
 
 @pytest.mark.asyncio
-async def test_a_turn_that_asks_two_things_is_not_answered_from_one(no_exchanges) -> None:
-    """Answering a compound turn from one of its clauses is not answering it.
+async def test_a_turn_that_asks_two_things_gets_the_reading_and_answers_both(no_exchanges) -> None:
+    """A reading is not an answer, so a compound turn no longer has to be kept from it.
 
-    The first draft short-circuited "Answer directly in two sentences: what did
-    I just ask you to do, and what mind/cognition path are you using right
-    now?" on the recall half, and the runtime-status half went unanswered.
+    When the runtime answered from here, "Answer directly in two sentences: what did I just ask you to do, and
+    what mind/cognition path are you using right now?" was short-circuited on the recall half. She answers now,
+    both halves, with the empty conversation read beside her turn.
     """
-    reply = await memory_state._build_conversation_recall_reply(
+    reply = await memory_state._what_the_conversation_holds_for(
         "Answer directly in two sentences: what did I just ask you to do, and "
-        "what mind/cognition path are you using right now?"
+        "what mind/cognition path are you using right now?",
+        session_id="session-here",
     )
-    # It may still fall to the content path below, which is pre-existing and
-    # says honestly that there is no prior turn. What it must not do is claim
-    # to have answered the turn.
-    assert reply is None or "first thing you've said" not in reply
-
-
-def test_an_unreadable_question_does_not_short_circuit() -> None:
-    """Unknown means leave the turn to the model, not answer it from here."""
-    assert memory_state._the_recall_is_the_whole_question("what did I ask?") is True
-    assert memory_state._the_recall_is_the_whole_question("") is False
+    assert reply == "This conversation has no completed turn before this one."
 
 
 @pytest.mark.asyncio
@@ -153,7 +143,7 @@ async def test_this_conversation_means_this_one(monkeypatch) -> None:
     monkeypatch.setattr(
         memory_state, "_recent_completed_conversation_exchanges", _record
     )
-    await memory_state._build_conversation_recall_reply(
+    await memory_state._what_the_conversation_holds_for(
         "what did I ask you first?", session_id="session-here"
     )
     assert seen.get("allow_cross_session") is False

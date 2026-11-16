@@ -407,7 +407,7 @@ from interface.routes.chat_memory_state import (  # noqa: E402
     _append_session_memory_pin_ledger,  # noqa: F401
     _append_session_memory_pin_ledger_guarded,  # noqa: F401
     _await_bounded_chat_blocking,  # noqa: F401
-    _build_conversation_recall_reply,  # noqa: F401
+    _what_the_conversation_holds_for,  # noqa: F401
     _build_memory_state_fastpath_reply,  # noqa: F401
     _build_owner_name_recall_reply,  # noqa: F401
     _chat_blocking_slots,  # noqa: F401
@@ -1750,42 +1750,6 @@ def _format_recent_conversation_context(
 #: Openers of the three non-answer surfaces built by _build_reply_failure_notice.
 #: Kept as a tuple rather than a regex so a change to those sentences is a
 #: visible edit here rather than a silently-stopped guard.
-
-
-def _conversation_recall_reply_is_inadequate(
-    user_message: str,
-    reply_text: str,
-    expected_reply: str | None,
-) -> bool:
-    """Whether a question about the conversation got no answer from her at all.
-
-    Only an empty reply counts. An answer she wrote is judged where every answer is: the reliability gate,
-    whose shared-history check refuses words put in the person's mouth. ``expected_reply`` is the runtime's
-    quotation, composed after a phrase list guessed which turn was meant, and it is not a judge of her answer.
-    On 15 November at 12:19, asked "What did I tell you about how I slept?", she wrote a 24-character answer
-    (not recorded). "what did i tell you" had read the question as a request for his last message, her answer
-    shared no words with that message, "Pick a number between 1 and 10", and the quotation replaced it. A
-    deflection ("I'm not sure") was also overruled here, by a word list.
-    """
-    del expected_reply
-    if not _chat_memory_state._classify_conversation_recall_request(user_message):
-        return False
-    return not str(reply_text or "").strip()
-
-
-async def _repair_conversation_recall_if_needed(
-    user_message: str,
-    reply_text: str,
-    *,
-    session_id: str = "",
-) -> tuple[str, bool]:
-    expected = await _chat_memory_state._build_conversation_recall_reply(
-        user_message,
-        session_id=session_id,
-    )
-    if expected and _conversation_recall_reply_is_inadequate(user_message, reply_text, expected):
-        return expected, True
-    return reply_text, False
 
 
 _TRACEABILITY_REASON_MARKERS = (
@@ -3560,7 +3524,7 @@ async def _run_cognitive_engine_chat_turn(
     conversation_recall_context = (
         ""
         if capability_inventory_contract or state_native_output_owner
-        else await _chat_memory_state._build_conversation_recall_reply(
+        else await _chat_memory_state._what_the_conversation_holds_for(
             visible,
             session_id=session_id,
         )
@@ -4425,23 +4389,6 @@ async def _run_cognitive_engine_chat_turn(
             ",".join(retry_assessment.reasons),
         )
         if not require_engine:
-            conversation_recall_reply = await _chat_memory_state._build_conversation_recall_reply(
-                visible,
-                session_id=session_id,
-            )
-            if conversation_recall_reply:
-                logger.warning(
-                    "CognitiveEngine chat repair retry failed conversation recall; "
-                    "repairing from canonical conversation log."
-                )
-                return _accept_retry_text(
-                    _ground_runtime_fact_status_reply(
-                        visible,
-                        conversation_recall_reply,
-                        lane,
-                        cognitive_engine_handled=True,
-                    )
-                )
             owner_name_reply = _chat_memory_state._build_owner_name_recall_reply(visible)
             if owner_name_reply:
                 logger.warning(
@@ -5008,87 +4955,6 @@ async def _run_cognitive_engine_chat_turn(
                                 self_condition_contract=True,
                             )
                             return refreshed_condition_reply
-                expected_recall_reply = await _chat_memory_state._build_conversation_recall_reply(
-                    visible,
-                    session_id=session_id,
-                )
-                if expected_recall_reply:
-                    # Serve it, bounded, rather than refuse with an apology.
-                    #
-                    # This branch used to return None on the grounds that a
-                    # deterministic substitution is not her own answer on a
-                    # required full-mind turn. What the caller then serves is
-                    # "I couldn't get my full attention onto that one" — which
-                    # is not her answer either, carries nothing, and is false
-                    # about what happened: the attention was there and a gate
-                    # rejected a draft.
-                    #
-                    # The reply here is built from the transcript of this
-                    # conversation. It is the most grounded thing available and
-                    # the branch immediately above already does exactly this
-                    # for self-condition grounding, marked
-                    # `replaced_by_runtime` so nobody mistakes it for
-                    # generation. The two contracts differed only in which one
-                    # had been written second.
-                    #
-                    # LIVE, 2026-09-07: "What did I just ask you?" one turn
-                    # after the question it was recalling. 411 seconds, two
-                    # rejected drafts, and the apology — with a correct answer
-                    # in hand the whole time.
-                    condition_assessment = (await asyncio.to_thread(
-                        assess_user_facing_reply,
-                        visible,
-                        expected_recall_reply,
-                        recent_user_messages=recent_user_messages,
-                        grounding=route_assessment_grounding,
-                        antecedent=route_assessment_antecedent,
-                    ))
-                    if not _reply_assessment_requires_repair_with_memory_evidence(
-                        condition_assessment,
-                        visible,
-                        expected_recall_reply,
-                        canonical_memory_state_evidence=canonical_memory_state_evidence,
-                    ):
-                        logger.warning(
-                            "CognitiveEngine desktop chat missed the required "
-                            "conversation recall contract; serving the bounded "
-                            "recall built from this conversation's transcript."
-                        )
-                        _append_turn_text_mutation(
-                            turn_trace,
-                            stage="chat.conversation_recall_bounded_projection",
-                            method="deterministic_conversation_recall",
-                            reasons=list(assessment.reasons or ()),
-                            before=text,
-                            after=expected_recall_reply,
-                            deterministic=True,
-                            authorship_effect="replaced_by_runtime",
-                        )
-                        _mark_turn_trace(
-                            cognitive_engine_reply_accepted=False,
-                            cognitive_engine_reply_failed=True,
-                            bounded_contract_used=True,
-                            post_generation_repair_applied=True,
-                            deterministic_repair_applied=True,
-                            response_path="cognitive_engine_recall_bounded_projection",
-                            conversation_recall_contract=True,
-                        )
-                        return expected_recall_reply
-                    logger.warning(
-                        "CognitiveEngine desktop chat missed the required "
-                        "conversation recall contract, and the bounded recall "
-                        "does not survive the reply assessment either."
-                    )
-                    _mark_turn_trace(
-                        cognitive_engine_reply_accepted=False,
-                        bounded_contract_used=False,
-                        response_path="cognitive_engine_recall_contract_failed",
-                    )
-                    _record_exhausted_cognitive_failure(
-                        "conversation_recall_contract_failed",
-                        retry_attempted=True,
-                    )
-                    return None
                 if context_challenge_context and _context_challenge_repair_has_evidence(
                     context_challenge_context
                 ):
@@ -5221,27 +5087,6 @@ async def _run_cognitive_engine_chat_turn(
                 ",".join(repaired_assessment.reasons),
             )
             if not require_engine:
-                conversation_recall_reply = (
-                    await _chat_memory_state._build_conversation_recall_reply(
-                        visible,
-                        session_id=session_id,
-                    )
-                )
-                if conversation_recall_reply:
-                    logger.warning(
-                        "CognitiveEngine chat failed repair for conversation recall; "
-                        "repairing from canonical conversation log."
-                    )
-                    _mark_turn_trace(
-                        bounded_contract_used=True,
-                        response_path="conversation_recall_log_repair_after_cognitive_engine",
-                    )
-                    return _ground_runtime_fact_status_reply(
-                        visible,
-                        conversation_recall_reply,
-                        lane,
-                        cognitive_engine_handled=True,
-                    )
                 owner_name_reply = _chat_memory_state._build_owner_name_recall_reply(visible)
                 if owner_name_reply:
                     logger.warning(
@@ -5348,40 +5193,6 @@ async def _run_cognitive_engine_chat_turn(
         record_degradation("chat", exc)
         logger.debug("CognitiveEngine reply reliability gate unavailable: %s", exc)
     if require_engine:
-        expected_recall_reply = await _chat_memory_state._build_conversation_recall_reply(
-            visible,
-            session_id=session_id,
-        )
-        if expected_recall_reply and _conversation_recall_reply_is_inadequate(
-            visible,
-            text,
-            expected_recall_reply,
-        ):
-            # The runtime just BUILT the correct answer. Serve it.
-            #
-            # expected_recall_reply is composed from the conversation's own
-            # turns — it is a reading of what was said, not model prose
-            # substituted for model prose, so serving it cannot invent an
-            # exchange. Refusing here threw away a correct answer the runtime
-            # was holding and returned "I couldn't get to an answer I'd stand
-            # behind on that one" (LIVE 2026-08-17, "what was the first thing I
-            # said to you in this conversation?").
-            #
-            # The same lesson is written three other places in this file: a
-            # computed arithmetic result, a measured file count, and a
-            # receipt-backed past action all beat an apology. What was refused
-            # here is the same category — the transcript is the source, and it
-            # was already read.
-            logger.warning(
-                "CognitiveEngine desktop chat missed the required conversation recall "
-                "contract; serving the transcript-composed recall instead of refusing."
-            )
-            _mark_turn_trace(
-                cognitive_engine_reply_accepted=False,
-                bounded_contract_used=True,
-                response_path="conversation_recall_from_transcript",
-            )
-            return expected_recall_reply
         if _context_challenge_reply_is_inadequate(visible, text):
             if context_challenge_context and _context_challenge_repair_has_evidence(
                 context_challenge_context
@@ -7825,7 +7636,7 @@ async def _api_chat_turn_crash_safe_persistence(_chat_session_id, _qualified_sta
     conversation_recall_evidence = (
         None
         if _qualified_state_serialization_owner
-        else await _chat_memory_state._build_conversation_recall_reply(
+        else await _chat_memory_state._what_the_conversation_holds_for(
             _semantic_user_message,
             session_id=_chat_session_id,
         )
@@ -7833,13 +7644,9 @@ async def _api_chat_turn_crash_safe_persistence(_chat_session_id, _qualified_sta
     if conversation_recall_evidence:
         from core.conversation.turn_evidence_custody import record_turn_grounding
 
+        # Beside his words, not inside them: _run_cognitive_engine_chat_turn reads it from his visible message
+        # and gives it to her turn as conversation_recall_evidence.
         record_turn_grounding(conversation_recall_evidence)
-        effective_user_message = (
-            f"{effective_user_message}\n\n"
-            "[CONVERSATION RECALL EVIDENCE]\n"
-            f"{conversation_recall_evidence}\n"
-            "[END CONVERSATION RECALL EVIDENCE]"
-        )
     retained_memory_evidence = (
         ""
         if conversation_only_surface or _qualified_state_serialization_owner
@@ -10637,36 +10444,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     salvage_output_proven=salvage_output_proven,
                     salvaged_no_reply=salvaged_no_reply,
                 )
-            # A recall question the model could not answer at all.
-            #
-            # LIVE 2026-08-17: "what was the first thing I said to you in this
-            # conversation?" produced "compact desktop generation returned no
-            # usable text", three attempts running, and the person got the
-            # apology. The transcript was read and delivered that same turn,
-            # and the route can compose the answer from it directly.
-            #
-            # The recall contract already serves this when a draft exists to
-            # compare against; with no draft at all, nothing reached it. Same
-            # answer, one branch earlier.
-            if not salvaged_no_reply:
-                try:
-                    composed_recall = await _chat_memory_state._build_conversation_recall_reply(
-                        _semantic_user_message,
-                        session_id=_chat_session_id,
-                    )
-                except _CHAT_RECOVERABLE_ERRORS as _recall_exc:
-                    record_degradation("chat.conversation_recall", _recall_exc)
-                    composed_recall = ""
-                if composed_recall:
-                    logger.warning(
-                        "Serving the transcript-composed recall (%d chars) rather than "
-                        "refusing: generation produced no usable text.",
-                        len(composed_recall),
-                    )
-                    return await _finalize_fastpath(
-                        composed_recall,
-                        status="conversation_recall_log_repair_after_empty_engine",
-                    )
             # A refusal is not an answer to an instruction she can carry out.
             #
             # Live 2026-07-28: "Open the Notes app and write a new note with
@@ -11191,18 +10968,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             reply_text = _chat_desktop_repair._build_grounded_capability_inventory_reply(
                 _semantic_user_message
             )
-        repaired_recall = False
-        if not _qualified_exact_delivery and not desktop_requires_cognitive_engine:
-            repaired_recall_reply, repaired_recall = await _repair_conversation_recall_if_needed(
-                _semantic_user_message,
-                reply_text,
-                session_id=_chat_session_id,
-            )
-            if repaired_recall:
-                logger.warning(
-                    "🧠 Replacing inadequate conversation recall reply with canonical chat-log recall."
-                )
-                reply_text = repaired_recall_reply
 
         # ── Response confidence assessment ────────────────────────
         _pending_affordance_intents: list[Any] = []
@@ -11243,24 +11008,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             semantic_glitch = quality.semantic_glitch
             semantic_glitch_reason = quality.semantic_glitch_reason
             reply_assessment = quality.reply_assessment
-        desktop_recall_contract_failed = False
         desktop_context_contract_failed = False
         desktop_memory_state_contract_failed = False
         if desktop_requires_cognitive_engine and not _qualified_exact_delivery:
-            expected_recall_reply = await _chat_memory_state._build_conversation_recall_reply(
-                _semantic_user_message,
-                session_id=_chat_session_id,
-            )
-            desktop_recall_contract_failed = bool(
-                expected_recall_reply
-                and _conversation_recall_reply_is_inadequate(
-                    _semantic_user_message,
-                    reply_text,
-                    expected_recall_reply,
-                )
-            )
-            if desktop_recall_contract_failed:
-                _live_turn_trace["response_path"] = "cognitive_engine_recall_contract_failed"
             desktop_context_contract_failed = _context_challenge_reply_is_inadequate(
                 _semantic_user_message,
                 reply_text,
@@ -11304,7 +11054,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             or is_same_diff
             or is_off_topic
             or semantic_glitch
-            or desktop_recall_contract_failed
             or desktop_context_contract_failed
             or desktop_memory_state_contract_failed
             or assessment_requires_repair
@@ -11312,12 +11061,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             response_confidence = "degraded"
             degradation_streak = _increment_conversation_degradation_streak()
             logger.warning(
-                "⚠️ Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, off_topic=%s, semantic_glitch=%s, recall_contract=%s, context_contract=%s, memory_state_contract=%s, assessment_requires_repair=%s, assessment=%s, assessment_ok=%s, retryable=%s, hard_failure=%s, reply_len=%d, streak=%d, reason=%s)",
+                "⚠️ Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, off_topic=%s, semantic_glitch=%s, context_contract=%s, memory_state_contract=%s, assessment_requires_repair=%s, assessment=%s, assessment_ok=%s, retryable=%s, hard_failure=%s, reply_len=%d, streak=%d, reason=%s)",
                 is_stale,
                 is_same_diff,
                 is_off_topic,
                 semantic_glitch,
-                desktop_recall_contract_failed,
                 desktop_context_contract_failed,
                 desktop_memory_state_contract_failed,
                 assessment_requires_repair,
@@ -11337,7 +11085,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             and (
                 is_off_topic
                 or semantic_glitch
-                or desktop_recall_contract_failed
                 or desktop_context_contract_failed
                 or desktop_memory_state_contract_failed
                 or _reply_assessment_requires_repair_with_memory_evidence(
@@ -11400,7 +11147,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     # repaired reply through. Worth knowing which repairs were never checked.
                     logger.debug("Repaired reply was not assessed: %s", exc)
                     repaired_assessment = None
-                repaired_recall_contract_failed = False
                 repaired_context_contract_failed = False
                 repaired_memory_state_contract_failed = False
                 repaired_assessment_retryable = (
@@ -11412,20 +11158,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     )
                 )
                 if desktop_requires_cognitive_engine:
-                    expected_recall_reply = (
-                        await _chat_memory_state._build_conversation_recall_reply(
-                            _semantic_user_message,
-                            session_id=_chat_session_id,
-                        )
-                    )
-                    repaired_recall_contract_failed = bool(
-                        expected_recall_reply
-                        and _conversation_recall_reply_is_inadequate(
-                            _semantic_user_message,
-                            reply_text,
-                            expected_recall_reply,
-                        )
-                    )
                     repaired_context_contract_failed = _context_challenge_reply_is_inadequate(
                         _semantic_user_message,
                         reply_text,
@@ -11440,7 +11172,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 hard_final_quality_failed = bool(
                     is_off_topic
                     or semantic_glitch
-                    or repaired_recall_contract_failed
                     or repaired_context_contract_failed
                     or repaired_memory_state_contract_failed
                     or repaired_assessment_retryable
@@ -11450,7 +11181,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     or is_same_diff
                     or is_off_topic
                     or semantic_glitch
-                    or repaired_recall_contract_failed
                     or repaired_context_contract_failed
                     or repaired_memory_state_contract_failed
                     or _reply_assessment_requires_repair_with_memory_evidence(

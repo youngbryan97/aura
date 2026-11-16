@@ -447,9 +447,9 @@ async def test_conversation_recall_reads_completed_chat_log() -> None:
             ]
         )
 
-    last_user = await chat_routes._build_conversation_recall_reply("What did I just ask you?")
-    last_aura = await chat_routes._build_conversation_recall_reply("What did you just say?")
-    topic = await chat_routes._build_conversation_recall_reply("What were we talking about?")
+    last_user = await chat_routes._what_the_conversation_holds_for("What did I just ask you?")
+    last_aura = await chat_routes._what_the_conversation_holds_for("What did you just say?")
+    topic = await chat_routes._what_the_conversation_holds_for("What were we talking about?")
 
     assert last_user is not None
     assert "What should we fix first?" in last_user
@@ -461,7 +461,8 @@ async def test_conversation_recall_reads_completed_chat_log() -> None:
 
 
 @pytest.mark.asyncio
-async def test_conversation_recall_repairs_thin_desktop_cognitive_reply() -> None:
+async def test_a_thin_reply_to_a_recall_question_is_not_replaced_by_the_transcript() -> None:
+    """The transcript is what she answers from, not an answer served in her place (15 November 2026)."""
     from interface.routes import chat as chat_routes
 
     async with chat_routes._get_convo_lock():
@@ -474,63 +475,19 @@ async def test_conversation_recall_repairs_thin_desktop_cognitive_reply() -> Non
             }
         )
 
-    repaired, stale, same_diff, off_topic, reason, did_repair = (
-        await chat_routes._repair_final_degraded_reply(
-            "What did you just say?",
-            "Yes.",
-            stale=False,
-            same_diff=False,
-            off_topic=False,
-        )
+    repaired, *_rest = await chat_routes._repair_final_degraded_reply(
+        "What did you just say?",
+        "Yes.",
+        stale=False,
+        same_diff=False,
+        off_topic=False,
     )
 
-    assert did_repair is True
-    assert stale is False
-    assert same_diff is False
-    assert off_topic is False
-    assert reason == ""
-    assert "live conversation log" in repaired
+    assert "live conversation log" not in str(repaired or "")
 
 
 @pytest.mark.asyncio
-async def test_an_answer_she_wrote_to_a_recall_question_is_not_replaced() -> None:
-    """LIVE 2026-11-15 12:19: her answer was replaced by a quotation of a different turn.
-
-    "What did I tell you about how I slept?" holds "what did i tell you", which reads as a request for his
-    last message. That message was "Pick a number between 1 and 10", her answer shared no words with it, and
-    she was served 'Your last completed message before this was: "Pick a number ..."'.
-    """
-    from interface.routes import chat as chat_routes
-
-    async with chat_routes._get_convo_lock():
-        chat_routes._conversation_log.clear()
-        chat_routes._conversation_log.extend(
-            [
-                {
-                    "user": "Not bad, slept okay. Did you do anything interesting while I was out?",
-                    "aura": "Glad to hear you slept okay.",
-                    "status": "complete",
-                },
-                {
-                    "user": "Pick a number between 1 and 10. Answer with only the number.",
-                    "aura": "7",
-                    "status": "complete",
-                },
-            ]
-        )
-
-    question = "What did I tell you about how I slept?"
-    answer = "You said you slept okay."
-    expected = await chat_routes._build_conversation_recall_reply(question)
-
-    assert expected, "the composed quotation is still built; it only stops overruling her"
-    assert not chat_routes._conversation_recall_reply_is_inadequate(question, answer, expected)
-    repaired, did_repair = await chat_routes._repair_conversation_recall_if_needed(question, answer)
-    assert (repaired, did_repair) == (answer, False)
-
-
-@pytest.mark.asyncio
-async def test_a_recall_question_she_left_unanswered_still_gets_the_quotation() -> None:
+async def test_the_state_fastpath_leaves_a_recall_question_to_her() -> None:
     from interface.routes import chat as chat_routes
 
     async with chat_routes._get_convo_lock():
@@ -543,38 +500,7 @@ async def test_a_recall_question_she_left_unanswered_still_gets_the_quotation() 
             }
         )
 
-    question = "What did you just say?"
-    expected = await chat_routes._build_conversation_recall_reply(question)
-
-    assert chat_routes._conversation_recall_reply_is_inadequate(question, "", expected)
-    assert not chat_routes._conversation_recall_reply_is_inadequate(
-        question, "Something about that question sits heavy with me.", expected
-    )
-    repaired, did_repair = await chat_routes._repair_conversation_recall_if_needed(question, "")
-    assert did_repair is True
-    assert "governed desktop" in repaired
-
-
-@pytest.mark.asyncio
-async def test_desktop_state_fastpath_serves_recall_without_model_lane() -> None:
-    from interface.routes import chat as chat_routes
-
-    async with chat_routes._get_convo_lock():
-        chat_routes._conversation_log.clear()
-        chat_routes._conversation_log.append(
-            {
-                "user": "What tools can you hypothetically use externally on my computer?",
-                "aura": "I can use governed desktop, browser, file, terminal, memory, and self-repair tools.",
-                "status": "complete",
-            }
-        )
-
-    result = await chat_routes._build_memory_state_fastpath_reply("What did you just say?")
-
-    assert result is not None
-    reply, status = result
-    assert status == "conversation_recall"
-    assert "governed desktop" in reply
+    assert await chat_routes._build_memory_state_fastpath_reply("What did you just say?") is None
 
 
 @pytest.mark.asyncio

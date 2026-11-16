@@ -536,13 +536,6 @@ async def _repair_final_degraded_reply_assessment_reasons(
                 )
                 return self_condition_repair, False, False, False, "", True
     if not desktop_cognitive_engine_required:
-        conversation_recall_reply = await _chat_memory_state._build_conversation_recall_reply(
-            user_message,
-            session_id=session_id,
-        )
-        if conversation_recall_reply:
-            return conversation_recall_reply, False, False, False, "", True
-
         context_challenge_repair = await _build_context_challenge_repair_reply(
             user_message,
             session_id=session_id,

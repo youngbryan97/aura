@@ -3952,12 +3952,26 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   block, because on this route turn grounding reaches her reply checker
   and not her prompt. Left: that block as a reading beside his turn, and
   the same question asked again live.
+  Bryan said yes to the whole change that evening. No door serves the
+  transcript as her reply now. Ten did: a failed draft's retry and its
+  repair, a required turn's failed draft, an empty reply, a generation
+  that wrote nothing, the final repair, the memory-state fastpath, and
+  two contract flags that marked a turn degraded. They are gone, and so
+  is the contract. The composer is now `_what_the_conversation_holds_for`,
+  a reading that speaks of the person and of her ("The person's last
+  completed message before this one: ..."). It reaches her turn as
+  conversation_recall_evidence beside his words, and the copy inside his
+  message is gone. Left: the same question asked live.
   Bryan, same evening: his words to himself were answered as turns. At
   11:00 local, in a voice session, "Okay.", "But thank you." and "Probably
   not." were answered ("I was saying it's a good sound.", "You're
   welcome.", "No."), while three other short utterances in that minute
   were left unanswered (read_elsewhere). Spoken turns are stored with
-  origin desktop_ui, so the record cannot tell them from typed ones.
+  origin desktop_ui, so the record cannot tell them from typed ones. Only
+  refusals were logged, so which rung answered those three is not known:
+  her reader's reading, or the open floor (18 s after she spoke, with the
+  reader unavailable). The voice session now logs the verdict for an
+  answered utterance too.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

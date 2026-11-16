@@ -72,7 +72,7 @@ async def test_content_recall_quotes_the_planted_fact():
             _exchange(4, "I made soup for lunch.", "What kind of soup?"),
         ]
     )
-    reply = await chat_routes._build_conversation_recall_reply(
+    reply = await chat_routes._what_the_conversation_holds_for(
         PROBE, session_id="s-endure"
     )
     assert reply is not None
@@ -87,23 +87,23 @@ async def test_content_recall_never_guesses_on_miss():
             _exchange(2, "I made soup for lunch.", "What kind of soup?"),
         ]
     )
-    reply = await chat_routes._build_conversation_recall_reply(
+    reply = await chat_routes._what_the_conversation_holds_for(
         PROBE, session_id="s-endure"
     )
     assert reply is not None
-    assert "won't guess" in reply
+    assert "Nothing in this conversation's completed turns matches" in reply
     assert not any(ch.isdigit() for ch in reply), f"a miss must not assert values: {reply!r}"
 
 
 @pytest.mark.asyncio
 async def test_content_recall_is_session_isolated():
     await _seed([_exchange(1, PLANT_USER, PLANT_AURA, session="s-other")])
-    reply = await chat_routes._build_conversation_recall_reply(
+    reply = await chat_routes._what_the_conversation_holds_for(
         PROBE, session_id="s-endure"
     )
     assert reply is not None
     assert "7213" not in reply, "must not leak another session's facts"
-    assert "won't guess" in reply
+    assert "Nothing in this conversation's completed turns matches" in reply
 
 
 @pytest.mark.asyncio
@@ -121,7 +121,7 @@ async def test_content_recall_survives_a_long_conversation():
                                  f"Acknowledged turn {n}."))
     await _seed(entries)
 
-    reply = await chat_routes._build_conversation_recall_reply(
+    reply = await chat_routes._what_the_conversation_holds_for(
         PROBE, session_id="s-endure"
     )
     assert reply is not None, "recall must not miss a fact still in the session log"
@@ -146,7 +146,7 @@ async def test_content_recall_prefers_the_fact_over_a_prior_probe_turn():
         entries.append(_exchange(n, f"More filler {n}.", f"Sure {n}."))
     await _seed(entries)
 
-    reply = await chat_routes._build_conversation_recall_reply(
+    reply = await chat_routes._what_the_conversation_holds_for(
         PROBE, session_id="s-endure"
     )
     assert reply is not None and "7213" in reply, (
