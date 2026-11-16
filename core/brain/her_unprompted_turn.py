@@ -119,6 +119,7 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) ->
     """
     import asyncio
 
+    from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
     from core.skills.at_the_desk import tool_definitions
     from core.together.remarks import said_since
     from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
@@ -129,11 +130,14 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) ->
     messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE, "content": f"## {heading}\n{reading}"}))
 
     async def act(client: Any, seconds: float) -> dict[str, Any]:
+        # The allowance her time was worked out for (_on_her_lane). LIVE 16 November 2026, 01:58, without it the loop
+        # asked for the client's 4,096 tokens, and her turn was cancelled at the 50 s it had been given.
         return await asyncio.wait_for(
             client.think_and_act(
                 "", system_prompt="", tools=tool_definitions(), max_turns=_DESK_GENERATIONS,
                 context={"origin": DESK_ORIGIN, "requested_by": "aura"}, origin=DESK_ORIGIN,
-                conversation=messages, work_in_background=True, native_tools_only=True, cognitive_mode=_HER_MODE),
+                conversation=messages, work_in_background=True, native_tools_only=True, cognitive_mode=_HER_MODE,
+                max_tokens=A_CLOSED_QUESTIONS_FLOOR),
             timeout=seconds,
         ) or {}
 

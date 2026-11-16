@@ -151,6 +151,9 @@ def test_her_desk_turn_is_her_conversation_and_the_screen_with_her_desk_tools(mo
     assert set(asked["tools"]) == DESK_COMPANY_TOOLS
     assert asked["origin"] == asked["context"]["origin"] == DESK_COMPANY_ORIGIN
     assert asked["cognitive_mode"] == turn._HER_MODE and asked["native_tools_only"] is True
+    from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+    assert asked["max_tokens"] == A_CLOSED_QUESTIONS_FLOOR, "her time was worked out for this allowance"
 
 
 def test_with_nobody_in_her_conversation_her_desk_turn_is_not_taken(monkeypatch):
