@@ -506,14 +506,14 @@ def main(argv: list[str] | None = None) -> int:
             break
 
     # Isolated retry: a test that fails in-chunk but passes alone is an
-    # ORDER-DEPENDENCE defect — reported loudly in its own register, but
-    # only both-ways failures block the run. Pollution stays visible
-    # without rotating whack-a-mole on chunk composition.
+    # ORDER-DEPENDENCE defect. The retry classifies it; the original batch
+    # failure still blocks the run.
     all_failed_ids = sorted({fid for _, _, ids in results for fid in ids})
     order_dependent: list[str] = []
     real_failures: list[str] = []
     timed_out_alone: list[str] = []
     retry_refusals: dict[str, str] = {}
+    retry_errors: dict[str, str] = {}
     if all_failed_ids:
         print(f"\n━━ isolated retry of {len(all_failed_ids)} failed test(s) ━━", flush=True)
         for fid in all_failed_ids:
@@ -546,10 +546,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"    timed out alone after {args.retry_timeout}s", flush=True)
                 timed_out_alone.append(fid)
                 continue
+            except OSError as exc:
+                retry_errors[fid] = f"retry could not start: {type(exc).__name__}: {exc}"
+                note_progress(args.progress_file, f"RETRY ERROR {fid}: {retry_errors[fid]}")
+                continue
             if retry.returncode == 0:
                 order_dependent.append(fid)
-            else:
+            elif retry.returncode == 1:
                 real_failures.append(fid)
+            else:
+                retry_errors[fid] = f"pytest exited {retry.returncode}; no isolated verdict"
+                note_progress(args.progress_file, f"RETRY ERROR {fid}: {retry_errors[fid]}")
 
     if args.defect_register:
         try:
@@ -562,6 +569,7 @@ def main(argv: list[str] | None = None) -> int:
                 "real_failures": real_failures,
                 "timed_out_alone": timed_out_alone,
                 "retry_refusals": retry_refusals,
+                "retry_errors": retry_errors,
             }
             reg_path = Path(args.defect_register)
             reg_path.parent.mkdir(parents=True, exist_ok=True)
@@ -585,11 +593,11 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif started_at_revision:
         print(f"revision {started_at_revision}, unchanged for the whole run")
-    chunk_failures = 0
-    for ok, line, _ids in results:
+    unisolated_failures = 0
+    for ok, line, ids in results:
         print(("✅ " if ok else "❌ ") + line)
-        if not ok:
-            chunk_failures += 1
+        if not ok and not ids:
+            unisolated_failures += 1
     if order_dependent:
         print(f"\n⚠️  ORDER-DEPENDENCE register ({len(order_dependent)}) — fail in-chunk, pass alone:")
         for fid in order_dependent:
@@ -602,21 +610,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n❌ {len(retry_refusals)} retry/retries refused by the memory floor; unmeasured")
         for refusal in retry_refusals.values():
             print(f"  ❌ {refusal}")
+    if retry_errors:
+        print(f"\n❌ {len(retry_errors)} retry/retries produced no isolated verdict:")
+        for fid, error in retry_errors.items():
+            print(f"  ❌ {fid}: {error}")
     if real_failures:
         print(f"\n❌ real failures ({len(real_failures)}) — fail in-chunk AND alone:")
         for fid in real_failures:
             print(f"  ❌ {fid}")
         return 1
-    if timed_out_alone or retry_refusals:
-        print(f"\n❌ {len(timed_out_alone) + len(retry_refusals)} test(s) could not be judged alone")
+    if timed_out_alone or retry_refusals or retry_errors:
+        print(f"\n❌ {len(timed_out_alone) + len(retry_refusals) + len(retry_errors)} test(s) could not be judged alone")
         return 1
-    if chunk_failures and not all_failed_ids:
+    if unisolated_failures:
         # Chunks died without parseable test ids (timeout/OOM): loud failure.
-        print(f"\n❌ {chunk_failures} chunk(s) failed without isolatable test ids")
+        print(f"\n❌ {unisolated_failures} chunk(s) failed without isolatable test ids")
         return 1
     if order_dependent:
-        print(f"\n✅ no real failures; {len(order_dependent)} order-dependence defect(s) registered")
-        return 0
+        print(f"\n❌ {len(order_dependent)} order-dependence defect(s) still fail the run")
+        return 1
     print(f"\n✅ all {len(results)} chunks passed")
     return 0
 

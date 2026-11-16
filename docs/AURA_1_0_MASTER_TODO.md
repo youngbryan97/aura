@@ -5261,6 +5261,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   kept through its last four control intervals. Not yet read further.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  - [x] 2026-11-15: enforce that rule in the chunk runner's exit status.
+    An isolated pass classifies an order defect and the run still fails.
+    A killed or refused chunk with no test ids cannot disappear beside a
+    different chunk's identifiable failure. An isolated retry that starts
+    no test, is interrupted, or cannot start stays unmeasured in the
+    register. The backlog's source-string assertion now runs the writer
+    and reads its register through the real ingestor; its source-inspection
+    allowance was removed. Tests in
+    tests/runtime/test_chunk_runner_verdicts.py and
+    tests/test_self_repair_backlog.py: 60 focused tests passed;
+    smoke 164 passed, 1 skipped in 48.15 s, maximum RSS 483,639,296 bytes.
+    Lint and compile passed. The remaining order defects below stay open.
   2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
   two teardown errors, and the arm-order test, which failed on main at
   0.0952 with the machine to itself. That test was three leaks, each found by

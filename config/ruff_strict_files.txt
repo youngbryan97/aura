@@ -1735,6 +1735,7 @@ tests/runtime/test_action_executor_effect_verification.py
 tests/runtime/test_archive_gateway_contract.py
 tests/runtime/test_boot_wait_before_refusing.py
 tests/runtime/test_chunk_runner_memory_guard.py
+tests/runtime/test_chunk_runner_verdicts.py
 tests/runtime/test_clipboard_effect_contract.py
 tests/runtime/test_cold_load_admission_budget.py
 tests/runtime/test_desktop_action_ownership.py

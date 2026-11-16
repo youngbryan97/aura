@@ -287,14 +287,28 @@ def test_failed_shadow_plan_keeps_defect_eligible(tmp_path):
     assert backlog.new_items(reg)
 
 
-def test_runner_emits_register_contract():
+def test_runner_emits_register_contract(monkeypatch, tmp_path):
     """The chunk runner writes the register the ingestor consumes."""
-    import inspect
+    from pathlib import Path
+    from types import SimpleNamespace
 
     import tools.run_test_chunks as runner
 
-    src = inspect.getsource(runner)
-    assert "--defect-register" in src
-    assert '"order_dependent": order_dependent' in src
-    assert '"real_failures": real_failures' in src
-    assert "aura.test_defect_register.v1" in src
+    order, real = "tests/test_a.py::test_x", "tests/test_b.py::test_y"
+    monkeypatch.setattr(runner, "discover_test_files", lambda _: [Path("test_examples.py")])
+    monkeypatch.setattr(runner, "working_tree_revision", lambda: "fixed-revision")
+    monkeypatch.setattr(runner, "free_memory_gb", lambda: 8.0)
+    monkeypatch.setattr(runner, "run_chunk", lambda *a, **kw: (False, "chunk failed", [order, real]))
+    replies = iter([0, 1])
+    monkeypatch.setattr(runner.subprocess, "run", lambda *a, **kw: SimpleNamespace(returncode=next(replies)))
+    register = tmp_path / "defects.json"
+    assert runner.main([
+        "--defect-register", str(register), "--progress-file", str(tmp_path / "progress.log"),
+    ]) == 1
+
+    backlog = SelfRepairBacklog(seen_path=tmp_path / "unwritten.json")
+    items = backlog.parse_register(register)
+    assert [(item.kind, item.target) for item in items] == [
+        ("order_dependence", order), ("real_failure", real),
+    ]
+    assert not backlog.seen_path.exists()

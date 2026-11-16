@@ -135,7 +135,6 @@
     "tests/test_safe_optimizer.py": 1,
     "tests/test_screen_observation_is_not_actuation.py": 1,
     "tests/test_self_forensics.py": 2,
-    "tests/test_self_repair_backlog.py": 1,
     "tests/test_sensorimotor_loop.py": 1,
     "tests/test_server_runtime_contract.py": 8,
     "tests/test_she_holds_an_app_like_a_person.py": 2,
@@ -171,7 +170,7 @@
     "tests/test_worker_terminal_contracts.py": 4,
     "tests/test_workspace_context_admission.py": 3
   },
-  "total": 497,
+  "total": 496,
   "overhang": {
     "tests/brain/test_decode_budget_termination.py": 3,
     "tests/brain/test_latent_budget_decline_releases_owner.py": 2,
