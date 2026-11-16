@@ -5259,6 +5259,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   since 4ab5de94b (15 October), which joins a body's visible pieces into
   one material observation before matching; with it the responder is not
   kept through its last four control intervals. Not yet read further.
+  15 November, Codex, traced through the first split. The existing test
+  reproduces alone: five cases pass and seed 348 at gap 0.268130064 fails.
+  At capture 10.648292112, object 1's retained reference carries error
+  0.987490456 before the next registration. The next local precision
+  check in _motion_of_retained_marks returns no motion; the 24-by-24
+  outline then becomes 24-by-72, fails the ordinary aspect check, and is
+  born as object 6. No control identity has yet been established:
+  the independent trials are split between the two numbers. This is
+  earlier than the assertion at capture 23.518535184.
+  Owner: perception, Q08. Next: qualify an independent visible-material
+  refresh of the retained coordinate reference, or an identity
+  continuation that keeps exhausted position evidence unavailable.
+  Clearing the error or enlarging its one-pixel bar would erase the
+  precision boundary tested by test_continuing_material_survives_a_changed_outline.
+  No code change or closure claimed.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   - [x] 2026-11-15: enforce that rule in the chunk runner's exit status.
