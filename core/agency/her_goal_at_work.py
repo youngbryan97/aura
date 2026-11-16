@@ -38,6 +38,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
+from core.verify import invariant
 
 logger = logging.getLogger("Aura.HerGoalAtWork")
 
@@ -152,6 +153,25 @@ def slug_of(goal: str) -> str:
     return "-".join([*words, digest]) or digest
 
 
+def _checked_slug(slug: str) -> str:
+    if not isinstance(slug, str) or slug in {"", ".", ".."} or "\x00" in slug or Path(slug).name != slug:
+        raise ValueError("goal identifier must be one nonempty filename component")
+    return slug
+
+
+@invariant("agency.goal_identifier_is_a_filename", scope="agency",
+           owner="core/agency/her_goal_at_work.py", observational=False)
+def _goal_identifier_invariant() -> tuple:
+    for slug in ("", ".", "..", "../outside", "/outside", "nested/goal"):
+        try:
+            _checked_slug(slug)
+        except ValueError:
+            continue
+        raise AssertionError("a goal identifier containing a path was accepted")
+    assert _checked_slug("old.goal_123") == "old.goal_123"
+    return ()
+
+
 def records_dir() -> Path:
     from core.config import config
 
@@ -195,7 +215,7 @@ class GoalRecord:
 
     @property
     def workspace(self) -> Path:
-        return workspaces_dir() / self.slug
+        return workspaces_dir() / _checked_slug(self.slug)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -207,9 +227,12 @@ class GoalRecord:
 
 
 def load(slug: str) -> GoalRecord | None:
-    path = records_dir() / f"{slug}.json"
     try:
-        return GoalRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        path = records_dir() / f"{_checked_slug(slug)}.json"
+        record = GoalRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        if record.slug != slug:
+            raise ValueError("goal identifier in the record differs from its filename")
+        return record
     # not a failure: no goal kept yet
     except FileNotFoundError:
         return None
@@ -232,20 +255,21 @@ async def save(record: GoalRecord) -> None:
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     gateway = get_file_write_gateway()
+    target = records_dir() / f"{_checked_slug(record.slug)}.json"
     with local_internal_governed_scope(
         "her_goal_at_work.record",
         domain="state_mutation",
         receipt_prefix="her-goal-record",
         constraints={"artifact": "aura.her_goal_record.v1", "operation": "replace"},
     ):
-        await gateway.ensure_directory_async(records_dir(), source="her_goal_at_work")
+        await gateway.ensure_directory_async(target.parent, source="her_goal_at_work")
     with local_internal_governed_scope(
         "her_goal_at_work.record",
         domain="state_mutation",
         receipt_prefix="her-goal-record",
         constraints={"artifact": "aura.her_goal_record.v1", "operation": "replace"},
     ):
-        await gateway.write_text_async(records_dir() / f"{record.slug}.json",
+        await gateway.write_text_async(target,
                                        json.dumps(record.to_dict(), indent=1, default=str), source="her_goal_at_work")
 
 
@@ -615,13 +639,14 @@ def _write_now(record: GoalRecord) -> None:
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
+    target = records_dir() / f"{_checked_slug(record.slug)}.json"
     with local_internal_governed_scope(
         "her_goal_at_work.answer",
         domain="state_mutation",
         receipt_prefix="her-goal-answer",
         constraints={"artifact": "aura.her_goal_record.v1", "operation": "replace"},
     ):
-        get_file_write_gateway().write_text(records_dir() / f"{record.slug}.json",
+        get_file_write_gateway().write_text(target,
                                             json.dumps(record.to_dict(), indent=1, default=str),
                                             source="her_goal_at_work")
 

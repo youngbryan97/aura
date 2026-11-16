@@ -7,6 +7,7 @@ August and chosen hundreds of times, got an empty plan every time since dda8ab33
 from __future__ import annotations
 
 import asyncio
+import json
 import subprocess
 from pathlib import Path
 
@@ -85,6 +86,47 @@ def test_the_goal_record_gets_a_fresh_grant_after_directory_io(her_source, monke
     asyncio.run(work.save(record))
     restored = work.load(record.slug)
     assert expired and restored is not None and restored.passes == 3
+
+
+@pytest.mark.parametrize("slug", ["", ".", "..", "../outside", "nested/goal", "absolute"])
+def test_a_goal_identifier_cannot_name_another_path(her_source, tmp_path, slug):
+    if slug == "absolute":
+        slug = str(tmp_path / "outside")
+    record = work.GoalRecord(goal=GOAL, slug=slug)
+    with pytest.raises(ValueError, match="goal identifier"):
+        asyncio.run(work.save(record))
+    with pytest.raises(ValueError, match="goal identifier"):
+        work._write_now(record)
+    with pytest.raises(ValueError, match="goal identifier"):
+        _ = record.workspace
+    assert work.load(slug) is None
+    assert not work.records_dir().exists()
+    assert not (tmp_path / "outside.json").exists()
+
+
+def test_a_record_cannot_claim_another_goal_identifier(her_source):
+    path = work.records_dir() / "safe.json"
+    path.parent.mkdir()
+    path.write_text(json.dumps(work.GoalRecord(goal=GOAL, slug="../outside").to_dict()))
+    assert work.load("safe") is None
+
+
+@pytest.mark.parametrize("slug", ["legacy_123", "old.goal", "Previous goal"])
+def test_an_existing_plain_filename_still_round_trips(her_source, slug):
+    record = work.GoalRecord(goal=GOAL, slug=slug)
+    asyncio.run(work.save(record))
+    assert work.load(slug).slug == slug
+
+
+def test_the_goal_identifier_has_a_registered_invariant_and_validation():
+    from core.organism.model_validation import ValidationSuite, _install_repair_executor_claims
+
+    assert work._goal_identifier_invariant() == ()
+    suite = ValidationSuite()
+    _install_repair_executor_claims(suite)
+    check = next(test for test in suite.tests() if test.name == "goal_identifier_guard")
+    assert check.predict(None) is True
+    assert any(claim.test == check.name for claim in suite.claims())
 
 
 NEW_TEST = "from core.notes import note_count\n\n\ndef test_counts_nothing_yet():\n    assert note_count() == 0\n"

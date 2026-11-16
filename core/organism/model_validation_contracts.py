@@ -15,6 +15,7 @@ from core.organism.nothing_measured import NothingMeasured
 
 
 def _install_repair_executor_claims(suite):
+    from core.agency.her_goal_at_work import _goal_identifier_invariant
     from core.agency.when_motion_breaks_a_rule import _open_edges_are_not_faults
     from core.learning.adaptive_halting import _halting_head_shape_invariant
     from core.memory.worth_at_encoding import neutral_worth_canary
@@ -30,6 +31,10 @@ def _install_repair_executor_claims(suite):
     from core.runtime.wall_clock import host_deadline_clock_holds
 
     for name, probe, owner, statement, tests in (
+        ("goal_identifier_guard", lambda: _goal_identifier_invariant() == (),
+         "core/agency/her_goal_at_work.py",
+         "The goal identifier canary rejects empty, absolute, traversal and nested path components.",
+         "tests/test_her_goal_is_worked_by_her.py"),
         ("halting_artifact_shape_guard", lambda: _halting_head_shape_invariant() == (),
          "core/learning/adaptive_halting.py",
          "The halting artifact canary refuses a mismatched declared width before constructing the head.",
