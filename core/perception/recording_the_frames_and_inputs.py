@@ -87,10 +87,13 @@ class FrameAndInputRecording:
         self.sequence += 1
         return dict(sequence=self.sequence, kind=kind, received_at=time.monotonic(), **fields)
 
+    def _accepts(self, size: int) -> bool:
+        return not (self.closed or self.error or self.queue.full() or self.pending_bytes + size > self.byte_limit
+                    or self.total_bytes + size > self.total_limit)
+
     def offer(self, event: dict, picture: np.ndarray | None = None) -> None:
         size = picture.nbytes if picture is not None else 0
-        if (self.closed or self.error or self.queue.full() or self.pending_bytes + size > self.byte_limit
-                or self.total_bytes + size > self.total_limit):
+        if not self._accepts(size):
             self.dropped += 1
             return
         self.pending_bytes += size
@@ -103,7 +106,7 @@ class FrameAndInputRecording:
             return
         picture, at = result
         size = getattr(picture, 'nbytes', self.byte_limit + 1)
-        if size > self.byte_limit or self.pending_bytes + size > self.byte_limit:
+        if size > self.byte_limit or not self._accepts(size):
             self.sequence += 1
             self.dropped += 1
             return
@@ -149,6 +152,23 @@ class FrameAndInputRecording:
                     error=self.error, complete=state == 'closed' and not self.error and not self.dropped,
                     presentation_qualified=False, omitted=['drawing_scene', 'sounds', 'unrecorded decision paths'],
                     input_receipt='port call completion; does not prove game acceptance or visible effect')
+
+
+@invariant('perception.refused_recording_frames_do_not_copy_pixels', scope='perception',
+           owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
+def _refused_frame_copy_invariant() -> tuple:
+    class UnmaterializedFrame:
+        nbytes = 12
+
+        def __array__(self, *args, **kwargs):
+            raise AssertionError('a refused frame was materialized')
+
+    for closed, error in ((True, ''), (False, 'storage unavailable')):
+        recorder = FrameAndInputRecording('unused', queued_bytes=24, total_bytes=24, queued_events=1)
+        recorder.closed, recorder.error = closed, error
+        recorder.frame((UnmaterializedFrame(), 1.))
+        assert recorder.dropped == 1 and recorder.queue.empty()
+    return ()
 
 
 @asynccontextmanager

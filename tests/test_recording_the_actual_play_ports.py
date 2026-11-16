@@ -121,14 +121,45 @@ def test_numpy_integer_recording_limits_still_bound_the_queue():
     assert recorder.queue.qsize() == 2 and recorder.dropped == 1 and recorder.total_bytes == 24
 
 
-def test_recording_limits_have_a_registered_invariant_and_validation():
+@pytest.mark.parametrize('reason', ['closed', 'storage_error', 'queue_full', 'total_bytes', 'pending_bytes', 'frame_bytes'])
+def test_a_refused_frame_is_dropped_before_copying_pixels(monkeypatch, reason):
+    from core.perception import recording_the_frames_and_inputs as module
+
+    recorder = FrameAndInputRecording('unused', queued_bytes=24, total_bytes=48, queued_events=1)
+    picture = np.ones((2, 2, 3), dtype=np.uint8)
+    if reason == 'closed':
+        recorder.closed = True
+    elif reason == 'storage_error':
+        recorder.error = 'storage unavailable'
+    elif reason == 'queue_full':
+        recorder.offer(recorder.event('tick'))
+    elif reason == 'total_bytes':
+        recorder.total_bytes = recorder.total_limit
+    elif reason == 'pending_bytes':
+        recorder.pending_bytes = recorder.byte_limit
+    else:
+        picture = np.ones((3, 3, 3), dtype=np.uint8)
+    before = (recorder.sequence, recorder.dropped, recorder.pending_bytes, recorder.total_bytes, recorder.queue.qsize())
+
+    def unexpected_copy(*args, **kwargs):
+        raise AssertionError('a frame already refused by the recorder was copied')
+
+    monkeypatch.setattr(module, '_pixels', unexpected_copy)
+    recorder.frame((picture, 1.))
+    assert recorder.sequence == before[0] + 1 and recorder.dropped == before[1] + 1
+    assert (recorder.pending_bytes, recorder.total_bytes, recorder.queue.qsize()) == before[2:]
+
+
+@pytest.mark.parametrize('name', ['pixel_recording_resource_bounds', 'refused_recording_frames_skip_pixel_copy'])
+def test_recording_resource_guards_have_registered_invariants_and_validations(name):
     from core.organism.model_validation import ValidationSuite, _install_repair_executor_claims
-    from core.perception.recording_the_frames_and_inputs import _recording_bounds_invariant
+    from core.perception.recording_the_frames_and_inputs import _recording_bounds_invariant, _refused_frame_copy_invariant
 
     assert _recording_bounds_invariant() == ()
+    assert _refused_frame_copy_invariant() == ()
     suite = ValidationSuite()
     _install_repair_executor_claims(suite)
-    check = next(test for test in suite.tests() if test.name == 'pixel_recording_resource_bounds')
+    check = next(test for test in suite.tests() if test.name == name)
     assert check.predict(None) is True
     assert any(claim.test == check.name for claim in suite.claims())
 

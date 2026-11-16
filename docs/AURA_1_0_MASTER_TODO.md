@@ -5015,6 +5015,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: the frame recorder checks admission before
+    copying pixels. A scratch probe witnessed one wasted copy for
+    each closed recorder, storage error, full queue and exhausted
+    total budget. All four copy-trap regressions failed before the
+    repair. Queue and byte admission now share a predicate, and
+    rejection preserves queued state while incrementing sequence
+    and drop counts. All 66 focused checks passed. The registered
+    synthetic canary uses a frame that refuses materialization;
+    no live throughput or latency gain is claimed. Smoke passed
+    164 tests with one skip in 108.60 s and maximum RSS of
+    510,574,592 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted
+    writing passed.
+    Source: core/perception/recording_the_frames_and_inputs.py.
+    Tests: tests/test_recording_the_actual_play_ports.py.
   - [x] 2026-11-16: recording limits must be positive integers
     before the queue is constructed. A four-event scratch probe
     showed that NaN disabled the event queue bound. Fifteen invalid
