@@ -164,6 +164,29 @@ class TestHoldingDeferredWork:
 
 class TestReplay:
     @pytest.mark.asyncio
+    async def test_durable_queue_updates_flush_without_a_lock_held(self, queue, monkeypatch):
+        from core.runtime import atomic_writer
+        from core.runtime.lockdep import assert_no_locks_held
+
+        fsync = atomic_writer._fsync_file
+        flushes = []
+
+        def checked_flush(fd, **kwargs):
+            assert_no_locks_held("deferred retention fsync", strict=True)
+            flushes.append(fd)
+            return fsync(fd, **kwargs)
+
+        monkeypatch.setattr(atomic_writer, "_fsync_file", checked_flush)
+        held = await asyncio.gather(
+            queue.enqueue_async("first work", reason="aura_now_defer"),
+            queue.enqueue_async("second work", reason="aura_now_defer"),
+        )
+        assert all(held)
+        report = await queue.replay(FakeFacade([True, True]))
+        assert report.committed == 2 and await asyncio.to_thread(queue.pending) == []
+        assert len(flushes) >= 3
+
+    @pytest.mark.asyncio
     async def test_a_write_that_arrives_during_replay_is_retained(self, queue):
         assert await queue.enqueue_async("first result", reason="aura_now_defer")
         retry_started = asyncio.Event()

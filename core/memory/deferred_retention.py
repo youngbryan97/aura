@@ -27,7 +27,8 @@ import hashlib
 import json
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,7 +37,7 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.flags import FlagKind, declare
-from core.runtime.lockdep import checked_async_lock, checked_lock
+from core.runtime.lockdep import checked_async_lock, checked_condition
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.DeferredRetention")
@@ -155,7 +156,8 @@ class DeferredRetentionQueue:
             if queue_path is not None
             else _default_queue_path()
         )
-        self._write_lock = checked_lock("deferred_retention.file_update")
+        self._write_condition = checked_condition("deferred_retention.file_update")
+        self._write_in_flight = False
         self._replay_lock = checked_async_lock("deferred_retention.replay")
 
     @property
@@ -163,6 +165,19 @@ class DeferredRetentionQueue:
         return self._queue_path
 
     # ── read/write ────────────────────────────────────────────────────────
+
+    @contextmanager
+    def _file_update(self) -> Iterator[None]:
+        """Reserve the writer on a worker and release the mutex before I/O."""
+        with self._write_condition:
+            self._write_condition.wait_for(lambda: not self._write_in_flight)
+            self._write_in_flight = True
+        try:
+            yield
+        finally:
+            with self._write_condition:
+                self._write_in_flight = False
+                self._write_condition.notify()
 
     def _load(self, *, strict: bool = False) -> list[dict[str, Any]]:
         try:
@@ -213,7 +228,7 @@ class DeferredRetentionQueue:
         self, retried: set[tuple[str, str]], waiting: list[dict[str, Any]]
     ) -> int:
         updates = {self._entry_version(entry): entry for entry in waiting}
-        with self._write_lock:
+        with self._file_update():
             # A new write can arrive while the memory facade decides.
             current = self._load(strict=True)
             kept = []
@@ -285,7 +300,7 @@ class DeferredRetentionQueue:
         if entry is None:
             return False
         try:
-            with self._write_lock:
+            with self._file_update():
                 merged = self._merge(self._load(strict=True), entry)
                 if merged is None:
                     return True  # already waiting; holding it twice helps nobody
