@@ -4501,6 +4501,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   question was refused before any capture. Open: the refusal reached him as the desktop lane's own sentence ("This
   did not complete: read screen text failed: ... I am not claiming it was done."), not hers; requested highlighting
   is still untested.
+  15 November, night, live with a private Chrome window on example.com, typed into her window three times. The
+  refusal still reached him as the lane's sentence (79 s, 3 min 40 s, 64 s), for causes in order: the question was
+  searched on the web as something current ("right now" in an asking clause), and a Microsoft page on "Click to Do"
+  went beside her turn; her screen reading said only "Screen capture was refused for this turn."; her sensory note
+  said "You looked at the screen yourself moments ago. If asked where this came from, say you read the screen.", and
+  her reply check counted that reading for nothing, so a true answer from it ("I can see you're using Claude ...")
+  was refused; and 04c1889a8's hand-off of a failed step recorded its reading only where the check reads, not where
+  her model does. Fixed: a question her own readings answer is not about the world now (her_own_readings_answer,
+  04a540c89); a refused read names its cause (04a540c89); the note is a reading with its time and age, and is held
+  as one she took (6846d1e11); the hand-off reaches her prompt (b3b17512e). Live after the first two: no search, and
+  her drafts were refused for describing a screen she had not read this turn. Still open: after a refused draft the
+  desktop step runs and its failure is served as the lane's sentence (chat.py, "No servable reply on a desktop
+  objective"); her 14 November answer to the same question, which named two Chrome windows, reaches her as memory
+  and her draft described "two browser tabs"; the three searches were retained (data/search/web_artifacts.jsonl).
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
