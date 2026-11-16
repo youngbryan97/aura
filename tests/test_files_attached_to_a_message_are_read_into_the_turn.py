@@ -72,6 +72,63 @@ def test_a_spreadsheet_is_read_from_its_parts():
     assert kind == "spreadsheet" and "seed verdict" in text
 
 
+@pytest.mark.parametrize("suffix,part", [
+    (".xlsx", "xl/sharedStrings.xml"), (".pptx", "ppt/slides/slide1.xml"),
+    (".ods", "content.xml"), (".odp", "content.xml"), (".docx", "word/document.xml"),
+])
+def test_an_office_archive_is_checked_before_its_parts_are_read(monkeypatch, suffix, part):
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as package:
+        package.writestr(part, b"x" * 2048)
+    data = out.getvalue()
+    assert len(data) < 1024
+    monkeypatch.setattr(attachments, "MOST_EXPANDED_BYTES", 1024, raising=False)
+    read, opened = zipfile.ZipFile.read, []
+
+    def observe(package, *args, **kwargs):
+        opened.append(args[0])
+        return read(package, *args, **kwargs)
+
+    monkeypatch.setattr(zipfile.ZipFile, "read", observe)
+    with pytest.raises(attachments.AttachmentRefused, match="expanded"):
+        attachments.read_text("attached" + suffix, data)
+    assert not opened
+
+
+@pytest.mark.parametrize("limited_by", ["total_bytes", "members"])
+def test_the_office_archive_budget_applies_to_all_members(monkeypatch, limited_by):
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as package:
+        package.writestr("xl/sharedStrings.xml", "<t>Kept</t>")
+        for number in range(3):
+            package.writestr(f"media/picture{number}.bin", b"x" * 512)
+    monkeypatch.setattr(attachments, "MOST_EXPANDED_BYTES", 1024 if limited_by == "total_bytes" else 4096,
+                        raising=False)
+    monkeypatch.setattr(attachments, "MOST_ARCHIVE_MEMBERS", 3 if limited_by == "members" else 10, raising=False)
+    with pytest.raises(attachments.AttachmentRefused, match="expanded|members"):
+        attachments.read_text("attached.xlsx", out.getvalue())
+
+
+def test_an_over_budget_archive_is_kept_whole_and_marked_unreadable(kept_in, monkeypatch):
+    data = _xlsx(["x" * 2048])
+    monkeypatch.setattr(attachments, "MOST_EXPANDED_BYTES", 1024)
+    note = asyncio.run(attachments.keep("attached.xlsx", data))
+    assert note["kind"] == "unreadable" and not note["readable"] and note["chars"] == 0
+    assert (kept_in / note["id"] / "original.xlsx").read_bytes() == data
+    assert attachments.kept(note["id"]) == (note, "")
+
+
+def test_the_archive_budget_has_a_registered_invariant_and_validation():
+    from core.organism.model_validation import ValidationSuite, _install_repair_executor_claims
+
+    assert attachments._archive_budget_invariant() == ()
+    suite = ValidationSuite()
+    _install_repair_executor_claims(suite)
+    check = next(test for test in suite.tests() if test.name == "office_archive_expansion_budget")
+    assert check.predict(None) is True
+    assert any(claim.test == check.name for claim in suite.claims())
+
+
 @pytest.mark.parametrize(("name", "data", "kind"), [
     ("notes.md", "# Notes\nsomething".encode(), "text"),
     ("run.py", b"print('hi')\n", "text"),

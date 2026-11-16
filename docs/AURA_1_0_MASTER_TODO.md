@@ -4955,6 +4955,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: Office attachment readers check ZIP inventories
+    before decompressing content. Expanded bytes across all members
+    are capped at 100 MiB and the member count at 4,096. DOCX cannot
+    bypass admission through its converter fallback. Seven regressions
+    failed before the repair using small archives and lowered limits.
+    An over-budget upload stays kept whole and is marked unreadable.
+    All 39 focused tests passed. The registered invariant and validation
+    are synthetic inventory checks; ZIP metadata allocation is not
+    bounded by this item. Smoke passed 164 tests with one skip in
+    90.51 s and maximum RSS of 487,604,224 bytes. Lint, compile,
+    dependency drift, layering, governance, module size and targeted
+    writing passed. The reviewed subprocess deletion in ff2acbf58
+    was removed from the exact effect baseline, reducing migration
+    debt to 2,045 with raw debt still 747.
+    Source: core/conversation/attachments.py.
+    Tests: tests/test_files_attached_to_a_message_are_read_into_the_turn.py.
   - [x] 2026-11-15: requested-artifact saves preserve an existing
     output folder's permissions on the sync and async paths. Both
     used to change 0755 to 0700. The redundant directory calls came

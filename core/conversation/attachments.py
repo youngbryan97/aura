@@ -29,12 +29,17 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.verify import invariant
 
 logger = logging.getLogger("Aura.Conversation.Attachments")
 
 #: The largest file kept, in bytes. A long illustrated PDF is tens of megabytes; a file past this is a dataset or a
 #: disk image, which the conversation's room could not hold a useful part of.
 MOST_BYTES = 100 * 1024 * 1024
+
+#: Office archives may expand to this many bytes across at most this many members.
+MOST_EXPANDED_BYTES = MOST_BYTES
+MOST_ARCHIVE_MEMBERS = 4096
 
 #: The most pages of a scanned PDF whose words are read off the page pictures.
 MOST_PAGES_READ_BY_SIGHT = 200
@@ -54,6 +59,32 @@ _RECOVERABLE = (OSError, RuntimeError, ValueError, TypeError, KeyError, zipfile.
 
 class AttachmentRefused(ValueError):
     """A file that cannot be kept: too large, or empty."""
+
+
+def _check_archive_budget(members: list[zipfile.ZipInfo]) -> None:
+    if len(members) > MOST_ARCHIVE_MEMBERS:
+        raise AttachmentRefused(f"the Office archive has more than {MOST_ARCHIVE_MEMBERS} members")
+    total = 0
+    for member in members:
+        total += member.file_size
+        if member.file_size < 0 or total > MOST_EXPANDED_BYTES:
+            raise AttachmentRefused(f"the Office archive exceeds the expanded byte limit ({MOST_EXPANDED_BYTES})")
+
+
+@invariant("conversation.office_archive_expansion_budget", scope="conversation",
+           owner="core/conversation/attachments.py", observational=False)
+def _archive_budget_invariant() -> tuple:
+    member = zipfile.ZipInfo("part.xml")
+    for size, count in ((MOST_EXPANDED_BYTES + 1, 1), (MOST_EXPANDED_BYTES // 2 + 1, 2),
+                        (0, MOST_ARCHIVE_MEMBERS + 1)):
+        member.file_size = size
+        try:
+            _check_archive_budget([member] * count)
+        except AttachmentRefused:
+            continue
+        raise AssertionError("an Office archive exceeded its expansion budget")
+    _check_archive_budget([])
+    return ()
 
 
 def attachments_dir() -> Path:
@@ -113,6 +144,8 @@ def _pdf_text(data: bytes) -> str:
 
 def _docx_text(data: bytes) -> str:
     try:
+        with zipfile.ZipFile(io.BytesIO(data)) as package:
+            _check_archive_budget(package.infolist())
         import docx
 
         document = docx.Document(io.BytesIO(data))
@@ -121,6 +154,8 @@ def _docx_text(data: bytes) -> str:
             for row in table.rows:
                 lines.append(" | ".join(cell.text.strip() for cell in row.cells))
         return "\n".join(line for line in lines if line.strip())
+    except AttachmentRefused:
+        raise
     except _RECOVERABLE + (ImportError,) as why:
         logger.info("a Word file read by python-docx failed (%s); trying the system converter", why)
         return _converted_by_textutil(data, ".docx")
@@ -144,6 +179,7 @@ def _zipped_xml_text(data: bytes, parts: tuple[str, ...]) -> str:
         return [int(piece) if piece.isdigit() else piece for piece in re.split(r"(\d+)", name)]
 
     with zipfile.ZipFile(io.BytesIO(data)) as package:
+        _check_archive_budget(package.infolist())
         names = sorted((name for name in package.namelist()
                         if name.endswith(".xml") and any(name.startswith(part) for part in parts)), key=natural)
         texts = []

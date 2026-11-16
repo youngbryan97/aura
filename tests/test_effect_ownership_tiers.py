@@ -118,7 +118,8 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: Requested artifact writes let the atomic writer create missing parents.
 #: Attachments do the same and share one call site for their two text files.
 #: The reviewed screen-highlight change removed its AppleScript subprocess.
-TOTAL_CEILING = 2046
+#: Its later display-list read removed the remaining Finder subprocess.
+TOTAL_CEILING = 2045
 RAW_CEILING = 747
 
 
