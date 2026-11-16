@@ -34,11 +34,14 @@ import subprocess
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 from core.verify import invariant
+
+if TYPE_CHECKING:
+    from core.agency.autonomous_task_engine import TaskResult
 
 logger = logging.getLogger("Aura.HerGoalAtWork")
 
@@ -226,7 +229,8 @@ class GoalRecord:
         return cls(**known)
 
 
-def load(slug: str) -> GoalRecord | None:
+def load(slug: str, *, require_readable: bool = False) -> GoalRecord | None:
+    """Return None for an absent record; workers can require other read errors to propagate."""
     try:
         path = records_dir() / f"{_checked_slug(slug)}.json"
         record = GoalRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
@@ -237,7 +241,9 @@ def load(slug: str) -> GoalRecord | None:
     except FileNotFoundError:
         return None
     except (OSError, ValueError, TypeError) as exc:
-        record_degradation("her_goal_at_work", exc, severity="warning", action=f"read no record for {slug}")
+        record_degradation("her_goal_at_work", exc, severity="warning", action=f"could not read record for {slug}")
+        if require_readable:
+            raise
         return None
 
 
@@ -411,11 +417,11 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     from core.skills.her_draft import tool_definitions
 
     slug = slug_of(goal)
-    record = await asyncio.to_thread(load, slug) or GoalRecord(goal=str(goal), slug=slug)
+    record = await asyncio.to_thread(load, slug, require_readable=True) or GoalRecord(goal=str(goal), slug=slug)
     if record.status == OFFERED:
         # A draft held while she was measured, or offered before she could take it herself.
         await asyncio.to_thread(take_it_herself, slug)
-        record = await asyncio.to_thread(load, slug) or record
+        record = await asyncio.to_thread(load, slug, require_readable=True) or record
     if record.status == STALLED:
         # A goal stalls after two passes with no call, and on day run 4 (9 and 10 November 2026) every stall came of a
         # fault in what she was given: her tools refused, her model held. Stalled for good, a goal waited on a fix
@@ -449,7 +455,8 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         logger.info("🛠️ '%s': not now (her model is held for something else)", goal[:60])
         return record
     now = time.time()
-    record = await asyncio.to_thread(load, slug) or record  # a tool of hers may have changed the record during the pass
+    # A tool of hers may have changed the record during the pass.
+    record = await asyncio.to_thread(load, slug, require_readable=True) or record
     for call in calls:
         record.steps.append({"id": call.get("id"), "tool": call.get("tool"), "args": call.get("args") or {},
                              "result": str(call.get("result") or ""), "at": now})
@@ -468,11 +475,35 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     if record.status == OFFERED:
         # Offered this pass: her own yes, and the gates it asks, outside her model's turn.
         taken = await asyncio.to_thread(take_it_herself, slug)
-        record = await asyncio.to_thread(load, slug) or record
+        record = await asyncio.to_thread(load, slug, require_readable=True) or record
         if not taken.get("ok") and record.status == OFFERED:
             record.said.append({"words": f"My draft waits: {taken.get('why')}", "at": time.time()})
             await save(record)
     return record
+
+
+async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
+    """A pass of hers at ``goal`` through her own tools, reported as what it did: never as the goal done unless a
+    draft of hers was offered or taken. LIVE 8 November 2026: her goal "Implement persistent cold-store memory for
+    user-specific context", held since 25 August, had been given an empty plan on every one of hundreds of selections
+    since dda8ab337."""
+    from core.agency.autonomous_task_engine import TaskResult
+
+    try:
+        before = await asyncio.to_thread(load, slug_of(goal), require_readable=True)
+        record = await work_a_while(goal)
+    except (RuntimeError, OSError, ValueError, TypeError) as why:
+        record_degradation("autonomous_task_engine", why, severity="warning", action="stopped work on her goal after a failure")
+        return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, summary=f"Her goal work stopped: {why}",
+                          trace_id=trace_id, steps_completed=0, steps_total=0)
+    steps_before = len(before.steps) if before is not None else 0
+    calls = len(record.steps) - steps_before
+    if calls == 0 and record.passes == (before.passes if before is not None else 0):
+        return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, summary="Not now: her model is held.",
+                          trace_id=trace_id, steps_completed=0, steps_total=0, deferred_reason="her_model_held")
+    return TaskResult(plan_id=plan_id, goal=goal, succeeded=record.status in (OFFERED, MERGED),
+                      summary=f"{calls} call(s) of hers this pass, {len(record.steps)} in all; the goal is {record.status}.",
+                      trace_id=trace_id, steps_completed=calls, steps_total=calls)
 
 
 #: Paths whose change waits for Bryan however well it checks: what she may do, how she is checked, and these rules.
@@ -523,7 +554,7 @@ def take_it_herself(slug: str) -> dict[str, Any]:
     failed = next((name for name, gate in gates.items() if not gate["passed"]), "")
     if failed:
         # Back to her with what failed, in the words of the gate: her next pass reads it.
-        record = load(slug) or record
+        record = load(slug, require_readable=True) or record
         record.status, record.quiet_passes = WORKING, 0
         record.said.append({"words": f"My own yes asked the gates first, and {failed} failed:\n"
                                      f"{gates[failed]['tail']}", "at": time.time()})

@@ -335,27 +335,9 @@ def _her_own_goal(context: dict | None) -> bool:
 
 
 async def _worked_by_her(goal: str, plan_id: str, trace_id: str) -> TaskResult:
-    """A pass of hers at ``goal`` through her own tools, reported as what it did: never as the goal done unless a
-    draft of hers was offered or taken. LIVE 8 November 2026: her goal "Implement persistent cold-store memory for
-    user-specific context", held since 25 August, had been given an empty plan on every one of hundreds of selections
-    since dda8ab337."""
-    from core.agency.her_goal_at_work import MERGED, OFFERED, load, slug_of, work_a_while
+    from core.agency.her_goal_at_work import work_as_task
 
-    before = load(slug_of(goal))
-    steps_before = len(before.steps) if before is not None else 0
-    try:
-        record = await work_a_while(goal)
-    except (RuntimeError, OSError, ValueError) as why:
-        record_degradation("autonomous_task_engine", why, severity="warning", action="left her goal unworked this pass")
-        return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, summary=f"Her pass at it did not run: {why}",
-                          trace_id=trace_id, steps_completed=0, steps_total=0)
-    calls = len(record.steps) - steps_before
-    if calls == 0 and record.passes == (before.passes if before is not None else 0):
-        return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, summary="Not now: her model is held.",
-                          trace_id=trace_id, steps_completed=0, steps_total=0, deferred_reason="her_model_held")
-    return TaskResult(plan_id=plan_id, goal=goal, succeeded=record.status in (OFFERED, MERGED),
-                      summary=f"{calls} call(s) of hers this pass, {len(record.steps)} in all; the goal is {record.status}.",
-                      trace_id=trace_id, steps_completed=calls, steps_total=calls)
+    return await work_as_task(goal, plan_id, trace_id)
 
 
 from .task_fallback_plans import _BuildsAPlanWithoutTheModel

@@ -4940,6 +4940,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: goal work preserves a kept record when it
+    cannot read it. Workers propagate read and decoding failures;
+    an absent file still starts a new goal. Five initial-read cases
+    and a failed read after a tool save previously replaced kept
+    bytes with a fresh or older record. The task adapter now reads
+    off the event loop and reports the actual failure. A completed
+    tool write is no longer reported as a pass that did not run.
+    Seven regressions failed before the repair; the extended task
+    assertion also caught the misleading report. All 80 focused
+    tests passed. The goal-specific adapter moved out of the oversized
+    task engine, and the measured module-size budget fell by 16 lines.
+    Smoke passed 164 tests with one skip in 67.79 s and maximum
+    RSS of 480,165,888 bytes. Lint, compile, dependency drift,
+    layering, governance, module size and targeted writing passed.
+    Source: core/agency/her_goal_at_work.py,
+    core/agency/autonomous_task_engine.py and core/skills/her_draft.py.
+    Tests: tests/test_her_goal_is_worked_by_her.py.
   - [x] 2026-11-15: goal identifiers must be single filename
     components before record reads, writes or workspace lookup.
     A scratch traversal previously wrote outside the record directory.

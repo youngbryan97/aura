@@ -165,6 +165,100 @@ def test_the_goal_identifier_has_a_registered_invariant_and_validation():
 NEW_TEST = "from core.notes import note_count\n\n\ndef test_counts_nothing_yet():\n    assert note_count() == 0\n"
 
 
+@pytest.mark.parametrize("fault", ["permission", "json", "fields", "identifier", "encoding"])
+def test_an_unreadable_goal_record_is_not_replaced_by_a_new_goal(her_source, monkeypatch, fault):
+    record = work.GoalRecord(goal=GOAL, slug=work.slug_of(GOAL), passes=9,
+                             said=[{"words": "Kept across passes.", "at": 1.0}])
+    work._write_now(record)
+    path = work.records_dir() / f"{record.slug}.json"
+    bad_bytes = {"json": b"{unfinished", "fields": b'{"goal": "kept"}', "encoding": b"\xff",
+                 "identifier": json.dumps({**record.to_dict(), "slug": "another-goal"}).encode()}
+    if fault in bad_bytes:
+        path.write_bytes(bad_bytes[fault])
+    before = path.read_bytes()
+    read_text = Path.read_text
+
+    def unreadable(target, *args, **kwargs):
+        if target == path:
+            raise PermissionError("goal record temporarily unreadable")
+        return read_text(target, *args, **kwargs)
+
+    if fault == "permission":
+        monkeypatch.setattr(Path, "read_text", unreadable)
+    her, errors = _HerModelStandIn([]), []
+    try:
+        asyncio.run(work.work_a_while(GOAL, router=her))
+    except (OSError, ValueError, TypeError) as exc:
+        errors.append(exc)
+    assert path.read_bytes() == before, "an unknown record must keep its bytes"
+    assert errors and not her.seen_prior
+    assert work.load(record.slug) is None, "inspection can still report no readable record"
+
+
+def test_a_failed_read_after_a_pass_preserves_what_her_tool_kept(her_source, monkeypatch):
+    from core.agency.autonomous_task_engine import _worked_by_her
+
+    record = work.GoalRecord(goal=GOAL, slug=work.slug_of(GOAL), passes=3)
+    work._write_now(record)
+    path = work.records_dir() / f"{record.slug}.json"
+    read_text, kept = Path.read_text, []
+
+    def unreadable(target, *args, **kwargs):
+        if target == path:
+            raise PermissionError("the tool's record is temporarily unreadable")
+        return read_text(target, *args, **kwargs)
+
+    class KeepsMoreWork:
+        async def think_and_act(self, *args, **kwargs):
+            await work.save(work.GoalRecord(goal=GOAL, slug=record.slug, passes=17,
+                                           said=[{"words": "Kept by the tool.", "at": 2.0}]))
+            kept.append(path.read_bytes())
+            monkeypatch.setattr(Path, "read_text", unreadable)
+            return {"content": "A pass with new work kept.", "turns": 1}
+
+    work_a_while = work.work_a_while
+
+    async def pass_with_tool(goal):
+        return await work_a_while(goal, router=KeepsMoreWork())
+
+    monkeypatch.setattr(work, "work_a_while", pass_with_tool)
+    result = asyncio.run(_worked_by_her(GOAL, "plan", "trace"))
+    assert kept and path.read_bytes() == kept[0], "the last readable copy is older than the tool's record"
+    assert not result.succeeded and "temporarily unreadable" in result.summary
+    assert "did not run" not in result.summary, "the tool already kept work during this pass"
+
+
+def test_the_task_reports_an_unreadable_goal_without_starting_a_pass(her_source, monkeypatch):
+    from core.agency.autonomous_task_engine import _worked_by_her
+
+    record = work.GoalRecord(goal=GOAL, slug=work.slug_of(GOAL), passes=9)
+    work._write_now(record)
+    path = work.records_dir() / f"{record.slug}.json"
+    before, read_text, on_loop, called = path.read_bytes(), Path.read_text, [], []
+
+    def unreadable(target, *args, **kwargs):
+        if target == path:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+            else:
+                on_loop.append(target)
+            raise PermissionError("goal record temporarily unreadable")
+        return read_text(target, *args, **kwargs)
+
+    async def unexpected(goal):
+        called.append(goal)
+        raise RuntimeError("a pass must wait for its record")
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+    monkeypatch.setattr(work, "work_a_while", unexpected)
+    result = asyncio.run(_worked_by_her(GOAL, "plan", "trace"))
+    assert not result.succeeded and "temporarily unreadable" in result.summary
+    assert not called and not on_loop
+    assert path.read_bytes() == before
+
+
 def test_goal_record_reads_leave_the_event_loop_free(her_source, monkeypatch):
     (her_source.parent / "measuring.hold").write_text("held")
     read_text = Path.read_text
