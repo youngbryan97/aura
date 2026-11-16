@@ -398,19 +398,15 @@ class SkillSynthesizer:
         exactly the kind of caller that would do it unnoticed.
         """
         from core.governance_context import local_internal_governed_scope
-        from core.runtime.file_write_gateway import get_file_write_gateway
+        from core.persistence.scoped_writes import write_private_state_async
 
         try:
             payload = self._payload()
-            with local_internal_governed_scope("agi.skill_synthesizer"):
-                gateway = get_file_write_gateway()
-                await gateway.ensure_directory_async(
-                    PERSIST_PATH.parent, source="agi.skill_synthesizer"
-                )
-            with local_internal_governed_scope("agi.skill_synthesizer"):
-                await gateway.write_text_async(
-                    PERSIST_PATH, payload, source="agi.skill_synthesizer"
-                )
+            await write_private_state_async(
+                PERSIST_PATH, payload,
+                scope_factory=lambda: local_internal_governed_scope("agi.skill_synthesizer"),
+                source="agi.skill_synthesizer",
+            )
         except (OSError, RuntimeError, TypeError, ValueError) as e:
             record_degradation('skill_synthesizer', e)
             logger.debug("SkillSynthesizer save failed: %s", e)

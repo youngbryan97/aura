@@ -24,12 +24,12 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from core.governance_context import local_internal_governed_scope
+from core.persistence.scoped_writes import write_private_state_async
 from core.reality_reach.contracts import ChannelDeclaration, ChannelKind
 from core.reality_reach.live import ChannelReading, ReadingStatus, RealityReachService
 from core.reality_reach.middleware_contracts import canonical_identifier, sha256_digest
 from core.runtime.atomic_writer import read_json_envelope
 from core.runtime.audit_chain import canonical_json, sha256_hex
-from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.lockdep import checked_async_lock
 from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
@@ -491,26 +491,13 @@ class RealityMetrologyService:
                     "failures": list(self._failures[-_MAX_RECEIPTS:]),
                 }
                 payload["state_sha256"] = str(sha256_hex(canonical_json(payload)))
-            with local_internal_governed_scope(
-                "reality_reach.metrology.persist",
-                domain="state_mutation",
-            ):
-                gateway = get_file_write_gateway()
-                await gateway.ensure_directory_async(
-                    self._state_path.parent,
-                    source="reality_reach.metrology.persist",
-                )
-            with local_internal_governed_scope(
-                "reality_reach.metrology.persist",
-                domain="state_mutation",
-            ):
-                await gateway.write_json_async(
-                    self._state_path,
-                    payload,
-                    schema_version=_STATE_VERSION,
-                    schema_name=_STATE_SCHEMA,
-                    source="reality_reach.metrology.persist",
-                )
+            await write_private_state_async(
+                self._state_path, payload,
+                scope_factory=lambda: local_internal_governed_scope(
+                    "reality_reach.metrology.persist", domain="state_mutation"),
+                schema_version=_STATE_VERSION, schema_name=_STATE_SCHEMA,
+                source="reality_reach.metrology.persist",
+            )
 
     async def _persist_shielded(self) -> None:
         persistence = get_task_tracker().create_task(

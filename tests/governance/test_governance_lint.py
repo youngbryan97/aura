@@ -9,6 +9,8 @@ import textwrap
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from tools.lint_governance import (
     EffectBucket,
@@ -19,6 +21,31 @@ from tools.lint_governance import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
+
+
+@pytest.mark.parametrize("source", [
+    'from core.runtime.file_write_gateway import write_text_behind as save\nsave(path, "body")',
+    'import core.runtime.file_write_gateway as files\nfiles.append_text_behind(path, "line")',
+    'from core.runtime import file_write_gateway as files\nfiles.write_text_behind(path, "body")',
+    'from core.runtime.file_write_gateway import write_text_behind as save\nimport asyncio\n'
+    'async def retain():\n    await asyncio.to_thread(save, path, "body")',
+])
+def test_gateway_write_behind_helpers_are_inventoried(source):
+    buckets = _scan_tree_scoped(ast.parse(source), "core/example.py")
+    assert len(buckets) == 1
+    key, = buckets
+    assert key[0] == "file_write_gateway" and sum(buckets.values()) == 1
+
+
+def test_unrelated_write_behind_names_are_not_gateway_calls():
+    source = 'from another.backend import write_text_behind\nwrite_text_behind(path, "body")'
+    assert _scan_tree_scoped(ast.parse(source), "core/example.py") == {}
+
+
+def test_atomic_append_behind_is_inventoried():
+    source = 'from core.runtime.atomic_writer import atomic_append_text_behind as append\nappend(path, "line")'
+    buckets = _scan_tree_scoped(ast.parse(source), "core/example.py")
+    assert len(buckets) == 1 and next(iter(buckets))[0] == "direct_atomic_file_write"
 
 
 def test_lifted_subprocess_reaper_keeps_exact_primitive_ownership():

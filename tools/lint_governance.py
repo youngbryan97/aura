@@ -481,6 +481,7 @@ _ATOMIC_FILE_CALL_SUFFIXES = (
     "atomic_write_bytes_behind",
     "atomic_write_json_behind",
     "atomic_write_text_behind",
+    "atomic_append_text_behind",
 )
 _DESKTOP_MUTATION_METHODS = frozenset(
     {
@@ -518,6 +519,10 @@ _GATEWAY_FACTORIES = {
     "get_memory_write_gateway": "memory_write_gateway",
     "get_state_gateway": "state_gateway",
     "get_will": "will_decision",
+}
+_GATEWAY_FUNCTIONS = {
+    "runtime.file_write_gateway.write_text_behind": "file_write_gateway",
+    "runtime.file_write_gateway.append_text_behind": "file_write_gateway",
 }
 _GATEWAY_METHODS = {
     "subprocess_gateway": frozenset(
@@ -775,6 +780,9 @@ class EffectVisitor(ast.NodeVisitor):
 
     def _classify_call(self, node: ast.Call, callee: str) -> str | None:
         method = callee.rsplit(".", 1)[-1] if callee else ""
+
+        if category := _GATEWAY_FUNCTIONS.get(_strip_project_prefix(callee)):
+            return category
 
         if method == "mutate" and self._open_receiver_type(node) == "core.runtime.gateways.StateGateway":
             return "state_gateway"

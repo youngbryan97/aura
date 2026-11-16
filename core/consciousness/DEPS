@@ -68,6 +68,8 @@ include_rules = [
     "+core.observability",
     "+core.ontogeny",
     "+core.orchestrator",
+    # Report persistence uses this storage helper and supplies its own authority.
+    "+core.persistence.scoped_writes",
     "+core.pneuma",
     "+core.predictive",
     "+core.reasoning",

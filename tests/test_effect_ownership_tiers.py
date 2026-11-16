@@ -119,7 +119,8 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: Attachments do the same and share one call site for their two text files.
 #: The reviewed screen-highlight change removed its AppleScript subprocess.
 #: Its later display-list read removed the remaining Finder subprocess.
-TOTAL_CEILING = 2045
+#: Write-behind calls are counted; shared private state writes remove duplicate primitives.
+TOTAL_CEILING = 2044
 #: The document converter's private input uses a governed byte write.
 RAW_CEILING = 746
 

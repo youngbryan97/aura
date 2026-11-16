@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from core.governance_context import local_internal_governed_scope
+from core.persistence.scoped_writes import write_private_state_async
 from core.reality_reach.event_flow_contracts import (
     BackpressurePolicy,
     DeliveryState,
@@ -34,7 +35,6 @@ from core.reality_reach.middleware import RealityMiddlewareRuntime
 from core.reality_reach.middleware_contracts import canonical_identifier
 from core.runtime.atomic_writer import read_json_envelope
 from core.runtime.audit_chain import canonical_json, sha256_hex
-from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.lockdep import checked_async_lock
 from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
@@ -216,26 +216,13 @@ class RealityEventFlowRuntime:
                     "counters": dict(sorted(self._counters.items())),
                 }
                 payload["state_sha256"] = str(sha256_hex(canonical_json(payload)))
-            with local_internal_governed_scope(
-                "reality_reach.event_flow.persist",
-                domain="state_mutation",
-            ):
-                gateway = get_file_write_gateway()
-                await gateway.ensure_directory_async(
-                    self._state_path.parent,
-                    source="reality_reach.event_flow.persist",
-                )
-            with local_internal_governed_scope(
-                "reality_reach.event_flow.persist",
-                domain="state_mutation",
-            ):
-                await gateway.write_json_async(
-                    self._state_path,
-                    payload,
-                    schema_version=_STATE_SCHEMA_VERSION,
-                    schema_name=_STATE_SCHEMA,
-                    source="reality_reach.event_flow.persist",
-                )
+            await write_private_state_async(
+                self._state_path, payload,
+                scope_factory=lambda: local_internal_governed_scope(
+                    "reality_reach.event_flow.persist", domain="state_mutation"),
+                schema_version=_STATE_SCHEMA_VERSION, schema_name=_STATE_SCHEMA,
+                source="reality_reach.event_flow.persist",
+            )
 
     async def start(self) -> None:
         self._running = True

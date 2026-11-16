@@ -175,17 +175,16 @@ def note_met(problem: str, answer: str, source: str) -> bool:
 async def note_met_async(problem: str, answer: str, source: str) -> bool:
     """``note_met`` for async callers: the append goes through the gateway's async lane."""
     from core.governance_context import local_internal_governed_scope
-    from core.runtime.file_write_gateway import get_file_write_gateway
+    from core.persistence.scoped_writes import write_private_state_async
 
     line = _met_line(problem, answer, source)
     if line is None:
         return False
     path = _root() / MET_RELATIVE
-    with local_internal_governed_scope("examples_she_meets.note_met", domain="file_write"):
-        gateway = get_file_write_gateway()
-        await gateway.ensure_directory_async(path.parent, source="examples_she_meets.note_met")
-    with local_internal_governed_scope("examples_she_meets.note_met", domain="file_write"):
-        await gateway.append_text_async(path, line, source="examples_she_meets.note_met")
+    await write_private_state_async(
+        path, line, append=True, source="examples_she_meets.note_met",
+        scope_factory=lambda: local_internal_governed_scope("examples_she_meets.note_met", domain="file_write"),
+    )
     return True
 
 
@@ -199,18 +198,17 @@ async def note_to_check_async(problem: str) -> bool:
     minutes on her model, too long for a turn, so it runs after it.
     """
     from core.governance_context import local_internal_governed_scope
-    from core.runtime.file_write_gateway import get_file_write_gateway
+    from core.persistence.scoped_writes import write_private_state_async
 
     problem = str(problem or "").strip()
     if not problem:
         return False
     line = json.dumps({"key": _key(problem), "problem": problem, "at": round(time.time(), 3)}) + "\n"
     path = _root() / TO_CHECK_RELATIVE
-    with local_internal_governed_scope("examples_she_meets.note_to_check", domain="file_write"):
-        gateway = get_file_write_gateway()
-        await gateway.ensure_directory_async(path.parent, source="examples_she_meets.note_to_check")
-    with local_internal_governed_scope("examples_she_meets.note_to_check", domain="file_write"):
-        await gateway.append_text_async(path, line, source="examples_she_meets.note_to_check")
+    await write_private_state_async(
+        path, line, append=True, source="examples_she_meets.note_to_check",
+        scope_factory=lambda: local_internal_governed_scope("examples_she_meets.note_to_check", domain="file_write"),
+    )
     return True
 
 
@@ -331,17 +329,13 @@ def _read_learning() -> dict[str, Any]:
 
 async def _write(relative: str, text: str, *, append: bool = False) -> None:
     from core.governance_context import local_internal_governed_scope
-    from core.runtime.file_write_gateway import get_file_write_gateway
+    from core.persistence.scoped_writes import write_private_state_async
 
     path = _root() / relative
-    with local_internal_governed_scope("examples_she_meets.learn", domain="file_write"):
-        gateway = get_file_write_gateway()
-        await gateway.ensure_directory_async(path.parent, source="examples_she_meets.learn")
-    with local_internal_governed_scope("examples_she_meets.learn", domain="file_write"):
-        if append:
-            await gateway.append_text_async(path, text, source="examples_she_meets.learn")
-        else:
-            await gateway.write_text_async(path, text, source="examples_she_meets.learn")
+    await write_private_state_async(
+        path, text, append=append, source="examples_she_meets.learn",
+        scope_factory=lambda: local_internal_governed_scope("examples_she_meets.learn", domain="file_write"),
+    )
 
 
 async def _keep(book: ProcedureBook) -> None:
