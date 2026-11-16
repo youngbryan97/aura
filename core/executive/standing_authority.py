@@ -35,6 +35,24 @@ from core.executive.execution_policy import (
     risk_at_most,
     scope_is_within,
 )
+from core.executive.her_own_passes import (  # noqa: F401 - re-exported: they were defined here
+    _DESK_COMPANY_ARGUMENTS,
+    _MAIL_REPLY_ARGUMENTS,
+    _OWN_GOAL_ARGUMENTS,
+    BRYANS_STANDING_YES,
+    DESK_COMPANY_GRANT,
+    DESK_COMPANY_ORIGIN,
+    DESK_COMPANY_TOOLS,
+    MAIL_REPLY_GRANT,
+    MAIL_REPLY_ORIGIN,
+    MAIL_REPLY_TOOLS,
+    OWN_GOAL_GRANT,
+    OWN_GOAL_ORIGIN,
+    OWN_GOAL_TOOLS,
+    STANDING_YES_MODALITIES,
+    carries_bryans_standing_yes,
+    her_passes_allow,
+)
 from core.runtime.errors import record_degradation
 from core.runtime.receipts import AutonomyReceipt, get_receipt_store
 from core.runtime.state_ownership import state_root, state_root_override
@@ -161,42 +179,6 @@ BOUNDED_SANDBOX_TOOLS = frozenset({"subconscious_sandbox_probe"})
 BACKGROUND_REFLECTION_TOOLS = frozenset({"swarm_debate"})
 OWNER_PRIVATE_MESSAGE_TOOLS = frozenset({"messages"})
 
-#: Her own tools for a goal she set herself (core/skills/her_draft.py), the five
-#: core.skills.catalog_policy.HER_GOAL_TOOLS names (a test holds the two equal).
-#: Each acts only inside a git worktree of her source that she works the goal in.
-OWN_GOAL_TOOLS = frozenset({"check_draft", "edit_draft", "find_in_source", "offer_draft", "read_source"})
-#: What each takes, and the arguments among them that name a place in her workspace.
-_OWN_GOAL_ARGUMENTS = {
-    "read_source": frozenset({"path", "from_line"}),
-    "find_in_source": frozenset({"pattern", "where"}),
-    "edit_draft": frozenset({"path", "old_text", "new_text"}),
-    "check_draft": frozenset({"tests"}),
-    "offer_draft": frozenset({"summary"}),
-}
-#: The pass that works a goal of hers (core.agency.her_goal_at_work.ORIGIN).
-OWN_GOAL_ORIGIN = "her_goal_background"
-#: The grant that is Bryan's standing yes to that work.
-OWN_GOAL_GRANT = "aura.own-goal-work"
-
-#: Her tools at the desk (core/skills/at_the_desk.py), the core.skills.catalog_policy.DESK_COMPANY_TOOLS names (a test
-#: holds the two equal), and what each takes.
-DESK_COMPANY_TOOLS = frozenset({"point_at_on_screen"})
-_DESK_COMPANY_ARGUMENTS = {"point_at_on_screen": frozenset({"words"})}
-#: Her turn at the desk while she keeps a person company (core.brain.her_unprompted_turn.DESK_ORIGIN).
-DESK_COMPANY_ORIGIN = "her_desk_company"
-#: The grant that is Bryan's standing yes to what she does on the screen while keeping company.
-DESK_COMPANY_GRANT = "aura.desk-company"
-#: Her replies to people who wrote to her (core/skills/her_replies_to_mail.py), sent by her mail round: the tool,
-#: what a reply takes (the rest are the adapter's own defaults, filled in before a call is rated), the round's origin
-#: when it sends, and the grant that is Bryan's standing yes to them.
-MAIL_REPLY_TOOLS = frozenset({"email_adapter"})
-_MAIL_REPLY_ARGUMENTS = frozenset({"mode", "uid", "body", "in_reply_to", "references", "limit", "query"})
-MAIL_REPLY_ORIGIN = "her_mail_reply"
-MAIL_REPLY_GRANT = "aura.own-mail-replies"
-#: The grants whose lease is Bryan's yes to a call nobody is there to confirm (core/capabilities/permission_model.py),
-#: and for each, the modalities a call within it reaches that are off unless someone says otherwise.
-BRYANS_STANDING_YES = frozenset({OWN_GOAL_GRANT, DESK_COMPANY_GRANT, MAIL_REPLY_GRANT})
-STANDING_YES_MODALITIES = {MAIL_REPLY_GRANT: frozenset({"email", "network_write"})}
 BACKGROUND_REFLECTION_ROLES = frozenset({"architect", "critic", "philosopher"})
 BACKGROUND_REFLECTION_MAX_ACTIONS = 6
 BACKGROUND_REFLECTION_WINDOW_SECONDS = 3600.0
@@ -258,21 +240,6 @@ def normalize_authority_origin(value: Any) -> str:
     while "__" in normalized:
         normalized = normalized.replace("__", "_")
     return normalized
-
-
-def carries_bryans_standing_yes(origin: Any, tool_name: Any) -> bool:
-    """Whether this is a call Bryan said yes to in advance, for a pass of hers nobody is at the keyboard for.
-
-    Her goal tools from her goal pass ("She can do it without me", 9 November 2026), her desk tools from her turn at
-    the desk ("full companion ... im giving you permission to work with whatever permissions she needs", 15 November
-    2026), and her replies from her mail round ("she should send email responses on her own", 15 November 2026).
-    Everything else about the call still applies: its lease, the Will, and the permission model's check of that
-    lease.
-    """
-    source, name = str(origin or ""), normalize_tool_name(tool_name)
-    return ((source == OWN_GOAL_ORIGIN and name in OWN_GOAL_TOOLS)
-            or (source == DESK_COMPANY_ORIGIN and name in DESK_COMPANY_TOOLS)
-            or (source == MAIL_REPLY_ORIGIN and name in MAIL_REPLY_TOOLS))
 
 
 def coerce_authority_origin(value: Any) -> str:
@@ -650,14 +617,16 @@ def _builtin_grants() -> tuple[StandingAuthorityGrant, ...]:
             issuer="owner_policy",
             description=(
                 "While Aura keeps a person company at the desk, she may point at something on "
-                "their screen. Nothing is clicked or typed."
+                "their screen, open a web page for them in a new tab, or show a file in Finder. "
+                "Nothing is clicked, typed or run."
             ),
             allowed_origins=(DESK_COMPANY_ORIGIN,),
             allowed_tools=tuple(sorted(DESK_COMPANY_TOOLS)),
             allowed_effect_scopes=("foreground_desktop_control",),
             max_risk="high",
-            # No count: the drawing path keeps its own gap between rings (screen_highlight.rate_limited), and
-            # a remark of hers waits until the one before it has been read (ambient_presence).
+            # No count: a desk turn makes at most two calls (her_unprompted_turn._DESK_GENERATIONS), the next
+            # turn waits until her remark before it has been read (ambient_presence), and the drawing path keeps
+            # its own gap between rings (screen_highlight.rate_limited).
             max_actions=0,
             window_seconds=3600.0,
             # A ring is drawn for at most screen_highlight.MAX_DURATION_S, after a walk of the front window.
@@ -1066,44 +1035,9 @@ class StandingAuthorityManager:
                 return False, "maintenance_tool_mismatch"
             valid, reason = self._validate_aura_source_paths(raw_paths)
             return (True, "read_only_maintenance") if valid else (False, reason)
-        if policy == "her_mail_reply":
-            from core.skills.her_replies_to_mail import sends_without_asking
-
-            if tool_name not in MAIL_REPLY_TOOLS:
-                return False, "her_mail_reply_tool_mismatch"
-            if not sends_without_asking():
-                return False, "her_mail_reply_waits_for_bryan"
-            if str(arguments.get("mode") or "").strip().lower() != "reply":
-                return False, "her_mail_reply_is_only_a_reply"
-            # Judged by what the call carries: the adapter authorizes its whole input model, every field it has
-            # at None included, and a reply that names a recipient or a subject of its own is not a reply.
-            if {key for key, value in arguments.items() if value not in (None, "")} - _MAIL_REPLY_ARGUMENTS:
-                return False, "her_mail_reply_arguments_unsupported"
-            if not str(arguments.get("uid") or "").strip() or not str(arguments.get("body") or "").strip():
-                return False, "her_mail_reply_names_no_message_or_says_nothing"
-            return True, "her_mail_reply"
-        if policy == "desk_company":
-            if tool_name not in DESK_COMPANY_TOOLS:
-                return False, "desk_company_tool_mismatch"
-            if set(arguments) - _DESK_COMPANY_ARGUMENTS[tool_name]:
-                return False, "desk_company_arguments_unsupported"
-            if not str(arguments.get("words") or "").strip():
-                return False, "desk_company_names_nothing_to_point_at"
-            return True, "desk_company"
-        if policy == "her_goal_work":
-            if tool_name not in OWN_GOAL_TOOLS:
-                return False, "her_goal_tool_mismatch"
-            if set(arguments) - _OWN_GOAL_ARGUMENTS[tool_name]:
-                return False, "her_goal_arguments_unsupported"
-            # The tools refuse a path outside her workspace themselves; a lease is not
-            # issued for one that names a place by climbing or from the root.
-            places = [arguments.get(key) for key in ("path", "where") if arguments.get(key)]
-            places += list(arguments.get("tests") or [])
-            for place in places:
-                text = str(place or "")
-                if text.startswith(("/", "~")) or ".." in text.replace("\\", "/").split("/"):
-                    return False, "her_goal_place_outside_her_workspace"
-            return True, "her_goal_work"
+        her_pass = her_passes_allow(policy, tool_name, arguments)
+        if her_pass is not None:
+            return her_pass
         if policy == "bounded_maintenance_test":
             if tool_name not in BOUNDED_MAINTENANCE_TEST_TOOLS:
                 return False, "bounded_maintenance_test_tool_mismatch"

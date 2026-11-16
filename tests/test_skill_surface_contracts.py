@@ -31,6 +31,8 @@ EXPECTED_REGISTERED_SKILLS = {
     # Her desk tool (core/skills/at_the_desk.py, 16 November 2026): offered only to
     # her turn at the desk while she keeps a person company.
     "point_at_on_screen",
+    "show_page",
+    "reveal_file",
     "http_request",
     "pursue_on_screen",
     "reminder",

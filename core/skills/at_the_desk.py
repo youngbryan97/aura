@@ -9,7 +9,8 @@ don't have tools for that." Her turn at the desk was given no tools, so she said
 was chosen for her afterwards by matching her words against the screen. These are offered to that turn as data
 through her model's own chat template (core/brain/her_unprompted_turn.py), the way her goal pass is offered its tools
 (core/skills/her_draft.py). What she calls runs under the standing grant ``aura.desk-company``
-(core/executive/standing_authority.py), from her desk turn's origin only.
+(core/executive/standing_authority.py), from her desk turn's origin only. Pointing came first; showing a page and
+showing a file are the "show me something" of what he asked.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pydantic import BaseModel, Field
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
-__all__ = ["DESK_TOOLS", "PointAtOnScreenSkill", "tool_definitions"]
+__all__ = ["DESK_TOOLS", "PointAtOnScreenSkill", "RevealFileSkill", "ShowPageSkill", "tool_definitions"]
 
 
 class PointAtOnScreenInput(BaseModel):
@@ -51,8 +52,65 @@ class PointAtOnScreenSkill(BaseSkill):
         return {"ok": False, "error": shown.reason, **shown.to_dict()}
 
 
+class ShowPageInput(BaseModel):
+    url: str = Field(..., description="The http or https address of the page to show.")
+
+
+class ShowPageSkill(BaseSkill):
+    result_schema = THE_SHARED_RESULT
+    name = "show_page"
+    description = "Show the person a web page: it opens in a new tab of their browser."
+    input_model = ShowPageInput
+    # It opens a tab in the person's browser, which may come to the front.
+    effect_scope = "foreground_desktop_control"
+
+    async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        from core.capabilities.browser_controller import BrowserNavigationRefused, canonical_navigable_url
+        from core.runtime.service_registry import get_runtime_service
+
+        asked = params if isinstance(params, ShowPageInput) else ShowPageInput.model_validate(
+            params if isinstance(params, dict) else dict(params or {}))
+        try:
+            url = canonical_navigable_url(asked.url)
+        except BrowserNavigationRefused as why:
+            return {"ok": False, "error": f"not a page that can be shown: {why}"}
+        browser = get_runtime_service("browser_controller", default=None)
+        if browser is None or not hasattr(browser, "open_url"):
+            return {"ok": False, "error": "no browser control in this runtime"}
+        receipt = await browser.open_url(url, new_tab=True)
+        if bool(getattr(receipt, "success", False)):
+            return {"ok": True, "summary": f"opened {url} in a new tab", "url": url}
+        return {"ok": False, "error": str(getattr(receipt, "error", "") or "the page did not open"), "url": url}
+
+
+class RevealFileInput(BaseModel):
+    path: str = Field(..., description="The file or folder to show, as a path on the person's Mac.")
+
+
+class RevealFileSkill(BaseSkill):
+    result_schema = THE_SHARED_RESULT
+    name = "reveal_file"
+    description = "Show the person a file or folder: Finder opens with it selected. Nothing is opened or run."
+    input_model = RevealFileInput
+    # It brings a Finder window forward on the person's screen.
+    effect_scope = "foreground_desktop_control"
+
+    async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        from core.capabilities.file_broker import get_file_broker
+
+        asked = params if isinstance(params, RevealFileInput) else RevealFileInput.model_validate(
+            params if isinstance(params, dict) else dict(params or {}))
+        where = asked.path.strip()
+        if not where:
+            return {"ok": False, "error": "nothing named to show"}
+        # The broker reveals only inside the places it allows, and only by selecting it: open -R runs nothing.
+        if await get_file_broker().reveal_in_finder(where):
+            return {"ok": True, "summary": f"showed {where} in Finder", "path": where}
+        return {"ok": False, "error": "it is not somewhere she may show, or Finder did not show it", "path": where}
+
+
 #: Her tools at the desk.
-DESK_TOOLS = (PointAtOnScreenSkill,)
+DESK_TOOLS = (PointAtOnScreenSkill, ShowPageSkill, RevealFileSkill)
 
 
 def tool_definitions() -> dict[str, dict[str, Any]]:

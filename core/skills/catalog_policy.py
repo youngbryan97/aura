@@ -180,7 +180,7 @@ HER_GOAL_TOOLS = frozenset({"read_source", "find_in_source", "edit_draft", "chec
 
 #: Registered and run, but offered only to her turn at the desk while she keeps a person company
 #: (core/skills/at_the_desk.py), under its own standing grant.
-DESK_COMPANY_TOOLS = frozenset({"point_at_on_screen"})
+DESK_COMPANY_TOOLS = frozenset({"point_at_on_screen", "show_page", "reveal_file"})
 
 #: What a conversational turn is never offered: tools of hers that belong to a pass of her own.
 NOT_OFFERED_TO_A_TURN = HER_GOAL_TOOLS | DESK_COMPANY_TOOLS

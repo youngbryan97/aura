@@ -219,3 +219,98 @@ async def test_her_capability_engine_runs_her_call_from_the_desk_and_from_nowher
 
     assert at_the_desk.get("ok") is True, at_the_desk
     assert elsewhere.get("ok") is not True, elsewhere
+
+
+SHOWS = {"show_page": {"url": "https://docs.python.org/3/library/asyncio.html"},
+         "reveal_file": {"path": "~/Desktop/notes.txt"}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool", sorted(SHOWS))
+async def test_her_desk_turn_holds_a_lease_to_show_him_something(tool):
+    """Bryan, 15 November 2026: "highlight, show me something, literally anything OS related"."""
+    scope, risk = _rated(tool, SHOWS[tool])
+    decision = await _manager().issue_child_lease(tool, SHOWS[tool], origin=DESK_COMPANY_ORIGIN,
+                                                  effect_scope=scope, risk_level=risk)
+    assert decision.approved, decision.reason
+    assert decision.grant_id == DESK_COMPANY_GRANT
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("url", ["javascript:alert(1)", "file:///etc/passwd", "https://user:pass@example.com/",
+                                 "x-apple-systempreferences:com.apple.preference.security", "https://"])
+async def test_what_she_shows_from_the_desk_is_a_web_page(url):
+    args = {"url": url}
+    scope, risk = _rated("show_page", args)
+    decision = await _manager().issue_child_lease("show_page", args, origin=DESK_COMPANY_ORIGIN,
+                                                  effect_scope=scope, risk_level=risk)
+    assert not (decision.approved and decision.grant_id == DESK_COMPANY_GRANT)
+
+
+def test_a_page_she_shows_opens_in_a_new_tab(monkeypatch):
+    from types import SimpleNamespace
+
+    from core.skills.at_the_desk import ShowPageSkill
+
+    opened: list[tuple[str, bool]] = []
+
+    class Browser:
+        async def open_url(self, url, new_tab=True):
+            opened.append((url, new_tab))
+            return SimpleNamespace(success=True, error="")
+
+    monkeypatch.setattr("core.runtime.service_registry.get_runtime_service",
+                        lambda name, default=None: Browser() if name == "browser_controller" else default)
+
+    shown = asyncio.run(ShowPageSkill().execute(dict(SHOWS["show_page"]), {}))
+    refused = asyncio.run(ShowPageSkill().execute({"url": "javascript:alert(1)"}, {}))
+
+    assert shown["ok"] is True and opened == [(SHOWS["show_page"]["url"], True)]
+    assert refused["ok"] is False and len(opened) == 1
+
+
+def test_a_file_she_shows_is_selected_in_finder_and_nothing_is_run(monkeypatch):
+    from core.skills.at_the_desk import RevealFileSkill
+
+    revealed: list[str] = []
+
+    class Broker:
+        async def reveal_in_finder(self, path):
+            revealed.append(path)
+            return path.endswith("notes.txt")
+
+    monkeypatch.setattr("core.capabilities.file_broker.get_file_broker", lambda: Broker())
+
+    shown = asyncio.run(RevealFileSkill().execute(dict(SHOWS["reveal_file"]), {}))
+    outside = asyncio.run(RevealFileSkill().execute({"path": "/System/Library/CoreServices"}, {}))
+
+    assert shown["ok"] is True and outside["ok"] is False
+    assert revealed == ["~/Desktop/notes.txt", "/System/Library/CoreServices"]
+
+
+@pytest.mark.asyncio
+async def test_her_capability_engine_shows_a_page_from_the_desk_and_from_nowhere_else(monkeypatch,
+                                                                                      her_permission_model):
+    from types import SimpleNamespace
+
+    from core.capability_engine import CapabilityEngine
+
+    opened: list[str] = []
+
+    class Browser:
+        async def open_url(self, url, new_tab=True):
+            opened.append(url)
+            return SimpleNamespace(success=True, error="")
+
+    monkeypatch.setattr("core.runtime.service_registry.get_runtime_service",
+                        lambda name, default=None: Browser() if name == "browser_controller" else default)
+    engine = CapabilityEngine()
+
+    at_the_desk = await engine.execute("show_page", dict(SHOWS["show_page"]),
+                                       context={"origin": DESK_COMPANY_ORIGIN, "requested_by": "aura"})
+    elsewhere = await engine.execute("show_page", dict(SHOWS["show_page"]),
+                                     context={"origin": "autonomous_initiative", "requested_by": "aura"})
+
+    assert at_the_desk.get("ok") is True, at_the_desk
+    assert elsewhere.get("ok") is not True, elsewhere
+    assert opened == [SHOWS["show_page"]["url"]]
