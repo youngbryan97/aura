@@ -1942,6 +1942,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The same hand-off read "I slept badly last night" and "What did I tell
   you about how I slept?" as meaning dream_sleep (stands 3.09 and 2.89
   out); the skill was withheld only by the turn's compute ceiling.
+  Live at 19:07 on 650c09b5a, the first typed turn after her boot: the
+  reading by meaning took 0.05 s (8.6 s before), and the turn 22.4 s with
+  10.8 s unattributed (32.0 s and 20.2 s before).
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
