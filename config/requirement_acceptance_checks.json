@@ -246,6 +246,13 @@
         "why": "Decides the first clause, action expectations propagating into the live skill path: the skill registry applies the expectation after the verifier, and a shallow verified result is downgraded with its missing criteria and repair step named. Durable multi-tool workflows, compensation and long-chain validation are not decided by it."
       }
     ],
+    "FND-01-INVENTORY": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_shipped_inventory_has_no_orphans.py",
+        "why": "Checks enumeration and reachability for the shipped API, models, skills and UI. It fails if any category yields no entries, a collector fails, an entry is orphaned or a reachable entry lacks an access path. The inventory of all tracked surfaces and their owner, lifecycle, authority, consumers and acceptance mapping remains open."
+      }
+    ],
     "FND-02-HYGIENE": [
       {
         "kind": "make",

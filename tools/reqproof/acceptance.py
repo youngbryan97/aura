@@ -16,15 +16,15 @@ Three places a link can come from, in order of how much it is worth:
     the map        config/requirement_acceptance_checks.json, hand-written
                    where nothing in the registry names one
 
-Every link is resolved against the tree — a test file that is gone, a make
-target that was renamed, a tool that moved. A link nobody can run is counted
-as no link. The failure mode this replaces is a paragraph that reads like a
-check.
+Every link is resolved against the tree. A named test is checked against
+its declaration without importing the test file. A removed declaration,
+deleted file or renamed make target counts as a broken link.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 from collections import Counter
@@ -37,8 +37,8 @@ LEDGER = ROOT / "config/requirement_evidence_ledger.json"
 CURATED = ROOT / "config/requirement_acceptance_checks.json"
 MAKEFILE = ROOT / "Makefile"
 
-#: `tests/test_something.py`, with or without a `::test_name` selector.
-_TEST_PATH = re.compile(r"\btests/[A-Za-z0-9_./-]+\.py(?:::[A-Za-z0-9_]+)?")
+#: Test file, optionally followed by a function or class-qualified selector.
+_TEST_PATH = re.compile(r"\btests/[A-Za-z0-9_./-]+\.py(?:::[A-Za-z_][A-Za-z0-9_]*)*")
 #: `make target-name`, the way the docs write a gate.
 _MAKE_TARGET = re.compile(r"\bmake\s+([a-z][a-z0-9-]{2,})\b")
 #: `tools/whatever.py`, a runnable audit.
@@ -71,9 +71,25 @@ def _text_of(requirement: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _test_selector_declared(path: Path, selector: list[str]) -> bool:
+    try:
+        scope: ast.Module | ast.ClassDef = ast.parse(path.read_bytes(), filename=str(path))
+    except (OSError, SyntaxError, ValueError):
+        return False
+    for name in selector[:-1]:
+        cls = next((node for node in scope.body if isinstance(node, ast.ClassDef) and node.name == name), None)
+        if cls is None:
+            return False
+        scope = cls
+    return any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == selector[-1]
+               for node in scope.body)
+
+
 def _resolvable(kind: str, name: str, targets: set[str]) -> bool:
     if kind == "test":
-        return (ROOT / name.split("::", 1)[0]).is_file()
+        file_name, *selector = name.split("::")
+        path = ROOT / file_name
+        return path.is_file() and (not selector or _test_selector_declared(path, selector))
     if kind == "make":
         return name in targets
     if kind == "tool":

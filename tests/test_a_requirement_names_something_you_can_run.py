@@ -78,3 +78,33 @@ def test_a_curated_link_is_a_link_somebody_can_run(report) -> None:
             assert check["name"] in resolved, (
                 f"{rid} names {check['name']}, which does not resolve"
             )
+
+
+def test_a_deleted_selector_breaks_the_link_while_its_file_still_exists(tmp_path, monkeypatch) -> None:
+    from tools.reqproof import acceptance
+
+    registry = tmp_path / "registry.json"
+    registry.write_text(json.dumps({"requirements": [
+        {"id": "missing", "acceptance": "Run tests/test_probe.py::TestProbe::test_deleted."},
+        {"id": "present", "acceptance": "Run tests/test_probe.py::TestProbe::test_current."},
+        {"id": "nested", "acceptance": "Run tests/test_probe.py::test_hidden."},
+    ]}))
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_probe.py").write_text(
+        "class TestProbe:\n"
+        "    async def test_current(self):\n"
+        "        def test_hidden():\n"
+        "            raise AssertionError\n"
+    )
+    monkeypatch.setattr(acceptance, "ROOT", tmp_path)
+    monkeypatch.setattr(acceptance, "REGISTRY", registry)
+    monkeypatch.setattr(acceptance, "CURATED", tmp_path / "map.json")
+    monkeypatch.setattr(acceptance, "LEDGER", tmp_path / "ledger.json")
+
+    result = acceptance.build(tmp_path)
+    entries = {entry["id"]: entry for entry in result["entries"]}
+    assert result["summary"]["linked"] == 1
+    assert result["summary"]["with_broken_links"] == ["missing", "nested"]
+    assert entries["missing"]["broken_links"][0]["name"] == "tests/test_probe.py::TestProbe::test_deleted"
+    assert entries["present"]["checks"][0]["name"] == "tests/test_probe.py::TestProbe::test_current"
