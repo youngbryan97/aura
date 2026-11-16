@@ -408,6 +408,7 @@ class SkillSynthesizer:
                 await gateway.ensure_directory_async(
                     PERSIST_PATH.parent, source="agi.skill_synthesizer"
                 )
+            with local_internal_governed_scope("agi.skill_synthesizer"):
                 await gateway.write_text_async(
                     PERSIST_PATH, payload, source="agi.skill_synthesizer"
                 )

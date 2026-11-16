@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 
 import pytest
@@ -97,6 +98,38 @@ class _RecordingForge:
 def synthesizer(tmp_path, monkeypatch):
     monkeypatch.setattr(synth, "PERSIST_PATH", tmp_path / "synthesized_skills.json")
     return SkillSynthesizer()
+
+
+@pytest.mark.asyncio
+async def test_async_skill_state_save_renews_its_grant_after_directory_io(synthesizer, monkeypatch):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    for _ in range(3):
+        synthesizer.log_gap("a pending gap", "no skill matched")
+    synthesizer._synthesized = [SynthesizedSkill(name="kept_skill", description="a kept result", gap="a prior gap",
+                                                digest="sha256:" + "a" * 64, verified=True)]
+    synth.PERSIST_PATH.write_text(json.dumps({"gaps": [], "gap_counts": {}, "synthesized": []}))
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    gateway = get_file_write_gateway()
+    ensure = gateway.ensure_directory_async
+    expired = []
+
+    async def ensure_then_expire(*args, **kwargs):
+        token = get_active_governance()
+        assert token is not None
+        result = await ensure(*args, **kwargs)
+        token.mono_timestamp -= token.ttl + 1
+        expired.append(token.lease_id)
+        return result
+
+    monkeypatch.setattr(gateway, "ensure_directory_async", ensure_then_expire)
+    await synthesizer._save_async()
+    restored = SkillSynthesizer()
+    assert expired and restored._gaps == synthesizer._gaps
+    assert restored._gap_counts == synthesizer._gap_counts
+    assert [skill.name for skill in restored._synthesized] == ["kept_skill"]
+    assert restored._synthesized[0].verified
 
 
 def _raise_gap(s: SkillSynthesizer, gap: str, times: int = GAP_FORGE_THRESHOLD) -> None:

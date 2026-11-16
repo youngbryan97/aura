@@ -609,6 +609,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-16: the async skill-state saver renews its write
+    grant after directory setup. The regression previously caught
+    a governance failure and reloaded only the prior empty state.
+    It now reloads the gap records, counts and fixture skill record.
+    All 30 focused checks passed. Smoke passed 164 tests with one
+    skip in 47.99 s and maximum RSS of 502,906,880 bytes.
+    Lint, compile, dependency drift,
+    layering, governance, module size and targeted writing passed.
+    This is persistence evidence, not a new capability result.
+    Source: core/agi/skill_synthesizer.py.
+    Tests: tests/test_skill_synthesizer_forge.py.
   - [x] 2026-11-16: frame recording grants cover one write each.
     The initial manifest gets a fresh grant after directory I/O,
     PNG encoding runs before the image-write grant, and the event
