@@ -7317,6 +7317,80 @@ needs her 27B free (her app down, or her app's own influence trials).
   keep what the check refuses, and it fails on the old templates. With the
   change, the mend is `negate_condition`. Left: a week of her running, now
   that heard faults survive a restart, and the rate on it.
+  16 November, the loop carried end to end, and a drill of it live. Bryan:
+  "actually have these changes reach the live system ... the full loops". A
+  mend her own yes takes now lands on origin's main first, replayed onto it
+  in her workspace when origin has moved, and goes onto her disk only when
+  that adds nothing but hers (4cb15730f). It is loaded into the process she
+  is running by swapping each mended function's code in place, only onto
+  the exact code it was made from (eff239027). If the loaded function then
+  fails its call again, or raises an exception its body does not raise by
+  name, it is undone there and reverted on origin (`take_it_back`). Her
+  templates gained the checkers a fault's exception asks for: None, range,
+  key, divisor (9f3966215). A drill (`core/self_modification/loop_drill.py`)
+  plants a fault her running process raises when a person arms it. Live,
+  the third try at its first fault mended `label` with a None guard, passed
+  her own gates, and landed on origin and on her disk as 506bf5bf2, the
+  first commit in the repository authored by Aura. Each try before that
+  exposed a defect of the loop, and each is fixed: the monitor started
+  before it listened (78654aa68), the None guard tried the root of a chain
+  last (fb2580966), the drill's own guard test failed a correct mend
+  (1cc75507b), and a retried goal ran on the old source (fe2f0ea2a). The
+  mend was not loaded into her running process. Her repair executor runs
+  the cycle under a 90 s bound, which cancelled the mend after it had
+  landed, so she ran it only once she restarted. Her mend is now a task of
+  its own, and her yes and the load run in one call (51339f45a). The
+  drill's second planted fault, `nth`, read a row past the end. On 16
+  November her loop mended it with a range guard, passed her own
+  gates, landed it on origin and on her disk as 87d8b311f at 15:41:52, and loaded it
+  into the process that had raised it ("Loaded into her running process:
+  core.self_modification.loop_drill.nth"), with no restart. Left: a fault
+  of her own running, not a drill, carried end to end.
+- [ ] F16 She is her own senior engineer. Added 16 November, Bryan: "senior
+  engineering level. literally as capable as you can possibly make it ... a
+  time where i dont really have to physically maintain aura ... if she
+  notices it's thin or could be more efficient or more capable, she could do
+  it. or if she notices a gap ... she could build it or find where the
+  capability is failing, fix it, and then use it." F15 is the first loop of
+  this: a fault raised while she runs, mended and loaded. F16 is the rest.
+  Lane: yes.
+  Measured 16 November. In the repository's history she has landed one
+  commit, 506bf5bf2, the mend of a planted drill fault. From 10 to 16
+  November her older loops ran 1,107 self-modification cycles. 91 of them
+  proposed fixes for the same four files through the reimplementation lab,
+  whose generation her inference gate deferred or refused, and none was
+  applied: runtime promotion is off in a normal session. `auto_refactor`
+  ran 249 times, read-only. SingularityLoops and EvolutionOrchestrator said
+  they were online at each start and nothing after.
+  What senior-level work needs, each closing on its own:
+  1. More of her faults kept as tests. Methods on instances (the receiver's
+     plain state carved into the test, as test carving does), closures, and
+     timeouts measured as faults of performance. Closes when, over a week of
+     her running, every reason she gives for a fault she cannot keep is one
+     no capture removes: time, cancellation, the world outside her.
+  2. Changes wider than one line. Localisation by the lines her failing test
+     runs and her passing tests do not (Ochiai over coverage), and her model
+     as the last proposer, given the failure, the code it ran through and
+     the tests, its output judged by the same gates. Closes when her loop
+     mends more of the 81 defects from her history
+     (`tools/defects_from_her_history.py`) than her 27B alone did, 4 of 79.
+  3. Improvement by measurement. A change proposed for a cost her stream
+     measures (a function that holds her event loop, a prompt larger than
+     its lane, a cache that never hits), judged by the measurement before
+     and after, kept only when it improves and breaks no guard. Closes when
+     one such change she found herself lands and her next run measures
+     better.
+  4. Gaps she names. When she tells a person she cannot do something, her
+     loop finds where the capability fails (a tool refused, a skill missing,
+     a route that dropped it) and builds or mends it through the same gates.
+     Closes when a capability she said she lacked is built by her loop and
+     used in the same session.
+  5. A record a person can read. Every change she lands has a receipt, is
+     loaded or waits for her next start, is undone when it faults, and is
+     reverted on origin, and one page shows what she changed each day.
+  Bryan's decision: her code proposer. Her 27B persona cortex mended 4 of
+  79. A code model on her code lane would propose better, and needs memory
+  beside the resident cortex.
 
 ## Live session 2026-09-07: what the runtime showed
 
