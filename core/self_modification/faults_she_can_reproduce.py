@@ -70,8 +70,18 @@ def _how_many_are_kept() -> int:
     return int(getattr(get_degradation_tracker(), "_max", 500) or 500)
 
 
+#: The levels at which a recorder says what it recorded is expected, not a fault (CLAUDE.md: expected backpressure is
+#: logged at info). LIVE 16 November 2026 her reaper's NoSuchProcess for a child that exited mid-sweep, recorded at
+#: debug, was heard as a fault every boot.
+_EXPECTED = frozenset({"debug", "info"})
+
+
 def hear(record: DegradationRecord) -> None:
-    """A degradation listener: keep the call of each fault that can be made again (O(1), under the tracker's rule)."""
+    """A degradation listener: keep the call of each fault that can be made again (O(1), under the tracker's rule).
+
+    A record its recorder marked as expected (``_EXPECTED``) is not a fault and is not heard."""
+    if str(getattr(record, "severity", "") or "").lower() in _EXPECTED:
+        return
     call = getattr(record, "failed_call", None)
     if not isinstance(call, FailedCall):
         _say_why_not_once(call, record)

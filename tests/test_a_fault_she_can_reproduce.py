@@ -231,3 +231,14 @@ def test_a_kept_file_that_cannot_be_read_loses_the_faults_and_says_so(planted, c
     with caplog.at_level(logging.WARNING):
         assert faults.recall() == 0
     assert any("faults heard before this run are not mended" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize("severity", ["debug", "info"])
+def test_a_record_its_recorder_marked_expected_is_not_heard(planted, severity):
+    """LIVE 16 November 2026 her reaper's NoSuchProcess, recorded at debug, was heard as a fault every boot."""
+    from core.runtime.errors import DegradationRecord
+
+    exc = _raised(lambda: planted.share(1, 0))
+    faults.hear(DegradationRecord("planted", severity, "ZeroDivisionError", str(exc), "", 1.0,
+                                  failed_call=the_call_that_failed(exc)))
+    assert faults.faults_heard() == []
