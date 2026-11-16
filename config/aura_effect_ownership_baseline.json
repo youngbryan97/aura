@@ -357,14 +357,6 @@
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
-      "path": "core/agi/hierarchical_planner.py",
-      "scope": "<module>.HierarchicalPlanner._save"
-    },
-    {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
-      "canonical_owner": false,
-      "category": "direct_atomic_file_write",
-      "count": 1,
       "path": "core/architect/code_graph.py",
       "scope": "<module>.LiveArchitectureGraphBuilder._persist_jsonl"
     },
@@ -3503,6 +3495,14 @@
       "count": 1,
       "path": "core/agency/what_she_tried.py",
       "scope": "<module>.keep"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agi/hierarchical_planner.py",
+      "scope": "<module>.HierarchicalPlanner._save"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -17410,6 +17410,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "5789b9ef63496b7ee5a5c57a47afbb71c88c659833404c1813fc6ccf801db13a",
+  "inventory_sha256": "c86da14bb3f933e2d46be0696079f78c240e3ccfee714f0a55c7f8b7a650170b",
   "schema_version": 1
 }

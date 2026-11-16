@@ -429,15 +429,41 @@ def test_the_brief_flags_an_overdue_goal(planner):
 
 
 def test_a_disk_failure_is_reported_not_raised(planner, monkeypatch):
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    goal = planner.add_goal("G", "d", GoalLevel.TACTICAL)
+    previous = planner._persist_path.read_bytes()
     monkeypatch.setattr(
-        module, "atomic_write_text",
+        get_file_write_gateway(), "write_text",
         lambda *a, **k: (_ for _ in ()).throw(OSError("disk full")),
     )
-    goal = planner.add_goal("G", "d", GoalLevel.TACTICAL)
 
     assert planner.update_progress(goal.id, 0.5) is not None
     assert planner.status()["last_save_ok"] is False
     assert "disk full" in planner.status()["last_save_error"]
+    assert planner._persist_path.read_bytes() == previous
+
+
+def test_goal_updates_save_through_the_governed_writer(planner, monkeypatch):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    gateway, writes = get_file_write_gateway(), []
+    write = gateway.write_text
+
+    def observe(*args, **kwargs):
+        assert get_active_governance() is not None
+        writes.append((args, kwargs))
+        return write(*args, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_text", observe)
+    goal = planner.add_goal("A kept goal", "a description", GoalLevel.TACTICAL)
+    assert planner.update_progress(goal.id, 0.5) is not None
+    restored = HierarchicalPlanner(persist_path=planner._persist_path)
+    assert restored._goals[goal.id].progress == 0.5
+    assert planner.status()["last_save_ok"] and len(writes) == 2
 
 
 def test_malformed_persisted_json_does_not_abort_construction(tmp_path):

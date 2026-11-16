@@ -5046,6 +5046,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: hierarchical planner graph saves use the
+    governed file gateway. The updated public-API regressions failed
+    before the migration because goal writes bypassed that writer.
+    Goal creation and progress now save under enforcement and reload;
+    a refused update keeps the prior file and reports last_save_ok
+    false with its disk error. All 52 focused planner and effect
+    checks passed. The exact baseline replaces one direct atomic
+    call with one gateway call; total and raw debt remain 2,045
+    and 746. Smoke passed 164 tests with one skip in 181.90 s
+    and maximum RSS of 478,134,272 bytes. Lint, compile, dependency
+    drift, layering, governance,
+    module size and targeted writing passed.
+    Source: core/agi/hierarchical_planner.py.
+    Tests: tests/test_hierarchical_planner_cp126.py.
   - [x] 2026-11-16: synchronous skill-state saves go through the
     governed file gateway. Both regressions failed before the
     migration: the direct atomic write bypassed the writer and

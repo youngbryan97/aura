@@ -47,7 +47,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 from core.runtime.numeric_safety import validated_scalar, validated_unit
 from core.runtime.state_ownership import state_root
@@ -763,6 +762,9 @@ class HierarchicalPlanner:
         caught at all, so a normal goal update could crash after mutating
         in-memory state.
         """
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         try:
             with self._lock:
                 payload = {
@@ -784,7 +786,9 @@ class HierarchicalPlanner:
                         for g_id, g in self._goals.items()
                     },
                 }
-            atomic_write_text(self._persist_path, json.dumps(payload, indent=2, default=str))
+            text = json.dumps(payload, indent=2, default=str)
+            with local_internal_governed_scope("agi.hierarchical_planner"):
+                get_file_write_gateway().write_text(self._persist_path, text, source="agi.hierarchical_planner")
         except _PLANNER_RECOVERABLE_ERRORS as e:
             record_degradation(
                 'hierarchical_planner',
