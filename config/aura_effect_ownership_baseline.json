@@ -10569,22 +10569,6 @@
       "scope": "<module>.Paths.create_directories"
     },
     {
-      "callee": "<pathlib.Path>.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/consciousness/absorbed_voices.py",
-      "scope": "<module>.AbsorbedVoices._resolve_storage_path"
-    },
-    {
-      "callee": "p.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 2,
-      "path": "core/consciousness/absorbed_voices.py",
-      "scope": "<module>.AbsorbedVoices._resolve_storage_path"
-    },
-    {
       "callee": "self._db_path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -17562,6 +17546,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "90aaec13b54d14e240523b0be6554454dd321b7f5d07225a9e0e6eb8f1e4b5a7",
+  "inventory_sha256": "cea6af0a55f7d55542c30a32e64ddf52f7b0f9272fefb749915bb791fad0b5d1",
   "schema_version": 1
 }

@@ -102,8 +102,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: governed calls more, 768 and 2,069.
 #: 15 November, seven diagnostic-bundle parent directories already created by
 #: its gateway writes came out: 762 raw, 2,063 total.
-TOTAL_CEILING = 2063
-RAW_CEILING = 762
+#: The same day the perspectives catalogue stopped creating three parents
+#: while resolving its path; its governed save creates them: 759 and 2,060.
+TOTAL_CEILING = 2060
+RAW_CEILING = 759
 
 
 def _split() -> tuple[int, int]:

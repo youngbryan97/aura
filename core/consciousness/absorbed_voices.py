@@ -177,16 +177,13 @@ class AbsorbedVoices:
     def _resolve_storage_path(storage_dir: Optional[Path]) -> Path:
         if storage_dir is not None:
             storage_dir = Path(storage_dir)
-            storage_dir.mkdir(parents=True, exist_ok=True)
             return storage_dir / PERSIST_FILENAME
         try:
             from core.config import config as aura_config
             p = aura_config.paths.data_dir / "memory" / PERSIST_FILENAME
-            p.parent.mkdir(parents=True, exist_ok=True)
             return p
         except (ImportError, AttributeError, RuntimeError):
             p = state_root() / "data" / "memory" / PERSIST_FILENAME
-            p.parent.mkdir(parents=True, exist_ok=True)
             return p
 
     def _load(self) -> None:
@@ -209,13 +206,15 @@ class AbsorbedVoices:
         with self._lock:
             data = {vid: v.to_dict() for vid, v in self._voices.items()}
         try:
+            from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            get_file_write_gateway().write_text(
-                self._storage_path,
-                json.dumps(data, indent=2),
-                source="absorbed_voices.save",
-            )
+            with local_internal_governed_scope("absorbed_voices.save"):
+                get_file_write_gateway().write_text(
+                    self._storage_path,
+                    json.dumps(data, indent=2),
+                    source="absorbed_voices.save",
+                )
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation('absorbed_voices', exc)
             logger.debug("Failed to save absorbed_voices: %s", exc)

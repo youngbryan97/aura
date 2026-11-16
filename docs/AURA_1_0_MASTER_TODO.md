@@ -4741,6 +4741,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: the absorbed-perspectives catalogue resolves its
+    storage path without making directories. Its existing gateway write
+    creates the missing parents, in an internal governed scope the
+    background save now supplies. Both defects reproduced offline,
+    including the refused save under governance enforcement; all 23
+    catalogue/effect-tier tests pass. Three raw directory calls came out:
+    759 raw calls and 2,060 total migration calls, with both ceilings
+    lowered. Smoke: 164 passed, 1 skipped in 68.94 s, maximum RSS
+    457,228,288 bytes. Lint, compile, dependency drift, layering,
+    governance and targeted writing passed.
+    Source: core/consciousness/absorbed_voices.py; tests:
+    tests/test_absorbed_voice_storage_uses_its_writer.py.
   - [x] 2026-11-15: diagnostic log collection must use the logging
     owner's configured directory. The public bundle run below set
     AURA_LOG_DIR to scratch and still copied ~/.aura/logs, because

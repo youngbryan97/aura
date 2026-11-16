@@ -1877,6 +1877,7 @@ tests/test_a_write_request_is_never_answered_by_looking.py
 tests/test_ablation_harness.py
 tests/test_ablation_runner.py
 tests/test_ablation_tool_offline.py
+tests/test_absorbed_voice_storage_uses_its_writer.py
 tests/test_abstract_thought_layer.py
 tests/test_abstraction_engine_cp126.py
 tests/test_acoustic_acceptance.py
