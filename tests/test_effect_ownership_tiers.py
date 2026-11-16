@@ -104,8 +104,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: its gateway writes came out: 762 raw, 2,063 total.
 #: The same day the perspectives catalogue stopped creating three parents
 #: while resolving its path; its governed save creates them: 759 and 2,060.
-TOTAL_CEILING = 2060
-RAW_CEILING = 759
+#: The stop-policy JSON artifact uses the file gateway in its own scope:
+#: four raw calls became one governed write, 755 and 2,057.
+TOTAL_CEILING = 2057
+RAW_CEILING = 755
 
 
 def _split() -> tuple[int, int]:

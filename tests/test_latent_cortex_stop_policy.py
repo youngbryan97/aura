@@ -200,6 +200,33 @@ def test_stop_head_is_calibrated_pinned_and_stably_persisted(
         )
 
 
+def test_stop_policy_uses_the_governed_artifact_writer(fitted_head, tmp_path, monkeypatch):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    gateway = get_file_write_gateway()
+    write_bytes = gateway.write_bytes
+    writes = []
+
+    def write(path, payload, **kwargs):
+        token = get_active_governance()
+        assert token is not None and token.domain == "state_mutation"
+        writes.append((path, payload, kwargs["source"]))
+        write_bytes(path, payload, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_bytes", write)
+    path = tmp_path / "new" / "stop-head.json"
+    digest = fitted_head.save(path)
+    expected = json.dumps(fitted_head.to_dict(), sort_keys=True, separators=(",", ":"),
+                          ensure_ascii=True, allow_nan=False).encode("ascii")
+    assert writes == [(path, expected, "stop_policy.save")]
+    assert path.read_bytes() == expected
+    assert digest == hashlib.sha256(expected).hexdigest()
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert StopPolicyHead.load(path, expected_sha256=digest).to_dict() == fitted_head.to_dict()
+
+
 def test_stop_training_splits_are_task_disjoint_and_constructors_are_strict():
     shared = _examples("shared", 40)
     with pytest.raises(ValueError, match="overlap"):

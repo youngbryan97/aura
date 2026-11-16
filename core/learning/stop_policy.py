@@ -13,7 +13,6 @@ import json
 import math
 import os
 import stat
-import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -475,10 +474,12 @@ class StopPolicyHead:
         }
 
     def save(self, path: str | Path) -> str:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         target = Path(path).expanduser()
         if target.suffix != ".json":
             raise ValueError("stop-policy artifact path must end in .json")
-        target.parent.mkdir(parents=True, exist_ok=True)
         raw = json.dumps(
             self.to_dict(),
             sort_keys=True,
@@ -488,29 +489,8 @@ class StopPolicyHead:
         ).encode("ascii")
         if len(raw) > MAX_STOP_ARTIFACT_BYTES:
             raise ValueError("stop-policy artifact exceeds its size bound")
-        descriptor, temporary_name = tempfile.mkstemp(
-            dir=target.parent,
-            prefix=f".{target.name}.",
-            suffix=".tmp",
-        )
-        temporary = Path(temporary_name)
-        try:
-            with os.fdopen(descriptor, "wb") as handle:
-                handle.write(raw)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.chmod(temporary, 0o600)
-            os.replace(temporary, target)
-            directory_fd = os.open(
-                target.parent,
-                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
-            )
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
-        finally:
-            temporary.unlink(missing_ok=True)
+        with local_internal_governed_scope("stop_policy.save"):
+            get_file_write_gateway().write_bytes(target, raw, source="stop_policy.save")
         return hashlib.sha256(_read_stable_json(target)).hexdigest()
 
     @classmethod

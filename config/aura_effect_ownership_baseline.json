@@ -5121,6 +5121,14 @@
       "scope": "<module>.SemanticValidationCheckpoint.record"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/learning/stop_policy.py",
+      "scope": "<module>.StopPolicyHead.save"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -11705,38 +11713,6 @@
       "scope": "<module>.SelfPlayFlywheel._state_path"
     },
     {
-      "callee": "<pathlib.Path>.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/stop_policy.py",
-      "scope": "<module>.StopPolicyHead.save"
-    },
-    {
-      "callee": "os.chmod",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/stop_policy.py",
-      "scope": "<module>.StopPolicyHead.save"
-    },
-    {
-      "callee": "os.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/stop_policy.py",
-      "scope": "<module>.StopPolicyHead.save"
-    },
-    {
-      "callee": "target.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/stop_policy.py",
-      "scope": "<module>.StopPolicyHead.save"
-    },
-    {
       "callee": "self.artifact_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -17546,6 +17522,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "cea6af0a55f7d55542c30a32e64ddf52f7b0f9272fefb749915bb791fad0b5d1",
+  "inventory_sha256": "db95272f2c198c1e4c79d933efc1421f99dcbe66f512829b8ea52a9d339d86df",
   "schema_version": 1
 }

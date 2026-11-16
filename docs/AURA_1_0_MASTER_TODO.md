@@ -4762,6 +4762,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: the stop-policy JSON artifact goes through the
+    existing file gateway in an internal governed scope. Four raw
+    directory/permission/replacement/cleanup calls became one governed
+    write: 755 raw calls and 2,057 total migration calls. The scope and
+    writer regression failed before the change; the serialized bytes,
+    pinned digest, private mode and existing malformed/symlink checks
+    pass after it. 14 selected persistence/effect-tier tests passed;
+    the model test was deselected. Smoke: 164 passed, 1 skipped in
+    72.32 s, maximum RSS 457,850,880 bytes. Lint, compile, dependency
+    drift, layering, governance and targeted writing passed.
+    Source: core/learning/stop_policy.py; tests:
+    tests/test_latent_cortex_stop_policy.py.
   - [x] 2026-11-15: the absorbed-perspectives catalogue resolves its
     storage path without making directories. Its existing gateway write
     creates the missing parents, in an internal governed scope the
