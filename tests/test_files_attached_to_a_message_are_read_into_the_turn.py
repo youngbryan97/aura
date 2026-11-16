@@ -67,6 +67,47 @@ def test_a_word_file_is_read_with_its_tables():
     assert "We measure what she reports." in text and "Seed | 97" in text
 
 
+@pytest.mark.parametrize("returncode", [0, 1])
+def test_the_converter_input_uses_a_private_governed_write(monkeypatch, returncode):
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from core.governance_context import get_active_governance
+    from core.runtime import atomic_writer, subprocess_gateway
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    data, inputs, writes, synced = b"a small private document", [], [], []
+    gateway = get_file_write_gateway()
+    write_bytes = gateway.write_bytes
+
+    def observe_write(path, payload, **kwargs):
+        token = get_active_governance()
+        assert token is not None and token.domain == "state_mutation"
+        writes.append((path, payload, kwargs))
+        return write_bytes(path, payload, **kwargs)
+
+    class Converter:
+        def run(self, argv, **kwargs):
+            source = Path(argv[-1])
+            inputs.append(source)
+            assert source.read_bytes() == data
+            assert stat.S_IMODE(source.stat().st_mode) == 0o600
+            assert stat.S_IMODE(source.parent.stat().st_mode) == 0o700
+            assert kwargs["read_only"] and kwargs["accelerator_capability"] == "none"
+            return SimpleNamespace(returncode=returncode, stdout=b"Converted document.")
+
+    monkeypatch.setattr(gateway, "write_bytes", observe_write)
+    monkeypatch.setattr(atomic_writer, "_fsync_file", lambda *args, **kwargs: synced.append("file"))
+    monkeypatch.setattr(atomic_writer, "_fsync_dir", lambda *args, **kwargs: synced.append("directory"))
+    monkeypatch.setattr(subprocess_gateway, "get_subprocess_gateway", lambda: Converter())
+    text = attachments._converted_by_textutil(data, ".rtf")
+    assert text == ("Converted document." if returncode == 0 else "")
+    assert len(writes) == 1 and writes[0][1] == data
+    assert inputs and not inputs[0].parent.exists()
+    assert not synced, "a converter input discarded on return needs no crash durability"
+
+
 def test_a_spreadsheet_is_read_from_its_parts():
     kind, text = attachments.read_text("runs.xlsx", _xlsx(["seed", "verdict"]))
     assert kind == "spreadsheet" and "seed verdict" in text

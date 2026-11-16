@@ -120,7 +120,8 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: The reviewed screen-highlight change removed its AppleScript subprocess.
 #: Its later display-list read removed the remaining Finder subprocess.
 TOTAL_CEILING = 2045
-RAW_CEILING = 747
+#: The document converter's private input uses a governed byte write.
+RAW_CEILING = 746
 
 
 def _split() -> tuple[int, int]:

@@ -197,9 +197,15 @@ def _docx_text(data: bytes) -> str:
 def _converted_by_textutil(data: bytes, suffix: str) -> str:
     with tempfile.TemporaryDirectory() as folder:
         source = Path(folder) / f"attached{suffix}"
-        source.write_bytes(data)
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
         from core.runtime.subprocess_gateway import get_subprocess_gateway
 
+        with local_internal_governed_scope(
+            "conversation.attachments.convert", domain="state_mutation", receipt_prefix="attachment-converter",
+            constraints={"artifact": "aura.conversation_attachment_input.v1", "operation": "create"},
+        ):
+            get_file_write_gateway().write_bytes(source, data, source="conversation.attachments.convert", durable=False)
         # Read-only: the converter writes to its output and nowhere else.
         done = get_subprocess_gateway().run(["/usr/bin/textutil", "-convert", "txt", "-stdout", str(source)],
                                             timeout=120, read_only=True, text=False, source="attachments.textutil",

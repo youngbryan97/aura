@@ -4955,6 +4955,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: the document converter's scratch input uses
+    a governed byte write with 0600 permissions. Both converter
+    outcome tests failed on the old raw 0644 write. Scratch input
+    is removed after either outcome and skips crash-durability fsyncs.
+    The sync byte gateway now accepts the durability option already
+    available on its async counterpart. Four gateway cases verify
+    that both retain durable defaults and can explicitly skip syncing.
+    All 98 focused attachment, gateway, durability and effect checks
+    passed. Raw effect debt fell from 747 to 746; total debt remains
+    2,045. Smoke passed 164 tests with one skip in 102.67 s and
+    maximum RSS of 470,253,568 bytes. Lint, compile, dependency
+    drift, layering, governance,
+    module size and targeted writing passed.
+    Source: core/conversation/attachments.py and
+    core/runtime/file_write_gateway.py.
+    Tests: tests/test_files_attached_to_a_message_are_read_into_the_turn.py
+    and tests/test_file_write_gateway_migrations.py.
   - [x] 2026-11-16: Office ZIP metadata reads are capped at 4 MiB
     during archive admission. Oversized central directories are
     refused before constructing their member objects, closing the

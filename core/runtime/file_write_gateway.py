@@ -181,7 +181,7 @@ class FileWriteGateway:
 
         return str(await async_ensure_private_directory(path))
 
-    def write_bytes(self, path: PathLike, payload: bytes, *, source: str = "unknown") -> None:
+    def write_bytes(self, path: PathLike, payload: bytes, *, source: str = "unknown", durable: bool = True) -> None:
         target = _coerce_target(path)
         if not isinstance(payload, (bytes, bytearray, memoryview)):
             raise TypeError("payload must be bytes-like")
@@ -191,7 +191,7 @@ class FileWriteGateway:
                 strict=True,
                 allowed_domains=self._allowed_domains,
             )
-        atomic_write_bytes(target, bytes(payload))
+        atomic_write_bytes(target, bytes(payload), durable=durable)
 
     def write_bytes_batch(
         self,

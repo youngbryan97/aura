@@ -24,6 +24,29 @@ class RecordingFileGateway:
         return self.write_text(*args, **kwargs)
 
 
+@pytest.mark.parametrize("async_path", [False, True])
+@pytest.mark.parametrize("durable", [None, False])
+def test_byte_gateway_preserves_the_durable_default_and_can_skip_syncing(tmp_path, monkeypatch, async_path, durable):
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime import atomic_writer
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    synced = []
+    monkeypatch.setattr(atomic_writer, "_fsync_file", lambda *args, **kwargs: synced.append("file"))
+    monkeypatch.setattr(atomic_writer, "_fsync_dir", lambda *args, **kwargs: synced.append("directory"))
+    target = tmp_path / "private.bin"
+    gateway = get_file_write_gateway()
+    options = {} if durable is None else {"durable": durable}
+    with local_internal_governed_scope("test.byte_gateway", domain="state_mutation", receipt_prefix="test-bytes"):
+        if async_path:
+            asyncio.run(gateway.write_bytes_async(target, b"kept bytes", **options))
+        else:
+            gateway.write_bytes(target, b"kept bytes", **options)
+    assert target.read_bytes() == b"kept bytes" and stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert synced == (["file", "directory"] if durable is None else [])
+
+
 def test_feature_flags_save_uses_file_write_gateway(monkeypatch, tmp_path) -> None:
     import core.governance.feature_flags as feature_flags
 
