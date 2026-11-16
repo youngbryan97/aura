@@ -132,6 +132,35 @@ def test_the_goal_identifier_has_a_registered_invariant_and_validation():
 NEW_TEST = "from core.notes import note_count\n\n\ndef test_counts_nothing_yet():\n    assert note_count() == 0\n"
 
 
+def test_goal_record_reads_leave_the_event_loop_free(her_source, monkeypatch):
+    (her_source.parent / "measuring.hold").write_text("held")
+    read_text = Path.read_text
+    reads, on_loop = [], []
+
+    def read_record(path, *args, **kwargs):
+        if path.parent == work.records_dir():
+            reads.append(path.name)
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+            else:
+                on_loop.append(path.name)
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_record)
+    her = _HerModelStandIn([[
+        ("edit_draft", {"path": "tests/test_notes.py", "old_text": "", "new_text": NEW_TEST}),
+        ("check_draft", {}), ("offer_draft", {"summary": "A first test."}),
+    ]])
+    first = asyncio.run(work.work_a_while(GOAL, router=her))
+    second = asyncio.run(work.work_a_while(GOAL, router=her))
+    assert first.status == second.status == work.OFFERED
+    assert first.passes == second.passes == 1
+    assert len(reads) >= 10, "the pass and the held offer both read their kept record"
+    assert not on_loop, f"record reads on the event loop: {on_loop}"
+
+
 def test_her_passes_build_a_draft_she_offers_and_bryan_takes(her_source):
     # Held as a measuring run holds it, so the draft waits for Bryan instead of being taken by her
     # (tests/test_her_own_goal_work_is_hers_to_do.py has the draft she takes herself).

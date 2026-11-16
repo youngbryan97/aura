@@ -246,7 +246,7 @@ class EditDraftSkill(BaseSkill):
                                            constraints={"artifact": "aura.her_draft.v1", "operation": "edit"}):
             await gateway.ensure_directory_async(path.parent, source="her_draft")
             await gateway.write_text_async(path, text, source="her_draft")
-        record = load(_goal_of(context))
+        record = await asyncio.to_thread(load, _goal_of(context))
         if record is not None:
             record.last_edit_at = time.time()
             await save(record)
@@ -277,7 +277,7 @@ class CheckDraftSkill(BaseSkill):
             named = [_inside(workspace, test).relative_to(workspace).as_posix() for test in asked.tests]
         except Refused as why:
             return {"ok": False, "error": str(why)}
-        record = load(_goal_of(context))
+        record = await asyncio.to_thread(load, _goal_of(context))
         base = (record.base if record is not None else "") or "HEAD"
         _, changed_out = await _run("git", "-c", "core.fsmonitor=false", "diff", "--name-only", base, cwd=workspace,
                                     timeout=60.0)
@@ -336,7 +336,7 @@ class OfferDraftSkill(BaseSkill):
             workspace = _workspace(context)
         except Refused as why:
             return {"ok": False, "error": str(why)}
-        record = load(_goal_of(context))
+        record = await asyncio.to_thread(load, _goal_of(context))
         if record is None:
             return {"ok": False, "error": "no record of this goal"}
         check = record.last_check or {}

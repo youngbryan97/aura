@@ -411,11 +411,11 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     from core.skills.her_draft import tool_definitions
 
     slug = slug_of(goal)
-    record = load(slug) or GoalRecord(goal=str(goal), slug=slug)
+    record = await asyncio.to_thread(load, slug) or GoalRecord(goal=str(goal), slug=slug)
     if record.status == OFFERED:
         # A draft held while she was measured, or offered before she could take it herself.
         await asyncio.to_thread(take_it_herself, slug)
-        record = load(slug) or record
+        record = await asyncio.to_thread(load, slug) or record
     if record.status == STALLED:
         # A goal stalls after two passes with no call, and on day run 4 (9 and 10 November 2026) every stall came of a
         # fault in what she was given: her tools refused, her model held. Stalled for good, a goal waited on a fix
@@ -449,7 +449,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         logger.info("🛠️ '%s': not now (her model is held for something else)", goal[:60])
         return record
     now = time.time()
-    record = load(slug) or record  # a tool of hers may have changed the record during the pass
+    record = await asyncio.to_thread(load, slug) or record  # a tool of hers may have changed the record during the pass
     for call in calls:
         record.steps.append({"id": call.get("id"), "tool": call.get("tool"), "args": call.get("args") or {},
                              "result": str(call.get("result") or ""), "at": now})
@@ -468,7 +468,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     if record.status == OFFERED:
         # Offered this pass: her own yes, and the gates it asks, outside her model's turn.
         taken = await asyncio.to_thread(take_it_herself, slug)
-        record = load(slug) or record
+        record = await asyncio.to_thread(load, slug) or record
         if not taken.get("ok") and record.status == OFFERED:
             record.said.append({"words": f"My draft waits: {taken.get('why')}", "at": time.time()})
             await save(record)

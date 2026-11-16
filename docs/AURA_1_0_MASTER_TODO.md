@@ -609,6 +609,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-15: goal work and its edit, check and offer tools
+    read their kept records on worker threads. A complete scratch
+    draft pass followed by a held-offer check witnessed eight reads
+    on the event loop before the repair and none after it. The
+    draft remained offered with one recorded pass. All 65 focused
+    goal and async-write checks passed. Smoke passed 164 tests with
+    one skip in 63.11 s and maximum RSS of 481,263,616 bytes. Lint,
+    compile, dependency drift, layering, governance, module size
+    and targeted writing passed. No model was loaded.
+    Source: core/agency/her_goal_at_work.py and core/skills/her_draft.py.
+    Tests: tests/test_her_goal_is_worked_by_her.py.
   - [x] 2026-11-15: a goal record gets its own write grant after
     directory setup. The old save raised a governance violation
     when directory I/O exhausted the first grant. The regression
