@@ -32,8 +32,8 @@ from pathlib import Path
 from typing import Any
 
 from core.governance_context import local_internal_governed_scope
-from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.errors import record_degradation
+from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.flags import FlagKind, declare
 from core.runtime.state_ownership import state_root
 
@@ -192,11 +192,11 @@ class DeferredRetentionQueue:
 
     def _store(self, entries: list[dict[str, Any]]) -> None:
         gateway = get_file_write_gateway()
+        payload = self._prepare(entries)
         with local_internal_governed_scope("deferred_retention_queue"):
             gateway.ensure_directory(self._queue_path.parent, source=_WRITE_SOURCE)
-            gateway.write_text(
-                self._queue_path, self._prepare(entries), source=_WRITE_SOURCE
-            )
+        with local_internal_governed_scope("deferred_retention_queue"):
+            gateway.write_text(self._queue_path, payload, source=_WRITE_SOURCE)
 
     async def _store_async(self, entries: list[dict[str, Any]]) -> None:
         gateway = get_file_write_gateway()
@@ -205,6 +205,8 @@ class DeferredRetentionQueue:
             await gateway.ensure_directory_async(
                 self._queue_path.parent, source=_WRITE_SOURCE
             )
+        # Directory I/O can outlast its grant. Issue the write's grant here.
+        with local_internal_governed_scope("deferred_retention_queue"):
             await gateway.write_text_async(
                 self._queue_path, payload, source=_WRITE_SOURCE
             )

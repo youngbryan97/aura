@@ -609,6 +609,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-15: deferred retention gives the queue write its own
+    governance grant after directory I/O. Aging only the directory
+    grant in a fixture made the old writer refuse a valid entry under
+    enforcement. The queue now retains it through both public
+    enqueue paths. All 29 deferred-retention tests passed. Smoke
+    passed 164 tests with one skip in 108.76 s and maximum RSS of
+    475,103,232 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/memory/deferred_retention.py.
+    Tests: tests/test_deferred_retention.py.
   UPDATE 2026-09-08. Lockdep reported nine distinct loop-blocking holds in one
   boot; five are fixed and the pattern behind them is one thing.
   - `core.knowledge.atomspace.AtomSpace`, 52ms, beside a 6.0s hard lag: the

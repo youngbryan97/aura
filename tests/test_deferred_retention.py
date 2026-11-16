@@ -12,6 +12,7 @@ bypass, and that is the failure this file exists to prevent.
 """
 from __future__ import annotations
 
+import asyncio
 import time
 
 import pytest
@@ -108,6 +109,48 @@ class TestHoldingDeferredWork:
         with queue.path.open("a", encoding="utf-8") as handle:
             handle.write("{not json\n")
         assert len(queue.pending()) == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("async_write", [False, True])
+    async def test_directory_setup_can_outlive_its_grant(self, queue, monkeypatch, async_write):
+        from core.governance_context import get_active_governance
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+        gateway = get_file_write_gateway()
+        expired = []
+
+        def expire_directory_grant():
+            token = get_active_governance()
+            assert token is not None and token.domain == "state_mutation"
+            token.mono_timestamp -= token.ttl + 1
+            assert token.expired
+            expired.append(token.lease_id)
+
+        if async_write:
+            ensure = gateway.ensure_directory_async
+
+            async def ensure_async_then_expire(*args, **kwargs):
+                result = await ensure(*args, **kwargs)
+                expire_directory_grant()
+                return result
+
+            monkeypatch.setattr(gateway, "ensure_directory_async", ensure_async_then_expire)
+            held = await queue.enqueue_async("held across a slow directory setup", reason="aura_now_defer")
+        else:
+            ensure = gateway.ensure_directory
+
+            def ensure_then_expire(*args, **kwargs):
+                result = ensure(*args, **kwargs)
+                expire_directory_grant()
+                return result
+
+            monkeypatch.setattr(gateway, "ensure_directory", ensure_then_expire)
+            held = await asyncio.to_thread(queue.enqueue, "held across a slow directory setup", reason="aura_now_defer")
+
+        assert held and len(expired) == 1
+        pending = await asyncio.to_thread(queue.pending)
+        assert [entry["text"] for entry in pending] == ["held across a slow directory setup"]
 
 
 class TestReplay:
