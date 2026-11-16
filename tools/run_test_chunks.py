@@ -363,6 +363,10 @@ def run_chunk(
             part=part + 1,
         )
         return False, f"{message}; then {rest}", judged_alone + rest_ids
+    except OSError as exc:
+        message = f"{label} could not start: {type(exc).__name__}: {exc}"
+        note_progress(progress_file, f"LAUNCH ERROR {message}")
+        return False, message, []
     sys.stdout.write(proc.stdout)
     sys.stderr.write(proc.stderr)
     failed_ids = parse_failed_node_ids(proc.stdout)
@@ -611,6 +615,7 @@ def main(argv: list[str] | None = None) -> int:
         "failed": sum(ok is False for ok, _, _ in results),
         "empty": sum(ok is None for ok, _, _ in results),
     }
+    unisolated_chunks = [line for ok, line, ids in results if ok is False and not ids]
     register_error: str | None = None
     if args.defect_register:
         try:
@@ -625,6 +630,7 @@ def main(argv: list[str] | None = None) -> int:
                 "retry_refusals": retry_refusals,
                 "retry_errors": retry_errors,
                 "chunk_outcomes": chunk_outcomes,
+                "unisolated_chunks": unisolated_chunks,
                 "source_revision": {
                     "started": started_at_revision,
                     "after_chunks": after_chunks_revision,
@@ -660,11 +666,8 @@ def main(argv: list[str] | None = None) -> int:
         print("\n❌ source revision became unreadable; this run has no source identity verdict")
     elif started_at_revision:
         print(f"revision {started_at_revision}, unchanged at every source check")
-    unisolated_failures = 0
-    for ok, line, ids in results:
+    for ok, line, _ in results:
         print(("⚪ " if ok is None else "✅ " if ok else "❌ ") + line)
-        if ok is False and not ids:
-            unisolated_failures += 1
     if order_dependent:
         print(f"\n⚠️  ORDER-DEPENDENCE register ({len(order_dependent)}) — fail in-chunk, pass alone:")
         for fid in order_dependent:
@@ -695,9 +698,8 @@ def main(argv: list[str] | None = None) -> int:
     if timed_out_alone or retry_refusals or retry_errors:
         print(f"\n❌ {len(timed_out_alone) + len(retry_refusals) + len(retry_errors)} test(s) could not be judged alone")
         return 1
-    if unisolated_failures:
-        # Chunks died without parseable test ids (timeout/OOM): loud failure.
-        print(f"\n❌ {unisolated_failures} chunk(s) failed without isolatable test ids")
+    if unisolated_chunks:
+        print(f"\n❌ {len(unisolated_chunks)} chunk(s) failed without isolatable test ids")
         return 1
     if order_dependent:
         print(f"\n❌ {len(order_dependent)} order-dependence defect(s) still fail the run")

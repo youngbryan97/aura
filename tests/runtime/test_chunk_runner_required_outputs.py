@@ -74,3 +74,27 @@ def test_a_written_register_keeps_the_run_green(run, tmp_path):
     record = json.loads(target.read_text())
     assert record["schema"] == "aura.test_defect_register.v1"
     assert record["source_revision"]["measured"]
+
+
+@pytest.mark.parametrize("continue_on_failure, attempted", [(False, 1), (True, 2)])
+def test_a_missing_interpreter_leaves_a_failed_chunk_record(tmp_path, capsys, continue_on_failure, attempted):
+    for name in ("a", "b"):
+        (tmp_path / f"test_{name}.py").write_text("def test_example():\n    assert True\n")
+    register = tmp_path / "defects.json"
+    progress = tmp_path / "progress.log"
+    args = [
+        "--tests-dir", str(tmp_path), "--chunks", "2", "--python", str(tmp_path / "missing-python"),
+        "--defect-register", str(register), "--progress-file", str(progress),
+    ]
+    if continue_on_failure:
+        args.append("--continue-on-failure")
+
+    assert runner.main(args) == 1
+    record = json.loads(register.read_text())
+    assert record["chunk_outcomes"] == {"passed": 0, "failed": attempted, "empty": 0}
+    assert record["real_failures"] == record["order_dependent"] == []
+    assert len(record["unisolated_chunks"]) == attempted
+    assert all("could not start" in chunk and "FileNotFoundError" in chunk
+               for chunk in record["unisolated_chunks"])
+    assert progress.read_text().count("LAUNCH ERROR") == attempted
+    assert f"{attempted} chunk(s) failed without isolatable test ids" in capsys.readouterr().out

@@ -5113,6 +5113,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  - [x] 2026-11-15: the chunk runner records a launch failure and
+    finishes writing the requested defect register. A real missing
+    interpreter previously raised out of the runner. The progress log
+    names the launch error, and the register keeps the failed chunk
+    separate from isolated test verdicts. Both stopping modes failed
+    before the repair. All 92 focused runner tests passed after it.
+    Smoke passed 164 tests with one skip in 100.83 s and maximum RSS
+    of 441,876,480 bytes. Lint, compile, dependency drift, layering,
+    governance and targeted writing passed.
+    Source: tools/run_test_chunks.py.
+    Tests: tests/runtime/test_chunk_runner_required_outputs.py.
   - [x] 2026-11-15: reject invalid chunk counts and timeouts before
     discovery. A zero or negative chunk count silently became one large
     process, and nonpositive, infinite or NaN chunk/retry timeouts reached
