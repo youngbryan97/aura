@@ -30,7 +30,7 @@ def armed_at() -> Path:
 
 def label(person: Any) -> Any:
     """A person's name as a title: the drill's planted fault, for a person who is not there."""
-    return person.name.title()
+    return (person.name.title() if person is not None else None)
 
 
 def run_the_drill_if_armed() -> bool:
