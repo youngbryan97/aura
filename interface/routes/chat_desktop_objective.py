@@ -773,7 +773,7 @@ def _what_it_came_to_goes_to_her_turn(result: dict[str, Any], objective: str) ->
         return False
     if str(result.get("concluded") or "").strip() or _desktop_deliverable_text(result):
         return False
-    from core.conversation.turn_evidence_custody import record_turn_grounding
+    from core.conversation.turn_evidence_custody import record_turn_grounding, record_turn_world_evidence
 
     error = _in_words(str(result.get("error") or result.get("status") or "it failed").strip())
     completed, requested = int(result.get("steps_completed") or 0), int(result.get("steps_requested") or 0)
@@ -782,8 +782,11 @@ def _what_it_came_to_goes_to_her_turn(result: dict[str, Any], objective: str) ->
         f"It did not complete: {error}. {completed} of {requested} step(s) completed; nothing it did is claimed.\n"
         "[END WHAT THE DESKTOP STEP CAME TO]"
     )
-    if not record_turn_grounding(reading):
+    # Beside her turn, where her model reads it, and to her reply check. Turn grounding alone reaches only the check:
+    # her model answered without it.
+    if not record_turn_world_evidence(reading):
         return False
+    record_turn_grounding(reading)
     logger.info("🖥️ What the desktop step came to goes to her turn to answer from: %s", error[:120])
     return True
 
