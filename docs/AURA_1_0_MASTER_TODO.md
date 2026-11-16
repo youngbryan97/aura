@@ -5052,6 +5052,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     still stay unchanged while a run is active.
     Source: tools/run_test_chunks.py; tests:
     tests/test_a_suite_run_knows_which_tree_it_read.py.
+  - [x] 2026-11-15: an explicit empty chunk selection is rejected before
+    discovery, so an empty --only-chunks value cannot launch the full
+    suite or report a zero-chunk pass. A requested defect register that
+    cannot be written also fails the run. Four empty selections and two
+    real filesystem failures reproduced the old success paths; all 86
+    focused runner/backlog tests now pass. Smoke: 164 passed, 1 skipped.
+    Lint, compile and targeted writing passed.
+    Source: tools/run_test_chunks.py; tests:
+    tests/runtime/test_chunk_runner_required_outputs.py.
   2026-10-01. Main at 8ac994342: module size, lint, the strict lint
   surface, markers and the claim discipline test are green again, each red
   on main from work that landed after 30 September. The async sandbox claim

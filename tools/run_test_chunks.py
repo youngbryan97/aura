@@ -407,9 +407,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--only-chunks",
-        default="",
+        default=None,
         help="comma-separated 1-based chunk indexes to run (e.g. 5,6) — "
-        "resume a partial run without repeating chunks that already passed",
+        "resume a partial run without repeating chunks that already passed; "
+        "an explicit selection must not be empty",
     )
     parser.add_argument(
         "--defect-register",
@@ -439,6 +440,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not math.isfinite(args.min_free_gb) or args.min_free_gb < 0:
         parser.error("--min-free-gb must be finite and nonnegative")
+    if args.only_chunks is not None and not any(part.strip() for part in args.only_chunks.split(",")):
+        parser.error("--only-chunks must select at least one chunk; omit it to run all chunks")
 
     files = discover_test_files(args.tests_dir)
     if not files:
@@ -447,7 +450,7 @@ def main(argv: list[str] | None = None) -> int:
 
     chunk_lists = split_chunks(files, args.chunks)
     selected_indexes: set[int] | None = None
-    if args.only_chunks.strip():
+    if args.only_chunks is not None:
         try:
             selected_indexes = {
                 int(part) for part in args.only_chunks.split(",") if part.strip()
@@ -595,6 +598,7 @@ def main(argv: list[str] | None = None) -> int:
                 note_progress(args.progress_file, f"RETRY ERROR {fid}: {retry_errors[fid]}")
 
     finished_at_revision = observe_revision("after retries")
+    register_error: str | None = None
     if args.defect_register:
         try:
             import json as _json
@@ -622,6 +626,7 @@ def main(argv: list[str] | None = None) -> int:
             reg_path.write_text(_json.dumps(register, indent=2) + "\n", encoding="utf-8")
             print(f"🗂  defect register → {reg_path}", flush=True)
         except OSError as _reg_exc:
+            register_error = str(_reg_exc)
             print(f"⚠️  defect register write failed: {_reg_exc}", file=sys.stderr, flush=True)
 
     print("\n━━ chunk summary ━━")
@@ -662,6 +667,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n❌ {len(retry_errors)} retry/retries produced no isolated verdict:")
         for fid, error in retry_errors.items():
             print(f"  ❌ {fid}: {error}")
+    if register_error is not None:
+        print("\n❌ the requested defect register could not be written")
+        return 1
     if moved_at or source_errors:
         print("\n❌ source identity did not hold; re-run in a worktree pinned to a revision")
         return 1
