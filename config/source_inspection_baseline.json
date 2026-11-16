@@ -311,7 +311,6 @@
     "tests/test_bypass_eligibility_is_by_class.py": 2,
     "tests/test_canonical_state.py": 1,
     "tests/test_capability_ledger.py": 1,
-    "tests/test_chunk_runner_leaves_a_note.py": 1,
     "tests/test_cognitive_contracts.py": 2,
     "tests/test_commitment_ratchet_is_wired_into_episodes.py": 1,
     "tests/test_companion_bubble_position_persists.py": 1,
@@ -484,6 +483,6 @@
     "tests/test_writing_about_her_evening_uses_her_record.py": 2,
     "tests/voice/test_wake_audio_attribution.py": 1
   },
-  "overhang_total": 748,
+  "overhang_total": 747,
   "overhang_recorded": "2026-09-20"
 }

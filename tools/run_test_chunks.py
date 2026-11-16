@@ -316,7 +316,10 @@ def run_chunk(
         note_progress(progress_file, message)
         return False, message, []
     try:
-        proc = subprocess.run(cmd, cwd=ROOT, timeout=timeout_s, capture_output=True, text=True)
+        proc = subprocess.run(
+            cmd, cwd=ROOT, timeout=timeout_s, capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
     except subprocess.TimeoutExpired as exc:
         # The chunk's output up to the kill is the only evidence of which
         # file hung; a timeout that discarded it (2026-09-16, chunk 2 of 40)
@@ -536,6 +539,8 @@ def main(argv: list[str] | None = None) -> int:
                     timeout=args.retry_timeout,
                     capture_output=True,
                     text=True,
+                        encoding="utf-8",
+                        errors="replace",
                 )
             except subprocess.TimeoutExpired:
                 # One slow test must not take the whole register with it. On

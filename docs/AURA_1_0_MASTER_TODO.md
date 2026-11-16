@@ -4972,6 +4972,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     maximum RSS 488,177,664 bytes. Targeted lint and writing passed.
     Source: tools/run_proof_step.py; tests:
     tests/test_proof_step_keeps_an_unfinished_checkpoint.py.
+  - [x] 2026-11-15: a non-UTF-8 byte in pytest output cannot discard
+    the chunk verdict or the isolated retry's register. Both pipes decode
+    with replacement. Three real subprocess fixtures failed with a
+    UnicodeDecodeError before the fix; all 63 runner/backlog tests now
+    pass. The memory preflight's remaining source-string assertion was
+    replaced by a measured page-count check and its debt allowance removed.
+    Smoke: 164 passed, 1 skipped in 44.51 s, maximum RSS 480,919,552
+    bytes. Lint, compile and targeted writing passed.
+    Source: tools/run_test_chunks.py; tests:
+    tests/runtime/test_chunk_runner_text_output.py.
   2026-10-01. Main at 8ac994342: module size, lint, the strict lint
   surface, markers and the claim discipline test are green again, each red
   on main from work that landed after 30 September. The async sandbox claim

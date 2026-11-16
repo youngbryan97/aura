@@ -35,17 +35,22 @@ class TestTheMemoryPreflight:
             "refuse every chunk or none of them"
         )
 
-    def test_it_counts_reclaimable_not_just_free(self):
+    def test_it_counts_reclaimable_not_just_free(self, monkeypatch):
         """Free alone reads alarmingly low on a warm machine.
 
         macOS reclaims inactive pages under pressure, so a chunk can use
         them. Counting free only would make the preflight cry wolf on any
         host that has been up for an hour.
         """
-        import inspect
+        from types import SimpleNamespace
 
-        source = inspect.getsource(free_memory_gb)
-        assert "Pages inactive" in source
+        import tools.run_test_chunks as runner
+
+        monkeypatch.setattr(runner.subprocess, "run", lambda *a, **kw: SimpleNamespace(
+            returncode=0, stdout="Mach Virtual Memory Statistics: (page size of 4096 bytes)\n"
+            "Pages free: 5.\nPages inactive: 7.\n",
+        ))
+        assert free_memory_gb() == 12 * 4096 / 1024**3
 
     def test_a_chunk_is_refused_rather_than_gambled(self, tmp_path):
         """The whole point: say no instead of vanishing."""
