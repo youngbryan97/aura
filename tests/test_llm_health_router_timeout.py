@@ -232,9 +232,12 @@ async def test_router_outer_watchdog_aborts_hung_endpoint():
         client=client,
     )
 
+    # Room for the router's own work before it dispatches: on 16 November 2026 a cold first call spent 0.18 s there,
+    # and a 10 ms budget ran out before the endpoint was reached ("router_deadline_exhausted:0.0s"), alone though not
+    # beside the tests that warm it.
     result = await router.generate_with_metadata(
         "probe",
-        timeout=0.01,
+        timeout=1.0,
         prefer_tier="primary",
         origin="proof",
         purpose="proof_model_lane_probe",
@@ -371,9 +374,12 @@ async def test_router_wall_clock_watchdog_rejects_noncooperative_late_success(mo
     )
     monkeypatch.setattr("core.brain.llm_health_router._endpoint_call_timeout", lambda _timeout: 0.02)
 
+    # Room for the router's own work before it dispatches: on 16 November 2026 a cold first call spent 0.18 s there,
+    # and a 10 ms budget ran out before the endpoint was reached ("router_deadline_exhausted:0.0s"), alone though not
+    # beside the tests that warm it.
     result = await router.generate_with_metadata(
         "probe",
-        timeout=0.01,
+        timeout=1.0,
         prefer_tier="primary",
         origin="proof",
         purpose="proof_model_lane_probe",

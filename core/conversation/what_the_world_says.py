@@ -423,20 +423,19 @@ async def read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining:
         if not url:
             return
         try:
-            await rendering.acquire()
+            # The semaphore's own entry waits at most its budget, the turn's time (core/runtime/lockdep.py).
+            async with rendering:
+                if remaining() <= 1.0:
+                    return
+                try:
+                    page = await asyncio.wait_for(render(url), timeout=min(20.0, remaining()))
+                except (TimeoutError, OSError, RuntimeError, ValueError) as exc:
+                    logger.info("Rendering %s gave nothing to read: %s", url,
+                                type(exc).__name__ if isinstance(exc, TimeoutError) else exc)
+                    page = None
         except TimeoutError:
             logger.info("No browser came free for %s within the turn's time; it is read as fetched", url)
             return
-        try:
-            if remaining() <= 1.0:
-                return
-            try:
-                page = await asyncio.wait_for(render(url), timeout=min(20.0, remaining()))
-            except (TimeoutError, OSError, RuntimeError, ValueError) as exc:
-                logger.info("Rendering %s gave nothing to read: %s", url, type(exc).__name__ if isinstance(exc, TimeoutError) else exc)
-                page = None
-        finally:
-            rendering.release()
         text = str((page or {}).get("text") or "").strip()
         if text:
             result["text"] = text
