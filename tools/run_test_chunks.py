@@ -42,6 +42,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import math
 import re
 import subprocess
 import sys
@@ -64,14 +65,16 @@ def free_memory_gb() -> float | None:
     make the preflight cry wolf.
     """
     try:
-        out = subprocess.run(
+        reading = subprocess.run(
             ["vm_stat"], capture_output=True, text=True, timeout=10
-        ).stdout
+        )
     except (OSError, subprocess.SubprocessError):
         return None
-    page_size = 16384
+    if reading.returncode != 0:
+        return None
+    page_size = 0
     pages = {}
-    for line in out.splitlines():
+    for line in reading.stdout.splitlines():
         if "page size of" in line:
             match = re.search(r"page size of (\d+)", line)
             if match:
@@ -81,10 +84,26 @@ def free_memory_gb() -> float | None:
             digits = value.strip().rstrip(".")
             if digits.isdigit():
                 pages[key.strip()] = int(digits)
-    reclaimable = pages.get("Pages free", 0) + pages.get("Pages inactive", 0)
-    if not reclaimable:
+    if page_size <= 0 or not {"Pages free", "Pages inactive"} <= pages.keys():
         return None
+    reclaimable = pages["Pages free"] + pages["Pages inactive"]
     return reclaimable * page_size / (1024**3)
+
+
+def memory_refusal(label: str, free_gb: float | None, min_free_gb: float) -> str:
+    """An unreadable measurement cannot satisfy a requested memory floor."""
+    if min_free_gb <= 0:
+        return ""
+    if free_gb is None or not math.isfinite(free_gb):
+        reason = "reclaimable memory could not be measured"
+    elif free_gb < min_free_gb:
+        reason = f"{free_gb:.1f}GB reclaimable is below the requested floor"
+    else:
+        return ""
+    return (
+        f"{label} REFUSED: {reason} (--min-free-gb {min_free_gb:.1f}). "
+        "Use more, smaller chunks or free memory; a chunk that OOMs takes this runner with it."
+    )
 
 
 def working_tree_revision() -> str:
@@ -293,12 +312,7 @@ def run_chunk(
     note_progress(
         progress_file, f"START {label} files={len(files)} {free_label}"
     )
-    if min_free_gb > 0 and free_gb is not None and free_gb < min_free_gb:
-        message = (
-            f"{label} REFUSED: {free_gb:.1f}GB reclaimable is "
-            f"below --min-free-gb {min_free_gb:.1f}. Use more, smaller chunks "
-            "or free memory; a chunk that OOMs takes this runner with it."
-        )
+    if message := memory_refusal(label, free_gb, min_free_gb):
         note_progress(progress_file, message)
         return False, message, []
     try:
@@ -408,12 +422,14 @@ def main(argv: list[str] | None = None) -> int:
         type=float,
         default=0.0,
         help=(
-            "refuse to start a chunk with less than this much reclaimable "
-            "memory. 0 warns without refusing."
+            "refuse to start a chunk or isolated retry below this much reclaimable "
+            "memory, or when memory cannot be measured. 0 warns without refusing."
         ),
     )
     parser.add_argument("extra", nargs="*", help="extra pytest args")
     args = parser.parse_args(argv)
+    if not math.isfinite(args.min_free_gb) or args.min_free_gb < 0:
+        parser.error("--min-free-gb must be finite and nonnegative")
 
     files = discover_test_files(args.tests_dir)
     if not files:
@@ -497,6 +513,7 @@ def main(argv: list[str] | None = None) -> int:
     order_dependent: list[str] = []
     real_failures: list[str] = []
     timed_out_alone: list[str] = []
+    retry_refusals: dict[str, str] = {}
     if all_failed_ids:
         print(f"\n━━ isolated retry of {len(all_failed_ids)} failed test(s) ━━", flush=True)
         for fid in all_failed_ids:
@@ -505,6 +522,13 @@ def main(argv: list[str] | None = None) -> int:
                 retry_cmd.extend(["-m", args.marker])
             retry_cmd.extend(list(args.extra))
             print(f"  retry: {fid}", flush=True)
+            free_gb = free_memory_gb()
+            note_progress(args.progress_file, f"RETRY {fid} free_gb={free_gb}")
+            if refusal := memory_refusal(f"retry {fid}", free_gb, args.min_free_gb):
+                retry_refusals[fid] = refusal
+                note_progress(args.progress_file, refusal)
+                print(f"    {refusal}", flush=True)
+                continue
             try:
                 retry = subprocess.run(
                     retry_cmd,
@@ -537,6 +561,7 @@ def main(argv: list[str] | None = None) -> int:
                 "order_dependent": order_dependent,
                 "real_failures": real_failures,
                 "timed_out_alone": timed_out_alone,
+                "retry_refusals": retry_refusals,
             }
             reg_path = Path(args.defect_register)
             reg_path.parent.mkdir(parents=True, exist_ok=True)
@@ -573,13 +598,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n⏱  timed out alone ({len(timed_out_alone)}) — no verdict either way:")
         for fid in timed_out_alone:
             print(f"  ⏱  {fid}")
+    if retry_refusals:
+        print(f"\n❌ {len(retry_refusals)} retry/retries refused by the memory floor; unmeasured")
+        for refusal in retry_refusals.values():
+            print(f"  ❌ {refusal}")
     if real_failures:
         print(f"\n❌ real failures ({len(real_failures)}) — fail in-chunk AND alone:")
         for fid in real_failures:
             print(f"  ❌ {fid}")
         return 1
-    if timed_out_alone:
-        print(f"\n❌ {len(timed_out_alone)} test(s) could not be judged alone")
+    if timed_out_alone or retry_refusals:
+        print(f"\n❌ {len(timed_out_alone) + len(retry_refusals)} test(s) could not be judged alone")
         return 1
     if chunk_failures and not all_failed_ids:
         # Chunks died without parseable test ids (timeout/OOM): loud failure.

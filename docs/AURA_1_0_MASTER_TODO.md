@@ -4899,6 +4899,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  - [x] 2026-11-15: apply the chunk runner's requested memory floor to
+    isolated retries as well as chunks. An unreadable or incomplete
+    measurement refuses work; zero available pages is a measured zero.
+    Each retry reads memory afresh, and a refusal stays unmeasured in the
+    defect register. `tools/run_test_chunks.py`,
+    `tests/runtime/test_chunk_runner_memory_guard.py`: 37 focused tests
+    passed; smoke 164 passed, 1 skipped in 87.52 s, maximum RSS 506,675,200
+    bytes. No model loaded and no live-runtime change. The default floor
+    remains zero; callers must request a floor with `--min-free-gb`.
   2026-10-01. Main at 8ac994342: module size, lint, the strict lint
   surface, markers and the claim discipline test are green again, each red
   on main from work that landed after 30 September. The async sandbox claim
