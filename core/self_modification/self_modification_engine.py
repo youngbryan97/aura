@@ -1332,6 +1332,15 @@ class AutonomousSelfModificationEngine:
         # Event-driven: the monitor consumes real error observations instead of
         # polling the model or inventing optimization work while the runtime is idle.
         logger.info("Monitoring loop starting...")
+        # A drill of her repair loop, when a person armed one: its planted fault is raised here, once a start, and
+        # wakes this loop as any fault of hers does (core/self_modification/loop_drill.py).
+        try:
+            from core.self_modification.loop_drill import run_the_drill_if_armed
+
+            run_the_drill_if_armed()
+        except (ImportError, OSError, RuntimeError) as exc:
+            record_degradation("self_modification_engine", exc, severity="warning",
+                               action="the drill of her repair loop did not run")
         _consecutive_failures = 0
         _max_failures = 5
         _backoff = self.monitor_interval
