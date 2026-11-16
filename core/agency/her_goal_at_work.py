@@ -498,7 +498,8 @@ async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
                           trace_id=trace_id, steps_completed=0, steps_total=0)
     steps_before = len(before.steps) if before is not None else 0
     calls = len(record.steps) - steps_before
-    if calls == 0 and record.passes == (before.passes if before is not None else 0):
+    if (record.status == WORKING and calls == 0
+            and record.passes == (before.passes if before is not None else 0)):
         return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, summary="Not now: her model is held.",
                           trace_id=trace_id, steps_completed=0, steps_total=0, deferred_reason="her_model_held")
     return TaskResult(plan_id=plan_id, goal=goal, succeeded=record.status in (OFFERED, MERGED),

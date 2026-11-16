@@ -4940,6 +4940,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: an unchanged goal is reported by its actual
+    status. Offered and merged goals used to lose their success
+    result, and stalled goals were labelled as a held model. Three
+    regressions failed before the repair. Only working goals with
+    no new pass retain the model-held deferral. All 84 focused
+    goal-work checks passed. Smoke passed 164 tests with one skip
+    in 63.11 s and maximum RSS of 485,097,472 bytes.
+    Lint, compile, dependency drift,
+    layering, governance, module size and targeted writing passed.
+    Source: core/agency/her_goal_at_work.py.
+    Tests: tests/test_her_goal_is_worked_by_her.py.
   - [x] 2026-11-15: goal work preserves a kept record when it
     cannot read it. Workers propagate read and decoding failures;
     an absent file still starts a new goal. Five initial-read cases

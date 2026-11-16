@@ -259,6 +259,25 @@ def test_the_task_reports_an_unreadable_goal_without_starting_a_pass(her_source,
     assert path.read_bytes() == before
 
 
+@pytest.mark.parametrize("status", [work.WORKING, work.OFFERED, work.MERGED, work.STALLED])
+def test_an_unchanged_goal_is_reported_by_its_actual_status(her_source, monkeypatch, status):
+    from core.agency.autonomous_task_engine import _worked_by_her
+
+    (her_source.parent / "measuring.hold").write_text("held")
+    record = work.GoalRecord(goal=GOAL, slug=work.slug_of(GOAL), status=status,
+                             passes=3, stalled_on=work.source_head())
+    work._write_now(record)
+    her = _HerModelStandIn([])
+    monkeypatch.setattr(work, "HerCortex", lambda: her)
+    result = asyncio.run(_worked_by_her(GOAL, "plan", "trace"))
+    assert result.succeeded == (status in (work.OFFERED, work.MERGED))
+    assert result.deferred_reason == ("her_model_held" if status == work.WORKING else "")
+    assert result.steps_completed == result.steps_total == 0
+    if status != work.WORKING:
+        assert f"the goal is {status}" in result.summary
+    assert len(her.seen_prior) == (1 if status == work.WORKING else 0)
+
+
 def test_goal_record_reads_leave_the_event_loop_free(her_source, monkeypatch):
     (her_source.parent / "measuring.hold").write_text("held")
     read_text = Path.read_text
