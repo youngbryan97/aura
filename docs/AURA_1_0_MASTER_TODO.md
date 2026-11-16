@@ -4955,6 +4955,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: Office ZIP metadata reads are capped at 4 MiB
+    during archive admission. Oversized central directories are
+    refused before constructing their member objects, closing the
+    allocation gap left by the prior content-expansion item. Both
+    XLSX and DOCX regressions failed before the repair. An admitted
+    spreadsheet can read content larger than the metadata limit
+    while still obeying the separate expansion budget. All 42
+    focused checks passed. Smoke passed 164 tests with one skip
+    in 94.73 s and maximum RSS of 489,226,240 bytes. The registered
+    synthetic canary now includes the metadata read predicate.
+    Lint, compile, dependency
+    drift, layering, governance, module size and targeted writing
+    passed. Source: core/conversation/attachments.py.
+    Tests: tests/test_files_attached_to_a_message_are_read_into_the_turn.py.
   - [x] 2026-11-16: Office attachment readers check ZIP inventories
     before decompressing content. Expanded bytes across all members
     are capped at 100 MiB and the member count at 4,096. DOCX cannot

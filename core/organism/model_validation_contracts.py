@@ -34,7 +34,7 @@ def _install_repair_executor_claims(suite):
     for name, probe, owner, statement, tests in (
         ("office_archive_expansion_budget", lambda: _archive_budget_invariant() == (),
          "core/conversation/attachments.py",
-         "The Office archive canary rejects inventories exceeding the expanded byte or member budget.",
+         "The Office archive canary rejects oversized metadata reads and inventories exceeding the expansion budget.",
          "tests/test_files_attached_to_a_message_are_read_into_the_turn.py"),
         ("goal_identifier_guard", lambda: _goal_identifier_invariant() == (),
          "core/agency/her_goal_at_work.py",

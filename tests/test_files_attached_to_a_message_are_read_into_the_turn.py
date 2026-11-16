@@ -118,6 +118,34 @@ def test_an_over_budget_archive_is_kept_whole_and_marked_unreadable(kept_in, mon
     assert attachments.kept(note["id"]) == (note, "")
 
 
+@pytest.mark.parametrize("suffix", [".xlsx", ".docx"])
+def test_archive_metadata_is_bounded_before_constructing_members(monkeypatch, suffix):
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as package:
+        for number in range(20):
+            package.writestr(f"part-{number}-{'x' * 80}.xml", "")
+    monkeypatch.setattr(attachments, "MOST_ARCHIVE_METADATA_BYTES", 1024, raising=False)
+    zip_info, made = zipfile.ZipInfo, []
+
+    def observe(*args, **kwargs):
+        made.append(args[0])
+        return zip_info(*args, **kwargs)
+
+    monkeypatch.setattr(zipfile, "ZipInfo", observe)
+    with pytest.raises(attachments.AttachmentRefused, match="metadata"):
+        attachments.read_text("attached" + suffix, out.getvalue())
+    assert not made, "the metadata read must be refused before allocating each member"
+
+
+def test_admitted_archive_content_can_exceed_its_metadata_read_limit(monkeypatch):
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as package:
+        package.writestr("xl/sharedStrings.xml", "<t>" + "x" * 4096 + "</t>")
+    monkeypatch.setattr(attachments, "MOST_ARCHIVE_METADATA_BYTES", 1024, raising=False)
+    kind, text = attachments.read_text("attached.xlsx", out.getvalue())
+    assert kind == "spreadsheet" and "x" * 4096 in text
+
+
 def test_the_archive_budget_has_a_registered_invariant_and_validation():
     from core.organism.model_validation import ValidationSuite, _install_repair_executor_claims
 

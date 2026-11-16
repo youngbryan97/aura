@@ -24,6 +24,7 @@ import subprocess
 import tempfile
 import time
 import zipfile
+from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,7 @@ MOST_BYTES = 100 * 1024 * 1024
 #: Office archives may expand to this many bytes across at most this many members.
 MOST_EXPANDED_BYTES = MOST_BYTES
 MOST_ARCHIVE_MEMBERS = 4096
+MOST_ARCHIVE_METADATA_BYTES = 4 * 1024 * 1024
 
 #: The most pages of a scanned PDF whose words are read off the page pictures.
 MOST_PAGES_READ_BY_SIGHT = 200
@@ -59,6 +61,32 @@ _RECOVERABLE = (OSError, RuntimeError, ValueError, TypeError, KeyError, zipfile.
 
 class AttachmentRefused(ValueError):
     """A file that cannot be kept: too large, or empty."""
+
+
+def _check_metadata_read(size: int) -> None:
+    if size > MOST_ARCHIVE_METADATA_BYTES:
+        raise AttachmentRefused(f"the Office archive metadata exceeds {MOST_ARCHIVE_METADATA_BYTES} bytes")
+
+
+class _ArchiveInput(io.BytesIO):
+    def __init__(self, data: bytes):
+        super().__init__(data)
+        self.metadata_only = True
+        self._size = len(data)
+
+    def read(self, size: int = -1) -> bytes:
+        if self.metadata_only:
+            remaining = max(0, self._size - self.tell())
+            _check_metadata_read(remaining if size < 0 else min(size, remaining))
+        return super().read(size)
+
+
+@contextmanager
+def _office_archive(data: bytes):
+    with _ArchiveInput(data) as source, zipfile.ZipFile(source) as package:
+        _check_archive_budget(package.infolist())
+        source.metadata_only = False
+        yield package
 
 
 def _check_archive_budget(members: list[zipfile.ZipInfo]) -> None:
@@ -84,6 +112,12 @@ def _archive_budget_invariant() -> tuple:
             continue
         raise AssertionError("an Office archive exceeded its expansion budget")
     _check_archive_budget([])
+    try:
+        _check_metadata_read(MOST_ARCHIVE_METADATA_BYTES + 1)
+    except AttachmentRefused:
+        pass
+    else:
+        raise AssertionError("an Office metadata read exceeded its byte budget")
     return ()
 
 
@@ -144,11 +178,10 @@ def _pdf_text(data: bytes) -> str:
 
 def _docx_text(data: bytes) -> str:
     try:
-        with zipfile.ZipFile(io.BytesIO(data)) as package:
-            _check_archive_budget(package.infolist())
         import docx
 
-        document = docx.Document(io.BytesIO(data))
+        with _office_archive(data):
+            document = docx.Document(io.BytesIO(data))
         lines = [paragraph.text for paragraph in document.paragraphs]
         for table in document.tables:
             for row in table.rows:
@@ -178,8 +211,7 @@ def _zipped_xml_text(data: bytes, parts: tuple[str, ...]) -> str:
     def natural(name: str) -> list[Any]:
         return [int(piece) if piece.isdigit() else piece for piece in re.split(r"(\d+)", name)]
 
-    with zipfile.ZipFile(io.BytesIO(data)) as package:
-        _check_archive_budget(package.infolist())
+    with _office_archive(data) as package:
         names = sorted((name for name in package.namelist()
                         if name.endswith(".xml") and any(name.startswith(part) for part in parts)), key=natural)
         texts = []
