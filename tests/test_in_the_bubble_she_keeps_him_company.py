@@ -78,3 +78,46 @@ def test_with_her_window_up_only_the_fault_gate_reaches_her(presence):
     asyncio.run(held._consider_speaking(None))
 
     assert routed.get("fault_gate") is True and "with" not in routed
+
+
+def test_the_person_at_the_desk_is_someone_she_knows_by_name():
+    """LIVE 15 November 2026: the company she kept was held with "person:someone at desktop_email_reply"."""
+    from types import SimpleNamespace
+
+    from core.together.taking_it_up import who_she_is_with
+
+    def person(key, last):
+        return SimpleNamespace(kind="person", key=key, last=last, under_way={})
+
+    record = SimpleNamespace(_things={
+        "a": person("person:bryan", 2580),
+        "b": person("person:someone at desktop_email_reply", 2593),
+    })
+    assert who_she_is_with(record, by_name=True) == "person:bryan"
+    assert who_she_is_with(record) == "person:someone at desktop_email_reply"
+    nobody_named = SimpleNamespace(_things={"b": person("person:someone at desktop_ui", 10)})
+    assert who_she_is_with(nobody_named, by_name=True) == "person:someone at desktop_ui"
+
+
+def test_a_with_begun_without_a_word_carries_on_from_her_recent_conversation(monkeypatch):
+    """LIVE 15 November 2026: she judged a remark worth making twice, and nothing was composed."""
+    from core.together import remarks
+    from core.together.a_with import With
+
+    monkeypatch.setattr(remarks, "said_since", lambda began: [] if began > 0 else [
+        (1.0, "user", "Not bad, slept okay."), (2.0, "assistant", "Glad to hear it.")])
+    seen: dict[str, object] = {}
+
+    class Router:
+        async def think(self, _prompt, *, messages, **_kwargs):
+            seen["messages"] = messages
+            return "That second question wants one thing you built, five levels down."
+
+    monkeypatch.setattr("core.container.ServiceContainer.get", lambda name, default=None: Router() if name == "llm_router" else default)
+    held = With(who=PERSON, what="keeping company at the desk", began=100.0)
+
+    said = asyncio.run(remarks._her_remark(held, "Describe something you built from scratch.", "TextEdit"))
+
+    assert said.startswith("That second question")
+    assert [m["role"] for m in seen["messages"]][:2] == ["user", "assistant"]
+    assert "WHAT IS ON THE SCREEN" in seen["messages"][-1]["content"]

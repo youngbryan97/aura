@@ -99,7 +99,13 @@ async def _her_remark(held: With, capture: str, source: str) -> str:
 
     messages = _what_was_said_since(held.began)
     if not any(message["role"] == "user" for message in messages):
-        # Her model's template has no turn of hers without somebody's before it.
+        # A with begun without a word carries on from her recent conversation. LIVE 15 November 2026, keeping
+        # Bryan company in the bubble, she twice judged a remark worth making and nothing was composed: the with
+        # held no turn of his, and her model's template has no turn of hers without somebody's before it.
+        from core.brain.her_unprompted_turn import CONVERSATION_TURNS
+
+        messages = [{"role": role, "content": content} for _at, role, content in said_since(0.0)[-CONVERSATION_TURNS:]]
+    if not any(message["role"] == "user" for message in messages):
         return ""
     screen = "\n".join(part for part in (source, capture[:SCREEN_CHARS]) if part)
     messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE, "content": f"## WHAT IS ON THE SCREEN\n{screen}"}))

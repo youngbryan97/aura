@@ -338,10 +338,17 @@ def its_own_turn(origin: str) -> bool:
     return bool(origin_tokens(origin) & _ITS_OWN_TURNS)
 
 
-def who_she_is_with(record: Any) -> str:
-    """Who a turn with no name on it is from: whoever she is talking with, or the last person she met."""
+def who_she_is_with(record: Any, *, by_name: bool = False) -> str:
+    """Who a turn with no name on it is from: whoever she is talking with, or the last person she met.
+
+    ``by_name`` keeps to people she knows by name when there are any: "someone at <place>" is where a turn came from,
+    not who.
+    """
     people = [thing for thing in getattr(record, "_things", {}).values()
               if thing.kind == "person" and not its_own_turn(thing.key)]
+    named = [thing for thing in people if not thing.key.startswith(who_it_is("", ""))]
+    if by_name and named:
+        people = named
     if not people:
         return who_it_is("", "")
     talking = [thing for thing in people if thing.under_way]
@@ -349,8 +356,13 @@ def who_she_is_with(record: Any) -> str:
 
 
 def the_person_she_is_with() -> str:
-    """Who she is with now, by her record: the key a with with them is held under, so their turns reach it."""
-    return who_she_is_with(get_taking_it_up()._her_record())
+    """Who she keeps company with at the desk, by her record: someone she knows by name where there is one.
+
+    LIVE 15 November 2026, the company she kept in the bubble was held with "person:someone at
+    desktop_email_reply", her own reply to a mail being the last turn she had heard, while Bryan, at the desk,
+    was "person:bryan".
+    """
+    return who_she_is_with(get_taking_it_up()._her_record(), by_name=True)
 
 
 def hear_in_the_background(said: str, *, person: str = "", sent_from: str = "") -> None:
