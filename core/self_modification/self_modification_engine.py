@@ -79,6 +79,21 @@ async def _keep_the_faults_she_heard() -> None:
                            action="faults she heard stay in memory only; a restart before her loop runs loses them")
 
 
+async def _mend_and_say() -> list[dict[str, Any]]:
+    """Her loop's mend of the faults she heard, each outcome said in her stream."""
+    from core.agency.mending_a_fault_of_hers import mend_the_faults_she_heard
+
+    mended = await mend_the_faults_she_heard()
+    for outcome in mended:
+        loaded = outcome.get("loaded") or {}
+        running = (f"; loaded into her running process: {', '.join(loaded['functions'])}"
+                   if loaded.get("functions") else
+                   f"; not loaded: {loaded['waits'][0]}" if loaded.get("waits") else "")
+        logger.info("🩹 Her own loop on %s: %s (%s)%s", outcome.get("slug"), outcome.get("status"),
+                    outcome.get("why") or outcome.get("commit") or "", running)
+    return mended
+
+
 def _autonomous_cycle_failed(result: dict[str, Any]) -> bool:
     """Distinguish a broken repair attempt from a completed policy decision."""
 
@@ -911,6 +926,14 @@ class AutonomousSelfModificationEngine:
     # Automatic Fix Workflow
     # ========================================================================
 
+    def _start_mending(self) -> bool:
+        """Start her loop's mend as this engine's own task, unless one is running; whether this started it."""
+        running = getattr(self, "_mending", None)
+        if running is not None and not running.done():
+            return False
+        self._mending = get_task_tracker().create_task(_mend_and_say(), name="self_modification.mending")
+        return True
+
     async def run_autonomous_cycle(self) -> dict[str, Any]:
         """Run one autonomous self-improvement cycle (Async).
 
@@ -951,25 +974,19 @@ class AutonomousSelfModificationEngine:
             logger.info("=" * 80)
 
             # Step 0: a fault her own running raised, made again in a workspace of hers and mended by her own loop
-            # (Master Todo F15, core/agency/mending_a_fault_of_hers.py). One a cycle; this cycle runs when she is idle.
-            from core.agency.mending_a_fault_of_hers import mend_the_faults_she_heard
-
-            mended = await mend_the_faults_she_heard()
-            for outcome in mended:
-                loaded = outcome.get("loaded") or {}
-                running = (f"; loaded into her running process: {', '.join(loaded['functions'])}"
-                           if loaded.get("functions") else
-                           f"; not loaded: {loaded['waits'][0]}" if loaded.get("waits") else "")
-                logger.info("🩹 Her own loop on %s: %s (%s)%s", outcome.get("slug"), outcome.get("status"),
-                            outcome.get("why") or outcome.get("commit") or "", running)
-            taken = sum(1 for outcome in mended if outcome.get("status") == "merged")
+            # (Master Todo F15, core/agency/mending_a_fault_of_hers.py). One at a time, as a task of this engine's own
+            # that the cycle starts and does not wait on: the cycle is also run under a caller's bound (her repair
+            # executor gives it 90 s, core/resilience/autonomous_repair_executor.py), and a mend runs her gates for
+            # minutes. LIVE 16 November 2026 that bound cancelled her drill's mend after it had landed on origin.
+            mended = self._start_mending()
+            taken = 0
 
             # Step 1: Find bugs
             bugs = await self.diagnose_current_bugs()
 
             if not bugs:
                 logger.info("No bugs detected - system healthy (idle)")
-                return {"success": True, "bugs_found": 0, "fixes_applied": taken, "faults_mended": mended}
+                return {"success": True, "bugs_found": 0, "fixes_applied": taken, "mending_started": mended}
 
             logger.info("Found %d fixable bugs", len(bugs))
 

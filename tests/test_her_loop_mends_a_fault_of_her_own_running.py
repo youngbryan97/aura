@@ -197,3 +197,37 @@ def test_a_stalled_fault_taken_up_again_runs_on_her_source_as_it_now_is(her_sour
     asyncio.run(mend(_fault(lambda: alone.half(4)), proposals=40, seconds=600))
     workspace = goals.load(first["slug"]).workspace
     assert _git("rev-parse", "HEAD", cwd=workspace).strip() == _git("rev-parse", "HEAD", cwd=her_source).strip()
+
+
+def test_her_mend_outlives_a_bound_put_on_the_cycle_that_started_it(monkeypatch):
+    """LIVE 16 November 2026: her repair executor ran the cycle under a 90 s bound, which cancelled her drill's mend
+    after its gates passed and it landed on origin, so it was never loaded into her running process."""
+    from types import SimpleNamespace
+
+    from core.agency import mending_a_fault_of_hers
+    from core.self_modification.self_modification_engine import (
+        AutonomousSelfModificationEngine as Engine,
+    )
+
+    finished = []
+
+    async def a_slow_mend(**_kwargs):
+        await asyncio.sleep(0.3)
+        finished.append("mended")
+        return []
+
+    monkeypatch.setattr(mending_a_fault_of_hers, "mend_the_faults_she_heard", a_slow_mend)
+    engine = SimpleNamespace()
+
+    async def run():
+        async def the_cycle():
+            assert Engine._start_mending(engine) is True
+            assert Engine._start_mending(engine) is False, "one mend at a time"
+            await asyncio.sleep(10)
+
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(the_cycle(), timeout=0.05)
+        await engine._mending
+
+    asyncio.run(run())
+    assert finished == ["mended"]

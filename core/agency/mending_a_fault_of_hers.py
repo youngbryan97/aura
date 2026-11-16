@@ -196,10 +196,7 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     if refused:
         return await _stop(record, refused, lineage.to_json())
     await runner._write(changed)
-    offered = await _offer(record, workspace, [file, reproduction.test], best, fault)
-    if offered.get("status") == "merged":
-        offered["loaded"] = _into_her_running_process(fault, sources[file], changed[file], record.slug)
-    return offered
+    return await _offer(record, workspace, [file, reproduction.test], best, fault, (sources[file], changed[file]))
 
 
 def _into_her_running_process(fault: Any, before: str, after: str, slug: str) -> dict[str, Any]:
@@ -229,8 +226,12 @@ async def _stop(record: Any, why: str, evidence: Any) -> dict[str, Any]:
     return {"slug": record.slug, "status": record.status, "why": why}
 
 
-async def _offer(record: Any, workspace: Path, files: list[str], best: Any, fault: Any) -> dict[str, Any]:
-    """Commit the mend and its test on the goal's branch, offer it, and let her own yes run her gates."""
+async def _offer(record: Any, workspace: Path, files: list[str], best: Any, fault: Any,
+                 mended: tuple[str, str]) -> dict[str, Any]:
+    """Commit the mend and its test on the goal's branch, offer it, and let her own yes run her gates.
+
+    A mend her yes takes is loaded into her running process in the same call, on the same thread, so a mend that
+    landed is a mend that was loaded, whatever happens to the coroutine waiting on it."""
     from core.agency import her_goal_at_work as goals
 
     call = fault.call
@@ -251,14 +252,20 @@ async def _offer(record: Any, workspace: Path, files: list[str], best: Any, faul
     record.offer = {"summary": message.splitlines()[0], "commit": head.strip(), "at": time.time(), "files": files,
                     "origin": best.origin}
     await goals.save(record)
+    def take_and_load() -> dict[str, Any]:
+        taken = goals.take_it_herself(record.slug)
+        if taken.get("ok"):
+            taken["loaded"] = _into_her_running_process(fault, *mended, record.slug)
+        return taken
+
     try:
-        taken = await asyncio.to_thread(goals.take_it_herself, record.slug)
+        taken = await asyncio.to_thread(take_and_load)
     except (OSError, RuntimeError, ValueError) as exc:
         record_degradation("mending_a_fault_of_hers", exc, severity="warning",
                            action="left her mend offered for Bryan; her own yes did not run")
         taken = {"ok": False, "why": f"her own yes did not run: {type(exc).__name__}"}
     return {"slug": record.slug, "status": "merged" if taken.get("ok") else goals.OFFERED, "commit": head.strip(),
-            "origin": best.origin, "taken": taken}
+            "origin": best.origin, "taken": taken, "loaded": taken.get("loaded") or {}}
 
 
 async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[dict[str, Any]]:
