@@ -10,6 +10,7 @@ says of it, and whether it is worth saying, is her model's, and her Will decides
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
@@ -159,7 +160,7 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) ->
 
     try:
         result = await _on_her_lane(messages, origin=DESK_ORIGIN, least_s=least_s, generations=_DESK_GENERATIONS,
-                                    needs="think_and_act", work=act)
+                                    needs="think_and_act", work=act, to_someone_here=True)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError, TimeoutError) as exc:
         record_degradation(DESK_ORIGIN, exc, severity="debug",
                            action="stayed silent because her own voice was unavailable")
@@ -171,7 +172,7 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) ->
 
 
 async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: float, generations: int, needs: str,
-                       work: Any) -> Any:
+                       work: Any, to_someone_here: bool = False) -> Any:
     """``work(client, seconds)`` on her cortex's client under one generation-lane lease; None when it is not hers now.
 
     It waits for the lane as long as it may take to speak. LIVE 15 November 2026, 18:29 to 18:32, a traceback on the
@@ -197,8 +198,20 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
         return None
     prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
     seconds = generations * max(least_s, time_a_prompt_needs(prompt_chars, A_CLOSED_QUESTIONS_FLOOR))
-    lease = await acquire_external_generation_gate_lease(
-        owner=f"{origin}:her_own_turn", timeout_s=seconds, wait_s=max(seconds, _BACKGROUND_GENERATION_GATE_WAIT_S))
+    waits = contextlib.nullcontext()
+    if to_someone_here:
+        # What she has decided to say to the person in front of her comes before her own background work, as their
+        # turn would: that work stands aside between its generations and the generation in hand is asked to stop,
+        # and a pass of hers keeps what it had done. LIVE 16 November 2026, 08:31 local, keeping Bryan company, her
+        # turn at the desk waited out its time behind her goal pass writing a history of quantum error correction,
+        # "her model is held for something else", and nothing was said.
+        from core.brain.llm_health_router_gate_owners import _a_person_waits, _background_stands_aside
+
+        waits = _a_person_waits()
+        _background_stands_aside(f"{origin}: she has something to say to the person here")
+    with waits:
+        lease = await acquire_external_generation_gate_lease(
+            owner=f"{origin}:her_own_turn", timeout_s=seconds, wait_s=max(seconds, _BACKGROUND_GENERATION_GATE_WAIT_S))
     if lease is None:
         logger.info("🫧 %s: her model is held for something else", origin)
         return None

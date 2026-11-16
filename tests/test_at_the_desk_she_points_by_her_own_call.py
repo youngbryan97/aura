@@ -322,3 +322,32 @@ async def test_her_capability_engine_shows_a_page_from_the_desk_and_from_nowhere
     assert at_the_desk.get("ok") is True, at_the_desk
     assert elsewhere.get("ok") is not True, elsewhere
     assert opened == [SHOWS["show_page"]["url"]]
+
+
+def test_what_she_has_decided_to_say_here_comes_before_her_background_work(monkeypatch):
+    """LIVE 16 November 2026, 08:31: her desk turn waited out its time behind her goal pass, "her model is held for
+    something else", and nothing was said."""
+    from core.brain import llm_health_router_gate_owners as owners
+
+    asked_to_stop: list[str] = []
+    seen_waiting: list[bool] = []
+    monkeypatch.setattr(owners, "_background_stands_aside", lambda reason: asked_to_stop.append(reason))
+    cortex = _HerCortex({"content": "That form wants one thing you built."})
+    monkeypatch.setattr("core.together.remarks.said_since", lambda began: [])
+    gate = type("Gate", (), {"_mlx_client": cortex})()
+    monkeypatch.setattr("core.runtime.service_access.resolve_inference_gate", lambda default=None: gate)
+    monkeypatch.setattr("core.brain.llm_health_router.a_person_is_waiting_for_her_model", lambda: False)
+
+    async def lease(**_kwargs):
+        seen_waiting.append(owners.a_person_is_waiting_for_her_model())
+        return object()
+
+    monkeypatch.setattr("core.brain.llm_health_router.acquire_external_generation_gate_lease", lease)
+    monkeypatch.setattr("core.brain.llm_health_router.release_external_generation_gate_lease", lambda _lease: None)
+
+    said = asyncio.run(turn.her_turn_at_the_desk("WHAT IS ON THE SCREEN", "TextEdit\nDescribe it.", least_s=1.0))
+
+    assert said.startswith("That form")
+    assert seen_waiting == [True], "her background work reads someone waiting while she waits for her model"
+    assert len(asked_to_stop) == 1 and "something to say" in asked_to_stop[0]
+    assert owners.a_person_is_waiting_for_her_model() is False, "the wait ends with her turn"
