@@ -5060,6 +5060,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  - [x] 2026-11-15: a chunk with no selected tests supplies no passing
+    evidence. The runner continues to later chunks, counts empty chunks
+    separately in its defect register, and fails a run whose entire
+    selection is empty. Real pytest probes reproduced the false success
+    for a full selection and a resumed selection, and the inflated count
+    in a mixed run. All 76 focused runner tests pass after the fix.
+    Smoke: 164 passed, 1 skipped in 64.41 s, maximum RSS 456,146,944
+    bytes. Lint, compile, dependency drift, layering, governance and
+    targeted writing passed. Source: tools/run_test_chunks.py; tests:
+    tests/runtime/test_chunk_runner_empty_selection.py.
   - [x] 2026-11-15: apply the chunk runner's requested memory floor to
     isolated retries as well as chunks. An unreadable or incomplete
     measurement refuses work; zero available pages is a measured zero.

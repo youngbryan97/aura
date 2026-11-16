@@ -38,6 +38,8 @@ retries. Changed or unreadable source leaves the run failed; a retry on
 another revision supplies no verdict about order dependence. The dirty
 marker does not hash edits made while the checkout is already dirty.
 Use a pinned worktree and leave its source unchanged during the run.
+Chunks with no selected tests are excluded from passing counts. A run
+whose entire selection is empty fails and records the empty chunk count.
 
 Usage:
     python tools/run_test_chunks.py [--chunks N] [--marker "not live"]
@@ -275,7 +277,8 @@ def run_chunk(
     progress_file: Path | None = None,
     min_free_gb: float = 0.0,
     part: int = 1,
-) -> tuple[bool, str, list[str]]:
+) -> tuple[bool | None, str, list[str]]:
+    """Return a verdict, message and failures; None means no selected tests."""
     label = f"chunk {index}/{total}" + (f" part {part}" if part > 1 else "")
     # Each chunk is a FRESH INTERPRETER launched with subprocess.run, so
     # wrapping this runner in `coverage run` measures the runner and nothing
@@ -375,10 +378,10 @@ def run_chunk(
             f"{label} KILLED (exit {proc.returncode}) after "
             f"{elapsed:.0f}s — likely OOM; a killed chunk is a failure"
         ), failed_ids
-    # pytest exit 5 == no tests collected in this chunk (e.g. everything
-    # deselected by the marker) — that is not a failure.
+    # Empty chunks can precede a nonempty one. They neither stop the run
+    # nor supply passing evidence; an entirely empty selection must fail.
     if proc.returncode == 5:
-        return True, f"{label} had no selected tests", []
+        return None, f"{label} had no selected tests", []
     return False, f"{label} FAILED (exit {proc.returncode}) after {elapsed:.0f}s", failed_ids
 
 
@@ -501,7 +504,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"\n⚠️  {message}\n", flush=True)
         return revision
 
-    results: list[tuple[bool, str, list[str]]] = []
+    results: list[tuple[bool | None, str, list[str]]] = []
     for i, chunk in enumerate(chunk_lists, start=1):
         if source_errors:
             break
@@ -523,7 +526,7 @@ def main(argv: list[str] | None = None) -> int:
             min_free_gb=args.min_free_gb,
         )
         results.append(result)
-        if not result[0] and not args.continue_on_failure:
+        if result[0] is False and not args.continue_on_failure:
             print(
                 f"stopping after chunk {i}/{len(chunk_lists)} failure; "
                 "rerun with --continue-on-failure to collect later chunk failures",
@@ -598,6 +601,11 @@ def main(argv: list[str] | None = None) -> int:
                 note_progress(args.progress_file, f"RETRY ERROR {fid}: {retry_errors[fid]}")
 
     finished_at_revision = observe_revision("after retries")
+    chunk_outcomes = {
+        "passed": sum(ok is True for ok, _, _ in results),
+        "failed": sum(ok is False for ok, _, _ in results),
+        "empty": sum(ok is None for ok, _, _ in results),
+    }
     register_error: str | None = None
     if args.defect_register:
         try:
@@ -611,6 +619,7 @@ def main(argv: list[str] | None = None) -> int:
                 "timed_out_alone": timed_out_alone,
                 "retry_refusals": retry_refusals,
                 "retry_errors": retry_errors,
+                "chunk_outcomes": chunk_outcomes,
                 "source_revision": {
                     "started": started_at_revision,
                     "after_chunks": after_chunks_revision,
@@ -648,8 +657,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"revision {started_at_revision}, unchanged at every source check")
     unisolated_failures = 0
     for ok, line, ids in results:
-        print(("✅ " if ok else "❌ ") + line)
-        if not ok and not ids:
+        print(("⚪ " if ok is None else "✅ " if ok else "❌ ") + line)
+        if ok is False and not ids:
             unisolated_failures += 1
     if order_dependent:
         print(f"\n⚠️  ORDER-DEPENDENCE register ({len(order_dependent)}) — fail in-chunk, pass alone:")
@@ -688,7 +697,12 @@ def main(argv: list[str] | None = None) -> int:
     if order_dependent:
         print(f"\n❌ {len(order_dependent)} order-dependence defect(s) still fail the run")
         return 1
-    print(f"\n✅ all {len(results)} chunks passed")
+    if not chunk_outcomes["passed"]:
+        print("\n❌ no selected tests ran; this run has no passing verdict")
+        return 1
+    print(f"\n✅ all {chunk_outcomes['passed']} chunks passed")
+    if chunk_outcomes["empty"]:
+        print(f"    {chunk_outcomes['empty']} empty chunk(s) excluded from the passing count")
     return 0
 
 
