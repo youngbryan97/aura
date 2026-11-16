@@ -88,6 +88,39 @@ def test_the_goal_record_gets_a_fresh_grant_after_directory_io(her_source, monke
     assert expired and restored is not None and restored.passes == 3
 
 
+@pytest.mark.parametrize("existing", [False, True])
+def test_a_draft_edit_gets_a_fresh_grant_after_directory_io(her_source, monkeypatch, existing):
+    from core.governance_context import get_active_governance, local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    record = work.GoalRecord(goal=GOAL, slug=work.slug_of(GOAL))
+    workspace = work.ensure_workspace(record)
+    asyncio.run(work.save(record))
+    gateway = get_file_write_gateway()
+    ensure_directory = gateway.ensure_directory_async
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    expired = []
+
+    async def ensure_then_expire(*args, **kwargs):
+        token = get_active_governance()
+        result = await ensure_directory(*args, **kwargs)
+        if kwargs.get("source") == "her_draft":
+            assert token is not None and token.domain == "state_mutation"
+            token.mono_timestamp -= token.ttl + 1
+            expired.append(token.lease_id)
+        return result
+
+    monkeypatch.setattr(gateway, "ensure_directory_async", ensure_then_expire)
+    params = ({"path": "core/notes.py", "old_text": "return 0", "new_text": "return 1"} if existing else
+              {"path": "draft/new.py", "old_text": "", "new_text": "VALUE = 1\n"})
+    with local_internal_governed_scope("test.her_draft", domain="tool_execution", receipt_prefix="test-draft"):
+        result = asyncio.run(her_draft.EditDraftSkill().execute(
+            params, {"her_goal": record.slug, "her_goal_workspace": str(workspace)}))
+    assert result["ok"] and expired
+    assert params["new_text"] in (workspace / params["path"]).read_text()
+    assert work.load(record.slug).last_edit_at > 0
+
+
 @pytest.mark.parametrize("slug", ["", ".", "..", "../outside", "nested/goal", "absolute"])
 def test_a_goal_identifier_cannot_name_another_path(her_source, tmp_path, slug):
     if slug == "absolute":

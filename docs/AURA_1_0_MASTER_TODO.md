@@ -609,6 +609,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-15: a draft edit gets a fresh file-write grant
+    after directory setup. Under enforcement, expiring the directory
+    grant made both a new-file edit and an existing-file edit fail
+    at the writer. Both regressions failed before the repair and
+    passed after it, including the saved edit timestamp. All 62
+    focused tests passed. Smoke passed 164 tests with one skip in
+    60.56 s and maximum RSS of 483,164,160 bytes. Lint, compile,
+    dependency drift, layering, governance, module size and targeted
+    writing passed. Source: core/skills/her_draft.py.
+    Tests: tests/test_her_goal_is_worked_by_her.py.
   - [x] 2026-11-15: goal work and its edit, check and offer tools
     read their kept records on worker threads. A complete scratch
     draft pass followed by a held-offer check witnessed eight reads

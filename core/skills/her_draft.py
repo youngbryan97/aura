@@ -245,6 +245,8 @@ class EditDraftSkill(BaseSkill):
         with local_internal_governed_scope("her_draft.edit", domain="state_mutation", receipt_prefix="her-draft",
                                            constraints={"artifact": "aura.her_draft.v1", "operation": "edit"}):
             await gateway.ensure_directory_async(path.parent, source="her_draft")
+        with local_internal_governed_scope("her_draft.edit", domain="state_mutation", receipt_prefix="her-draft",
+                                           constraints={"artifact": "aura.her_draft.v1", "operation": "edit"}):
             await gateway.write_text_async(path, text, source="her_draft")
         record = await asyncio.to_thread(load, _goal_of(context))
         if record is not None:
