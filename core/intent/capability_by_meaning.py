@@ -89,6 +89,13 @@ class Meanings:
                 found[name] = said
         return found
 
+    def warm(self, skills: Mapping[str, Any]) -> int:
+        """Embed every meaning of ``skills`` now, so the first request read by meaning does not wait on it; how many."""
+        texts = [text for said in self.meanings_of(skills).values() for text in said]
+        if texts:
+            self._vector(texts)
+        return len(texts)
+
     def nearest(self, text: str, skills: Mapping[str, Any]) -> list[tuple[str, float]]:
         """Each capability and how near its nearest meaning is to ``text``, the nearest first."""
         meanings = self.meanings_of(skills)

@@ -15,7 +15,7 @@ from core.intent.capability_by_meaning import TASK, Meanings
 
 logger = logging.getLogger("Aura.CapabilityByMeaning")
 
-__all__ = ["meant_capability", "meant_shortlist", "served"]
+__all__ = ["meant_capability", "meant_shortlist", "prewarm_capability_meanings", "served"]
 
 
 _SHARED: dict[str, Meanings] = {}
@@ -48,6 +48,23 @@ def _the_meanings() -> Meanings | None:
         logger.info("no embedding model to read requests by meaning: %s", why)
         return None
     return _SHARED["it"]
+
+
+def prewarm_capability_meanings() -> dict[str, Any]:
+    """Embed the catalogue's meanings at boot, after the embedding model is up.
+
+    LIVE 15 November 2026: the first typed turn after a boot spent 8.6 s reading its request by meaning, embedding
+    every capability's description while the person waited; the turn after it spent 0.05 s on the same step.
+    """
+    import time
+
+    from core.container import ServiceContainer
+
+    started = time.perf_counter()
+    meanings = _the_meanings()
+    skills = getattr(ServiceContainer.get("capability_engine", default=None), "skills", None) or {}
+    embedded = meanings.warm(skills) if meanings is not None and skills else 0
+    return {"embedded": embedded, "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 1)}
 
 
 def meant_capability(text: str, skills: Mapping[str, Any]) -> str | None:

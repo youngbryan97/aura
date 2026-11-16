@@ -1929,6 +1929,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The first turn of each run carries the unattributed time: 9.31 s at
   23:42, 3.25 s at 00:47 UTC; none of the sixteen turns after them in the
   two runs carries more than 1.56 s.
+  The first typed turn after her 18:30 boot (300a683cbcde, 32.0 s, 20.2 s
+  unattributed), read from her log: 3.7 s preparing its context, 3.1 s
+  choosing which earlier exchanges bear on it, 2.5 s assembling her
+  prompt, a one-token reading of whether it asked anything (1.7 s), and
+  8.6 s in the tool hand-off, which embedded every capability's
+  description to read the request by meaning. On the next turns that
+  hand-off step took 0.05 s. Those meanings are now embedded at boot,
+  after the embedding model (prewarm_capability_meanings). On a warm turn
+  (1bb8d3552d87, 16.5 s, 8.2 s unattributed) the parts before generation
+  come to about 4 s and about 4 s more sits around a generation of 6.2 s.
+  The same hand-off read "I slept badly last night" and "What did I tell
+  you about how I slept?" as meaning dream_sleep (stands 3.09 and 2.89
+  out); the skill was withheld only by the turn's compute ceiling.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
