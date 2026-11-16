@@ -98,17 +98,20 @@ async def _her_remark(held: With, capture: str, source: str) -> str:
     from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
 
     messages = _what_was_said_since(held.began)
-    if not any(message["role"] == "user" for message in messages):
-        # A with begun without a word carries on from her recent conversation. LIVE 15 November 2026, keeping
-        # Bryan company in the bubble, she twice judged a remark worth making and nothing was composed: the with
-        # held no turn of his, and her model's template has no turn of hers without somebody's before it.
-        from core.brain.her_unprompted_turn import CONVERSATION_TURNS
-
-        messages = [{"role": role, "content": content} for _at, role, content in said_since(0.0)[-CONVERSATION_TURNS:]]
-    if not any(message["role"] == "user" for message in messages):
-        return ""
     screen = "\n".join(part for part in (source, capture[:SCREEN_CHARS]) if part)
-    messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE, "content": f"## WHAT IS ON THE SCREEN\n{screen}"}))
+    if any(message["role"] == "user" for message in messages):
+        messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE,
+                                         "content": f"## WHAT IS ON THE SCREEN\n{screen}"}))
+    else:
+        # A with begun without a word carries on from the sitting going on now. Carried on from her conversation
+        # however old, LIVE 16 November 2026 it answered a question of eight hours before
+        # (core/brain/her_unprompted_turn.py, her_conversation_now_with). With nobody's words in the with or the
+        # sitting there is no turn of hers to write here; at the desk her own turn speaks from the screen alone.
+        from core.brain.her_unprompted_turn import her_conversation_now_with
+
+        messages = her_conversation_now_with("WHAT IS ON THE SCREEN", screen)
+        if not any(message["role"] == "user" for message in messages[:-1]):
+            return ""
     try:
         from core.brain.llm.llm_tier import LLMTier
         from core.container import ServiceContainer

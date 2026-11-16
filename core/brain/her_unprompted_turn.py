@@ -29,20 +29,41 @@ CONVERSATION_TURNS = 6
 _HER_MODE = "reflective"
 
 
+def her_conversation_now_with(heading: str, reading: str) -> list[dict[str, Any]]:
+    """The conversation of the sitting going on now, its last few turns, and ``reading`` under ``heading`` after it.
+
+    An earlier sitting is not the conversation in front of her (core/conversation/sitting.py): it reaches her as
+    memory, with when it was. LIVE 16 November 2026, 08:32 local, keeping Bryan company at the desk, her remark was
+    "I'm sorry - I wasn't able to highlight it just now ... Could you try asking again in a moment?": the last turns
+    she was given were "Can you highlight the back button?" from 00:40, eight hours and a sitting before, and she
+    answered them, and pointed at an arrow for them.
+
+    Her model's template takes no turn of hers before somebody's ("No user query found in messages"). When nobody
+    has said anything this sitting, the reading is what is in front of them both, so it is the turn before hers; when
+    someone has, it stands beside their talk as runtime evidence.
+    """
+    import time
+
+    from core.conversation.sitting import sitting_begins
+    from core.together.remarks import said_since
+    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
+
+    said = said_since(0.0)
+    now = said[sitting_begins([at for at, _role, _content in said], time.time()):][-CONVERSATION_TURNS:]
+    messages = [{"role": role, "content": content} for _at, role, content in now]
+    someone_spoke = any(message["role"] == "user" for message in messages)
+    messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE if someone_spoke else "user",
+                                     "content": f"## {heading}\n{reading}"}))
+    return messages
+
+
 async def her_turn_on(heading: str, reading: str, *, origin: str, least_s: float) -> str:
     """Her next turn in her conversation, with ``reading`` under ``heading`` beside it; "" when nothing formed.
 
     ``origin`` names the generation in her log and to the lane. ``least_s`` is the least time it may take; a longer
     prompt gets what it needs on this machine.
     """
-    from core.together.remarks import said_since
-    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
-
-    messages = [{"role": role, "content": content} for _at, role, content in said_since(0.0)[-CONVERSATION_TURNS:]]
-    if not any(message["role"] == "user" for message in messages):
-        # Her model's template has no turn of hers without somebody's before it.
-        return ""
-    messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE, "content": f"## {heading}\n{reading}"}))
+    messages = her_conversation_now_with(heading, reading)
     try:
         text = await on_her_cortex(messages, origin=origin, least_s=least_s)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError, TimeoutError) as exc:
@@ -121,13 +142,8 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) ->
 
     from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
     from core.skills.at_the_desk import tool_definitions
-    from core.together.remarks import said_since
-    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
 
-    messages = [{"role": role, "content": content} for _at, role, content in said_since(0.0)[-CONVERSATION_TURNS:]]
-    if not any(message["role"] == "user" for message in messages):
-        return ""  # her model's template has no turn of hers without somebody's before it
-    messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE, "content": f"## {heading}\n{reading}"}))
+    messages = her_conversation_now_with(heading, reading)
 
     async def act(client: Any, seconds: float) -> dict[str, Any]:
         # The allowance her time was worked out for (_on_her_lane). LIVE 16 November 2026, 01:58, without it the loop
@@ -192,5 +208,5 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
         release_external_generation_gate_lease(lease)
 
 
-__all__ = ["CONVERSATION_TURNS", "DESK_ORIGIN", "her_turn_at_the_desk", "her_turn_on", "on_her_cortex",
-           "what_she_finished"]
+__all__ = ["CONVERSATION_TURNS", "DESK_ORIGIN", "her_conversation_now_with", "her_turn_at_the_desk", "her_turn_on",
+           "on_her_cortex", "what_she_finished"]

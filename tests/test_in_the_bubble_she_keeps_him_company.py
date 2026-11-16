@@ -9,6 +9,7 @@ never reached her; in a with, whether to say something is her interest and the w
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -122,13 +123,13 @@ def test_the_person_at_the_desk_is_someone_she_knows_by_name():
     assert who_she_is_with(nobody_named, by_name=True) == "person:someone at desktop_ui"
 
 
-def test_a_with_begun_without_a_word_carries_on_from_her_recent_conversation(monkeypatch):
+def test_a_with_begun_without_a_word_carries_on_from_the_sitting_going_on_now(monkeypatch):
     """LIVE 15 November 2026: she judged a remark worth making twice, and nothing was composed."""
     from core.together import remarks
     from core.together.a_with import With
 
     monkeypatch.setattr(remarks, "said_since", lambda began: [] if began > 0 else [
-        (1.0, "user", "Not bad, slept okay."), (2.0, "assistant", "Glad to hear it.")])
+        (time.time() - 60.0, "user", "Not bad, slept okay."), (time.time() - 30.0, "assistant", "Glad to hear it.")])
     seen: dict[str, object] = {}
 
     class Router:

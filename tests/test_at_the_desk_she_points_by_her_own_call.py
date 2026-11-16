@@ -9,6 +9,7 @@ companion. and yes im giving you permission to work with whatever permissions sh
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -138,7 +139,8 @@ def _her_desk_turn(monkeypatch, result, conversation):
 
 
 def test_her_desk_turn_is_her_conversation_and_the_screen_with_her_desk_tools(monkeypatch):
-    conversation = [(1.0, "user", "Can you highlight the back button?"), (2.0, "assistant", "Give me a moment.")]
+    now = time.time()
+    conversation = [(now - 60.0, "user", "Can you highlight the back button?"), (now - 30.0, "assistant", "One moment.")]
     said, asked = _her_desk_turn(monkeypatch, {
         "content": "There it is, top left.",
         "tool_calls": [{"tool": "point_at_on_screen", "args": POINT, "result": "pointed at 'Back'"}],
@@ -156,10 +158,16 @@ def test_her_desk_turn_is_her_conversation_and_the_screen_with_her_desk_tools(mo
     assert asked["max_tokens"] == A_CLOSED_QUESTIONS_FLOOR, "her time was worked out for this allowance"
 
 
-def test_with_nobody_in_her_conversation_her_desk_turn_is_not_taken(monkeypatch):
-    said, asked = _her_desk_turn(monkeypatch, {"content": "Anything."}, [(1.0, "assistant", "Hello.")])
+def test_an_earlier_sitting_is_not_the_conversation_her_desk_turn_answers(monkeypatch):
+    """LIVE 16 November 2026, 08:32: "I'm sorry - I wasn't able to highlight it just now ... Could you try asking again
+    in a moment?", for "Can you highlight the back button?" asked at 00:40, eight hours and a sitting before."""
+    long_ago = time.time() - 8 * 3600
+    said, asked = _her_desk_turn(monkeypatch, {"content": "That page is the submit form for r/ResearchML."}, [
+        (long_ago, "user", "Can you highlight the back button?"), (long_ago + 90, "assistant", "No tool for that.")])
 
-    assert said == "" and asked == {}
+    assert said.startswith("That page")
+    assert [m["role"] for m in asked["conversation"]] == ["user"], "the screen is the turn before hers"
+    assert "back button" not in str(asked["conversation"])
 
 
 def test_the_loop_follows_a_conversation_in_place_of_a_request():

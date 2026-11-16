@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import time
 
 import pytest
 
@@ -58,8 +59,10 @@ class _Cortex:
 @pytest.fixture(autouse=True)
 def _a_conversation_with_him(monkeypatch):
     """Her remark is her next turn in her conversation with him; a turn of his comes before it."""
+    # In the sitting going on now: an earlier sitting is not the conversation in front of her (16 November 2026).
     monkeypatch.setattr("core.together.remarks.said_since",
-                        lambda _began: [(1.0, "user", "I'm going to run the tests."), (2.0, "assistant", "Go ahead.")])
+                        lambda _began: [(time.time() - 60.0, "user", "I'm going to run the tests."),
+                                        (time.time() - 30.0, "assistant", "Go ahead.")])
 
 
 def _her_cortex_is(monkeypatch, cortex, *, lease: int | None = 7, person_waiting: bool = False):
