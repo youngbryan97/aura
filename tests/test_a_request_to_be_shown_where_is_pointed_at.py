@@ -82,3 +82,32 @@ async def test_the_desktop_task_points_where_nothing_else_is_asked(monkeypatch):
     result = await DesktopTaskSkill().execute({"objective": "Can you highlight the back button?", "steps": []},
                                               {"origin": "desktop_ui"})
     assert result["status"] == "pointed_on_screen" and result["ok"] is True
+
+
+@pytest.mark.parametrize("shown,said", [(True, "A rectangle was drawn on the screen around 'back button'"),
+                                        (False, "Nothing was drawn: could not locate it")])
+@pytest.mark.asyncio
+async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_to_say(monkeypatch, shown, said):
+    """LIVE 16 November 2026, 12:30 local: the ring was drawn around Chrome's back button and Bryan saw it, and he was
+    given "Done - the desktop steps completed and their effects verified." Her capability engine writes its own verdict
+    over a result's "status" ("success_verified"), and the stand-in engine in the test above did not."""
+    from core.capabilities.permission_model import PermissionRiskModel
+    from core.capability_engine import CapabilityEngine
+    from core.container import ServiceContainer
+    from interface.routes import chat as chat_routes
+
+    _drawn(monkeypatch, shown)
+    monkeypatch.setattr("core.runtime.runtime_settings.runtime_approval_mode", lambda: "none")  # as Bryan runs her
+    ServiceContainer.register_instance("permission_model", PermissionRiskModel(), required=False)
+    ServiceContainer.register_instance("capability_engine", CapabilityEngine(), required=False)
+    try:
+        with bind_turn_evidence_custody(session_id="s", turn_id=f"engine-{shown}"):
+            result = await chat_routes._execute_desktop_objective_from_chat("Can you highlight the back button?",
+                                                                            cognitive_reply="")
+            beside = "\n".join(turn_world_evidence())
+    finally:
+        ServiceContainer.unregister("capability_engine")
+        ServiceContainer.unregister("permission_model")
+
+    assert result["status"] == "desktop_objective_pointing_read" and result["response"] == "", result
+    assert said in beside

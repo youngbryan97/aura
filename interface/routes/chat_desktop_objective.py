@@ -769,7 +769,9 @@ def _what_the_pointing_came_to_goes_to_her_turn(result: dict[str, Any]) -> bool:
     reading; whether it went. A pointing step's own account was "Done - ..." or the lane's failure sentence, in her
     place (core/perception/screen_highlight.py, point_as_asked)."""
     drawn = result.get("highlight") if isinstance(result.get("highlight"), dict) else None
-    if drawn is None or result.get("status") not in {"pointed_on_screen", "pointing_refused"}:
+    # Not "status": LIVE 16 November 2026 her capability engine had written "success_verified" over it, and Bryan saw
+    # the ring drawn and was given "Done - the desktop steps completed and their effects verified."
+    if drawn is None or result.get("pointing") not in {"pointed_on_screen", "pointing_refused"}:
         return False
     from core.conversation.turn_evidence_custody import record_turn_grounding, record_turn_world_evidence
 

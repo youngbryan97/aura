@@ -428,9 +428,11 @@ async def point_as_asked(objective: str) -> dict[str, Any] | None:
     receipt = {"index": 1, "action": "highlight_on_screen", "reason": "point at what was asked about",
                "expect": f"a rectangle around {needle!r}", "ok": result.shown, "effect_verified": result.shown,
                "effect_evidence": evidence, "result": result.to_dict()}
-    payload = {"ok": result.shown, "status": "pointed_on_screen" if result.shown else "pointing_refused",
-               "objective": objective, "steps_requested": 1, "steps_completed": int(result.shown),
-               "receipts": [receipt], "highlight": result.to_dict(), "pointed_at": needle if result.shown else "",
+    # "pointing" says what came of it: her capability engine writes its own verdict over "status" on the way back.
+    came_to = "pointed_on_screen" if result.shown else "pointing_refused"
+    payload = {"ok": result.shown, "status": came_to, "pointing": came_to, "objective": objective,
+               "steps_requested": 1, "steps_completed": int(result.shown), "receipts": [receipt],
+               "highlight": result.to_dict(), "pointed_at": needle if result.shown else "",
                "pointing_refused_because": "" if result.shown else result.reason}
     if not result.shown:
         payload["error"] = result.reason
