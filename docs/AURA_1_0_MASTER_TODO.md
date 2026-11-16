@@ -7146,6 +7146,34 @@ needs her 27B free (her app down, or her app's own influence trials).
   first live run, and how many of her faults can be kept as calls at all.
   Her own yes merges into the checkout she runs from, so a commit of hers
   has to reach origin before the next deploy fast-forwards it.
+  16 November, the first live run, read from her stream: 14 November 21:21
+  to 16 November 09:09, 37 boots. Each reason a fault could not be kept is
+  said once a boot: 139 such lines and 11 kept calls, which are 3 distinct
+  faults. Of the 139, 74 were deadlines and cancellations, which say when a
+  call ran, not what it was given. 37 were "raised outside her source", and
+  20 of those were TurnOutcomeError, which her turn outcome builds and
+  records without raising (`core/runtime/turn_outcome.py`). The rest were
+  methods on instances, functions inside functions and arguments that are
+  not plain values. The 3 kept faults: `require_governance` refusing an
+  ungoverned save, `_require_not_shutting_down` refusing a subprocess at
+  shutdown, and a UnicodeDecodeError in the subprocess gateway's reaping.
+  The last was the only code defect. It was heard at 14:08 on 15 November,
+  lost at the next restart before her loop reached it, and fixed by hand the
+  same day. Her loop tried one fault, `require_governance`, twice. The first
+  try's test did not raise. The second searched from 01:11 to 01:35 on 16
+  November until its deadline, and the first candidate that passed the
+  fault's test replaced the check's raise with `pass`. Seven guarding tests
+  broke and it was refused. Mended: none. Changed for it: a deadline, a
+  cancellation and an exception recorded without being raised each say so;
+  faults heard are written to her state when her repair loop wakes and read
+  back at boot; a fault raised in a file that governs her is not drafted
+  (13ce7b1fa); and drop_statement never removes an exit, a branch or a
+  block's only statement (6ba77454a). Correction to the 14 November proof:
+  its planted fault was "mended" by deleting the raise, so `first([])` then
+  raised IndexError instead of ValueError. Its test now asks that the mend
+  keep what the check refuses, and it fails on the old templates. With the
+  change, the mend is `negate_condition`. Left: a week of her running, now
+  that heard faults survive a restart, and the rate on it.
 
 ## Live session 2026-09-07: what the runtime showed
 
