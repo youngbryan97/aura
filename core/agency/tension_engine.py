@@ -12,8 +12,6 @@ Persists to disk so tensions survive restarts.
 from __future__ import annotations
 from core.runtime.errors import record_degradation
 
-from core.runtime.atomic_writer import atomic_write_text_behind
-
 import hashlib
 import json
 import logging
@@ -128,10 +126,18 @@ class TensionEngine:
             self._persist_path.parent.mkdir(parents=True, exist_ok=True)
 
     def _save(self) -> None:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import write_text_behind
+
         try:
             payload = [t.to_dict() for t in self._tensions.values()]
+            text = json.dumps(payload, indent=2)
             # Behind the loop: tick() saves as it registers tensions.
-            atomic_write_text_behind(self._persist_path, json.dumps(payload, indent=2))
+            with local_internal_governed_scope(
+                "tension_engine.save", domain="state_mutation", receipt_prefix="tensions",
+                constraints={"artifact": "aura.tensions.v1", "operation": "replace"},
+            ):
+                write_text_behind(self._persist_path, text, source="tension_engine.save")
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             record_degradation('tension_engine', exc)
             logger.error("TensionEngine failed to persist tensions: %s", exc)

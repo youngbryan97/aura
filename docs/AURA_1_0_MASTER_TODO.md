@@ -5046,6 +5046,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: tension-state saves use the governed deferred
+    writer. All three new regressions failed before the migration:
+    registration and resolution bypassed the gateway, its refusal
+    could not preserve the previous file, and loop-time admission
+    bypassed governance. Saves now reload under enforcement, preserve
+    the prior file on refusal, and perform durable I/O on a worker
+    thread. All 21 focused checks passed, including existing pruning,
+    conflict removal, coalescing and shutdown behavior. The exact
+    inventory replaces one atomic call with one gateway call; total
+    debt remains 2,044 and raw debt 746. Smoke passed 164 tests with
+    one skip in 126.86 s and maximum RSS of 485,408,768 bytes. Lint,
+    compile, dependency drift, layering, governance, module size and
+    targeted writing passed. No live runtime was restarted.
+    Source: core/agency/tension_engine.py.
+    Tests: tests/test_tension_state_uses_the_governed_writer.py.
   - [x] 2026-11-16: the effect inventory counts deferred gateway
     writes and atomic appends. Five parser regressions failed before
     the fix; aliases and thread delegates now count without classifying
