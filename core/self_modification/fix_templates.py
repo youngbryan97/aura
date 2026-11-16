@@ -180,15 +180,21 @@ def changes_at(source: str, line: int) -> Iterator[tuple[str, str]]:
             yield from kept("drop_statement", _replace(source, a, b, "pass"))
 
 
-def template_changes(ranked: Sequence[tuple[Line, float]], sources: Mapping[str, str]) -> Iterator[tuple[str, str, str]]:
+def template_changes(ranked: Sequence[tuple[Line, float]], sources: Mapping[str, str],
+                     error_type: str = "") -> Iterator[tuple[str, str, str]]:
     """(path, template, changed source) for every template at every ranked line, most suspicious line first.
 
-    At one line, the templates with the fewest alternatives there go first, so a line's few exact checks are
-    not queued behind every other name in scope (30 of 38 candidates on a real defect, 18 October 2026), and
-    dropping a statement goes last: of the templates it is the one a real fix least often is.
+    At one line, the checkers the fault's exception asks for go first (checker_templates.py), when ``error_type``
+    names it. The templates with the fewest alternatives there follow, so a line's few exact checks are not queued
+    behind every other name in scope (30 of 38 candidates on a real defect, 18 October 2026), and dropping a statement
+    goes last: of the templates it is the one a real fix least often is.
     """
+    from core.self_modification.checker_templates import checker_changes_at
+
     for (path, line), score in ranked:
         if path in sources and score > 0:
+            for name, changed in checker_changes_at(sources[path], line, error_type):
+                yield path, name, changed
             changes = list(changes_at(sources[path], line))
             alternatives = {name: sum(1 for n, _ in changes if n == name) for name, _ in changes}
             order = sorted(changes, key=lambda c: (c[0] == "drop_statement", alternatives[c[0]]))

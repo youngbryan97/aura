@@ -41,6 +41,9 @@ _GUARD = textwrap.dedent('''
         assert count([1, 2]) == 2
 ''')
 _UNGUARDED = "def half(n):\n    return n / 0\n"
+_PEOPLE = "def label(person):\n    return person.name.title()\n"
+_PEOPLE_GUARD = ("from planted_pkg.people import label\n\n\nclass _Person:\n    name = 'ada'\n\n\n"
+                 "def test_label():\n    assert label(_Person()) == 'Ada'\n")
 
 
 def _git(*args, cwd):
@@ -56,7 +59,9 @@ def her_source(tmp_path, monkeypatch):
     (source / "planted_pkg" / "__init__.py").write_text("")
     (source / "planted_pkg" / "rows.py").write_text(_ROWS)
     (source / "planted_pkg" / "alone.py").write_text(_UNGUARDED)
+    (source / "planted_pkg" / "people.py").write_text(_PEOPLE)
     (source / "tests" / "test_rows.py").write_text(_GUARD)
+    (source / "tests" / "test_people.py").write_text(_PEOPLE_GUARD)
     _git("init", "-q", "-b", "main", cwd=source)
     _git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A", cwd=source)
     _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "planted", cwd=source)
@@ -68,7 +73,7 @@ def her_source(tmp_path, monkeypatch):
     monkeypatch.setattr(a_call_that_failed, "_ROOT", source.resolve())
     monkeypatch.setattr(faults_she_can_reproduce, "where_heard_faults_are_kept", lambda: tmp_path / "heard.json")
     monkeypatch.syspath_prepend(str(source))
-    for name in ("planted_pkg", "planted_pkg.rows", "planted_pkg.alone"):
+    for name in ("planted_pkg", "planted_pkg.rows", "planted_pkg.alone", "planted_pkg.people"):
         sys.modules.pop(name, None)
     yield source
     from core.self_modification.into_the_running_process import undo_every_load_for_test
@@ -167,3 +172,13 @@ def test_a_fault_raised_in_what_governs_her_is_not_drafted(her_source):
     done = asyncio.run(mend(HeardFault(call, "causal_world_model", 0.0, 0.0), proposals=10, seconds=60))
     assert done["status"] == goals.STALLED and "which governs her" in done["why"], done
     assert not (her_source.parent / "workspaces").exists(), "no workspace is made for a mend it will not draft"
+
+
+def test_a_none_her_function_was_handed_is_mended_by_the_checker_its_exception_asks_for(her_source):
+    """AttributeError on None: her templates had no checker, so a fault of this, the commonest kind, had no mend."""
+    import planted_pkg.people as people
+
+    done = asyncio.run(mend(_fault(lambda: people.label(None)), proposals=80, seconds=900))
+    assert done["status"] == "merged" and done["origin"] == "template:guard_none_value", done
+    assert people.label(None) is None, "the running process runs the guarded body"
+    assert "if person is not None else None" in (her_source / "planted_pkg" / "people.py").read_text()

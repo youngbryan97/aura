@@ -98,11 +98,13 @@ def _ruff_fixed(source: str, path: str, repo: Path) -> str:
 
 
 def proposals_without_a_model(failure: str, sources: Mapping[str, str], repo: Path,
-                              ranked: Sequence[tuple[tuple[str, int], float]] = ()) -> Iterator[tuple[str, str]]:
+                              ranked: Sequence[tuple[tuple[str, int], float]] = (),
+                              error_type: str = "") -> Iterator[tuple[str, str]]:
     """Every exact change these proposers write for ``sources``, as (origin, SEARCH/REPLACE text).
 
     ``ranked`` is the lines the failing tests ran, most suspicious first (fix_templates.ochiai); the fix
-    templates are tried there after the import, the shapes and ruff.
+    templates are tried there after the import, the shapes and ruff. ``error_type`` is the exception the fault
+    raised, when it is known, and puts the checkers it asks for first at each line.
     """
     from core.self_modification.code_that_looks_wrong import applied, what_looks_wrong
     from core.self_modification.repairing_by_behaviour import _candidates
@@ -129,5 +131,5 @@ def proposals_without_a_model(failure: str, sources: Mapping[str, str], repo: Pa
                 yield "ruff", _whole(path, source, fixed)
     from core.self_modification.fix_templates import template_changes
 
-    for path, name, changed in template_changes(ranked, sources):
+    for path, name, changed in template_changes(ranked, sources, error_type):
         yield f"template:{name}", _whole(path, sources[path], changed)

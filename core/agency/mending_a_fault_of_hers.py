@@ -119,7 +119,7 @@ def the_lines_it_ran(source: str, path: str, line: int) -> list[tuple[tuple[str,
 
 
 def her_own_python_first(workspace: Path, at: tuple[str, int],
-                         then: Callable[..., Awaitable[list[tuple[str, str]]]] | None = None):
+                         then: Callable[..., Awaitable[list[tuple[str, str]]]] | None = None, error_type: str = ""):
     """Her own Python's exact changes first, at the lines of the function the fault was raised in, then ``then``'s
     (her model's)."""
     from core.self_modification.proposals_without_a_model import proposals_without_a_model
@@ -132,7 +132,7 @@ def her_own_python_first(workspace: Path, at: tuple[str, int],
             failure = parent.fitness.failures if parent is not None and parent.fitness else defect.seen
             path, line = at
             ranked = the_lines_it_ran(start.get(path, ""), path, line)
-            pending[key] = proposals_without_a_model(failure, start, workspace, ranked)
+            pending[key] = proposals_without_a_model(failure, start, workspace, ranked, error_type)
         exact = next(pending[key], None)
         if exact is not None:
             return [exact]
@@ -179,7 +179,7 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
 
     lineage = await repair_by_selection(
         defect, sources=sources, neighbours=neighbours, run=runner.run,
-        propose=her_own_python_first(Path(workspace), (file, fault.call.line), model),
+        propose=her_own_python_first(Path(workspace), (file, fault.call.line), model, fault.call.error_type),
         proposals=proposals, deadline=time.time() + seconds,
     )
     best = lineage.best
