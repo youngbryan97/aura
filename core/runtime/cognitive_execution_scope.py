@@ -9,11 +9,13 @@ acquiring authority merely because it happens to resemble a command.
 from __future__ import annotations
 
 import hashlib
+from collections import OrderedDict
 from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any
 
 from core.runtime.background_policy import is_user_facing_origin
+from core.runtime.lockdep import checked_lock
 
 
 class CognitiveExecutionScope(StrEnum):
@@ -73,6 +75,17 @@ def resolve_cognitive_execution_scope(
     return CognitiveExecutionScope.REASONING_ONLY
 
 
+#: Each recent objective bound reasoning-only, by its digest, so that scope travels with the objective's text.
+#: LIVE 15-16 November 2026 her mind tick took the dream journal's prompt, left as her current objective, and ran it
+#: through a kernel tick of its own whose state carried no binding. Her skill phase read no binding as no
+#: objection and dispatched build_document and code_repl for a dream: 16 dispatches of skills nobody asked for,
+#: 10 of them refused by their own parameter checks. The cap bounds memory only; an objective re-run is a recent one.
+#: Only the narrower scope is remembered, so this can refuse what was allowed before and never allow what was not.
+_BOUND_BY_DIGEST: OrderedDict[str, CognitiveExecutionScope] = OrderedDict()
+_REMEMBERED = 256
+_BOUND_LOCK = checked_lock("cognitive_execution_scope.bound_by_digest")
+
+
 def bind_cognitive_execution_scope(
     state: Any,
     objective: Any,
@@ -86,6 +99,16 @@ def bind_cognitive_execution_scope(
         "objective_digest": objective_digest(objective),
         "source": str(source or "unknown"),
     }
+    digest = binding["objective_digest"]
+    if digest:
+        with _BOUND_LOCK:
+            if resolved is CognitiveExecutionScope.REASONING_ONLY:
+                _BOUND_BY_DIGEST[digest] = resolved
+                _BOUND_BY_DIGEST.move_to_end(digest)
+                while len(_BOUND_BY_DIGEST) > _REMEMBERED:
+                    _BOUND_BY_DIGEST.popitem(last=False)
+            else:
+                _BOUND_BY_DIGEST.pop(digest, None)
     modifiers = getattr(state, "response_modifiers", None)
     if not isinstance(modifiers, dict):
         modifiers = {}
@@ -98,15 +121,15 @@ def bound_cognitive_execution_scope(
     state: Any,
     objective: Any,
 ) -> CognitiveExecutionScope | None:
-    modifiers = getattr(state, "response_modifiers", None)
-    if not isinstance(modifiers, Mapping):
-        return None
-    binding = modifiers.get(_BINDING_KEY)
-    if not isinstance(binding, Mapping):
-        return None
+    """The scope bound to this objective: on this state, or where its own cycle bound it."""
     digest = objective_digest(objective)
-    if not digest or str(binding.get("objective_digest") or "") != digest:
+    modifiers = getattr(state, "response_modifiers", None)
+    binding = modifiers.get(_BINDING_KEY) if isinstance(modifiers, Mapping) else None
+    if not digest:
         return None
+    if not isinstance(binding, Mapping) or str(binding.get("objective_digest") or "") != digest:
+        with _BOUND_LOCK:
+            return _BOUND_BY_DIGEST.get(digest)
     try:
         return CognitiveExecutionScope(str(binding.get("scope") or ""))
     except ValueError:

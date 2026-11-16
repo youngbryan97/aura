@@ -157,3 +157,28 @@ async def test_godmode_does_not_block_a_different_autonomous_objective() -> None
 
     assert result.response_modifiers["intent_type"] == "SKILL"
     assert "execution_suppressed" not in result.response_modifiers
+
+
+@pytest.mark.asyncio
+async def test_an_objective_bound_reasoning_only_stays_so_when_another_tick_runs_it() -> None:
+    """LIVE 15-16 November 2026: her mind tick ran the dream journal's prompt, left as her current objective, through a
+    kernel tick whose state carried no binding, and her skill phase dispatched build_document for a dream."""
+    dream = "[SYSTEM ROLE: THE SUBCONSCIOUS]\nSynthesize these fragments into a single metaphor."
+    bind_cognitive_execution_scope(
+        AuraState.default(), dream, CognitiveExecutionScope.REASONING_ONLY, source="cognitive_engine:dream_journal",
+    )
+    rerun = AuraState.default()
+    rerun.cognition.current_origin = "dream_journal"
+    rerun.response_modifiers.update({"intent_type": "SKILL", "matched_skills": ["build_document"]})
+
+    result = await GodModeToolPhase(SimpleNamespace()).execute(rerun, objective=dream)
+
+    assert result.response_modifiers["intent_type"] == "CHAT"
+    assert result.response_modifiers["execution_suppressed"]["reason"] == "cognitive_request_reasoning_only"
+
+
+def test_a_later_action_binding_of_the_same_words_is_not_held_back() -> None:
+    words = "Search for the paper on ternary weights"
+    bind_cognitive_execution_scope(AuraState.default(), words, CognitiveExecutionScope.REASONING_ONLY, source="a")
+    bind_cognitive_execution_scope(AuraState.default(), words, CognitiveExecutionScope.GOVERNED_ACTIONS, source="b")
+    assert cognitive_request_allows_actions(AuraState.default(), words)
