@@ -996,6 +996,41 @@ def _mlx_default_device_does_not_leak():
         mx.set_default_device(natural)
 
 
+#: The entry points of her model workers: a process started at one of these loads a model's weights.
+_MODEL_WORKER_LOOPS = frozenset({"_mlx_worker_loop", "_mlx_vision_worker_loop"})
+
+
+@pytest.fixture(autouse=True)
+def _no_test_starts_a_real_model_worker(request, monkeypatch):
+    """A test that is not marked live or external never starts a real model worker.
+
+    LIVE 16 November 2026, 02:06 local: a related-test run on four workers built a router whose endpoints were her
+    real models and lazily started her Brainstem (Ternary-Bonsai-2-27B, 12 GB) and Reflex workers beside the 27B
+    resident in her app. Memory reached 91%, her memory guard aborted her cortex's generation and stopped its worker,
+    and the same run's earlier pass had started them five times between 01:42 and 01:43. Started here, a worker
+    is refused with the test's name, so the test that reached for it can be found and given a stand-in or a mark.
+    """
+    if request.node.get_closest_marker("live") or request.node.get_closest_marker("external"):
+        yield
+        return
+    try:
+        from core.runtime.subprocess_gateway import SubprocessGateway
+    except ImportError:
+        yield
+        return
+    original = SubprocessGateway.spawn_python_process
+
+    def refused(self, spec, *args, **kwargs):
+        target = getattr(spec, "target", None)
+        if getattr(target, "__name__", "") in _MODEL_WORKER_LOOPS:
+            raise RuntimeError(f"{request.node.nodeid} started a real model worker ({target.__name__}); "
+                               "give it a stand-in or mark it live")
+        return original(self, spec, *args, **kwargs)
+
+    monkeypatch.setattr(SubprocessGateway, "spawn_python_process", refused)
+    yield
+
+
 @pytest.fixture(autouse=True)
 def _her_words_are_not_read_by_a_model_on_disk(monkeypatch):
     """Whether a test's answer is placed by her words cannot depend on the cache.
