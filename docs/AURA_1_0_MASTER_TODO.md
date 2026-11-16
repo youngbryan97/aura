@@ -3989,6 +3989,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   thirteen remarks and questions, all as expected. Left: the evidence
   template that replaces a reply which does not cite the search (F06's
   class).
+  The three turns again at 18:30 on 082ed5c55, her app restarted on it:
+  the remark read nothing from the web and was answered in her words in
+  32.0 s ("That's a rough amount of sleep to wake up on. I'm sorry you're
+  dealing with that today."), "6" in 17.2 s, and "You told me you slept
+  badly — maybe four hours." in 16.5 s, all on the quick lane. The first
+  turn's 20.2 s unattributed is R11's.
   Bryan, same evening: his words to himself were answered as turns. At
   11:00 local, in a voice session, "Okay.", "But thank you." and "Probably
   not." were answered ("I was saying it's a good sound.", "You're
