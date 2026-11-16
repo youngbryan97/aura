@@ -377,6 +377,20 @@ def _bryans_standing_yes(context: Dict[str, Any], effect_scope: str, execution_r
     return grant if valid else ""
 
 
+def _standing_yes_reaches(context: Dict[str, Any], modality: str, effect_scope: str, execution_risk: str) -> bool:
+    """Whether this call holds a valid lease from a grant of Bryan's that reaches ``modality``.
+
+    LIVE 16 November 2026: her round's reply ffb62e8291 was refused "Modality 'email' is disabled" on every round
+    from 20:52 local the night before, after Bryan said "she should send email responses on her own".
+    """
+    grant = _bryans_standing_yes(context, effect_scope, execution_risk)
+    if not grant:
+        return False
+    from core.executive.standing_authority import STANDING_YES_MODALITIES
+
+    return modality in STANDING_YES_MODALITIES.get(grant, frozenset())
+
+
 class PermissionRiskModel:
     """Per-action risk classification and approval gating.
 
@@ -538,8 +552,10 @@ class PermissionRiskModel:
         if user_presence_verified:
             reason = f"{reason}; verified user presence observed"
 
-        # Check modality permissions
-        modality_allowed = self._check_modality(modality)
+        # Check modality permissions. A modality that is off by default is on for a call that holds a lease from a
+        # grant of Bryan's that reaches it: his yes to her own mail replies reaches email, and nothing else does.
+        modality_allowed = self._check_modality(modality) or _standing_yes_reaches(
+            context, modality, effect_scope, execution_risk)
         if not modality_allowed:
             decision = PermissionDecision(
                 action=action, target=target[:200],

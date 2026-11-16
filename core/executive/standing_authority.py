@@ -109,6 +109,8 @@ AUTONOMOUS_AUTHORITY_ORIGINS = frozenset(
         "her_goal_background",
         # Her turn at the desk while she keeps a person company (DESK_COMPANY_ORIGIN).
         "her_desk_company",
+        # Her mail round sending a reply she wrote to someone who wrote to her (MAIL_REPLY_ORIGIN).
+        "her_mail_reply",
     }
 )
 
@@ -184,9 +186,17 @@ _DESK_COMPANY_ARGUMENTS = {"point_at_on_screen": frozenset({"words"})}
 DESK_COMPANY_ORIGIN = "her_desk_company"
 #: The grant that is Bryan's standing yes to what she does on the screen while keeping company.
 DESK_COMPANY_GRANT = "aura.desk-company"
-#: The grants whose lease is Bryan's yes to a high-risk call nobody is there to confirm
-#: (core/capabilities/permission_model.py).
-BRYANS_STANDING_YES = frozenset({OWN_GOAL_GRANT, DESK_COMPANY_GRANT})
+#: Her replies to people who wrote to her (core/skills/her_replies_to_mail.py), sent by her mail round: the tool,
+#: what a reply takes (the rest are the adapter's own defaults, filled in before a call is rated), the round's origin
+#: when it sends, and the grant that is Bryan's standing yes to them.
+MAIL_REPLY_TOOLS = frozenset({"email_adapter"})
+_MAIL_REPLY_ARGUMENTS = frozenset({"mode", "uid", "body", "in_reply_to", "references", "limit", "query"})
+MAIL_REPLY_ORIGIN = "her_mail_reply"
+MAIL_REPLY_GRANT = "aura.own-mail-replies"
+#: The grants whose lease is Bryan's yes to a call nobody is there to confirm (core/capabilities/permission_model.py),
+#: and for each, the modalities a call within it reaches that are off unless someone says otherwise.
+BRYANS_STANDING_YES = frozenset({OWN_GOAL_GRANT, DESK_COMPANY_GRANT, MAIL_REPLY_GRANT})
+STANDING_YES_MODALITIES = {MAIL_REPLY_GRANT: frozenset({"email", "network_write"})}
 BACKGROUND_REFLECTION_ROLES = frozenset({"architect", "critic", "philosopher"})
 BACKGROUND_REFLECTION_MAX_ACTIONS = 6
 BACKGROUND_REFLECTION_WINDOW_SECONDS = 3600.0
@@ -224,6 +234,7 @@ _SUPPORTED_ARGUMENT_POLICIES = frozenset(
         "foreground_user_request",
         "desk_company",
         "her_goal_work",
+        "her_mail_reply",
         "local_introspection",
         "owner_private_message",
         "public_research",
@@ -252,14 +263,16 @@ def normalize_authority_origin(value: Any) -> str:
 def carries_bryans_standing_yes(origin: Any, tool_name: Any) -> bool:
     """Whether this is a call Bryan said yes to in advance, for a pass of hers nobody is at the keyboard for.
 
-    Her goal tools from her goal pass ("She can do it without me", 9 November 2026), and her desk tools from her turn
-    at the desk ("full companion ... im giving you permission to work with whatever permissions she needs",
-    15 November 2026). Everything else about the call still applies: its lease, the Will, and the permission model's
-    check of that lease.
+    Her goal tools from her goal pass ("She can do it without me", 9 November 2026), her desk tools from her turn at
+    the desk ("full companion ... im giving you permission to work with whatever permissions she needs", 15 November
+    2026), and her replies from her mail round ("she should send email responses on her own", 15 November 2026).
+    Everything else about the call still applies: its lease, the Will, and the permission model's check of that
+    lease.
     """
     source, name = str(origin or ""), normalize_tool_name(tool_name)
     return ((source == OWN_GOAL_ORIGIN and name in OWN_GOAL_TOOLS)
-            or (source == DESK_COMPANY_ORIGIN and name in DESK_COMPANY_TOOLS))
+            or (source == DESK_COMPANY_ORIGIN and name in DESK_COMPANY_TOOLS)
+            or (source == MAIL_REPLY_ORIGIN and name in MAIL_REPLY_TOOLS))
 
 
 def coerce_authority_origin(value: Any) -> str:
@@ -652,6 +665,29 @@ def _builtin_grants() -> tuple[StandingAuthorityGrant, ...]:
             argument_policy="desk_company",
             built_in=True,
         ),
+        # Bryan, 15 November 2026: "she should send email responses on her own. she doesnt need my
+        # permission to do that" (AURA_EMAIL_SENDS_WITHOUT_ASKING, core/runtime/standing_defaults.py). Until
+        # this grant her round's every send was refused: the email modality is off by default, and the only
+        # grant naming email_adapter reads.
+        StandingAuthorityGrant(
+            grant_id=MAIL_REPLY_GRANT,
+            issuer="owner_policy",
+            description=(
+                "While Bryan lets her send her own replies, Aura's mail round may send a reply she "
+                "wrote to the person whose message it answers. Nothing new is sent to anyone."
+            ),
+            allowed_origins=(MAIL_REPLY_ORIGIN,),
+            allowed_tools=tuple(sorted(MAIL_REPLY_TOOLS)),
+            allowed_effect_scopes=("external_io",),
+            max_risk="high",
+            # One reply to each message a check returns (email_adapter._bounded_limit, 50), a check every
+            # 900 s (social_initiative): 200 an hour.
+            max_actions=200,
+            window_seconds=3600.0,
+            lease_ttl_seconds=120.0,
+            argument_policy="her_mail_reply",
+            built_in=True,
+        ),
         StandingAuthorityGrant(
             grant_id="aura.autonomous-owner-private-message",
             issuer="owner_policy",
@@ -1030,6 +1066,22 @@ class StandingAuthorityManager:
                 return False, "maintenance_tool_mismatch"
             valid, reason = self._validate_aura_source_paths(raw_paths)
             return (True, "read_only_maintenance") if valid else (False, reason)
+        if policy == "her_mail_reply":
+            from core.skills.her_replies_to_mail import sends_without_asking
+
+            if tool_name not in MAIL_REPLY_TOOLS:
+                return False, "her_mail_reply_tool_mismatch"
+            if not sends_without_asking():
+                return False, "her_mail_reply_waits_for_bryan"
+            if str(arguments.get("mode") or "").strip().lower() != "reply":
+                return False, "her_mail_reply_is_only_a_reply"
+            # Judged by what the call carries: the adapter authorizes its whole input model, every field it has
+            # at None included, and a reply that names a recipient or a subject of its own is not a reply.
+            if {key for key, value in arguments.items() if value not in (None, "")} - _MAIL_REPLY_ARGUMENTS:
+                return False, "her_mail_reply_arguments_unsupported"
+            if not str(arguments.get("uid") or "").strip() or not str(arguments.get("body") or "").strip():
+                return False, "her_mail_reply_names_no_message_or_says_nothing"
+            return True, "her_mail_reply"
         if policy == "desk_company":
             if tool_name not in DESK_COMPANY_TOOLS:
                 return False, "desk_company_tool_mismatch"

@@ -25,13 +25,21 @@ class _StartsSomethingSocial:
     ) -> dict[str, Any]:
         cap_engine = cap_engine or optional_service("capability_engine", default=None)
         if cap_engine is not None and hasattr(cap_engine, "execute"):
+            # A reply she wrote goes out under its own origin, the one Bryan's standing yes to her replies names
+            # (core/executive/standing_authority.py, aura.own-mail-replies); sent as a read of her inbox, it was
+            # refused every round.
+            from core.executive.standing_authority import MAIL_REPLY_ORIGIN
+
+            replying = str(payload.get("mode") or "") == "reply"
+            origin = MAIL_REPLY_ORIGIN if replying else "autonomous_initiative_loop"
             return await cap_engine.execute(
                 "email_adapter",
                 payload,
                 {
-                    "origin": "autonomous_initiative_loop",
-                    "intent_source": "autonomous_initiative_loop",
-                    "objective": "Read connected email state for bounded autonomous triage.",
+                    "origin": origin,
+                    "intent_source": origin,
+                    "objective": ("Send her reply to the person whose message it answers." if replying
+                                  else "Read connected email state for bounded autonomous triage."),
                     "user_facing": False,
                 },
             )

@@ -6961,6 +6961,21 @@ needs her 27B free (her app down, or her app's own influence trials).
   his standing yes ({"ok": true}), and Bryan: "Yup! I got the email". Her
   own round sending the next one, with the retry in daef08f55, is still to
   be seen.
+  16 November: her round had never sent one. Its next reply, ffb62e8291
+  ("Re: Checking In"), was refused on every round from 20:52 local:
+  "Modality 'email' is disabled". The email modality is off by default.
+  The only grant naming email_adapter allows reads, and the send went out
+  labelled as a read of her inbox. Now her round sends a reply under its
+  own origin and a standing grant, aura.own-mail-replies. The grant holds
+  only while AURA_EMAIL_SENDS_WITHOUT_ASKING is on, and covers only a
+  reply to the message it answers, with no recipient or subject of its
+  own. It allows 200 an hour: one reply to each of the 50 messages a
+  check reads, a check every 900 s. A lease from it opens the email
+  modality for that call. Through her capability engine with the SMTP
+  step stood in, the reply goes out with a Will receipt. The same reply
+  from her generic loop still asks for confirmation, a new email is
+  refused, and with the setting off the reply waits for Bryan. Left: the
+  reply seen leaving her own round live.
 - [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
   the 512-unit substrate (d9fdc1660). Left: each module driving what she does
   or says, measured by lesion. Lane: no.
