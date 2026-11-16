@@ -36,7 +36,7 @@ def label(person: Any) -> Any:
 
 def nth(rows: list[Any], n: int) -> Any:
     """The nth of some rows: the drill's second planted fault, for an n the rows do not reach."""
-    return rows[n]
+    return (rows[n] if -len(rows) <= n < len(rows) else None)
 
 
 #: The planted faults, in the order a drill raises them: each drill raises the first that still raises, so a fault
