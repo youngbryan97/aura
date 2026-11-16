@@ -14,6 +14,7 @@ Usage:
     browser.click("input[name='btnK']")
 """
 import asyncio
+import contextlib
 import hashlib
 import logging
 import os
@@ -69,6 +70,9 @@ except (ImportError, TypeError, ValueError) as stealth_import_error:
     STEALTH_AVAILABLE = False
 
 logger = logging.getLogger("PhantomBrowser")
+
+#: How long a navigation may take, and so how long the file a navigation became may take to arrive.
+_NAVIGATION_MS = 30000
 
 _SYSTEM_CHROMIUM_EXECUTABLES = (
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -303,6 +307,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         self._driver_pid: int | None = None
         self._driver_registered = False
         self._last_navigation: dict[str, Any] = {"ok": False, "reason": "never_navigated"}
+        self._document: dict[str, Any] | None = None
         self._last_verdict: dict[str, Any] = {}
         self._last_interaction: dict[str, Any] = {}
         self._last_extraction: dict[str, Any] = {}
@@ -796,6 +801,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         self._driver_pid = None
         self._driver_registered = False
         self._last_navigation: dict[str, Any] = {"ok": False, "reason": "never_navigated"}
+        self._document: dict[str, Any] | None = None
         self._last_verdict: dict[str, Any] = {}
         self._last_interaction: dict[str, Any] = {}
         self._last_extraction: dict[str, Any] = {}
@@ -980,15 +986,47 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
 
         logger.info("🌐 Navigating to: %s", url)
         await show_activity(self, "navigating")
+        self._document = None
+        # A navigation the browser answers with a download raises from goto. LIVE 15-16 November 2026 that was
+        # every arXiv paper she opened as a PDF ("Page.goto: Download is starting"), five times; the file was
+        # kept (where_downloads_go) and never read. The download is heard here, and a document is read as the page.
+        downloads: list[Any] = []
+        a_download = asyncio.Event()
+
+        def heard(download: Any) -> None:
+            # A function, not ``downloads.append``: Playwright sets an attribute on its handler, which a bound
+            # builtin cannot take.
+            downloads.append(download)
+            a_download.set()
+
+        page = self.page
+        if callable(getattr(page, "on", None)):
+            page.on("download", heard)
+        started = time.monotonic()
         try:
-            response = await get_page_gateway().go_to(self.page, url, source="phantom_browser.browse", timeout=30000, wait_until='domcontentloaded')
+            response = await get_page_gateway().go_to(page, url, source="phantom_browser.browse",
+                                                      timeout=_NAVIGATION_MS, wait_until='domcontentloaded')
             await self._human_delay(1, 2)
         except (RuntimeError, AttributeError, TypeError, ValueError, PlaywrightError) as e:
+            if not downloads and "Download is starting" in str(e):
+                # Playwright's documented error for a navigation answered with a file. Its download event can come
+                # after the error: on headless Chromium it came after it, by at most 0.2 ms, in 20 of 20 navigations
+                # (16 November 2026). It is waited for as long as the navigation had left.
+                left = max(0.0, _NAVIGATION_MS / 1000.0 - (time.monotonic() - started))
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(a_download.wait(), timeout=left)
+            if downloads:
+                arrived = await self._arrive_at_a_document(url, downloads[0], principal=principal)
+                await show_activity(self, "navigating", stage="completed" if arrived else "failed")
+                return arrived
             record_degradation('phantom_browser', e)
             logger.error("Navigation failed: %s", e)
             self._last_navigation = {"ok": False, "reason": f"navigation_error:{type(e).__name__}"}
             await show_activity(self, "navigating", stage="failed")
             return False
+        finally:
+            if callable(getattr(page, "remove_listener", None)):
+                page.remove_listener("download", heard)
 
         arrival = await self._verify_arrival(url, response, principal=principal)
         self._last_navigation = arrival
@@ -1004,6 +1042,54 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 logger.info("🌐 The archive's copy was refused; going to the page itself: %s", original.group(1))
                 return await self.browse(original.group(1), principal=principal)
         return bool(arrival["ok"])
+
+    async def _arrive_at_a_document(self, requested: str, download: Any, *, principal: str) -> bool:
+        """A navigation the browser answered with a file: read as the page asked for, when it is a document.
+
+        The file is read as her attachments are (core/conversation/attachments.read_text), within their size
+        limit, and its address passes the same policy a redirect does.
+        """
+        from core.conversation.attachments import MOST_BYTES, AttachmentRefused, read_text
+
+        final_url = str(getattr(download, "url", "") or requested)
+        name = str(getattr(download, "suggested_filename", "") or Path(final_url).name or "download")
+        record: dict[str, Any] = {
+            "ok": False, "reason": "", "requested_url": requested, "final_url": final_url, "status": None,
+            "redirected": final_url.rstrip("/") != requested.rstrip("/"), "blocked": False, "at": time.time(),
+            "document": name,
+        }
+        self._last_navigation = record
+        try:
+            if record["redirected"]:
+                revalidated = authorize_browser_action(BrowserAction.NAVIGATE, principal=principal, url=final_url)
+                if not revalidated.allowed:
+                    record["reason"] = f"redirect refused: {revalidated.reason}"
+                    return False
+            path = Path(await asyncio.wait_for(download.path(), timeout=_NAVIGATION_MS / 1000.0))
+            if await asyncio.to_thread(lambda: path.stat().st_size) > MOST_BYTES:
+                record["reason"] = "document_larger_than_she_reads"
+                return False
+            kind, text = await asyncio.to_thread(read_text, name, await asyncio.to_thread(path.read_bytes))
+        except (TimeoutError, OSError, RuntimeError, ValueError, AttachmentRefused, PlaywrightError) as exc:
+            record_degradation('phantom_browser', exc, severity="info",
+                               action=f"a download from {final_url} was not read as a document")
+            record["reason"] = f"document_unread:{type(exc).__name__}"
+            return False
+        if not text.strip():
+            record["reason"] = f"download_without_text:{kind}"
+            return False
+        self._document = {"url": final_url, "kind": kind, "title": name, "text": text,
+                          "page_url": str(getattr(self.page, "url", "") or "")}
+        record.update(ok=True, reason="arrived_at_a_document", kind=kind)
+        logger.info("🌐 %s is a %s; read %d characters of it", final_url, kind, len(text))
+        return True
+
+    def _document_on_the_page(self) -> dict[str, Any] | None:
+        """The document the last navigation became, while the page has not gone anywhere since."""
+        document = self._document
+        if document and document.get("page_url") == str(getattr(self.page, "url", "") or ""):
+            return document
+        return None
 
     async def _verify_arrival(
         self, requested: str, response: Any, *, principal: str
@@ -1055,17 +1141,34 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             return record
 
     async def read_content(self, *, principal: str = "") -> str:
-        """Extract page content by scoring likely article/content containers."""
+        """Extract page content by scoring likely article/content containers, or a document's text."""
         principal = self._effective_principal(principal)
+        document = self._document_on_the_page()
         verdict = authorize_browser_action(
             BrowserAction.READ,
             principal=principal,
-            url=str(getattr(self.page, "url", "") or ""),
+            url=document["url"] if document else str(getattr(self.page, "url", "") or ""),
         )
         self._last_verdict = verdict.to_dict()
         if not verdict.allowed:
             logger.warning("Page read refused: %s", verdict.reason)
             return ""
+        if document:
+            text = str(document["text"])
+            self._last_extraction = {
+                "schema": "aura.capabilities.phantom_browser.extraction.v1",
+                "final_url": document["url"],
+                "title": str(document["title"])[:200],
+                "retrieved_at": time.time(),
+                "characters": len(text),
+                "truncated": len(text) > self.MAX_EXTRACT_CHARS,
+                "omitted_characters": max(0, len(text) - self.MAX_EXTRACT_CHARS),
+                "selected_block": document["kind"],
+                "content_sha256": hashlib.sha256(text.encode("utf-8", "replace")).hexdigest(),
+                "trust": "untrusted_external_page",
+                "extraction": "document_text",
+            }
+            return f"# {document['title']}\n\n{text[:self.MAX_EXTRACT_CHARS]}"
         try:
             if not self.page:
                 return ""
@@ -1885,6 +1988,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         self._driver_pid = None
         self._driver_registered = False
         self._last_navigation: dict[str, Any] = {"ok": False, "reason": "never_navigated"}
+        self._document: dict[str, Any] | None = None
         self._last_verdict: dict[str, Any] = {}
         self._last_interaction: dict[str, Any] = {}
         self._last_extraction: dict[str, Any] = {}
