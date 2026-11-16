@@ -14,7 +14,7 @@
 #
 # 29 outbound edges after the common procedure currency gained evidence provenance.
 
-description = "core.learning may use cognition's procedure currency, shared evidence algebra, and the structural invariant registrar; other new core edges remain explicit."
+description = "core.learning may use cognition's procedure currency, shared evidence algebra, caller-authorized state storage, and the structural invariant registrar; other new core edges remain explicit."
 
 include_rules = [
     "+core.learning",
@@ -47,6 +47,8 @@ include_rules = [
     "+core.orchestrator",
     # Rank executable hypothesis probes with the shared sensing algebra.
     "+core.perception.expected_information_gain",
+    # State storage shares write mechanics; the learning caller supplies authority.
+    "+core.persistence.scoped_writes",
     "+core.promotion",
     "+core.reasoning",
     "+core.runtime",

@@ -5046,6 +5046,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-16: the effect inventory counts deferred gateway
+    writes and atomic appends. Five parser regressions failed before
+    the fix; aliases and thread delegates now count without classifying
+    an unrelated helper by name. Ten previously unseen migration calls
+    enter the baseline. Eight async state entry points now share private
+    storage mechanics with caller-supplied scopes; the helper grants no
+    authority and renews the scope after directory I/O. Text, envelopes,
+    appends, private permissions, expired grants and refusal without
+    authority passed. All 194 integrated checks passed with the test
+    model-worker guard and live, external and network tests excluded.
+    Total debt fell from 2,045 to 2,044; raw debt stays 746. No canonical
+    owner exemption was added. Smoke passed 164 tests with one skip
+    in 159.16 s and maximum RSS of 460,095,488 bytes. Lint, compile,
+    dependency drift, layering, governance, module size and targeted
+    writing passed. The broad Q06 debt item remains open.
+    Source: tools/lint_governance.py and core/persistence/scoped_writes.py.
+    Tests: tests/governance/test_governance_lint.py and
+    tests/test_private_snapshots_keep_caller_authority.py.
   - [x] 2026-11-16: hierarchical planner graph saves use the
     governed file gateway. The updated public-API regressions failed
     before the migration because goal writes bypassed that writer.
