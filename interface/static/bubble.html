@@ -55,9 +55,12 @@ html, body {
   border-radius: 999px;
   background: var(--bubble-bg);
   border: 1px solid var(--bubble-edge);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  box-shadow: 0 6px 22px rgba(0,0,0,0.42);
+  /* Every shadow fades out inside the 8px the panel leaves around the pill
+     (bubble.js sizes the panel to the pill plus 16). Reported 15 November
+     2026: "i can see the slightly shaded square around the circle". The
+     shadow reached 18px past the disc and the panel's square edge cut it off.
+     No backdrop blur either: behind a 0.9-alpha scrim it showed nothing. */
+  box-shadow: 0 2px 6px rgba(0,0,0,0.34);
   /* AppKit resizes the native panel to this measured content. Keeping this
      independent of the current viewport lets a 40px dormant panel grow again
      when a message arrives. */
@@ -92,7 +95,7 @@ html, body {
      over a dark editor the disc vanished and the dot read as a loose speck
      floating beside the neuron. */
   border-color: rgba(160, 130, 255, 0.16);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.38);
+  box-shadow: 0 1px 5px rgba(0,0,0,0.32);
 }
 
 #glyph {
