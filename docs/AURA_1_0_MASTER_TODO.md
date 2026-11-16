@@ -609,6 +609,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-16: solved-example persistence renews its grant
+    after directory I/O. Five regressions failed under enforcement
+    before the repair: sync and async met-example appends, a queued
+    request, and learning append and replacement writes. Each now
+    reloads its saved content after the directory grant expires.
+    All 44 focused learning and chat checks passed. Smoke passed
+    164 tests with one skip in 122.78 s and maximum RSS of
+    489,013,248 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed. The source
+    gate rerun includes a one-line import-group correction from
+    144431c17. Source: core/learning/examples_she_meets.py.
+    Tests: tests/test_examples_she_meets.py.
   - [x] 2026-11-16: each attachment file gets its own maintenance
     grant. Expiring the grant after the original or extracted text
     write used to refuse the next file. Both regressions failed

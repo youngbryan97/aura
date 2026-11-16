@@ -167,6 +167,7 @@ def note_met(problem: str, answer: str, source: str) -> bool:
     with local_internal_governed_scope("examples_she_meets.note_met", domain="file_write"):
         gateway = get_file_write_gateway()
         gateway.ensure_directory(path.parent, source="examples_she_meets.note_met")
+    with local_internal_governed_scope("examples_she_meets.note_met", domain="file_write"):
         gateway.append_text(path, line, source="examples_she_meets.note_met")
     return True
 
@@ -183,6 +184,7 @@ async def note_met_async(problem: str, answer: str, source: str) -> bool:
     with local_internal_governed_scope("examples_she_meets.note_met", domain="file_write"):
         gateway = get_file_write_gateway()
         await gateway.ensure_directory_async(path.parent, source="examples_she_meets.note_met")
+    with local_internal_governed_scope("examples_she_meets.note_met", domain="file_write"):
         await gateway.append_text_async(path, line, source="examples_she_meets.note_met")
     return True
 
@@ -207,6 +209,7 @@ async def note_to_check_async(problem: str) -> bool:
     with local_internal_governed_scope("examples_she_meets.note_to_check", domain="file_write"):
         gateway = get_file_write_gateway()
         await gateway.ensure_directory_async(path.parent, source="examples_she_meets.note_to_check")
+    with local_internal_governed_scope("examples_she_meets.note_to_check", domain="file_write"):
         await gateway.append_text_async(path, line, source="examples_she_meets.note_to_check")
     return True
 
@@ -334,6 +337,7 @@ async def _write(relative: str, text: str, *, append: bool = False) -> None:
     with local_internal_governed_scope("examples_she_meets.learn", domain="file_write"):
         gateway = get_file_write_gateway()
         await gateway.ensure_directory_async(path.parent, source="examples_she_meets.learn")
+    with local_internal_governed_scope("examples_she_meets.learn", domain="file_write"):
         if append:
             await gateway.append_text_async(path, text, source="examples_she_meets.learn")
         else:

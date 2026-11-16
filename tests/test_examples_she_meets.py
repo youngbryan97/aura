@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import numpy as np
@@ -57,6 +58,50 @@ def her_data(tmp_path, monkeypatch):
 def _teach(count: int, start: int = 0) -> None:
     for i in range(start, start + count):
         assert meets.note_met(f"orders total of {i} and {i + 3}", str(2 * i + 3), "a_person_gave_it")
+
+
+@pytest.mark.parametrize("operation", ["met_sync", "met_async", "to_check", "append", "replace"])
+def test_example_writes_get_a_fresh_grant_after_directory_io(her_data, monkeypatch, operation):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    gateway, expired = get_file_write_gateway(), []
+    ensure, ensure_async = gateway.ensure_directory, gateway.ensure_directory_async
+
+    def expire(token):
+        assert token is not None and token.domain == "file_write"
+        token.mono_timestamp -= token.ttl + 1
+        expired.append(token.lease_id)
+
+    def ensure_then_expire(*args, **kwargs):
+        token = get_active_governance()
+        result = ensure(*args, **kwargs)
+        expire(token)
+        return result
+
+    async def ensure_async_then_expire(*args, **kwargs):
+        token = get_active_governance()
+        result = await ensure_async(*args, **kwargs)
+        expire(token)
+        return result
+
+    monkeypatch.setattr(gateway, "ensure_directory", ensure_then_expire)
+    monkeypatch.setattr(gateway, "ensure_directory_async", ensure_async_then_expire)
+    if operation == "met_sync":
+        assert meets.note_met("orders total of 1 and 2", "3", "a_person_gave_it")
+        assert meets.met_examples()[0]["answer"] == "3"
+    elif operation == "met_async":
+        assert asyncio.run(meets.note_met_async("orders total of 1 and 2", "3", "a_person_gave_it"))
+        assert meets.met_examples()[0]["answer"] == "3"
+    elif operation == "to_check":
+        assert asyncio.run(meets.note_to_check_async("orders total of 1 and 2"))
+        assert meets.next_to_check()["problem"] == "orders total of 1 and 2"
+    else:
+        relative = "learning/scratch.txt"
+        asyncio.run(meets._write(relative, "kept\n", append=operation == "append"))
+        assert (her_data / relative).read_text() == "kept\n"
+    assert expired
 
 
 def test_only_a_source_that_knows_the_answer_is_noted_and_the_first_answer_stands(her_data) -> None:
