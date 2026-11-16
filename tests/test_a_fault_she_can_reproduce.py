@@ -242,3 +242,20 @@ def test_a_record_its_recorder_marked_expected_is_not_heard(planted, severity):
     faults.hear(DegradationRecord("planted", severity, "ZeroDivisionError", str(exc), "", 1.0,
                                   failed_call=the_call_that_failed(exc)))
     assert faults.faults_heard() == []
+
+
+def test_a_fault_recorded_before_she_began_listening_is_heard(planted, monkeypatch):
+    """LIVE 16 November 2026: a drill's planted fault was raised as her repair monitor started, before her autonomy
+    module began listening, and was never heard."""
+    from core.runtime.errors import DegradationRecord, DegradationTracker
+
+    tracker = DegradationTracker()
+    monkeypatch.setattr(faults, "get_degradation_tracker", lambda: tracker)
+    monkeypatch.setattr(faults, "_LISTENING", [False])
+    exc = _raised(lambda: planted.share(4, 0))
+    tracker.record(DegradationRecord("planted", "warning", "ZeroDivisionError", str(exc), "", 1.0,
+                                     failed_call=the_call_that_failed(exc)))
+    assert faults.faults_heard() == []
+    assert faults.listen() is True
+    (heard,) = faults.faults_heard()
+    assert heard.call.qualname == "share"

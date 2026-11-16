@@ -1333,10 +1333,13 @@ class AutonomousSelfModificationEngine:
         # polling the model or inventing optimization work while the runtime is idle.
         logger.info("Monitoring loop starting...")
         # A drill of her repair loop, when a person armed one: its planted fault is raised here, once a start, and
-        # wakes this loop as any fault of hers does (core/self_modification/loop_drill.py).
+        # wakes this loop as any fault of hers does (core/self_modification/loop_drill.py). The loop listens first,
+        # since it is the one that acts on what it hears.
         try:
+            from core.self_modification.faults_she_can_reproduce import listen
             from core.self_modification.loop_drill import run_the_drill_if_armed
 
+            listen()
             run_the_drill_if_armed()
         except (ImportError, OSError, RuntimeError) as exc:
             record_degradation("self_modification_engine", exc, severity="warning",

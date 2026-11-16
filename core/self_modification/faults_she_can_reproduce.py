@@ -165,13 +165,23 @@ def _say_why_not_once(why: Any, record: DegradationRecord) -> None:
 
 
 def listen() -> bool:
-    """Hear every degradation this process records, after the faults kept from her last run; whether this began it."""
+    """Hear every degradation this process records, after the faults kept from her last run; whether this began it.
+
+    The records her tracker already holds are heard too. LIVE 16 November 2026 a drill's planted fault was raised as
+    her repair monitor started, before her autonomy module began listening, and was never heard. Listening begins
+    before the held records are read, so none falls between; one recorded in that instant is heard twice, which only
+    counts it once more.
+    """
     with _LOCK:
         if _LISTENING[0]:
             return False
         _LISTENING[0] = True
     recall()
-    return bool(get_degradation_tracker().add_listener(hear))
+    tracker = get_degradation_tracker()
+    began = bool(tracker.add_listener(hear))
+    for record in tracker.recent(limit=_how_many_are_kept()):
+        hear(record)
+    return began
 
 
 def where_heard_faults_are_kept() -> Path:
