@@ -108,8 +108,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: four raw calls became one governed write, 755 and 2,057.
 #: The update-acceptance NPZ artifact follows the same atomic writer:
 #: four raw calls became one governed write, 751 and 2,054.
+#: The turn reader's NPZ goes through the gateway; its eager parent
+#: creation came out. Raw 750, total still 2,054.
 TOTAL_CEILING = 2054
-RAW_CEILING = 751
+RAW_CEILING = 750
 
 
 def _split() -> tuple[int, int]:

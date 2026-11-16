@@ -146,13 +146,21 @@ class TurnReader:
         return {name: 1.0 / (1.0 + math.exp(-float(z))) for name, z in zip(self.labels, logits, strict=True)}
 
     def save(self, path: Path) -> Path:
+        import io
         import json
 
         import numpy as np
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez(path, weights=self.weights, bias=self.bias, labels=np.array(self.labels),
-                 embedding_model=np.array(self.embedding_model), report=np.array(json.dumps(self.report)))
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with io.BytesIO() as buffer:
+            np.savez(buffer, weights=self.weights, bias=self.bias, labels=np.array(self.labels),
+                     embedding_model=np.array(self.embedding_model), report=np.array(json.dumps(self.report)))
+            payload = buffer.getvalue()
+        target = path if str(path).endswith(".npz") else Path(str(path) + ".npz")
+        with local_internal_governed_scope("turn_reader.save"):
+            get_file_write_gateway().write_bytes(target, payload, source="turn_reader.save")
         return path
 
     @classmethod

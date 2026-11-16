@@ -4765,6 +4765,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: the turn-reader training artifact is encoded before
+    the existing atomic file gateway replaces its destination, in an
+    internal governed scope. A simulated encoder failure used to corrupt
+    the installed head; it now leaves the prior bytes intact. The scope
+    regression also failed before the fix. Weights, labels, report,
+    readings and NumPy's filename behavior round-trip with tiny fixture
+    arrays; all 19 focused/effect-tier tests pass. The eager directory
+    creation came out: 750 raw calls, 2,054 total migration calls.
+    Smoke: 164 passed, 1 skipped in 84.71 s, maximum RSS 470,515,712
+    bytes. Lint, compile, dependency drift, layering, governance and
+    targeted writing passed. Source: core/interiority/what_a_turn_did.py;
+    tests: tests/test_turn_reader_saves_an_atomic_artifact.py.
   - [x] 2026-11-15: the update-acceptance NPZ artifact uses the existing
     atomic file gateway in an internal governed scope. The encoded size
     is checked before writing; an oversized save used to replace a valid
