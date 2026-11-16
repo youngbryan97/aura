@@ -75,6 +75,9 @@ include_rules = [
     "+core.agency.consequence",
     # What she is like, from her own record of choices, read into S. Read only.
     "+core.agency.what_she_is_like",
+    # How many replies her record of how she answers keeps, so S reads the
+    # share of it filled. Read only.
+    "+core.self.how_i_answer",
     "+core.consciousness.consciousness_bridge",
     "+core.consciousness.system",
     "+core.container",

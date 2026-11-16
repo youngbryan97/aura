@@ -173,6 +173,7 @@ def checker_changes_at(source: str, line: int, error_type: str) -> Iterator[tupl
 def _parses(source: str) -> bool:
     try:
         ast.parse(source)
+    # not a failure: a variant that does not parse is not offered, which is the answer this gives.
     except SyntaxError:
         return False
     return True

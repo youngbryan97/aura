@@ -6281,6 +6281,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Clearing the error or enlarging its one-pixel bar would erase the
   precision boundary tested by test_continuing_material_survives_a_changed_outline.
   No code change or closure claimed.
+  16 November: test_every_state_field_is_placed is green. Bryan said to
+  take the recommended action, and both fields are now in K.
+  cognition.reply_notes is read back to her when she is asked how she
+  would answer, so it changes what she says. S reads it as three
+  columns: the share of her record kept, and the shares of her replies
+  that open from the question and that speak as "I". S's clamp holds it.
+  cognition.recall_pool is what the affect phase settles recall on. M's
+  clamp already held it and no column read it. M reads it as two
+  columns: how many recollections recall weighed, and the salience the
+  turn gave memory. S goes from 106 to 109 columns and M from 20 to 22.
+  A run before this change and a run after it measure different cores,
+  so they are not compared line for line. The swallowed-reasons gate
+  was red at two: a variant that does not parse, and an over-budget read
+  refused by the invariant that expects the refusal. Both are expected
+  outcomes and are marked.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   - [x] 2026-11-15: enforce that rule in the chunk runner's exit status.

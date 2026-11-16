@@ -178,6 +178,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "identity.owning_first",
         # What coming through hard things says. See core/agency/capacity.py.
         "identity.capacity",
+        # Her record of how she answers, which three self columns read since
+        # 16 November 2026. See core/self/how_i_answer.py.
+        "cognition.reply_notes",
     ),
     "M": (
         "cognition.working_memory",

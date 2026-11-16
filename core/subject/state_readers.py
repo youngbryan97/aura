@@ -600,6 +600,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _f(_dig(state, "cognition.unity_state.self_world_boundary_score"), 1.0),
         ]
     )
+    head.extend(_how_she_answers(_dig(state, "cognition.reply_notes", []) or []))
     head.extend(
         _sketched(
             organs.executive,
@@ -615,6 +616,32 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     head.append(_f(portrait.get("values_foretell_choice")))
     head.extend(_sketched(organs.self_prediction, "_gram", source="organ:self_prediction._gram"))
     return np.array(head, dtype=np.float64)
+
+
+def _how_she_answers(notes: Any) -> list[float]:
+    """Her record of her own replies as S reads it: the share of it kept, and of its replies, the share that open
+    from the question and the share in her own person. All three are zero before she has answered anyone."""
+    from core.self.how_i_answer import NOTES_KEPT
+
+    kept = [note for note in notes if isinstance(note, Mapping)] if isinstance(notes, list) else []
+    if not kept:
+        return [0.0, 0.0, 0.0]
+    return [
+        min(1.0, len(kept) / NOTES_KEPT),
+        sum(1 for note in kept if note.get("from_the_question")) / len(kept),
+        sum(1 for note in kept if note.get("uses_i")) / len(kept),
+    ]
+
+
+def _what_recall_weighed(pool: Any) -> list[float]:
+    """The recall pool as M reads it: how many recollections recall weighed, on the scale M reads what it kept by,
+    and the salience the turn gave memory."""
+    from .state import _f, _sat
+
+    if not isinstance(pool, Mapping):
+        return [0.0, 0.0]
+    candidates = pool.get("candidates") or []
+    return [_sat(candidates if isinstance(candidates, list) else [], 8.0), _f(pool.get("salience"))]
 
 
 def _read_M(state: Any) -> np.ndarray:
@@ -645,6 +672,7 @@ def _read_M(state: Any) -> np.ndarray:
             _sat(retrieved, 8.0),
             *_content_buckets(" ".join(_content_of(item) for item in list(retrieved)[-4:])),
             max((_f(item) for item in _dig(state, "cognition.memory_scores", []) or []), default=0.0),
+            *_what_recall_weighed(_dig(state, "cognition.recall_pool", {}) or {}),
             1.0 if relived.get("relived") else 0.0,
             _f(relived.get("intensity")),
             _sat(_f(relived.get("returns")), 8.0),

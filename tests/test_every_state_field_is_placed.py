@@ -90,3 +90,43 @@ def test_the_thing_that_prices_a_feeling_is_what_the_workspace_reads() -> None:
     feed = (REPO / "core" / "consciousness" / "workspace_feed.py").read_text(encoding="utf-8")
     assert 'baselines = getattr(affect, "mood_baselines", {}) or {}' in feed
     assert "charge = _clamp(intensity - _clamp(baselines.get(name, 0.0)))" in feed
+
+
+def test_her_record_of_how_she_answers_is_read_by_the_self_state() -> None:
+    """Her reply notes are read back to her when she is asked how she would answer, so they change what she says.
+
+    Found by the audit above on 15 November 2026, read by nothing in K. S reads them now, and S's clamp holds them,
+    so a self held still by a lesion does not go on learning how it answers.
+    """
+    from core.state.aura_state import AuraState
+    from core.subject.clamp import CLAMPED_FIELDS
+    from core.subject.state import Organs, schema
+    from core.subject.state_readers import _read_S
+
+    assert "cognition.reply_notes" in schema("S").sources
+    assert "cognition.reply_notes" in CLAMPED_FIELDS["S"]
+    state = AuraState()
+    before = _read_S(state, Organs())
+    state.cognition.reply_notes = [{"from_the_question": True, "uses_i": False}] * 4
+    after = _read_S(state, Organs())
+    features = schema("S").features
+    moved = {features[i] for i in range(len(features)) if before[i] != after[i]}
+    assert moved == {"answers_noted", "answers_open_from_the_question"}
+
+
+def test_what_recall_weighed_is_read_by_active_memory() -> None:
+    """The pool the affect phase settles recall on. M's clamp held it while no column of M read it."""
+    from core.state.aura_state import AuraState
+    from core.subject.state import schema
+    from core.subject.state_readers import _read_M
+
+    sources = schema("M").sources
+    assert "cognition.recall_pool.candidates" in sources
+    assert "cognition.recall_pool.salience" in sources
+    state = AuraState()
+    before = _read_M(state)
+    state.cognition.recall_pool = {"salience": 0.4, "candidates": [{"text": "a"}, {"text": "b"}, {"text": "c"}]}
+    after = _read_M(state)
+    features = schema("M").features
+    moved = {features[i] for i in range(len(features)) if before[i] != after[i]}
+    assert moved == {"recall_weighed", "recall_salience"}

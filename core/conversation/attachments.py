@@ -114,6 +114,7 @@ def _archive_budget_invariant() -> tuple:
     _check_archive_budget([])
     try:
         _check_metadata_read(MOST_ARCHIVE_METADATA_BYTES + 1)
+    # not a failure: the refusal is what this invariant expects of an over-budget read.
     except AttachmentRefused:
         pass
     else:

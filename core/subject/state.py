@@ -968,6 +968,14 @@ _SCHEMAS: dict[str, Schema] = {
             # authored, so nothing is lost by reading it there.
             ("unity_ownership", "cognition.unity_state.agency_ownership_score"),
             ("unity_boundary", "cognition.unity_state.self_world_boundary_score"),
+            # How she answers, from her own replies: how much of her record is
+            # kept, and how often her replies open from the question and speak
+            # as "I". The notes are read back to her when she is asked how she
+            # would answer, so they change what she says, and nothing in K read
+            # them (16 November 2026). See core/self/how_i_answer.py.
+            ("answers_noted", "cognition.reply_notes"),
+            ("answers_open_from_the_question", "cognition.reply_notes[*].from_the_question"),
+            ("answers_in_her_own_person", "cognition.reply_notes[*].uses_i"),
             # What her self-prediction has learned. The executive closure
             # engine's predictive self-model holds the weights, and the closure
             # test read three moments of them from outside the core: her
@@ -1012,6 +1020,13 @@ _SCHEMAS: dict[str, Schema] = {
             # by, so it is part of active memory's state rather than a
             # bookkeeping detail of the phase that produced it.
             ("recall_score", "cognition.memory_scores"),
+            # What recall weighed this turn, before it kept the few it kept: how
+            # many it weighed and how salient the turn made memory. The affect
+            # phase settles the recalled set on this pool, and M's clamp held it
+            # while no column read it (16 November 2026). See
+            # memory_retrieval.settle_on_what_she_feels.
+            ("recall_weighed", "cognition.recall_pool.candidates"),
+            ("recall_salience", "cognition.recall_pool.salience"),
             # Whether what came back is relived or looked up, what came back
             # with it, and how often this has been asked before.
             # See core/memory/reliving.py.
