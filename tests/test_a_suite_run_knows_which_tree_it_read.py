@@ -62,6 +62,34 @@ def test_the_revision_probe_never_raises(monkeypatch, error):
     assert runner.working_tree_revision() == ""
 
 
+def test_a_failed_tracked_status_probe_starts_no_chunks(committed_tree, monkeypatch):
+    repo, _ = committed_tree
+    monkeypatch.setattr(runner, "ROOT", repo)
+    (repo / "test_unused.py").write_text("def test_example():\n    assert True\n")
+    launched = []
+    original_run = subprocess.run
+
+    def run(command, **kwargs):
+        if command[0] == "git" and "status" in command:
+            return subprocess.CompletedProcess(command, 128, stdout="", stderr="index unreadable")
+        return original_run(command, **kwargs)
+
+    def chunk(*args, **kwargs):
+        launched.append(True)
+        return True, "chunk passed", []
+
+    monkeypatch.setattr(runner.subprocess, "run", run)
+    monkeypatch.setattr(runner, "run_chunk", chunk)
+    register = repo / "register.json"
+    assert runner.main([
+        "--tests-dir", str(repo), "--defect-register", str(register),
+        "--progress-file", str(repo / "progress.log"),
+    ]) == 1
+    assert not launched
+    source = json.loads(register.read_text())["source_revision"]
+    assert source["started"] == "" and not source["measured"] and "start" in source["errors"]
+
+
 @pytest.fixture
 def exercise(monkeypatch, tmp_path):
     def run(*, chunks=1, failed=False, after_chunk=None, after_retry=None):

@@ -131,13 +131,17 @@ def working_tree_revision() -> str:
         if head.returncode != 0:
             return ""
         revision = head.stdout.strip()
+        if not revision:
+            return ""
         dirty = subprocess.run(
             ["git", "-c", "core.fsmonitor=false", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
             capture_output=True,
             text=True,
             timeout=20,
         )
-        if dirty.returncode == 0 and dirty.stdout.strip():
+        if dirty.returncode != 0:
+            return ""
+        if dirty.stdout.strip():
             revision += "-dirty"
         return revision
     except (OSError, subprocess.SubprocessError, ValueError):

@@ -5137,6 +5137,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  - [x] 2026-11-15: a failed tracked-status read makes source identity
+    unmeasured even when Git returns HEAD. With a real checkout and a
+    simulated unreadable index, the runner previously admitted a chunk
+    and marked the tree unchanged. It now starts no chunks and reports
+    the failed source check in the register. All 93 focused runner
+    tests passed. Smoke passed 164 tests with one skip in 76.05 s and
+    maximum RSS of 469,286,912 bytes. Lint, compile and targeted writing
+    passed. Source: tools/run_test_chunks.py.
+    Tests: tests/test_a_suite_run_knows_which_tree_it_read.py.
   - [x] 2026-11-15: the chunk runner records a launch failure and
     finishes writing the requested defect register. A real missing
     interpreter previously raised out of the runner. The progress log
