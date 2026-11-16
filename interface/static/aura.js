@@ -3464,7 +3464,8 @@ function buildThoughtFingerprint(data) {
     // through the first only, so the two raw shapes never met.
     const raw = data.message || data.content || '';
     const ts = formatEventTimestamp(data.timestamp);
-    const shown = plainLanguageThought(toPlainEnglish(cleanThoughtText(raw, ts, data.name || 'SYS')));
+    const plain = String(data.plain || '').trim();
+    const shown = plain || plainLanguageThought(toPlainEnglish(cleanThoughtText(raw, ts, data.name || 'SYS')));
     return [thoughtSeverityClass(data.level), normalizeThoughtText(shown)].join('|');
 }
 
@@ -5016,7 +5017,11 @@ function addThoughtCard(data) {
     const rawMsg = data.message || data.content || JSON.stringify(data);
     const rawFull = data.fullMessage || data.full_message || rawMsg;
     const technical = cleanThoughtText(rawMsg, ts, name);
-    const msg = toPlainEnglish(technical);
+    // The sentence her server wrote for this line, in words anyone can read (core/observability/plain_feed.py). Bryan,
+    // 16 November 2026: "the face should be readable by people who havent been consistently working with the system".
+    // The line itself is under the arrow and SHOW ALL.
+    const plainFace = String(data.plain || '').trim();
+    const msg = plainFace || toPlainEnglish(technical);
     const fullMsg = cleanThoughtText(rawFull, ts, name);
     // The complete payload goes through the same translation as the short
     // one.
@@ -5027,7 +5032,7 @@ function addThoughtCard(data) {
     // screen only for payloads too long to show whole. Every measurement of
     // the feed's legibility was taken through the translator rather than
     // through the card, so it measured a function nobody was looking at.
-    const fullPlain = toPlainEnglish(fullMsg);
+    const fullPlain = plainFace || toPlainEnglish(fullMsg);
     const repeatCount = Math.max(1, Number(data.repeatCount || 1));
     const fullLines = fullMsg.split(/\r?\n/).length;
     const showCompletePayload = fullMsg.length <= 8000 && fullLines <= 100;
@@ -5055,7 +5060,7 @@ function addThoughtCard(data) {
     card.dataset.channel = chanKey;
     const safeName = escHtml(name);
     // Plain English on the face; SHOW ALL and COPY keep the raw payload.
-    preview.text = plainLanguageThought(preview.text);
+    if (!plainFace) preview.text = plainLanguageThought(preview.text);
     const previewText = hasHiddenFullPayload && !preview.clipped
         ? `${preview.text}\n\n[preview card; SHOW ALL or COPY for the complete payload]`
         : preview.text;
@@ -5097,6 +5102,7 @@ function addThoughtCard(data) {
                 <span class="thought-detail-key">source</span><span class="thought-detail-val">${safeName}</span>
                 <span class="thought-detail-key">signal</span><span class="thought-detail-val">${escHtml(detailMeta)}</span>
             </div>
+            <div class="thought-detail-raw">${escHtml(thoughtPreviewText(fullMsg, 4000, 40).text).replace(/\n/g, '<br>')}</div>
         </div>
         <div class="thought-body thought-preview">${safePreview}</div>
         ${longThought ? `<div class="thought-body thought-full" hidden>${safeFull}</div>` : ''}

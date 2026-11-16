@@ -362,6 +362,32 @@ class SubsystemAudit:
 
         return {"all_ok": all_ok, "subsystems": report, "checked_at": now}
     
+    @staticmethod
+    def plain_pulse(report: str) -> str:
+        """A health pulse (``emit_pulse``) in words anyone can read, for the face of its card in her neural feed."""
+        import re
+
+        def said(label: str) -> str:
+            found = re.search(rf"{label}: ([A-Z_]+)", report)
+            return found.group(1) if found else ""
+
+        runtime, talk = said("Runtime"), said("Conversation")
+        computer = re.search(r"CPU ([\d.]+)% \| RAM ([\d.]+)%", report)
+        load = (f" The computer is at {float(computer.group(1)):.0f}% processor and {float(computer.group(2)):.0f}% memory."
+                if computer else "")
+        trouble = [re.sub(r"^\s*(?:⚠️|❌|⏳)\s*", "", line).split(":")[0].replace("_", " ")
+                   for line in report.splitlines() if re.match(r"^\s*(?:⚠️|❌)", line)]
+        if runtime == "SHUTTING_DOWN":
+            return "Health check: she is shutting down."
+        if runtime == "BOOTING":
+            return "Health check: she is still starting up." + load
+        if not trouble and runtime in {"HEALTHY", "OK", "READY", "WORKING"}:
+            ready = "busy in a conversation" if runtime == "WORKING" or talk == "WORKING" else (
+                "ready to talk" if talk == "PASS" else "not yet ready to talk")
+            return f"Health check: all her systems are running, and she is {ready}." + load
+        needs = f" Needs attention: {', '.join(trouble[:4])}." if trouble else ""
+        return f"Health check: something is wrong ({runtime.lower().replace('_', ' ') or 'unknown'}).{needs}" + load
+
     def should_emit_pulse(self) -> bool:
         """Check if it's time to emit a full health pulse."""
         return time.time() - self._last_health_pulse > self._health_pulse_interval

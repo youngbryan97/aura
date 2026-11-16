@@ -75,6 +75,7 @@ from core.event_bus import get_event_bus
 
 bus = get_event_bus()
 from core.observability.logging_config import setup_logging
+from core.observability.plain_feed import plain_face_of
 
 logger = setup_logging("Aura.Server")
 
@@ -421,6 +422,10 @@ class _QueueHandler(logging.Handler):
                 "timestamp": record.created,
                 "module": record.name
             }
+            # The card's face, in words anyone can read; the line above stays behind it (core/observability/plain_feed.py).
+            plain = plain_face_of(record)
+            if plain:
+                log_entry["plain"] = plain
             full_message = getattr(record, "neural_full_message", None)
             if isinstance(full_message, str) and full_message.strip():
                 log_entry["full_message"] = full_message

@@ -1982,6 +1982,18 @@ main {
     overflow-wrap: anywhere;
 }
 
+/* The line as her code wrote it, under the plain sentence on the card's face. */
+.thought-detail-raw {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid color-mix(in srgb, var(--tc) 14%, transparent);
+    font-family: var(--font-stream);
+    font-size: calc(0.64rem * var(--neural-meta-scale));
+    line-height: 1.45;
+    color: var(--text-dim);
+    overflow-wrap: anywhere;
+}
+
 .thought-repeat {
     display: inline-flex;
     align-items: center;

@@ -2105,7 +2105,7 @@ class RobustOrchestrator(
             if audit.should_emit_pulse():
                 pulse_report = audit.emit_pulse()
                 self._emit_thought_stream(pulse_report)
-                logger.info("🫀 %s", pulse_report.replace("\n", " | "))
+                logger.info("🫀 %s", pulse_report.replace("\n", " | "), extra={"plain": audit.plain_pulse(pulse_report)})
         except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             _record_main_degradation(
                 e,

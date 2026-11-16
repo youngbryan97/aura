@@ -1,0 +1,744 @@
+{
+ "lines": [
+  {
+   "logger": "Aura.Will",
+   "says": "UnifiedWill: outcome reinforced for receipt %s: outcome=%s, reward=%.3f, updated assertiveness=%.3f",
+   "plain": "Her will noted how one of her decisions turned out ({1}) and adjusted how readily she acts."
+  },
+  {
+   "logger": "Aura.Autopoiesis",
+   "says": "Registered component for health monitoring: %s",
+   "plain": "Started keeping an eye on the health of {0}."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "⏱️ [MLX] first-token ceiling %.1fs for a %d-char prompt (%d max tokens)",
+   "plain": "Gave her model up to {0:.0f} seconds to start answering a {1}-character request."
+  },
+  {
+   "logger": "Aura.Brain.SomaticThrottle",
+   "says": "🌡️ SomaticComputeSentinel initialized.",
+   "plain": "Started her sense of how hard the computer is working."
+  },
+  {
+   "logger": "Aura.AutonomousResilience",
+   "says": "Health of %s cannot be read (%s); scored as unknown rather than as healthy.",
+   "plain": "Could not read how {0} is doing, so it counts as unknown, not as healthy."
+  },
+  {
+   "logger": "Aura.SubjectiveChoice",
+   "says": "🧭 [SubjectiveChoice] %s",
+   "plain": "Deciding what to do: {0}"
+  },
+  {
+   "logger": "Aura.ImmuneHeuristicExecutor",
+   "says": "Executing immune action '%s' with params: %s",
+   "plain": "Her self-repair system is carrying out '{0}'."
+  },
+  {
+   "logger": "Aura.Actuators",
+   "says": "Executed Actuator: reallocate_flow transferred %s from %s to %s in the simulated plant",
+   "plain": "In her practice simulation, moved {0} units of flow from {1} to {2}."
+  },
+  {
+   "logger": "Aura.Together",
+   "says": "🤝 Watching with %s: %s (%s).",
+   "plain": "Keeping {0} company: she {1}."
+  },
+  {
+   "logger": "Aura.PhiCore",
+   "says": "PhiCore live: %s φs=%.5f grounding=%s best_grounded=%s net=%s",
+   "plain": "Measured how unified her inner activity is right now (phi {1:.3f})."
+  },
+  {
+   "logger": "Aura.ClosedLoop",
+   "says": "OutputReceptor: injected %s delta (mag=%.3f)",
+   "plain": "What she just did fed back into how she feels ({0})."
+  },
+  {
+   "logger": "Consciousness.GlobalWorkspace",
+   "says": "⚡ GW IGNITION #%d: source=%s, priority=%.3f, phi=%.4f",
+   "plain": "Something took the centre of her attention: {1}."
+  },
+  {
+   "logger": "Aura.Mycelium",
+   "says": "🍄 [MYCELIUM] Hypha established: %s",
+   "plain": "Connected two of her internal systems: {0}."
+  },
+  {
+   "logger": "Aura.StandingAuthority",
+   "says": "lease risk %s for %s (scope=%s, given=%r) from arguments %s",
+   "plain": "Rated using {1} as {0} risk before allowing it."
+  },
+  {
+   "logger": "Aura.Capability",
+   "says": "Capability: Generated token %s for tools: %s",
+   "plain": "Issued a one-time permission to use {1}."
+  },
+  {
+   "logger": "Aura.Executive",
+   "says": "Executive constrained %s (constraints: %s)",
+   "plain": "Allowed {0}, with limits on it."
+  },
+  {
+   "logger": "SelfModification.Engine",
+   "says": "Skipping autonomous self-modification cycle: %s",
+   "plain": "Skipped a round of improving her own code ({0})."
+  },
+  {
+   "logger": "Consciousness.SubstrateAuthority",
+   "says": "🛑 SubstrateAuthority BLOCKED: %s/%s — %s",
+   "plain": "Her inner state held back {0} ({1}): {2}."
+  },
+  {
+   "logger": "Aura.Agency",
+   "says": "InitiativeArbiter: %s",
+   "plain": "Weighing what to do on her own: {0}"
+  },
+  {
+   "logger": "Aura.Mycelium",
+   "says": "🍄 [MYCELIUM] Pathway Hardwired: '%s' → %s (priority=%.1f, groups=%s)",
+   "plain": "Linked requests of the kind '{0}' to {1}."
+  },
+  {
+   "logger": "Aura.CognitiveIntegration",
+   "says": "CognitiveIntegration: %s is online.",
+   "plain": "Her {0} is running."
+  },
+  {
+   "logger": "Aura.Viability",
+   "says": "🩸 viability %s → %s (%s)",
+   "plain": "Her overall condition went from {0} to {1}."
+  },
+  {
+   "logger": "Aura.IntentionLoop",
+   "says": "Intention declared [%s]: %s (drive=%s)",
+   "plain": "She set out to: {1}"
+  },
+  {
+   "logger": "Aura.IntentionLoop",
+   "says": "Intention %s [%s]: %d belief updates, %d self-model updates",
+   "plain": "An intention of hers was {0}. It changed {2} of her beliefs and {3} things she knows about herself."
+  },
+  {
+   "logger": "Consciousness.MinimalSelfhood",
+   "says": "🪞 MinimalSelfhood learned from %s over %.0fs: %s (field %.3f)",
+   "plain": "Her sense of herself learned from {0}: {2}."
+  },
+  {
+   "logger": "Aura.Will",
+   "says": "WILL DEFERRED: %s/%s -- %s",
+   "plain": "Her will put off something {0} wanted ({1}): {2}."
+  },
+  {
+   "logger": "core.capability_engine",
+   "says": "risk %s for %s (scope=%s) from arguments %s",
+   "plain": "Rated using {1} as {0} risk."
+  },
+  {
+   "logger": "core.transparency.dev_mode",
+   "says": "🔧 Tool Dispatch: %s (origin=%s)",
+   "plain": "Using {0} (for {1})."
+  },
+  {
+   "logger": "SelfModification.ErrorIntelligence",
+   "says": "Detected %d error patterns",
+   "plain": "Looked over her recent errors for patterns and found {0}."
+  },
+  {
+   "logger": "core.conversation.surface_disposition",
+   "says": "🧾 tool receipt for %s dropped: no turn custody in this execution",
+   "plain": "Used {0} in the background, outside any conversation, so no conversation records it."
+  },
+  {
+   "logger": "Skills",
+   "says": "✅ Skill '%s' completed in %.0fms",
+   "plain": "Finished with {0} in {1:.0f} ms."
+  },
+  {
+   "logger": "core.transparency.dev_mode",
+   "says": "%s Tool Result: %s in %.0fms",
+   "plain": "{1} came back in {2:.0f} ms."
+  },
+  {
+   "logger": "Aura.InitiativeSynthesis",
+   "says": "Synth: acting on '%s' (will=%s)",
+   "plain": "Acting on an idea of her own: {0}."
+  },
+  {
+   "logger": "Aura.DecisionPreferenceLearner",
+   "says": "🧭 [DecisionPreference] resolved %s reward=%+.2f → multipliers updated (%d total)",
+   "plain": "Learned from how an earlier choice turned out (score {1:+.2f})."
+  },
+  {
+   "logger": "core.phases.memory_retrieval",
+   "says": "🧠 MemoryRetrieval: Searching for context: %s...",
+   "plain": "Looking through her memory for: {0}…"
+  },
+  {
+   "logger": "Aura.TaskEngine",
+   "says": "TaskEngine: starting goal '%s' (requested_plan=%s) [trace=%s]",
+   "plain": "Started work on a goal: {0}."
+  },
+  {
+   "logger": "Memory.Episodic",
+   "says": "📝 Episode recorded: %s (success=%s, importance=%.2f, q=%.2f, novelty=%.2f)",
+   "plain": "Saved what just happened to her memory."
+  },
+  {
+   "logger": "Aura.ReasoningBackground",
+   "says": "🧠 Learning in use: %s",
+   "plain": "Checked which of the lessons she has learned are in use."
+  },
+  {
+   "logger": "Brain.HealthRouter",
+   "says": "⏸️ Router: Queueing background inference until admission clears for origin=%s reason=%s%s.",
+   "plain": "Background thinking ({0}) waits until her model is free."
+  },
+  {
+   "logger": "Consciousness.SubstrateAuthority",
+   "says": "🧪 SubstrateAuthority: neurochemical %s began (%s); events still moving her cortisol: %s.",
+   "plain": "A {0} response began in her simulated body chemistry ({1})."
+  },
+  {
+   "logger": "Brain.HealthRouter",
+   "says": "⏸️ Router: Deferring background local endpoint %s (%s)%s.",
+   "plain": "Holding back background work on {0} ({1})."
+  },
+  {
+   "logger": "Aura.Allostasis",
+   "says": "🌡️ [Allostasis] regime change on %s (%s, %.1fσ) — trend window re-anchored.",
+   "plain": "{0} settled at a new level ({1}); she measures its trend from here."
+  },
+  {
+   "logger": "Aura.TurnReceipt",
+   "says": "⏱️ turn %s (%s) took %.2fs: %s; unattributed %.2fs; unmeasured: %s",
+   "plain": "A turn ({1}) took {2:.1f} seconds."
+  },
+  {
+   "logger": "Aura.Server",
+   "says": "UI log buffer at capacity: rotated out %d warning+ records since last report (session totals: %d warning+, %d all levels); newest records preserved.",
+   "plain": "The feed's replay buffer is full, so its oldest lines are let go. Everything in it was shown when it happened."
+  },
+  {
+   "logger": "Aura.AdaptiveImmunity",
+   "says": "AdaptiveImmuneSystem: dream consolidation deferred — %s.",
+   "plain": "Her immune system put off its sleep-time review ({0})."
+  },
+  {
+   "logger": "core.phases.cognitive_routing",
+   "says": "🧭 Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch.",
+   "plain": "This calls for thinking, not a task, so no tools are used."
+  },
+  {
+   "logger": "Aura.Kernel.Cognitive",
+   "says": "🧭 Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch.",
+   "plain": "This calls for thinking, not a task, so no tools are used."
+  },
+  {
+   "logger": "core.phases.response_generation",
+   "says": "🛡️ ResponseGeneration: suppressing background objective for origin=%s (%s).",
+   "plain": "Wrote no reply to the background prompt ({0}): nobody is waiting for one."
+  },
+  {
+   "logger": "Aura.UnitaryResponse",
+   "says": "🛡️ UnitaryResponse: suppressing background response generation for origin=%s (%s).",
+   "plain": "Wrote no reply to the background prompt ({0}): nobody is waiting for one."
+  },
+  {
+   "logger": "core.brain.cognitive_engine",
+   "says": "CognitiveEngine: background objective deferred for origin=%s (%s).",
+   "plain": "Background thinking ({0}) put off for now."
+  },
+  {
+   "logger": "core.brain.cognitive_engine",
+   "says": "🧠 CognitiveEngine.think: %s... (%s) Origin: %s",
+   "plain": "Thinking about: {0}…"
+  },
+  {
+   "logger": "core.phases.response_generation",
+   "says": "💭 ResponseGeneration: Generating response for objective: %s... (%s)",
+   "plain": "Composing a response to: {0}…"
+  },
+  {
+   "logger": "Aura.TurnOutcome",
+   "says": "turn deferred for origin=%s (%s); the same request runs later",
+   "plain": "Put off a turn ({0}); it runs later."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "🔧 Tool-call budget: asked=%d configured=%d carries_a_document=%s → %d",
+   "plain": "Allowed up to {3} tokens for an answer that may use tools."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "🔧 Tool loop payload: system=%d chars, objective=%d chars, evidence=%d blocks, tools=%d",
+   "plain": "Asked her model, offering {3} tools."
+  },
+  {
+   "logger": "core.mind_tick",
+   "says": "🧠 MindTick: Registered phase '%s'",
+   "plain": "Added the step '{0}' to her thinking cycle."
+  },
+  {
+   "logger": "Aura.Reaper",
+   "says": "Sweep complete: %d procs reaped, %.1fMB storage reclaimed. (Duration: %.2fs)",
+   "plain": "Cleanup pass: stopped {0} leftover processes and freed {1:.0f} MB of disk."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "✋ [MLX] Soft-cancel requested for job seq=%d on %s (%s).",
+   "plain": "Asked {1} to stop a generation ({2})."
+  },
+  {
+   "logger": "Aura.Memory.Defrag",
+   "says": "Semantic sleep: starting defragmentation cycle for '%s'",
+   "plain": "Started tidying her memory store '{0}'."
+  },
+  {
+   "logger": "Aura.WhatSheGaveMeaning",
+   "says": "kept %d meaning(s) and %d derived word(s) in %d way(s) of building",
+   "plain": "Saved {0} meanings she has given things and {1} words she made from them."
+  },
+  {
+   "logger": "Aura.DreamCoordinator",
+   "says": "✅ DreamCoordinator: '%s' complete in %.1fs",
+   "plain": "Finished the sleep-time job '{0}' in {1:.0f} seconds."
+  },
+  {
+   "logger": "Aura.HerGoalAtWork",
+   "says": "🛠️ '%s' is %s; no pass",
+   "plain": "Her goal '{0}' is {1}, so she does no work on it this time."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "🛑 [MLX] Generation cancelled for %s by its caller (origin=%s, purpose=%s). Preserving worker unless it is unhealthy.",
+   "plain": "A generation on {0} was cancelled by what asked for it ({1})."
+  },
+  {
+   "logger": "Consciousness.Evolution",
+   "says": "Applied champion genome to live mesh (fitness=%.4f)",
+   "plain": "Put the best settings her inner evolution has found so far into use (fitness {0:.2f})."
+  },
+  {
+   "logger": "Consciousness.SubstrateAuthority",
+   "says": "🧪 SubstrateAuthority: neurochemical %s ended after %.0f s.",
+   "plain": "The {0} response in her simulated body chemistry ended after {1:.0f} seconds."
+  },
+  {
+   "logger": "Aura.DreamCoordinator",
+   "says": "🌙 DreamCoordinator: running '%s' (run #%d, priority=%d)",
+   "plain": "Running the sleep-time job '{0}'."
+  },
+  {
+   "logger": "Consciousness.Evolution",
+   "says": "Gen %d complete: best=%.4f mean=%.4f worst=%.4f champion=#%d applied=%s",
+   "plain": "Her inner evolution finished round {0} (best fitness {1:.2f})."
+  },
+  {
+   "logger": "core.kernel.organs",
+   "says": "Loading organ: %s...",
+   "plain": "Starting her {0} system…"
+  },
+  {
+   "logger": "Aura.Core.Kernel",
+   "says": "🫀 Organ %s is READY",
+   "plain": "Her {0} system is ready."
+  },
+  {
+   "logger": "Skills.Email",
+   "says": "🤖 Detected auto-reply UID %s from %s",
+   "plain": "An email from {1} is an automatic reply, so she leaves it."
+  },
+  {
+   "logger": "core.mind_tick",
+   "says": "🔮 MindTick: Predicted: %s...",
+   "plain": "She expects: {0}…"
+  },
+  {
+   "logger": "Aura.Memory.Defrag",
+   "says": "Semantic Defrag: no fragmentation clusters detected.",
+   "plain": "Her memory store needed no tidying."
+  },
+  {
+   "logger": "WorldModel.BeliefGraph",
+   "says": "🧠 Dissonance Rejected: New data '%s' (Weight: %.2f) weaker than existing '%s' (Weight: %.2f)",
+   "plain": "Kept what she already believed about {0}; the new information was weaker."
+  },
+  {
+   "logger": "Aura.Memory.Attention",
+   "says": "🧠 Compressed %d items into a Latent Seed Thought.",
+   "plain": "Condensed {0} things she was holding in mind into one summary thought."
+  },
+  {
+   "logger": "Aura.IntegrityMonitor",
+   "says": "🔍 Integrity warnings unchanged (%d): %s",
+   "plain": "Integrity check: the same {0} warning(s) as last time."
+  },
+  {
+   "logger": "Consciousness.Substrate",
+   "says": "💾 Substrate state saved (atomic)",
+   "plain": "Saved her inner state to disk."
+  },
+  {
+   "logger": "Aura.Boot",
+   "says": "   ✅ %s (%s): FOUND",
+   "plain": "Startup check: {0} is installed."
+  },
+  {
+   "logger": "Aura.Foundations",
+   "says": "%s foundations/%s — %s",
+   "plain": "Startup safeguard '{1}': {2}."
+  },
+  {
+   "logger": "Aura.DreamCoordinator",
+   "says": "DreamCoordinator: '%s' queued until admission clears (%s).",
+   "plain": "The sleep-time job '{0}' waits until she is free."
+  },
+  {
+   "logger": "Aura.Evolution",
+   "says": "🧬 Evolution tick #%d — Phase: %s (%.1f%%)",
+   "plain": "Her self-improvement plan is in its '{1}' stage ({2:.0f}% through)."
+  },
+  {
+   "logger": "Brain.HealthRouter",
+   "says": "⏸️ Router: Background generation deferred behind active gate owner=%s.",
+   "plain": "Background thinking waits: her model is busy with {0}."
+  },
+  {
+   "logger": "Aura.Actuators",
+   "says": "Registered actuator: %s (%s)",
+   "plain": "Added the action '{0}' to her practice simulation."
+  },
+  {
+   "logger": "Brain.ReasoningStrategies",
+   "says": "🧭 Strategy: Instructional/system prompt detected. Routing to DIRECT.",
+   "plain": "This prompt is an instruction, so she answers it directly."
+  },
+  {
+   "logger": "Aura.Coherence",
+   "says": "🧬 Coherence: %.2f | self=%.1f phenom=%.1f align=%.1f tension=%.1f intent=%.1f | %s",
+   "plain": "How well her parts agree right now: {0:.2f} out of 1."
+  },
+  {
+   "logger": "Brain.ReasoningStrategies",
+   "says": "🧠 Reasoning strategy: %s for query preview (%d chars): %s",
+   "plain": "Chose to reason about this the {0} way."
+  },
+  {
+   "logger": "PhantomBrowser",
+   "says": "Browser closed",
+   "plain": "Closed her browser."
+  },
+  {
+   "logger": "Brain.HealthRouter",
+   "says": "⏸️ Router: Foreground lane reserved. Deferring background inference for origin=%s.",
+   "plain": "Her model is kept for the conversation; background thinking ({0}) waits."
+  },
+  {
+   "logger": "Aura.Core.Kernel",
+   "says": "🌀 Unitary Tick Initiated: '%s' (priority=%s)",
+   "plain": "Started a cycle of thought: {0}"
+  },
+  {
+   "logger": "Aura.Core.Kernel",
+   "says": "🎭 [CASIE] Strategy: %s - %s",
+   "plain": "Approach for this cycle: {1}"
+  },
+  {
+   "logger": "Aura.PhiConsciousness",
+   "says": "Phi=%.3f  mode=%s  ignited=%s  fe=%.3f  autonomy_scale=%.2f  allow_self_mod=%s",
+   "plain": "Measured how unified her activity is (phi {0:.2f}, {1} mode)."
+  },
+  {
+   "logger": "Aura.UnitaryResponse",
+   "says": "🧠 UnitaryResponse: Using tier=%s for response generation. (priority=%s)",
+   "plain": "Answering with her {0} model."
+  },
+  {
+   "logger": "PhantomBrowser",
+   "says": "✓ Phantom Browser initialized (Visible: %s, UA: %s...)",
+   "plain": "Opened her own browser (shown on screen: {0})."
+  },
+  {
+   "logger": "PhantomBrowser",
+   "says": "🌐 Navigating to: %s",
+   "plain": "Going to {0}"
+  },
+  {
+   "logger": "Aura.PhiCore",
+   "says": "PhiCore drained %d worker residual state(s); grassmann history now %d/%d.",
+   "plain": "Gathered {0} recent readings from her model to measure phi."
+  },
+  {
+   "logger": "Aura.HerGoalAtWork",
+   "says": "🛠️ '%s': %d call(s) this pass (%s); %d in all; %s",
+   "plain": "Worked on her goal '{0}': {1} steps this time, {3} so far."
+  },
+  {
+   "logger": "Aura.ProactivePresence",
+   "says": "🧠 [ProactivePresence] Fallback thought → neural feed (#%d): %s",
+   "plain": "A passing thought: {1}"
+  },
+  {
+   "logger": "Aura.WhatSheLearned",
+   "says": "what she learned about %r was %d over, so %s",
+   "plain": "What she learned about {0} was too big to keep whole, so she let some go."
+  },
+  {
+   "logger": "Aura.InferenceGate",
+   "says": "🛡️ InferenceGate: keeping fallback workers resident (%.1fGB free ≥ %.1fGB cortex + %.1fGB fallback); shed skipped.",
+   "plain": "Kept her backup models loaded: there is enough free memory ({0:.0f} GB)."
+  },
+  {
+   "logger": "Brain.HealthRouter",
+   "says": "Registered endpoint: %s (%s) tier=%s local=%s",
+   "plain": "Connected the model {0}."
+  },
+  {
+   "logger": "WorldModel.BeliefGraph",
+   "says": "Belief Updated: %s -[%s]-> %s (Cent: %.2f)",
+   "plain": "Updated a belief: {0} {1} {2}."
+  },
+  {
+   "logger": "Aura.Ontogeny.Trainer",
+   "says": "ontogeny: fitted %s across %d actions on %d episodes — holdout %.3f vs base %.3f (%s)",
+   "plain": "Retrained one of her habits ({0}) on {2} past episodes."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "🔧 Tools offered (%s) and none called; model produced: %s",
+   "plain": "She was offered tools ({0}) and answered without them."
+  },
+  {
+   "logger": "Aura.ResourceGovernor",
+   "says": "ResourceGovernor: pruned %d ledger transitions older than %d days",
+   "plain": "Cleared {0} old records, older than {1} days."
+  },
+  {
+   "logger": "Aura.Boot",
+   "says": "⏳ [BOOT] Starting stage: %s",
+   "plain": "Starting up: {0}…"
+  },
+  {
+   "logger": "Aura.Boot",
+   "says": "✅ [BOOT] Stage '%s' completed successfully.",
+   "plain": "Startup step '{0}' done."
+  },
+  {
+   "logger": "Aura.BootProfile",
+   "says": "🐢 [BOOT] phase '%s' took %.1fs (offset +%.1fs)",
+   "plain": "Startup step '{0}' took {1:.0f} seconds."
+  },
+  {
+   "logger": "Consciousness.Evolution",
+   "says": "New champion genome #%d (fitness=%.4f) in gen %d",
+   "plain": "Her inner evolution found better settings (fitness {1:.2f})."
+  },
+  {
+   "logger": "SelfModification.Engine",
+   "says": "AUTONOMOUS SELF-MODIFICATION CYCLE",
+   "plain": "Starting a round of looking for bugs in her own code."
+  },
+  {
+   "logger": "SelfModification.Engine",
+   "says": "Diagnosing current bugs...",
+   "plain": "Looking for bugs in her own code…"
+  },
+  {
+   "logger": "SelfModification.Engine",
+   "says": "Found %d bugs that can be fixed",
+   "plain": "Found {0} bugs she can fix."
+  },
+  {
+   "logger": "SelfModification.Engine",
+   "says": "No bugs detected - system healthy (idle)",
+   "plain": "Found no bugs."
+  },
+  {
+   "logger": "Aura.SovereignPruner",
+   "says": "💾 [PRUNER] Consolidating %d memory task(s) this pass (deferred=%d).",
+   "plain": "Tidying {0} memory jobs now ({1} put off)."
+  },
+  {
+   "logger": "Aura.MetaCognition",
+   "says": "🧠 Running Meta-Cognitive Audit...",
+   "plain": "Reviewing how her own thinking has been going…"
+  },
+  {
+   "logger": "Aura.InferenceGate",
+   "says": "⏸️ InferenceGate: Foreground lane reserved. Deferring background inference for origin=%s.",
+   "plain": "Her model is kept for the conversation; background thinking ({0}) waits."
+  },
+  {
+   "logger": "Aura.InferenceGate",
+   "says": "⛔ InferenceGate refused generation: kind=%s reason=%s origin=%s",
+   "plain": "Did not run a generation for {2} ({1})."
+  },
+  {
+   "logger": "Brain.HealthRouter",
+   "says": "🛡️ Tier Lock: Background task requested '%s'; using the governed tertiary tier.",
+   "plain": "Background work asked for her {0} model and was given the smaller background one."
+  },
+  {
+   "logger": "Aura.CapabilityEngine",
+   "says": "📋 [MATURITY] %s would be refused for %s use (%s). Observing only; declare its properties to clear this.",
+   "plain": "{0} is not yet rated for {1} use. Noted; not blocked."
+  },
+  {
+   "logger": "Aura.Initiative",
+   "says": "📧 Checking email for autonomous initiatives...",
+   "plain": "Checking her email."
+  },
+  {
+   "logger": "Skills.Email",
+   "says": "📬 Inbox check: %d unread",
+   "plain": "Her inbox has {0} unread emails."
+  },
+  {
+   "logger": "Skills.Reddit",
+   "says": "Loaded %d non-expired Reddit session cookie(s) for validation.",
+   "plain": "Loaded her Reddit sign-in."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "⏸️ [MLX] Deferring background generation for %s (%s).",
+   "plain": "Background generation on {0} waits ({1})."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "🔧 Tools offered (%s) and the generation came back empty on turn %d.",
+   "plain": "She was offered tools and her model gave back nothing."
+  },
+  {
+   "logger": "Aura.Perception.AmbientUtterance",
+   "says": "🫧 remark: quiet, nothing in the %d characters read is a fault",
+   "plain": "Read the screen; nothing there to remark on."
+  },
+  {
+   "logger": "core.brain.cognitive_engine",
+   "says": "🧠 CognitiveEngine: Registered augmentor %s",
+   "plain": "Added {0} to how she thinks."
+  },
+  {
+   "logger": "Aura.Resilience.MemoryGovernor",
+   "says": "Memory Governor resource lifecycle %s → %s; trend baseline reset.",
+   "plain": "Her model went from {0} to {1}, so her memory trend is measured afresh."
+  },
+  {
+   "logger": "Aura.ResilienceEngine",
+   "says": "🏥 Subsystem %s auto-recovered back to healthy.",
+   "plain": "{0} recovered on its own."
+  },
+  {
+   "logger": "LLM.MLX",
+   "says": "🛑 [MLX] Generation cancelled for %s by its caller (origin=%s, purpose=%s). Preserving worker unless it is unhealthy.",
+   "plain": "A generation on {0} was cancelled by what asked for it ({1}). The model stays loaded."
+  },
+  {
+   "logger": "SelfModification.ErrorIntelligence",
+   "says": "Error logged: %s in %s reason=%s classification=%s detail=%s",
+   "plain": "Recorded an error in {1}: {0}."
+  },
+  {
+   "logger": "Aura.CognitiveIntegration",
+   "says": "Endogenous fitness: %s began (%s; measured %s, defaulted %s).",
+   "plain": "Her own sense of how well she is doing: {0} began ({1})."
+  },
+  {
+   "logger": "Aura.Core",
+   "says": "Event loop starved, not blocked: %.2fs of lag on %.0f%% of a core (%d such samples this run). %s",
+   "plain": "Her main thread fell {0:.1f} seconds behind; her own work held it, not the computer."
+  },
+  {
+   "logger": "Aura.Cognitive.AnomalyDetector",
+   "says": "Sustained anomaly detected: threat=%.4f distance=%.4f slope=%.4f streak=%d event_id=%s",
+   "plain": "Something has looked unusual for a while (threat {0:.2f}, {3} readings in a row)."
+  },
+  {
+   "logger": "Aura.Lockdep",
+   "says": "🔒 LOCKDEP %s: %s",
+   "plain": "Her lock checker found a problem ({0}): {1}"
+  },
+  {
+   "logger": "Aura.Taint",
+   "says": "🩸 runtime tainted [%s] %s — %s (subsystem=%s)",
+   "plain": "She marked herself as running in a compromised state ({0}): {2}."
+  },
+  {
+   "logger": "core.mind_tick",
+   "says": "🐢 MindTick: Slow phase detected: '%s' took %ss",
+   "plain": "The step '{0}' of her thinking cycle was slow ({1} seconds)."
+  },
+  {
+   "logger": "core.mind_tick",
+   "says": "🛑 MindTick: Phase '%s' STALLED (timeout of %.0fs)%s. Tripping circuit.",
+   "plain": "The step '{0}' of her thinking cycle stopped responding after {1:.0f} seconds, so it is switched off for now."
+  },
+  {
+   "logger": "Aura.IntegrityMonitor",
+   "says": "🔍 Integrity warnings: %s",
+   "plain": "Integrity check found: {0}"
+  },
+  {
+   "logger": "Cognition.Narrative",
+   "says": "📔 [NARRATIVE] Journal held back (%s): no entry written; it is tried again in five minutes.",
+   "plain": "No journal entry this time ({0}); she tries again in five minutes."
+  },
+  {
+   "logger": "core.utils.task_tracker",
+   "says": "TaskTracker[%s]: task %s failed: %s",
+   "plain": "A background job ({1}) failed: {2}"
+  },
+  {
+   "logger": "Aura.Circadian",
+   "says": "CircadianEngine: state is %.0fs old — stale watchdog triggered, forcing refresh.",
+   "plain": "Her sense of the time of day was {0:.0f} seconds out of date, so she refreshed it."
+  },
+  {
+   "logger": "Aura.Memory",
+   "says": "🚫 MemoryFacade add_memory blocked: %s",
+   "plain": "A memory was not saved: {0}."
+  },
+  {
+   "logger": "Aura.SearchPipeline",
+   "says": "Knowledge persistence failed: no memory backend accepted the artifact (%s).",
+   "plain": "Could not save what a search found ({0})."
+  },
+  {
+   "logger": "WorldModel.ACG",
+   "says": "🚫 ACG write blocked: %s",
+   "plain": "A note about cause and effect was not saved: {0}."
+  },
+  {
+   "logger": "Knowledge.Graph",
+   "says": "🚫 KnowledgeGraph write blocked: %s (%s)",
+   "plain": "A fact was not added to her knowledge: {0}."
+  },
+  {
+   "logger": "Aura.MemoryGuard",
+   "says": "MemoryGuard: Triggering HIGH PRESSURE mode in LLM Router (%s%%)",
+   "plain": "Memory is running low ({0}% used), so her models run in a lighter mode."
+  },
+  {
+   "logger": "Aura.CollectorPauses",
+   "says": "🗑️ a generation-%d collection held %s %.0f ms (collected %s, uncollectable %s), %s",
+   "plain": "Python's memory cleanup paused {1} for {2:.0f} ms."
+  },
+  {
+   "logger": "Aura.Resilience.MemoryGovernor",
+   "says": "🚨 RUNAWAY, what grew over its last %.0f min: her own process %+.0f MB (now %.0f MB), her workers and other children %+.0f MB (now %.0f MB); workers now: %s",
+   "plain": "Over the last {0:.0f} minutes her own process grew {1:+.0f} MB and her models {3:+.0f} MB."
+  },
+  {
+   "logger": "Aura.Resilience.RunawayBudget",
+   "says": "🚨 RUNAWAY [%s]: %s",
+   "plain": "{0} is growing fast enough to run out of room soon, so she stops starting new consequential work: {1}"
+  },
+  {
+   "logger": "Aura.Resilience.RunawayBudget",
+   "says": "✅ [%s] trend back to nominal: %s",
+   "plain": "{0} is back to normal growth."
+  }
+ ]
+}

@@ -102,7 +102,8 @@ def test_the_complete_payload_goes_through_the_same_translation():
     source = (ROOT / "interface" / "static" / "aura.js").read_text()
     at = source.index("const showCompletePayload = ")
     window = source[at - 900 : at + 400]
-    assert "const fullPlain = toPlainEnglish(fullMsg);" in window
+    # Her server's own sentence for the line comes first (tests/test_the_feed_face_is_plain.py).
+    assert "const fullPlain = plainFace || toPlainEnglish(fullMsg);" in window
     assert "showCompletePayload ? fullPlain : msg" in window
     assert "showCompletePayload ? fullMsg : msg" not in source
 
