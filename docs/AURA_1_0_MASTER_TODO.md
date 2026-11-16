@@ -3977,6 +3977,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   question (core/runtime/referential_continuation.answers_a_question
   reads any message with no standalone hint as a fragment), and the
   learned asking-clause reader returns nothing for it.
+  Asked again at 18:14 on c215015cb: the recall answer came in 16.6 s on
+  the quick lane, in her words. The opening remark, "I slept badly last
+  night, maybe four hours.", was searched on the web as something
+  current: "last night" is on the word list of currentness, and a remark
+  was not asked whether it seeks anything. A Reddit thread on insomnia
+  was then served in place of her reply ("I checked live web evidence.
+  ..."), because her reply cited none of it. Currentness now counts only
+  where the turn seeks the world: in a clause that asks, or by the
+  outside-evidence reading. With her router warm that was measured on
+  thirteen remarks and questions, all as expected. Left: the evidence
+  template that replaces a reply which does not cite the search (F06's
+  class).
   Bryan, same evening: his words to himself were answered as turns. At
   11:00 local, in a voice session, "Okay.", "But thank you." and "Probably
   not." were answered ("I was saying it's a good sound.", "You're

@@ -606,7 +606,26 @@ def test_a_question_about_her_own_evening_is_not_a_question_about_the_world_now(
 
 
 def test_the_route_asks_whether_a_present_question_is_about_her() -> None:
-    from pathlib import Path
+    from interface.routes.chat_desktop_evidence import _about_the_world_now
 
-    source = (Path(__file__).resolve().parents[1] / "interface" / "routes" / "chat_desktop_evidence.py").read_text()
-    assert "_query_is_current(user_message) and not is_about_her(user_message)" in source
+    for hers in ("What have you been up to this evening?", "How was your day today?"):
+        assert not _about_the_world_now(hers, seeks_the_world=False), hers
+    assert not _about_the_world_now("create a small HTML page at artifacts/live_runtime/now.html", False)
+
+
+def test_a_word_about_time_in_a_remark_is_not_a_question_about_the_world_now() -> None:
+    """LIVE 15 November 2026: "I slept badly last night, maybe four hours." was searched for as something current.
+
+    A Reddit thread on insomnia was served in her place. A remark asks nothing; the time word counts only where the
+    turn seeks the world, in a clause that asks or by the outside-evidence reading (here given as measured live).
+    """
+    from interface.routes.chat_desktop_evidence import _about_the_world_now
+
+    for remark in ("I slept badly last night, maybe four hours.", "I'm tired today.",
+                   "We watched a movie last night.", "My sister is visiting this weekend."):
+        assert not _about_the_world_now(remark, seeks_the_world=False), remark
+    for asked in ("Who won the game tonight?", "Any news today?", "Is it raining in London right now?",
+                  "What happened in the election last night?"):
+        assert _about_the_world_now(asked, seeks_the_world=False), asked
+    for sought in ("Search for the current price of bitcoin", "latest iPhone release date"):
+        assert _about_the_world_now(sought, seeks_the_world=True), sought

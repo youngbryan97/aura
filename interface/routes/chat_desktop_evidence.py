@@ -1118,6 +1118,25 @@ async def _read_a_page_as_shown(url: str) -> dict[str, Any] | None:
     return page
 
 
+def _about_the_world_now(user_message: str, seeks_the_world: bool) -> bool:
+    """Whether a turn asks about something as it is now, which needs a live source whatever a dated copy holds.
+
+    A word about time is not enough: it counts where the turn seeks the world, in a clause that asks or by the
+    reading of whether it wants outside evidence. LIVE 15 November 2026, "I slept badly last night, maybe four
+    hours." was searched for as something current, and a Reddit thread on insomnia was served in her place. Her own
+    evening is not the world's (13 November), and nor is a thing she is asked to make (12 November: "create a small
+    HTML page at artifacts/live_runtime/..." was searched for, "live" in its path read as a word about now).
+    """
+    from core.conversation.asks_about_the_world import is_about_her
+    from core.intent.artifact_request import asks_for_an_artifact
+    from core.language.asking_clauses import asking_clauses
+    from core.search.research_pipeline import _query_is_current
+
+    if not _query_is_current(user_message) or is_about_her(user_message) or asks_for_an_artifact(user_message):
+        return False
+    return bool(seeks_the_world) or any(_query_is_current(clause) for clause in asking_clauses(user_message))
+
+
 async def _what_the_world_says_for_the_turn(
     user_message: str,
     effective_user_message: str,
@@ -1157,15 +1176,11 @@ async def _what_the_world_says_for_the_turn(
     if should_collect and asks_for_her_view(user_message) is True and not asks_for_sources(user_message):
         should_collect = False
     try:
-        from core.conversation.asks_about_the_world import is_about_her, wants_outside_evidence
-        from core.intent.artifact_request import asks_for_an_artifact
-        from core.search.research_pipeline import _query_is_current
+        from core.conversation.asks_about_the_world import wants_outside_evidence
 
-        # Something as it is now needs a live source, whatever a dated copy holds; her own evening is not the world's,
-        # and nor is a thing she is asked to make (12 November 2026: "create a small HTML page at
-        # artifacts/live_runtime/..." was searched for on the web, "live" in its path read as a word about now).
-        current = _query_is_current(user_message) and not is_about_her(user_message) and not asks_for_an_artifact(user_message)
-        outside = should_collect or current or wants_outside_evidence(user_message)
+        seeks = wants_outside_evidence(user_message)
+        current = _about_the_world_now(user_message, seeks)
+        outside = should_collect or current or seeks
     except _CHAT_RECOVERABLE_ERRORS:
         current, outside = False, should_collect
     previous = previous_reply = ""
