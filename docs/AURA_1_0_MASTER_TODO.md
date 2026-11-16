@@ -5020,6 +5020,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     Smoke: 164 passed, 1 skipped. This verifies artifact creation and
     failure propagation; collector contents are not a runtime-readiness
     verdict. The separate wrong-log-root defect is tracked under Q06.
+  - [x] 2026-11-15: observed source changes fail the chunk runner,
+    including a change during its last chunk or retry. A retry on changed
+    or unreadable source stays unmeasured and cannot become an order
+    defect. An unknown starting revision starts no test work. The register
+    carries the starting and final revisions, observations of movement
+    and source-read errors. The old source-string tests were replaced by
+    real Git probes and exercised run/register tests; three inspection
+    allowances came out. 78 focused tests passed; smoke 164 passed,
+    1 skipped in 44.42 s, maximum RSS 500,662,272 bytes. Lint, compile
+    and targeted writing passed. This observes Git revision and dirty
+    state; already-dirty edits are not byte-hashed, so the worktree must
+    still stay unchanged while a run is active.
+    Source: tools/run_test_chunks.py; tests:
+    tests/test_a_suite_run_knows_which_tree_it_read.py.
   2026-10-01. Main at 8ac994342: module size, lint, the strict lint
   surface, markers and the claim discipline test are green again, each red
   on main from work that landed after 30 September. The async sandbox claim

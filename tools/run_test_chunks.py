@@ -33,6 +33,12 @@ Chunk size is a memory budget, not a constant. Six is right on an idle host;
 it is wrong while something else holds 18GB, and the runner should say so
 instead of vanishing.
 
+The Git revision and tracked dirty marker are checked across chunks and
+retries. Changed or unreadable source leaves the run failed; a retry on
+another revision supplies no verdict about order dependence. The dirty
+marker does not hash edits made while the checkout is already dirty.
+Use a pinned worktree and leave its source unchanged during the run.
+
 Usage:
     python tools/run_test_chunks.py [--chunks N] [--marker "not live"]
     python tools/run_test_chunks.py --chunk-timeout 1800
@@ -470,23 +476,37 @@ def main(argv: list[str] | None = None) -> int:
         f"RUN begins revision={started_at_revision or 'unknown'} "
         f"chunks={len(chunk_lists)} files={len(files)}",
     )
-    moved_at: list[tuple[int, str]] = []
+    moved_at: list[tuple[str, str]] = []
+    source_errors: dict[str, str] = {}
+    if not started_at_revision:
+        source_errors["start"] = "source revision could not be measured"
+        note_progress(args.progress_file, "SOURCE UNKNOWN start; no chunks started")
 
-    results: list[tuple[bool, str, list[str]]] = []
-    for i, chunk in enumerate(chunk_lists, start=1):
-        if selected_indexes is not None and i not in selected_indexes:
-            continue
-        current_revision = working_tree_revision()
-        if started_at_revision and current_revision and current_revision != started_at_revision:
-            if not moved_at or moved_at[-1][1] != current_revision:
-                moved_at.append((i, current_revision))
+    def observe_revision(phase: str) -> str:
+        revision = working_tree_revision()
+        if started_at_revision and not revision:
+            source_errors[phase] = "source revision could not be measured"
+            note_progress(args.progress_file, f"SOURCE UNKNOWN {phase}")
+        elif started_at_revision and revision != started_at_revision:
+            if not moved_at or moved_at[-1][1] != revision:
+                moved_at.append((phase, revision))
                 message = (
-                    f"MOVED chunk {i}/{len(chunk_lists)} tree is now "
-                    f"{current_revision}, run began on {started_at_revision} — "
-                    "chunks before and after this point tested different code"
+                    f"MOVED {phase} tree is now {revision}, run began on "
+                    f"{started_at_revision} — observations tested different code"
                 )
                 note_progress(args.progress_file, message)
                 print(f"\n⚠️  {message}\n", flush=True)
+        return revision
+
+    results: list[tuple[bool, str, list[str]]] = []
+    for i, chunk in enumerate(chunk_lists, start=1):
+        if source_errors:
+            break
+        if selected_indexes is not None and i not in selected_indexes:
+            continue
+        observe_revision(f"chunk {i}/{len(chunk_lists)}")
+        if source_errors:
+            break
         result = run_chunk(
             i,
             len(chunk_lists),
@@ -508,6 +528,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             break
 
+    after_chunks_revision = observe_revision("after chunks")
+
     # Isolated retry: a test that fails in-chunk but passes alone is an
     # ORDER-DEPENDENCE defect. The retry classifies it; the original batch
     # failure still blocks the run.
@@ -525,6 +547,11 @@ def main(argv: list[str] | None = None) -> int:
                 retry_cmd.extend(["-m", args.marker])
             retry_cmd.extend(list(args.extra))
             print(f"  retry: {fid}", flush=True)
+            retry_revision = observe_revision(f"before retry {fid}")
+            if moved_at or source_errors or not started_at_revision or not retry_revision:
+                retry_errors[fid] = "source revision changed or is unknown; no isolated comparison"
+                note_progress(args.progress_file, f"RETRY ERROR {fid}: {retry_errors[fid]}")
+                continue
             free_gb = free_memory_gb()
             note_progress(args.progress_file, f"RETRY {fid} free_gb={free_gb}")
             if refusal := memory_refusal(f"retry {fid}", free_gb, args.min_free_gb):
@@ -539,8 +566,8 @@ def main(argv: list[str] | None = None) -> int:
                     timeout=args.retry_timeout,
                     capture_output=True,
                     text=True,
-                        encoding="utf-8",
-                        errors="replace",
+                    encoding="utf-8",
+                    errors="replace",
                 )
             except subprocess.TimeoutExpired:
                 # One slow test must not take the whole register with it. On
@@ -555,7 +582,11 @@ def main(argv: list[str] | None = None) -> int:
                 retry_errors[fid] = f"retry could not start: {type(exc).__name__}: {exc}"
                 note_progress(args.progress_file, f"RETRY ERROR {fid}: {retry_errors[fid]}")
                 continue
-            if retry.returncode == 0:
+            observe_revision(f"after retry {fid}")
+            if moved_at or source_errors:
+                retry_errors[fid] = "source revision changed or is unknown during retry; no isolated comparison"
+                note_progress(args.progress_file, f"RETRY ERROR {fid}: {retry_errors[fid]}")
+            elif retry.returncode == 0:
                 order_dependent.append(fid)
             elif retry.returncode == 1:
                 real_failures.append(fid)
@@ -563,6 +594,7 @@ def main(argv: list[str] | None = None) -> int:
                 retry_errors[fid] = f"pytest exited {retry.returncode}; no isolated verdict"
                 note_progress(args.progress_file, f"RETRY ERROR {fid}: {retry_errors[fid]}")
 
+    finished_at_revision = observe_revision("after retries")
     if args.defect_register:
         try:
             import json as _json
@@ -575,6 +607,15 @@ def main(argv: list[str] | None = None) -> int:
                 "timed_out_alone": timed_out_alone,
                 "retry_refusals": retry_refusals,
                 "retry_errors": retry_errors,
+                "source_revision": {
+                    "started": started_at_revision,
+                    "after_chunks": after_chunks_revision,
+                    "finished": finished_at_revision,
+                    "changed": bool(moved_at),
+                    "measured": bool(started_at_revision and finished_at_revision and not source_errors),
+                    "changes": [{"phase": phase, "revision": revision} for phase, revision in moved_at],
+                    "errors": source_errors,
+                },
             }
             reg_path = Path(args.defect_register)
             reg_path.parent.mkdir(parents=True, exist_ok=True)
@@ -590,14 +631,16 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"\n⚠️  THE TREE MOVED {len(moved_at)} time(s) during this run: began on "
             f"{started_at_revision}, "
-            + ", ".join(f"chunk {i} on {rev}" for i, rev in moved_at)
+            + ", ".join(f"{phase} on {rev}" for phase, rev in moved_at)
         )
         print(
             "    Chunks either side of a move tested different code, so this is "
             "not one register. Re-run in a worktree pinned to a revision."
         )
+    elif source_errors:
+        print("\n❌ source revision became unreadable; this run has no source identity verdict")
     elif started_at_revision:
-        print(f"revision {started_at_revision}, unchanged for the whole run")
+        print(f"revision {started_at_revision}, unchanged at every source check")
     unisolated_failures = 0
     for ok, line, ids in results:
         print(("✅ " if ok else "❌ ") + line)
@@ -619,6 +662,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n❌ {len(retry_errors)} retry/retries produced no isolated verdict:")
         for fid, error in retry_errors.items():
             print(f"  ❌ {fid}: {error}")
+    if moved_at or source_errors:
+        print("\n❌ source identity did not hold; re-run in a worktree pinned to a revision")
+        return 1
     if real_failures:
         print(f"\n❌ real failures ({len(real_failures)}) — fail in-chunk AND alone:")
         for fid in real_failures:

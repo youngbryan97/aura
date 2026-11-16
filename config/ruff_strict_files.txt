@@ -1857,6 +1857,7 @@ tests/test_a_stream_that_cannot_strand_its_reader.py
 tests/test_a_structured_answer_is_not_scaffolding.py
 tests/test_a_structured_answer_survives_its_headings.py
 tests/test_a_subroute_keeps_its_authority.py
+tests/test_a_suite_run_knows_which_tree_it_read.py
 tests/test_a_symptom_with_no_error_is_diagnosed.py
 tests/test_a_table_question_is_computed.py
 tests/test_a_task_knows_which_page_it_is_on.py
