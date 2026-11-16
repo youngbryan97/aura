@@ -4805,6 +4805,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: capability meanings are saved through the atomic
+    file gateway from the request worker's governed scope. A lock
+    keeps memory updates and disk replacements in the same order
+    for one store. Two worker calls retained both examples on reload
+    under enforcement. The writer regression failed before the repair.
+    The save keeps the previous fsync behavior. Two raw calls became
+    one governed write, with 747 raw and 2,053 total migration calls.
+    All 25 focused tests passed. Smoke passed 164 tests with one skip
+    in 91.18 s and maximum RSS of 481,034,240 bytes. Lint, compile,
+    dependency drift, layering, governance, module size and targeted
+    writing passed.
+    Source: core/brain/requests_by_meaning.py and
+    core/intent/capability_by_meaning.py.
+    Tests: tests/test_a_request_is_routed_by_its_meaning.py.
   - [x] 2026-11-15: halting-head saves encode the NPZ before the
     governed file gateway replaces it. A simulated encoder failure
     used to corrupt the existing head. Both the preservation and

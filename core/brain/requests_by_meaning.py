@@ -93,6 +93,9 @@ def meant_shortlist(text: str, skills: Mapping[str, Any]) -> list[str]:
 
 def served(text: str, name: str) -> None:
     """A capability came back done for this request: remember it as one of its meanings."""
+    from core.governance_context import local_internal_governed_scope
+
     meanings = _the_meanings()
     if meanings is not None:
-        meanings.learned(text, name)
+        with local_internal_governed_scope("requests_by_meaning.served"):
+            meanings.learned(text, name)

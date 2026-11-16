@@ -110,9 +110,11 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: four raw calls became one governed write, 751 and 2,054.
 #: The turn reader's NPZ goes through the gateway; its eager parent
 #: creation came out. Raw 750, total still 2,054.
-TOTAL_CEILING = 2054
 #: The halting-head save also replaces an eager mkdir with a gateway write.
-RAW_CEILING = 749
+#: Raw 749, total still 2,054.
+#: Saving capability meanings replaces two raw calls with one gateway write.
+TOTAL_CEILING = 2053
+RAW_CEILING = 747
 
 
 def _split() -> tuple[int, int]:

@@ -4617,6 +4617,14 @@
       "scope": "<module>.EntityIdentity._persist"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/intent/capability_by_meaning.py",
+      "scope": "<module>.Meanings.learned"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_json",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -11329,22 +11337,6 @@
       "scope": "<module>.IdentityLedger.__init__"
     },
     {
-      "callee": "self._store.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/intent/capability_by_meaning.py",
-      "scope": "<module>.Meanings.learned"
-    },
-    {
-      "callee": "self._store.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/intent/capability_by_meaning.py",
-      "scope": "<module>.Meanings.learned"
-    },
-    {
       "callee": "os.makedirs",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -17498,6 +17490,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "149c5be13153555dcc3f4494cacd121605e1826360cf8971934bae2b4f6caa1f",
+  "inventory_sha256": "0551979f133efb15949e1b5faa1177781dc46fc13a24279dad53e43f7f7c2342",
   "schema_version": 1
 }

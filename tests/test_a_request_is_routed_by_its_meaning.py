@@ -52,3 +52,42 @@ def test_a_request_served_is_a_meaning_kept(tmp_path):
     meanings.learned(asked, "repair_a_program")
     again = Meanings(_embed, tmp_path / "meanings.json")  # kept on disk
     assert again.which("the pong thing misbehaves again", _SKILLS) == "repair_a_program"
+
+
+def test_the_served_request_worker_owns_its_atomic_save(tmp_path, monkeypatch):
+    import asyncio
+    import json
+
+    from core.brain import requests_by_meaning
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    path = tmp_path / "new" / "meanings.json"
+    meanings = Meanings(_embed, path)
+    gateway = get_file_write_gateway()
+    original = gateway.write_text
+    writes = []
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    monkeypatch.setattr(requests_by_meaning, "_the_meanings", lambda: meanings)
+
+    def save(destination, payload, **kwargs):
+        token = get_active_governance()
+        assert token is not None and token.domain == "state_mutation"
+        writes.append((destination, kwargs["source"], kwargs["durable"], json.loads(payload)))
+        original(destination, payload, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_text", save)
+    asked = ("the pong thing misbehaves", "my screen tool crashed")
+    capability = "repair_a_program"
+
+    async def serve_both():
+        await asyncio.gather(*(asyncio.to_thread(requests_by_meaning.served, text, capability) for text in asked))
+
+    asyncio.run(serve_both())
+
+    assert [write[:3] for write in writes] == [(path, "capability_by_meaning.learned", False)] * 2
+    first, latest = (write[3][capability] for write in writes)
+    assert len(first) == 1 and latest[:1] == first and set(latest) == set(asked)
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert json.loads(path.read_text()) == {capability: latest}
+    assert Meanings(_embed, path).served == {capability: latest}

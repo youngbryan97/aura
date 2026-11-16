@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
 from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.CapabilityByMeaning")
@@ -62,6 +63,7 @@ class Meanings:
         self._store = store
         self._vectors: dict[str, np.ndarray] = {}
         self._lock = checked_lock("capability_by_meaning.meanings")
+        self._served_lock = checked_lock("capability_by_meaning.served")
         self.served: dict[str, list[str]] = self._read()
 
     def _read(self) -> dict[str, list[str]]:
@@ -136,14 +138,21 @@ class Meanings:
 
     def learned(self, text: str, name: str) -> None:
         """``name`` served ``text``: one more of its meanings, kept."""
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         text = " ".join(str(text or "").split())[:400]
         if not text:
             return
-        kept = [t for t in self.served.get(name, []) if t != text] + [text]
-        self.served[name] = kept[-MOST_SERVED:]
-        if self._store is not None:
-            try:
-                self._store.parent.mkdir(parents=True, exist_ok=True)
-                self._store.write_text(json.dumps(self.served, indent=1), "utf-8")
-            except OSError as why:
-                logger.info("what a capability served could not be kept: %s", why)
+        # The caller runs on a worker. Keep snapshots and disk replacement
+        # in the same order when two requests finish together.
+        with self._served_lock:
+            kept = [t for t in self.served.get(name, []) if t != text] + [text]
+            self.served[name] = kept[-MOST_SERVED:]
+            if self._store is not None:
+                try:
+                    get_file_write_gateway().write_text(
+                        self._store, json.dumps(self.served, indent=1),
+                        source="capability_by_meaning.learned", durable=False,
+                    )
+                except OSError as why:
+                    logger.info("what a capability served could not be kept: %s", why)
