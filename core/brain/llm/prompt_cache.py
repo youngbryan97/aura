@@ -457,6 +457,34 @@ class PromptCacheLRU:
         self._delete(evict_model_key, list(evict_tokens))
         return cache_key
 
+    def retire_entries_holding(self, model_key: Any, prompt_cache: Any) -> int:
+        """Retire whatever under ``model_key`` holds this very cache object, and nothing else; how many went.
+
+        A generation stopped during prefill leaves its cache partly filled. Every way a generation borrows a cache
+        takes the entry out of the trie or hands over a copy, so normally nothing here holds it and nothing goes.
+        The call was ``clear_model_key``, which went further: LIVE 15 November 2026 a tool pass stopped at 1,984 of
+        2,284 prefill tokens took the 7,424-token prefix kept 3 s before with it, and the reply's pass prefilled
+        2,564 tokens from nothing (7.9 s).
+        """
+        if prompt_cache is None:
+            return 0
+        held = [
+            cache_key
+            for queue in self._lru.values()
+            for cache_key in queue
+            if cache_key[0] == model_key and self._get(model_key, list(cache_key[1])).prompt_cache is prompt_cache
+        ]
+        for cache_key in held:
+            self._delete(model_key, list(cache_key[1]))
+            self._forget_key(cache_key)
+        for handle, binding in list(self._resume_bindings.items()):
+            if binding.model_key == model_key and binding.prompt_cache is prompt_cache:
+                self._resume_bindings.pop(handle, None)
+                held.append((model_key, binding.tokens))
+        if held:
+            logger.info("🧊 [PROMPT CACHE] retired %d entr(ies) holding a stopped prefill's cache", len(held))
+        return len(held)
+
     def clear_model_key(self, model_key: Any) -> None:  # noqa: D401 - see log
         logger.info("🧊 [PROMPT CACHE] cleared everything under key=%s", model_key)
         return self._clear_model_key(model_key)

@@ -10184,11 +10184,11 @@ def _mlx_worker_loop(
                 )
 
         except _PrefillCancelledError as cancelled:
-            # All per-generation contexts have unwound, including steering
-            # restoration and stream closure. A borrowed KV entry can now be
-            # longer than its trie key, so retire that lane before its receipt.
+            # All per-generation contexts have unwound, including steering and stream
+            # closure. Only an entry still holding this job's partly filled cache is
+            # retired; the prefixes kept under the key stay (this frame binds `cache`).
             if cancelled.action == "generate" and prompt_cache_lru is not None:
-                prompt_cache_lru.clear_model_key(model_key)
+                prompt_cache_lru.retire_entries_holding(model_key, locals().get("cache"))
             logger.info(
                 "Worker stopped %s during prefill at %d/%d tokens (job seq=%s).",
                 cancelled.action, cancelled.processed, cancelled.total, job.get("seq"),

@@ -2162,6 +2162,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Live at 19:07 on 650c09b5a, the first typed turn after her boot: the
   reading by meaning took 0.05 s (8.6 s before), and the turn 22.4 s with
   10.8 s unattributed (32.0 s and 20.2 s before).
+  16 November, the prefill cancel of 06:50 the day before. A generation
+  never borrows a cache the trie still holds: the borrow takes the entry
+  out, or hands over a copy when another holder shares it. So a stopped
+  prefill leaves nothing in the trie that ran past its key, and clearing
+  every entry under the key bought nothing and cost the 7,424-token
+  prefix. The cancel handler now retires only an entry that still holds
+  the stopped job's own cache object, which by the borrow rule is none
+  (retire_entries_holding, tests/test_a_stopped_prefill_keeps_the_kept_prefixes.py).
+  The clears after a failed generation's internal retries are left as
+  they are: there the cache is suspect. Next to see live: a tool pass
+  stopped mid-prefill, then the reply's pass a prefix hit.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
