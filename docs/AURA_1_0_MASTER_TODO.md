@@ -7038,8 +7038,12 @@ needs her 27B free (her app down, or her app's own influence trials).
   modality for that call. Through her capability engine with the SMTP
   step stood in, the reply goes out with a Will receipt. The same reply
   from her generic loop still asks for confirmation, a new email is
-  refused, and with the setting off the reply waits for Bryan. Left: the
-  reply seen leaving her own round live.
+  refused, and with the setting off the reply waits for Bryan. Live after
+  that, the permission gate read his yes only from a lease the engine had
+  not issued yet (2388dffbe), and an open obligation held the written
+  reply (9f8371d9c). At 06:05 local on 16 November her round sent it:
+  "Her reply to Bryan Young about 'Re: Checking In' went out
+  (ffb62e8291)".
 - [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
   the 512-unit substrate (d9fdc1660). Left: each module driving what she does
   or says, measured by lesion. Lane: no.

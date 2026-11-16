@@ -1589,11 +1589,12 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         self._explicitly_deactivated_skills: set[str] = set()
         # skill → monotonic deadline while a user-advocate block holds.
         self._advocate_block_cooldowns: dict[str, float] = {}
+        # Registered skills only: a name nothing registers is skipped by activation in silence, and reads as a capability
+        # (tests/test_skill_name_addressing.py). "talk" is native_chat's own alias, which resolution does not read, and
+        # FinalResponse, delegate_shard, spawn_agent and spawn_agents_parallel are no registered skill.
         self.active_skills: set[str] = {
             # Core routing
             "ManageAbilities",
-            "talk",
-            "FinalResponse",
             # Self-awareness & diagnostics
             "system_proprioception",
             "environment_info",
@@ -1639,10 +1640,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             "curiosity",
             "deploy_ghost_probe",
             "social_lurker",
-            "delegate_shard",
             "inter_agent_comm",
-            "spawn_agent",
-            "spawn_agents_parallel",
             # Identity & personality
             "personality",
             "embodiment",
