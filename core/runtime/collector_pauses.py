@@ -7,13 +7,18 @@ Her main process keeps millions of long-lived objects, and nothing in her runtim
 
 This times every collection through ``gc.callbacks`` and says in her log each one that held its thread longer than
 lockdep's loop budget (``LOOP_BLOCKING_HOLD_S``), with its generation, what it collected, and whether that thread was
-her event loop. ``collector_pauses()`` gives the counts, totals and worst pause per generation. Nothing here changes
-when or how the collector runs.
+her event loop, and where it came from: a line that asked for it (``gc.collect``), or the line whose allocation set it
+off. ``collector_pauses()`` gives the counts, totals and worst pause per generation. Nothing here changes when or how
+the collector runs.
 """
 from __future__ import annotations
 
 import gc
+import linecache
 import logging
+import os
+import re
+import sys
 import threading
 import time
 from typing import Any
@@ -29,6 +34,25 @@ logger = logging.getLogger("Aura.CollectorPauses")
 # the GIL. A lock here could be held by the very thread whose allocation started the collection.
 _BEGAN: dict[int, float] = {}
 _BY_GENERATION: dict[int, list[float]] = {}  # generation -> [count, total seconds, worst seconds, over budget]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_ASKS_FOR_ONE = re.compile(r"\bgc\.collect\(")
+
+
+def _where_it_came_from(frame: Any) -> str:
+    """The line that asked for this collection, or the line whose allocation set it off.
+
+    LIVE 16 November 2026: 180 full collections past the loop budget in 40 minutes, one every 11 s, 19 s in all, each
+    finding about 400 objects to free. Several of her modules ask for full collections on timers, and the collector
+    also starts them itself; which of the two these were decides what to change, and nothing said.
+    """
+    if frame is None:
+        return "from nowhere in Python"
+    path = frame.f_code.co_filename
+    shown = os.path.relpath(path, _ROOT) if path.startswith(_ROOT + os.sep) else os.path.join(
+        *path.split(os.sep)[-2:])
+    if _ASKS_FOR_ONE.search(linecache.getline(path, frame.f_lineno)):
+        return f"asked for at {shown}:{frame.f_lineno}"
+    return f"set off by an allocation at {shown}:{frame.f_lineno}"
 
 
 def _timed(phase: str, info: dict[str, Any]) -> None:
@@ -49,12 +73,13 @@ def _timed(phase: str, info: dict[str, Any]) -> None:
         row[3] += 1
         on_the_loop = thread == the_loop_thread()
         logger.info(
-            "🗑️ a generation-%d collection held %s %.0f ms (collected %s, uncollectable %s)",
+            "🗑️ a generation-%d collection held %s %.0f ms (collected %s, uncollectable %s), %s",
             generation,
             "her event loop" if on_the_loop else "a thread",
             took * 1000.0,
             info.get("collected", "?"),
             info.get("uncollectable", "?"),
+            _where_it_came_from(sys._getframe(1)),
         )
 
 

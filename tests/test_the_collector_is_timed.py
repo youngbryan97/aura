@@ -61,3 +61,28 @@ def test_what_boot_made_is_frozen_out_of_later_collections():
         assert not any(id(k) in collected for k in keep)
     finally:
         gc.unfreeze()
+
+
+def test_a_long_collection_says_whether_a_line_asked_for_it_or_an_allocation_set_it_off(monkeypatch, caplog):
+    """LIVE 2026-11-16: 180 full collections past the budget in 40 minutes; whether her timers asked for them or the
+    collector started them decides what to change."""
+    monkeypatch.setattr(collector_pauses, "LOOP_BLOCKING_HOLD_S", -1.0)
+    collector_pauses.install_collector_timing()
+    with caplog.at_level(logging.INFO, logger="Aura.CollectorPauses"):
+        gc.collect(2)
+        collector_pauses.uninstall_collector_timing()
+    said = [r.getMessage() for r in caplog.records if "collection held" in r.getMessage()]
+    assert said and "asked for at tests/test_the_collector_is_timed.py:" in said[0]
+
+    caplog.clear()
+    previous = gc.get_threshold()
+    gc.set_threshold(1)
+    collector_pauses.install_collector_timing()
+    try:
+        with caplog.at_level(logging.INFO, logger="Aura.CollectorPauses"):
+            made = [[] for _ in range(50)]
+    finally:
+        gc.set_threshold(*previous)
+        collector_pauses.uninstall_collector_timing()
+    said = [r.getMessage() for r in caplog.records if "collection held" in r.getMessage()]
+    assert made and said and all("set off by an allocation at" in line for line in said)
