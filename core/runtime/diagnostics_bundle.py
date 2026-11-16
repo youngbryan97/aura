@@ -440,17 +440,14 @@ def _diagnostic_log_read_invariant() -> tuple:
 def collect_logs(dest_dir: Path, max_total_bytes: int = 512 * 1024) -> dict[str, Any]:
     """Copy the most recent log files up to a total byte cap.
 
-    Logs commonly live under ``~/.aura_runtime/logs/`` or ``logs/``.  We
-    pick whichever exists and copy newest files first until the cap.
+    Read the logger's configured directory. A missing configured root
+    cannot borrow another instance's logs.
     """
-    candidates = [
-        Path.home() / ".aura_runtime" / "logs",
-        Path.cwd() / "logs",
-        state_root() / "logs",
-    ]
-    src = next((p for p in candidates if p.exists() and p.is_dir()), None)
-    if src is None:
-        return {"available": False, "reason": "no logs directory found"}
+    from core.observability.logging_config import _resolve_log_dir
+
+    src = _resolve_log_dir(None)
+    if not src.is_dir():
+        return {"available": False, "reason": "configured logs directory not found", "source": str(src)}
     files = sorted(
         (p for p in src.rglob("*") if p.is_file()),
         key=lambda p: p.stat().st_mtime,

@@ -4708,13 +4708,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
-  - [ ] 2026-11-15: diagnostic log collection must use the logging
+  - [x] 2026-11-15: diagnostic log collection must use the logging
     owner's configured directory. The public bundle run below set
     AURA_LOG_DIR to scratch and still copied ~/.aura/logs, because
     diagnostics chooses its own directory. Owner: Q06, diagnostics.
     Next: reuse the logger's resolver and test explicit, missing and
     default roots. The copied payload stayed within 512 KiB and local
     to the scratch archive; no log content was published.
+    Closed the same day: the collector uses logging_config's resolver.
+    An explicit missing root stays unavailable. All 28 focused tests
+    passed, including explicit and default-root cases. The real make
+    command's archive named the chosen scratch root and held its 34-byte
+    payload. Smoke: 164 passed, 1 skipped in 49.08 s, maximum RSS
+    465,289,216 bytes. Lint, compile, dependency drift, layering,
+    governance and targeted writing passed.
   - [x] 2026-11-15: diagnostic log collection keeps its byte cap while
     a log grows or rotates. Each opened file supplies its current end;
     every read takes at most the remaining budget and the collector

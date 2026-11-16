@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -12,11 +11,9 @@ from core.runtime import diagnostics_bundle as bundle
 
 @pytest.fixture
 def logs(tmp_path, monkeypatch):
-    # Replace this module's path lookup without changing Path in other modules.
-    monkeypatch.setattr(bundle, "Path", SimpleNamespace(home=lambda: tmp_path, cwd=lambda: tmp_path))
-    monkeypatch.setattr(bundle, "state_root", lambda: tmp_path / "state")
     source = tmp_path / "logs"
     source.mkdir()
+    monkeypatch.setenv("AURA_LOG_DIR", str(source))
     return source, tmp_path / "new" / "bundle" / "logs"
 
 
@@ -77,3 +74,46 @@ def test_the_byte_bound_has_a_registered_invariant_and_validation():
     check = next(test for test in suite.tests() if test.name == "diagnostic_log_read_bound")
     assert check.predict(None) is True
     assert any(claim.test == check.name for claim in suite.claims())
+
+
+def test_the_configured_log_root_wins_over_other_existing_logs(logs, tmp_path, monkeypatch):
+    old, target = logs
+    (old / "other-instance.log").write_bytes(b"not this directory")
+    configured = tmp_path / "configured"
+    configured.mkdir()
+    (configured / "chosen.log").write_bytes(b"the configured directory")
+    monkeypatch.setenv("AURA_LOG_DIR", str(configured))
+
+    info = bundle.collect_logs(target)
+
+    assert info["source"] == str(configured)
+    assert (target / "chosen.log").read_bytes() == b"the configured directory"
+    assert not (target / "other-instance.log").exists()
+
+
+def test_a_missing_configured_root_cannot_fall_back_to_another_instance(logs, tmp_path, monkeypatch):
+    old, target = logs
+    (old / "other-instance.log").write_bytes(b"not this directory")
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "missing"))
+
+    info = bundle.collect_logs(target)
+
+    assert info["available"] is False
+    assert not target.exists()
+
+
+def test_the_default_root_comes_from_the_logging_owner(tmp_path, monkeypatch):
+    from core.observability import logging_config
+
+    root = tmp_path / "logger-state"
+    source = root / "logs"
+    source.mkdir(parents=True)
+    (source / "default.log").write_bytes(b"logger default")
+    monkeypatch.delenv("AURA_LOG_DIR", raising=False)
+    monkeypatch.setattr(logging_config, "state_root", lambda: root)
+    target = tmp_path / "copied"
+
+    info = bundle.collect_logs(target)
+
+    assert info["source"] == str(source)
+    assert (target / "default.log").read_bytes() == b"logger default"
