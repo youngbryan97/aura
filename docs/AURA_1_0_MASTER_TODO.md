@@ -4582,6 +4582,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   grant of Bryan's would lease the exact call, without issuing anything
   (standing_yes_covering). The lease is still required after it. The
   engine tests now register her permission model.
+  Then the "show me something": show_page opens a web page in a new tab of
+  the person's browser, and reveal_file selects a file or folder in
+  Finder, both under the same desk grant (63cdfafc9). Through her engine
+  with her permission model registered and the AppleScript stood in,
+  show_page from the desk opened the tab and from another origin did not.
+  Left: a ring, a page and a file each seen on the person's screen (the
+  screen was locked from about 06:00 on 16 November).
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
