@@ -37,6 +37,25 @@ def test_lines_only_failing_tests_run_are_most_suspicious():
     assert ranked[1][0] == ("m.py", 2) and ranked[1][1] < 1.0
 
 
+_STEPS = '''def step(x, lo, hi):
+    lo = hi
+    x += lo
+    if x < lo:
+        raise ValueError("below")
+    assert x <= hi
+    for n in range(x):
+        break
+    return x
+'''
+
+
 def test_dropping_a_statement_is_tried_last_at_a_line():
-    names = [name for _path, name, _ in template_changes([(("m.py", 3), 1.0)], {"m.py": SOURCE})]
+    names = [name for _path, name, _ in template_changes([(("m.py", 2), 1.0)], {"m.py": _STEPS})]
     assert names[-1] == "drop_statement" and "replace_name" in names
+
+
+def test_an_exit_a_control_statement_or_a_block_alone_is_never_dropped():
+    """Tan et al. (FSE 2016): deleting an exit, a branch or a block's one statement passes tests by removing what
+    they reached. LIVE 16 November 2026 her loop's first passing candidate replaced require_governance's raise."""
+    dropped_at = {line for line in range(1, 10) for name, _ in changes_at(_STEPS, line) if name == "drop_statement"}
+    assert dropped_at == {2, 3}

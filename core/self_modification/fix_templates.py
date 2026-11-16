@@ -8,6 +8,13 @@ flip a literal, use another name in scope, drop a statement. Each is made here b
 syntax tree's exact positions, so the result parses and changes only what the
 template names.
 
+A dropped statement is never an exit of its function (return, raise, assert), never one that decides control (if,
+a loop, try, with, break, continue), and never the only statement of its block. Deleting those is how search-based
+repair makes a failing test pass by removing what the test reached (the anti-patterns of Tan, Yoshida, Prasad and
+Roychoudhury, FSE 2016). LIVE 16 November 2026, the first candidate that made her fault's test pass replaced
+require_governance's raise with ``pass``; seven guarding tests broke, so it was refused, and a file guarded less
+well would have kept it.
+
 Where to try them comes from the tests. The lines the failing tests run and
 the passing tests do not are the likeliest places (spectrum-based fault
 localisation; the Ochiai score, Abreu, Zoeteweij and van Gemund 2007). Nothing
@@ -29,6 +36,8 @@ _COMPARE_SWAPS = {
     "==": ("!=",), "!=": ("==",), "is": ("is not",), "is not": ("is",), "in": ("not in",), "not in": ("in",),
 }
 _ARITHMETIC_SWAPS = {"+": ("-",), "-": ("+",), "*": ("/", "//"), "/": ("*", "//"), "//": ("/",), "%": ("//",)}
+#: The statements a dropped statement may be: what a function does, not where it ends or which way it goes.
+_DROPPABLE = (ast.Expr, ast.Assign, ast.AugAssign, ast.AnnAssign, ast.Delete)
 
 
 def ochiai(failing: Mapping[str, set[Line]], passing: Mapping[str, set[Line]]) -> list[tuple[Line, float]]:
@@ -109,6 +118,9 @@ def changes_at(source: str, line: int) -> Iterator[tuple[str, str]]:
         return list(dict.fromkeys(n for n in names if n not in {"self", "cls"}))
 
     scope = names_in_scope(line)
+    alone = {id(block[0]) for holder in ast.walk(tree)
+             for block in (getattr(holder, name, None) for name in ("body", "orelse", "finalbody"))
+             if isinstance(block, list) and len(block) == 1}
     for node in ast.walk(tree):
         if getattr(node, "lineno", None) != line:
             continue
@@ -163,8 +175,7 @@ def changes_at(source: str, line: int) -> Iterator[tuple[str, str]]:
                 a2, b2 = _span(source, starts, second)
                 swapped = source[:a1] + source[a2:b2] + source[b1:a2] + source[a1:b1] + source[b2:]
                 yield from kept("swap_arguments", swapped)
-        elif isinstance(node, ast.stmt) and not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                                                     ast.ClassDef)):
+        elif isinstance(node, _DROPPABLE) and id(node) not in alone:
             a, b = _span(source, starts, node)
             yield from kept("drop_statement", _replace(source, a, b, "pass"))
 

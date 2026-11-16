@@ -99,6 +99,9 @@ def test_a_fault_of_her_running_is_mended_and_taken_into_her_source(her_source):
     namespace: dict = {}
     exec(compile(mended, "rows.py", "exec"), namespace)  # noqa: S102 - the merged source, run to see it mends
     assert namespace["first"]([1, 2]) == 1 and namespace["count"]([1, 2]) == 2
+    # The check was mended, not deleted: what it refuses, it still refuses.
+    with pytest.raises(ValueError, match="no rows"):
+        namespace["first"]([])
     log = _git("log", "--format=%s", "-1", cwd=her_source)
     assert log.startswith("Mend planted_pkg.rows.first")
     shipped = _git("show", "--name-only", "--format=", "HEAD", cwd=her_source).split()
