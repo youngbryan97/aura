@@ -3995,6 +3995,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   dealing with that today."), "6" in 17.2 s, and "You told me you slept
   badly — maybe four hours." in 16.5 s, all on the quick lane. The first
   turn's 20.2 s unattributed is R11's.
+  The search template is gone too. A reply to a turn that searched was
+  replaced whole by the first result's headline and blurb ("I checked
+  live web evidence. ...") whenever it named no source or held "from
+  memory" or "I remember" anywhere. Now her reply is kept, and only what
+  the record refutes comes out of it: a citation that names no source, a
+  live check claimed over an offline snapshot, and a searched fact
+  credited to her memory at the head of a sentence. The address she drew
+  on is added, and the receipt of a save she was asked for.
   Bryan, same evening: his words to himself were answered as turns. At
   11:00 local, in a voice session, "Okay.", "But thank you." and "Probably
   not." were answered ("I was saying it's a good sound.", "You're

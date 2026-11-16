@@ -6,7 +6,9 @@ shape of a citation standing in for one, on a turn the log recorded as
 source_present=False. A reader skims that as evidence.
 
 The same turn opened "I checked live web evidence", which the runtime itself
-writes when repairing provenance, and it wrote that with no URL in hand.
+wrote when repairing provenance. Since 15 November 2026 the runtime writes no
+reply of its own here: her reply is kept, what the record refutes is taken out
+of it, and the source is added.
 """
 
 from __future__ import annotations
@@ -15,7 +17,6 @@ import pytest
 
 from interface.routes.chat import (
     _cites_nothing,
-    _evidence_grounded_desktop_search_reply,
     _repair_required_search_reply_provenance,
     _strip_empty_citations,
 )
@@ -48,31 +49,18 @@ def test_a_real_citation_and_ordinary_prose_survive(reply: str):
     assert _strip_empty_citations(reply) == reply
 
 
-def test_the_grounded_rebuild_does_not_claim_a_check_it_cannot_show():
-    without_url = {
+def test_her_reply_is_never_replaced_by_a_headline():
+    """LIVE 15 November 2026: a remark about sleep was answered with a Reddit thread's title and blurb."""
+    evidence = {
         "ok": True,
-        "result": {"ok": True, "summary": "Hugging Face builds open source ML tooling."},
+        "result": {"ok": True, "results": [{"title": "About", "url": "https://huggingface.co/about", "snippet": "Founded in 2016."}]},
     }
-    said = _evidence_grounded_desktop_search_reply(without_url)
-    assert "I checked live web evidence" not in said
-    assert "open source ML tooling" in said
-
-    with_url = {
-        "ok": True,
-        "result": {
-            "ok": True,
-            "results": [
-                {
-                    "title": "About",
-                    "url": "https://huggingface.co/about",
-                    "snippet": "Founded in 2016.",
-                }
-            ],
-        },
-    }
-    grounded = _evidence_grounded_desktop_search_reply(with_url)
-    assert "I checked live web evidence" in grounded
-    assert "https://huggingface.co/about" in grounded
+    for reply in ("I remember you saying that. Hugging Face started in 2016.", "From memory, it started in 2016."):
+        repaired = _repair_required_search_reply_provenance(reply, evidence)
+        assert "I checked live web evidence" not in repaired
+        assert "About:" not in repaired and repaired.endswith("Source: https://huggingface.co/about")
+    assert _repair_required_search_reply_provenance("I remember you saying that.", evidence).startswith("I remember you")
+    assert _repair_required_search_reply_provenance("From memory, it started in 2016.", evidence).startswith("It started")
 
 
 def test_an_empty_citation_is_removed_when_there_is_no_rebuild():
@@ -86,41 +74,16 @@ def test_an_empty_citation_is_removed_when_there_is_no_rebuild():
     assert "founded in 2016" in repaired
 
 
-def test_an_offline_snapshot_says_it_is_offline():
-    """LIVE, 2026-08-22: the search had degraded to the local corpus and the
-    reply called it "live web evidence". The result said so itself —
-    provenance local_corpus, offline_fallback true — and the reply overrode
-    it."""
-    from interface.routes.chat import (
-        _claims_a_live_check,
-        _evidence_came_from_the_network,
-    )
+def test_where_the_evidence_came_from_is_read_from_the_result():
+    """LIVE, 2026-08-22: the search had degraded to the local corpus (provenance local_corpus, offline_fallback
+    true) and the reply called it "live web evidence"."""
+    from interface.routes.chat import _evidence_came_from_the_network
 
-    offline = {
-        "ok": True,
-        "result": {
-            "ok": True,
-            "offline_fallback": True,
-            "provenance": "local_corpus",
-            "results": [{"title": "HF", "snippet": "An ML company.", "source": "corpus"}],
-        },
-    }
-    said = _evidence_grounded_desktop_search_reply(offline)
-    assert "live" not in said.lower().split("rather than a live check")[0]
-    assert "offline reference snapshot" in said
-    assert not _evidence_came_from_the_network(offline["result"])
-
-    live = {
-        "ok": True,
-        "result": {
-            "ok": True,
-            "results": [
-                {"title": "About", "url": "https://huggingface.co/about", "snippet": "Founded 2016."}
-            ],
-        },
-    }
-    assert "I checked live web evidence." in _evidence_grounded_desktop_search_reply(live)
-    assert _evidence_came_from_the_network(live["result"])
+    offline = {"ok": True, "offline_fallback": True, "provenance": "local_corpus",
+               "results": [{"title": "HF", "snippet": "An ML company.", "source": "corpus"}]}
+    live = {"ok": True, "results": [{"title": "About", "url": "https://huggingface.co/about", "snippet": "Founded 2016."}]}
+    assert not _evidence_came_from_the_network(offline)
+    assert _evidence_came_from_the_network(live)
 
 
 def test_claiming_a_live_check_over_a_snapshot_is_false_provenance():
@@ -138,7 +101,7 @@ def test_claiming_a_live_check_over_a_snapshot_is_false_provenance():
     repaired = _repair_required_search_reply_provenance(
         "I checked live web evidence. Hugging Face is an ML company.", offline
     )
-    assert "offline reference snapshot" in repaired
+    assert repaired == "Hugging Face is an ML company."
 
 
 def test_ordinary_sentences_are_not_live_check_claims():
@@ -146,19 +109,6 @@ def test_ordinary_sentences_are_not_live_check_claims():
 
     for text in ("I read the file.", "The web page was long.", "I checked the log."):
         assert not _claims_a_live_check(text), text
-
-
-def test_entities_do_not_reach_the_screen():
-    """LIVE, 2026-08-22: a sourced answer read "the world&#x27;s largest
-    open-source AI platform". The snippet carried the entity, the reply
-    carried it, and the page escaped it again."""
-    from interface.routes.chat import _clean_search_fact_text
-
-    assert (
-        _clean_search_fact_text("the world&#x27;s largest platform &amp; more")
-        == "the world's largest platform & more"
-    )
-    assert _clean_search_fact_text("plain prose stays as it is") == "plain prose stays as it is"
 
 
 def test_an_honest_reply_without_an_address_keeps_its_words_and_gains_the_source():

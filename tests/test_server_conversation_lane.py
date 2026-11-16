@@ -16638,7 +16638,8 @@ async def test_api_chat_desktop_required_search_collects_evidence_before_cogniti
     payload = json.loads(response.body)
     assert response.status_code == 200
     assert payload["status"] == "cognitive_engine"
-    assert "I checked live web evidence" in payload["response"]
+    assert "I checked live web evidence" not in payload["response"]
+    assert "Tardigrades can enter cryptobiosis." in payload["response"]
     assert "From my conversation memory" not in payload["response"]
     assert "https://example.org/tardigrades" in payload["response"]
     assert "provisional research memory" in payload["response"]

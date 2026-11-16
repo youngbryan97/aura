@@ -1510,8 +1510,10 @@ def _desktop_transient_engine_retry_allowed(*, reason: str) -> tuple[bool, str]:
     return True, reason
 
 
+#: A searched fact credited to her memory at the head of a sentence ("From my conversation memory, ...").
+#: "I remember" is not one: it is how a person recalls a conversation.
 _FALSE_SEARCH_PROVENANCE_RE = re.compile(
-    r"\bfrom (?:my |the )?(?:conversation )?memory\b|\bfrom memory\b|\bi remember\b",
+    r"(?:^|(?<=[.!?]\s))from (?:my |the )?(?:conversation )?memory\s*,?\s*(\w)",
     re.IGNORECASE,
 )
 
@@ -1542,122 +1544,36 @@ def _best_search_result_entry(result: dict[str, Any]) -> dict[str, str]:
     return sorted(entries, key=_search_entry_quality, reverse=True)[0]
 
 
-def _clean_search_fact_text(raw: Any) -> str:
-    # Entities that survived the fetch.
-    #
-    # LIVE, 2026-08-22: a sourced answer reached the screen reading "the
-    # world&#x27;s largest open-source AI platform". The snippet carried the
-    # entity, the reply carried it, and the page escaped it again — so the
-    # reader saw the escape rather than the apostrophe. Unescaping twice is
-    # harmless here: the text is prose by this point, never markup.
-    import html as _html
-
-    text = " ".join(_html.unescape(str(raw or "")).strip().split())
-    text = re.sub(r"^[-–—>\\s]+", "", text)
-    text = _SEARCH_SNIPPET_BOILERPLATE_RE.sub(" ", text)
-    text = " ".join(text.split())
-    return text.strip(" -–—:;")
-
-
-def _evidence_grounded_desktop_search_reply(search_evidence: dict[str, Any]) -> str:
-    from .chat import (
-        _search_entry_quality,
-    )
-
-    result = search_evidence.get("result") if isinstance(search_evidence, dict) else None
-    if not isinstance(result, dict) or not result.get("ok"):
-        return ""
-    first = _best_search_result_entry(result)
-    source = first.get("url") or ""
-    title = first.get("title") or ""
-    first_snippet = _clean_search_fact_text(first.get("snippet") or "")
-    summary_text = _clean_search_fact_text(
-        result.get("summary") or result.get("answer") or result.get("synthesis") or ""
-    )
-    fact = first_snippet if _search_entry_quality(first)[0] >= 0 and first_snippet else summary_text
-    if not fact:
-        fact = "The search completed, but the returned evidence did not include a concise fact snippet."
-    if len(fact) > 360:
-        fact = fact[:357].rstrip() + "..."
-    saved = bool(search_evidence.get("memory_saved"))
-    # Say where it actually came from.
-    #
-    # LIVE, 2026-08-22: this opened with "I checked live web evidence" on a
-    # turn where the search had degraded to the local offline corpus. The
-    # result said so itself — provenance local_corpus, offline_fallback true,
-    # entries carrying a `source` and no url — and the reply overrode it,
-    # ending "Source: [Live web search]". A dated snapshot presented as a live
-    # check is a lie the reader has no way to catch.
-    offline = bool(result.get("offline_fallback")) or str(
-        result.get("provenance") or ""
-    ).strip().lower() == "local_corpus"
-    if offline:
-        parts = [
-            "Web search was unavailable, so this is from my offline reference "
-            "snapshot rather than a live check:"
-        ]
-    elif source:
-        parts = ["I checked live web evidence."]
-    else:
-        parts = ["From what the search returned:"]
-    if title:
-        parts.append(f"{title}: {fact}")
-    else:
-        parts.append(fact)
-    if source:
-        parts.append(f"Source: {source}")
-    if saved:
-        parts.append("I saved it as provisional research memory.")
-    return " ".join(parts).strip()
-
-
 def _repair_required_search_reply_provenance(
     reply_text: str, search_evidence: dict[str, Any] | None
 ) -> str:
+    """Her reply to a turn that searched, kept as hers: what the record refutes comes out, and the source goes in.
+
+    It used to be replaced whole by the first result's headline and blurb ("I checked live web evidence. ...") when it
+    named no source or mentioned memory. LIVE 15 November 2026, a remark about sleep got a Reddit thread on insomnia
+    that way. What the record can refute is narrower: a citation that names no source, a live check claimed over an
+    offline snapshot (LIVE 2026-08-22), and a searched fact credited to her memory.
+    """
     if not search_evidence or not search_evidence.get("ok"):
         return reply_text
     text = str(reply_text or "").strip()
     result = search_evidence.get("result") if isinstance(search_evidence, dict) else None
-    if not isinstance(result, dict):
-        return text
-    entries = _search_result_entries(result)
-    evidence_urls = [entry.get("url") for entry in entries if entry.get("url")]
-    has_evidence_url = bool(evidence_urls and any(url in text for url in evidence_urls))
-    false_provenance = (
-        bool(_FALSE_SEARCH_PROVENANCE_RE.search(text))
-        or _cites_nothing(text)
-        or (_claims_a_live_check(text) and not _evidence_came_from_the_network(result))
-    )
-    if text and not false_provenance and (not evidence_urls or has_evidence_url):
-        return text
-    if text and not false_provenance:
-        # Her answer stands, and the source it drew on is added. LIVE
-        # 2026-10-03, "Google it. Bam had an 83 point game": her reply named
-        # no address, so all of it was replaced with "I checked live web
-        # evidence." and the first result's headline and blurb.
-        source = str(_best_search_result_entry(result).get("url") or evidence_urls[0])
-        return f"{text}\n\nSource: {source}"
-    grounded = _evidence_grounded_desktop_search_reply(search_evidence)
-    if grounded:
-        logger.warning(
-            "Required desktop search reply repaired to evidence-grounded provenance "
-            "(false_provenance=%s, source_present=%s).",
-            false_provenance,
-            has_evidence_url,
-        )
-        return grounded
-    # Nothing better to say — but the empty citation still goes.
-    #
-    # LIVE, 2026-08-22: with no grounded rebuild available the original text
-    # was returned unchanged, so "Source: [Live web search]" was served.
-    # A citation that names no source is removed rather than kept for shape.
-    if _cites_nothing(text):
-        stripped = _strip_empty_citations(text)
-        logger.warning(
-            "Removed a citation that named no source (%d chars left).", len(stripped)
-        )
-        return stripped or text
-    return text
+    if not text or not isinstance(result, dict):
+        return text or reply_text
+    kept = _strip_empty_citations(text) if _cites_nothing(text) else text
+    if _claims_a_live_check(kept) and not _evidence_came_from_the_network(result):
+        kept = " ".join(part for part in re.split(r"(?<=[.!?])\s+", kept) if not _claims_a_live_check(part))
+    kept = _FALSE_SEARCH_PROVENANCE_RE.sub(lambda match: match.group(1).upper(), kept).strip() or text
+    evidence_urls = [str(entry.get("url")) for entry in _search_result_entries(result)
+                     if str(entry.get("url") or "").startswith(("http://", "https://"))]
+    if evidence_urls and not any(url in kept for url in evidence_urls):
+        best = str(_best_search_result_entry(result).get("url") or "")
+        kept = f"{kept}\n\nSource: {best if best in evidence_urls else evidence_urls[0]}"
+    if search_evidence.get("memory_saved") and "provisional research memory" not in kept.lower():
+        kept = f"{kept}\nSaved as provisional research memory."
+    if kept != text:
+        logger.info("Her reply to a searched turn kept, with %d chars changed around it.", abs(len(kept) - len(text)))
+    return kept
 
 
 def _desktop_objective_executable_after_cognitive_attempt(user_message: str) -> bool:

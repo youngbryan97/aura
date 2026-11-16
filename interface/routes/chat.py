@@ -1099,13 +1099,11 @@ from .chat_desktop_mode import (
     _build_live_mind_context_payload,  # noqa: F401
     _cites_nothing,  # noqa: F401
     _claims_a_live_check,  # noqa: F401
-    _clean_search_fact_text,  # noqa: F401
     _collect_live_mind_context_payload,
     _desktop_objective_executable_after_cognitive_attempt,
     _desktop_required_cognitive_budget,
     _desktop_secondary_model_repair_allowed,
     _desktop_transient_engine_retry_allowed,
-    _evidence_grounded_desktop_search_reply,  # noqa: F401
     _is_compact_desktop_chat_contract,
     _is_lightweight_live_desktop_state_or_recall_turn,  # noqa: F401
     _reanswer_when_the_runtime_contradicts_her,
