@@ -173,6 +173,47 @@ def test_head_is_actually_fitted_calibrated_and_round_trips(tmp_path):
         )
 
 
+def test_update_artifact_uses_a_governed_atomic_writer(tmp_path, monkeypatch):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    head = fit_update_acceptance_head(_examples("train", 64), _examples("calibration", 40))
+    gateway = get_file_write_gateway()
+    write_bytes = gateway.write_bytes
+    writes = []
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+
+    def write(path, payload, **kwargs):
+        token = get_active_governance()
+        assert token is not None and token.domain == "state_mutation"
+        writes.append((path, payload, kwargs["source"]))
+        write_bytes(path, payload, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_bytes", write)
+    path = tmp_path / "new" / "update-head.npz"
+    digest = head.save(path)
+    assert len(writes) == 1 and writes[0][0] == path
+    assert writes[0][2] == "update_acceptance.save"
+    assert writes[0][1] == path.read_bytes()
+    assert digest == hashlib.sha256(writes[0][1]).hexdigest()
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert UpdateAcceptanceHead.load(path, expected_sha256=digest).to_manifest() == head.to_manifest()
+
+
+def test_an_oversized_update_artifact_keeps_the_previous_checkpoint(tmp_path, monkeypatch):
+    head = fit_update_acceptance_head(_examples("train", 64), _examples("calibration", 40))
+    path = tmp_path / "update-head.npz"
+    digest = head.save(path)
+    previous = path.read_bytes()
+    manifest = head.to_manifest()
+    with monkeypatch.context() as patch:
+        patch.setattr(head, "to_manifest", lambda: {**manifest, "padding": "x" * MAX_HEAD_ARTIFACT_BYTES})
+        with pytest.raises(ValueError, match="size|bound"):
+            head.save(path)
+    assert path.read_bytes() == previous
+    assert UpdateAcceptanceHead.load(path, expected_sha256=digest).to_manifest() == manifest
+
+
 def test_train_and_calibration_examples_must_be_disjoint():
     rows = _examples("shared", 40)
     with pytest.raises(ValueError, match="overlap"):

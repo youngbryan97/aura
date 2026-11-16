@@ -4765,6 +4765,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: the update-acceptance NPZ artifact uses the existing
+    atomic file gateway in an internal governed scope. The encoded size
+    is checked before writing; an oversized save used to replace a valid
+    checkpoint before failing its size check. Both regressions failed
+    before the repair. 15 selected artifact/effect-tier tests passed;
+    the model test was deselected. Four raw calls became one governed
+    write: 751 raw calls and 2,054 total migration calls, with both
+    ceilings lowered. Smoke: 164 passed, 1 skipped in 47.50 s,
+    maximum RSS 466,534,400 bytes. Lint, compile, dependency drift,
+    layering, governance and targeted writing passed.
+    Source: core/learning/update_acceptance.py; tests:
+    tests/test_latent_cortex_update_acceptance.py.
   - [x] 2026-11-15: the stop-policy JSON artifact goes through the
     existing file gateway in an internal governed scope. Four raw
     directory/permission/replacement/cleanup calls became one governed

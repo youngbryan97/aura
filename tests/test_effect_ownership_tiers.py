@@ -106,8 +106,10 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: while resolving its path; its governed save creates them: 759 and 2,060.
 #: The stop-policy JSON artifact uses the file gateway in its own scope:
 #: four raw calls became one governed write, 755 and 2,057.
-TOTAL_CEILING = 2057
-RAW_CEILING = 755
+#: The update-acceptance NPZ artifact follows the same atomic writer:
+#: four raw calls became one governed write, 751 and 2,054.
+TOTAL_CEILING = 2054
+RAW_CEILING = 751
 
 
 def _split() -> tuple[int, int]:

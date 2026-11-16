@@ -5129,6 +5129,14 @@
       "scope": "<module>.StopPolicyHead.save"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/learning/update_acceptance.py",
+      "scope": "<module>.UpdateAcceptanceHead.save"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -11729,38 +11737,6 @@
       "scope": "<module>.SyntheticDataFlywheel.__init__"
     },
     {
-      "callee": "<pathlib.Path>.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/update_acceptance.py",
-      "scope": "<module>.UpdateAcceptanceHead.save"
-    },
-    {
-      "callee": "os.chmod",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/update_acceptance.py",
-      "scope": "<module>.UpdateAcceptanceHead.save"
-    },
-    {
-      "callee": "os.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/update_acceptance.py",
-      "scope": "<module>.UpdateAcceptanceHead.save"
-    },
-    {
-      "callee": "target.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/update_acceptance.py",
-      "scope": "<module>.UpdateAcceptanceHead.save"
-    },
-    {
       "callee": "self._store_path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -17522,6 +17498,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "db95272f2c198c1e4c79d933efc1421f99dcbe66f512829b8ea52a9d339d86df",
+  "inventory_sha256": "90b1e6a676b835ac68d728d00c19c79c47be1a6cfe0182d4cc87dbadbd539f0a",
   "schema_version": 1
 }

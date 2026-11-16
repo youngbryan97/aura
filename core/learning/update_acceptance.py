@@ -15,7 +15,6 @@ import json
 import math
 import os
 import stat
-import tempfile
 import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -431,11 +430,13 @@ class UpdateAcceptanceHead:
 
         import numpy as np
 
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         self._validate(allow_uncalibrated=False)
         target = Path(path).expanduser()
         if target.suffix != ".npz":
             raise ValueError("update-acceptance artifact path must end in .npz")
-        target.parent.mkdir(parents=True, exist_ok=True)
         manifest = json.dumps(
             self.to_manifest(),
             sort_keys=True,
@@ -443,36 +444,22 @@ class UpdateAcceptanceHead:
             ensure_ascii=True,
             allow_nan=False,
         )
-        descriptor, temporary_name = tempfile.mkstemp(
-            dir=target.parent,
-            prefix=f".{target.name}.",
-            suffix=".tmp",
+        buffer = io.BytesIO()
+        np.savez(
+            buffer,
+            means=np.asarray(self.means, dtype=np.float64),
+            scales=np.asarray(self.scales, dtype=np.float64),
+            weights=np.asarray(self.weights, dtype=np.float64),
+            bias=np.asarray([self.bias], dtype=np.float64),
+            manifest=np.asarray([manifest]),
         )
-        temporary = Path(temporary_name)
-        try:
-            with os.fdopen(descriptor, "wb") as handle:
-                np.savez(
-                    handle,
-                    means=np.asarray(self.means, dtype=np.float64),
-                    scales=np.asarray(self.scales, dtype=np.float64),
-                    weights=np.asarray(self.weights, dtype=np.float64),
-                    bias=np.asarray([self.bias], dtype=np.float64),
-                    manifest=np.asarray([manifest]),
-                )
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.chmod(temporary, 0o600)
-            os.replace(temporary, target)
-            directory_fd = os.open(
-                target.parent,
-                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        payload = buffer.getvalue()
+        if len(payload) > MAX_HEAD_ARTIFACT_BYTES:
+            raise ValueError("update-acceptance artifact exceeds the size bound")
+        with local_internal_governed_scope("update_acceptance.save"):
+            get_file_write_gateway().write_bytes(
+                target, payload, source="update_acceptance.save"
             )
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
-        finally:
-            temporary.unlink(missing_ok=True)
         return hashlib.sha256(_read_stable_artifact(target)).hexdigest()
 
     @classmethod
