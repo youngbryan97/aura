@@ -225,6 +225,10 @@ class RealityEventFlowRuntime:
                     self._state_path.parent,
                     source="reality_reach.event_flow.persist",
                 )
+            with local_internal_governed_scope(
+                "reality_reach.event_flow.persist",
+                domain="state_mutation",
+            ):
                 await gateway.write_json_async(
                     self._state_path,
                     payload,

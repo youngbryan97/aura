@@ -609,6 +609,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-16: event-flow, metrology and middleware state
+    writers renew their grant after directory I/O. All three scratch
+    regressions failed under enforcement before the repair. Saved
+    payload hashes now verify, the event sequence and metrology
+    generation reload, and middleware reloads under a new service
+    session. All 55 focused checks passed without starting workers
+    or connecting adapters. Smoke passed 164 tests with one skip
+    in 106.70 s and maximum RSS of 486,162,432 bytes. Lint,
+    compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/reality_reach/event_flow.py,
+    core/reality_reach/metrology.py and core/reality_reach/middleware.py.
+    Tests: tests/test_reality_state_writes_renew_their_grants.py.
   - [x] 2026-11-16: whole-system report persistence renews its
     write grant after directory I/O. The synthetic report regression
     failed under enforcement before the repair. It now reloads the

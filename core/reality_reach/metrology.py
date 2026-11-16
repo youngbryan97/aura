@@ -500,6 +500,10 @@ class RealityMetrologyService:
                     self._state_path.parent,
                     source="reality_reach.metrology.persist",
                 )
+            with local_internal_governed_scope(
+                "reality_reach.metrology.persist",
+                domain="state_mutation",
+            ):
                 await gateway.write_json_async(
                     self._state_path,
                     payload,
