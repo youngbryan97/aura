@@ -9,6 +9,8 @@ associative entity memory underneath it was recording every meeting.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
 from core.memory.associative_entity_memory import (
@@ -18,8 +20,12 @@ from core.memory.associative_entity_memory import (
 
 
 @pytest.fixture()
-def memory(tmp_path) -> AssociativeEntityMemory:
-    return AssociativeEntityMemory(db_path=tmp_path / "entities.db")
+def memory(tmp_path) -> Iterator[AssociativeEntityMemory]:
+    held = AssociativeEntityMemory(db_path=tmp_path / "entities.db")
+    try:
+        yield held
+    finally:
+        held.close()
 
 
 def test_an_empty_memory_knows_nobody(memory: AssociativeEntityMemory) -> None:
@@ -56,12 +62,32 @@ def test_every_entity_can_describe_itself(memory: AssociativeEntityMemory) -> No
     assert sentence.strip()
 
 
-def test_the_phase_mirrors_it_into_the_field_the_prompt_reads() -> None:
-    from pathlib import Path
+@pytest.mark.parametrize("reader", ["empty", "unavailable"])
+def test_the_phase_mirrors_the_current_reader_into_the_prompt(memory, tmp_path, monkeypatch, reader):
+    from core.brain.llm.context_assembler import ContextAssembler
+    from core.memory import associative_entity_memory
+    from core.phases.conversational_dynamics_phase import ConversationalDynamicsPhase
+    from core.state.aura_state import AuraState
 
-    phase = Path("core/phases/conversational_dynamics_phase.py").read_text(encoding="utf-8")
-    assert "state.world.known_entities = {" in phase
-    assert "best_known()" in phase
+    entity = memory.resolve("the parser", kind=EntityKind.THING, create=True)
+    assert entity is not None
+    memory.note_mention(entity.entity_id)
+    state = AuraState.default()
+    state.world.known_entities = {"the parser": {"already_weighed": True}}
+    monkeypatch.setattr(associative_entity_memory, "get_associative_entity_memory", lambda: memory)
+    ConversationalDynamicsPhase._mirror_known_entities(state)
+    assert state.world.known_entities["the parser"]["already_weighed"] is True
+    assert "the parser" in ContextAssembler.build_world_context(state)
 
-    assembler = Path("core/brain/llm/context_assembler.py").read_text(encoding="utf-8")
-    assert "world.known_entities" in assembler
+    if reader == "unavailable":
+        memory.close()
+    else:
+        empty = AssociativeEntityMemory(db_path=tmp_path / "empty.db")
+        monkeypatch.setattr(associative_entity_memory, "get_associative_entity_memory", lambda: empty)
+    try:
+        ConversationalDynamicsPhase._mirror_known_entities(state)
+        assert state.world.known_entities == {}
+        assert "the parser" not in ContextAssembler.build_world_context(state)
+    finally:
+        if reader == "empty":
+            empty.close()

@@ -4896,6 +4896,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: the entity prompt mirror drops its prior list
+    when the current reader returns no entries. An empty replacement
+    reader or closed reader used to leave the old list in the prompt.
+    Both regressions failed before the repair. The former source-text
+    assertion now exercises the phase and context renderer, including
+    preserving notes on surviving entities. All 37 focused tests passed.
+    Smoke passed 164 tests with one skip in 59.86 s and maximum RSS
+    of 480,657,408 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/phases/conversational_dynamics_phase.py.
+    Tests: tests/test_the_standing_list_of_what_she_knows.py.
   - [x] 2026-11-15: the interpersonal preference mirror and direct
     note save obey the existing relational authority. Revocation used
     to block the ordinary render while both paths still used the

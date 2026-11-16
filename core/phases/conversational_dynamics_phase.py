@@ -297,8 +297,6 @@ class ConversationalDynamicsPhase(Phase):
 
             memory = get_associative_entity_memory()
             known = memory.best_known()
-            if not known:
-                return
             # Rebuilt from memory every turn, keeping what the rest of her had
             # noted on each entity it still lists. A plain rebuild dropped
             # those notes, so the mark that says she has already weighed
