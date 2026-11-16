@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import stat
 import zipfile
 
 import pytest
@@ -106,6 +107,41 @@ def test_a_kept_file_is_handed_to_the_turn_and_an_unreadable_one_is_described(ke
         "weights.bin", "paper.pdf"]
     assert "=== ATTACHED FILE: paper.pdf ===" in block and "Our claim is narrow." in block
     assert "Nothing could be read from this file. It is a binary file of 64 bytes" in block
+
+
+@pytest.mark.parametrize("expire_after", ["original", "text"])
+def test_each_attachment_file_gets_its_own_write_grant(kept_in, monkeypatch, expire_after):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    gateway = get_file_write_gateway()
+    grants, expired = [], []
+
+    def observe(write):
+        async def write_then_expire(path, body, **kwargs):
+            token = get_active_governance()
+            result = await write(path, body, **kwargs)
+            assert token is not None and token.domain == "state_mutation"
+            grants.append(token.lease_id)
+            if ((expire_after == "original" and path.name.startswith("original"))
+                    or (expire_after == "text" and path.name == "text.txt")):
+                token.mono_timestamp -= token.ttl + 1
+                expired.append(token.lease_id)
+            return result
+        return write_then_expire
+
+    monkeypatch.setattr(gateway, "write_bytes_async", observe(gateway.write_bytes_async))
+    monkeypatch.setattr(gateway, "write_text_async", observe(gateway.write_text_async))
+    data = b"Notes from the person.\n"
+    note = asyncio.run(attachments.keep("notes.txt", data, "text/plain"))
+    restored = attachments.kept(note["id"])
+    assert restored == (note, data.decode())
+    folder = kept_in / note["id"]
+    assert (folder / "original.txt").read_bytes() == data
+    assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+    assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in folder.iterdir())
+    assert expired and len(grants) == len(set(grants)) == 3
 
 
 def test_an_empty_or_oversized_file_is_refused(kept_in, monkeypatch):

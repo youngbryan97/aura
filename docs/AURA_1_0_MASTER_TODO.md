@@ -609,6 +609,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-16: each attachment file gets its own maintenance
+    grant. Expiring the grant after the original or extracted text
+    write used to refuse the next file. Both regressions failed
+    before the repair. All three files now reload with exact content,
+    private permissions and distinct grants under enforcement.
+    All 38 focused checks passed. Smoke passed 164 tests with one
+    skip in 96.64 s and maximum RSS of 489,111,552 bytes. Lint,
+    compile, dependency drift, layering, governance, module size
+    and targeted writing passed. The exact effect baseline lost
+    two attachment call sites and the reviewed subprocess deletion
+    in d4ec2c2c2. Total migration debt fell from 2,049 to 2,046;
+    raw debt remains 747. Eight effect-ownership checks passed
+    after the integration correction.
+    Source: core/conversation/attachments.py.
+    Tests: tests/test_files_attached_to_a_message_are_read_into_the_turn.py.
   - [x] 2026-11-15: a draft edit gets a fresh file-write grant
     after directory setup. Under enforcement, expiring the directory
     grant made both a new-file edit and an existing-file edit fail

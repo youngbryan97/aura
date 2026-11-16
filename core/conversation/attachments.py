@@ -209,11 +209,16 @@ async def keep(name: str, data: bytes, content_type: str = "") -> dict[str, Any]
         receipt_prefix="conversation-attachment",
         constraints={"artifact": "aura.conversation_attachment.v1", "operation": "create"},
     ):
-        await gateway.ensure_directory_async(folder, source="conversation.attachments")
         await gateway.write_bytes_async(folder / f"original{Path(name).suffix.lower()}", data,
                                         source="conversation.attachments")
-        await gateway.write_text_async(folder / "text.txt", text, source="conversation.attachments")
-        await gateway.write_text_async(folder / "note.json", json.dumps(note, indent=2), source="conversation.attachments")
+    for filename, body in (("text.txt", text), ("note.json", json.dumps(note, indent=2))):
+        with local_internal_governed_scope(
+            "conversation.attachments",
+            domain="state_mutation",
+            receipt_prefix="conversation-attachment",
+            constraints={"artifact": "aura.conversation_attachment.v1", "operation": "create"},
+        ):
+            await gateway.write_text_async(folder / filename, body, source="conversation.attachments")
     logger.info("kept attachment %s: %s, %s, %d bytes, %d characters read", attachment_id, name, kind, len(data), len(text))
     return note
 

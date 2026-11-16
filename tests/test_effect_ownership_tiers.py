@@ -116,7 +116,9 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: Deferred retention routes both entry points through its worker's writer.
 #: Two duplicate gateway calls came out.
 #: Requested artifact writes let the atomic writer create missing parents.
-TOTAL_CEILING = 2049
+#: Attachments do the same and share one call site for their two text files.
+#: The reviewed screen-highlight change removed its AppleScript subprocess.
+TOTAL_CEILING = 2046
 RAW_CEILING = 747
 
 

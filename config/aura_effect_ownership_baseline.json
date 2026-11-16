@@ -4337,14 +4337,6 @@
       "scope": "<module>._persist_continuity_record._deferred"
     },
     {
-      "callee": "<file_write_gateway>.ensure_directory_async",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/conversation/attachments.py",
-      "scope": "<module>.keep"
-    },
-    {
       "callee": "<file_write_gateway>.write_bytes_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -4356,7 +4348,7 @@
       "callee": "<file_write_gateway>.write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
-      "count": 2,
+      "count": 1,
       "path": "core/conversation/attachments.py",
       "scope": "<module>.keep"
     },
@@ -16097,14 +16089,6 @@
       "scope": "<module>._screen_area"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
-      "canonical_owner": false,
-      "category": "subprocess_gateway",
-      "count": 1,
-      "path": "core/perception/screen_highlight.py",
-      "scope": "<module>.locate_on_screen"
-    },
-    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -17434,6 +17418,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "5381e8d79371379c96543708393f4115729a287be41640fef47b81595717a8f6",
+  "inventory_sha256": "c4da6e208e8c52f369e48c210bc2155fbdc521305c78245a251b39cd3e7489bc",
   "schema_version": 1
 }
