@@ -188,3 +188,26 @@ def test_her_own_recent_turn_said_again_is_not_a_remark(monkeypatch):
     ])
     assert remarks._said_already("I\u2019m sorry you\u2019re waking up on so little rest.  That can make everything feel heavier today.")
     assert not remarks._said_already("That second question wants one thing you built, five levels down.")
+
+
+def test_after_her_answer_what_she_notices_is_the_turn_before_hers_and_not_a_tool_she_called(monkeypatch):
+    """LIVE 16 November 2026, 12:46 local: after "Can you highlight the back button?" and her answer, the reading of her
+    host went in as runtime evidence, which her template writes as a tool's response, and she answered the question
+    again: "I don't have the ability to visually highlight or draw on the screenshot." She had drawn the ring."""
+    from core.brain.her_unprompted_turn import her_conversation_now_with
+    from core.together import remarks
+    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE
+
+    now = time.time()
+    answered = [(now - 960.0, "user", "Can you highlight the back button?"),
+                (now - 959.0, "assistant", "There: the arrow at the top left of Chrome.")]
+    monkeypatch.setattr(remarks, "said_since", lambda began: list(answered))
+
+    messages = her_conversation_now_with("THE HOST, READ NOW", "processor in use: 12%")
+
+    assert [m["role"] for m in messages] == ["user", "assistant", "user"]
+    assert "THE HOST, READ NOW" in messages[-1]["content"]
+
+    monkeypatch.setattr(remarks, "said_since", lambda began: list(answered[:1]))
+    waiting = her_conversation_now_with("THE HOST, READ NOW", "processor in use: 12%")
+    assert waiting[-1]["role"] == RUNTIME_EVIDENCE_ROLE, "words still waiting for her keep the reading beside them"

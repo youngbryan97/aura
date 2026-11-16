@@ -148,7 +148,9 @@ def test_her_desk_turn_is_her_conversation_and_the_screen_with_her_desk_tools(mo
 
     assert said == "There it is, top left."
     assert asked["objective"] == ""
-    assert [m["role"] for m in asked["conversation"]] == ["user", "assistant", "runtime_evidence"]
+    # After her answer the screen is the turn before hers, not a tool's response to a call of hers
+    # (tests/test_in_the_bubble_she_keeps_him_company.py, 16 November 2026, 12:46).
+    assert [m["role"] for m in asked["conversation"]] == ["user", "assistant", "user"]
     assert "< Back" in asked["conversation"][-1]["content"]
     assert set(asked["tools"]) == DESK_COMPANY_TOOLS
     assert asked["origin"] == asked["context"]["origin"] == DESK_COMPANY_ORIGIN

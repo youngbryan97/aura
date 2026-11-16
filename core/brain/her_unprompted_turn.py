@@ -39,9 +39,13 @@ def her_conversation_now_with(heading: str, reading: str) -> list[dict[str, Any]
     she was given were "Can you highlight the back button?" from 00:40, eight hours and a sitting before, and she
     answered them, and pointed at an arrow for them.
 
-    Her model's template takes no turn of hers before somebody's ("No user query found in messages"). When nobody
-    has said anything this sitting, the reading is what is in front of them both, so it is the turn before hers; when
-    someone has, it stands beside their talk as runtime evidence.
+    Her model's template takes no turn of hers before somebody's ("No user query found in messages"). Unless somebody's
+    words are waiting for her, the reading is what is in front of them both, so it is the turn before hers; while they
+    wait, it stands beside them as runtime evidence. Her template writes runtime evidence as a tool's response, and
+    after her answer that reads as a tool she called for the question she had answered. LIVE 16 November 2026, 12:46
+    local, sixteen minutes after she drew a ring around Chrome's back button for Bryan, the reading of her host went in
+    after "Can you highlight the back button?" and her answer to it, and she said "Looking at the screenshot ... I don't
+    have the ability to visually highlight or draw on the screenshot."
     """
     import time
 
@@ -52,8 +56,8 @@ def her_conversation_now_with(heading: str, reading: str) -> list[dict[str, Any]
     said = said_since(0.0)
     now = said[sitting_begins([at for at, _role, _content in said], time.time()):][-CONVERSATION_TURNS:]
     messages = [{"role": role, "content": content} for _at, role, content in now]
-    someone_spoke = any(message["role"] == "user" for message in messages)
-    messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE if someone_spoke else "user",
+    waiting = bool(messages) and messages[-1]["role"] == "user"
+    messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE if waiting else "user",
                                      "content": f"## {heading}\n{reading}"}))
     return messages
 
