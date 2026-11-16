@@ -251,3 +251,55 @@ def test_fifty_headers_come_in_one_fetch():
     found = headers_by_uid(Mail(), [b"61", b"62"], "FROM")
     assert asked == [("FETCH", b"61,62")]
     assert {uid: header["From"] for uid, header in found.items()} == {b"61": "a@example.org", b"62": "b@example.org"}
+
+
+def test_a_reply_whose_send_was_deferred_goes_out_on_her_next_round(monkeypatch, tmp_path):
+    """LIVE 15 November 2026, 19:56: her reply to Bryan's "Checking In" was written while she may send her own, its
+    send was deferred by the quiet window her reply turn had just opened, and nothing tried again."""
+    from core.skills import her_replies_to_mail
+
+    replies: list[str] = []
+    check = {"ok": True, "unread": 57, "messages": _NEWEST_FIVE}
+    loop, calls = _loop(monkeypatch, tmp_path, check=check, replies=replies, deferred_reads={"61", "60", "59", "58"})
+    monkeypatch.setenv("AURA_EMAIL_SENDS_WITHOUT_ASKING", "1")
+    deferred_once = {"ok": False, "status": "deferred", "reason": "foreground_quiet_window"}
+    engine = loop  # the fake engine answers replies through calls; wrap it to defer the first send
+    from core.autonomy import social_initiative
+
+    real = social_initiative.optional_service("capability_engine")
+    sends: list[dict] = []
+
+    class DefersTheFirstSend:
+        async def execute(self, skill, payload, context):
+            if payload.get("mode") == "reply":
+                sends.append(dict(payload))
+                return deferred_once if len(sends) == 1 else {"ok": True, "status": "sent"}
+            return await real.execute(skill, payload, context)
+
+    services = {"capability_engine": DefersTheFirstSend(), "memory_manager": None}
+    monkeypatch.setattr("core.autonomy.social_initiative.optional_service",
+                        lambda name, default=None: services.get(name, default))
+    asyncio.run(engine._check_email_initiative())
+    path = tmp_path / "email" / "drafts.jsonl"
+    (written,) = her_replies_to_mail.drafts(path)
+    assert written["to_send"] is True and written["sent"] is False
+    assert replies == ["Hey!"]
+
+    again, _calls = _loop(monkeypatch, tmp_path, check=check, replies=replies)
+    monkeypatch.setenv("AURA_EMAIL_SENDS_WITHOUT_ASKING", "1")
+    monkeypatch.setattr("core.autonomy.social_initiative.optional_service",
+                        lambda name, default=None: services.get(name, default))
+    asyncio.run(again._check_email_initiative())
+    (kept,) = her_replies_to_mail.drafts(path)
+    assert kept["sent"] is True
+    assert [s["uid"] for s in sends] == ["62", "62"]
+    assert replies == ["Hey!"], "the message is answered once; only its send was tried again"
+
+
+def test_a_reply_held_before_the_standing_yes_is_not_sent_by_it(monkeypatch, tmp_path):
+    from core.skills import her_replies_to_mail
+
+    path = tmp_path / "email" / "drafts.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text('{"id": "old", "uid": "40", "reply": "Hi", "sent": false}\n', encoding="utf-8")
+    assert her_replies_to_mail.to_send(path) == []

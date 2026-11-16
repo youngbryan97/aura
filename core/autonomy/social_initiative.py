@@ -255,6 +255,36 @@ class _StartsSomethingSocial:
             -pair[0]))
         return [message for _place, message in order]
 
+    async def _send_what_is_hers_to_send(self, cap_engine: Any) -> set[str]:
+        """Send each reply she wrote while she may send her own and that has not gone; the ids that went.
+
+        A send can be deferred like any background act, and a deferred one is tried again next round rather than
+        lost (core/skills/her_replies_to_mail.to_send). Each outcome is said: the first one was silent.
+        """
+        from .autonomous_initiative_loop import logger
+
+        from core.skills.her_replies_to_mail import mark_sent, sends_without_asking, to_send
+
+        if not sends_without_asking():
+            return set()
+        went: set[str] = set()
+        for draft in await asyncio.to_thread(to_send):
+            sent = await self._execute_email_adapter(
+                {"mode": "reply", "uid": draft.get("uid"), "body": draft.get("reply"),
+                 "in_reply_to": draft.get("message_id") or None},
+                cap_engine=cap_engine,
+            )
+            if sent.get("ok"):
+                await mark_sent(str(draft["id"]))
+                went.add(str(draft["id"]))
+                logger.info("📧 Her reply to %s about %r went out (%s).", draft.get("to"), draft.get("subject"), draft["id"])
+            elif tool_result_is_deferred(sent):
+                logger.info("📧 Her reply %s is kept for her next round, its send deferred: %s", draft["id"], self._why_not(sent))
+                break
+            else:
+                logger.warning("📧 Her reply %s could not be sent: %s", draft["id"], self._why_not(sent))
+        return went
+
     async def _check_email_initiative(self) -> str:
         """Read her unread mail and answer what is hers to answer: why the round was deferred, or "" when it ran."""
         from .autonomous_initiative_loop import (
@@ -295,7 +325,10 @@ class _StartsSomethingSocial:
                     category="Social",
                 )
 
-            from core.skills.her_replies_to_mail import answered, answers, hold_for_bryan, mark_sent, sends_without_asking
+            from core.skills.her_replies_to_mail import answered, answers, hold_for_bryan, sends_without_asking
+
+            # Replies a deferral kept back go first: each was written to a person who is still waiting.
+            await self._send_what_is_hers_to_send(cap_engine)
 
             # What she has answered already, held or sent, from her drafts: a restart does not forget it.
             already = await asyncio.to_thread(answered)
@@ -335,14 +368,7 @@ class _StartsSomethingSocial:
                 if triage["draft_reply"]:
                     triage["draft_id"] = await hold_for_bryan(triage, triage["draft_reply"])
                     if sends_without_asking():
-                        sent = await self._execute_email_adapter(
-                            {"mode": "reply", "uid": uid, "body": triage["draft_reply"],
-                             "in_reply_to": triage.get("message_id") or None},
-                            cap_engine=cap_engine,
-                        )
-                        triage["sent"] = bool(sent.get("ok"))
-                        if triage["sent"]:
-                            await mark_sent(triage["draft_id"])
+                        triage["sent"] = triage["draft_id"] in await self._send_what_is_hers_to_send(cap_engine)
                 if triage["action"] != "hers_to_answer" or triage["draft_reply"]:
                     self._recent_email_uids[key] = float("inf")
                 triaged.append(triage)

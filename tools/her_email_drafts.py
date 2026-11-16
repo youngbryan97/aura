@@ -21,6 +21,20 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+def _her_env() -> None:
+    """Her mail credentials are in her .env, which her runtime reads at start (aura_main.py); so does this tool.
+
+    LIVE 15 November 2026, its send stopped at "Email credentials not found": it had never read them.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    path = ROOT / ".env"
+    if path.is_file():
+        load_dotenv(path, override=False)
+
+
 def main() -> int:
     from core.skills.her_replies_to_mail import _drafts_path, drafts
 
@@ -43,6 +57,7 @@ def main() -> int:
             kept.write(json.dumps({"id": chosen["id"], "withdrawn": True, "withdrawn_at": time.time()}) + "\n")
         print(f"withdrew {chosen['id']}")
         return 0
+    _her_env()
     from core.skills.email_adapter import EmailAdapterSkill, EmailInput
 
     sent = asyncio.run(EmailAdapterSkill()._handle_reply(EmailInput(mode="reply", uid=chosen["uid"], body=chosen["reply"],

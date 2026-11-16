@@ -22,7 +22,8 @@ from typing import Any
 
 logger = logging.getLogger("Skills.Email")
 
-__all__ = ["DRAFTS", "answered", "answers", "drafts", "her_reply_to", "hold_for_bryan", "mark_sent", "sends_without_asking"]
+__all__ = ["DRAFTS", "answered", "answers", "drafts", "her_reply_to", "hold_for_bryan", "mark_sent", "sends_without_asking",
+           "to_send"]
 
 #: The origin her reply turns carry: a turn on her desktop lane, answering what a person wrote her.
 ORIGIN = "desktop_email_reply"
@@ -148,14 +149,28 @@ async def hold_for_bryan(message: dict[str, Any], reply: str) -> str:
 
     draft = {"id": uuid.uuid4().hex[:10], "written": time.time(), "uid": str(message.get("uid") or ""),
              "to": str(message.get("from") or ""), "subject": str(message.get("subject") or ""),
-             "message_id": str(message.get("message_id") or ""), "reply": reply, "sent": False}
+             "message_id": str(message.get("message_id") or ""), "reply": reply, "sent": False,
+             # Written while she may send her own: hers to send until it goes, whatever deferred the first try.
+             "to_send": sends_without_asking()}
     path = _drafts_path()
     with local_internal_governed_scope("her_replies_to_mail.hold", domain="file_write"):
         gateway = get_file_write_gateway()
         await gateway.ensure_directory_async(path.parent, source="her_replies_to_mail.hold")
         await gateway.append_text_async(path, json.dumps(draft) + "\n", source="her_replies_to_mail.hold")
-    logger.info("📧 Her reply to %s about %r is held for Bryan (%s).", draft["to"], draft["subject"], draft["id"])
+    logger.info("📧 Her reply to %s about %r is %s (%s).", draft["to"], draft["subject"],
+                "hers to send" if draft["to_send"] else "held for Bryan", draft["id"])
     return str(draft["id"])
+
+
+def to_send(path: Path | None = None) -> list[dict[str, Any]]:
+    """Replies she wrote while she may send her own, not yet sent or withdrawn, the oldest first.
+
+    LIVE 15 November 2026, 19:56: her reply to Bryan's "Checking In" was written, its send was deferred by the
+    quiet window her own reply turn had just opened, and the message was already counted answered, so nothing
+    tried again and the reply sat in her drafts.
+    """
+    return sorted((d for d in drafts(path) if d.get("to_send") and not d.get("sent") and not d.get("withdrawn")),
+                  key=lambda d: float(d.get("written") or 0.0))
 
 
 def drafts(path: Path | None = None) -> list[dict[str, Any]]:
