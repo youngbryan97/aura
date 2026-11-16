@@ -5151,6 +5151,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  - [x] 2026-11-15: the test defect register is written through the
+    governed atomic file gateway. A refused replacement leaves the
+    previous report readable and the current run fails. Both the
+    replacement and private-mode checks failed before the repair.
+    All 107 focused runner and backlog tests passed. A bare-script
+    probe from outside the checkout wrote valid JSON under enforcement.
+    Smoke passed 164 tests with one skip in 57.70 s and maximum RSS
+    of 450,707,456 bytes. Lint, compile and targeted writing passed.
+    Source: tools/run_test_chunks.py.
+    Tests: tests/runtime/test_chunk_runner_required_outputs.py.
   - [x] 2026-11-15: a failed tracked-status read makes source identity
     unmeasured even when Git returns HEAD. With a real checkout and a
     simulated unreadable index, the runner previously admitted a chunk

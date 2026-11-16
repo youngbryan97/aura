@@ -66,14 +66,39 @@ def test_a_requested_register_write_failure_fails_the_run(run, tmp_path, capsys,
         assert target.is_dir()
 
 
-def test_a_written_register_keeps_the_run_green(run, tmp_path):
+def test_a_written_register_keeps_the_run_green(run, tmp_path, monkeypatch):
     invoke, _, launched = run
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
     target = tmp_path / "new" / "register.json"
     assert invoke("--defect-register", str(target)) == 0
     assert launched == [1]
     record = json.loads(target.read_text())
     assert record["schema"] == "aura.test_defect_register.v1"
     assert record["source_revision"]["measured"]
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_a_failed_register_replacement_keeps_the_previous_report(run, tmp_path, monkeypatch, capsys):
+    import os
+
+    invoke, _, launched = run
+    target = tmp_path / "register.json"
+    previous = b'{"schema":"aura.test_defect_register.v1","old_report":true}\n'
+    target.write_bytes(previous)
+    original = os.replace
+
+    def replace(source, destination, **kwargs):
+        if Path(destination) == target:
+            assert Path(source) != target
+            assert json.loads(Path(source).read_bytes())["source_revision"]["measured"]
+            raise OSError("replacement refused")
+        return original(source, destination, **kwargs)
+
+    monkeypatch.setattr(os, "replace", replace)
+    assert invoke("--defect-register", str(target)) == 1
+    assert launched == [1]
+    assert "replacement refused" in capsys.readouterr().err
+    assert target.read_bytes() == previous
 
 
 @pytest.mark.parametrize("continue_on_failure, attempted", [(False, 1), (True, 2)])

@@ -58,6 +58,9 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if not __package__:
+    sys.path.insert(0, str(ROOT))
+
 _FAILED_NODE_RE = re.compile(r"^(?:FAILED|ERROR)\s+([^\s].*?)(?:\s+-\s+.*)?$")
 
 #: Where the runner records what it is doing, so a killed parent leaves a
@@ -622,9 +625,13 @@ def main(argv: list[str] | None = None) -> int:
     unisolated_chunks = [line for ok, line, ids in results if ok is False and not ids]
     register_error: str | None = None
     if args.defect_register:
-        try:
-            import json as _json
+        import json
 
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+        from core.runtime.state_ownership import StateOwnershipViolation
+
+        try:
             register = {
                 "schema": "aura.test_defect_register.v1",
                 "generated_at_unix": time.time(),
@@ -646,10 +653,13 @@ def main(argv: list[str] | None = None) -> int:
                 },
             }
             reg_path = Path(args.defect_register)
-            reg_path.parent.mkdir(parents=True, exist_ok=True)
-            reg_path.write_text(_json.dumps(register, indent=2) + "\n", encoding="utf-8")
+            with local_internal_governed_scope("test_runner.defect_register"):
+                get_file_write_gateway().write_text(
+                    reg_path, json.dumps(register, indent=2) + "\n",
+                    source="test_runner.defect_register",
+                )
             print(f"🗂  defect register → {reg_path}", flush=True)
-        except OSError as _reg_exc:
+        except (OSError, StateOwnershipViolation) as _reg_exc:
             register_error = str(_reg_exc)
             print(f"⚠️  defect register write failed: {_reg_exc}", file=sys.stderr, flush=True)
 
