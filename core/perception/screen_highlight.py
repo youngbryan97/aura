@@ -36,13 +36,11 @@ degraded one.
 from __future__ import annotations
 
 import logging
-import subprocess
 import time
 from dataclasses import dataclass
 from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -214,30 +212,27 @@ def _found_in_the_front_window(needle: str, *, within_s: float) -> Rect | None:
 
 
 def _screen_area() -> float:
+    """The area of her displays, in the points the accessibility tree measures in; 0.0 when it cannot be read.
+
+    It asked Finder for its desktop window's bounds over AppleScript, an Apple Event from her process: LIVE 16
+    November 2026, 00:40, the back button was located in 0.36 s and the highlight then waited 120 s on that question,
+    so the rectangle it drew was declined as stale. The display list is read directly.
+    """
     try:
-        completed = get_subprocess_gateway().run(
-            [
-                "osascript",
-                "-e",
-                'tell application "Finder" to get bounds of window of desktop',
-            ],
-            timeout=_TIMEOUT_S,
-            read_only=True,
-            capture_output=True,
-            source="screen_highlight.screen_bounds",
-            accelerator_capability="none",
-        )
-        parts = [float(p.strip()) for p in str(completed.stdout or "").split(",")]
-        if len(parts) == 4:
-            return max(1.0, (parts[2] - parts[0]) * (parts[3] - parts[1]))
-    except (OSError, subprocess.SubprocessError, ValueError) as exc:
-        logger.debug(
-            "%s unavailable (%s: %s); the highlighted region reads as zero area",
-            "it",
-            type(exc).__name__,
-            exc,
-        )
-    return 0.0
+        import Quartz
+
+        error, _none, count = Quartz.CGGetActiveDisplayList(0, None, None)
+        if error or not count:
+            return 0.0
+        error, displays, count = Quartz.CGGetActiveDisplayList(count, None, None)
+        if error:
+            return 0.0
+        bounds = [Quartz.CGDisplayBounds(display) for display in displays[:count]]
+        return float(sum(rect.size.width * rect.size.height for rect in bounds))
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("the displays could not be read (%s: %s); the highlighted region reads as zero area",
+                     type(exc).__name__, exc)
+        return 0.0
 
 
 async def highlight(
