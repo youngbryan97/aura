@@ -289,3 +289,75 @@ def test_the_result_serialises_for_a_receipt():
 
     assert payload["rect"]["x"] == 1.2
     assert payload["shown"] is True
+
+
+def test_the_whole_front_window_is_searched_and_an_exact_name_wins(monkeypatch):
+    """LIVE 15 November 2026, Finder in front: "Downloads", "Applications" and "Search" were each not found, because
+    only the window's own children were asked, and in a real window those are groups and toolbars."""
+    from types import SimpleNamespace
+
+    import AppKit
+    import ApplicationServices
+
+    def node(children=(), **names):
+        return SimpleNamespace(children=list(children), names=names)
+
+    exact = node(AXTitle="Downloads", AXPosition=(714, 530), AXSize=(56, 18))
+    longer = node(AXTitle="Downloads folder settings", AXPosition=(10, 10), AXSize=(200, 20))
+    window = node([node([node([longer]), node([exact])])])
+    app = node(AXFocusedWindow=window)
+
+    def copy(element, name, _out):
+        if name == "AXChildren":
+            return (0, element.children) if element.children else (1, None)
+        value = element.names.get(name)
+        return (0, value) if value is not None else (1, None)
+
+    def value_of(value, kind, _out):
+        x, y = value
+        return True, SimpleNamespace(x=x, y=y, width=x, height=y)
+
+    monkeypatch.setattr(ApplicationServices, "AXUIElementCreateApplication", lambda pid: app)
+    monkeypatch.setattr(ApplicationServices, "AXUIElementCopyAttributeValue", copy)
+    monkeypatch.setattr(ApplicationServices, "AXValueGetValue", value_of)
+    monkeypatch.setattr(AppKit, "NSWorkspace", SimpleNamespace(sharedWorkspace=lambda: SimpleNamespace(
+        frontmostApplication=lambda: SimpleNamespace(processIdentifier=lambda: 1))))
+
+    found = locate_on_screen("Downloads")
+    assert found is not None and (found.x, found.y) == (714.0, 530.0), "three levels down, named exactly"
+    assert locate_on_screen("nothing named this") is None
+
+
+def test_a_name_the_window_does_not_use_finds_nothing_and_a_kind_of_control_is_not_a_name(monkeypatch):
+    """"The save button" with no Save on screen drew around another button while help text counted as a name."""
+    from types import SimpleNamespace
+
+    import AppKit
+    import ApplicationServices
+
+    def node(children=(), **names):
+        return SimpleNamespace(children=list(children), names=names)
+
+    share = node(AXDescription="Share", AXRoleDescription="button", AXHelp="this button shares", AXPosition=(1, 1),
+                 AXSize=(36, 36))
+    back = node(AXDescription="back", AXRoleDescription="button", AXPosition=(795, 287), AXSize=(36, 36))
+    back_row = node(AXTitle="back issues", AXRoleDescription="row", AXPosition=(10, 400), AXSize=(200, 18))
+    app = node(AXFocusedWindow=node([node([share, back_row]), node([back])]))
+
+    def copy(element, name, _out):
+        if name == "AXChildren":
+            return (0, element.children) if element.children else (1, None)
+        value = element.names.get(name)
+        return (0, value) if value is not None else (1, None)
+
+    monkeypatch.setattr(ApplicationServices, "AXUIElementCreateApplication", lambda pid: app)
+    monkeypatch.setattr(ApplicationServices, "AXUIElementCopyAttributeValue", copy)
+    monkeypatch.setattr(ApplicationServices, "AXValueGetValue",
+                        lambda value, kind, _out: (True, SimpleNamespace(x=value[0], y=value[1], width=value[0],
+                                                                          height=value[1])))
+    monkeypatch.setattr(AppKit, "NSWorkspace", SimpleNamespace(sharedWorkspace=lambda: SimpleNamespace(
+        frontmostApplication=lambda: SimpleNamespace(processIdentifier=lambda: 1))))
+
+    assert locate_on_screen("save button") is None, "no Save on screen: no rectangle around another button"
+    found = locate_on_screen("back button")
+    assert found is not None and (found.x, found.y) == (795.0, 287.0), "the button named back, not the row"

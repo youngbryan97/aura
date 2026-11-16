@@ -103,29 +103,6 @@ class HighlightResult:
         }
 
 
-_LOCATE_SCRIPT = """
-on run argv
-    set needle to item 1 of argv
-    tell application "System Events"
-        set frontApp to name of first application process whose frontmost is true
-        tell process frontApp
-            set matches to (every UI element of front window whose value of ¬
-                attribute "AXTitle" contains needle)
-            if (count of matches) is 0 then
-                set matches to (every UI element of front window whose value of ¬
-                    attribute "AXValue" contains needle)
-            end if
-            if (count of matches) is 0 then return "none"
-            set target to item 1 of matches
-            set pos to value of attribute "AXPosition" of target
-            set siz to value of attribute "AXSize" of target
-            return ((item 1 of pos) as text) & "," & ((item 2 of pos) as text) & ¬
-                "," & ((item 1 of siz) as text) & "," & ((item 2 of siz) as text)
-        end tell
-    end tell
-end run
-"""
-
 _TIMEOUT_S = 2.5
 
 
@@ -135,39 +112,105 @@ def locate_on_screen(needle: str) -> Rect | None:
     None means "could not locate", which the caller must render as words
     rather than as a guessed rectangle. A rectangle over the wrong thing is
     a confident wrong answer wearing the appearance of a measurement.
+
+    The front window's whole tree is searched, breadth first, within the time
+    allowed. It asked only the window's own children ("every UI element of
+    front window"), which in a real window are groups and toolbars: LIVE 15
+    November 2026, with Finder in front, "Downloads", "Applications" and
+    "Search" were each not found, so every requested highlight was refused.
     """
     text = str(needle or "").strip()
     if len(text) < 2:
         return None
     try:
-        completed = get_subprocess_gateway().run(
-            ["osascript", "-", text],
-            input=_LOCATE_SCRIPT,
-            timeout=_TIMEOUT_S,
-            read_only=True,
-            capture_output=True,
-            source="screen_highlight.locate",
-            accelerator_capability="none",
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
+        return _found_in_the_front_window(text, within_s=_TIMEOUT_S)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
         record_degradation(
             "screen_highlight", exc, severity="debug",
             action="could not locate the element; she will describe it in words",
         )
         return None
-    raw = str(completed.stdout or "").strip()
-    if completed.returncode != 0 or not raw or raw == "none":
+
+
+#: What an element is called, in the attributes a person sees or a screen reader says. Not its help text, which
+#: talks about other things: Finder's full-screen button's is "this button also has an action to zoom the window", and
+#: its history group's "See folders you viewed previously", so "the save button" found a button with no Save in it.
+_NAMING_ATTRIBUTES = ("AXTitle", "AXDescription", "AXValue", "AXPlaceholderValue")
+
+
+def _found_in_the_front_window(needle: str, *, within_s: float) -> Rect | None:
+    """The element of the front window that ``needle`` names, by the window's own words; None when it names none.
+
+    A word of the needle that names some element in the window must name this one ("Downloads"); a word the window
+    uses only for a kind of control ("button", "text field") is preferred and not required; a word the window does not
+    use at all ("folder" in "the Downloads folder", "in this window") says nothing about which element is meant.
+    Among the elements left, the one whose name has the fewest other words, then the smallest. A needle that names
+    nothing in the window finds nothing: a rectangle around some other button is worse than none.
+    """
+    import re
+    from collections import deque
+
+    from AppKit import NSWorkspace
+    from ApplicationServices import (
+        AXUIElementCopyAttributeValue,
+        AXUIElementCreateApplication,
+        AXValueGetValue,
+        kAXValueCGPointType,
+        kAXValueCGSizeType,
+    )
+
+    def attribute(element: Any, name: str) -> Any:
+        error, value = AXUIElementCopyAttributeValue(element, name, None)
+        return None if error else value
+
+    def words_of(*values: Any) -> frozenset[str]:
+        return frozenset(re.findall(r"\w+", " ".join(str(v) for v in values if isinstance(v, str)).lower()))
+
+    def rect_of(element: Any) -> Rect | None:
+        position, size = attribute(element, "AXPosition"), attribute(element, "AXSize")
+        if position is None or size is None:
+            return None
+        has_point, point = AXValueGetValue(position, kAXValueCGPointType, None)
+        has_size, extent = AXValueGetValue(size, kAXValueCGSizeType, None)
+        if not (has_point and has_size):
+            return None
+        found = Rect(x=float(point.x), y=float(point.y), width=float(extent.width), height=float(extent.height))
+        return found if found.is_usable else None
+
+    front = NSWorkspace.sharedWorkspace().frontmostApplication()
+    if front is None:
         return None
-    parts = raw.split(",")
-    if len(parts) != 4:
+    application = AXUIElementCreateApplication(int(front.processIdentifier()))
+    window = attribute(application, "AXFocusedWindow") or attribute(application, "AXMainWindow")
+    if window is None:
         return None
-    try:
-        x, y, width, height = (float(part.strip()) for part in parts)
-    # not a failure: a value that is not a number is not one this can read.
-    except ValueError:
+    ends = time.monotonic() + max(0.1, float(within_s))
+    seen: list[tuple[Any, frozenset[str], frozenset[str]]] = []
+    queue = deque([window])
+    while queue and time.monotonic() < ends:
+        element = queue.popleft()
+        named = words_of(*(attribute(element, name) for name in _NAMING_ATTRIBUTES))
+        if named:
+            seen.append((element, named, words_of(attribute(element, "AXRoleDescription"))))
+        children = attribute(element, "AXChildren")
+        if children:
+            queue.extend(children)
+    asked = frozenset(re.findall(r"\w+", needle.lower()))
+    names = asked & frozenset().union(*(named for _element, named, _kind in seen))
+    if not names:
         return None
-    rect = Rect(x=x, y=y, width=width, height=height)
-    return rect if rect.is_usable else None
+    kinds = (asked - names) & frozenset().union(*(kind for _element, _named, kind in seen))
+    best, best_rank = None, None
+    for element, named, kind in seen:
+        if not names <= named:
+            continue
+        found = rect_of(element)
+        if found is None:
+            continue
+        rank = (not kinds <= kind, len(named - asked), found.area)
+        if best_rank is None or rank < best_rank:
+            best, best_rank = found, rank
+    return best
 
 
 def _screen_area() -> float:
@@ -236,7 +279,9 @@ async def highlight(
             shown=False, reason="a private window is in the foreground"
         )
 
-    rect = locate_on_screen(needle)
+    import asyncio
+
+    rect = await asyncio.to_thread(locate_on_screen, needle)  # a walk of the window's tree, off her event loop
     if rect is None:
         return HighlightResult(
             shown=False,

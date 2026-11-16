@@ -1280,7 +1280,7 @@ def looks_like_screen_observation(user_message: str) -> bool:
 #: it here would move the rectangle off the thing the person named.
 _POINT_REQUEST_RE = re.compile(
     r"\b(?:"
-    r"where\s+(?:is|are|'s)\s+"
+    r"where(?:\s+(?:is|are|'s)|['\u2019]s)\s+"  # "Where's the Downloads folder?" asked nothing (15 November 2026)
     r"|show\s+me\s+(?:where\s+)?"
     r"|point\s+(?:at|to)\s+"
     r"|highlight\s+"
