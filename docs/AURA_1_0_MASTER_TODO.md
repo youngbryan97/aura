@@ -4262,7 +4262,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   (NotAllowedError, NotFoundError, NotReadableError, the camera switched
   off), and the turn ends on that reason with what can be done about it,
   not on a timeout.
-- [x] U04 Companion mode: bubble, hide/clear, notifications, restrained chat,
+- [ ] U04 Companion mode: bubble, hide/clear, notifications, restrained chat,
   proactive observation, and continuity with full mode.
   14 November, first live test, driven on Bryan's screen with his leave.
   Closing her window left her in the bubble for about five seconds, then
@@ -4329,6 +4329,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   her from making another until it is cleared or read, and bringing her
   app forward through desktop control counts as a click on her Dock icon,
   which opens her window, as a Dock click should.
+  REOPENED the same evening by Bryan's account of what proactive observation
+  is: "unprompted advice and commentary. that's agency. just giving thoughts
+  on the screen she should be seeing when she feels its appropriate or has
+  something to add. could be casual too", "could even be her thoughts on
+  what's running with claude or chatgpt", "the idea ultimately is for aura
+  to always have presence. not only act or speak when prompted to". His
+  example was a job application asking him to describe his experience. Her
+  remark is gated by a list of fault words (ambient_utterance._worth_noticing:
+  a traceback, an error); a form, a draft or a conversation on screen never
+  reaches her. Left: what is on screen reaches her own judgement of whether
+  she has something to add, paced by her, with no list of what is worth it.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
@@ -6359,7 +6370,7 @@ needs her 27B free (her app down, or her app's own influence trials).
   Open beside it, not part of this item: commenting and posting wait on
   Bryan signing her account in; her Reddit API app waits on Reddit's
   approval; a thread takes her many rounds to read.
-- [ ] F14 Email: she reads her mail and answers what is worth answering, not
+- [x] F14 Email: she reads her mail and answers what is worth answering, not
   automated mail. Added 20 October. Lane: no.
   10 November 2026, live, her app on 8c387cd37. Her credentials are in her
   `.env` (git-ignored, mode 600), read before the Keychain; the Keychain items
@@ -6420,6 +6431,11 @@ needs her 27B free (her app down, or her app's own influence trials).
   and right after writing one, and says for each whether it went out, was
   deferred (kept for the next round) or failed. tools/her_email_drafts.py
   could not send at all: it never read her .env. It does now.
+  CLOSED 15 November 2026, 20:10: that reply, written by her round in her
+  words, went out through tools/her_email_drafts.py send 11716d3354 under
+  his standing yes ({"ok": true}), and Bryan: "Yup! I got the email". Her
+  own round sending the next one, with the retry in daef08f55, is still to
+  be seen.
 - [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
   the 512-unit substrate (d9fdc1660). Left: each module driving what she does
   or says, measured by lesion. Lane: no.
