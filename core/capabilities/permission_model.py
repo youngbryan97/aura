@@ -345,22 +345,24 @@ def _said_not_to(text: str, at: int) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _her_own_goal_work_is_leased(context: Dict[str, Any], effect_scope: str, execution_risk: str) -> bool:
-    """True when this call holds a valid lease from the grant that is Bryan's standing yes to her goal work.
+def _bryans_standing_yes(context: Dict[str, Any], effect_scope: str, execution_risk: str) -> str:
+    """The grant whose valid lease this call holds, when that grant is Bryan's standing yes; "" otherwise.
 
-    A high-risk call asks a person to confirm it. A pass at a goal she set herself has no person to ask, and on
-    9 November 2026 Bryan said she should not need one ("She can do it without me"). The yes is a standing grant,
-    ``aura.own-goal-work``, bounded to her five goal tools, her goal pass's origin and her own workspace; holding a
-    valid lease from it is that yes. No other grant answers for a person here: the owner's foreground grant still
-    leaves a high-risk call to the person who is there to confirm it.
+    A high-risk call asks a person to confirm it. A pass of hers that nobody is at the keyboard for has no person to
+    ask, and Bryan said twice that it should not need one: on 9 November 2026 of her goal work ("She can do it without
+    me"), ``aura.own-goal-work``, and on 15 November 2026 of what she does on the screen while keeping a person company
+    ("full companion ... im giving you permission to work with whatever permissions she needs"),
+    ``aura.desk-company``. Each is bounded to its own tools and its own origin; holding a valid lease from one is that
+    yes. No other grant answers for a person here: the owner's foreground grant still leaves a high-risk call to the
+    person who is there to confirm it.
     """
     try:
-        from core.executive.standing_authority import OWN_GOAL_GRANT, validate_standing_authority_context
-    except ImportError as exc:
-        logger.warning("Standing authority is refused: its validator could not be imported (%s).", exc)
-        return False
-    if str((context or {}).get("standing_authority_grant_id") or "") != OWN_GOAL_GRANT:
-        return False
+        from core.executive.standing_authority import BRYANS_STANDING_YES, validate_standing_authority_context
+    except ImportError:
+        return ""
+    grant = str((context or {}).get("standing_authority_grant_id") or "")
+    if grant not in BRYANS_STANDING_YES:
+        return ""
     try:
         valid, _reason = validate_standing_authority_context(
             context,
@@ -370,10 +372,10 @@ def _her_own_goal_work_is_leased(context: Dict[str, Any], effect_scope: str, exe
             effect_scope=effect_scope,
             risk_level=execution_risk,
         )
-    except (RuntimeError, TypeError, ValueError) as exc:
-        logger.warning("Standing authority is refused: its grant could not be validated (%s).", exc)
-        return False
-    return bool(valid)
+    except (RuntimeError, TypeError, ValueError):
+        return ""
+    return grant if valid else ""
+
 
 class PermissionRiskModel:
     """Per-action risk classification and approval gating.
@@ -563,9 +565,10 @@ class PermissionRiskModel:
             else:
                 # Check if user already pre-approved this class of action
                 pre_approved = context.get("user_explicitly_authorized", False)
-                if not pre_approved and _her_own_goal_work_is_leased(context, effect_scope, execution_risk):
+                standing_yes = "" if pre_approved else _bryans_standing_yes(context, effect_scope, execution_risk)
+                if standing_yes:
                     approved = True
-                    reason = f"HIGH risk, Bryan's standing yes to her own goal work: {reason}"
+                    reason = f"HIGH risk, Bryan's standing yes ({standing_yes}): {reason}"
                 elif pre_approved:
                     approved = True
                     reason = f"HIGH risk, user pre-approved: {reason}"

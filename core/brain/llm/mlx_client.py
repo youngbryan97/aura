@@ -36,10 +36,12 @@ from .mlx_client_artifacts import (  # noqa: F401  (re-exported: they were defin
 )
 from .mlx_client_recording import _RecordsWhatTheWorkerDid
 from .mlx_client_tool_results import (  # noqa: F401  (re-exported: they were defined here)
+    _how_the_loop_generates,
     _prior_tool_turns,
     _serialize_tool_result_for_model,
     _tool_loop_evidence_messages,
     _truncate_tool_result,
+    _what_the_loop_answers,
 )
 from .mlx_client_waiting import _WaitsForTheResult
 from .what_she_expects_next import _AsksWhatSheExpectsNext
@@ -11033,7 +11035,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         # not being redundant on purpose; nothing had told it the read had
         # happened.
         messages.extend(_tool_loop_evidence_messages(evidence))
-        messages.append({"role": "user", "content": objective})
+        messages.extend(_what_the_loop_answers(objective, kwargs.get("conversation")))
         # What she already did toward this objective, in the calls she made and what came back: a goal of hers is
         # worked on a few calls at a time, across as long as it takes (core/agency/her_goal_at_work.py).
         messages.extend(_prior_tool_turns(kwargs.get("prior_turns")))
@@ -11078,7 +11080,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 ),
                 # A loop of hers on her own goal is background work: each of its generations stands aside while
                 # someone is talking with her (core/agency/her_goal_at_work.py).
-                **_in_the_background(kwargs),
+                **_how_the_loop_generates(kwargs),
                 # A tool call is structured output, and affective steering
                 # destroys structured output.
                 #
@@ -12414,13 +12416,6 @@ def _announces_an_action_it_did_not_take(text: object) -> bool:
         if _ANNOUNCES_AN_ACTION_RE.search(sentence) and _NAMES_A_MEANS_RE.search(sentence):
             return True
     return False
-
-
-def _in_the_background(kwargs: Mapping[str, Any]) -> dict[str, Any]:
-    """What makes a tool loop's generations background work, when its caller asked for that."""
-    if not kwargs.get("work_in_background"):
-        return {}
-    return {"origin": str(kwargs.get("origin") or "background"), "is_background": True}
 
 
 def _code_execution_tool(allowed_tools: set[str] | None) -> str | None:

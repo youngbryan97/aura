@@ -2091,9 +2091,9 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         # patterns, foundational candidates, declarations, names), so it leaves
         # them out once, here, for all four. "Run some Python and tell me the
         # result" was offered check_draft, whose description runs the tests.
-        from core.skills.catalog_policy import HER_GOAL_TOOLS
+        from core.skills.catalog_policy import NOT_OFFERED_TO_A_TURN
 
-        return [name for name in triggered if self.resolve_skill_name(name) not in HER_GOAL_TOOLS]
+        return [name for name in triggered if self.resolve_skill_name(name) not in NOT_OFFERED_TO_A_TURN]
 
     @staticmethod
     def _is_mention_rather_than_request(message: str) -> bool:

@@ -185,21 +185,6 @@ async def _keep_it_in_her_conversation(thought: str) -> None:
 _REMARK_ORIGIN = "ambient_remark"
 
 
-async def _point_at_it(thought: str) -> None:
-    """Keeping him company, she points at what her remark is about, when one line of the screen clearly is."""
-    import logging
-
-    try:
-        from core.perception.ambient_utterance import latest_screen
-        from core.perception.screen_highlight import point_at_what_she_says
-
-        pointed = await point_at_what_she_says(thought, str(getattr(latest_screen(), "capture", "") or ""))
-        logging.getLogger("Aura.Perception.AmbientPresence").info(
-            "👉 %s", f"pointed at {pointed.matched_text[:60]!r}" if pointed.shown else f"did not point: {pointed.reason}")
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation("ambient_presence", exc, severity="warning", action="her remark went without pointing")
-
-
 class PresenceMode(StrEnum):
     """What surface she is present on right now."""
 
@@ -1053,12 +1038,12 @@ class AmbientPresence(_CarriesTheBubble):
             from core.together.remarks import remark_in_a_with
 
             if held is not None and held.what == KEEPING_COMPANY:
-                # Her own unprompted turn writes it, on her cortex, as her remarks at the desk always were; the with
-                # decides when, weighing a look against what usually crosses his screen.
-                from core.perception.ambient_utterance import _compose
+                # Her own turn at the desk writes it, on her cortex, with what she can do on the screen offered to
+                # it; the with decides when, weighing a look against what usually crosses the person's screen.
+                from core.perception.ambient_utterance import compose_at_the_desk
 
                 thought = await remark_in_a_with(held, latest_screen(), against_usual=True,
-                                                 compose=lambda observation: _compose(observation, ""))
+                                                 compose=compose_at_the_desk)
             else:
                 thought = await (remark_in_a_with(held, latest_screen()) if held is not None else consider_utterance(result))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -1078,8 +1063,6 @@ class AmbientPresence(_CarriesTheBubble):
             with self._lock:
                 self._last_spoke_at = time.time()
             await _keep_it_in_her_conversation(thought)
-            if held is not None and held.what == KEEPING_COMPANY:
-                await _point_at_it(thought)
 
     # ── what the UI reads ────────────────────────────────────────────────
 

@@ -4547,6 +4547,26 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   desk were written before. A look is weighed by how much more it
   interests her than the looks before it in that with, and words that
   repeat one of her recent turns are not said.
+  16 November, 01:04 local, in the bubble while Bryan worked in ChatGPT:
+  her first remark that was not about a fault. It answered a question
+  still open in her conversation ("Can you highlight the back button?",
+  asked at 00:40 and answered then with the lane's failure sentence), and
+  it said "I can't highlight or interact with any UI elements on your
+  screen - I don't have tools for that." Her turn at the desk had no
+  tools in its prompt, so she said she had none. The pointing after it
+  was chosen for her by matching her words against the screen: the line
+  stood 2.99 out but only 0.29 clear of the next, so nothing was drawn,
+  and the encoder held her loop 251 ms on the way (144431c17 moved it to
+  a thread). The same commit keeps what she says in the bubble in her
+  conversation, as her watching-along remarks are kept. Now her turn at
+  the desk runs through her cortex's tool loop with her conversation and
+  the screen as its messages, and point_at_on_screen offered as data
+  (core/skills/at_the_desk.py). The call runs through her capability
+  engine under a standing grant, aura.desk-company: that tool only, from
+  her desk turn's origin only, with Bryan's yes standing in for the
+  confirmation a high-risk foreground call asks of a person. Pointing
+  chosen for her is gone. Left: a call of hers seen live, and the show
+  acts after pointing.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what

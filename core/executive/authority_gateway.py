@@ -18,7 +18,6 @@ from core.executive.execution_policy import (
     canonical_authority_arguments,
     canonical_authority_context,
     classify_execution_risk,
-    normalize_tool_name,
     resolve_execution_effect_scope,
 )
 from core.executive.executive_core import (
@@ -29,8 +28,7 @@ from core.executive.executive_core import (
     _coerce_intent_source,
 )
 from core.executive.standing_authority import (
-    OWN_GOAL_ORIGIN,
-    OWN_GOAL_TOOLS,
+    carries_bryans_standing_yes,
     context_has_user_authority,
     get_standing_authority_manager,
 )
@@ -881,13 +879,15 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
         ExecutiveCore, and capability-token issuance below.
         """
 
-        # Her goal tools, called by her pass at a goal she set herself, carry
-        # Bryan's standing yes (aura.own-goal-work, 9 November 2026: "She can do
-        # it without me"); there is no person on that pass to confirm a call. Day
-        # run 4 measured edit_draft held here for a fresh confirmation after the
-        # grant had answered. Everything below still applies to them: the lease,
-        # the Will, and the permission model's check of that lease.
-        if str(source or "") == OWN_GOAL_ORIGIN and normalize_tool_name(tool_name) in OWN_GOAL_TOOLS:
+        # Her goal tools from her goal pass, and her desk tools from her turn at
+        # the desk, carry Bryan's standing yes (aura.own-goal-work, 9 November
+        # 2026; aura.desk-company, 15 November 2026); there is no person on those
+        # passes to confirm a call. Day run 4 measured edit_draft held here for a
+        # fresh confirmation after the grant had answered, and on 16 November
+        # point_at_on_screen was held the same way. Everything below still
+        # applies to them: the lease, the Will, and the permission model's check
+        # of that lease.
+        if carries_bryans_standing_yes(source, tool_name):
             return None
 
         try:

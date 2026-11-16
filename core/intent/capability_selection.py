@@ -260,12 +260,12 @@ def select_capabilities(
         requested_foundational_domains,
     )
     from core.skills.action_scope import resolve_skill_target, skill_has_action_within
-    from core.skills.catalog_policy import HER_GOAL_TOOLS
+    from core.skills.catalog_policy import NOT_OFFERED_TO_A_TURN
 
     catalogue = {
         name: declared_vocabulary(name, str(getattr(meta, "description", "") or ""))
         for name, meta in skills.items()
-        if getattr(meta, "enabled", True) and name not in HER_GOAL_TOOLS
+        if getattr(meta, "enabled", True) and name not in NOT_OFFERED_TO_A_TURN
     }
     if not catalogue:
         return []

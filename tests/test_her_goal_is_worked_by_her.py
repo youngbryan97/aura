@@ -411,8 +411,8 @@ def test_her_loop_on_her_own_goal_is_background_work_and_never_given_written_rul
 
     from core.brain.llm import mlx_client
 
-    assert mlx_client._in_the_background({}) == {}
-    assert mlx_client._in_the_background({"work_in_background": True, "origin": work.ORIGIN}) == {
+    assert mlx_client._how_the_loop_generates({}) == {}
+    assert mlx_client._how_the_loop_generates({"work_in_background": True, "origin": work.ORIGIN}) == {
         "origin": work.ORIGIN, "is_background": True}
     source = inspect.getsource(mlx_client.MLXLocalClient.think_and_act)
     assert 'if native_tools and tools and kwargs.get("native_tools_only"):\n                    # Tools offered' in source

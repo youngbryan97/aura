@@ -107,6 +107,8 @@ AUTONOMOUS_AUTHORITY_ORIGINS = frozenset(
         # names, so aura.own-goal-work was never reached: day run 4, 9 November 2026,
         # "signed_standing_authority_lease_missing" on every call.
         "her_goal_background",
+        # Her turn at the desk while she keeps a person company (DESK_COMPANY_ORIGIN).
+        "her_desk_company",
     }
 )
 
@@ -173,6 +175,18 @@ _OWN_GOAL_ARGUMENTS = {
 OWN_GOAL_ORIGIN = "her_goal_background"
 #: The grant that is Bryan's standing yes to that work.
 OWN_GOAL_GRANT = "aura.own-goal-work"
+
+#: Her tools at the desk (core/skills/at_the_desk.py), the core.skills.catalog_policy.DESK_COMPANY_TOOLS names (a test
+#: holds the two equal), and what each takes.
+DESK_COMPANY_TOOLS = frozenset({"point_at_on_screen"})
+_DESK_COMPANY_ARGUMENTS = {"point_at_on_screen": frozenset({"words"})}
+#: Her turn at the desk while she keeps a person company (core.brain.her_unprompted_turn.DESK_ORIGIN).
+DESK_COMPANY_ORIGIN = "her_desk_company"
+#: The grant that is Bryan's standing yes to what she does on the screen while keeping company.
+DESK_COMPANY_GRANT = "aura.desk-company"
+#: The grants whose lease is Bryan's yes to a high-risk call nobody is there to confirm
+#: (core/capabilities/permission_model.py).
+BRYANS_STANDING_YES = frozenset({OWN_GOAL_GRANT, DESK_COMPANY_GRANT})
 BACKGROUND_REFLECTION_ROLES = frozenset({"architect", "critic", "philosopher"})
 BACKGROUND_REFLECTION_MAX_ACTIONS = 6
 BACKGROUND_REFLECTION_WINDOW_SECONDS = 3600.0
@@ -208,6 +222,7 @@ _SUPPORTED_ARGUMENT_POLICIES = frozenset(
         "bounded_maintenance_test",
         "connected_account_read",
         "foreground_user_request",
+        "desk_company",
         "her_goal_work",
         "local_introspection",
         "owner_private_message",
@@ -232,6 +247,19 @@ def normalize_authority_origin(value: Any) -> str:
     while "__" in normalized:
         normalized = normalized.replace("__", "_")
     return normalized
+
+
+def carries_bryans_standing_yes(origin: Any, tool_name: Any) -> bool:
+    """Whether this is a call Bryan said yes to in advance, for a pass of hers nobody is at the keyboard for.
+
+    Her goal tools from her goal pass ("She can do it without me", 9 November 2026), and her desk tools from her turn
+    at the desk ("full companion ... im giving you permission to work with whatever permissions she needs",
+    15 November 2026). Everything else about the call still applies: its lease, the Will, and the permission model's
+    check of that lease.
+    """
+    source, name = str(origin or ""), normalize_tool_name(tool_name)
+    return ((source == OWN_GOAL_ORIGIN and name in OWN_GOAL_TOOLS)
+            or (source == DESK_COMPANY_ORIGIN and name in DESK_COMPANY_TOOLS))
 
 
 def coerce_authority_origin(value: Any) -> str:
@@ -599,6 +627,29 @@ def _builtin_grants() -> tuple[StandingAuthorityGrant, ...]:
             # check_draft may run for 420 s.
             lease_ttl_seconds=600.0,
             argument_policy="her_goal_work",
+            built_in=True,
+        ),
+        # Bryan, 15 November 2026, of her in the bubble: "she's allowed to physically act and react to things
+        # that are going on. highlight, show me something, literally anything OS related. full companion. and
+        # yes im giving you permission to work with whatever permissions she needs".
+        StandingAuthorityGrant(
+            grant_id=DESK_COMPANY_GRANT,
+            issuer="owner_policy",
+            description=(
+                "While Aura keeps a person company at the desk, she may point at something on "
+                "their screen. Nothing is clicked or typed."
+            ),
+            allowed_origins=(DESK_COMPANY_ORIGIN,),
+            allowed_tools=tuple(sorted(DESK_COMPANY_TOOLS)),
+            allowed_effect_scopes=("foreground_desktop_control",),
+            max_risk="high",
+            # No count: the drawing path keeps its own gap between rings (screen_highlight.rate_limited), and
+            # a remark of hers waits until the one before it has been read (ambient_presence).
+            max_actions=0,
+            window_seconds=3600.0,
+            # A ring is drawn for at most screen_highlight.MAX_DURATION_S, after a walk of the front window.
+            lease_ttl_seconds=180.0,
+            argument_policy="desk_company",
             built_in=True,
         ),
         StandingAuthorityGrant(
@@ -979,6 +1030,14 @@ class StandingAuthorityManager:
                 return False, "maintenance_tool_mismatch"
             valid, reason = self._validate_aura_source_paths(raw_paths)
             return (True, "read_only_maintenance") if valid else (False, reason)
+        if policy == "desk_company":
+            if tool_name not in DESK_COMPANY_TOOLS:
+                return False, "desk_company_tool_mismatch"
+            if set(arguments) - _DESK_COMPANY_ARGUMENTS[tool_name]:
+                return False, "desk_company_arguments_unsupported"
+            if not str(arguments.get("words") or "").strip():
+                return False, "desk_company_names_nothing_to_point_at"
+            return True, "desk_company"
         if policy == "her_goal_work":
             if tool_name not in OWN_GOAL_TOOLS:
                 return False, "her_goal_tool_mismatch"
@@ -1827,6 +1886,7 @@ def validate_standing_authority_context(
 
 __all__ = [
     "AUTONOMOUS_AUTHORITY_ORIGINS",
+    "BRYANS_STANDING_YES",
     "CONNECTED_ACCOUNT_READ_TOOLS",
     "INTROSPECTION_TOOLS",
     "LOCAL_OBSERVATION_TOOLS",
@@ -1839,6 +1899,7 @@ __all__ = [
     "USER_FACING_AUTHORITY_ORIGINS",
     "authority_origin_of",
     "canonical_arguments_digest",
+    "carries_bryans_standing_yes",
     "coerce_authority_origin",
     "context_has_user_authority",
     "get_standing_authority_manager",

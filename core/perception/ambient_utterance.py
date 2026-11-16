@@ -181,6 +181,21 @@ async def _compose(observation: Any, trigger: str) -> str:
     return await her_turn_on("WHAT IS ON THE SCREEN", screen, origin=_ORIGIN, least_s=_COMPOSE_TIMEOUT_S)
 
 
+async def compose_at_the_desk(observation: Any) -> str:
+    """Her turn while she keeps a person company at the desk: the screen as a reading, and her desk tools offered.
+
+    Whether to point at something there, and at what, is her call in that turn (core/brain/her_unprompted_turn.py,
+    her_turn_at_the_desk). What she says is her words after it.
+    """
+    from core.brain.her_unprompted_turn import her_turn_at_the_desk
+    from core.together.remarks import SCREEN_CHARS
+
+    capture = str(getattr(observation, "capture", "") or "")
+    source = str(getattr(observation, "source", "") or "")
+    screen = "\n".join(part for part in (source, capture[:SCREEN_CHARS]) if part)
+    return await her_turn_at_the_desk("WHAT IS ON THE SCREEN", screen, least_s=_COMPOSE_TIMEOUT_S)
+
+
 def _latest_observation() -> Any:
     try:
         from core.perception.observation_evidence import (
@@ -199,4 +214,4 @@ def latest_screen() -> Any:
     return _latest_observation()
 
 
-__all__ = ["UTTERANCE_SCHEMA", "consider_utterance", "latest_screen"]
+__all__ = ["UTTERANCE_SCHEMA", "compose_at_the_desk", "consider_utterance", "latest_screen"]

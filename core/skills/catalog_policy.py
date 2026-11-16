@@ -178,6 +178,13 @@ INTERNAL_ONLY_SKILLS = frozenset(
 #: was answered with read_source in place of file_operation (8 November 2026).
 HER_GOAL_TOOLS = frozenset({"read_source", "find_in_source", "edit_draft", "check_draft", "offer_draft"})
 
+#: Registered and run, but offered only to her turn at the desk while she keeps a person company
+#: (core/skills/at_the_desk.py), under its own standing grant.
+DESK_COMPANY_TOOLS = frozenset({"point_at_on_screen"})
+
+#: What a conversational turn is never offered: tools of hers that belong to a pass of her own.
+NOT_OFFERED_TO_A_TURN = HER_GOAL_TOOLS | DESK_COMPANY_TOOLS
+
 
 # These project-local implementations are still discovered and reported, but
 # they are not exposed as parallel authorities for capabilities already owned by

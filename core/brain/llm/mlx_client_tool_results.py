@@ -195,3 +195,32 @@ def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
         if budget <= 0:
             break
     return carried
+
+
+def _how_the_loop_generates(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+    """What a tool loop's caller asked of its generations: background work, and her own named mode.
+
+    The mode is the one her unprompted turns are generated in (core/brain/her_unprompted_turn.py): named, her model's
+    private channel is opened and bounded by the decoder, and a turn that ends mid-thought shows nothing; unnamed, the
+    template's default channel was handed over whole as what she said (LIVE 14 November 2026, 14:56).
+    """
+    asked: dict[str, Any] = {}
+    if kwargs.get("work_in_background"):
+        asked.update(origin=str(kwargs.get("origin") or "background"), is_background=True)
+    if kwargs.get("cognitive_mode"):
+        asked["cognitive_mode"] = str(kwargs["cognitive_mode"])
+    return asked
+
+
+def _what_the_loop_answers(objective: str, conversation: Any) -> list[dict[str, Any]]:
+    """What the loop's first generation follows: the request, or a conversation that stands where one would.
+
+    Her turn when nobody asked follows her conversation and what she noticed (core/brain/her_unprompted_turn.py).
+    Put to the loop as an objective, it would be a person's message nobody sent.
+    """
+    if isinstance(conversation, (list, tuple)):
+        turns = [dict(turn) for turn in conversation if isinstance(turn, Mapping) and turn.get("role")]
+        if turns:
+            return turns
+    return [{"role": "user", "content": objective}]
+

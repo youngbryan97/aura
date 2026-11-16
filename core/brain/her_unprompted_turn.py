@@ -86,6 +86,79 @@ async def on_her_cortex(messages: list[dict[str, Any]], *, origin: str, least_s:
     """
     import asyncio
 
+    from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+    async def generate(client: Any, seconds: float) -> str:
+        return await asyncio.wait_for(
+            client.generate_text_async(
+                "", messages=messages, system_prompt="", origin=origin, is_background=True,
+                cognitive_mode=_HER_MODE, max_tokens=A_CLOSED_QUESTIONS_FLOOR, timeout=seconds),
+            timeout=seconds,
+        ) or ""
+
+    return str(await _on_her_lane(messages, origin=origin, least_s=least_s, generations=1,
+                                  needs="generate_text_async", work=generate) or "")
+
+
+#: Her turn at the desk while she keeps a person company: what she says may come with something she does on their
+#: screen (core/skills/at_the_desk.py), under the standing grant that names this origin
+#: (core/executive/standing_authority.py, DESK_COMPANY_ORIGIN).
+DESK_ORIGIN = "her_desk_company"
+
+#: Her desk turn's generations: one that answers, and one more after a call she makes, for what she says of it.
+_DESK_GENERATIONS = 2
+
+
+async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) -> str:
+    """Her next turn at the desk, with her desk tools offered as data; what she says, "" when nothing formed.
+
+    LIVE 16 November 2026, 01:04, in the bubble: "I can't highlight or interact with any UI elements on your screen -
+    I don't have tools for that." Composed with no tools in its prompt, her turn said she had none, and her pointing
+    was chosen for her afterwards by matching her words against the screen. Here the call is hers, run through her
+    capability engine as her goal pass's calls are, and what she says is her words after it.
+    """
+    import asyncio
+
+    from core.skills.at_the_desk import tool_definitions
+    from core.together.remarks import said_since
+    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
+
+    messages = [{"role": role, "content": content} for _at, role, content in said_since(0.0)[-CONVERSATION_TURNS:]]
+    if not any(message["role"] == "user" for message in messages):
+        return ""  # her model's template has no turn of hers without somebody's before it
+    messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE, "content": f"## {heading}\n{reading}"}))
+
+    async def act(client: Any, seconds: float) -> dict[str, Any]:
+        return await asyncio.wait_for(
+            client.think_and_act(
+                "", system_prompt="", tools=tool_definitions(), max_turns=_DESK_GENERATIONS,
+                context={"origin": DESK_ORIGIN, "requested_by": "aura"}, origin=DESK_ORIGIN,
+                conversation=messages, work_in_background=True, native_tools_only=True, cognitive_mode=_HER_MODE),
+            timeout=seconds,
+        ) or {}
+
+    try:
+        result = await _on_her_lane(messages, origin=DESK_ORIGIN, least_s=least_s, generations=_DESK_GENERATIONS,
+                                    needs="think_and_act", work=act)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError, TimeoutError) as exc:
+        record_degradation(DESK_ORIGIN, exc, severity="debug",
+                           action="stayed silent because her own voice was unavailable")
+        return ""
+    for call in list((result or {}).get("tool_calls") or []):
+        logger.info("🖐️ at the desk she called %s %s: %s", call.get("tool"), call.get("args") or {},
+                    str(call.get("result") or "")[:200])
+    return what_she_finished(str((result or {}).get("content") or ""))
+
+
+async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: float, generations: int, needs: str,
+                       work: Any) -> Any:
+    """``work(client, seconds)`` on her cortex's client under one generation-lane lease; None when it is not hers now.
+
+    It waits for the lane as long as it may take to speak. LIVE 15 November 2026, 18:29 to 18:32, a traceback on the
+    screen and her in the bubble: six times "her model is held for something else". Her goal pass held the lane for
+    44, 46, 47, 56 and 80 s a step, back to back, and a remark that waited the 5 s other background work waits came in
+    only if a step happened to end in those 5 s. Waiting, it is woken when the step in hand releases the lane.
+    """
     from core.brain.llm.mlx_client import time_a_prompt_needs
     from core.brain.llm_health_router import (
         _BACKGROUND_GENERATION_GATE_WAIT_S,
@@ -98,30 +171,22 @@ async def on_her_cortex(messages: list[dict[str, Any]], *, origin: str, least_s:
 
     if a_person_is_waiting_for_her_model():
         logger.info("🫧 %s: her model is someone's now", origin)
-        return ""
+        return None
     client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
-    if client is None or not hasattr(client, "generate_text_async"):
-        return ""
+    if client is None or not hasattr(client, needs):
+        return None
     prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
-    seconds = max(least_s, time_a_prompt_needs(prompt_chars, A_CLOSED_QUESTIONS_FLOOR))
-    # It waits for the lane as long as it may take to speak. LIVE 15 November 2026, 18:29 to 18:32, a traceback on
-    # the screen and her in the bubble: six times "her model is held for something else". Her goal pass held the lane
-    # for 44, 46, 47, 56 and 80 s a step, back to back, and a remark that waited the 5 s other background work waits came
-    # in only if a step happened to end in those 5 s. Waiting, it is woken when the step in hand releases the lane.
+    seconds = generations * max(least_s, time_a_prompt_needs(prompt_chars, A_CLOSED_QUESTIONS_FLOOR))
     lease = await acquire_external_generation_gate_lease(
         owner=f"{origin}:her_own_turn", timeout_s=seconds, wait_s=max(seconds, _BACKGROUND_GENERATION_GATE_WAIT_S))
     if lease is None:
         logger.info("🫧 %s: her model is held for something else", origin)
-        return ""
+        return None
     try:
-        return await asyncio.wait_for(
-            client.generate_text_async(
-                "", messages=messages, system_prompt="", origin=origin, is_background=True,
-                cognitive_mode=_HER_MODE, max_tokens=A_CLOSED_QUESTIONS_FLOOR, timeout=seconds),
-            timeout=seconds,
-        ) or ""
+        return await work(client, seconds)
     finally:
         release_external_generation_gate_lease(lease)
 
 
-__all__ = ["CONVERSATION_TURNS", "her_turn_on", "on_her_cortex", "what_she_finished"]
+__all__ = ["CONVERSATION_TURNS", "DESK_ORIGIN", "her_turn_at_the_desk", "her_turn_on", "on_her_cortex",
+           "what_she_finished"]
