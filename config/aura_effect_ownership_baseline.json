@@ -5337,7 +5337,7 @@
       "scope": "<module>.MetaCognitiveMonitor._log_reflection"
     },
     {
-      "callee": "<file_write_gateway>.ensure_directory_async",
+      "callee": "<file_write_gateway>.write_text_async",
       "canonical_owner": true,
       "category": "file_write_gateway",
       "count": 1,
@@ -5350,31 +5350,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/observability/bus_recorder.py",
-      "scope": "<module>.BusRecorder.dump"
-    },
-    {
-      "callee": "<file_write_gateway>.ensure_directory_async",
-      "canonical_owner": true,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/observability/bus_recorder.py",
       "scope": "<module>.BusRecorder.stop_file"
-    },
-    {
-      "callee": "<file_write_gateway>.write_text_async",
-      "canonical_owner": true,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/observability/bus_recorder.py",
-      "scope": "<module>.BusRecorder.stop_file"
-    },
-    {
-      "callee": "<file_write_gateway>.ensure_directory_async",
-      "canonical_owner": true,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/observability/trace_events.py",
-      "scope": "<module>.Tracer.write"
     },
     {
       "callee": "<file_write_gateway>.write_text_async",
@@ -17474,6 +17450,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "0fa0565cfe12d700933252cd204a3dd3f5d24deb16be55bf9829a368183c640c",
+  "inventory_sha256": "280af1ffe10296b4b24d9494f9fe0ec0a6f719f00cc7d1e0de8a1f7ceedb7820",
   "schema_version": 1
 }

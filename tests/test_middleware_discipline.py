@@ -613,6 +613,32 @@ def test_dump_of_an_empty_ring_returns_none(tmp_path):
     assert asyncio.run(scenario()) is None
 
 
+@pytest.mark.parametrize("export", ["dump", "recording"])
+def test_bus_exports_preserve_existing_parent_permissions(tmp_path, monkeypatch, export):
+    import json
+
+    parent = tmp_path / "shared"
+    parent.mkdir()
+    parent.chmod(0o755)
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+
+    async def scenario():
+        recorder = BusRecorder(capacity=4)
+        if export == "recording":
+            recorder.start_file(parent / "capture.jsonl")
+        recorder.record("test.event", {"value": 1})
+        if export == "recording":
+            return await recorder.stop_file()
+        return await recorder.dump(reason="test", directory=parent)
+
+    path = asyncio.run(scenario())
+    assert path is not None
+    assert parent.stat().st_mode & 0o777 == 0o755
+    assert path.stat().st_mode & 0o777 == 0o600
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert any(row.get("topic") == "test.event" for row in rows)
+
+
 def test_event_bus_feeds_the_ring():
     """The live bus must actually funnel through the recorder."""
     import inspect

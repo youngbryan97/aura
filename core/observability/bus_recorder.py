@@ -185,10 +185,6 @@ class BusRecorder:
 
             with local_internal_governed_scope("bus_recorder.dump"):
                 gateway = get_file_write_gateway()
-                await gateway.ensure_directory_async(
-                    target.parent,
-                    source="bus_recorder.dump",
-                )
                 await gateway.write_text_async(
                     target,
                     body + "\n",
@@ -224,10 +220,6 @@ class BusRecorder:
 
             with local_internal_governed_scope("bus_recorder.file"):
                 gateway = get_file_write_gateway()
-                await gateway.ensure_directory_async(
-                    path.parent,
-                    source="bus_recorder.file",
-                )
                 await gateway.write_text_async(
                     path,
                     "\n".join(buffer) + "\n",

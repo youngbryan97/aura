@@ -335,10 +335,6 @@ class Tracer:
 
             with local_internal_governed_scope("tracer.write"):
                 gateway = get_file_write_gateway()
-                await gateway.ensure_directory_async(
-                    target.parent,
-                    source="tracer.write",
-                )
                 await gateway.write_text_async(
                     target,
                     body,

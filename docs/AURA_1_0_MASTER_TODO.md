@@ -609,6 +609,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-15: correct the mutex held across fsync in the deferred
+    queue repair at 4d6426202. The strict flush regression failed on
+    that revision. A condition now reserves one worker at a time and
+    releases its mutex before queue I/O. Thirty-three focused tests
+    passed. Three concurrent scratch writes and replay left lockdep
+    clean. The correction was pushed as 2121bd843. Smoke passed
+    164 tests with one skip in 210.71 s and maximum RSS of
+    481,722,368 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/memory/deferred_retention.py.
+    Tests: tests/test_deferred_retention.py.
   - [x] 2026-11-15: deferred retention moves queue I/O off the event
     loop and preserves entries saved while replay is waiting. Replay
     previously replaced the whole queue from its old snapshot. It now
@@ -4861,6 +4872,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: trace and bus exports preserve an existing parent
+    directory's permissions. All three export paths changed a shared
+    directory from 0755 to 0700 through redundant directory setup.
+    The atomic writer already creates missing parents. Three
+    regressions failed before the repair. All 111 observability and
+    middleware tests and eight effect-ownership tests passed. The
+    three removed calls belong to canonical owners, leaving the
+    migration ceilings at 2,051 total and 747 raw calls. Smoke passed
+    164 tests with one skip in 116.12 s and maximum RSS of
+    483,655,680 bytes. Lint, compile, dependency drift, layering,
+    governance, module size and targeted writing passed.
+    Source: core/observability/trace_events.py and bus_recorder.py.
+    Tests: tests/test_observability_discipline.py and
+    tests/test_middleware_discipline.py.
   - [x] 2026-11-15: the diagnostic log collector keeps surviving
     files when a log rotates during enumeration. It reuses the
     metadata from the scan to sort by recency and handles a missing

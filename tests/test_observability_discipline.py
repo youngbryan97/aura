@@ -271,14 +271,24 @@ def test_pass_tracing_hooks_into_the_instrumentation():
     reset_pass_manager_for_test()
 
 
-def test_trace_write_round_trips(tmp_path):
+@pytest.mark.parametrize("parent_exists", [False, True])
+def test_trace_write_round_trips(tmp_path, parent_exists, monkeypatch):
+    parent = tmp_path / "export"
+    if parent_exists:
+        parent.mkdir()
+        parent.chmod(0o755)
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+
     async def scenario():
         tracer = Tracer()
         tracer.instant("something")
-        return await tracer.write(tmp_path / "t.json", reason="test")
+        return await tracer.write(parent / "t.json", reason="test")
 
     path = asyncio.run(scenario())
     assert path is not None
+    if parent_exists:
+        assert parent.stat().st_mode & 0o777 == 0o755
+    assert path.stat().st_mode & 0o777 == 0o600
     document = json.loads(path.read_text())
     assert any(e["name"] == "something" for e in document["traceEvents"])
 
