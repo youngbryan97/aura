@@ -106,3 +106,9 @@ def test_a_call_is_never_guarded_by_running_it_twice():
 
 def test_an_exception_no_checker_answers_writes_nothing():
     assert list(checker_changes_at(_SOURCE, _line_of("label = user.name"), "ValueError")) == []
+
+
+def test_a_chain_is_guarded_on_its_root_first():
+    source = "def label(person):\n    return person.name.title()\n"
+    (first, changed), *_ = checker_changes_at(source, 2, "AttributeError")
+    assert "if person is not None else None" in changed and first == "guard_none_value"

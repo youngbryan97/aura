@@ -72,12 +72,16 @@ def _none_guards(tree: ast.AST, line: int, text: Any) -> Iterator[tuple[str, ast
     ``user.name.title()`` with ``user`` None is guarded on ``user``, not on ``user.name``: the whole chain is the
     value, as TBar's null checker guards the expression and not one link of it."""
     for end in _chain_ends(tree, line):
-        link = _inner(end)
+        links, link = [], _inner(end)
         while link is not None:
             if _plain(link):
-                condition = f"{text(link)} is not None"
-                yield "none", end, condition, f"({text(end)} if {condition} else None)"
+                links.append(link)
             link = _inner(link)
+        # The root first: a None comes in far more often as what was handed over than as an attribute of it. LIVE
+        # 16 November 2026, in her drill, guarding person.name.title and then person.name came before person.
+        for link in reversed(links):
+            condition = f"{text(link)} is not None"
+            yield "none", end, condition, f"({text(end)} if {condition} else None)"
     for node in ast.walk(tree):
         if isinstance(node, (ast.For, ast.AsyncFor)) and node.lineno == line and _plain(node.iter):
             yield "none", node.iter, f"{text(node.iter)} is not None", ""
