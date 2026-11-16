@@ -5284,11 +5284,11 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             try:
                 pm = ServiceContainer.get("permission_model", default=None)
                 if pm:
-                    target_str = str(canonical_authority_arguments(skill_name, params))
+                    authority_arguments = dict(canonical_authority_arguments(skill_name, params))
                     pm_decision = pm.check_permission(
                         skill_name,
-                        target_str,
-                        ctx,
+                        str(authority_arguments),
+                        {**ctx, "tool": skill_name, "authority_arguments": authority_arguments},  # read before its lease
                         effect_scope=effect_scope,
                         execution_risk=risk,
                     )

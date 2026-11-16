@@ -271,8 +271,10 @@ def test_live_repo_catalog_matches_rust_and_dry_runs_every_skill():
     # after 24 August without this count moving (85 on 8 November), and five
     # on 8 November 2026: read_source, find_in_source, edit_draft, check_draft
     # and offer_draft, her tools for a goal she set herself, because her goals
-    # had no way to be worked on (core/agency/her_goal_at_work.py).
-    assert len(catalog.accepted) == 90
+    # had no way to be worked on (core/agency/her_goal_at_work.py). One on
+    # 16 November 2026, point_at_on_screen, because at the desk she said she
+    # had no tool to highlight with (core/skills/at_the_desk.py).
+    assert len(catalog.accepted) == 91
     assert len(catalog.excluded) == 10
     assert python_catalog.backend == "python"
     assert python_catalog.parity_status == "python_only"

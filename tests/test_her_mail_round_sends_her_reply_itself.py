@@ -101,8 +101,25 @@ def test_her_round_sends_a_reply_as_a_reply_and_reads_as_a_read():
     assert seen[1]["origin"] == "autonomous_initiative_loop" and "Read" in seen[1]["objective"]
 
 
+@pytest.fixture
+def her_permission_model():
+    """Her permission model where her capability engine asks for it, as in her running app.
+
+    Without one registered, the engine skips the permission gate, and on 16 November 2026 a test of the whole chain
+    passed while her live runtime refused the same call there, before any lease existed.
+    """
+    from core.capabilities.permission_model import PermissionRiskModel
+    from core.container import ServiceContainer
+
+    model = PermissionRiskModel()
+    ServiceContainer.register_instance("permission_model", model, required=False)
+    yield model
+    ServiceContainer.unregister("permission_model")
+
+
 @pytest.mark.asyncio
-async def test_her_capability_engine_sends_her_reply_from_her_round_and_from_nowhere_else(bryan_lets_her, monkeypatch):
+async def test_her_capability_engine_sends_her_reply_from_her_round_and_from_nowhere_else(bryan_lets_her, monkeypatch,
+                                                                                          her_permission_model):
     from core.capability_engine import CapabilityEngine
     from core.skills import email_adapter
 

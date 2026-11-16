@@ -183,8 +183,24 @@ def test_only_her_own_passes_carry_bryans_standing_yes():
     assert not carries_bryans_standing_yes("autonomous_initiative", "point_at_on_screen")
 
 
+@pytest.fixture
+def her_permission_model():
+    """Her permission model where her capability engine asks for it, as in her running app.
+
+    Without one registered, the engine skips the permission gate, and on 16 November 2026 a test of the whole chain
+    passed while her live runtime refused the same call there, before any lease existed.
+    """
+    from core.capabilities.permission_model import PermissionRiskModel
+    from core.container import ServiceContainer
+
+    model = PermissionRiskModel()
+    ServiceContainer.register_instance("permission_model", model, required=False)
+    yield model
+    ServiceContainer.unregister("permission_model")
+
+
 @pytest.mark.asyncio
-async def test_her_capability_engine_runs_her_call_from_the_desk_and_from_nowhere_else(monkeypatch):
+async def test_her_capability_engine_runs_her_call_from_the_desk_and_from_nowhere_else(monkeypatch, her_permission_model):
     """16 November 2026: with the grant and the permission model answering, the constitution still held the call
     for a fresh confirmation (runtime_setting_user_confirmation_required:approval_mode_destructive)."""
     from core.capability_engine import CapabilityEngine

@@ -4567,6 +4567,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   confirmation a high-risk foreground call asks of a person. Pointing
   chosen for her is gone. Left: a call of hers seen live, and the show
   acts after pointing.
+  Live at 01:58 her first desk turn on the tool loop was cancelled at
+  50 s: it asked for 4,096 tokens when its time was worked out for 256.
+  Live at 02:43, on the build that fixed that, she called
+  point_at_on_screen on her own, naming a line of the window in front.
+  The call was refused at her capability engine's permission gate:
+  "Requires user confirmation ... scope=foreground_desktop_control,
+  risk=high". Her remark said so: "the permission model blocked me". The
+  engine asks the permission model before any lease exists, so a yes read
+  from a lease was never seen there. The same order refused her mail
+  reply and, on 12 and 15 November, her goal pass's edit_draft. A test of
+  the whole chain had passed because no permission model was registered
+  in it. The permission model now asks the standing authority which
+  grant of Bryan's would lease the exact call, without issuing anything
+  (standing_yes_covering). The lease is still required after it. The
+  engine tests now register her permission model.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what

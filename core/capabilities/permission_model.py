@@ -357,10 +357,25 @@ def _bryans_standing_yes(context: Dict[str, Any], effect_scope: str, execution_r
     person who is there to confirm it.
     """
     try:
-        from core.executive.standing_authority import BRYANS_STANDING_YES, validate_standing_authority_context
+        from core.executive.standing_authority import (
+            BRYANS_STANDING_YES,
+            get_standing_authority_manager,
+            validate_standing_authority_context,
+        )
     except ImportError:
         return ""
-    grant = str((context or {}).get("standing_authority_grant_id") or "")
+    context = context or {}
+    grant = str(context.get("standing_authority_grant_id") or "")
+    if not grant and isinstance(context.get("authority_arguments"), dict):
+        # No lease yet: her capability engine asks here first, and the lease is issued after. Which grant of his
+        # would lease this exact call (standing_authority.standing_yes_covering); the lease is still required later.
+        try:
+            return get_standing_authority_manager().standing_yes_covering(
+                context.get("tool") or context.get("skill"), context["authority_arguments"],
+                origin=context.get("authority_origin") or context.get("origin") or context.get("source"),
+                effect_scope=effect_scope, risk_level=execution_risk)
+        except (RuntimeError, TypeError, ValueError):
+            return ""
     if grant not in BRYANS_STANDING_YES:
         return ""
     try:

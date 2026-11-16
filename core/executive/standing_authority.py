@@ -1189,6 +1189,39 @@ class StandingAuthorityManager:
             return None, ";".join(policy_reasons)
         return None, "no_matching_standing_grant"
 
+    def standing_yes_covering(
+        self,
+        tool_name: Any,
+        arguments: Mapping[str, Any] | None,
+        *,
+        origin: Any,
+        effect_scope: Any = "",
+        risk_level: Any = "",
+    ) -> str:
+        """The grant of Bryan's standing yes that would lease this call now, or ""; nothing is issued or spent.
+
+        Her capability engine asks the permission model before any lease exists (core/capability_engine.py, the
+        permission gate comes first), so a yes read only from a lease was never seen there. LIVE 16 November 2026, on
+        the build that granted her mail replies, reply ffb62e8291 was still refused "Modality 'email' is disabled";
+        her goal pass's edit_draft was refused the same way on 12 and 15 November. The lease is still issued and
+        checked after this, by the authority gateway, and the Will still decides.
+        """
+        name = normalize_tool_name(tool_name)
+        source = coerce_authority_origin(origin)
+        if not carries_bryans_standing_yes(source, name):
+            return ""
+        args = dict(arguments or {})
+        scope = str(effect_scope or "").strip().lower() or resolve_execution_effect_scope(name, args)
+        risk = normalize_risk(risk_level or classify_execution_risk(name, args, effect_scope=scope))
+        with self._lock:
+            grant, _reason = self._select_grant_locked(tool_name=name, origin=source, arguments=args,
+                                                       effect_scope=scope, risk_level=risk, user_authorized=False)
+            if grant is None or grant.grant_id not in BRYANS_STANDING_YES:
+                return ""
+            if self._budget_remaining_locked(grant, float(self._clock())) == 0:
+                return ""
+            return grant.grant_id
+
     def _prune_budget_locked(self, grant: StandingAuthorityGrant, now: float) -> list[float]:
         if not grant.max_actions:
             return []
