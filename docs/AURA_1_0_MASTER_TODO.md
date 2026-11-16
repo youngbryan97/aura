@@ -4626,6 +4626,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   said after an exchange, and the companion panel opens on the
   conversation so far (774b2469e). Bryan quit her at 10:57; she was
   started again on 94aaa00e7 at 11:15.
+  Live after that, in the bubble with the Claude window in front. At
+  11:23 her desk turn called "point_at_on_words", which was never
+  offered, and the loop served the call's markup as her remark. The loop
+  now refuses an unoffered name back to her (28f2d10f4); that one remark
+  is still in her conversation after exchange 0d62b5bca7d0. At 11:25 she
+  called point_at_on_screen on "Ran 2 commands" and it passed every gate
+  (lease, permission, open obligation, Will) and ran, though the words
+  were not on screen by then ("located nowhere in 1.01s"). Her remark
+  with it was about what was running in that window: "I can see your
+  terminal is deep into the Aura work - specifically you're tracing how
+  the loop handles a tool call where the tool name isn't in the offered
+  set". It was kept, and after a restart her window drew it after the
+  last exchange. Asked from her own window or panel, pointing now looks
+  in the window behind hers (07c4c144f). The companion panel opened on
+  200 messages, read in the browser pane. Left: a ring drawn on his
+  screen, a page shown, a file shown.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
