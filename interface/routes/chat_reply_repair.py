@@ -457,6 +457,16 @@ async def _stabilize_user_facing_reply(
     broken = _what_is_not_speech(user_message, checked)
     if not broken:
         return checked
+    if "escaped_control_artifact" in broken:
+        # A line break written as the two characters "\n" is her words with their whitespace escaped, not a draft that
+        # is not speech. LIVE 15 November 2026 at 06:59 one such draft was asked again in full: 308 tokens, 20 s more
+        # of a 97.5 s turn. Decoded, her words go out as she wrote them, held to the same test.
+        from core.conversation.escaped_controls import repair_escaped_whitespace_artifacts
+
+        decoded = repair_escaped_whitespace_artifacts(checked)
+        if decoded and not _what_is_not_speech(user_message, decoded):
+            logger.info("Her draft had its line breaks escaped; served with them decoded.")
+            return decoded
     logger.info("Her draft is not speech (%s); her turn is asked again as it was asked.", ", ".join(broken))
     again = await _asked_again_as_asked(user_message, desktop_cognitive_engine_required=desktop_cognitive_engine_required,
                                         protected_foreground_lane=protected_foreground_lane)

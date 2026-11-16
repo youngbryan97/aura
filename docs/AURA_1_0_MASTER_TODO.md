@@ -2204,6 +2204,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   finish, because it was asked to or because it ran out of room, is not
   held or sent; before this, a mail reply cut mid-sentence went out
   whenever the reply check passed it.
+  Correction to the note above on the 384-token cap, from her worker's
+  own lines for that turn: the continuation did not read its prompt
+  again. It was an exact resume that reused 3,117 of 3,118 tokens and
+  prefilled 3 in 0.37 s, so the cap cost one more round trip and little
+  else. The pass that missed the cache (864 tokens) was a third
+  generation. After the continuation her stitched draft was judged not
+  speech for an escaped line break, two characters "\n" where a line
+  break belonged, and her turn was asked again in full: 308 tokens and
+  20 s. A draft whose only fault is escaped whitespace is now decoded
+  and served in her words, held to the same test; it is asked again only
+  if the decoded text still fails. Live on db927e0fe at 14:41, a typed
+  turn of 34.68 s: decode 14.95, prefill 7.13, queue 2.18, retrieval
+  0.35, delivery 0.29, 9.79 unattributed.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source

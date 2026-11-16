@@ -106,3 +106,24 @@ def test_what_the_record_says_reaches_her_turn_asked_again_as_a_reading(monkeypa
     assert "You are" not in asked_with[0][-1]["content"], "a reading, never an instruction"
     served = asyncio.run(scenario("The sun is shining. I'm here with you."))  # the new draft is refuted too
     assert served == "I'm here with you.", "the first draft stands, with what the record refuted taken out"
+
+
+def test_a_draft_with_escaped_line_breaks_is_decoded_not_asked_again(monkeypatch):
+    """LIVE 15 November 2026 at 06:59: a draft whose line breaks came out as the two characters "\\n" was judged not
+    speech and her turn was asked again in full, 308 tokens and 20 s more. Her words, decoded, are served."""
+    from interface.routes import chat_reply_repair
+
+    asked_again = []
+
+    async def _asked_again(*_args, **_kwargs):
+        asked_again.append(True)
+        return "A second draft nobody needed."
+
+    monkeypatch.setattr(chat_reply_repair, "_asked_again_as_asked", _asked_again)
+    monkeypatch.setattr(chat_reply_repair, "_through_the_record", lambda _message, text: text)
+    draft = "Mostly the conversation about tide clocks.\\n\\nI kept turning over why the moon pulls unevenly."
+
+    served = asyncio.run(chat_reply_repair._stabilize_user_facing_reply("What's been on your mind?", draft))
+
+    assert served == "Mostly the conversation about tide clocks.\n\nI kept turning over why the moon pulls unevenly."
+    assert not asked_again
