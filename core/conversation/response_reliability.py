@@ -6140,17 +6140,19 @@ def _quotes_a_screen_it_did_not_read(prompt: Any, reply_text: Any) -> bool:
             # she read there, as a capture is. LIVE 12 November 2026, a thread she had read in her browser beside her
             # turn: "I read the thread in my browser a few minutes ago." was refused as a reading with nothing behind
             # it, and her answer from the thread went through a repair pass.
+            # And what her screen sense last read, given to her turn (observation_evidence.sensory_brief_for_this_turn).
             from core.conversation.turn_evidence_custody import (
                 READ_IN_HER_BROWSER,
+                READ_ON_HER_SCREEN,
                 turn_world_sources,
             )
 
             read_there = [source for source in turn_world_sources()
-                          if source.get("origin", "").startswith(READ_IN_HER_BROWSER)]
+                          if source.get("origin", "").startswith((READ_IN_HER_BROWSER, READ_ON_HER_SCREEN))]
             if read_there:
                 return screen_reading_claim_is_unsupported(prompt, reply_text, ScreenReadingEvidence(
                     captured=True, text="\n".join(source.get("text", "") for source in read_there),
-                    source="her browser", session_id=current_conversation_session(),
+                    source="her browser or her screen sense", session_id=current_conversation_session(),
                     turn_id=current_conversation_turn()))
         evidence = ScreenReadingEvidence(
             captured=bool(receipt),

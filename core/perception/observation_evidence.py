@@ -52,6 +52,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
 
 __all__ = [
@@ -677,6 +678,9 @@ _RETAINED = 8
 #: answer "what is on my screen" from it.
 RETENTION_FRESH_S = 300.0
 
+#: The banner around what her screen sense last read, when it goes beside a turn (core/utils/injected_blocks.py).
+SENSORY_BRIEF_BANNER = "WHAT HER SCREEN SENSE LAST READ"
+
 
 class ObservationMemory:
     """Recent observations, referenceable and honest about their age."""
@@ -750,20 +754,16 @@ class ObservationMemory:
         # saw — that goes through recall, which states its own age.
         if age > max_age_s:
             return ""
-        if age <= 90:
-            when = "moments ago"
-        elif age <= RETENTION_FRESH_S:
-            when = f"about {max(1, int(age // 60))} minute(s) ago"
-        else:
-            when = (
-                f"{max(1, int(age // 60))} minute(s) ago — it may well have "
-                "changed since, so do not state it as current"
-            )
-
+        # A reading, with its time and age, and nothing said to her model about what to say. It was "You looked at
+        # the screen yourself moments ago. If asked where this came from, say you read the screen." and, when older,
+        # "do not state it as current": instructions on the path to her words (F06). LIVE 15 November 2026, 22:43,
+        # her draft said "I read the screen myself moments ago" and was refused, because nothing let her reply check
+        # count this reading as one (sensory_brief_for_this_turn).
+        when = time.strftime("%H:%M:%S", time.localtime(item.at))
+        ago = f"{int(age)} s" if age < 120 else f"{int(age // 60)} min"
         lines = [
-            "[YOUR OWN RECENT PERCEPTION — NOTES, NOT A REPLY]",
-            f"You looked at the screen yourself {when}. If asked where this "
-            "came from, say you read the screen.",
+            f"[{SENSORY_BRIEF_BANNER}]",
+            f"Read by her screen sense at {when}, {ago} before this turn.",
         ]
         windows = item.windows()
         if windows:
@@ -781,9 +781,35 @@ class ObservationMemory:
         rest = item.salient(section_only=bool(windows))[:max_elements]
         if rest:
             lines.append("Text read off the screen: " + "; ".join(rest) + ".")
-        lines.append("[END YOUR OWN RECENT PERCEPTION]")
+        lines.append(f"[END {SENSORY_BRIEF_BANNER}]")
         brief = "\n".join(lines)
         return brief[:max_chars]
+
+    def sensory_brief_for_this_turn(self, **bounds: Any) -> str:
+        """The sensory brief, kept for the turn it goes to as a reading she took, so her reply is held to it.
+
+        Her reply check licenses a reading of the screen only against one she took (core/conversation/
+        response_reliability.py, _quotes_a_screen_it_did_not_read). This brief went into her turn and counted for
+        nothing there: LIVE 15 November 2026, 22:43, her answer from it was refused as a screen she had not read.
+        """
+        brief = self.sensory_brief(**bounds)
+        if not brief:
+            return ""
+        try:
+            from core.conversation.turn_evidence_custody import (
+                READ_ON_HER_SCREEN,
+                record_turn_world_source,
+            )
+            from core.conversation.what_the_world_says import WorldSource
+
+            item = self.latest()
+            at = time.strftime("%H:%M:%S on %d %B %Y", time.localtime(getattr(item, "at", time.time())))
+            record_turn_world_source(WorldSource(origin=f"{READ_ON_HER_SCREEN}{at}", title="her screen",
+                                                 location="her screen", text=brief, full_text=brief))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("observation_evidence", exc, severity="info",
+                               action="gave her turn the brief without keeping it as a reading she took")
+        return brief
 
     def recall_for(self, request: Any) -> str:
         """What she can honestly say about something she looked at earlier.

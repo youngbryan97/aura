@@ -45,6 +45,7 @@ from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "READ_IN_HER_BROWSER",
+    "READ_ON_HER_SCREEN",
     "TurnEvidenceCustody",
     "a_page_she_read_awaits_her_answer",
     "bind_turn_evidence_custody",
@@ -467,6 +468,9 @@ def turn_world_sources() -> tuple[dict[str, str], ...]:
 
 #: Where a page her browser ended on for the question is said to come from, when it goes to her turn.
 READ_IN_HER_BROWSER = "read in her browser at "
+
+#: Where what her screen sense last read is said to come from, when it goes beside her turn.
+READ_ON_HER_SCREEN = "read on her screen at "
 
 
 def a_page_she_read_awaits_her_answer() -> bool:

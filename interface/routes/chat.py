@@ -2523,7 +2523,7 @@ def _run_cognitive_engine_chat_turn_desktop_binding_finished_at(effective_user_m
         from core.perception.observation_evidence import get_observation_memory
 
         _perception_brief = (
-            get_observation_memory().sensory_brief()
+            get_observation_memory().sensory_brief_for_this_turn()
             if not state_native_output_owner and _turn_may_concern_perception(visible)
             else ""
         )

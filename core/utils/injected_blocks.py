@@ -108,7 +108,8 @@ def is_stamped_grounding(message: Any) -> bool:
 #: The banners a turn attaches. Each is either a fenced block with a matching
 #: ``[END …]`` line, or a single labelled section that runs to the end.
 INJECTED_BANNERS: tuple[str, ...] = (
-    "YOUR OWN RECENT PERCEPTION",
+    "WHAT HER SCREEN SENSE LAST READ",
+    "YOUR OWN RECENT PERCEPTION",  # its name before 15 November 2026, in transcripts kept from then
     "YOUR OWN SOURCE",
     "LIVE DESKTOP FULL-MIND CONTRACT",
     "LIVE DESKTOP TURN EVIDENCE",
