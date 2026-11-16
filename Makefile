@@ -155,10 +155,14 @@ coverage:
 	@# --coverage, NOT `coverage run` around the runner: the chunks are fresh
 	@# interpreters, so wrapping the runner measured only the runner and this
 	@# target reported 0.00% over 419,306 statements while 27,494 tests passed.
-	@$(PYTHON) -m tools.run_test_chunks --chunks "$(TEST_CHUNKS)" --min-free-gb "$(TEST_MIN_FREE_GB)" --coverage \
-		--marker "not live and not network and not external" --continue-on-failure || true
-	@$(PYTHON) -m coverage combine || true
-	@$(PYTHON) -m coverage report | tail -30
+	@# Report usable coverage after a failed chunk and preserve the failure.
+	@status=0; \
+		$(PYTHON) -m tools.run_test_chunks --chunks "$(TEST_CHUNKS)" --min-free-gb "$(TEST_MIN_FREE_GB)" --coverage \
+			--marker "not live and not network and not external" --continue-on-failure || status=$$?; \
+		$(PYTHON) -m coverage combine || exit $$?; \
+		report=$$($(PYTHON) -m coverage report) || status=$$?; \
+		printf '%s\n' "$$report" | tail -30 || exit $$?; \
+		exit "$$status"
 
 coverage-check:
 	@echo "🔒 Coverage ratchet (floor may rise, never fall)..."

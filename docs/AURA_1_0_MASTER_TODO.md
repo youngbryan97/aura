@@ -5151,6 +5151,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  - [x] 2026-11-15: `make coverage` now exits with failure if the
+    runner, combine step or report fails. All three failures used to
+    return success. A usable coverage table still prints after a failed
+    test. Four recipe tests passed. Real pytest and coverage runs on
+    one scratch file printed a table for both verdicts and returned
+    success only for the passing test. Smoke passed 164 tests with one
+    skip in 43.86 s and maximum RSS of 484,114,432 bytes. Script targets,
+    lint and compile passed. Source: Makefile.
+    Tests: tests/runtime/test_make_coverage_failed_run.py.
   - [x] 2026-11-15: the macOS defaults for `make test` and
     `make coverage` now use up to 40 chunks and a 4 GiB floor for
     reclaimable memory. Both had used six chunks with no floor. A
