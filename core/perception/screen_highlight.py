@@ -182,7 +182,9 @@ def _found_in_the_front_window(needle: str, *, within_s: float) -> Rect | None:
     front = NSWorkspace.sharedWorkspace().frontmostApplication()
     if front is None:
         return None
-    application = AXUIElementCreateApplication(int(front.processIdentifier()))
+    pid, _app, _title = _whose_window_is_meant(int(front.processIdentifier()), str(getattr(front, "localizedName",
+                                                                                              lambda: "")() or ""))
+    application = AXUIElementCreateApplication(pid)
     window = attribute(application, "AXFocusedWindow") or attribute(application, "AXMainWindow")
     if window is None:
         return None
@@ -227,6 +229,50 @@ def _found_in_the_front_window(needle: str, *, within_s: float) -> Rect | None:
         if best_rank is None or rank < best_rank:
             best, best_rank = found, rank
     return best
+
+
+def _her_own_process(pid: int) -> bool:
+    """Whether a process is hers: her runtime, or the app it runs in (her window, her panel, her bubble)."""
+    import os
+
+    return pid in {os.getpid(), os.getppid()}
+
+
+def _whose_window_is_meant(front_pid: int, front_name: str) -> tuple[int, str, str]:
+    """(pid, app, title) of the window a request about the screen means: the front one, or the one behind hers.
+
+    Asked from her own window or her companion panel to highlight something, her app is in front, and the walk looked
+    inside her own window for what the person meant in theirs. LIVE 16 November 2026, 00:30 and 00:40, "Can you
+    highlight the back button?" asked from her window, with Chrome behind it, was never found. When the front app is
+    hers, what is meant is the first ordinary window behind it, front to back.
+    """
+    if not _her_own_process(front_pid):
+        return front_pid, front_name, ""
+    try:
+        import Quartz
+
+        options = Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements
+        for window in Quartz.CGWindowListCopyWindowInfo(options, Quartz.kCGNullWindowID) or []:
+            owner = int(window.get("kCGWindowOwnerPID", 0) or 0)
+            if owner and not _her_own_process(owner) and int(window.get("kCGWindowLayer", 0) or 0) == 0:
+                return owner, str(window.get("kCGWindowOwnerName") or ""), str(window.get("kCGWindowName") or "")
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("the windows behind hers could not be read (%s); her own is searched", type(exc).__name__)
+    return front_pid, front_name, ""
+
+
+def _whose_window_is_meant_by(app: str, title: str) -> tuple[str, str]:
+    """The (app, title) the privacy check judges: the window that will be searched, not hers in front of it."""
+    try:
+        from AppKit import NSWorkspace
+
+        front = NSWorkspace.sharedWorkspace().frontmostApplication()
+        if front is None or not _her_own_process(int(front.processIdentifier())):
+            return app, title
+        _pid, behind_app, behind_title = _whose_window_is_meant(int(front.processIdentifier()), app)
+        return behind_app, behind_title
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return app, title
 
 
 def _screen_area() -> float:
@@ -286,6 +332,7 @@ async def highlight(
     from core.senses.screen_context import frontmost_window_hint
 
     app, title = frontmost_window_hint()
+    app, title = _whose_window_is_meant_by(app, title)
     if is_private_context(app, title):
         # Drawing on a private window means having located something in it.
         return HighlightResult(

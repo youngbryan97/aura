@@ -401,3 +401,28 @@ def test_a_tree_that_lists_an_element_under_itself_is_walked_once_and_closed_men
     assert found is not None and (found.x, found.y) == (600.0, 700.0)
     assert not any(element in menu.children for element in asked), "a closed menu's items were walked"
     assert sum(element is window for element in asked) <= 8, "the window was walked more than once"
+
+
+def test_asked_from_her_own_window_what_is_meant_is_the_window_behind_hers(monkeypatch):
+    """LIVE 16 November 2026, 00:30 and 00:40: "Can you highlight the back button?", asked from her window with Chrome
+    behind it, was looked for in her own window."""
+    import os
+    import sys
+    from types import SimpleNamespace
+
+    from core.perception import screen_highlight
+
+    windows = [
+        {"kCGWindowOwnerPID": os.getppid(), "kCGWindowLayer": 0, "kCGWindowOwnerName": "Aura", "kCGWindowName": "Aura"},
+        {"kCGWindowOwnerPID": 4242, "kCGWindowLayer": 25, "kCGWindowOwnerName": "Dock", "kCGWindowName": ""},
+        {"kCGWindowOwnerPID": 5151, "kCGWindowLayer": 0, "kCGWindowOwnerName": "Google Chrome",
+         "kCGWindowName": "r/ResearchML - Submit"},
+    ]
+    monkeypatch.setitem(sys.modules, "Quartz", SimpleNamespace(
+        kCGWindowListOptionOnScreenOnly=1, kCGWindowListExcludeDesktopElements=16, kCGNullWindowID=0,
+        CGWindowListCopyWindowInfo=lambda options, window: windows))
+
+    assert screen_highlight._whose_window_is_meant(os.getppid(), "Aura") == (5151, "Google Chrome",
+                                                                            "r/ResearchML - Submit")
+    assert screen_highlight._whose_window_is_meant(5151, "Google Chrome") == (5151, "Google Chrome", ""), (
+        "with another app in front, that app is what is meant")
