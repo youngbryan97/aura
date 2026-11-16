@@ -365,14 +365,6 @@
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
-      "path": "core/agi/skill_synthesizer.py",
-      "scope": "<module>.SkillSynthesizer._save"
-    },
-    {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
-      "canonical_owner": false,
-      "category": "direct_atomic_file_write",
-      "count": 1,
       "path": "core/architect/code_graph.py",
       "scope": "<module>.LiveArchitectureGraphBuilder._persist_jsonl"
     },
@@ -3511,6 +3503,14 @@
       "count": 1,
       "path": "core/agency/what_she_tried.py",
       "scope": "<module>.keep"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agi/skill_synthesizer.py",
+      "scope": "<module>.SkillSynthesizer._save"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory_async",
@@ -17410,6 +17410,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "f8bd6c8b5f766e3c07ac578607a8858da43d1c62223d90835416e240d7994a72",
+  "inventory_sha256": "5789b9ef63496b7ee5a5c57a47afbb71c88c659833404c1813fc6ccf801db13a",
   "schema_version": 1
 }

@@ -51,7 +51,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -430,8 +429,13 @@ class SkillSynthesizer:
 
     def _save(self):
         """Synchronous save, for callers that are not on an event loop."""
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         try:
-            atomic_write_text(PERSIST_PATH, self._payload())
+            payload = self._payload()
+            with local_internal_governed_scope("agi.skill_synthesizer"):
+                get_file_write_gateway().write_text(PERSIST_PATH, payload, source="agi.skill_synthesizer")
         except (json.JSONDecodeError, TypeError, ValueError, OSError) as e:
             # Directory creation + atomic write can raise OSError; the old tuple
             # missed it, so a persistence failure crashed after mutating state.

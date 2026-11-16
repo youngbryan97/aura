@@ -137,6 +137,35 @@ def _raise_gap(s: SkillSynthesizer, gap: str, times: int = GAP_FORGE_THRESHOLD) 
         s.log_gap(gap, "no skill matched")
 
 
+@pytest.mark.parametrize("refused", [False, True])
+def test_sync_skill_state_save_uses_the_governed_writer(synthesizer, monkeypatch, refused):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    synthesizer.log_gap("a pending gap", "no skill matched")
+    previous = json.dumps({"gaps": [], "gap_counts": {}, "synthesized": []})
+    synth.PERSIST_PATH.write_text(previous)
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    gateway, writes = get_file_write_gateway(), []
+    write = gateway.write_text
+
+    def observe(*args, **kwargs):
+        assert get_active_governance() is not None
+        writes.append((args, kwargs))
+        if refused:
+            raise OSError("the state writer refused this scratch save")
+        return write(*args, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_text", observe)
+    synthesizer._save()
+    if refused:
+        assert synth.PERSIST_PATH.read_text() == previous
+    else:
+        restored = SkillSynthesizer()
+        assert restored._gaps == synthesizer._gaps and restored._gap_counts == synthesizer._gap_counts
+    assert len(writes) == 1 and writes[0][0][0] == synth.PERSIST_PATH
+
+
 @pytest.mark.asyncio
 async def test_a_gap_below_threshold_forges_nothing(synthesizer, monkeypatch):
     forge = _RecordingForge({"ok": True, "digest": "d"})
