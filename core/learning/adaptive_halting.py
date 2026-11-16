@@ -90,19 +90,28 @@ class HaltingHead:
     # ── Persistence (the live engine loads a TRAINED head from disk) ────
     def save(self, path: Any) -> None:
         """Serialize weights + threshold so a trained head can go live."""
+        from io import BytesIO
         from pathlib import Path
 
         import numpy as np
 
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         target = Path(path).expanduser()
-        target.parent.mkdir(parents=True, exist_ok=True)
-        np.savez(
-            target,
-            weight=np.array(self.weight, dtype=np.float32),
-            bias=np.array(self.bias, dtype=np.float32),
-            threshold=np.array([self.threshold], dtype=np.float32),
-            hidden_size=np.array([self.hidden_size], dtype=np.int64),
-        )
+        if not str(target).endswith(".npz"):
+            target = Path(str(target) + ".npz")
+        with BytesIO() as buffer:
+            np.savez(
+                buffer,
+                weight=np.array(self.weight, dtype=np.float32),
+                bias=np.array(self.bias, dtype=np.float32),
+                threshold=np.array([self.threshold], dtype=np.float32),
+                hidden_size=np.array([self.hidden_size], dtype=np.int64),
+            )
+            payload = buffer.getvalue()
+        with local_internal_governed_scope("adaptive_halting.save"):
+            get_file_write_gateway().write_bytes(target, payload, source="adaptive_halting.save")
 
     @classmethod
     def load(cls, path: Any) -> HaltingHead:

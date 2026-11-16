@@ -111,7 +111,8 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: The turn reader's NPZ goes through the gateway; its eager parent
 #: creation came out. Raw 750, total still 2,054.
 TOTAL_CEILING = 2054
-RAW_CEILING = 750
+#: The halting-head save also replaces an eager mkdir with a gateway write.
+RAW_CEILING = 749
 
 
 def _split() -> tuple[int, int]:

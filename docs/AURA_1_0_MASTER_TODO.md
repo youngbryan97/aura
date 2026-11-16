@@ -4765,6 +4765,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: halting-head saves encode the NPZ before the
+    governed file gateway replaces it. A simulated encoder failure
+    used to corrupt the existing head. Both the preservation and
+    governance regressions failed before the repair. The archive
+    round-trips and retains NumPy's filename behavior. All 37 focused
+    tests passed with small arrays. The inventory now has 749 raw
+    calls and 2,054 total migration calls. Smoke passed 164 tests
+    with one skip in 92.28 s and maximum RSS of 446,152,704 bytes.
+    Lint, compile, dependency drift, layering, governance, module
+    size and targeted writing passed.
+    Source: core/learning/adaptive_halting.py.
+    Tests: tests/test_halting_head_saves_an_atomic_artifact.py.
   - [x] 2026-11-15: the halting-head loader checks its weight and bias
     shapes against the declared width before constructing the head.
     A tiny malformed archive declaring width 2^40 used to reach the
