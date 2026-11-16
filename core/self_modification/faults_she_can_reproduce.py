@@ -82,6 +82,7 @@ def hear(record: DegradationRecord) -> None:
     A record its recorder marked as expected (``_EXPECTED``) is not a fault and is not heard."""
     if str(getattr(record, "severity", "") or "").lower() in _EXPECTED:
         return
+    _undo_a_mend_that_did_not_hold(record)
     call = getattr(record, "failed_call", None)
     if not isinstance(call, FailedCall):
         _say_why_not_once(call, record)
@@ -105,6 +106,37 @@ def hear(record: DegradationRecord) -> None:
             wake()
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("a fault's waker failed: %s", exc)
+
+
+#: The goals whose mend was undone in her running process, for her loop to take back out of her source.
+_UNDONE: list[str] = []
+
+
+def _undo_a_mend_that_did_not_hold(record: DegradationRecord) -> None:
+    from core.self_modification.into_the_running_process import undo_if_it_faulted
+
+    undone = undo_if_it_faulted(getattr(record, "raised_in", None), record.error_type,
+                                getattr(record, "failed_call", None))
+    if undone is None or not undone.goal:
+        return
+    with _LOCK:
+        if undone.goal not in _UNDONE:
+            _UNDONE.append(undone.goal)
+        wakers = list(_WAKERS)
+    for wake in wakers:
+        try:
+            wake()
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("a fault's waker failed: %s", exc)
+
+
+def mends_undone() -> list[str]:
+    """The goals whose mend did not hold in her running process and is still in her source, oldest first; each is
+    taken off the list as it is read."""
+    with _LOCK:
+        taken = list(_UNDONE)
+        _UNDONE.clear()
+    return taken
 
 
 def when_a_fault_is_first_heard(wake: Any) -> bool:
@@ -224,6 +256,7 @@ def forget_for_test() -> None:
     with _LOCK:
         _HEARD.clear()
         _SAID_WHY_NOT.clear()
+        _UNDONE.clear()
         _FIRST_HEARD[0] = _KEPT[0] = 0
 
 
@@ -318,6 +351,7 @@ __all__ = [
     "hear",
     "keep_what_was_heard",
     "listen",
+    "mends_undone",
     "name_of",
     "reproduce",
     "recall",

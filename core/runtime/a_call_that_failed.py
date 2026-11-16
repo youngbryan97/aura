@@ -158,6 +158,15 @@ def _parameters(code: CodeType) -> tuple[list[str], list[str], list[str], str, s
     return positional_only, either, keyword_only, star_args, star_kwargs
 
 
+def where_it_was_raised(error: BaseException) -> tuple[str, str] | None:
+    """The function of hers ``error`` was raised in, as (module, qualified name); None outside her source."""
+    found = _innermost_frame_of_hers(error) if error.__traceback__ is not None else None
+    if found is None:
+        return None
+    frame = found[0]
+    return str(frame.f_globals.get("__name__") or ""), frame.f_code.co_qualname
+
+
 def the_call_that_failed(error: BaseException) -> FailedCall | str:
     """The call in her own source that ``error`` was raised in, or why it cannot be made again."""
     if isinstance(error, _RAN_OUT_OF_TIME):
@@ -210,4 +219,4 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
     )
 
 
-__all__ = ["FailedCall", "the_call_that_failed"]
+__all__ = ["FailedCall", "the_call_that_failed", "where_it_was_raised"]

@@ -144,6 +144,8 @@ class DegradationRecord:
     #: The call in her own source the fault was raised in, kept so it can be made again
     #: (core/runtime/a_call_that_failed.py), or why it cannot be.
     failed_call: Any = None
+    #: The function of hers it was raised in, as (module, qualified name), whether or not the call could be kept.
+    raised_in: tuple[str, str] | None = None
 
 
 class DegradationTracker:
@@ -735,10 +737,12 @@ def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, actio
         severity = "debug"
 
     tb = "".join(traceback.format_exception(type(error), error, error.__traceback__, limit=3))
+    raised_in: tuple[str, str] | None = None
     try:
-        from core.runtime.a_call_that_failed import the_call_that_failed
+        from core.runtime.a_call_that_failed import the_call_that_failed, where_it_was_raised
 
         failed_call: Any = the_call_that_failed(error)
+        raised_in = where_it_was_raised(error)
     except Exception as capture_exc:  # noqa: BLE001 - keeping the call must never cost the record itself
         failed_call = f"the call could not be kept: {type(capture_exc).__name__}"
 
@@ -751,6 +755,7 @@ def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, actio
         timestamp=time.time(),
         traceback_summary=tb[:1000],
         failed_call=failed_call,
+        raised_in=raised_in,
     )
     _tracker.record(record)
 
