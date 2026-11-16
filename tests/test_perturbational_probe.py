@@ -482,6 +482,38 @@ async def test_service_persists_report_through_gateway(monkeypatch, tmp_path):
     assert "not a consciousness meter" in payload["estimate"]["claim"]
 
 
+@pytest.mark.asyncio
+async def test_report_persistence_renews_its_grant_after_directory_io(monkeypatch, tmp_path):
+    import json
+    from types import SimpleNamespace
+
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    monkeypatch.setenv("AURA_PHI_DIR", str(tmp_path / "phi"))
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
+    service = WholeSystemPhiService()
+    service._latest = SimpleNamespace(to_dict=lambda: {"phi": None, "claim": "synthetic persistence fixture"})
+    service._latest_probe = {"status": "unmeasured"}
+    gateway = get_file_write_gateway()
+    ensure = gateway.ensure_directory_async
+    expired = []
+
+    async def ensure_then_expire(*args, **kwargs):
+        token = get_active_governance()
+        assert token is not None and token.domain == "state_mutation"
+        result = await ensure(*args, **kwargs)
+        token.mono_timestamp -= token.ttl + 1
+        expired.append(token.lease_id)
+        return result
+
+    monkeypatch.setattr(gateway, "ensure_directory_async", ensure_then_expire)
+    path = await service.persist_latest()
+    assert path == str(tmp_path / "phi" / "whole_system_latest.json")
+    payload = json.loads((tmp_path / "phi" / "whole_system_latest.json").read_text())["payload"]
+    assert expired and payload == {"estimate": service._latest.to_dict(), "probe": {"status": "unmeasured"}}
+
+
 def test_sample_runtime_channels_survives_a_bare_container():
     service = WholeSystemPhiService()
     channels = service.sample_runtime_channels()

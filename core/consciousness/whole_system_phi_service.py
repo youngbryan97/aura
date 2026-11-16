@@ -683,6 +683,8 @@ class WholeSystemPhiService:
                                            domain="state_mutation"):
             gateway = get_file_write_gateway()
             await gateway.ensure_directory_async(root, source="whole_system_phi")
+        with local_internal_governed_scope("whole_system_phi",
+                                           domain="state_mutation"):
             await gateway.write_json_async(
                 target, payload, schema_version=1,
                 schema_name="whole_system_phi_report",

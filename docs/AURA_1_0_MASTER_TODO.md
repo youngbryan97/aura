@@ -609,6 +609,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  - [x] 2026-11-16: whole-system report persistence renews its
+    write grant after directory I/O. The synthetic report regression
+    failed under enforcement before the repair. It now reloads the
+    exact estimate and probe payload, including an unknown measurement
+    kept as None. All 19 focused service tests passed. Smoke passed
+    164 tests with one skip in 106.21 s and maximum RSS of
+    488,488,960 bytes. Lint, compile,
+    dependency drift, layering, governance, module size and targeted
+    writing passed. This item covers persistence only.
+    Source: core/consciousness/whole_system_phi_service.py.
+    Tests: tests/test_perturbational_probe.py.
   - [x] 2026-11-16: solved-example persistence renews its grant
     after directory I/O. Five regressions failed under enforcement
     before the repair: sync and async met-example appends, a queued
