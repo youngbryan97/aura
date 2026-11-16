@@ -301,3 +301,32 @@ def test_auto_wiring_never_builds_a_service_on_her_loop():
 
     built["demo_service"] = _ServiceStub()
     assert "demo_service" in auditor.auto_wire_autopoiesis()["health_probes_added"]
+
+
+def test_autopoiesis_does_not_watch_itself_as_one_of_its_own_parts():
+    """LIVE 16 November 2026, 07:31 and 08:17 local: "HUMAN ESCALATION REQUIRED: component 'autopoiesis' has no
+    automated repair registered for it". Wired in as its own part, its health was its vitality, the average of every
+    part it watches, so any part's dip read as its own decline."""
+
+    class _AutopoiesisWithVitality(_AutopoiesisStub):
+        def get_vitality(self):
+            return 0.79
+
+    autopoiesis = _AutopoiesisWithVitality()
+    service = _ServiceStub()
+
+    class _Container:
+        _aliases = {}
+        _services = {"autopoiesis": SimpleNamespace(dependencies=[]),
+                     "demo_service": SimpleNamespace(dependencies=[])}
+
+    auditor = IntegrationAuditor(
+        service_resolver=lambda name: {"autopoiesis": autopoiesis, "demo_service": service}.get(name),
+        container_cls=_Container,
+    )
+
+    report = auditor.auto_wire_autopoiesis()
+
+    assert "demo_service" in report["health_probes_added"]
+    assert "autopoiesis" not in autopoiesis._health_fns
+    assert not any(component == "autopoiesis" for _strategy, component in autopoiesis.handlers)

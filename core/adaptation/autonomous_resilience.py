@@ -456,6 +456,12 @@ class IntegrationAuditor:
                 continue
             if instance is None:
                 continue
+            if instance is autopoiesis:
+                # It does not watch itself as one of its own parts. Its health here is its vitality, the average of every
+                # part it watches, so any part's dip read as its own decline and it asked a person for a repair of
+                # itself nobody can register (LIVE 16 November 2026, 07:31 and 08:17 local: "HUMAN ESCALATION
+                # REQUIRED: component 'autopoiesis' has no automated repair registered for it").
+                continue
 
             if name not in existing_health:
                 probe = self._health_probe_for(instance)
