@@ -1534,17 +1534,29 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     bind_unified_context_to_state,
                 )
 
+                # The tier chosen below unless a guard moves it: a background
+                # turn is her brainstem's, so its prompt is sized to the
+                # brainstem's ceiling rather than her cortex's.
+                serving: dict[str, str] = {}
+                if state.response_modifiers.get(
+                    "model_tier", "tertiary" if is_background else "primary"
+                ) == "tertiary":
+                    from core.brain.llm.model_registry import get_brainstem_path
+
+                    serving["model_path"] = get_brainstem_path()
+
                 def _assemble(
                     history: list[dict[str, Any]] | None,
                     note: str | None,
                 ) -> list[dict[str, str]]:
                     if history is None:
-                        return ContextAssembler.build_messages(state, objective)
+                        return ContextAssembler.build_messages(state, objective, **serving)
                     return ContextAssembler.build_messages(
                         state,
                         objective,
                         conversation_history=history,
                         history_note=note,
+                        **serving,
                     )
 
                 await bind_unified_context_to_state(state, objective)

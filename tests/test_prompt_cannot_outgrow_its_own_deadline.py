@@ -128,6 +128,19 @@ class TestTheCeilingIsWhatTheCortexWasQualifiedToRead:
         self._limits(monkeypatch, (24_576,), qualified=False)
         assert prefill_ceiling_chars() == UNQUALIFIED_CEILING_CHARS
 
+    def test_a_prompt_for_another_model_is_built_to_that_models_ceiling(self, monkeypatch):
+        """LIVE 16 November 2026: her dream journal's background turn was built to the cortex's ceiling and served
+        by her brainstem: 92,678 characters against its 48,000, the middle cut, and the deadline run out."""
+        from core.brain.llm.context_assembler import ContextAssembler
+        from core.brain.llm.prefill_ceiling import UNQUALIFIED_CEILING_CHARS
+
+        self._limits(monkeypatch, (60_000,))
+        for_cortex, _ = ContextAssembler._build_messages_part_1(400_000, "", False, None)
+        for_brainstem, _ = ContextAssembler._build_messages_part_1(400_000, "", False, None,
+                                                                   model_path="the-brainstem")
+        assert for_cortex == int(60_000 * 3.5)
+        assert for_brainstem == UNQUALIFIED_CEILING_CHARS
+
 
 def test_reading_beyond_the_old_ceiling_is_earned_by_the_answer(monkeypatch) -> None:
     """LIVE 2026-10-03: a 640-token answer read 130,902 characters once the window widened."""

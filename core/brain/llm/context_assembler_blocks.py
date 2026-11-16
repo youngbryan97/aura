@@ -991,6 +991,8 @@ class _BuildsThePromptBlocks:
         objective: str,
         record_attention: bool,
         state: AuraState,
+        *,
+        model_path: str | None = None,
     ) -> tuple[Any, list[Any]]:
         """
         Builds the LLM message array using strict priority budgeting to prevent context collapse.
@@ -1056,11 +1058,15 @@ class _BuildsThePromptBlocks:
         # dropped, and a fault recorded for it.
         #
         # Two budgets that disagree are one budget and one fiction. This is
-        # the smaller.
+        # the smaller. It is the ceiling of the model that serves the prompt:
+        # LIVE 16 November 2026 her dream journal's background turn was sized
+        # to the cortex's ceiling and served by her brainstem, whose ceiling
+        # is 48,000 characters. 92,678 went in, the middle was cut, and the
+        # brainstem ran out its deadline on the rest, three times.
         try:
             from core.brain.llm.prefill_ceiling import prefill_ceiling_chars
 
-            char_limit = min(char_limit, prefill_ceiling_chars())
+            char_limit = min(char_limit, prefill_ceiling_chars(model_path))
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             record_degradation(
                 "context_assembler",

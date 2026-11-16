@@ -1850,8 +1850,12 @@ class ContextAssembler(_BuildsThePromptBlocks):
         record_attention: bool = False,
         conversation_history: list[dict[str, Any]] | None = None,
         history_note: str | None = None,
+        model_path: str | None = None,
     ) -> list[dict[str, str]]:
-        char_limit, messages = cls._build_messages_part_1(max_tokens, objective, record_attention, state)
+        """``model_path`` is the model that will serve the prompt, when that is not her cortex: the prompt is sized
+        to that model's prefill ceiling, not the cortex's."""
+        char_limit, messages = cls._build_messages_part_1(max_tokens, objective, record_attention, state,
+                                                          model_path=model_path)
         current_chars = 0
 
         def _estimate_chars(text: Any) -> int:
