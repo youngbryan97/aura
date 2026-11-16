@@ -271,7 +271,7 @@ def atomic_write_bytes(
     target = Path(path)
     file_mode = _validated_file_mode(mode)
     parent = target.parent
-    parent.mkdir(parents=True, exist_ok=True)
+    parent.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     fd, tmp_path_str = tempfile.mkstemp(prefix=DEFAULT_TEMP_PREFIX, dir=str(parent))
     tmp_path = Path(tmp_path_str)

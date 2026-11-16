@@ -4940,6 +4940,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: requested-artifact saves preserve an existing
+    output folder's permissions on the sync and async paths. Both
+    used to change 0755 to 0700. The redundant directory calls came
+    out. The atomic byte writer now creates its missing parent as
+    0700; both artifact paths create private folders and 0600 files
+    with the expected content. The async path passed under governance
+    enforcement. Both permission regressions failed before the repair.
+    All 114 focused artifact, durability, gateway and lock checks
+    passed. The exact effect baseline lost only these two calls,
+    reducing total migration debt from 2,051 to 2,049; raw debt
+    remains 747. Smoke passed 164 tests with one skip in 83.77 s
+    and maximum RSS of 488,488,960 bytes. Lint, compile, dependency
+    drift, layering, governance,
+    module size and targeted writing passed.
+    Source: core/conversation/requested_artifact.py and
+    core/runtime/atomic_writer.py.
+    Tests: tests/test_a_reply_that_contains_a_file.py.
   - [x] 2026-11-15: an unchanged goal is reported by its actual
     status. Offered and merged goals used to lose their success
     result, and stalled goals were labelled as a held model. Three

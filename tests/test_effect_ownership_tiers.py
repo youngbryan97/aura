@@ -115,7 +115,8 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: Saving capability meanings replaces two raw calls with one gateway write.
 #: Deferred retention routes both entry points through its worker's writer.
 #: Two duplicate gateway calls came out.
-TOTAL_CEILING = 2051
+#: Requested artifact writes let the atomic writer create missing parents.
+TOTAL_CEILING = 2049
 RAW_CEILING = 747
 
 

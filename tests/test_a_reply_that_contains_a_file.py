@@ -13,6 +13,9 @@ So the file comes out of the answer she already gave.
 
 from __future__ import annotations
 
+import asyncio
+import stat
+
 import pytest
 
 from core.conversation.requested_artifact import (
@@ -31,6 +34,28 @@ def test_the_file_is_written_and_named(tmp_path) -> None:
     assert saved is not None
     assert saved.path.suffix == ".html"
     assert saved.path.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
+
+
+@pytest.mark.parametrize("async_path", [False, True])
+def test_saving_a_file_preserves_the_output_folder_permissions(tmp_path, async_path):
+    from core.conversation.requested_artifact import save_requested_artifact_async
+
+    shared = tmp_path / "shared"
+    shared.mkdir(mode=0o755)
+    shared.chmod(0o755)
+    assert stat.S_IMODE(shared.stat().st_mode) == 0o755
+    request = "build me a small web app, one self-contained HTML file"
+    saved = (asyncio.run(save_requested_artifact_async(request, REPLY, root=shared)) if async_path else
+             save_requested_artifact(request, REPLY, root=shared))
+    assert saved is not None and saved.path.read_text() == PAGE
+    assert stat.S_IMODE(shared.stat().st_mode) == 0o755
+    assert stat.S_IMODE(saved.path.stat().st_mode) == 0o600
+    new_root = tmp_path / "new-output"
+    created = (asyncio.run(save_requested_artifact_async(request, REPLY, root=new_root)) if async_path else
+               save_requested_artifact(request, REPLY, root=new_root))
+    assert created is not None and created.path.read_text() == PAGE
+    assert stat.S_IMODE(new_root.stat().st_mode) == 0o700
+    assert stat.S_IMODE(created.path.stat().st_mode) == 0o600
 
 
 def test_conversation_deposits_nothing(tmp_path) -> None:
@@ -90,20 +115,15 @@ async def test_live_artifact_write_uses_async_governed_gateway(monkeypatch, tmp_
     from core.governance_context import get_active_governance
     from core.runtime.file_write_gateway import get_file_write_gateway
 
+    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "enforce")
     gateway = get_file_write_gateway()
-    real_ensure = gateway.ensure_directory_async
     real_write = gateway.write_text_async
     observed = []
 
-    async def observing_ensure(path, **kwargs):
-        observed.append(("ensure", get_active_governance()))
-        await real_ensure(path, **kwargs)
-
     async def observing_write(path, text, **kwargs):
-        observed.append(("write", get_active_governance()))
+        observed.append(get_active_governance())
         await real_write(path, text, **kwargs)
 
-    monkeypatch.setattr(gateway, "ensure_directory_async", observing_ensure)
     monkeypatch.setattr(gateway, "write_text_async", observing_write)
 
     saved = await save_requested_artifact_async(
@@ -114,8 +134,8 @@ async def test_live_artifact_write_uses_async_governed_gateway(monkeypatch, tmp_
 
     assert saved is not None
     assert saved.path.exists()
-    assert [operation for operation, _token in observed] == ["ensure", "write"]
-    for _operation, token in observed:
+    assert len(observed) == 1
+    for token in observed:
         assert token is not None
         assert token.source == "conversation.requested_artifact"
         assert token.domain == "state_mutation"
