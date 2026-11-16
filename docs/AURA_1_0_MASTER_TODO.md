@@ -4896,6 +4896,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   quarantine the drill found from May. Record:
   `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  - [x] 2026-11-15: an invalid queue timestamp or attempt counter
+    stays retained and unmeasured while deferred replay continues
+    with valid work. Bad numeric strings used to abort the batch.
+    Nonfinite ages and negative counters could reach admission.
+    Four regressions failed before the repair. All 39 queue tests
+    passed after it. Smoke passed 164 tests with one skip in 56.00 s
+    and maximum RSS of 480,919,552 bytes. Lint, compile, dependency
+    drift, layering, governance, module size and targeted writing passed.
+    Source: core/memory/deferred_retention.py.
+    Tests: tests/test_deferred_retention.py.
   - [x] 2026-11-15: the entity prompt mirror drops its prior list
     when the current reader returns no entries. An empty replacement
     reader or closed reader used to leave the old list in the prompt.

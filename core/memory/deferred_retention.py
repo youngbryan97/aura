@@ -26,6 +26,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -121,6 +122,7 @@ class ReplayReport:
     expired: int = 0
     remaining: int | None = 0
     queue_error: str | None = None
+    unmeasured: int = 0
 
     def as_dict(self) -> dict[str, int | str | None]:
         result: dict[str, int | str | None] = {
@@ -132,13 +134,15 @@ class ReplayReport:
         }
         if self.queue_error:
             result["queue_error"] = self.queue_error
+        if self.unmeasured:
+            result["unmeasured"] = self.unmeasured
         return result
 
     def narrative(self) -> str:
         if self.queue_error:
             return f"{self.committed} write(s) landed; queue remaining count unknown ({self.queue_error})"
         if not any(
-            (self.committed, self.still_deferred, self.refused, self.expired)
+            (self.committed, self.still_deferred, self.refused, self.expired, self.unmeasured)
         ):
             return "no deferred memory writes were waiting"
         parts: list[str] = []
@@ -150,6 +154,8 @@ class ReplayReport:
             parts.append(f"{self.refused} refused on the merits and dropped")
         if self.expired:
             parts.append(f"{self.expired} aged out")
+        if self.unmeasured:
+            parts.append(f"{self.unmeasured} invalid queue entry/entries retained")
         return "; ".join(parts)
 
 
@@ -361,13 +367,24 @@ class DeferredRetentionQueue:
             return ReplayReport(still_deferred=len(entries), remaining=len(entries))
 
         now = time.time()
-        committed = still_deferred = refused = expired = 0
+        committed = still_deferred = refused = expired = unmeasured = 0
         remaining: list[dict[str, Any]] = []
         retried = {self._entry_version(entry) for entry in entries}
 
         for entry in entries:
-            age = now - float(entry.get("queued_at") or now)
-            attempts = int(entry.get("attempts") or 0)
+            try:
+                age = now - float(entry.get("queued_at") or now)
+                attempts = int(entry.get("attempts") or 0)
+                if not math.isfinite(age) or attempts < 0:
+                    raise ValueError("queue age must be finite and attempts nonnegative")
+            except (TypeError, ValueError, OverflowError) as exc:
+                unmeasured += 1
+                remaining.append(entry)
+                record_degradation(
+                    "deferred_retention", exc, severity="warning",
+                    action="retained an invalid deferred entry and continued with valid work",
+                )
+                continue
             if age > MAX_AGE_S or attempts >= MAX_ATTEMPTS:
                 expired += 1
                 logger.info(
@@ -411,6 +428,7 @@ class DeferredRetentionQueue:
             expired=expired,
             remaining=remaining_count,
             queue_error=queue_error,
+            unmeasured=unmeasured,
         )
         if committed or refused or expired:
             logger.info("Deferred-retention replay: %s.", report.narrative())

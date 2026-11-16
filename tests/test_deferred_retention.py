@@ -13,6 +13,7 @@ bypass, and that is the failure this file exists to prevent.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 
 import pytest
@@ -163,6 +164,31 @@ class TestHoldingDeferredWork:
 
 
 class TestReplay:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field, value", [
+        ("queued_at", "unreadable timestamp"),
+        ("queued_at", float("nan")),
+        ("attempts", "unknown"),
+        ("attempts", -1),
+    ])
+    async def test_a_bad_counter_or_timestamp_does_not_block_valid_work(self, queue, field, value):
+        assert await queue.enqueue_async("damaged entry", reason="aura_now_defer")
+        assert await queue.enqueue_async("valid result", reason="aura_now_defer")
+        entries = await asyncio.to_thread(queue.pending)
+        entries[0][field] = value
+        queue.path.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+        facade = FakeFacade([True])
+
+        report = await queue.replay(facade)
+
+        assert facade.accepted == ["valid result"]
+        assert report.committed == 1 and report.remaining == 1
+        assert report.unmeasured == 1 and report.as_dict()["unmeasured"] == 1
+        assert "invalid queue" in report.narrative()
+        held = await asyncio.to_thread(queue.pending)
+        assert [entry["text"] for entry in held] == ["damaged entry"]
+        assert json.dumps(held[0], sort_keys=True) == json.dumps(entries[0], sort_keys=True)
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("failure", ["read", "write"])
     async def test_a_storage_failure_leaves_the_remaining_count_unknown(self, queue, monkeypatch, failure):
