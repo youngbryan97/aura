@@ -67,6 +67,18 @@ _NON_FAILURE_REPAIR_DISPOSITIONS = frozenset(
 )
 
 
+async def _keep_the_faults_she_heard() -> None:
+    """Faults heard since the last write go to disk before her idle policy is asked, so a busy hour and a restart
+    after it do not lose them (Master Todo F15)."""
+    from core.self_modification.faults_she_can_reproduce import keep_what_was_heard
+
+    try:
+        await keep_what_was_heard()
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        record_degradation("self_modification_engine", exc, severity="warning",
+                           action="faults she heard stay in memory only; a restart before her loop runs loses them")
+
+
 def _autonomous_cycle_failed(result: dict[str, Any]) -> bool:
     """Distinguish a broken repair attempt from a completed policy decision."""
 
@@ -1323,6 +1335,7 @@ class AutonomousSelfModificationEngine:
         while self.monitoring_enabled:
             try:
                 await self._repair_event.wait()
+                await _keep_the_faults_she_heard()
                 orch = resolve_orchestrator()
                 policy_reason = background_activity_reason(
                     orch,

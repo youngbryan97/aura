@@ -4,14 +4,19 @@ A degradation record keeps the formatted traceback: three frames and a thousand 
 reproduced from that, because what the function was given is gone. This keeps it while the exception is still live:
 the innermost frame in her own source, its function, and what it was called with, when each argument can be written
 back exactly. A call that needs something it cannot rebuild (the instance a method ran on, a function defined inside
-another, an argument that is not a plain value) is not kept, and says why.
+another, an argument that is not a plain value) is not kept, and says why. Neither is a deadline that passed, a
+cancellation, or an exception recorded without being raised: none of them is a call that raised because of what it
+was given. LIVE 15-16 November 2026, timeouts were 72 of the 150 reasons her stream gave.
 
 Standard library only: every package records its faults through ``core/runtime/errors.py``, and this runs there.
 """
 from __future__ import annotations
 
 import ast
+import asyncio
+import concurrent.futures
 import inspect
+import subprocess
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,6 +31,11 @@ _LONGEST_ARGUMENT = 1000
 
 #: What a call is not: her tests, her virtual environment, anything installed.
 _NOT_HERS = ("tests", ".venv", "venv")
+
+#: A deadline that passed. It depends on how long the call took when it ran, not on what it was given.
+_RAN_OUT_OF_TIME = (TimeoutError, subprocess.TimeoutExpired)
+#: A call stopped by whoever waited on it, not by anything it did.
+_CANCELLED = (asyncio.CancelledError, concurrent.futures.CancelledError)
 
 
 @dataclass(frozen=True)
@@ -150,6 +160,12 @@ def _parameters(code: CodeType) -> tuple[list[str], list[str], list[str], str, s
 
 def the_call_that_failed(error: BaseException) -> FailedCall | str:
     """The call in her own source that ``error`` was raised in, or why it cannot be made again."""
+    if isinstance(error, _RAN_OUT_OF_TIME):
+        return "it ran past a deadline, which depends on when it ran, not on what it was given"
+    if isinstance(error, _CANCELLED):
+        return "it was cancelled by what waited on it, not raised by what it was given"
+    if error.__traceback__ is None:
+        return "it was recorded without being raised in this process, so it carries no call"
     found = _innermost_frame_of_hers(error)
     if found is None:
         return "raised outside her source"

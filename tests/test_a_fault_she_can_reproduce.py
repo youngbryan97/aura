@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import subprocess
 import sys
 import textwrap
 
@@ -48,6 +49,10 @@ _PLANTED = textwrap.dedent('''
 
     def takes_anything(thing):
         raise TypeError("no")
+
+
+    def waits(seconds):
+        raise TimeoutError(f"no answer in {seconds} s")
 ''')
 
 
@@ -63,6 +68,7 @@ def planted(tmp_path, monkeypatch):
     sys.modules.pop("planted_pkg", None)
     import planted_pkg.planted as module
 
+    monkeypatch.setattr(faults, "where_heard_faults_are_kept", lambda: tmp_path / "state" / "heard.json")
     faults.forget_for_test()
     yield module
     faults.forget_for_test()
@@ -168,3 +174,60 @@ def test_why_a_fault_cannot_be_made_again_is_said_once(planted, caplog):
         faults.hear(record)
     said = [r.getMessage() for r in caplog.records if "Not a fault she can make again" in r.getMessage()]
     assert len(said) == 1 and "runs on an instance it cannot rebuild" in said[0]
+
+
+def _caught(error):
+    try:
+        raise error
+    except BaseException as exc:  # noqa: BLE001 - a cancellation is a BaseException, and is what is being caught
+        return exc
+
+
+@pytest.mark.parametrize("error, why", [
+    (subprocess.TimeoutExpired(["git", "status"], 1.0), "ran past a deadline"),
+    (asyncio.CancelledError(), "cancelled by what waited on it"),
+])
+def test_a_deadline_or_a_cancellation_is_not_a_call_to_make_again(planted, error, why):
+    assert why in the_call_that_failed(_caught(error))
+
+
+def test_a_timeout_raised_in_her_own_function_is_not_kept(planted):
+    """The frame is hers and its argument is plain, and still the call says nothing of why it ran out of time."""
+    assert "ran past a deadline" in the_call_that_failed(_raised(lambda: planted.waits(5)))
+
+
+def test_an_exception_recorded_without_being_raised_says_so(planted):
+    """LIVE 16 November 2026: her turn outcome builds a TurnOutcomeError and records it, and it was said to have been
+    raised outside her source."""
+    assert "recorded without being raised" in the_call_that_failed(ValueError("made, then recorded"))
+
+
+def test_a_fault_heard_before_a_restart_is_heard_after_it(planted):
+    from core.runtime.errors import DegradationRecord
+
+    exc = _raised(lambda: planted.share(10, 0, rounding=3))
+    record = DegradationRecord("planted", "warning", "ZeroDivisionError", str(exc), "", 1.0,
+                               failed_call=the_call_that_failed(exc))
+    faults.hear(record)
+    faults.hear(record)
+    assert asyncio.run(faults.keep_what_was_heard())
+    assert not asyncio.run(faults.keep_what_was_heard()), "nothing new was heard, so nothing is written"
+    before = faults.faults_heard()
+
+    faults.forget_for_test()              # what a new process starts with
+    assert faults.faults_heard() == []
+    assert faults.recall() == 1
+    assert faults.faults_heard() == before
+    (fault,) = before
+    assert fault.times == 2 and fault.call.call_source("share") == "share(total=10, parts=0, rounding=3)"
+
+
+def test_a_kept_file_that_cannot_be_read_loses_the_faults_and_says_so(planted, caplog):
+    import logging
+
+    path = faults.where_heard_faults_are_kept()
+    path.parent.mkdir(parents=True)
+    path.write_text("{not json")
+    with caplog.at_level(logging.WARNING):
+        assert faults.recall() == 0
+    assert any("faults heard before this run are not mended" in r.getMessage() for r in caplog.records)

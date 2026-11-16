@@ -18,6 +18,7 @@ from core.agency import her_goal_at_work as goals
 from core.agency.mending_a_fault_of_hers import mend, the_lines_it_ran
 from core.runtime import a_call_that_failed
 from core.runtime.a_call_that_failed import the_call_that_failed
+from core.self_modification import faults_she_can_reproduce
 from core.self_modification.faults_she_can_reproduce import HeardFault
 
 pytestmark = pytest.mark.unit
@@ -65,6 +66,7 @@ def her_source(tmp_path, monkeypatch):
     monkeypatch.setattr(goals, "MEASURING_HOLD", tmp_path / "no-hold")
     monkeypatch.setattr(goals, "the_gates_her_yes_asks", lambda record: {"stand-in": {"passed": True, "tail": ""}})
     monkeypatch.setattr(a_call_that_failed, "_ROOT", source.resolve())
+    monkeypatch.setattr(faults_she_can_reproduce, "where_heard_faults_are_kept", lambda: tmp_path / "heard.json")
     monkeypatch.syspath_prepend(str(source))
     for name in ("planted_pkg", "planted_pkg.rows", "planted_pkg.alone"):
         sys.modules.pop(name, None)
@@ -116,8 +118,8 @@ def test_her_cycle_tries_each_fault_once_on_a_source_and_mends_the_next(her_sour
     """One a cycle: the fault no test guards stalls and is not tried again on the same source; the next is mended."""
     import planted_pkg.alone as alone
     import planted_pkg.rows as rows
+
     from core.agency import mending_a_fault_of_hers
-    from core.self_modification import faults_she_can_reproduce
 
     heard = [_fault(lambda: alone.half(4)), _fault(lambda: rows.first([1, 2]))]
     monkeypatch.setattr(faults_she_can_reproduce, "faults_heard", lambda: heard)
@@ -132,9 +134,9 @@ def test_her_cycle_tries_each_fault_once_on_a_source_and_mends_the_next(her_sour
 
 
 def test_a_fault_heard_for_the_first_time_wakes_whoever_waits():
-    from core.self_modification import faults_she_can_reproduce as faults
     from core.runtime.a_call_that_failed import FailedCall
     from core.runtime.errors import DegradationRecord
+    from core.self_modification import faults_she_can_reproduce as faults
 
     woken = []
     faults.forget_for_test()
@@ -145,3 +147,15 @@ def test_a_fault_heard_for_the_first_time_wakes_whoever_waits():
     faults.hear(record)
     assert woken == [1]
     faults.forget_for_test()
+
+
+def test_a_fault_raised_in_what_governs_her_is_not_drafted(her_source):
+    """LIVE 16 November 2026: require_governance refused an ungoverned save, and her loop searched until its deadline
+    for a change to the check. A mend there loosens the check, and her own yes refuses the file."""
+    from core.runtime.a_call_that_failed import FailedCall
+
+    call = FailedCall("core.governance_context", "require_governance", "core/governance_context.py", 548,
+                      "core.governance_context.GovernanceViolationError", "called outside governed context")
+    done = asyncio.run(mend(HeardFault(call, "causal_world_model", 0.0, 0.0), proposals=10, seconds=60))
+    assert done["status"] == goals.STALLED and "which governs her" in done["why"], done
+    assert not (her_source.parent / "workspaces").exists(), "no workspace is made for a mend it will not draft"

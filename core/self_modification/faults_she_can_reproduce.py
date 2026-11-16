@@ -8,7 +8,9 @@ test harness. A test is kept only when running it raises what she raised. That t
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import json
 import logging
 import os
 import re
@@ -56,6 +58,9 @@ class Reproduction:
 _LOCK = checked_lock("faults_she_can_reproduce.heard")
 _HEARD: dict[tuple[str, str, str], HeardFault] = {}
 _LISTENING = [False]
+#: How many faults have been heard for the first time in this process, and how many of those were last kept on disk.
+_FIRST_HEARD = [0]
+_KEPT = [0]
 #: Called when a fault is heard for the first time: her repair cycle waits on one (self_modification_engine).
 _WAKERS: list[Any] = []
 
@@ -80,6 +85,7 @@ def hear(record: DegradationRecord) -> None:
         if len(_HEARD) >= _how_many_are_kept():
             return
         _HEARD[call.fingerprint] = HeardFault(call, record.subsystem, record.timestamp, record.timestamp)
+        _FIRST_HEARD[0] += 1
     logger.info("🩹 A fault she can make again: %s.%s raised %s, from %s (%s:%d).", call.module, call.qualname,
                 call.error_type.rsplit(".", 1)[-1], record.subsystem, call.file, call.line)
     with _LOCK:
@@ -117,12 +123,84 @@ def _say_why_not_once(why: Any, record: DegradationRecord) -> None:
 
 
 def listen() -> bool:
-    """Hear every degradation this process records; whether this call began it."""
+    """Hear every degradation this process records, after the faults kept from her last run; whether this began it."""
     with _LOCK:
         if _LISTENING[0]:
             return False
         _LISTENING[0] = True
+    recall()
     return bool(get_degradation_tracker().add_listener(hear))
+
+
+def where_heard_faults_are_kept() -> Path:
+    """Her state, beside her goal records: a fault heard before a restart is still hers to mend after it."""
+    from core.runtime.state_ownership import state_root
+
+    return state_root() / "her_faults" / "heard.json"
+
+
+def _as_row(fault: HeardFault) -> dict[str, Any]:
+    return {**dataclasses.asdict(fault), "call": dataclasses.asdict(fault.call)}
+
+
+def _from_row(row: Any) -> HeardFault | None:
+    try:
+        call = dict(row["call"])
+        call["keywords"] = tuple((str(key), str(value)) for key, value in call.get("keywords") or ())
+        for name in ("positional", "below"):
+            call[name] = tuple(str(part) for part in call.get(name) or ())
+        return HeardFault(call=FailedCall(**call), subsystem=str(row["subsystem"]), first_at=float(row["first_at"]),
+                          last_at=float(row["last_at"]), times=int(row["times"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.debug("a kept fault could not be read back: %s", exc)
+        return None
+
+
+def recall() -> int:
+    """The faults kept from her last run, heard again; how many were new to this process."""
+    path = where_heard_faults_are_kept()
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    except (OSError, ValueError) as exc:
+        record_degradation("faults_she_can_reproduce", exc, severity="warning",
+                           action=f"could not read {path}; faults heard before this run are not mended")
+        return 0
+    added = 0
+    with _LOCK:
+        for fault in filter(None, (_from_row(row) for row in rows if isinstance(row, dict))):
+            if fault.call.fingerprint not in _HEARD and len(_HEARD) < _how_many_are_kept():
+                _HEARD[fault.call.fingerprint] = fault
+                added += 1
+        _KEPT[0] = _FIRST_HEARD[0]
+    if added:
+        logger.info("🩹 %d fault(s) she heard before this run are hers to mend in it.", added)
+    return added
+
+
+async def keep_what_was_heard() -> bool:
+    """Write the faults heard so far to her state, when one was heard for the first time since the last write.
+
+    LIVE 15 November 2026 she heard a fault she could make again (a UnicodeDecodeError in her subprocess gateway), and
+    restarted before her loop reached it; what she heard lived only in the process that heard it.
+    """
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    with _LOCK:
+        heard_by = _FIRST_HEARD[0]
+        if heard_by == _KEPT[0]:
+            return False
+        rows = [_as_row(fault) for fault in _HEARD.values()]
+    path = where_heard_faults_are_kept()
+    gateway = get_file_write_gateway()
+    with local_internal_governed_scope("faults_she_can_reproduce.keep", domain="file_write",
+                                       receipt_prefix="her-heard-faults",
+                                       constraints={"artifact": "aura.her_heard_faults.v1", "operation": "write"}):
+        # The atomic writer makes a missing parent itself.
+        await gateway.write_text_async(path, json.dumps(rows, indent=1), source="faults_she_can_reproduce")
+    with _LOCK:
+        _KEPT[0] = max(_KEPT[0], heard_by)
+    return True
 
 
 def faults_heard() -> list[HeardFault]:
@@ -136,6 +214,7 @@ def forget_for_test() -> None:
     with _LOCK:
         _HEARD.clear()
         _SAID_WHY_NOT.clear()
+        _FIRST_HEARD[0] = _KEPT[0] = 0
 
 
 def name_of(fault: HeardFault) -> str:
@@ -227,9 +306,12 @@ __all__ = [
     "as_defect",
     "faults_heard",
     "hear",
+    "keep_what_was_heard",
     "listen",
     "name_of",
     "reproduce",
+    "recall",
     "test_source",
     "when_a_fault_is_first_heard",
+    "where_heard_faults_are_kept",
 ]

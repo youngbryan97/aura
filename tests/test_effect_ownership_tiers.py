@@ -121,7 +121,9 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: Its later display-list read removed the remaining Finder subprocess.
 #: Write-behind calls are counted; shared private state writes remove duplicate primitives.
 #: Empty tension and choice stores leave directory creation to their governed save.
-TOTAL_CEILING = 2042
+#: 16 November, F15: the faults she heard are kept on disk through one governed
+#: write, so a restart does not lose them: 2,043.
+TOTAL_CEILING = 2043
 #: The document converter's private input uses a governed byte write.
 #: The two agency constructors no longer create directories.
 RAW_CEILING = 744

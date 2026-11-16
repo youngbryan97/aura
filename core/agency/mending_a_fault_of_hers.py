@@ -152,6 +152,12 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     record = goals.load(slug) or goals.GoalRecord(goal=goal, slug=slug)
     if record.status in (goals.OFFERED, goals.MERGED):
         return {"slug": slug, "status": record.status, "why": "already mended or offered"}
+    if goals.governs_her(fault.call.file):
+        # LIVE 16 November 2026, 01:11 to 01:35, her loop searched until its deadline for a change to
+        # require_governance, the check that refused an ungoverned save. A mend there loosens the check, and her own
+        # yes refuses the file anyway.
+        return await _stop(record, f"it was raised in {fault.call.file}, which governs her; her own yes cannot take a "
+                                   "change there, so her loop drafts none", fault.call.error_message)
     workspace = await asyncio.to_thread(goals.ensure_workspace, record)
     await goals.save(record)
 
@@ -241,8 +247,9 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     her source has changed.
     """
     from core.agency import her_goal_at_work as goals
-    from core.self_modification.faults_she_can_reproduce import faults_heard
+    from core.self_modification.faults_she_can_reproduce import faults_heard, keep_what_was_heard
 
+    await keep_what_was_heard()
     heard = faults_heard()
     if not heard:
         return []

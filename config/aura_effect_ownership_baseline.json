@@ -6489,6 +6489,14 @@
       "scope": "<module>.StructuredErrorLogger._append_to_log_sync"
     },
     {
+      "callee": "<file_write_gateway>.write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/faults_she_can_reproduce.py",
+      "scope": "<module>.keep_what_was_heard"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -17378,6 +17386,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "81a2fe64b20a8ed61f83d5a8fbea57ac5ac60703e5bf9919240e38f357aca87c",
+  "inventory_sha256": "040075438e9437eebee4e1b28f3af919769976d9ea5ed5b9be9833d7b97371a3",
   "schema_version": 1
 }
