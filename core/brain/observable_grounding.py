@@ -51,6 +51,7 @@ from core.runtime.errors import record_degradation
 __all__ = [
     "Observable",
     "OBSERVABLES",
+    "her_own_readings_answer",
     "observable_blocks",
     "readings_delivered_this_turn",
     "register_observable",
@@ -72,6 +73,10 @@ class Observable:
     #: Take the reading. Returns the block body, or "" for nothing to say.
     read: Callable[[str], Awaitable[str]]
     timeout_s: float = DEFAULT_READ_TIMEOUT_S
+    #: Whether the reading stands for the world outside this machine (the local reference corpus, a page she will
+    #: work through) rather than for this machine or her own record. A question one of hers answers is not a
+    #: question about the world, however much it says "now" (her_own_readings_answer).
+    of_the_world: bool = False
 
     # ── the examples are part of the definition, not of the tests ────────────
     #
@@ -137,6 +142,29 @@ def register_observable(observable: Observable) -> None:
 
     OBSERVABLES[:] = [item for item in OBSERVABLES if item.name != observable.name]
     OBSERVABLES.append(observable)
+
+
+def her_own_readings_answer(prompt: Any) -> tuple[str, ...]:
+    """The readings of this machine or of her own record that this turn asks about, by name; none for the world's.
+
+    LIVE 15 November 2026, 22:22: "What is on my screen right now?" was searched on the web as a question about the
+    world now ("right now" in a clause that asks), a Microsoft page on its "Click to Do" feature went beside her
+    turn, and her draft said she had read a window labelled "Reading". The screen reading had answered the question.
+    """
+    text = str(prompt or "")
+    if not text.strip():
+        return ()
+    names = []
+    for observable in OBSERVABLES:
+        if observable.of_the_world:
+            continue
+        try:
+            if observable.matches(text):
+                names.append(observable.name)
+        except Exception as exc:  # noqa: BLE001 - a matcher must never break a turn
+            record_degradation("observable_grounding", exc, severity="info",
+                               action=f"read the {observable.name} observable as not asked about")
+    return tuple(names)
 
 
 async def _read_one(observable: Observable, prompt: str) -> tuple[str, str]:

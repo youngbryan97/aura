@@ -515,7 +515,11 @@ async def _read_screen(_prompt: str) -> str:
 
     snapshot = await get_screen_perception().capture(save_screenshot=False)
     if getattr(snapshot, "capture_denied", False):
-        return "Screen capture was refused for this turn."
+        # With its cause: LIVE 15 November 2026, 22:22, a private window on screen, this said only that the capture
+        # was refused, and her draft said she had read a window labelled "Reading".
+        why = str(getattr(snapshot, "unavailable_reason", "") or "").strip()
+        return f"Nothing was read from the screen for this turn: {why}." if why else (
+            "Nothing was read from the screen for this turn: the capture was refused.")
     app = str(getattr(snapshot, "active_app", "") or "").strip()
     text = str(getattr(snapshot, "text", "") or "").strip()
     if not text:
@@ -1063,7 +1067,7 @@ _DEFAULT_OBSERVABLES: tuple[Observable, ...] = (
         ),
     ),
     Observable(
-        "corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS", _matches_corpus, _read_corpus,
+        "corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS", _matches_corpus, _read_corpus, of_the_world=True,
         examples=(
             "explain the difference between correlation and causation",
             "what is a confounding variable",
@@ -1371,6 +1375,7 @@ _DEFAULT_OBSERVABLES: tuple[Observable, ...] = (
         "## WHAT HAPPENS AFTER THIS REPLY",
         _matches_page_work,
         _read_page_work,
+        of_the_world=True,
         examples=(
             "Take the Open Extended Jungian Type Scales personality test on openpsychometrics.org. "
             "Before you start, tell me what type you think it will give you and why.",

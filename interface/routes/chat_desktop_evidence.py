@@ -1127,12 +1127,17 @@ def _about_the_world_now(user_message: str, seeks_the_world: bool) -> bool:
     evening is not the world's (13 November), and nor is a thing she is asked to make (12 November: "create a small
     HTML page at artifacts/live_runtime/..." was searched for, "live" in its path read as a word about now).
     """
+    import core.brain.observable_registry  # noqa: F401  (registers her readings)
+    from core.brain.observable_grounding import her_own_readings_answer
     from core.conversation.asks_about_the_world import is_about_her
     from core.intent.artifact_request import asks_for_an_artifact
     from core.language.asking_clauses import asking_clauses
     from core.search.research_pipeline import _query_is_current
 
     if not _query_is_current(user_message) or is_about_her(user_message) or asks_for_an_artifact(user_message):
+        return False
+    # Nor a question one of her own readings answers: the screen, the clipboard, the clock (15 November, 22:22).
+    if her_own_readings_answer(user_message):
         return False
     return bool(seeks_the_world) or any(_query_is_current(clause) for clause in asking_clauses(user_message))
 

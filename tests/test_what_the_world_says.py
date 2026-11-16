@@ -629,3 +629,20 @@ def test_a_word_about_time_in_a_remark_is_not_a_question_about_the_world_now() -
         assert _about_the_world_now(asked, seeks_the_world=False), asked
     for sought in ("Search for the current price of bitcoin", "latest iPhone release date"):
         assert _about_the_world_now(sought, seeks_the_world=True), sought
+
+
+def test_a_question_her_own_readings_answer_is_not_about_the_world_now() -> None:
+    """LIVE 15 November 2026, 22:22: "What is on my screen right now?" was searched on the web as something current.
+
+    A Microsoft page on its "Click to Do" feature went beside her turn, and her draft said she had read a window
+    labelled "Reading". The screen, the clipboard and the clock are hers to read; the world's questions stay current,
+    and her local reference corpus does not stand for the world ("what is the current price of bitcoin?").
+    """
+    from interface.routes.chat_desktop_evidence import _about_the_world_now
+
+    for hers in ("What is on my screen right now?", "what's on my clipboard right now?",
+                 "which app is in front right now?", "what time is it right now?"):
+        assert not _about_the_world_now(hers, seeks_the_world=False), hers
+    for asked in ("Is it raining in London right now?", "Who won the game tonight?", "Any news today?",
+                  "what is the current price of bitcoin?", "What's the weather in Paris right now?"):
+        assert _about_the_world_now(asked, seeks_the_world=False), asked
