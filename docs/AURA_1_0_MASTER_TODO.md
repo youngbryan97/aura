@@ -4819,9 +4819,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   with Finder in front: drawn in 0.80 s at x 824, y 316, the log read "1 call(s) of hers this turn follow the
   person's message: desktop_task", and her reply, 28 s after the request, was "Done. I drew a rectangle around the
   back button in your Finder window — it should be visible now at roughly x 824, y 316." The turn ended without
-  "requested_effect_observed_but_unconfirmed", which every desktop turn had ended on since 13 November. Still open:
-  the ring lasts 3 s and her words arrive about 25 s after it is gone, so "it should be visible now" is no longer
-  true when it is read.
+  "requested_effect_observed_but_unconfirmed", which every desktop turn had ended on since 13 November. The ring
+  lasted 3 s and her words arrived about 25 s after it was gone, so "it should be visible now" was no longer true when
+  read; a ring the turn drew is now drawn again where her reply is served (0d0849cc0). Live at 02:41: her reply,
+  "Done. I drew a box around the back button in Finder — it should be glowing at roughly x 824 / y 316 right now.",
+  went out and the log read "'back button' again as her words land: drawn" with it. That turn's transcript held the
+  one pointing as two desktop_task calls, the dispatcher's record of the task beside its step's; folded (def04d85f).
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
