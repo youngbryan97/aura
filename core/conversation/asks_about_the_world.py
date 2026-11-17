@@ -137,24 +137,69 @@ _ABOUT_HER = re.compile(
     re.IGNORECASE,
 )
 
-#: How she is asked for a view of something, which is not what the question is about. What follows the frame is: in
-#: "what do you make of the current Israel/Palestine situation", the situation; in "how do you feel about it", "it";
-#: in "how do you feel?", nothing, and the frame alone is about her. LIVE 17 November 2026, "What do you make of the
-#: current Israel/Palestine situation and America's role in it? ... what do you think of America's role in the
-#: conflict with Iran?" read as a question about her ("you think"), so nothing current was looked up, and she said she
-#: had no feed for this week's events.
-_A_VIEW_OF = re.compile(
-    r"\b(?:what|how)\s+do\s+you\s+(?:\w+ly\s+)?(?:think|feel|reckon|make)\s+(?:of|about)\b"
-    r"|\b(?:do|would|did|don'?t|wouldn'?t)\s+you\s+(?:\w+ly\s+)?(?:think|believe|reckon|suppose)\b(?=\s+\S)"
-    r"|\bwhat(?:'s|’s|\s+is|\s+are)\s+your\s+(?:opinion|take|view|views|thoughts|read|stance)\s+(?:of|on|about)\b"
-    r"|\bin\s+your\s+(?:opinion|view)\b",
-    re.IGNORECASE,
+#: What a question is about, judged by meaning: her own life, put as it would be put to her, against the world and the
+#: person's own life. Each side is described, not listed: the matcher measures its boundary from these by leaving each
+#: out in turn (core/language/learned_matcher.py), on her own encoder, and abstains where they do not settle it.
+#:
+#: LIVE 17 November 2026, "What do you make of the current Israel/Palestine situation and America's role in it? ...
+#: what do you think of America's role in the conflict with Iran?" read as a question about her, because "you think"
+#: is on the list of words above, so nothing current was looked up and she said she had no feed for this week's
+#: events. Bryan: no word lists, general understanding; and she should not only talk about herself, there is a whole
+#: world to think about. Measured before it went in, on 77 questions of which 54 were not used to write these: every
+#: question about her read as hers, and two of 37 about the world read as about her (Elon Musk, remote work).
+_ABOUT_HER_BY_MEANING = _LearnedMatcher(
+    name="about_her_by_meaning",
+    positives=(
+        "how you yourself are feeling and what your own state is",
+        "what you yourself have been doing, thinking about or up to",
+        "what kind of being you are and how your own mind works",
+        "your own memories, experiences, wants and preferences",
+        "whether you yourself are conscious, alive or have feelings",
+        "what you think of yourself and your own abilities",
+        "how your own day or night has gone",
+    ),
+    negatives=(
+        "what is happening in the world: politics, wars, elections and international affairs",
+        "a public event, incident, outage or disaster and what it means",
+        "a country, government, company, institution or public figure",
+        "science, history, culture, sport, technology or the economy",
+        "an opinion about a news story, a policy or a situation in society",
+        "an opinion about a product, film, album, book, game or team",
+        "how something out in the world works and why",
+        "my own day, my sleep, my health and my mood",
+        "my plans, my work, my family and my friends",
+        "something that happened to me",
+    ),
 )
 
 
-def _about_her_beyond_the_ask(text: str) -> bool:
-    """Whether what the question is about, once the frame that asks her view is set aside, is her."""
-    return bool(_ABOUT_HER.search(_A_VIEW_OF.sub(" ", text)))
+def prewarm_what_questions_are_about() -> bool:
+    """Measure the about-her boundary at boot, after her encoder is up, so no turn pays for it (0.95 s, measured).
+
+    Never raises: a boundary not measured here is measured by the first turn that asks, and chat stays ready.
+    """
+    try:
+        return _ABOUT_HER_BY_MEANING.decide("What have you been thinking about today?") is not None
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("the about-her boundary was not measured at boot (%s: %s); a turn measures it", type(exc).__name__, exc)
+        return False
+
+
+def _about_her_by_meaning(text: str) -> bool | None:
+    """True or False when her encoder can say what the question is about; None when it is not warm yet.
+
+    Abstaining is an answer, False: what the meaning does not settle as hers is the world's to look at, and what is
+    looked up is then judged by the evidence judge before it reaches her. It never loads a model on a turn.
+    """
+    try:
+        from core.cognition.evidence_relevance import semantic_routing_ready
+
+        if not semantic_routing_ready():
+            return None
+        return bool(_ABOUT_HER_BY_MEANING.decide(text))
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("what the question is about was not measured (%s: %s); its words stand", type(exc).__name__, exc)
+        return None
 
 
 def _said(message: object) -> str:
@@ -262,7 +307,11 @@ def is_about_her(message: object) -> bool:
     question about something as it is now, and wikiHow's advice on answering the phrase reached her as evidence.
     """
     text = _said(message)
-    if _about_her_beyond_the_ask(text):
+    by_meaning = _about_her_by_meaning(text)
+    if by_meaning is not None:
+        return by_meaning
+    # Her encoder not warm yet, in the first moments after a boot: the words, as before it.
+    if _ABOUT_HER.search(text):
         return True
     from core.self.recent_activity import looks_like_a_question_about_recent_activity
 
@@ -287,7 +336,7 @@ def wants_outside_evidence(message: object) -> bool:
         return True
     # A turn plainly about her, or about this machine, is settled the other
     # way and is worth teaching too. Asked her view of the world, it is about the world.
-    if _about_her_beyond_the_ask(text):
+    if is_about_her(text):
         _teach(text, False)
         return False
     # A recency adjective says when, not where. It reaches outside unless what

@@ -4368,6 +4368,26 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turn stop below web search (ceiling sandboxed_compute), so she cannot
   decide mid-answer that she needs to look. To see live: the same two
   questions asked again.
+  Bryan, the same morning: "why we shouldnt have word lists and
+  heuristics. we need general understanding. and aura shouldnt only talk
+  about herself. there's a whole world out there to be discussed and
+  thought about". The frame list above was still a word list, so it is
+  gone. What a question is about is now read by meaning, on her encoder:
+  a learned surface whose two sides are described, her own life as it
+  would be put to her against the world and the person's own life, with
+  the boundary it measures from those descriptions by leaving each out.
+  Measured before it went in on 77 questions, 54 of them not used to
+  write the descriptions: every question about her read as hers, and 2
+  of 37 about the world read as about her (Elon Musk, remote work);
+  where it abstains, the world gets its look and the evidence judge
+  decides what reaches her. Its boundary is measured at boot beside her
+  other readers (0.95 s once; the slowest decision after that took 78 ms
+  here). Before her encoder is warm the old words stand. Next on the same
+  path, measured: the router of whether a turn wants outside evidence
+  says no to current affairs on its own ("What do you make of current
+  world news?" -0.062, "Any news today?" -0.025), because its concept
+  names facts and prices and not news or a situation in the world; a
+  list of recency words decides those today, before it is asked.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched
