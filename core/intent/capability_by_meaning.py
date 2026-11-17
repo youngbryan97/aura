@@ -156,3 +156,23 @@ class Meanings:
                     )
                 except OSError as why:
                     logger.info("what a capability served could not be kept: %s", why)
+
+    def forget(self, text: str, name: str) -> bool:
+        """``text`` is no longer one of ``name``'s meanings: a lesson that did not hold, taken back. Whether it was one."""
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        text = " ".join(str(text or "").split())[:400]
+        with self._served_lock:
+            kept = self.served.get(name, [])
+            if text not in kept:
+                return False
+            self.served[name] = [t for t in kept if t != text]
+            if self._store is not None:
+                try:
+                    get_file_write_gateway().write_text(
+                        self._store, json.dumps(self.served, indent=1),
+                        source="capability_by_meaning.forget", durable=False,
+                    )
+                except OSError as why:
+                    logger.info("a lesson taken back could not be kept: %s", why)
+        return True

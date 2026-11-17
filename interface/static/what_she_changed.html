@@ -101,6 +101,29 @@
     .then((data) => {
       const root = document.getElementById("days");
       root.textContent = "";
+      const gaps = data.gaps || [];
+      if (gaps.length) {
+        const section = el("section");
+        section.append(el("h2", "", "What she said she could not do · " + gaps.length));
+        const list = el("div", "changes");
+        gaps.slice(0, 30).forEach((g) => {
+          const card = el("article");
+          const top = el("div", "top");
+          top.append(el("span", "state " + (g.mended ? "landed" : "waits"), g.finding));
+          top.append(el("span", "summary", g.said));
+          card.append(top);
+          const dl = el("dl");
+          row(dl, "Asked", g.asked);
+          row(dl, "Capability", g.capability, true);
+          row(dl, "What became of it", g.detail);
+          row(dl, "Mended", g.mended);
+          row(dl, "When", new Date(g.at * 1000).toLocaleString());
+          card.append(dl);
+          list.append(card);
+        });
+        section.append(list);
+        root.append(section);
+      }
       const days = data.days || [];
       if (!days.length) {
         root.append(el("p", "empty", data.error ? "Her record could not be read just now." :

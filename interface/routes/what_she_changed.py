@@ -20,9 +20,12 @@ async def her_changes() -> JSONResponse:
     """Her changes grouped by day (core/agency/what_she_changed.py), read off her event loop."""
     from core.agency.what_she_changed import changes_by_day
 
+    from core.agency.gaps_she_names import kept_gaps
+
     try:
         days = await asyncio.to_thread(changes_by_day)
+        gaps = list(reversed(await asyncio.to_thread(kept_gaps)))
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("what_she_changed", exc, severity="info", action="the page shows no changes this time")
-        return JSONResponse({"days": [], "error": type(exc).__name__}, status_code=503)
-    return JSONResponse({"days": days})
+        return JSONResponse({"days": [], "gaps": [], "error": type(exc).__name__}, status_code=503)
+    return JSONResponse({"days": days, "gaps": gaps})

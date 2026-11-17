@@ -932,15 +932,15 @@ async def _run_chat_turn_memory_log_item(
                 return "retry", "episodic_memory_did_not_commit"
             await _mark_chat_turn_memory_log_stage(operation_id, "episodic")
 
-        # Keep the complete conversation-experience fanout under the same
-        # durable owner: semantic continuity, shared ground, coding-session
-        # memory and relationship state must not depend on HTTP response time.
+        # The experience fanout stays with this durable owner, so none of it depends on HTTP response time.
+        from core.agency.gaps_she_names import hear_what_she_said_she_cannot  # F16 part 4: what she said she can't
         from core.runtime.conversation_support import record_conversation_experience
 
         if not bool(payload.get("experience_recorded")):
             await record_conversation_experience(user_message, aura_response, principal_id=user_id or None,
                                                  tool_receipts=receipts)
             watch_a_typed_exchange(user_id, user_message, aura_response)  # her model of them: a typed turn runs no phase
+            await asyncio.to_thread(hear_what_she_said_she_cannot, user_message, aura_response, receipts)
             await _mark_chat_turn_memory_log_stage(operation_id, "experience")
 
         if not admission.ok:
