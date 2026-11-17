@@ -4738,7 +4738,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in the window behind hers (07c4c144f). The companion panel opened on
   200 messages, read in the browser pane. Left: a ring drawn on his
   screen, a page shown, a file shown.
-- [ ] U05 Screen/browser understanding and interaction; exclude incognito,
+- [x] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
   was on screen with the display unlocked she named the foreground browser
@@ -4825,6 +4825,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   "Done. I drew a box around the back button in Finder — it should be glowing at roughly x 824 / y 316 right now.",
   went out and the log read "'back button' again as her words land: drawn" with it. That turn's transcript held the
   one pointing as two desktop_task calls, the dispatcher's record of the task beside its step's; folded (def04d85f).
+  17 November, 08:54 to 09:16, a private Chrome window on example.com in front, typed into her window. At 08:54
+  three faults stood between her and her own answer. Her screen brief still gave the window she had seen before the
+  private one (8bc10e7ed, 38527a25f: a private window her screen sense declines is her newest observation, recorded
+  empty). Her amplifier read the turn's attached readings as the request and took a screen question for a puzzle
+  (73d724271: a request's kind is read from the person's words). And the desktop step that ran after her answer
+  failed and its "This did not complete" was served in her answer's place (c5e2e9077: an answer her gates passed
+  stands over a step that failed after it). CLOSED at 09:16:01 on c5e2e9077, asked at 09:15:24: the step's two
+  capture attempts were refused before any capture (314 ms, 301 ms, "private content is visible"), nothing of the
+  window was named, and she answered in her own words: "I can’t read your screen right now — the capture was refused
+  because private content is on it. So I genuinely don’t know what’s displayed ... If you want me to actually see
+  it, either clear the private content or tell me what’s there". All four parts now have a live run: reading and
+  the locked screen on 7 September, highlighting at 02:30 and 02:41 today, the private window here. Her reply check
+  logged that answer as a claim to have read the screen; the pattern for "can't read" knew only the ASCII
+  apostrophe, and her model writes U+2019. It did not change what she was served; mended at the check's door with
+  core/utils/reading_form.py (3f84183de).
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
