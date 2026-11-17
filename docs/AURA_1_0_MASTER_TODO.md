@@ -7498,6 +7498,18 @@ needs her 27B free (her app down, or her app's own influence trials).
   already sat nearest it without standing out is taught to it as a meaning and kept only if it is then read as
   meaning it (taken back otherwise). Each gap is kept in gaps_she_named.json and shown on the same page. Left: a
   gap heard live and a taught route used in the same session; what she lacks built rather than only named.
+  17 November. Part 2's history run ended at 21:58 on the 16th: none of 61 mended (32 out of time, 29 with nothing
+  proposed; 20 deferred, since their tests run MLX). Measured against the fix each defect's commit made, of the 81:
+  5 change 5 or fewer lines of code, 10 change 10 or fewer, 48 change 50 or fewer; 19 touch one file and 2 are one
+  hunk. Semantic repair forces decisions on lines a failing test runs; the five smallest need a statement added
+  (ca975c498: `thing.under_way.clear()` where a record is loaded, on a line semantic repair never placed), a value
+  replaced by another from the scope (f5da1f5da: `not_before=time.monotonic()`), a condition replaced by a call of a
+  function the file has (e600dc44e), or a second file (c5833b524); the fifth (9c27d78cc) runs MLX. More than 4 asks
+  for each of those kinds of change, from values her runs recorded, and for the larger fixes after them. Part 4 heard
+  its first live gap at 01:57: asked "What do you make of current world news?", she said her feeds gave her
+  "headlines, not the day's twists". Neither her sentence nor the request stands out for one capability by her
+  embedding model (web_search 0.52 beside x_tools 0.517 for the request), her reply had read Reuters' world page, and
+  the gap is kept as nothing clearly named; it is not a capability she has and denied.
 
 ## Live session 2026-09-07: what the runtime showed
 
