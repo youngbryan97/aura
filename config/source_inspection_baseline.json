@@ -11,7 +11,6 @@
     "tests/test_action_postcondition_cp126.py": 5,
     "tests/test_actuator_registry_cp126.py": 8,
     "tests/test_admission_receipts_are_complete_and_fresh.py": 1,
-    "tests/test_agency_core_governance.py": 1,
     "tests/test_alife_is_causal.py": 1,
     "tests/test_allostasis_forecast_integrity.py": 11,
     "tests/test_allostasis_statistical_integrity.py": 13,
@@ -170,7 +169,7 @@
     "tests/test_worker_terminal_contracts.py": 4,
     "tests/test_workspace_context_admission.py": 3
   },
-  "total": 496,
+  "total": 495,
   "overhang": {
     "tests/brain/test_decode_budget_termination.py": 3,
     "tests/brain/test_latent_budget_decline_releases_owner.py": 2,
@@ -427,7 +426,6 @@
     "tests/test_support_for_a_goal_survives_a_reboot.py": 1,
     "tests/test_surface_prompt_is_bound_to_its_own_turn.py": 1,
     "tests/test_taking_a_lock_does_not_fsync.py": 1,
-    "tests/test_the_answer_is_not_followed_by_the_ledger.py": 1,
     "tests/test_the_authority_head_is_one_string.py": 1,
     "tests/test_the_body_can_feel_what_arrives.py": 3,
     "tests/test_the_call_gets_the_room_the_turn_decided_on.py": 2,
@@ -482,6 +480,6 @@
     "tests/test_writing_about_her_evening_uses_her_record.py": 2,
     "tests/voice/test_wake_audio_attribution.py": 1
   },
-  "overhang_total": 744,
+  "overhang_total": 742,
   "overhang_recorded": "2026-09-20"
 }

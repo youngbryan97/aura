@@ -390,25 +390,13 @@ async def _execute_desktop_objective_from_chat(
             # step count is bookkeeping about the machinery; appending it to
             # "Chrome is in front, showing …" turns an answer back into a
             # progress report, and nobody asked how many steps it took to
-            # look at their own screen. Non-perception observations keep it.
-            # An observation that reports the outcome IS the answer.
-            #
-            # The step count is bookkeeping about the machinery, and this file
-            # already says so twice — for perceptions, and for deliverables.
-            # It is just as true here: "Reached it: '256' appeared after 25
-            # move(s). 6 of them did what I expected. (Completed 1/1 governed
-            # desktop steps.)" answers the question and then reads the ledger
-            # out after it. Nobody asked how many governed steps it took.
-            #
-            # LIVE 2026-08-26, on the run where she actually got there.
-            answers_the_question = bool(result.get("observation_meta")) or _reports_an_outcome(
-                observation
-            )
-            response = (
-                observation
-                if answers_the_question
-                else f"{observation} (Completed {completed}/{requested} governed desktop steps.)"
-            )
+            # look at their own screen, and the same holds for any observation.
+            # What it observed, and not the ledger after it: "Reached it: '256' appeared after 25 move(s). ...
+            # (Completed 1/1 governed desktop steps.)" (LIVE 2026-08-26) read the machinery's count out after the answer.
+            # A word list (_AN_OUTCOME: "done", "failed", "could not" ...) decided which observations kept the count, and
+            # on 17 November 2026 her record held "failed" wrong more than once, which the formed constraint refuses.
+            # Nobody asked how many governed steps anything took.
+            response = observation
         else:
             # What was PRODUCED, not how many steps produced it.
             #
@@ -1071,21 +1059,6 @@ def _perception_needs_her_own_answer(result: dict[str, Any], objective: str) -> 
             action="served the screen description because answer shape was undecidable",
         )
         return False
-
-
-#: How an observation says it is reporting an outcome rather than describing
-#: a screen. Both halves of the thing a person asked for: whether it happened,
-#: and what happened.
-_AN_OUTCOME = re.compile(
-    r"\b(?:reached it|reached the|got there|it worked|done|finished|completed|"
-    r"could not|couldn'?t|failed|gave up|stopped)\b",
-    re.IGNORECASE,
-)
-
-
-def _reports_an_outcome(observation: str) -> bool:
-    """Whether this already tells the person how the thing they asked for went."""
-    return bool(_AN_OUTCOME.search(str(observation or "")))
 
 
 def _desktop_task_observation(result: dict[str, Any]) -> str:
