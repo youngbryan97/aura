@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from core.runtime.errors import record_degradation
+from core.utils.text_after_removal import closed_up
 
 logger = logging.getLogger(__name__)
 
@@ -515,9 +516,7 @@ def verify_grounded_claims(reply: str, *, now: datetime | None = None) -> Ground
             text = _repair_sentences(text, behaviour_sentences, _UNBUILT_ARTIFACT_NOTE)
 
     if corrections:
-        text = re.sub(r"[ \t]{2,}", " ", text)
-        text = re.sub(r"\s+([.,;!?])", r"\1", text)
-        text = re.sub(r"(?m)^\s+", "", text).strip()
+        text = closed_up(text)  # the gaps closed, a line's indentation and fenced code kept
         try:
             record_degradation(
                 "grounded_claim_guard",

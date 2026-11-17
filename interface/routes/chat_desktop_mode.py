@@ -21,6 +21,7 @@ from core.runtime.structured_input import (
     analyze_prompt_shape,
 )
 from core.utils.injected_blocks import stamp_runtime_payload
+from core.utils.text_after_removal import closed_up
 from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
 from interface.routes import chat_desktop_objective as _chat_desktop_objective  # noqa: E402
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
@@ -114,7 +115,7 @@ from .chat_own_source import (
     _explains_the_finding,  # noqa: F401
     _self_process_requested_dimensions,
     _turn_asks_where_that_came_from,  # noqa: F401
-    )
+)
 from .chat_reply_shaping import (  # noqa: E402
     _append_turn_text_mutation,
 )
@@ -1529,8 +1530,7 @@ def _cites_nothing(text: object) -> bool:
 
 def _strip_empty_citations(text: object) -> str:
     """Remove citation shapes that carry no source."""
-    cleaned = _EMPTY_CITATION_RE.sub("", str(text or ""))
-    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+    return closed_up(_EMPTY_CITATION_RE.sub("", str(text or "")))
 
 
 def _best_search_result_entry(result: dict[str, Any]) -> dict[str, str]:

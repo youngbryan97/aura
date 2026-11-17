@@ -80,6 +80,7 @@ from core.runtime.structured_input import (
 )
 from core.runtime.turn_outcome import note_candidate, note_suppression
 from core.utils.reading_form import as_read
+from core.utils.text_after_removal import closed_up
 
 from .response_reliability_requests import (  # noqa: F401  (re-exported: they were defined here)
     _BREVITY_PSEUDO_PHRASE_HEADS,
@@ -2562,10 +2563,7 @@ def _plain_text_maths(text: str) -> str:
     rendered = re.sub(r"\\\[\s*", "\n", rendered)
     rendered = re.sub(r"\s*\\\]", "\n", rendered)
     rendered = _MATHS_DELIMITERS_RE.sub("", rendered)
-    rendered = re.sub(r"[ \t]{2,}", " ", rendered)
-    rendered = re.sub(r"\n{3,}", "\n\n", rendered)
-    rendered = re.sub(r"(?m)[ \t]+$", "", rendered)
-    return rendered
+    return closed_up(rendered)
 
 
 def _list_item_bodies(reply_text: Any) -> list[str]:

@@ -26,6 +26,7 @@ from core.brain.llm.latent_cortex.output_quality import (
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import resolve_inference_gate
+from core.utils.text_after_removal import closed_up
 from interface.routes import chat_delivery as _chat_delivery  # noqa: E402
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
@@ -331,15 +332,20 @@ def _merge_turn_text_mutations(
 
 
 def _without_sentences(text: str, sentences: list[str]) -> str:
-    """The text with each named sentence removed, whitespace closed up."""
+    """The text with each named sentence removed, and the gaps closed where they were (core/utils/text_after_removal.py).
+
+    It closed them by rewriting every line, which left every line flush left: LIVE 17 November 2026 a Python function
+    in her reply was stored without its indentation after a sentence elsewhere in the reply was taken out.
+    """
     out = str(text or "")
     for sentence in sentences:
         needle = str(sentence or "").strip()
         if not needle:
             continue
-        out = out.replace(needle, "")
-    lines = [" ".join(line.split()) for line in out.splitlines()]
-    return "\n".join(line for line in lines if line or True).strip()
+        escaped = re.escape(needle)
+        out = re.sub(r"(?m)^([ \t]*)" + escaped + r"[ \t]*", r"\1", out)  # starting a line: its indentation stays
+        out = re.sub(r"[ \t]*" + escaped, "", out)  # inside a line: with the space before it
+    return closed_up(out)
 
 
 def _drop_sentences_that_put_words_in_his_mouth(
