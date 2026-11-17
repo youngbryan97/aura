@@ -17,6 +17,7 @@ import gc
 import linecache
 import logging
 import os
+import queue
 import re
 import sys
 import threading
@@ -27,7 +28,7 @@ from core.runtime.lockdep import LOOP_BLOCKING_HOLD_S
 from core.runtime.which_thread_may_do_this import the_loop_thread
 
 __all__ = ["asked_for_collections", "collector_pauses", "freeze_what_boot_made", "install_collector_timing",
-           "uninstall_collector_timing"]
+           "say_what_was_measured", "uninstall_collector_timing"]
 
 logger = logging.getLogger("Aura.CollectorPauses")
 
@@ -41,6 +42,16 @@ _ASKS_FOR_ONE = re.compile(r"\bgc\.collect\(")
 #: for, not only those past the loop budget, so that a change to what it asks for is measured on the same terms.
 _ASKED_FOR: dict[str, list[tuple[float, float, int, int]]] = {}
 _ASKED_FOR_KEPT = 512
+
+#: A collection past the budget, waiting to be said. A collection runs on whatever thread allocated, inside whatever
+#: that thread holds, so it is said from another thread: logging takes the handlers' locks, and a handler can take a
+#: lock the collecting thread already holds. LIVE 17 November 2026, 14:07 local, a full collection set off inside
+#: lockdep's own bookkeeping (core/runtime/lockdep.py, on_acquire, under its registry lock) logged from here; her log
+#: handler took a checked lock, lockdep asked for its registry lock again on the same thread, and every thread that
+#: took a checked lock after it, her event loop among them, waited for good. SimpleQueue.put is reentrant: Python
+#: documents it as safe from __del__ and weakref callbacks, which run where this does.
+_UNSAID: queue.SimpleQueue = queue.SimpleQueue()
+_REPORTER: threading.Thread | None = None
 
 
 def _asked_for_at(frame: Any) -> str:
@@ -94,30 +105,75 @@ def _timed(phase: str, info: dict[str, Any]) -> None:
         del held[:-_ASKED_FOR_KEPT]
     if took > LOOP_BLOCKING_HOLD_S:
         row[3] += 1
-        on_the_loop = thread == the_loop_thread()
-        logger.info(
-            "🗑️ a generation-%d collection held %s %.0f ms (collected %s, uncollectable %s), %s",
-            generation,
-            "her event loop" if on_the_loop else "a thread",
-            took * 1000.0,
-            info.get("collected", "?"),
-            info.get("uncollectable", "?"),
-            _where_it_came_from(sys._getframe(1)),
-        )
+        _UNSAID.put((generation, thread == the_loop_thread(), took, info.get("collected", "?"),
+                     info.get("uncollectable", "?"), _where_it_came_from(sys._getframe(1))))
+
+
+def _say(measured: tuple[Any, ...]) -> None:
+    generation, on_the_loop, took, collected, uncollectable, where = measured
+    logger.info(
+        "🗑️ a generation-%d collection held %s %.0f ms (collected %s, uncollectable %s), %s",
+        generation, "her event loop" if on_the_loop else "a thread", took * 1000.0, collected, uncollectable, where,
+    )
+
+
+def _report() -> None:
+    while True:
+        item = _UNSAID.get()
+        if item is None:
+            return
+        if isinstance(item, threading.Event):
+            item.set()
+            continue
+        _say(item)
+
+
+def _say_here() -> None:
+    while True:
+        try:
+            item = _UNSAID.get_nowait()
+        except queue.Empty:
+            return
+        if isinstance(item, threading.Event):
+            item.set()
+        elif item is not None:
+            _say(item)
+
+
+def say_what_was_measured(timeout_s: float = 5.0) -> None:
+    """Every collection measured so far past the budget is in her log when this returns, for a reader that needs it
+    now. Not to be called from inside a collection."""
+    reporter = _REPORTER
+    if reporter is None or not reporter.is_alive():
+        _say_here()
+        return
+    said = threading.Event()
+    _UNSAID.put(said)
+    said.wait(timeout_s)
 
 
 def install_collector_timing() -> bool:
     """Start timing collections; True when it was not already on."""
+    global _REPORTER
     if _timed in gc.callbacks:
         return False
+    if _REPORTER is None or not _REPORTER.is_alive():
+        _REPORTER = threading.Thread(target=_report, name="aura-collector-pauses", daemon=True)
+        _REPORTER.start()
     gc.callbacks.append(_timed)
     return True
 
 
 def uninstall_collector_timing() -> None:
-    """Stop timing collections and forget what was measured."""
+    """Stop timing collections, say what was measured, and forget it."""
+    global _REPORTER
     while _timed in gc.callbacks:
         gc.callbacks.remove(_timed)
+    reporter, _REPORTER = _REPORTER, None
+    if reporter is not None and reporter.is_alive():
+        _UNSAID.put(None)
+        reporter.join(timeout=5.0)
+    _say_here()
     _BEGAN.clear()
     _BY_GENERATION.clear()
     _ASKED_FOR.clear()

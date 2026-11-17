@@ -36,6 +36,7 @@ def test_a_pause_past_the_loop_budget_is_said(monkeypatch, caplog):
     collector_pauses.install_collector_timing()
     with caplog.at_level(logging.INFO, logger="Aura.CollectorPauses"):
         gc.collect(1)
+        collector_pauses.say_what_was_measured()
     said = [r.getMessage() for r in caplog.records if "collection held" in r.getMessage()]
     assert said and "generation-1" in said[0]
     assert collector_pauses.collector_pauses()["generations"]["1"]["over_budget"] >= 1
@@ -81,6 +82,7 @@ def test_a_long_collection_says_whether_a_line_asked_for_it_or_an_allocation_set
     try:
         with caplog.at_level(logging.INFO, logger="Aura.CollectorPauses"):
             made = [[] for _ in range(50)]
+            collector_pauses.say_what_was_measured()
     finally:
         gc.set_threshold(*previous)
         collector_pauses.uninstall_collector_timing()
@@ -112,3 +114,39 @@ def test_each_line_that_asks_for_collections_is_measured_over_a_window():
     assert full["collections"] == 3 and young["collections"] == 1
     assert full["total_s"] >= full["median_s"] > 0
     assert collector_pauses.asked_for_collections(since=time.time() + 60) == {}
+
+
+def test_a_collection_inside_a_section_whose_lock_logging_needs_does_not_wedge_the_thread(monkeypatch):
+    """LIVE 2026-11-17, 14:07 local: a full collection set off inside lockdep's bookkeeping logged from its callback, the
+    log handler took a lock lockdep was already holding on that thread, and her event loop waited behind it for good."""
+    import threading
+
+    held = threading.Lock()  # not reentrant: what lockdep's registry lock is
+
+    class _NeedsTheLock(logging.Handler):
+        def emit(self, record):
+            with held:
+                pass
+
+    handler = _NeedsTheLock()
+    log = logging.getLogger("Aura.CollectorPauses")
+    log.addHandler(handler)
+    previous_level = log.level
+    log.setLevel(logging.INFO)
+    monkeypatch.setattr(collector_pauses, "LOOP_BLOCKING_HOLD_S", -1.0)
+    collector_pauses.install_collector_timing()
+
+    def collect_inside_the_section():
+        with held:
+            gc.collect(2)
+
+    worker = threading.Thread(target=collect_inside_the_section, daemon=True)
+    try:
+        worker.start()
+        worker.join(timeout=10.0)
+        assert not worker.is_alive(), "the collecting thread waited on its own lock"
+        collector_pauses.say_what_was_measured()
+    finally:
+        collector_pauses.uninstall_collector_timing()
+        log.removeHandler(handler)
+        log.setLevel(previous_level)
