@@ -26,7 +26,7 @@ def quiet_host(monkeypatch):
     monkeypatch.setattr(policy, "_VOLITION_RATE", 1.0)
     monkeypatch.setattr(policy, "foreground_only_runtime", lambda: False)
     monkeypatch.setattr(policy, "background_cognition_disabled_reason", lambda **_: "")
-    monkeypatch.setattr(policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(policy, "_foreground_activity_reason", lambda **_: "")
     monkeypatch.setattr(policy, "_read_compute_pressure_reason", lambda: "")
     monkeypatch.setattr(
         policy,

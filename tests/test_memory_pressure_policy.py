@@ -207,7 +207,7 @@ def test_background_policy_blocks_on_process_tree_rss_even_when_system_memory_is
         process_tree_rss_bytes=20 * 1024**3,
     )
     monkeypatch.setenv("AURA_PROCESS_RSS_LIMIT_GB", "18")
-    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda **_: "")
     monkeypatch.setattr(
         background_policy,
         "get_unified_failure_state",
@@ -232,7 +232,7 @@ def test_constitutive_compute_budget_throttles_on_process_tree_rss_pressure(
         process_tree_rss_bytes=20 * 1024**3,
     )
     monkeypatch.setenv("AURA_PROCESS_RSS_LIMIT_GB", "18")
-    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda **_: "")
     monkeypatch.setattr(
         background_policy,
         "get_unified_failure_state",
@@ -297,7 +297,7 @@ def test_background_policy_defers_optional_work_under_cpu_pressure(
     monkeypatch.delenv("AURA_ENABLE_BACKGROUND_COGNITION", raising=False)
     monkeypatch.setenv("AURA_BACKGROUND_HEAT_GUARD", "1")
     monkeypatch.setenv("AURA_BACKGROUND_MAX_CPU_PERCENT", "75")
-    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda **_: "")
     monkeypatch.setattr(
         background_policy,
         "_read_memory_pressure_snapshot",
@@ -331,7 +331,7 @@ def test_constitutive_compute_budget_throttles_under_cpu_pressure(
     monkeypatch.delenv("AURA_ENABLE_BACKGROUND_COGNITION", raising=False)
     monkeypatch.setenv("AURA_BACKGROUND_HEAT_GUARD", "1")
     monkeypatch.setenv("AURA_BACKGROUND_MAX_CPU_PERCENT", "75")
-    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda **_: "")
     monkeypatch.setattr(
         background_policy,
         "_read_memory_pressure_snapshot",

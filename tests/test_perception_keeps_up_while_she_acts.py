@@ -47,7 +47,7 @@ def generation_running(monkeypatch):
     monkeypatch.setattr(
         background_policy,
         "_foreground_activity_reason",
-        lambda: "foreground_generation_active",
+        lambda **_: "foreground_generation_active",
     )
 
 

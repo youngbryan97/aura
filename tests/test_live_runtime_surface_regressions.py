@@ -368,7 +368,7 @@ def test_background_policy_defers_work_during_boot_grace(monkeypatch):
     monkeypatch.setattr(background_policy, "_PROCESS_STARTED_AT", time.time() - 300)
     # The readers that come before boot grace read the host. Left live, this
     # test answered "memory_pressure" whenever the machine was busy.
-    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda **_: "")
     monkeypatch.setattr(background_policy, "_read_compute_pressure_reason", lambda: "")
     monkeypatch.setattr(
         background_policy,
@@ -392,7 +392,7 @@ def test_background_policy_defers_until_first_visible_conversation_probe(monkeyp
     monkeypatch.delenv("AURA_AGI_MAX_TASKS", raising=False)
     monkeypatch.delenv("AURA_TESTING", raising=False)
     monkeypatch.setenv("AURA_BACKGROUND_BOOT_GRACE_S", "0")
-    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda **_: "")
     monkeypatch.setattr(background_policy, "_read_compute_pressure_reason", lambda: "")
     monkeypatch.setattr(
         background_policy,
@@ -433,7 +433,7 @@ def test_background_policy_resumes_after_visible_conversation_probe(monkeypatch)
     monkeypatch.delenv("AURA_AGI_MAX_TASKS", raising=False)
     monkeypatch.delenv("AURA_TESTING", raising=False)
     monkeypatch.setenv("AURA_BACKGROUND_BOOT_GRACE_S", "0")
-    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda **_: "")
     monkeypatch.setattr(background_policy, "_read_compute_pressure_reason", lambda: "")
     monkeypatch.setattr(
         background_policy,

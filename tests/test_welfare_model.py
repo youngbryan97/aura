@@ -117,7 +117,7 @@ def test_background_policy_consumes_welfare_gate(monkeypatch):
     )
     # Neutralize earlier gates so the welfare clause is what decides.
     monkeypatch.setattr(
-        background_policy, "_foreground_activity_reason", lambda: ""
+        background_policy, "_foreground_activity_reason", lambda **_: ""
     )
     reason = background_policy.background_activity_reason(
         allow_no_user_anchor=True,
