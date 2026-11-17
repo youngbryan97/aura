@@ -123,10 +123,15 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: Empty tension and choice stores leave directory creation to their governed save.
 #: 16 November, F15: the faults she heard are kept on disk through one governed
 #: write, so a restart does not lose them: 2,043.
-TOTAL_CEILING = 2043
+#: The same day, F16 semantic repair: the plan its probe reads is written and its
+#: record cleared through the gateway (two governed calls), and the probe appends
+#: what it saw with one raw write: 2,046.
+TOTAL_CEILING = 2046
 #: The document converter's private input uses a governed byte write.
 #: The two agency constructors no longer create directories.
-RAW_CEILING = 744
+#: F16's probe runs inside the instrumented test process in her workspace, outside
+#: her runtime's governance, and appends its record with a raw write: 745.
+RAW_CEILING = 745
 
 
 def _split() -> tuple[int, int]:

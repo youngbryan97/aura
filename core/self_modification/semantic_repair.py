@@ -379,7 +379,7 @@ def _plan_and_clear(plan: Path, record: Path, steps: Mapping[str, Any]) -> None:
     gateway = get_file_write_gateway()
     with local_internal_governed_scope("semantic_repair.plan", domain="file_write",
                                        constraints={"artifact": "aura.semantic_repair.plan.v1"}):
-        gateway.ensure_directory(plan.parent, source="semantic_repair")
+        # The atomic writer makes a missing parent itself.
         gateway.write_text(plan, json.dumps(dict(steps)), source="semantic_repair")
         gateway.delete_file(record, source="semantic_repair")
 
