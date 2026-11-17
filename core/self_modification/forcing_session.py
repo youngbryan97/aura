@@ -33,28 +33,34 @@ SPEC = "AURA_FORCINGS"
 _PROBE_FILE = Path(__file__).with_name("semantic_probe.py")
 
 
+def _written(path: Path, text: str) -> None:
+    """A scratch file of the search's own, through her write gateway: these are written in her process."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    with local_internal_governed_scope("forcing_session.scratch", domain="file_write",
+                                       constraints={"artifact": "aura.forcing_session.v1"}):
+        get_file_write_gateway().write_text(path, text, source="forcing_session")
+
+
 def pytest_invocation(spec: Path) -> tuple[list[str], dict[str, str]]:
     """The pytest arguments and environment that load this plugin for the plans in ``spec``."""
     shim = Path(tempfile.mkdtemp(prefix="aura-forcing-"))
-    (shim / f"{PLUGIN}.py").write_text(
-        "import importlib.util as _u\n"
-        f"_s = _u.spec_from_file_location({PLUGIN!r}, {str(Path(__file__))!r})\n"
-        "_m = _u.module_from_spec(_s)\n"
-        "_s.loader.exec_module(_m)\n"
-        "pytest_runtestloop = _m.pytest_runtestloop\n", encoding="utf-8")
+    _written(shim / f"{PLUGIN}.py",
+             "import importlib.util as _u\n"
+             f"_s = _u.spec_from_file_location({PLUGIN!r}, {str(Path(__file__))!r})\n"
+             "_m = _u.module_from_spec(_s)\n"
+             "_s.loader.exec_module(_m)\n"
+             "pytest_runtestloop = _m.pytest_runtestloop\n")
     path = os.pathsep.join(p for p in (str(shim), os.environ.get("PYTHONPATH", "")) if p)
     return ["-p", PLUGIN], {SPEC: str(spec), "PYTHONPATH": path}
 
 
 def write_spec(spec: Path, *, plan: Path, steps: Sequence[Mapping[str, Any]], results: Path,
                deadline: float) -> None:
-    """The plans for one session: the probe's plan file, each plan in order, where verdicts go, and when to stop.
-
-    A raw write, not her write gateway, for the reason semantic_probe.py gives for its record: a scratch file of the
-    search's own, read by a test process where her governance is not running."""
-    spec.parent.mkdir(parents=True, exist_ok=True)
-    spec.write_text(json.dumps({"plan": str(plan), "steps": list(steps), "results": str(results),
-                                "deadline": float(deadline)}), encoding="utf-8")
+    """The plans for one session: the probe's plan file, each plan in order, where verdicts go, and when to stop."""
+    _written(spec, json.dumps({"plan": str(plan), "steps": list(steps), "results": str(results),
+                               "deadline": float(deadline)}))
 
 
 def read_results(results: Path) -> list[dict[str, bool]]:
@@ -94,6 +100,8 @@ def pytest_runtestloop(session: Any) -> Any:
 
     spec = json.loads(Path(given).read_text(encoding="utf-8"))
     probe = _probe()
+    # A raw append, not her write gateway, for the reason semantic_probe.py gives for its record: this runs in the test
+    # process of whatever copy is being repaired, where her governance is not running.
     items = list(session.items)
     steps = list(spec.get("steps") or ())
     with open(spec["results"], "a", encoding="utf-8") as results:
