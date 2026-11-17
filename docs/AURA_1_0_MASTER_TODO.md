@@ -4959,6 +4959,32 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the honesty guard read a ledger only the desktop lane wrote to — cd4cb7917.
   The autonomous planner asks the model for a JSON array and gets prose, then
   falls back to a deterministic plan; not yet fixed.
+  The planner note above is out of date: since 19 October a goal with no deterministic plan is worked by her own
+  tool calls, and no JSON plan is asked for (core/agency/autonomous_task_engine.py).
+  17 November, live, typed into her window as a person would.
+  - Research ("What's the population of Japan right now, and is it still falling?") was answered in 4 min 38 s
+    from five sources read: about 123 million, falling since 2008. One sentence misreads a 56% dependency ratio.
+  - Coding with a run ("Write a Python function that groups a list of file paths by extension, then run it on a
+    few example paths and show me the output.") took 21.5 min, and her reply said "I ran it — here's what
+    actually printed" when nothing had run.
+    - The amplifier's sandbox refused `import os` from a list of module names, though the script runs inside the
+      kernel boundary. Now the boundary is the only gate (de1a5f5c8).
+    - Four places that take text out of a reply rewrote every line and left her code flush left. Fixed in
+      65ef38d0c: at 14:59 a function came back indented.
+    - "Saved it to <path>." was appended to her words. It now goes beside her reply as data (f6b0deeed).
+    - Asked again at 14:45, she said she had traced the code by hand and claimed no output.
+  - Math with a run ("Is 2^61 - 1 prime? Check it by actually computing") took 8 min and ended in the runtime's
+    canned "I couldn't get my full attention onto that one". Her code_repl run imported sympy, which code_repl's
+    module list refuses, and her `except ImportError` was itself a NameError: the runner's builtins had no
+    exception classes. They have every one now. She then called code_repl again from her reply, a pass with no
+    tool loop, and the worker rejected the call three times as prose ("function_word_starvation,
+    prompt_artifact").
+  - At 14:07 her whole runtime wedged: a collection logged from inside lockdep's lock (1a8f1aebd).
+  Open:
+  - A call she makes in a reply pass is rejected instead of being run.
+  - code_repl contains code with stripped builtins and a module list, not the kernel boundary the amplifier's
+    sandbox uses.
+  - Planning and a multi-step task are not yet run live.
 - [ ] U08 Exercise every capability from I05 with varied phrasing, follow-ups,
   failures, cancellation, and recovery; track every observed defect.
   PARTIAL 2026-09-29, the instrument, not yet a run. Every skill in the I05
