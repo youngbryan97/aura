@@ -45,6 +45,8 @@ def count_in(text: str) -> Any:
     No fix template and no checker mends it: it needs a condition over a value the function computes (``digits``),
     which only semantic repair finds, from the values her runs had there (semantic_repair.py)."""
     digits = text.strip()
+    if not digits:
+        return None
     return int(digits)
 
 
