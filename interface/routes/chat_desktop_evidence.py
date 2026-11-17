@@ -826,6 +826,12 @@ def _screen_perception_needs_her_answer(user_message: str) -> bool:
     about a second. "What was that repo?" is not: the reading is where the
     answer is found, not what the answer is.
     """
+    from core.runtime.desktop_objective_intent import asks_to_have_it_pointed_at
+
+    if asks_to_have_it_pointed_at(user_message):
+        # Pointed at first, and what came of it is hers to say: as self-sufficient work her cognition was skipped and
+        # the turn ended on a stand-in model's refusal (LIVE 16 November 2026, 20:23).
+        return True
     if not _is_screen_perception_objective(user_message):
         return False
     try:
@@ -853,11 +859,6 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
         return False
     if not _chat_preflight._looks_like_desktop_objective(user_message):
         return False
-    from core.runtime.desktop_objective_intent import asks_to_have_it_pointed_at
-
-    if asks_to_have_it_pointed_at(user_message):
-        # Pointing needs nothing composed: it is drawn first, and what it came to goes to her turn.
-        return True
     if _asks_what_is_on_the_screen(user_message):
         # A screen question is never answered by a PROMISE to look.
         #

@@ -129,3 +129,18 @@ async def test_the_window_she_pointed_in_is_named_with_what_came_of_it(monkeypat
     monkeypatch.setattr(screen_highlight, "_draw", drawn)
     result = await screen_highlight.highlight("back button", requested=True)
     assert result.shown and result.window == "Finder: bryan" and result.to_dict()["window"] == "Finder: bryan"
+
+
+def test_pointing_runs_before_her_cognition_and_her_cognition_still_answers():
+    """LIVE 16 November 2026, 20:23: marked self-sufficient, the pointing request skipped her cognition, and the turn
+    ended on a stand-in model's "I couldn't get to an answer I'd stand behind"."""
+    from core.runtime.desktop_objective_intent import asks_to_be_shown_where
+    from interface.routes.chat_desktop_evidence import (
+        _desktop_objective_self_sufficient_without_cognitive_text,
+        _screen_perception_needs_her_answer,
+    )
+
+    for asked in ("Can you highlight the back button for me?", "Show me where Downloads is."):
+        assert _screen_perception_needs_her_answer(asked), asked
+        assert not _desktop_objective_self_sufficient_without_cognitive_text(asked), asked
+    assert asks_to_be_shown_where("Can you highlight the back button for me?") == "back button"

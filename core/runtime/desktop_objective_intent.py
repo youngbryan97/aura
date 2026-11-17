@@ -1303,6 +1303,7 @@ _POINT_NEEDLE_TAILS: tuple[str, ...] = (
     "in the window",
     "right now",
     "please",
+    "for me",  # "Can you highlight the back button for me?" looked for "back button for me" (16 November 2026)
     "is",
     "at",
 )
