@@ -94,3 +94,14 @@ def test_the_page_and_its_route_are_served():
     assert any(getattr(route, "path", "") == "/api/self/changes" for route in inner_state.router.routes)
     page = Path("interface/static/what_she_changed.html").read_text(encoding="utf-8")
     assert 'fetch("/api/self/changes"' in page
+
+
+def test_an_older_landing_says_its_load_was_not_recorded_and_a_stalled_try_is_not_its_words(records):
+    from core.agency.what_she_changed import changes_by_day
+
+    record = _landed("older", at=1000.0)
+    record.said = [{"words": "Not mended: nothing proposed.", "at": 900.0}]
+    goals._write_now(record)
+    change = changes_by_day()[0]["changes"][0]
+    assert change["state"] == "landed, its load not recorded"
+    assert change["last_words"] == ""

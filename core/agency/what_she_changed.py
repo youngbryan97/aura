@@ -12,7 +12,7 @@ from typing import Any
 
 #: The order a day's changes are read in: what needs a person first.
 _STATES = ("undone, not yet taken back", "taken back out", "her gates refused it", "waits for Bryan",
-           "landed, waits for her next start", "landed and loaded")
+           "landed, waits for her next start", "landed, its load not recorded", "landed and loaded")
 
 
 def _state(record: Any) -> str:
@@ -24,6 +24,9 @@ def _state(record: Any) -> str:
     if offer.get("undone"):
         return "undone, not yet taken back"
     if record.status == MERGED:
+        if "loaded" not in offer:
+            # Landed before her record kept what was loaded (16 November 2026): not said to be waiting when it may not be.
+            return "landed, its load not recorded"
         loaded = offer.get("loaded") or {}
         return "landed and loaded" if loaded.get("functions") and not loaded.get("waits") else \
             "landed, waits for her next start"
@@ -56,7 +59,10 @@ def a_change(record: Any) -> dict[str, Any] | None:
         "waits": list(loaded.get("waits") or []),
         "undone_because": str(undone.get("because") or ""),
         "taken_back_by": str(offer.get("reverted") or ""),
-        "last_words": str((record.said or [{}])[-1].get("words") or "") if record.said else "",
+        # What she said of this change, not of a try before it: a mend that landed kept "Not mended: nothing proposed."
+        # from the attempt that stalled before it.
+        "last_words": next((str(said.get("words") or "") for said in reversed(record.said or [])
+                            if float(said.get("at") or 0.0) >= float(offer.get("at") or 0.0)), ""),
     }
 
 
