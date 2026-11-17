@@ -7533,6 +7533,17 @@ needs her 27B free (her app down, or her app's own influence trials).
   of `before.upper`, the change its commit made. The first of the 81 defects of her history mended this way. The
   whole history run started at 06:54 from a worktree pinned at a5ef0feff, its log at
   `~/.aura/rlc-evidence/repair-by-selection-20261018/her-own-python-20261117-sessions/progress.log`.
+  Part 3, built 17 November (b89cb954b). Her collector timing keeps every collection a line of hers asks for. On her
+  record of 15 to 17 November the line in her resource governor that asks for a full collection at its moderate and
+  aggressive memory tiers asked for 482, a median of 232 ms each and 127 s in all, freeing a median of 586 objects;
+  on the morning of the 17th, under a memory tier set off every 30 s, 89 in eighteen minutes, 105 to 140 ms each,
+  some freeing none. Her loop (core/agency/improving_by_measurement.py), when no heard fault is left to mend, finds
+  the line whose full collections held her longest since her start, each past her loop's budget at the median; asks
+  for a young collection there, made on the call in the syntax tree; takes it through her gates and loads it; and
+  once as much has run after it as before, keeps it when each collection holds her less and the line asks no more
+  often, or undoes it and takes it back out, and does not make it again. Her monitoring loop now wakes each interval
+  for it. Left: seen live. Her idle-time step is held by the background policy under memory pressure, which the
+  history run's two test processes beside her raise.
 
 ## Live session 2026-09-07: what the runtime showed
 
