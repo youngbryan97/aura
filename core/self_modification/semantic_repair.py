@@ -223,7 +223,12 @@ def _ingredients(function: ast.AST, target: ast.AST) -> tuple[tuple[str, ...], t
     texts = tuple(dict.fromkeys(text for *_, text in sorted(found) if text != own))
     pure = tuple(t for t in texts if _pure(ast.parse(t, mode="eval").body)
                  and not any(isinstance(n, ast.Call) for n in ast.walk(ast.parse(t, mode="eval").body)))
-    return texts, pure
+    # What can be read without a call first, then calls of nothing, then calls with arguments: each is tried in turn,
+    # and a read value's type and value say before a run whether it can be what the failing runs needed.
+    def cost(text: str) -> int:
+        calls = [n for n in ast.walk(ast.parse(text, mode="eval").body) if isinstance(n, ast.Call)]
+        return 0 if text in pure else 1 if all(not c.args and not c.keywords for c in calls) else 2
+    return tuple(sorted(texts, key=cost)), pure
 
 
 def _values_read(node: ast.AST) -> list[ast.AST]:
@@ -555,8 +560,9 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
         return
     unforced = await asyncio.to_thread(_rows, record)
     gathered: list[tuple[tuple[int, int, int], Place, str]] = []
-    order = 0
-    for place in places:
+    notes: dict[str, tuple[dict[str, Any], list[dict[str, Any]], int]] = {}
+    queues: list[tuple[Place, list[tuple[dict[str, Any], Any]]]] = []
+    for order, place in enumerate(places):
         kept_runs = [r for r in unforced if r.get("location") == place.id
                      and any(_matches(t, _test_of(r)) for t in held)]
         reached_failing = any(r.get("location") == place.id and any(_matches(t, _test_of(r)) for t in failing)
@@ -565,66 +571,76 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
                                 "text": place.text, "reached_by_failing": reached_failing,
                                 "passing_runs": len(kept_runs)}
         evidence.places.append(note)
-        if not reached_failing:
+        notes[place.id] = (note, kept_runs, order)
+        if reached_failing:
+            queues.append((place, _forcings(place, unforced, failing)))
+    # Every decision first, a place at a time: each has a few ways to be forced. Then the values, the nearest candidate
+    # of every value before the next of any: a value has as many candidates as its function has expressions, and the
+    # one a fix reuses is most often near it. LIVE 17 November 2026 the run on f5da1f5da spent its ten minutes on the
+    # candidates of three values, place by place, and never reached the fourth, whose third candidate was the fix.
+    deepest = max((len(steps) for place, steps in queues if place.kind == "value"), default=0)
+    schedule = [(place, step, option) for place, steps in queues if place.kind != "value" for step, option in steps]
+    schedule += [(place, *steps[depth]) for depth in range(deepest) for place, steps in queues
+                 if place.kind == "value" and depth < len(steps)]
+    done: set[str] = set()
+    for place, step, option in schedule:
+        if place.id in done:
             continue
-        for step, option in _forcings(place, unforced, failing):
-            if time.time() >= deadline:
-                evidence.stopped = "deadline"
-                break
-            await asyncio.to_thread(_plan_and_clear, plan, record, {place.id: step})
-            outcome, _ = await run(list(failing), changed)
-            evidence.runs += 1
-            if not all(outcome.get(t) for t in failing):
-                note.setdefault("forced_without_effect", []).append(step)
-                continue
-            note.setdefault("angelic", []).append(step)
-            if place.kind == "value":
-                # Replaced outright, so every passing test that reaches it reads the new value too: one that then
-                # fails needs the old value, and this expression is not the fix (a condition choosing between the
-                # two would be another kind of change).
-                depends, ran = await _the_tests_that_depend_on(place, step, held, kept_runs, plan, record, changed,
-                                                               run)
-                evidence.runs += ran
-                if depends:
-                    note.setdefault("breaks_passing", []).append(option)
-                    continue
-                after = repaired(sources[place.path], place, option)
-                try:
-                    ast.parse(after)
-                except SyntaxError:
-                    continue
-                gathered.append(((1, order, len(option)), place, after))
-                break
-            forced_rows = [r for r in await asyncio.to_thread(_rows, record) if r.get("location") == place.id]
-            # A passing run constrains the condition only when its test depends on what is decided here: under the
-            # same forcing it fails. One that passes either way says nothing about this place. LIVE 16 November 2026
-            # the drill's own test reached count_in('  ') and passed whether it raised or not, so its decision there
-            # contradicted the failing run's at the same value and no condition could be found (Angelix keeps a
-            # passing test's outcome, not every decision it happened to pass through).
+        if time.time() >= deadline:
+            evidence.stopped = "deadline"
+            break
+        note, kept_runs, order = notes[place.id]
+        await asyncio.to_thread(_plan_and_clear, plan, record, {place.id: step})
+        outcome, _ = await run(list(failing), changed)
+        evidence.runs += 1
+        if not all(outcome.get(t) for t in failing):
+            note.setdefault("forced_without_effect", []).append(step)
+            continue
+        note.setdefault("angelic", []).append(step)
+        if place.kind == "value":
+            # Replaced outright, so every passing test that reaches it reads the new value too: one that then fails
+            # needs the old value, and this expression is not the fix (a condition choosing between the two would be
+            # another kind of change).
             depends, ran = await _the_tests_that_depend_on(place, step, held, kept_runs, plan, record, changed, run)
             evidence.runs += ran
-            note["passing_that_depend"] = len(depends)
-            kept_here = [r for r in kept_runs if any(_matches(t, _test_of(r)) and "::" in t for t in depends)]
-            examples = [Example(r.get("terms") or {}, want=_wanted(place, r), decided=r.get("decided"),
-                                parts=r.get("parts")) for r in forced_rows]
-            examples += [Example(r.get("terms") or {}, want=_kept(place, r), decided=r.get("decided"),
-                                 parts=r.get("parts")) for r in kept_here]
-            original = place.text if place.kind == "cond" else ""
-            found = ranked_conditions(examples, original=original, constants=place.constants, names=place.names)
-            note.setdefault("synthesised", []).extend(text for _, text in found)
-            for cost, condition in found:
-                value = place.returns[option] if place.kind == "leave" else ""
-                after = repaired(sources[place.path], place, condition, value)
-                try:
-                    ast.parse(after)
-                except SyntaxError:
-                    continue
-                gathered.append(((cost, order, len(condition)), place, after))
-            if found:
-                break  # the first forcing that mends is the outcome the failing runs needed here
-        order += 1
-        if evidence.stopped == "deadline":
-            break
+            if depends:
+                note.setdefault("breaks_passing", []).append(option)
+                continue
+            after = repaired(sources[place.path], place, option)
+            try:
+                ast.parse(after)
+            except SyntaxError:
+                continue
+            gathered.append(((1, order, len(option)), place, after))
+            done.add(place.id)
+            continue
+        forced_rows = [r for r in await asyncio.to_thread(_rows, record) if r.get("location") == place.id]
+        # A passing run constrains the condition only when its test depends on what is decided here: under the same
+        # forcing it fails. One that passes either way says nothing about this place. LIVE 16 November 2026 the
+        # drill's own test reached count_in('  ') and passed whether it raised or not, so its decision there
+        # contradicted the failing run's at the same value and no condition could be found (Angelix keeps a passing
+        # test's outcome, not every decision it happened to pass through).
+        depends, ran = await _the_tests_that_depend_on(place, step, held, kept_runs, plan, record, changed, run)
+        evidence.runs += ran
+        note["passing_that_depend"] = len(depends)
+        kept_here = [r for r in kept_runs if any(_matches(t, _test_of(r)) and "::" in t for t in depends)]
+        examples = [Example(r.get("terms") or {}, want=_wanted(place, r), decided=r.get("decided"),
+                            parts=r.get("parts")) for r in forced_rows]
+        examples += [Example(r.get("terms") or {}, want=_kept(place, r), decided=r.get("decided"),
+                             parts=r.get("parts")) for r in kept_here]
+        original = place.text if place.kind == "cond" else ""
+        found = ranked_conditions(examples, original=original, constants=place.constants, names=place.names)
+        note.setdefault("synthesised", []).extend(text for _, text in found)
+        for cost, condition in found:
+            value = place.returns[option] if place.kind == "leave" else ""
+            after = repaired(sources[place.path], place, condition, value)
+            try:
+                ast.parse(after)
+            except SyntaxError:
+                continue
+            gathered.append(((cost, order, len(condition)), place, after))
+        if found:
+            done.add(place.id)  # the first forcing that mends is the outcome the failing runs needed here
     # Every place's repairs, cheapest first across places: a repair that changes less, over the names the faulty
     # code reads, is offered before one that pins a run at an earlier line.
     for _, place, after in sorted(gathered, key=lambda item: item[0]):
@@ -680,6 +696,8 @@ def _forcings(place: Place, unforced: Sequence[Mapping[str, Any]],
             kinds = {(r.get("types") or {}).get(text) for r in reached} - {None}
             if had and kinds and not kinds & had:
                 continue
+            if reached and all(text in (r.get("same") or ()) for r in reached):
+                continue  # the same value wherever the failing runs read it: reading it instead changes nothing
             out_values.append(({"pick": text}, text))
         return out_values
     decided = [bool(r.get("decided")) for r in reached]

@@ -199,10 +199,14 @@ def value(location: str, read: Callable[[], Any], scope: Mapping[str, Any], plan
     got = read()
     if n <= KEPT_PER_TEST:
         types: dict[str, str] = {}
+        same: list[str] = []
         for text in pure:
             try:
-                types[text] = type(candidates[text]()).__name__
+                theirs = candidates[text]()
             except Exception:  # noqa: BLE001 - a candidate read where it is not bound says only that it is not
                 continue
-        _record(record, location, "value", scope, type(got).__name__, n, types=types)
+            types[text] = type(theirs).__name__
+            if _plain(theirs) is not _OPAQUE and _plain(got) is not _OPAQUE and theirs == got:
+                same.append(text)
+        _record(record, location, "value", scope, type(got).__name__, n, types=types, same=same)
     return got
