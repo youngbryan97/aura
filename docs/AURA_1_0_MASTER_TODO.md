@@ -4802,6 +4802,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in the window behind hers (07c4c144f). The companion panel opened on
   200 messages, read in the browser pane. Left: a ring drawn on his
   screen, a page shown, a file shown.
+  17 November. Her remarks with her window up were still decided by a list of fault words, and two went out live.
+  At 09:50 her own window was in front. "failed:" appeared twice in it, in two of her own earlier replies, and her
+  remark described her own window: "Here's what I can see on your screen:", with a date it does not show. Her
+  deadline cut it mid-table. At 12:08, after the list was gone, she said: "I can see you've got quite a lot open ...
+  What can I help you with? Are you looking to: ...". That remark had a worth of 0.031 and a cost of 0.000. Four
+  causes, each fixed in a general way:
+  - The list decided whether she spoke with her window up. Now she keeps the person company in every mode but
+    hidden, and one learned with decides (754228b85).
+  - Her own window was read as news. The frontmost-window probe returns the owner's pid, and a window her own
+    process tree draws is not remarked on (754228b85).
+  - The screen went in as the person's turn. Her look is now her own call, computer_use read_screen_text, and with
+    nobody's words in the sitting the person's turn is there and empty (9f84574c7).
+  - Attention held was ranked against one earlier look, which gives 0 or 1. Ranks now read as welcome does,
+    (k + 1) / (n + 2) (aae8deb67).
+  Her worker also carries whether her model ended its turn, and an unprompted turn the runtime cut says nothing
+  (754228b85). Live at 12:08 on 224c9cc94, with her window up and Claude in front, she recorded the window as not
+  hers, and the with decided: "stays quiet (welcome 0.250 x worth 0.005 ...)". Still left: a ring, a page and a
+  file shown on her own initiative.
 - [x] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
