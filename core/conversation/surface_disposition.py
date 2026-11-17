@@ -296,13 +296,20 @@ WHAT_SHE_DID_THIS_TURN = "## WHAT SHE DID IN THIS TURN"
 def _this_turns_calls() -> dict[tuple[str, str, str, bool, str], int]:
     """This turn's calls by what each was and what it came to, with how many times: one call recorded again is still
     one (core/conversation/turn_evidence_custody.py), and calls with other arguments are other calls."""
+    receipts = [receipt for receipt in turn_tool_receipts()[:16] if isinstance(receipt, dict)]
+    # A lane records each of its steps under its own name with the step's action (core/epistemics/turn_effects.py), and
+    # the dispatcher records the call itself under the same name with no action of its own
+    # (core/transparency/dev_mode.py). Where its steps are recorded they say what the call came to, and the call is
+    # not a second one: LIVE 17 November 2026, 02:41, one pointing reached her model as two desktop_task calls.
+    with_steps = {str(receipt.get("tool")) for receipt in receipts
+                  if str(receipt.get("action") or receipt.get("tool")) != str(receipt.get("tool"))}
     told: dict[tuple[str, str, str, bool, str], int] = {}
-    for receipt in turn_tool_receipts()[:16]:
-        if not isinstance(receipt, dict):
-            continue
+    for receipt in receipts:
         came_to = " ".join(str(receipt.get("observed_content") or receipt.get("evidence") or "").split())[:300]
         tool = str(receipt.get("tool") or "a tool")
         action = str(receipt.get("action") or "")
+        if action in {"", tool} and tool in with_steps and not receipt.get("object_ref"):
+            continue
         key = (tool, "" if action == tool else action, str(receipt.get("object_ref") or ""), bool(receipt.get("ok")),
                came_to)
         told[key] = told.get(key, 0) + 1

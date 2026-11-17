@@ -128,6 +128,8 @@ async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_t
 
     assert result["status"] == "desktop_objective_pointing_read" and result["response"] == "", result
     assert said in told, told
+    # One call: the dispatcher's receipt for the task is not a second one beside its step's (02:41, 17 November).
+    assert told.count("- desktop_task") == 1, told
 
 
 @pytest.mark.asyncio
