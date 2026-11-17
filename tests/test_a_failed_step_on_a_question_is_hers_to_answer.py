@@ -19,6 +19,10 @@ def _engine(result):
     class _Engine:
         async def execute(self, skill_name, params, context=None):
             assert skill_name == "desktop_task"
+            # As her capability engine's dispatcher records every call it makes (core/transparency/dev_mode.py).
+            from core.conversation.surface_disposition import record_tool_receipt
+
+            record_tool_receipt(skill_name, ok=bool(result.get("ok")), evidence=str(result.get("error") or ""))
             return dict(result)
 
     return _Engine()
@@ -34,7 +38,12 @@ REFUSED = {
 
 
 @pytest.mark.asyncio
-async def test_a_refused_screen_read_is_beside_her_turn_and_the_lane_says_nothing(monkeypatch):
+async def test_a_refused_screen_read_is_her_failed_call_and_the_lane_says_nothing(monkeypatch):
+    """Her model reads the step as the call she made and what it came back with, after the person's message; her
+    reply check reads it as grounding. No reading of the runtime's says it again in her prompt (17 November 2026)."""
+    import json
+
+    from core.conversation.surface_disposition import her_calls_this_turn
     from interface.routes import chat as chat_routes
 
     monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(
@@ -44,11 +53,12 @@ async def test_a_refused_screen_read_is_beside_her_turn_and_the_lane_says_nothin
                                                                         cognitive_reply="")
         grounding = turn_grounding_evidence()
         beside_her_turn = turn_world_evidence()
+        calls = her_calls_this_turn()
     assert result["status"] == "desktop_objective_failure_read" and result["response"] == ""
     assert result["ok"] is False
-    # Where her model reads it (what_she_brings_to_a_turn), not only where her reply check does: turn grounding alone
-    # never reached her prompt (15 November 2026).
-    assert any("did not complete" in block for block in beside_her_turn)
+    assert not beside_her_turn
+    assert [m["role"] for m in calls] == ["assistant", "tool"]
+    assert json.loads(calls[1]["content"]) == {"ok": False, "came_to": "read_screen_text_failed:private_window_on_screen"}
     reading = "\n".join(grounding)
     assert "did not complete: read screen text failed: private window on screen" in reading
     assert "I am not claiming" not in reading  # a reading, not words of hers

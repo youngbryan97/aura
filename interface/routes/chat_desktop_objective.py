@@ -779,33 +779,28 @@ def _what_the_pointing_came_to_goes_to_her_turn(result: dict[str, Any]) -> bool:
 
 
 def _what_it_came_to_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
-    """When a step for a question did not complete, what it came to goes beside her turn as a reading; whether it went.
+    """When a step for a question did not complete, the reply is hers; whether it is.
 
     LIVE 14 November 2026: asked "What is on my screen right now?" with a private window up, her screen read was
     refused, and the person was given this lane's sentence, "This did not complete: read screen text failed: ... I am
     not claiming it was done." A question is hers to answer, as it is when a step succeeds (an answer is not an effect
-    receipt, above); what the step came to is what she answers from. Her own account of a pursuit keeps its place, and
-    so does a part of the answer the step did produce.
+    receipt, above). What the step came to reaches her model as the call she made and what it came back with
+    (core/conversation/surface_disposition.py, her_calls_this_turn), and her reply check as grounding. Her own account
+    of a pursuit keeps its place, and so does a part of the answer the step did produce.
     """
     if result.get("ok") or not _asks_for_information(objective):
         return False
     if str(result.get("concluded") or "").strip() or _desktop_deliverable_text(result):
         return False
-    from core.conversation.turn_evidence_custody import record_turn_grounding, record_turn_world_evidence
+    from core.conversation.turn_evidence_custody import record_turn_grounding
 
     error = _in_words(str(result.get("error") or result.get("status") or "it failed").strip())
     completed, requested = int(result.get("steps_completed") or 0), int(result.get("steps_requested") or 0)
-    reading = (
-        "[WHAT THE DESKTOP STEP FOR THIS QUESTION CAME TO]\n"
-        f"It did not complete: {error}. {completed} of {requested} step(s) completed; nothing it did is claimed.\n"
-        "[END WHAT THE DESKTOP STEP CAME TO]"
-    )
-    # Beside her turn, where her model reads it, and to her reply check. Turn grounding alone reaches only the check:
-    # her model answered without it.
-    if not record_turn_world_evidence(reading):
-        return False
-    record_turn_grounding(reading)
-    logger.info("🖥️ What the desktop step came to goes to her turn to answer from: %s", error[:120])
+    # To her reply check only: a reading of the runtime's in her prompt said again what her call's result says, and
+    # told her what she may claim (17 November 2026).
+    record_turn_grounding(f"The desktop step for this question did not complete: {error}. {completed} of {requested} "
+                          "step(s) completed.")
+    logger.info("🖥️ What the desktop step came to is hers to speak of: %s", error[:120])
     return True
 
 
