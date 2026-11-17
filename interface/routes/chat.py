@@ -8240,13 +8240,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             return metadata or None
 
         async def _run_desktop_objective_tracked(
-            message: str, *, cognitive_reply: str, her_reply_first: bool = False
+            message: str, *, cognitive_reply: str, her_reply_first: bool = False, her_reply_stands: bool = False
         ) -> dict[str, Any] | None:
             """Forwards to the lifted _lifted_run_desktop_objective_tracked."""
             return await _lifted_run_desktop_objective_tracked(
                 message=message,
-                cognitive_reply=cognitive_reply,
-                her_reply_first=her_reply_first,
+                cognitive_reply=cognitive_reply, her_reply_first=her_reply_first, her_reply_stands=her_reply_stands,
                 _desktop_exec_state=_desktop_exec_state,
                 conversation_only_surface=conversation_only_surface,
                 pending_exchange_id=pending_exchange_id,
@@ -10451,9 +10450,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 desktop_objective = await _run_desktop_objective_tracked(
                     _semantic_user_message,
                     cognitive_reply=reply_text,
-                    # Her cognitive engine wrote this; a failure reply
-                    # returned above and never reaches here.
-                    her_reply_first=True,
+                    # Her cognitive engine wrote this and it passed her gates; a failure reply returned above.
+                    her_reply_first=True, her_reply_stands=True,
                 )
                 if desktop_objective:
                     return await _finalize_fastpath(

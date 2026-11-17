@@ -20,7 +20,7 @@ pytestmark = pytest.mark.unit
 def _run(state, monkeypatch, status):
     runs: list[str] = []
 
-    async def execute(message, *, cognitive_reply, her_reply_first=False):
+    async def execute(message, *, cognitive_reply, her_reply_first=False, her_reply_stands=False):
         runs.append(message)
         return {"ok": True, "status": status, "response": "", "result": {"ok": True}}
 

@@ -237,6 +237,7 @@ async def _execute_desktop_objective_from_chat(
     *,
     cognitive_reply: str,
     her_reply_first: bool = False,
+    her_reply_stands: bool = False,
 ) -> dict[str, Any] | None:
     """Execute a desktop objective through the generic desktop_task skill.
 
@@ -542,6 +543,13 @@ async def _execute_desktop_objective_from_chat(
             # Her own account says how each part ended; the machinery's name for the part that fell short ("step 3
             # not ok (2/3 steps)") adds nothing a person can use. LIVE 2026-10-08 it closed three games' account.
             response = f"{told}\n\n{tally}"
+        elif her_reply_stands and not told and str(cognitive_reply or "").strip() and _asks_for_information(user_message):
+            # Her answer to the question, written before the step ran and passed by her gates, is the reply; a step
+            # that then failed does not answer for her. What it came to is her failed call on her record, which her
+            # reply check holds her to. LIVE 17 November 2026, 08:55, a private window in front: her answer said
+            # nothing was read from the screen, the step after it was refused, and its "This did not complete: ...
+            # I am not claiming it was done." was served in her answer's place.
+            response = str(cognitive_reply).strip()
         elif partial:
             # A failure with no cause carries nothing for the person: what she got through says what was not done.
             # LIVE 2026-10-07 three games' outcomes were followed by "The rest did not complete: desktop task

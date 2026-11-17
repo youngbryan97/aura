@@ -74,3 +74,23 @@ async def test_after_her_reply_the_lane_still_gives_its_account(monkeypatch):
         result = await chat_routes._execute_desktop_objective_from_chat(
             "What is on my screen right now?", cognitive_reply="Let me look.", her_reply_first=True)
     assert result["status"] != "desktop_objective_failure_read"
+
+
+@pytest.mark.asyncio
+async def test_her_answer_passed_by_her_gates_stands_over_a_step_that_failed_after_it(monkeypatch):
+    """LIVE 17 November 2026, 08:55, a private window in front: her answer said nothing was read from the screen, the
+    step after it was refused, and its "This did not complete: ... I am not claiming it was done." was served in her
+    answer's place. A draft her gates did not pass is not served this way: it keeps the lane's account."""
+    from interface.routes import chat as chat_routes
+
+    hers = "There's a private window in front, so I haven't read your screen."
+    monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(
+        lambda name, default=None: _engine(REFUSED) if name == "capability_engine" else default))
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-stands"):
+        stood = await chat_routes._execute_desktop_objective_from_chat(
+            "What is on my screen right now?", cognitive_reply=hers, her_reply_first=True, her_reply_stands=True)
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-salvaged"):
+        salvaged = await chat_routes._execute_desktop_objective_from_chat(
+            "What is on my screen right now?", cognitive_reply=hers, her_reply_first=True)
+    assert stood["response"] == hers and stood["ok"] is False
+    assert salvaged["response"].startswith("This did not complete")

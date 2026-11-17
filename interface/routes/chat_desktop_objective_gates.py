@@ -43,6 +43,7 @@ _HANDED_TO_HER_TURN = frozenset(
 async def _lifted_run_desktop_objective_tracked(
     message: str, *, cognitive_reply: str,
     her_reply_first: bool = False,
+    her_reply_stands: bool = False,
     _desktop_exec_state: Any,
     conversation_only_surface: Any,
     pending_exchange_id: Any,
@@ -81,7 +82,7 @@ async def _lifted_run_desktop_objective_tracked(
         return None if first.get("status") in _HANDED_TO_HER_TURN else first
     _desktop_exec_state["attempted"] = True
     executed = await _chat_desktop_objective._execute_desktop_objective_from_chat(
-        message, cognitive_reply=cognitive_reply, her_reply_first=her_reply_first
+        message, cognitive_reply=cognitive_reply, her_reply_first=her_reply_first, her_reply_stands=her_reply_stands
     )
     if isinstance(executed, dict):
         _desktop_exec_state["executed"] = executed
