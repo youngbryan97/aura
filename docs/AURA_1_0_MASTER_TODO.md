@@ -7418,6 +7418,32 @@ needs her 27B free (her app down, or her app's own influence trials).
   without semantic repair. Its trials on two of them forced every place on
   the suspect lines and none mended, since those defects need logic added,
   not a decision changed.
+  Where each part stands, 16 November evening.
+  Part 1. Done: a fault raised in a method is kept with its instance
+  written back, its class and its plain state, and the test her loop writes
+  rebuilds the instance without its `__init__` (test carving; 1fa8db11c). A
+  deadline, a cancellation and an exception recorded without being raised
+  each say what they are (13ce7b1fa). Faults she heard survive a restart.
+  Left: her own failing tests taken as defects, run a slice at a time in her
+  idle time, since each red test is a real defect whose failing test already
+  exists; her invariants that fail, taken as defects; a function defined
+  inside another; an argument that is an object of hers, not a plain value;
+  and an error from the world outside her (a broken pipe, a locked database,
+  a process gone) said to be that.
+  Part 2. Done: semantic repair, live (above). Left: the history run's
+  result. It runs detached from a worktree pinned at af1544f42, 61 of the 81
+  defects (the 20 whose tests run MLX wait for her app to be down), two at a
+  time, ten minutes each; its log is
+  `~/.aura/rlc-evidence/repair-by-selection-20261018/her-own-python-20261116/progress.log`.
+  Then what the run shows semantic repair misses; repairs of a wrong value
+  or expression, not only a condition; repairs that change more than one
+  place; and her live loop's suspect lines chosen by the coverage of her
+  failing and passing tests, not only the function the fault was raised in.
+  Part 4. Left, all of it: notice when she tells a person she cannot do
+  something; trace where the capability fails (a tool refused, a skill
+  missing, a route that dropped the request, a permission); build or mend it
+  through the same gates; use it in the same session.
+  Parts 3 and 5: not started.
 
 ## Live session 2026-09-07: what the runtime showed
 
