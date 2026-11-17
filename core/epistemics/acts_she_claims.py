@@ -22,10 +22,11 @@ The parse needs spaCy and its small English model; without them nothing is read 
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.ActsSheClaims")
 
@@ -34,7 +35,7 @@ __all__ = ["ClaimedAct", "acts_she_claims", "claims_her_record_does_not_back"]
 #: The English model the parse reads with.
 PARSER = "en_core_web_sm"
 
-_PARSER_LOCK = threading.Lock()
+_PARSER_LOCK = checked_lock("acts_she_claims.parser")
 _PARSER_HELD: list[Any] = []
 
 
