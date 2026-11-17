@@ -196,6 +196,32 @@ class PresenceMode(StrEnum):
     HIDDEN = "hidden"
 
 
+def _a_private_window_is_what_she_last_saw() -> None:
+    """Her screen sense's newest observation is that a private window is in front and nothing was read, so a reading
+    of the window before it is not given to a turn as the screen.
+
+    LIVE 17 November 2026, 08:30, a private Chrome window in front: asked "What is on my screen right now?", her turn
+    was given her screen sense's last reading, of the Reddit page in front before it, and her reply began "I can see
+    what you're looking at"; her reply check refused it. The window's name is not kept. Recorded once while it stays
+    in front, so older readings are not pushed out of what she can recall."""
+    try:
+        from core.perception.observation_evidence import (
+            Observation,
+            ObservationKind,
+            get_observation_memory,
+            remember_observation,
+        )
+
+        latest = get_observation_memory().latest(ObservationKind.SCREEN_TEXT)
+        if latest is not None and latest.is_empty and (latest.detail or {}).get("declined") == "private window":
+            return
+        remember_observation(Observation(kind=ObservationKind.SCREEN_TEXT, capture="", source="a private window",
+                                         detail={"declined": "private window"}))
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("ambient_presence", exc, severity="info",
+                           action="a private window in front was not kept as her newest observation")
+
+
 class SkipReason(StrEnum):
     """Why an observation tick did not observe. Every one is reportable."""
 
@@ -659,6 +685,7 @@ class AmbientPresence(_CarriesTheBubble):
             with self._lock:
                 self._private_skips += 1
             # No capture is attempted. This is the entire point.
+            _a_private_window_is_what_she_last_saw()
             return self._skip(SkipReason.PRIVATE_WINDOW, context=context)
 
         with self._lock:

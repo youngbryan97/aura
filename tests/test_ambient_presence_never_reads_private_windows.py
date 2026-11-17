@@ -1026,3 +1026,30 @@ class TestTheFastPathIsCausalInTheAnswerLane:
             )
             is None
         )
+
+
+def test_a_private_window_in_front_supersedes_the_reading_of_the_window_before_it(presence, monkeypatch):
+    """LIVE 17 November 2026, 08:30: with a private window in front, her turn was given her screen sense's last
+    reading, of the Reddit page in front before it, and her reply began "I can see what you're looking at". Her newest
+    observation is now that a private window is in front and nothing was read; its name is not kept, and it is
+    recorded once while it stays in front."""
+    from core.perception import observation_evidence
+
+    memory = observation_evidence.ObservationMemory()
+    monkeypatch.setattr(observation_evidence, "_MEMORY", memory)
+
+    _with_context(presence, "Google Chrome", "r/cognitivescience — a post", text="A post about memory and control")
+    assert asyncio.run(presence.tick()).observed is True
+    assert memory.sensory_brief(), "the public page was read"
+
+    _with_context(presence, "Google Chrome", "Chase Bank — Incognito")
+    asyncio.run(presence.tick())
+    asyncio.run(presence.tick())
+
+    assert memory.sensory_brief() == "", "the page before the private window is not given as the screen"
+    declined = [item for item in memory.recent() if item.is_empty]
+    assert len(declined) == 1 and "Chase" not in str(declined[0].__dict__)
+
+    _with_context(presence, "Google Chrome", "GitHub — aura", text="Pull requests")
+    asyncio.run(presence.tick())
+    assert "Pull requests" in memory.sensory_brief()
