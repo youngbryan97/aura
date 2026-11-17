@@ -94,11 +94,18 @@ class Grounded:
 
 
 def _share_below(values: Iterable[float], value: float) -> float | None:
-    """The part of `values` that `value` is at least as large as; nothing to read from none."""
+    """How likely one more of ``values`` is to be no larger than ``value``: the count of them that are, read from
+    knowing nothing before them (Laplace 1814), as ``With.welcome`` is; nothing to read from none.
+
+    It was the bare share. From one earlier value that is 0 or 1, and LIVE 17 November 2026, 12:08 local, two looks
+    into keeping Bryan company, a still screen after one that had moved read as attention held 0.000: the cost of a
+    remark nobody wanted was nothing, and one worth 0.031 was made. With the cost at nothing, no count of remarks not
+    taken up could ever have kept her quiet.
+    """
     held = list(values)
     if not held:
         return None
-    return sum(1 for item in held if item <= value) / len(held)
+    return (sum(1 for item in held if item <= value) + 1) / (len(held) + 2)
 
 
 @dataclass

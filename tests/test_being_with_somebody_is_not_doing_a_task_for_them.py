@@ -46,9 +46,11 @@ def test_a_with_reads_its_own_silences_and_has_no_other_clock():
     assert held.moment(101.0) is None  # no silence left yet, nothing to read
     ended = _talked(held)
     assert list(held.silences) == [4.0, 6.0, 5.0, 30.0, 8.0]
-    assert held.moment(ended + 1.0) == 0.0
-    assert held.moment(ended + 5.5) == pytest.approx(2 / 5)
-    assert held.moment(ended + 40.0) == 1.0
+    # How far into their usual silences, read as welcome is, from knowing nothing before them (Laplace): never quite
+    # none and never quite all from five silences (17 November 2026, a_with._share_below).
+    assert held.moment(ended + 1.0) == pytest.approx(1 / 7)
+    assert held.moment(ended + 5.5) == pytest.approx(3 / 7)
+    assert held.moment(ended + 40.0) == pytest.approx(6 / 7)
 
 
 def test_while_somebody_is_speaking_it_is_nobodys_moment():
@@ -980,3 +982,15 @@ def test_invited_and_answered_by_nobody_any_pause_is_her_moment():
     held.said(HER, 10.0, until=25.0, unprompted=True)
     held.said(HER, 60.0, until=80.0, unprompted=True)
     assert held.moment(85.0) == 1.0
+
+
+def test_a_still_screen_after_one_that_moved_is_not_a_free_moment_to_speak():
+    """LIVE 17 November 2026, 12:08 local: two looks into keeping Bryan company, attention held read 0.000 from one
+    earlier change, so a remark worth 0.031 cost nothing and was made."""
+    from core.together.when_to_say_something import worth_saying_now
+
+    held = With(who=INES, what=FILM, began=0.0)
+    held.shown("a page", 10.0, change=0.6)
+    held.shown("the same page", 40.0, change=0.0)
+    assert 0.0 < held.eventful() < 0.5
+    assert not worth_saying_now(held, 41.0, interest=0.031).speak
