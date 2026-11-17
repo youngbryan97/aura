@@ -954,6 +954,9 @@ def _measured_host_rates_do_not_leak(request):
         module = None
 
     saved_rates = dict(mlx_client._HOST_RATES) if mlx_client is not None else None
+    from core.brain.llm import decode_rates  # each model's own, kept the same way (17 November 2026)
+
+    saved_model_rates = dict(decode_rates._BY_MODEL)
     saved_build = saved_schedule = None
     if module is not None:
         saved_build = module.ArchitectureIndex.build
@@ -966,6 +969,8 @@ def _measured_host_rates_do_not_leak(request):
         if mlx_client is not None and saved_rates is not None:
             mlx_client._HOST_RATES.clear()
             mlx_client._HOST_RATES.update(saved_rates)
+        decode_rates._BY_MODEL.clear()
+        decode_rates._BY_MODEL.update(saved_model_rates)
         if module is not None and saved_build is not None:
             module.ArchitectureIndex.build = saved_build
             module.ArchitectureIndex.schedule_background_build = saved_schedule

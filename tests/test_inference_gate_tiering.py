@@ -64,7 +64,7 @@ def _nothing_adaptive_moves_the_budget(monkeypatch):
     )
     monkeypatch.setattr(
         "core.brain.inference_gate.fit_the_answer_to_the_time",
-        lambda prompt, max_tokens, asked_for, *, floor=0: (
+        lambda prompt, max_tokens, asked_for, *, floor=0, model="": (
             float(asked_for),
             int(max_tokens),
         ),

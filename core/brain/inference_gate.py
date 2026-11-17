@@ -2167,7 +2167,7 @@ A_REAL_ANSWER = 128
 
 
 def fit_the_answer_to_the_time(
-    prompt: Any, max_tokens: Any, asked_for: float, *, floor: int = 0
+    prompt: Any, max_tokens: Any, asked_for: float, *, floor: int = 0, model: str = ""
 ) -> tuple[float, int]:
     """A budget and a length that fit each other, and fit what the caller waits.
 
@@ -2192,15 +2192,17 @@ def fit_the_answer_to_the_time(
     that knew nothing about the protection. Where a floor is given, the clock
     stretches to afford it instead of the length shrinking; where even the
     longest clock cannot, the cut happens and is recorded rather than being
-    the difference between two numbers nobody compared.
+    the difference between two numbers nobody compared. (At ``model``'s own rate: core/brain/llm/decode_rates.py.)
     """
     wanted = max(0, int(max_tokens or 0))
     budget = float(asked_for)
     try:
         from core.brain.llm.mlx_client import observed_rates, time_a_prompt_needs
 
+        from core.brain.llm.decode_rates import decode_rate_of
+
         reading = time_a_prompt_needs(len(str(prompt or "")), 0)
-        writing_rate = float(observed_rates().get("decode") or 0.0)
+        writing_rate = decode_rate_of(model) or float(observed_rates().get("decode") or 0.0)
     except (ImportError, AttributeError, TypeError, ValueError):
         return budget, wanted
     if writing_rate <= 0.0 or not wanted:
@@ -9501,11 +9503,8 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             else 0
         )
         settled_timeout_val, settled_max_tokens = fit_the_answer_to_the_time(
-            dispatched_prompt_text,
-            max_tokens,
-            timeout_val,
-            floor=_protected_floor,
-        )
+            dispatched_prompt_text, max_tokens, timeout_val, floor=_protected_floor,
+            model=self._model_now_serving(requested_tier))
         if settled_timeout_val != timeout_val:
             timeout_val = float(settled_timeout_val)
             primary_timeout, fallback_timeout = self._split_attempt_timeouts(

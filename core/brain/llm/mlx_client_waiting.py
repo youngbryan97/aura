@@ -247,6 +247,9 @@ class _WaitsForTheResult:
                 _HOST_RATES["decode"] = (
                     observed if previous <= 0.0 else previous * 0.8 + observed * 0.2
                 )
+                from core.brain.llm.decode_rates import note_decode
+
+                note_decode(getattr(self, "model_path", ""), observed)  # and this model's own
         self._last_token_progress_at = now
         # Published where the layers above can read it. Five deadlines are
         # waiting on this one generation, and each of them was deciding
