@@ -153,8 +153,21 @@ def _is_none(base: str, example: Example) -> Any:
     return said if said is _MISSING else bool(said)
 
 
-def _atoms(examples: Sequence[Example], constants: Sequence[Any], original: str) -> list[_Atom]:
-    """Every single test over the recorded terms that is defined in every run, one per distinct outcome."""
+def _negated(term: str) -> str:
+    """``term`` negated as Python writes it: ``k not in d`` for a membership, ``not t`` otherwise."""
+    try:
+        node = ast.parse(term, mode="eval").body
+    except SyntaxError:
+        return f"not {term}"
+    if isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.In):
+        return ast.unparse(ast.Compare(left=node.left, ops=[ast.NotIn()], comparators=node.comparators))
+    return f"not {term}"
+
+
+def _atoms(examples: Sequence[Example], constants: Sequence[Any], original: str,
+           reads: Sequence[str] = ()) -> list[_Atom]:
+    """Every single test over the recorded terms that is defined in every run, one per distinct outcome: of tests that
+    decide every run alike, the one that reads more of ``reads`` (what the code at the place reads) is kept."""
     names = set.intersection(*({*e.terms, *(e.parts or {})} for e in examples))
     bases = {n[: -len(" is None")] for n in names if n.endswith(" is None")} | {
         n for n in names if any(_value_of(n, e) is None for e in examples)}
@@ -176,7 +189,7 @@ def _atoms(examples: Sequence[Example], constants: Sequence[Any], original: str)
         from_original = bool(examples[0].parts) and term in (examples[0].parts or {})
         if all(isinstance(v, bool) for v in values):
             add(term, values, from_original)
-            add(f"not {term}", [not v for v in values], from_original)
+            add(_negated(term), [not v for v in values], from_original)
         elif all(_number(v) for v in values):
             numeric.append(term)
         elif all(isinstance(v, str) for v in values):
@@ -209,13 +222,15 @@ def _atoms(examples: Sequence[Example], constants: Sequence[Any], original: str)
     distinct: dict[tuple[bool, ...], _Atom] = {}
     for atom in found:
         held = distinct.get(atom.values)
-        if held is None or _preferred(atom) > _preferred(held):
+        if held is None or _preferred(atom, reads) > _preferred(held, reads):
             distinct[atom.values] = atom
     return list(distinct.values())
 
 
-def _preferred(atom: _Atom) -> tuple[bool, int, int]:
-    return atom.original, -_pins(atom.text), -len(atom.text)
+def _preferred(atom: _Atom, reads: Sequence[str] = ()) -> tuple[bool, int, int, int]:
+    # Reading more of what the faulting code reads before the shorter text: LIVE 17 November 2026 ``len(prices) <= 1``
+    # was kept over ``item not in prices`` for ``prices[item]``, being two characters shorter, and was wrong.
+    return atom.original, len(_names(atom.text) & set(reads)), -_pins(atom.text), -len(atom.text)
 
 
 def _variants(original: str, constants: Sequence[Any], examples: Sequence[Example]) -> Iterator[tuple[str, int]]:
@@ -424,7 +439,7 @@ def ranked_conditions(examples: Sequence[Example], *, original: str = "", consta
             outcome = [_evaluate(body, {**e.terms, **(e.parts or {})}) for e in examples]
             if all(v is not _MISSING for v in outcome) and tuple(bool(v) for v in outcome) == want:
                 keep(cost, variant)
-    atoms = _atoms(examples, constants, original)
+    atoms = _atoms(examples, constants, original, names)
     decided = tuple(bool(e.decided) for e in examples) if original else None
     for atom in atoms:
         if atom.values == want:

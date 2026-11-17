@@ -1386,8 +1386,8 @@ class AutonomousSelfModificationEngine:
                 model_busy = background_activity_reason(orch, min_idle_seconds=float(self.monitor_interval),
                                                         require_conversation_ready=False)
                 if model_busy:
-                    if self._start_mending():
-                        logger.info("🩹 Her mend started while her model's lane is busy (%s).", model_busy)
+                    if self._start_mending():  # what it came to is said by _mend_and_say
+                        logger.debug("Her mend started while her model's lane is busy (%s).", model_busy)
                     await asyncio.sleep(min(_backoff, 60.0))
                     continue
 
