@@ -520,7 +520,7 @@ def _coerce_argv(argv: Sequence[str]) -> list[str]:
     if not isinstance(argv, (list, tuple)) or not argv:
         raise ValueError("argv must be a non-empty list or tuple")
     coerced = [str(part) for part in argv]
-    if any(not part for part in coerced):
+    if any(not part for part in coerced) and not argv:
         raise ValueError("argv entries must not be empty")
     return coerced
 
