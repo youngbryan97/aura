@@ -18,7 +18,7 @@ import os
 from collections.abc import Callable, Mapping
 from typing import Any
 
-__all__ = ["cond", "guard", "leave", "summarise"]
+__all__ = ["cond", "guard", "leave", "summarise", "value"]
 
 #: Evaluations kept for one location in one test. A condition in a loop can run millions of times, and the synthesis
 #: needs examples, not all of them.
@@ -183,3 +183,26 @@ def leave(location: str, scope: Mapping[str, Any], plan: str, record: str) -> in
     forced = _forced(plan, location, n, -1)
     _record(record, location, "leave", scope, -1, n, forced=forced)
     return -1 if forced is None or isinstance(forced, bool) else int(forced)
+
+
+def value(location: str, read: Callable[[], Any], scope: Mapping[str, Any], plan: str, record: str,
+          candidates: Mapping[str, Callable[[], Any]] | None = None, pure: tuple[str, ...] = ()) -> Any:
+    """A value read on a suspect line: its own, recorded with its type and the types of the candidates that can be
+    read without a call (``pure``), or the candidate the plan picks instead."""
+    n = _count(record, location)
+    step = _plan(plan).get(location) or {}
+    pick = step.get("pick")
+    tests = step.get("tests")
+    if pick is not None and pick in (candidates or {}) and (not tests or _test() in tests):
+        _record(record, location, "value", {}, None, n, forced=pick)
+        return candidates[pick]()
+    got = read()
+    if n <= KEPT_PER_TEST:
+        types: dict[str, str] = {}
+        for text in pure:
+            try:
+                types[text] = type(candidates[text]()).__name__
+            except Exception:  # noqa: BLE001 - a candidate read where it is not bound says only that it is not
+                continue
+        _record(record, location, "value", scope, type(got).__name__, n, types=types)
+    return got

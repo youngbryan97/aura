@@ -7,16 +7,19 @@ Angelix, Mechtaev et al., ICSE 2016):
 
 1. Where: the lines her failing tests run and her passing tests do not, most suspicious first (fix_templates.ochiai).
    At each is a place a repair can be: the condition of a branch (``if``, ``while``, a conditional expression, a
-   comprehension's filter, a returned test), a statement that may need a guard, or a statement before which the
-   function may need to return.
+   comprehension's filter, a returned test), a statement that may need a guard, a statement before which the
+   function may need to return, or a value read there (an argument, an assigned or returned value) that may need to
+   be another expression the function already reads.
 2. What her program did there: a copy of the file is instrumented with calls to semantic_probe.py, and her failing
    and passing tests are run on it. Each time a place is reached, the values in scope and what was decided are kept.
 3. What it should have done: each place is forced (the branch the other way, the statement skipped, the function
-   left early with one of the values it already returns) while her failing tests run. A place where forcing makes
+   left early with one of the values it already returns, the value read as another of the function's expressions of
+   its type) while her failing tests run. A place where forcing makes
    every failing test pass is one a repair there can mend; what was forced is what the failing runs needed, and what
    the passing runs decided is what they need to keep (angelic fix localisation).
 4. The smallest change that does both: condition_synthesis.conditions over the recorded values, the original
-   condition with one part changed first, then the original joined with a missing test, then new conditions.
+   condition with one part changed first, then the original joined with a missing test, then new conditions. A value
+   is replaced outright, and only where no passing test that reaches it needs the old one.
 
 Each repair is a SEARCH/REPLACE change on the original file, and none is taken for right: the tests decide, with the
 guards and standards of repair_by_selection.py. A guard is never put around an exit (``return``, ``raise``,
@@ -59,7 +62,7 @@ class Place:
     """Somewhere on a line a repair can be made."""
 
     id: str
-    kind: str  # "cond", "guard" or "leave"
+    kind: str  # "cond", "guard", "leave" or "value"
     path: str
     line: int
     #: For a condition, the source of the condition and its span in characters.
@@ -80,6 +83,10 @@ class Place:
     constants: tuple[Any, ...] = ()
     #: The names the code at the place reads: a condition over them is the likelier repair.
     names: tuple[str, ...] = ()
+    #: For a value, the function's other expressions that may be read in its place, nearest first, and which of them
+    #: are read without a call (their types are recorded; a call's is learnt only by making it).
+    candidates: tuple[str, ...] = ()
+    pure: tuple[str, ...] = ()
 
 
 def _starts(source: str) -> list[int]:
@@ -168,6 +175,69 @@ def _one_block_string(node: ast.AST) -> bool:
                for n in ast.walk(node))
 
 
+#: What may not be in a value or an ingredient: what cannot be read again inside a lambda, or reads a scope of its own.
+_NOT_READ_AGAIN = (ast.Await, ast.Yield, ast.YieldFrom, ast.NamedExpr, ast.Lambda, ast.ListComp, ast.SetComp,
+                   ast.DictComp, ast.GeneratorExp, ast.Starred)
+
+
+def _readable_again(node: ast.AST) -> bool:
+    return not any(isinstance(inner, _NOT_READ_AGAIN) for inner in ast.walk(node))
+
+
+def _a_path(node: ast.AST) -> bool:
+    """A name or an attribute of one: ``x``, ``x.a.b``."""
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    return isinstance(node, ast.Name)
+
+
+def _an_ingredient(node: ast.AST, called: set[int]) -> bool:
+    """An expression a fix may reuse in a value's place: a path, a call of a path with paths and constants for its
+    arguments, or arithmetic over those; never the function a call names."""
+    if id(node) in called or not _readable_again(node):
+        return False
+    if _a_path(node):
+        return True
+    if isinstance(node, ast.Call):
+        return _a_path(node.func) and all(_a_path(a) or isinstance(a, ast.Constant) for a in node.args) and all(
+            k.arg is not None and (_a_path(k.value) or isinstance(k.value, ast.Constant)) for k in node.keywords)
+    if isinstance(node, ast.BinOp):
+        return all(isinstance(side, ast.Constant) or _an_ingredient(side, called) for side in (node.left, node.right))
+    return False
+
+
+def _ingredients(function: ast.AST, target: ast.AST) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The function's expressions that may be read in ``target``'s place, nearest line first, each once; and those of
+    them read without a call."""
+    called = {id(n.func) for n in ast.walk(function) if isinstance(n, ast.Call)}
+    # Nor anything holding the value itself: the call it is an argument of is not a value for that argument.
+    called |= {id(n) for n in ast.walk(function) if n is not target and any(m is target for m in ast.walk(n))}
+    own = ast.unparse(target)
+    found = sorted((abs(n.lineno - target.lineno), n.lineno, n.col_offset, ast.unparse(n)) for n in ast.walk(function)
+                   if isinstance(n, ast.expr) and not isinstance(n, ast.Constant) and hasattr(n, "lineno")
+                   and isinstance(getattr(n, "ctx", ast.Load()), ast.Load) and _an_ingredient(n, called))
+    # And its parameters, in scope everywhere in it whether or not its body reads them.
+    given = function.args  # type: ignore[attr-defined]
+    found += sorted((abs(function.lineno - target.lineno), function.lineno, 0, a.arg)  # type: ignore[attr-defined]
+                    for a in (*given.posonlyargs, *given.args, *given.kwonlyargs) if a.arg not in ("self", "cls"))
+    texts = tuple(dict.fromkeys(text for *_, text in sorted(found) if text != own))
+    pure = tuple(t for t in texts if _pure(ast.parse(t, mode="eval").body)
+                 and not any(isinstance(n, ast.Call) for n in ast.walk(ast.parse(t, mode="eval").body)))
+    return texts, pure
+
+
+def _values_read(node: ast.AST) -> list[ast.AST]:
+    """The values a statement or call on a line reads that a fix may replace: a call's arguments, an assigned value,
+    a returned value that is not itself a test."""
+    if isinstance(node, ast.Call):
+        return [*(a for a in node.args if not isinstance(a, ast.Starred)), *(k.value for k in node.keywords)]
+    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) and node.value is not None:
+        return [node.value]
+    if isinstance(node, ast.Return) and node.value is not None and not _a_test(node.value):
+        return [node.value]
+    return []
+
+
 def places_at(source: str, path: str, lines: Sequence[int]) -> list[Place]:
     """Every place on ``lines`` of ``source`` a repair can be made, in the order the lines were given."""
     try:
@@ -179,6 +249,7 @@ def places_at(source: str, path: str, lines: Sequence[int]) -> list[Place]:
     rows = source.splitlines()
     wanted = list(dict.fromkeys(int(n) for n in lines))
     places: list[Place] = []
+    valued: set[tuple[int, int]] = set()
     by_line: dict[int, list[ast.AST]] = {}
     for node in ast.walk(tree):
         line = getattr(node, "lineno", None)
@@ -202,6 +273,17 @@ def places_at(source: str, path: str, lines: Sequence[int]) -> list[Place]:
                 end = _offset(source, starts, test.end_lineno or test.lineno, test.end_col_offset or 0)
                 places.append(Place(f"c{len(places)}", "cond", path, line, text=source[start:end], start=start,
                                     end=end, parts=_parts(test), constants=constants, names=_read(test)))
+            for read in _values_read(node) if function is not None else ():
+                if not _readable_again(read) or (read.lineno, read.col_offset) in valued:
+                    continue
+                valued.add((read.lineno, read.col_offset))
+                candidates, pure = _ingredients(function, read)
+                if not candidates:
+                    continue
+                start = _offset(source, starts, read.lineno, read.col_offset)
+                end = _offset(source, starts, read.end_lineno or read.lineno, read.end_col_offset or 0)
+                places.append(Place(f"v{len(places)}", "value", path, line, text=source[start:end], start=start,
+                                    end=end, names=_read(read), candidates=candidates, pure=pure))
             if function is None or not isinstance(node, ast.stmt) or node is function:
                 continue
             first, last = node.lineno, node.end_lineno or node.lineno
@@ -224,6 +306,7 @@ class _Instrument(ast.NodeTransformer):
     def __init__(self, places: Sequence[Place], tree: ast.AST, source: str, plan: str, record: str) -> None:
         starts = _starts(source)
         self.tests: dict[int, Place] = {}
+        self.values: dict[int, Place] = {}
         self.before: dict[int, list[Place]] = {}
         self.around: dict[int, Place] = {}
         self.plan, self.record = plan, record
@@ -231,9 +314,9 @@ class _Instrument(ast.NodeTransformer):
             if isinstance(node, ast.expr) and hasattr(node, "lineno"):
                 start = _offset(source, starts, node.lineno, node.col_offset)
                 for place in places:
-                    if place.kind == "cond" and place.start == start \
+                    if place.kind in ("cond", "value") and place.start == start \
                             and ast.unparse(node) == ast.unparse(ast.parse(place.text, mode="eval").body):
-                        self.tests[id(node)] = place
+                        (self.tests if place.kind == "cond" else self.values)[id(node)] = place
             elif isinstance(node, ast.stmt) and hasattr(node, "lineno"):
                 for place in places:
                     if (place.first, place.col, place.statement) == (node.lineno, node.col_offset,
@@ -265,7 +348,21 @@ class _Instrument(ast.NodeTransformer):
                 setattr(node, name, self.visit(value))
         return node
 
+    @staticmethod
+    def _lambda(body: ast.expr) -> ast.Lambda:
+        return ast.Lambda(args=ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
+                          body=body)
+
     def visit(self, node: ast.AST) -> Any:
+        valued = self.values.get(id(node))
+        if valued is not None:
+            node = super().visit(node)
+            call = self._call("value", valued, self._lambda(node))
+            call.args.append(ast.Dict(keys=[ast.Constant(text) for text in valued.candidates],
+                                      values=[self._lambda(ast.parse(text, mode="eval").body)
+                                              for text in valued.candidates]))
+            call.args.append(ast.Tuple(elts=[ast.Constant(text) for text in valued.pure], ctx=ast.Load()))
+            return call
         place = self.tests.get(id(node))
         if place is not None:
             node = super().visit(node)
@@ -348,7 +445,7 @@ def _indent_unit(source: str) -> str:
 def repaired(source: str, place: Place, condition: str, value: str = "") -> str:
     """``source`` with ``condition`` put in at ``place``: in place of the condition, as a guard, or as a way out that
     returns ``value``."""
-    if place.kind == "cond":
+    if place.kind in ("cond", "value"):
         return source[:place.start] + condition + source[place.end:]
     rows = source.splitlines(keepends=True)
     unit = _indent_unit(source)
@@ -481,6 +578,23 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
                 note.setdefault("forced_without_effect", []).append(step)
                 continue
             note.setdefault("angelic", []).append(step)
+            if place.kind == "value":
+                # Replaced outright, so every passing test that reaches it reads the new value too: one that then
+                # fails needs the old value, and this expression is not the fix (a condition choosing between the
+                # two would be another kind of change).
+                depends, ran = await _the_tests_that_depend_on(place, step, held, kept_runs, plan, record, changed,
+                                                               run)
+                evidence.runs += ran
+                if depends:
+                    note.setdefault("breaks_passing", []).append(option)
+                    continue
+                after = repaired(sources[place.path], place, option)
+                try:
+                    ast.parse(after)
+                except SyntaxError:
+                    continue
+                gathered.append(((1, order, len(option)), place, after))
+                break
             forced_rows = [r for r in await asyncio.to_thread(_rows, record) if r.get("location") == place.id]
             # A passing run constrains the condition only when its test depends on what is decided here: under the
             # same forcing it fails. One that passes either way says nothing about this place. LIVE 16 November 2026
@@ -548,7 +662,8 @@ def _forcings(place: Place, unforced: Sequence[Mapping[str, Any]],
 
     A condition is forced to each value for every evaluation; then, when that cannot mend it, one evaluation at a
     time decided the other way, for as many evaluations as the failing tests made of it (a bound in a loop is wrong
-    for one item and right for the rest). A guard skips its statement; a way out returns each value offered.
+    for one item and right for the rest). A guard skips its statement; a way out returns each value offered; a value
+    is read as each of its candidates.
     """
     if place.kind == "guard":
         return [({"decide": False}, False)]
@@ -556,6 +671,17 @@ def _forcings(place: Place, unforced: Sequence[Mapping[str, Any]],
         return [({"decide": index}, index) for index in range(len(place.returns))]
     reached = [r for r in unforced if r.get("location") == place.id
                and any(_matches(t, _test_of(r)) for t in failing)]
+    if place.kind == "value":
+        # Each candidate in its turn, nearest first, but not one read without a call that held another type wherever
+        # the failing runs reached the place: it cannot be the value they needed.
+        had = {r.get("decided") for r in reached if r.get("decided")}
+        out_values: list[tuple[dict[str, Any], Any]] = []
+        for text in place.candidates:
+            kinds = {(r.get("types") or {}).get(text) for r in reached} - {None}
+            if had and kinds and not kinds & had:
+                continue
+            out_values.append(({"pick": text}, text))
+        return out_values
     decided = [bool(r.get("decided")) for r in reached]
     out: list[tuple[dict[str, Any], Any]] = []
     for value in (True, False):

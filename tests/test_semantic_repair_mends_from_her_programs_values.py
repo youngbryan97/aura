@@ -202,3 +202,53 @@ def test_a_passing_test_that_passes_either_way_does_not_constrain_the_condition(
         planted, [_node("test_blank_text_counts_nothing")],
         [_node("test_a_count"), _node("test_trying_blank_text_answers_either_way")], tmp_path))
     assert "if not digits:" in mended, evidence.to_json()
+
+
+def test_a_wrong_value_is_read_as_the_expression_the_function_already_has(plant, tmp_path):
+    """Her history, f5da1f5da (14 October 2026): a capture was asked to start after ``before.upper`` where it had to
+    start after the time the function reads two lines below, ``time.monotonic()``. No condition, guard or early
+    return mends a wrong value; reading another of the function's own expressions in its place does."""
+    planted = plant(
+        "class Frame:\n"
+        "    def __init__(self, at):\n"
+        "        self.at = at\n\n\n"
+        "def after(clock, last):\n"
+        "    captured = Frame(last.at)\n"
+        "    if clock() < last.at:\n"
+        "        raise ValueError('the clock went back')\n"
+        "    return captured\n",
+        "from planted.mod import Frame, after\n\n"
+        "def test_a_frame_is_a_frame():\n    assert isinstance(after(lambda: 5.0, Frame(1.0)), Frame)\n\n"
+        "def test_a_clock_that_went_back_is_refused():\n"
+        "    import pytest\n"
+        "    with pytest.raises(ValueError):\n        after(lambda: 0.5, Frame(1.0))\n\n"
+        "def test_the_frame_is_taken_when_it_is_asked_for():\n    assert after(lambda: 5.0, Frame(1.0)).at == 5.0\n")
+    mended, evidence = asyncio.run(_first_mend(
+        planted, [_node("test_the_frame_is_taken_when_it_is_asked_for")],
+        [_node("test_a_frame_is_a_frame"), _node("test_a_clock_that_went_back_is_refused")], tmp_path))
+    assert "captured = Frame(clock())" in mended, evidence.to_json()
+    assert "raise ValueError" in mended, "the refusal is kept"
+
+
+def test_a_value_the_passing_runs_need_is_not_replaced(plant, tmp_path):
+    """Replaced outright, a value is read by every test that reaches it: where a passing test needs the old one, the
+    candidate that mends the failing test is not the fix, and is not offered as one."""
+    planted = plant(
+        "def chosen(primary, backup, use_backup):\n"
+        "    pick = primary\n"
+        "    return pick\n",
+        "from planted.mod import chosen\n\n"
+        "def test_the_primary_by_default():\n    assert chosen(1, 2, False) == 1\n\n"
+        "def test_the_backup_when_asked():\n    assert chosen(1, 2, True) == 2\n")
+    evidence = Evidence()
+
+    async def offered() -> list[str]:
+        return [origin async for origin, _text in semantic_repairs(
+            sources={planted.path: planted.source}, failing=[_node("test_the_backup_when_asked")],
+            passing=[_node("test_the_primary_by_default")], ranked=planted.lines(), run=planted.run,
+            workdir=tmp_path / "probe", deadline=time.time() + 240, evidence=evidence)]
+
+    origins = asyncio.run(offered())
+    assert not any(origin.startswith("semantic:value") for origin in origins), evidence.to_json()
+    broke = [p for p in evidence.places if p["kind"] == "value" and p.get("breaks_passing")]
+    assert broke and "backup" in broke[0]["breaks_passing"], evidence.to_json()
