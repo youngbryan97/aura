@@ -134,7 +134,9 @@ _COMPLETION_MARKER_RE = re.compile(
 #: ("I wrote it to ~/notes.txt"). They are excluded by default and pulled back
 #: in when the sentence names something in the world, which is what
 #: :data:`_WORLD_REFERENT_RE` decides.
-_AMBIGUOUS_VERBS: frozenset[str] = frozenset({"wrote", "written", "listed", "put", "made", "created"})
+#: "sent" with them: LIVE 16 November 2026, 21:41, "I've sent a desktop notification reminding you to stretch." on a turn
+#: where nothing was sent; sending a message to someone is speech, sending a notification to a screen is an effect.
+_AMBIGUOUS_VERBS: frozenset[str] = frozenset({"wrote", "written", "listed", "put", "made", "created", "sent"})
 
 
 #: Irregular completed forms, since the -ed rule cannot reach them. Open-ended
@@ -154,7 +156,8 @@ _IRREGULAR_PAST = (
 #: closed excluded classes above can be consulted; nothing here knows what
 #: effects exist.
 _COMPLETED_ACTION_RE = re.compile(
-    r"\bI\s+(?:have\s+|'ve\s+|had\s+|just\s+|already\s+|now\s+)*"
+    # "I've" has no space before its "'ve", so "I've sent ..." was never read as a claim (16 November 2026).
+    r"\bI(?:['\u2019]ve)?\s+(?:have\s+|'ve\s+|had\s+|just\s+|already\s+|now\s+)*"
     rf"(?P<verb>\w+ed|{_IRREGULAR_PAST})\b",
     re.IGNORECASE,
 )
@@ -198,7 +201,7 @@ _WORLD_REFERENT_RE = re.compile(
     r"|\b[\w-]+\.(?:txt|md|pdf|png|jpg|jpeg|csv|json|py|rtf|docx?|pages)\b"  # a filename
     r"|\bhttps?://|\bwww\.[\w-]+"                          # a URL
     r"|\b(?:clipboard|desktop|documents|downloads|finder|screen|display)\b"
-    r"|\b(?:folder|directory|file|note|document|pdf|image|screenshot)\b"
+    r"|\b(?:folder|directory|file|note|document|pdf|image|screenshot|notification|reminder|alert)\b"
     r"|\b(?:volume|brightness|wi-?fi|bluetooth|dark\s+mode|do\s+not\s+disturb)\b"
     r"|\b(?:Notes|TextEdit|Safari|Chrome|Terminal|Calculator|Mail|Messages|"
     r"Reminders|Preview|Pages|Numbers|Keynote|Music|Photos|Calendar)\b",
