@@ -79,8 +79,9 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
             fields = tuple(spec.evidence_fields) if spec is not None else ()
         except (ImportError, AttributeError, TypeError, ValueError):
             fields = ()
-        object_ref = ""
-        for field in fields:
+        # What the step names as its object, where it names one; then the registry's evidence fields.
+        object_ref = str(receipt.get("object") or "")
+        for field in () if object_ref else fields:
             candidate = result.get(field, receipt.get(field))
             if candidate not in (None, "", [], {}):
                 object_ref = str(candidate)

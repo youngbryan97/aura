@@ -161,3 +161,31 @@ def test_pointing_runs_before_her_cognition_and_her_cognition_still_answers():
         assert _screen_perception_needs_her_answer(asked), asked
         assert not _desktop_objective_self_sufficient_without_cognitive_text(asked), asked
     assert asks_to_be_shown_where("Can you highlight the back button for me?") == "back button"
+
+
+@pytest.mark.asyncio
+async def test_a_ring_she_drew_is_drawn_again_as_her_reply_is_served(monkeypatch):
+    """LIVE 17 November 2026, 02:30: drawn 0.80 s after the request and gone 3 s later, and her reply, 28 s after the
+    request, said "it should be visible now". A pointing that was not drawn is not drawn at her reply either."""
+    from fastapi.responses import JSONResponse
+
+    from core.epistemics.turn_effects import record_verified_effects
+    from core.runtime.turn_outcome import TurnOutcome
+    from interface.routes.chat_http_shapes import _mark_http_turn_served
+
+    looked_for = []
+
+    async def highlight(needle, **kwargs):
+        looked_for.append((needle, kwargs.get("requested")))
+        return HighlightResult(shown=True, reason="drawn", rect=Rect(824, 316, 36, 36), matched_text=needle)
+
+    monkeypatch.setattr(screen_highlight, "highlight", highlight)
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-land"):
+        record_verified_effects([screen_highlight.pointing_receipt(
+            "back button", HighlightResult(shown=True, reason="drawn", rect=Rect(824, 316, 36, 36)))])
+        record_verified_effects([screen_highlight.pointing_receipt(
+            "submit button", HighlightResult(shown=False, reason="could not locate it"))])
+        _mark_http_turn_served(TurnOutcome(turn_id="t-land"), JSONResponse(
+            {"response": "Done. I drew a rectangle around the back button in your Finder window."}))
+        await asyncio.gather(*screen_highlight._AS_HER_WORDS_LAND)
+    assert looked_for == [("back button", True)]

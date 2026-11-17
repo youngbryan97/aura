@@ -112,6 +112,9 @@ def _mark_http_turn_served(outcome: Any, response: Any) -> None:
                     )
         if served.strip():
             outcome.mark_served(served)
+            from core.perception.screen_highlight import as_her_words_land
+
+            as_her_words_land()  # a pointing goes with the words that speak of it
         else:
             from core.runtime.turn_outcome import UserVisibleState
 

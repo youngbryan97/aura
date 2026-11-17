@@ -35,6 +35,7 @@ degraded one.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -425,9 +426,41 @@ def pointing_receipt(needle: str, result: HighlightResult) -> dict[str, Any]:
     evidence = (f"drew a rectangle around {needle!r} at x {where.get('x')}, y {where.get('y')}, "
                 f"{where.get('width')} by {where.get('height')}{inside}" if result.shown else
                 f"did not draw a rectangle around {needle!r}: {result.reason}{inside}")
-    return {"index": 1, "action": "highlight_on_screen", "reason": "point at what was asked about",
+    return {"index": 1, "action": "highlight_on_screen", "object": needle, "reason": "point at what was asked about",
             "expect": f"a rectangle around {needle!r}", "ok": result.shown, "effect_verified": result.shown,
             "effect_evidence": evidence, "result": result.to_dict()}
+
+
+_AS_HER_WORDS_LAND: set[asyncio.Task[Any]] = set()
+
+
+def as_her_words_land() -> int:
+    """Each rectangle this turn drew, drawn again as her reply to it is served; how many. Called where the reply goes
+    out, inside the turn (interface/routes/chat_http_shapes.py).
+
+    A pointing goes with the words that speak of it. LIVE 17 November 2026, 02:30: drawn 0.80 s after the request and
+    gone 3 s later, and her reply, 28 s after the request, said "it should be visible now". Looked for again rather
+    than drawn where it was: the window may have moved since.
+    """
+    from core.conversation.surface_disposition import turn_tool_receipts
+
+    drawn = list(dict.fromkeys(
+        str(receipt.get("object_ref") or "") for receipt in turn_tool_receipts()
+        if receipt.get("action") == "highlight_on_screen" and receipt.get("ok") and receipt.get("object_ref")))
+    for needle in drawn:
+        task = asyncio.get_running_loop().create_task(_again(needle))
+        _AS_HER_WORDS_LAND.add(task)
+        task.add_done_callback(_AS_HER_WORDS_LAND.discard)
+    return len(drawn)
+
+
+async def _again(needle: str) -> None:
+    try:
+        result = await highlight(needle, requested=True)
+    except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
+        record_degradation("screen_highlight", exc, severity="info", action="her reply went out without the ring again")
+        return
+    logger.info("🖍️ %r again as her words land: %s", needle, result.reason)
 
 
 async def point_as_asked(objective: str) -> dict[str, Any] | None:
@@ -532,6 +565,7 @@ __all__ = [
     "Rect",
     "highlight",
     "locate_on_screen",
+    "as_her_words_land",
     "point_as_asked",
     "pointing_receipt",
     "with_pointing",
