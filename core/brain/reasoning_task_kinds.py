@@ -123,8 +123,13 @@ def classify_task_type(text: str) -> str:
     answer keeps being served as current truth. Repository questions are
     therefore recognised first, so a question that is about the codebase is
     classified as being about the codebase even when it mentions code.
+
+    The request is the person's words: what the turn attached (a reading of the screen, a page) is left out, or a
+    question about the screen is the kind of whatever the screen shows (17 November 2026).
     """
-    t = str(text or "")
+    from core.utils.injected_blocks import strip_injected_blocks
+
+    t = strip_injected_blocks(str(text or ""))
     if _REPO_HINT.search(t):
         return "repo_audit"
     if _CODE_HINT.search(t):

@@ -1875,8 +1875,12 @@ def is_amplifiable(objective: str) -> str | None:
     the tool path owns commands and chat is never slowed down.
     """
     from core.conversation.session_scope import is_her_own_turn
+    from core.utils.injected_blocks import strip_injected_blocks
 
-    q = str(objective or "").strip()
+    # The person's words, not the readings the turn attached: LIVE 17 November 2026 "What is on my screen right now?"
+    # carried her screen sense's reading, its code words made it a code task, and the amplifier's guess was held back
+    # and the desktop lane's failure sentence served in its place.
+    q = strip_injected_blocks(str(objective or "")).strip()
     # A turn of hers answers no question to check: its words are what she saw and heard (session_scope.py). LIVE 7
     # November 2026, dress rehearsal: watching turns ran math and code searches of up to eight candidates on her one
     # 27B, cued by the numbers in a video, and a batch of them timed out holding the lane her answer was waiting on.
