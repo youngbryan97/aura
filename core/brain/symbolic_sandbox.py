@@ -4,9 +4,8 @@ Frontier reasoning models do not calculate in their head; they write code, run i
 read the error, and self-correct. This is that co-processor. Given a piece of
 candidate Python (a calculation, a property test, a counterexample search) it:
 
-1. statically vets the script with the existing AST safety analyzer — any
-   dangerous import/call (os, subprocess, socket, open, eval, …) is refused
-   *before* execution, so the executed script can only do pure computation + print;
+1. reads the script with the AST safety analyzer and keeps what it noticed
+   (an import of os, a call to open, …) as warnings beside the result;
 2. executes it through :mod:`core.sandbox.untrusted_python`, which requires an
    OS kernel boundary, denies network and user-data access, applies resource
    limits, and refuses to run if that boundary is unavailable;
@@ -19,8 +18,15 @@ It is the execution spine the code/math truth engines and the amplifier's
 ``expand_or_repair_failed_candidates`` step call when prose verification is not
 enough and the answer can simply be *run*.
 
-The AST screen remains defense in depth. The kernel sandbox and resource limits
-are the actual containment boundary.
+The kernel sandbox and resource limits are the containment boundary, and the
+only gate: a script runs inside it, or, with no boundary on this host, not at
+all. The AST reading was a gate too, a list of module and function names, and it
+refused what the boundary already contains. LIVE 17 November 2026, asked for a
+function that groups file paths by extension and to run it, her amplifier wrote
+`import os` for os.path.splitext, the list refused it twice, nothing ran, and her
+reply said "I ran it — here's what actually printed". What `os` can reach in the
+boundary is the scratch directory: no network, no user data, no exec but the
+interpreter (tests/test_untrusted_python_sandbox.py, against live escapes).
 """
 from __future__ import annotations
 
@@ -138,10 +144,7 @@ class SandboxResult:
 
 
 class SymbolicSandbox:
-    """AST-vetted Python execution with a self-correction loop.
-
-    The execution boundary is the host's required kernel sandbox.
-    """
+    """Python execution inside the host's required kernel sandbox, with a self-correction loop."""
 
     def __init__(self, *, workspace: str | os.PathLike[str] | None = None, timeout: float = _DEFAULT_TIMEOUT) -> None:
         # Retained for API compatibility. The kernel sandbox owns an ephemeral
@@ -150,7 +153,10 @@ class SymbolicSandbox:
         self._timeout = _clamp_timeout(timeout)
 
     def vet(self, code: str) -> tuple[bool, list[str]]:
-        """Static safety gate. True ⇒ safe to execute (pure computation only)."""
+        """Whether the script can run at all (it is there and it parses), and what the static reading noticed in it.
+
+        What it noticed is advisory: the kernel boundary is what contains the script (see the module's docstring).
+        """
         body = _strip_fence(code)
         if not body:
             return False, ["empty script"]
@@ -159,8 +165,7 @@ class SymbolicSandbox:
 
             if not CodeVerifier.verify_syntax(body):
                 return False, ["syntax error"]
-            safety = CodeVerifier.analyze_safety(body)
-            return bool(safety["safe"]), [str(w) for w in safety["warnings"]]
+            return True, [str(w) for w in CodeVerifier.analyze_safety(body)["warnings"]]
         except (ImportError, RuntimeError) as exc:  # pragma: no cover - import guard
             record_degradation("symbolic_sandbox_vet", exc)
             return False, ["safety analyzer unavailable"]
@@ -175,11 +180,11 @@ class SymbolicSandbox:
         vetted; the kernel boundary contains both.
         """
         body = _strip_fence(code)
-        safe, warnings = self.vet(body)
+        runnable, warnings = self.vet(body)
         if _fence_count(code) > 1:
             warnings = [*warnings, "multiple code fences concatenated"]
-        if not safe:
-            logger.info("🔒 [Sandbox] refused unsafe/invalid script: %s", warnings)
+        if not runnable:
+            logger.info("🔒 [Sandbox] refused a script that cannot run: %s", warnings)
             return SandboxResult(ok=False, refused=True, warnings=warnings, final_code=body)
 
         effective_timeout = _clamp_timeout(timeout_override) if timeout_override is not None else self._timeout

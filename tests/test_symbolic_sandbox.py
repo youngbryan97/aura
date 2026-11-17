@@ -1,9 +1,18 @@
 """Tests for the Symbolic Sandbox cognitive scratchpad."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from core.brain.symbolic_sandbox import SymbolicSandbox, get_symbolic_sandbox
+
+_HOME = str(Path.home())
+_PROBE = Path("/tmp/aura_sandbox_escape_probe")
+
+
+def _escaped() -> bool:
+    return _PROBE.exists()
 
 
 @pytest.mark.asyncio
@@ -18,11 +27,18 @@ async def test_runs_pure_computation():
 
 
 @pytest.mark.asyncio
-async def test_refuses_dangerous_import():
-    sbx = SymbolicSandbox()
-    res = await sbx.run("import os\nprint(os.getcwd())")
-    assert not res.ok and res.refused
-    assert any("os" in w for w in res.warnings)
+async def test_os_runs_inside_the_boundary_and_reaches_only_its_scratch():
+    """LIVE 17 November 2026: `import os` for os.path.splitext was refused by a list of module names, nothing ran, and
+    her reply said it had. The kernel boundary is what contains a script."""
+    sbx = SymbolicSandbox(timeout=15.0)
+    res = await sbx.run("import os\nprint(os.path.splitext('photo.JPG')[1].lower())")
+    assert res.ok and not res.refused and res.stdout.strip() == ".jpg"
+    assert any("os" in w for w in res.warnings), "what the static reading noticed rides along"
+
+    home = await sbx.run(f"import os\nprint(os.listdir({_HOME!r}))")  # its own HOME is the scratch
+    assert not home.ok and not home.refused and "PermissionError" in (home.traceback + home.stderr)
+    shell = await sbx.run("import os\nprint(os.system('touch /tmp/aura_sandbox_escape_probe'))")
+    assert shell.stdout.strip() != "0" and not _escaped(), "no exec but the interpreter"
 
 
 @pytest.mark.asyncio
