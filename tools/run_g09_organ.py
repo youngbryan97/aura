@@ -677,8 +677,7 @@ def _how_her_chat_answers(request: str, model_path: Path, seconds: float) -> dic
 
     name = model_path.name
     shape, floor = lane._direct_desktop_quick_reply_prompt_shape({"visible_user_message": request}, request, False)
-    completion_floor, asked = lane._direct_desktop_quick_reply_part_2([], False, {}, False, 768, False, False,
-                                                                       shape, floor)
+    completion_floor, asked = lane._direct_desktop_quick_reply_part_2([], False, {}, False, 768, False, shape, floor)
     derived = answer_is_derived_for_generation(completion_floor=completion_floor, budget_tokens=asked,
                                                model_name=str(model_path), seconds_remaining=seconds)
     thinking = thinking_enabled_for_generation(str(model_path), cognitive_mode="fast", final_user_surface=True,
