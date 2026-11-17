@@ -7525,7 +7525,14 @@ needs her 27B free (her app down, or her app's own influence trials).
   and her record said so. Her loop then mended it again as `if item not in prices: return None` (ec6c4a7cc), and her
   gates refused it at governance-lint, red on main from 1dec3d5b7's raw writes (mended in 98320cb45); her retry
   made the fault again over her own draft and stalled. A refused draft is now asked of her gates again, and every
-  draft a goal offered stays on her page (879d15c35).
+  draft a goal offered stays on her page (879d15c35). At 04:37 her loop asked her gates again on her source as it
+  then was, they passed, and she took her draft herself as b0a984ffc and loaded it; her page read "landed and
+  loaded" for it. Part 2, morning: in a session, a test run again had lost its fixtures (KeyError for each one after
+  the first run), so the session read every forcing as mending nothing; mended in a5ef0feff. f5da1f5da is then mended
+  by her own Python, with no model, in 606 forcings in one session and 3 runs: `not_before=time.monotonic()` in place
+  of `before.upper`, the change its commit made. The first of the 81 defects of her history mended this way. The
+  whole history run started at 06:54 from a worktree pinned at a5ef0feff, its log at
+  `~/.aura/rlc-evidence/repair-by-selection-20261018/her-own-python-20261117-sessions/progress.log`.
 
 ## Live session 2026-09-07: what the runtime showed
 
