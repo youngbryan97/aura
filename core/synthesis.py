@@ -134,7 +134,6 @@ _INLINE_ROLE_BOUNDARY_PATTERNS = (
         r"(?=(?i:(?:what|who|when|where|why|how|can|could|would|if|i\b|you\b|"
         r"yes\b|no\b|tell\b|translate\b|name\b|write\b|hello\b|hi\b|[\"'0-9]))).*$"
     ),
-    re.compile(r"(?is)_user\b.*$"),
 )
 _DANGLING_ROLE_TOKEN_RE = re.compile(r"(?i)(?:\s|\b)(?:user|human|assistant|aura)\s*$")
 

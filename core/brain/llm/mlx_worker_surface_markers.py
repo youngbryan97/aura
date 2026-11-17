@@ -31,11 +31,22 @@ simulating the next chat turn ran over the whole buffer, reasoning included,
 so a role label written while working the problem out ended the pass, and
 the turn went to the smaller model. A label in her reasoning quotes a turn or
 plans one. It is a new turn only in the reply.
+
+Where a turn ends is a fact about tokens, not words. A tokenizer marks each
+token it adds as special (structure: where a turn starts and ends, a slot for an
+image) or not (text the model writes, such as ``<tool_call>`` and ``<think>``).
+``_turns_end_at_its_control_tokens`` gives every special token to mlx_lm as an
+end of sequence, so a decode stops on the token itself, before it becomes text,
+for any model. LIVE, 16 November 2026, 21:41 and 21:51: asked for a desktop
+notification, her model wrote ``<function=notify`` and stopped, twice. Its next
+token was ``_user``, and a pattern over the decoded text cut every reply at the
+first "_user" anywhere in it; it was written for "8_user" in May.
 """
 
 from __future__ import annotations
 
 import re
+from typing import Any
 
 __all__ = [
     "_BACKEND_SYMBOLIC_SURFACE_MARKERS",
@@ -44,6 +55,7 @@ __all__ = [
     "_strip_leading_chatml_prefix",
     "_truncate_reply_role_continuation",
     "_truncate_role_continuation",
+    "_turns_end_at_its_control_tokens",
 ]
 
 #: Words the decoder emits when the language itself has come apart. Not a
@@ -100,7 +112,24 @@ _USER_CONTINUATION_NO_COLON_RE = re.compile(
     r"(?=(?:what|who|when|where|why|how|can|could|would|if|i\b|you\b|"
     r"yes\b|no\b|tell\b|translate\b|name\b|write\b|hello\b|hi\b|[\"'0-9])).*$"
 )
-_ROLE_SUFFIX_RE = re.compile(r"(?is)_user\b.*$")
+
+
+def _turns_end_at_its_control_tokens(model: Any, tokenizer: Any) -> tuple[Any, Any]:
+    """``(model, tokenizer)``, with every token the tokenizer marks special ending a decode.
+
+    mlx_lm stops on its tokenizer's end-of-sequence ids. For her model that was
+    ``<|im_end|>`` alone; ``<|endoftext|>``, which her generation config also
+    names, and ``<|im_start|>``, which begins the next turn, were caught only
+    after decoding, in the text.
+    """
+    hf_tokenizer = getattr(tokenizer, "_tokenizer", tokenizer)
+    added = getattr(hf_tokenizer, "added_tokens_decoder", None)
+    ends_on = getattr(tokenizer, "add_eos_token", None)
+    if isinstance(added, dict) and callable(ends_on):
+        for token_id, token in added.items():
+            if getattr(token, "special", False):
+                ends_on(str(int(token_id)))
+    return model, tokenizer
 
 
 def _truncate_role_continuation(text: str, *, final: bool = False) -> tuple[str, bool]:
@@ -134,7 +163,6 @@ def _truncate_role_continuation(text: str, *, final: bool = False) -> tuple[str,
     original = cleaned
     cleaned = _ROLE_CONTINUATION_RE.sub("", cleaned)
     cleaned = _USER_CONTINUATION_NO_COLON_RE.sub("", cleaned)
-    cleaned = _ROLE_SUFFIX_RE.sub("", cleaned)
     return (cleaned.strip() if final else cleaned), cleaned != original
 
 

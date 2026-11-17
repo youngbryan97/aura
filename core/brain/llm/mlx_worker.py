@@ -64,7 +64,7 @@ from .mlx_worker_surface_markers import (  # noqa: F401  (re-exported: they were
     _LEADING_ROLE_NO_SEPARATOR_RE,
     _ROLE_CONTINUATION_RE,
     _first_stop_in_reply,
-    _strip_leading_chatml_prefix,
+    _strip_leading_chatml_prefix, _turns_end_at_its_control_tokens,
     _truncate_reply_role_continuation,
     _truncate_role_continuation,
 )
@@ -6318,10 +6318,10 @@ def _mlx_worker_loop(
                         "Hadamard rotation; a LoRA trained on the unrotated base "
                         "cannot be fused onto it"
                     )
-                return load_prism_hadamard_pack(model_path)
+                return _turns_end_at_its_control_tokens(*load_prism_hadamard_pack(model_path))
             if adapter_path:
-                return _mlx_lm_load(model_path, adapter_path=adapter_path)
-            return _mlx_lm_load(model_path)
+                return _turns_end_at_its_control_tokens(*_mlx_lm_load(model_path, adapter_path=adapter_path))
+            return _turns_end_at_its_control_tokens(*_mlx_lm_load(model_path))
 
         try:
             from mlx_lm.sample_utils import make_sampler

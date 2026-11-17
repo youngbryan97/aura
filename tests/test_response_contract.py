@@ -554,7 +554,8 @@ def test_dialogue_policy_repairs_prompt_artifact_lines():
 
 def test_role_artifact_sanitizer_cuts_simulated_next_user_turns():
     assert strip_role_artifacts("Paris User What is the sum of 2+2") == "Paris"
-    assert strip_role_artifacts("8_user") == "8"
+    # A word ending in "_user" is a word: a turn's end is a control token (core/brain/llm/mlx_worker_surface_markers.py).
+    assert strip_role_artifacts("I called notify_user for you.") == "I called notify_user for you."
     assert strip_role_artifacts("User: 180") == "180"
     assert strip_role_artifacts("Operationally complete.User:That's a lot.") == "Operationally complete."
 
