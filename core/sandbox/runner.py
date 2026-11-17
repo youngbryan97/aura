@@ -216,6 +216,12 @@ safe_builtins = {
     'None': None, 'True': True, 'False': False,
     # specifically exclude __import__, open, eval, exec, compile, globals, locals
 }
+# Every exception class, so code can catch what it raises. They are types and do nothing; without them
+# `except ImportError:` was itself a NameError. LIVE 17 November 2026, her check of whether 2**61 - 1 is prime tried
+# sympy and fell back on ImportError, and the run ended in NameError("name 'ImportError' is not defined").
+for _exc_name, _exc in vars(builtins).items():
+    if isinstance(_exc, type) and issubclass(_exc, BaseException):
+        safe_builtins.setdefault(_exc_name, _exc)
 
 # The part of the standard library that only computes.
 #
