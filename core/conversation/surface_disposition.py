@@ -287,6 +287,34 @@ def turn_tool_receipts() -> tuple[dict[str, Any], ...]:
     return custody.receipts() if custody is not None else ()
 
 
+#: The heading her model reads this turn's calls under.
+WHAT_SHE_DID_THIS_TURN = "## WHAT SHE DID IN THIS TURN"
+
+
+def what_she_did_this_turn() -> str:
+    """This turn's calls and what each came to, a reading for every generation of the turn; "" when none ran.
+
+    LIVE 16 November 2026, 23:30 to 23:35: asked for a desktop notification, four notify_user calls in her tool loop
+    each failed ("argv entries must not be empty"), the loop ran out of time, and the pass that then wrote her reply
+    was given her capabilities and not this record. She said "I have a notify_user capability available, so let me push it
+    to your desktop now." Repeats of one outcome are told once, with how many.
+    """
+    told: dict[tuple[str, bool, str], int] = {}
+    for receipt in turn_tool_receipts()[:16]:
+        if not isinstance(receipt, dict):
+            continue
+        came_to = " ".join(str(receipt.get("observed_content") or receipt.get("evidence") or "").split())[:300]
+        key = (str(receipt.get("tool") or "a tool"), bool(receipt.get("ok")), came_to)
+        told[key] = told.get(key, 0) + 1
+    if not told:
+        return ""
+    lines = []
+    for (tool, ok, came_to), times in told.items():
+        how_often = f" ({times} times)" if times > 1 else ""
+        lines.append(f"- {tool}: {'done' if ok else 'failed'}{how_often}" + (f": {came_to}" if came_to else ""))
+    return "\n".join([WHAT_SHE_DID_THIS_TURN, *lines])
+
+
 def bounded_turn_tool_receipts() -> list[dict[str, Any]]:
     """This turn's receipts, bounded, for a judge that runs where the turn's custody does not: her model's worker, and
     the chat's post-reply step. Callers cannot supply arbitrary receipts through it."""
