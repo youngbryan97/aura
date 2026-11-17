@@ -4388,6 +4388,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   world news?" -0.062, "Any news today?" -0.025), because its concept
   names facts and prices and not news or a situation in the world; a
   list of recency words decides those today, before it is asked.
+  On the second half of what Bryan said: she reads the world on her own,
+  and none of it was in front of her on a turn. Her retained web reading
+  that day held Reuters' world page (01:54) and "significant world
+  events today" (07:49), beside her research on her own task completion,
+  which she searched six times. Asked what was on her mind the day
+  before, her readings were her own state: her live mind context, her
+  substrate, her curiosity and fatigue figures. Her present moment now
+  carries what she read on the web in the last day, as the clock and the
+  machine's load are carried: each page's title and site, newest first,
+  each page once, at most four, read from the end of her store (about
+  1 ms; cached until the store changes). What she makes of it, and
+  whether she mentions it, is hers.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

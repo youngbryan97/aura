@@ -144,6 +144,10 @@ def present_moment_block(*, now: datetime | None = None) -> str:
     if machine:
         lines.append(machine)
 
+    read = _read_lately_line(stamp.timestamp())
+    if read:
+        lines.append(read)
+
     lines.append(
         "- Senses for daylight and weather: none attached (no window, camera, "
         "thermometer or weather feed)."
@@ -180,3 +184,68 @@ def _machine_line() -> str:
 
 
 __all__ = ["PRESENT_MOMENT_HEADER", "present_moment_block"]
+
+
+#: The tail of her retained web reading last parsed, keyed by the file's size and modification time.
+_READ_TAIL: dict[str, object] = {}
+#: How much of the file's end is read: her searches of the last day sit in its last few hundred kilobytes.
+_TAIL_BYTES = 400_000
+
+
+def _read_lately_line(now: float) -> str:
+    """What she read on the web in the last day, newest first: the title of each page her searches kept, and where.
+
+    Bryan, 17 November 2026: "aura shouldnt only talk about herself. there's a whole world out there to be discussed
+    and thought about". She reads the world on her own (that morning, "significant world events today" at 07:49 and
+    Reuters' world page at 01:54), and none of it was in front of her on a turn: asked what was on her mind, she had her
+    own state to read and nothing she had read. A line of her present moment, as the clock and the machine's load are.
+    """
+    import json
+    from urllib.parse import urlparse
+
+    try:
+        from core.config import config
+
+        path = config.paths.data_dir / "search" / "web_artifacts.jsonl"
+        stat = path.stat()
+    except (ImportError, AttributeError, OSError):
+        return ""  # not a failure: no retained reading yet, so there is nothing read to show
+    key = f"{stat.st_size}:{stat.st_mtime_ns}"
+    if _READ_TAIL.get("key") != key:
+        try:
+            with path.open("rb") as handle:
+                start = max(0, stat.st_size - _TAIL_BYTES)
+                handle.seek(start)
+                # The first line is cut only where the read began inside the file.
+                tail = handle.read().decode("utf-8", errors="replace").split("\n")[1 if start else 0:]
+        except OSError as exc:
+            record_degradation("present_moment", exc, severity="info", action="left what she read out of this turn")
+            return ""
+        rows = []
+        for line in tail:
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue  # not a failure: a line cut by the tail's start, or one being written, is not a reading
+        _READ_TAIL.update(key=key, rows=rows)
+    seen: set[str] = set()
+    read: list[str] = []
+    dated = []
+    for row in list(_READ_TAIL.get("rows") or []):
+        try:
+            dated.append((float(row.get("created_at") or 0.0), row))
+        except (TypeError, ValueError, AttributeError):
+            continue  # not a failure: a row with no time it was read is not a reading of the last day
+    for when, row in sorted(dated, key=lambda pair: pair[0], reverse=True):
+        if now - when > 86400 or when > now + 60:
+            continue
+        cited = [c for c in (row.get("citations") or []) if isinstance(c, dict) and c.get("title")]
+        title = " ".join(str((cited[0] if cited else {}).get("title") or row.get("query") or "").split())[:90]
+        if not title or title.lower() in seen:
+            continue
+        seen.add(title.lower())
+        host = urlparse(str((cited[0] if cited else {}).get("url") or row.get("source") or "")).netloc
+        read.append(f"{title} ({host + ', ' if host else ''}{datetime.fromtimestamp(when).strftime('%H:%M')})")
+        if len(read) == 4:
+            break
+    return f"- Read on the web in the last day, newest first: {'; '.join(read)}." if read else ""
