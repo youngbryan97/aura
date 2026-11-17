@@ -119,6 +119,15 @@ def _undo_a_mend_that_did_not_hold(record: DegradationRecord) -> None:
                                 getattr(record, "failed_call", None))
     if undone is None or not undone.goal:
         return
+    try:
+        # Kept on her record at once, so an undo is taken back out of her source even across a restart.
+        from core.agency.her_goal_at_work import note_on_offer
+
+        raised_in = ".".join(getattr(record, "raised_in", None) or ())
+        note_on_offer(undone.goal, undone={"at": time.time(), "because": f"{raised_in} raised "
+                                           f"{str(record.error_type).rsplit('.', 1)[-1]} after it was loaded"})
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.warning("her undone mend %s was not written on her record: %s", undone.goal, exc)
     with _LOCK:
         if undone.goal not in _UNDONE:
             _UNDONE.append(undone.goal)

@@ -426,3 +426,9 @@ async def verify_will_receipt(receipt_id: str) -> JSONResponse:
     except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+# What she changed in her own source, by day: /api/self/changes (interface/routes/what_she_changed.py).
+from interface.routes.what_she_changed import router as _what_she_changed  # noqa: E402
+
+router.include_router(_what_she_changed)

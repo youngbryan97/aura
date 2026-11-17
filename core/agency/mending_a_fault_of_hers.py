@@ -269,6 +269,7 @@ async def _offer(record: Any, workspace: Path, files: list[str], best: Any, faul
         taken = goals.take_it_herself(record.slug)
         if taken.get("ok"):
             taken["loaded"] = _into_her_running_process(fault, *mended, record.slug)
+            goals.note_on_offer(record.slug, loaded={**taken["loaded"], "at": time.time()})
         return taken
 
     try:
@@ -297,7 +298,7 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     await keep_what_was_heard()
     # A mend undone in her running process (it faulted after it was loaded) comes back out of her source first.
     taken_back = []
-    for slug in mends_undone():
+    for slug in dict.fromkeys([*mends_undone(), *goals.mends_undone_on_record()]):
         done = await asyncio.to_thread(goals.take_it_back, slug, "it faulted in her running process after it was "
                                                                   "loaded, so it was undone there")
         taken_back.append({"slug": slug, "status": "taken back" if done.get("ok") else "not taken back",

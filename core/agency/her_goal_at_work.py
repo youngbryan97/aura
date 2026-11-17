@@ -785,6 +785,25 @@ def take_it_back(slug: str, why: str) -> dict[str, Any]:
     return {"ok": True, "revert": revert, "on_disk": on_disk}
 
 
+def note_on_offer(slug: str, **facts: Any) -> bool:
+    """Facts about what became of a draft of hers, kept on its offer: what of it was loaded into her running process,
+    when it was undone there and why. Her record of what she changed is read from these
+    (core/agency/what_she_changed.py); whether they were written."""
+    record = load(slug)
+    if record is None or not record.offer:
+        return False
+    record.offer = {**record.offer, **facts}
+    _write_now(record)
+    return True
+
+
+def mends_undone_on_record() -> list[str]:
+    """Her taken drafts undone in her running process and still in her source, from her records: an undo heard
+    before her last start is taken back after it."""
+    return [record.slug for record in all_records()
+            if record.status == MERGED and (record.offer or {}).get("undone") and not record.offer.get("reverted")]
+
+
 def decline(slug: str, words: str) -> dict[str, Any]:
     """Bryan's no, in his words: the goal goes back to her with them."""
     record = load(slug)

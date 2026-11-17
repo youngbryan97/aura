@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What Aura Changed</title>
+<style>
+  :root {
+    --ground: #f6f5f2; --panel: #ffffff; --ink: #1d1b22; --muted: #6b6775; --rule: #e3e0ea;
+    --landed: #1f7a4d; --waits: #8a6400; --undone: #b3261e; --back: #5b4fb0;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #141219; --panel: #1c1a23; --ink: #ece9f3; --muted: #9a95a8; --rule: #2c2936;
+      --landed: #5fd39a; --waits: #e5b545; --undone: #ff8a80; --back: #a99bff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #141219; --panel: #1c1a23; --ink: #ece9f3; --muted: #9a95a8; --rule: #2c2936;
+    --landed: #5fd39a; --waits: #e5b545; --undone: #ff8a80; --back: #a99bff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.5 var(--sans);
+         padding-inline: 16px; padding-block: 32px 64px; }
+  main { max-width: 860px; margin: 0 auto; display: grid; gap: 28px; }
+  header h1 { margin: 0 0 4px; font-size: 24px; font-weight: 650; text-wrap: balance; }
+  header p { margin: 0; color: var(--muted); max-width: 65ch; }
+  section h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .06em;
+               text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .changes { display: grid; gap: 10px; }
+  article { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px;
+            display: grid; gap: 8px; }
+  .top { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; }
+  .state { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+           border: 1px solid currentColor; white-space: nowrap; }
+  .state.landed { color: var(--landed); } .state.waits { color: var(--waits); }
+  .state.undone { color: var(--undone); } .state.back { color: var(--back); }
+  .summary { font-weight: 600; overflow-wrap: anywhere; }
+  dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; }
+  dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
+  code { font: 12.5px var(--mono); }
+  .said { font-size: 13px; color: var(--muted); border-left: 2px solid var(--rule); padding-left: 10px; }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>What Aura changed in herself</h1>
+    <p id="lede">Each change her own loop made to her source: what it mended, the gates it passed, what was loaded
+      into her running process, and anything undone or taken back out.</p>
+  </header>
+  <div id="days"><p class="empty">Reading her record…</p></div>
+</main>
+<script>
+(function () {
+  const STATE_CLASS = {
+    "landed and loaded": "landed", "landed, waits for her next start": "waits", "waits for Bryan": "waits",
+    "her gates refused it": "undone", "undone, not yet taken back": "undone", "taken back out": "back",
+  };
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function row(dl, label, value, mono) {
+    if (!value || (Array.isArray(value) && !value.length)) return;
+    dl.append(el("dt", "", label));
+    const dd = el("dd");
+    const text = Array.isArray(value) ? value.join(", ") : String(value);
+    dd.append(mono ? el("code", "", text) : document.createTextNode(text));
+    dl.append(dd);
+  }
+  function change(c) {
+    const card = el("article");
+    const top = el("div", "top");
+    top.append(el("span", "state " + (STATE_CLASS[c.state] || "waits"), c.state));
+    top.append(el("span", "summary", c.summary));
+    card.append(top);
+    const dl = el("dl");
+    row(dl, "Commit", c.commit.slice(0, 9), true);
+    row(dl, "Found by", c.made_by, true);
+    row(dl, "Taken by", c.taken_by);
+    const gates = Object.entries(c.gates || {}).map(([name, ok]) => name + (ok ? " passed" : " failed"));
+    row(dl, "Gates", gates);
+    row(dl, "Loaded", c.loaded, true);
+    row(dl, "Waits for her next start", c.waits, true);
+    row(dl, "Undone because", c.undone_because);
+    row(dl, "Taken back by", c.taken_back_by ? c.taken_back_by.slice(0, 9) : "", true);
+    row(dl, "Files", c.files, true);
+    card.append(dl);
+    if (c.last_words) card.append(el("p", "said", c.last_words));
+    return card;
+  }
+  fetch("/api/self/changes", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((data) => {
+      const root = document.getElementById("days");
+      root.textContent = "";
+      const days = data.days || [];
+      if (!days.length) {
+        root.append(el("p", "empty", data.error ? "Her record could not be read just now." :
+          "Her loop has not changed her source yet."));
+        return;
+      }
+      for (const day of days) {
+        const section = el("section");
+        section.append(el("h2", "", day.day + " · " + day.changes.length + (day.changes.length === 1 ? " change" : " changes")));
+        const list = el("div", "changes");
+        day.changes.forEach((c) => list.append(change(c)));
+        section.append(list);
+        root.append(section);
+      }
+    })
+    .catch(() => {
+      const root = document.getElementById("days");
+      root.textContent = "";
+      root.append(el("p", "empty", "Her record could not be read just now."));
+    });
+})();
+</script>
+</body>
+</html>
