@@ -4815,7 +4815,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turn's record and not her reply: the record was a heading among her grounding, which a character budget fits whole
   blocks into and drops the rest of without a word. Her calls this turn now reach her model in her template's own
   form for a call of hers, after the person's message (core/conversation/surface_disposition.py,
-  her_calls_this_turn), where her tool loop leaves the calls it makes.
+  her_calls_this_turn), where her tool loop leaves the calls it makes. Live at 02:30 on 66f155d15, the same request
+  with Finder in front: drawn in 0.80 s at x 824, y 316, the log read "1 call(s) of hers this turn follow the
+  person's message: desktop_task", and her reply, 28 s after the request, was "Done. I drew a rectangle around the
+  back button in your Finder window — it should be visible now at roughly x 824, y 316." The turn ended without
+  "requested_effect_observed_but_unconfirmed", which every desktop turn had ended on since 13 November. Still open:
+  the ring lasts 3 s and her words arrive about 25 s after it is gone, so "it should be visible now" is no longer
+  true when it is read.
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
