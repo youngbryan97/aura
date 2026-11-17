@@ -140,11 +140,43 @@ def present_moment_block(*, now: datetime | None = None) -> str:
     if continuity:
         lines.append(continuity)
 
+    machine = _machine_line()
+    if machine:
+        lines.append(machine)
+
     lines.append(
         "- Senses for daylight and weather: none attached (no window, camera, "
         "thermometer or weather feed)."
     )
     return "\n".join(lines)
+
+
+def _machine_line() -> str:
+    """The machine she runs on, as measured this instant: processor, memory, and thermal pressure where a sensor reads.
+
+    A question about load was answered by putting a sentence of the runtime's in place of her reply, when a pattern
+    over the question's words said it asked about her state (interface/routes/chat_served_answers.py, removed 17
+    November 2026). The patterns caught other questions five times: a sourdough experiment, a sales analysis, her
+    memory's design, a plan to test her memory, and on 17 November "Your loop should meet the fault again", each
+    answered "The machine is at N% processor and M% memory right now." Read beside every turn, as the clock is, the
+    numbers are hers to use when they are asked about and to leave alone when they are not.
+    """
+    try:
+        from core.introspection.self_evidence import _load_readings
+
+        readings = {reading.channel: reading for reading in _load_readings()}
+    except (ImportError, AttributeError, RuntimeError, OSError, ValueError) as exc:
+        record_degradation("present_moment", exc, severity="info", action="left the machine's load out of this turn")
+        return ""
+    load, thermal = readings.get("host_load"), readings.get("host_thermal")
+    if load is None or not load.present:
+        return ""
+    values = dict(load.value or {})
+    line = (f"- Machine: processor {values.get('processor_percent', 0.0):.1f}%, memory "
+            f"{values.get('memory_percent', 0.0):.1f}%")
+    if thermal is not None and thermal.present:
+        line += f", thermal pressure {float(thermal.value):.2f} of 1"
+    return line + "."
 
 
 __all__ = ["PRESENT_MOMENT_HEADER", "present_moment_block"]

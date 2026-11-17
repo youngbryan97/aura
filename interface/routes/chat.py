@@ -601,7 +601,6 @@ from .chat_desktop_evidence import (  # noqa: E402
 from .chat_served_answers import (  # noqa: E402
     _readings_for,
     _serve_earlier_conversation,
-    _serve_host_load,
     _serve_lifetime,
     _serve_measured_belief_history,
     _serve_measured_filesystem_count,

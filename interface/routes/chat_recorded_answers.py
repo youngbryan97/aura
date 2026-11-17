@@ -94,7 +94,6 @@ from .chat_reply_shaping import (  # noqa: E402
 )
 from .chat_served_answers import (  # noqa: E402
     _serve_earlier_conversation,
-    _serve_host_load,
     _serve_lifetime,
     _serve_measured_belief_history,
     _serve_measured_filesystem_count,
@@ -307,10 +306,10 @@ async def _recorded_answer_corrections(
          lambda text: _serve_measured_belief_history(text), False),
         ("earlier_conversation",
          lambda text: _serve_earlier_conversation(user_message, text), False),
-        ("host_load", lambda text: _serve_host_load(user_message, text), False),
         ("queued_work", lambda text: _serve_queued_work(user_message, text), False),
         # No "recent_activity": what she has done is a reading her model is given ("WORK YOU HAVE ACTUALLY DONE",
-        # core/brain/observable_registry.py), not a paragraph in her voice put in place of her reply (F06, U01).
+        # core/brain/observable_registry.py), not a paragraph in her voice put in place of her reply (F06, U01). No
+        # "host_load" either: the machine's load is in her present moment on every turn (core/brain/present_moment.py).
         ("saved_artifact",
          lambda text: _save_requested_artifact(user_message, text), True),
         ("positional_solution",
