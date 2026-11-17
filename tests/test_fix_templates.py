@@ -59,3 +59,8 @@ def test_an_exit_a_control_statement_or_a_block_alone_is_never_dropped():
     they reached. LIVE 16 November 2026 her loop's first passing candidate replaced require_governance's raise."""
     dropped_at = {line for line in range(1, 10) for name, _ in changes_at(_STEPS, line) if name == "drop_statement"}
     assert dropped_at == {2, 3}
+
+
+def test_a_docstring_is_never_dropped():
+    source = 'def f(x):\n    """What f does."""\n    x += 1\n    return x\n'
+    assert [name for name, _ in changes_at(source, 2)] == []

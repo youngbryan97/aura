@@ -177,3 +177,28 @@ def test_a_refusal_with_the_wrong_bound_still_refuses(plant, tmp_path):
     with pytest.raises(ValueError):
         namespace["withdraw"](10, 20)
     assert namespace["withdraw"](10, 10) == 0
+
+
+def test_a_passing_test_that_passes_either_way_does_not_constrain_the_condition(plant, tmp_path):
+    """LIVE 16 November 2026: the drill's own test reached count_in('  ') and passed whether it raised or not. Its
+    decision at the return contradicted the failing run's at the same value, so no condition could be found. A
+    passing run constrains a place only when its test fails with the place forced as the failing tests needed."""
+    planted = plant(
+        "def count_in(text):\n"
+        "    digits = text.strip()\n"
+        "    return int(digits)\n"
+        "\n"
+        "\n"
+        "def tries(text):\n"
+        "    try:\n"
+        "        return count_in(text)\n"
+        "    except ValueError:\n"
+        "        return 'refused'\n",
+        "from planted.mod import count_in, tries\n\n"
+        "def test_a_count():\n    assert count_in(' 12 ') == 12\n\n"
+        "def test_trying_blank_text_answers_either_way():\n    assert tries('  ') in ('refused', None)\n\n"
+        "def test_blank_text_counts_nothing():\n    assert count_in('  ') is None\n")
+    mended, evidence = asyncio.run(_first_mend(
+        planted, [_node("test_blank_text_counts_nothing")],
+        [_node("test_a_count"), _node("test_trying_blank_text_answers_either_way")], tmp_path))
+    assert "if not digits:" in mended, evidence.to_json()

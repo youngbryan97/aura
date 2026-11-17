@@ -175,7 +175,10 @@ def changes_at(source: str, line: int) -> Iterator[tuple[str, str]]:
                 a2, b2 = _span(source, starts, second)
                 swapped = source[:a1] + source[a2:b2] + source[b1:a2] + source[a1:b1] + source[b2:]
                 yield from kept("swap_arguments", swapped)
-        elif isinstance(node, _DROPPABLE) and id(node) not in alone:
+        elif isinstance(node, _DROPPABLE) and id(node) not in alone and not (
+                isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)):
+            # A docstring or a bare literal does nothing to drop. LIVE 16 November 2026 her loop spent a candidate
+            # dropping the drill function's docstring.
             a, b = _span(source, starts, node)
             yield from kept("drop_statement", _replace(source, a, b, "pass"))
 

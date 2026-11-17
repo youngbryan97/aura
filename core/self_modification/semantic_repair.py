@@ -482,10 +482,19 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
                 continue
             note.setdefault("angelic", []).append(step)
             forced_rows = [r for r in await asyncio.to_thread(_rows, record) if r.get("location") == place.id]
+            # A passing run constrains the condition only when its test depends on what is decided here: under the
+            # same forcing it fails. One that passes either way says nothing about this place. LIVE 16 November 2026
+            # the drill's own test reached count_in('  ') and passed whether it raised or not, so its decision there
+            # contradicted the failing run's at the same value and no condition could be found (Angelix keeps a
+            # passing test's outcome, not every decision it happened to pass through).
+            depends, ran = await _the_tests_that_depend_on(place, step, held, kept_runs, plan, record, changed, run)
+            evidence.runs += ran
+            note["passing_that_depend"] = len(depends)
+            kept_here = [r for r in kept_runs if any(_matches(t, _test_of(r)) and "::" in t for t in depends)]
             examples = [Example(r.get("terms") or {}, want=_wanted(place, r), decided=r.get("decided"),
                                 parts=r.get("parts")) for r in forced_rows]
             examples += [Example(r.get("terms") or {}, want=_kept(place, r), decided=r.get("decided"),
-                                 parts=r.get("parts")) for r in kept_runs]
+                                 parts=r.get("parts")) for r in kept_here]
             original = place.text if place.kind == "cond" else ""
             found = ranked_conditions(examples, original=original, constants=place.constants, names=place.names)
             note.setdefault("synthesised", []).extend(text for _, text in found)
@@ -507,6 +516,30 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
     for _, place, after in sorted(gathered, key=lambda item: item[0]):
         yield f"semantic:{place.kind}:{place.path}:{place.line}", _whole(place.path, sources[place.path], after)
     evidence.stopped = evidence.stopped or "places spent"
+
+
+async def _the_tests_that_depend_on(place: Place, step: Any, held: Sequence[str],
+                                   kept_runs: Sequence[Mapping[str, Any]], plan: Path, record: Path,
+                                   changed: Mapping[str, str], run: Run) -> tuple[list[str], int]:
+    """The passing tests that reached ``place`` and fail when it is forced as ``step`` (the ones whose outcome
+    depends on what is decided there), by the test ids the runs recorded, and how many test runs that took.
+
+    Each test is asked on its own: passing tests are often given as a file, and a file holding one test that depends
+    on the place would make every other test in it count as depending too."""
+    import asyncio
+
+    def runnable(test: str) -> str:
+        if not test.startswith("::"):
+            return test
+        file = next((h for h in held if "::" not in h and _matches(h, test)), "")
+        return f"{file}{test}" if file else ""
+
+    reached = sorted({runnable(_test_of(r)) for r in kept_runs} - {""})
+    if not reached:
+        return [], 0
+    await asyncio.to_thread(_plan_and_clear, plan, record, {place.id: step})
+    outcome, _ = await run(reached, changed)
+    return [t for t in reached if not outcome.get(t)], 1
 
 
 def _forcings(place: Place, unforced: Sequence[Mapping[str, Any]],
