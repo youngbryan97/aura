@@ -478,7 +478,7 @@ class ResourceGovernor:
         if tier in (EvictionTier.MODERATE, EvictionTier.AGGRESSIVE):
             try:
                 import gc
-                collected = gc.collect()
+                collected = gc.collect(1)
                 logger.info(
                     "ResourceGovernor: GC collected %d objects (tier=%s)",
                     collected, tier.value,
