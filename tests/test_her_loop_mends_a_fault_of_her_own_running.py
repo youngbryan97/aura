@@ -279,3 +279,26 @@ def test_a_fault_in_a_method_is_mended_on_its_rebuilt_instance_and_loaded(her_so
     assert held.first() == 1
     with pytest.raises(ValueError, match="empty"):
         basket.Basket([]).first()
+
+
+def test_a_draft_her_gates_refused_is_asked_again_on_her_source_as_it_now_is(her_source, monkeypatch):
+    """LIVE 17 November 2026, 04:16 to 04:17: her drill's mend passed every gate but governance-lint, which main had
+    failed for a reason outside her draft; taken up again, her loop made the fault again over her own draft, the draft
+    mended it, and she was told "its test did not raise what she raised"."""
+    import planted_pkg.rows as rows
+
+    gates = {"governance-lint": {"passed": False, "tail": "NEW raw_file_mutation | somewhere else"}}
+    monkeypatch.setattr(goals, "the_gates_her_yes_asks", lambda record: dict(gates))
+    first = asyncio.run(mend(_fault(lambda: rows.first([1, 2])), proposals=80, seconds=900))
+    assert first["status"] == goals.OFFERED and goals.load(first["slug"]).status == goals.WORKING, first
+    (her_source / "NOTES.md").write_text("the red mended elsewhere\n")
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A", cwd=her_source)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "moved", cwd=her_source)
+    gates["governance-lint"]["passed"] = True
+
+    again = asyncio.run(mend(_fault(lambda: rows.first([1, 2])), proposals=80, seconds=900))
+    assert again["status"] == "merged" and again["why"] == "her draft asked of her gates again", again
+    assert again["loaded"] == {"functions": ["first"], "waits": []}
+    assert rows.first([1, 2]) == 1
+    assert _git("log", "--format=%s", "-1", cwd=her_source).startswith("Mend planted_pkg.rows.first")
+    assert any("asked my gates again" in said["words"] for said in goals.load(first["slug"]).said)

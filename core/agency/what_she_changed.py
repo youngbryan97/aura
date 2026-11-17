@@ -15,29 +15,33 @@ _STATES = ("undone, not yet taken back", "taken back out", "her gates refused it
            "landed, waits for her next start", "landed, its load not recorded", "landed and loaded")
 
 
-def _state(record: Any) -> str:
+def _state(record: Any, offer: dict[str, Any] | None = None) -> str:
+    """What became of an offer: the goal's current one by the goal's status, an earlier one by what its offer kept."""
     from core.agency.her_goal_at_work import MERGED, OFFERED
 
-    offer = record.offer or {}
+    current = offer is None
+    offer = (record.offer if current else offer) or {}
     if offer.get("reverted"):
         return "taken back out"
     if offer.get("undone"):
         return "undone, not yet taken back"
-    if record.status == MERGED:
+    if (record.status == MERGED) if current else bool(offer.get("merged_at")):
         if "loaded" not in offer:
             # Landed before her record kept what was loaded (16 November 2026): not said to be waiting when it may not be.
             return "landed, its load not recorded"
         loaded = offer.get("loaded") or {}
         return "landed and loaded" if loaded.get("functions") and not loaded.get("waits") else \
             "landed, waits for her next start"
-    if record.status == OFFERED:
+    if current and record.status == OFFERED:
         return "waits for Bryan"
     return "her gates refused it"
 
 
-def a_change(record: Any) -> dict[str, Any] | None:
-    """One change of hers as a person reads it, or None for a goal that never reached a commit."""
-    offer = record.offer or {}
+def a_change(record: Any, offer: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """One change of hers as a person reads it, the goal's current offer or an earlier one, or None for an offer that
+    never reached a commit."""
+    current = offer is None
+    offer = (record.offer if current else offer) or {}
     if not offer.get("commit"):
         return None
     when = float(offer.get("reverted_at") or offer.get("merged_at") or offer.get("at") or record.last_worked_at or 0.0)
@@ -47,7 +51,7 @@ def a_change(record: Any) -> dict[str, Any] | None:
     return {
         "day": time.strftime("%Y-%m-%d", time.localtime(when)) if when else "undated",
         "at": when,
-        "state": _state(record),
+        "state": _state(record, None if current else offer),
         "summary": str(offer.get("summary") or record.goal),
         "goal": record.goal,
         "commit": str(offer.get("commit")),
@@ -62,8 +66,16 @@ def a_change(record: Any) -> dict[str, Any] | None:
         # What she said of this change, not of a try before it: a mend that landed kept "Not mended: nothing proposed."
         # from the attempt that stalled before it.
         "last_words": next((str(said.get("words") or "") for said in reversed(record.said or [])
-                            if float(said.get("at") or 0.0) >= float(offer.get("at") or 0.0)), ""),
+                            if float(offer.get("at") or 0.0) <= float(said.get("at") or 0.0) <= _until(record, offer)),
+                           ""),
     }
+
+
+def _until(record: Any, offer: dict[str, Any]) -> float:
+    """Until the next offer of the goal was made: what she said after that is about that one."""
+    later = [float(o.get("at") or 0.0) for o in [*(record.offers_before or []), record.offer or {}]
+             if float(o.get("at") or 0.0) > float(offer.get("at") or 0.0)]
+    return min(later) if later else float("inf")
 
 
 def changes_by_day(records: list[Any] | None = None) -> list[dict[str, Any]]:
@@ -72,7 +84,8 @@ def changes_by_day(records: list[Any] | None = None) -> list[dict[str, Any]]:
     from core.agency.her_goal_at_work import all_records
 
     changes = [change for record in (all_records() if records is None else records)
-               if (change := a_change(record)) is not None]
+               for offer in [*(getattr(record, "offers_before", None) or []), None]
+               if (change := a_change(record, offer)) is not None]
     days: dict[str, list[dict[str, Any]]] = {}
     for change in changes:
         days.setdefault(change["day"], []).append(change)

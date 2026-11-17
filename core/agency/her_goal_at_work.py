@@ -210,6 +210,8 @@ class GoalRecord:
     last_edit_at: float = 0.0
     last_check: dict[str, Any] = field(default_factory=dict)
     offer: dict[str, Any] = field(default_factory=dict)
+    #: Each earlier offer that reached a commit, oldest first: a goal tried again keeps what became of every draft.
+    offers_before: list[dict[str, Any]] = field(default_factory=list)
     notes_from_bryan: list[dict[str, Any]] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
     last_worked_at: float = 0.0

@@ -179,6 +179,9 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
                                    "change there, so her loop drafts none", fault.call.error_message)
     workspace = await asyncio.to_thread(goals.ensure_workspace, record)
     await goals.save(record)
+    again = await _her_draft_asked_again(record, workspace, fault)
+    if again is not None:
+        return again
 
     reproduction = await reproduce(fault, workspace)
     if not reproduction.reproduced:
@@ -275,9 +278,22 @@ async def _offer(record: Any, workspace: Path, files: list[str], best: Any, faul
     _, head = await _governed_run(["git", "rev-parse", "HEAD"], cwd=workspace, env=None, timeout=30.0,
                                   effect="compute")
     record.status = goals.OFFERED
+    if (record.offer or {}).get("commit"):
+        # Kept, not replaced: LIVE 17 November 2026 her drill's mend landed, was taken back out, and vanished from her
+        # page when the goal's next draft was offered over it.
+        record.offers_before = [*record.offers_before, dict(record.offer)]
     record.offer = {"summary": message.splitlines()[0], "commit": head.strip(), "at": time.time(), "files": files,
                     "origin": best.origin}
     await goals.save(record)
+    taken = await _taken_and_loaded(record, fault, mended)
+    return {"slug": record.slug, "status": "merged" if taken.get("ok") else goals.OFFERED, "commit": head.strip(),
+            "origin": best.origin, "taken": taken, "loaded": taken.get("loaded") or {}}
+
+
+async def _taken_and_loaded(record: Any, fault: Any, mended: tuple[str, str]) -> dict[str, Any]:
+    """Her own yes on her offered draft, and the draft loaded into her running process when it lands."""
+    from core.agency import her_goal_at_work as goals
+
     def take_and_load() -> dict[str, Any]:
         taken = goals.take_it_herself(record.slug)
         if taken.get("ok"):
@@ -286,13 +302,46 @@ async def _offer(record: Any, workspace: Path, files: list[str], best: Any, faul
         return taken
 
     try:
-        taken = await asyncio.to_thread(take_and_load)
+        return await asyncio.to_thread(take_and_load)
     except (OSError, RuntimeError, ValueError) as exc:
         record_degradation("mending_a_fault_of_hers", exc, severity="warning",
                            action="left her mend offered for Bryan; her own yes did not run")
-        taken = {"ok": False, "why": f"her own yes did not run: {type(exc).__name__}"}
+        return {"ok": False, "why": f"her own yes did not run: {type(exc).__name__}"}
+
+
+async def _her_draft_asked_again(record: Any, workspace: Path, fault: Any) -> dict[str, Any] | None:
+    """Her draft for the goal, carried onto her source as it is now, asked of her gates again when it was her gates
+    that refused it; None when there is no such draft.
+
+    LIVE 17 November 2026, 04:16 to 04:17: her drill's mend passed every gate but governance-lint, which main had
+    failed since 1dec3d5b7 for a reason outside her draft. Taken up again, her loop made the fault again in a workspace
+    that held her draft, the draft mended it, and she was told "its test did not raise what she raised". Her draft is
+    the change; what has to be asked again is her gates, on the source as it is."""
+    from core.agency import her_goal_at_work as goals
+
+    offer = record.offer or {}
+    refused = any(not (gate or {}).get("passed") for gate in (offer.get("gates") or {}).values())
+    if not offer.get("commit") or offer.get("merged_at") or offer.get("reverted") or not refused:
+        return None
+    _, ahead = await _governed_run(["git", "-c", "core.fsmonitor=false", "rev-list", "--count",
+                                    f"{record.base}..HEAD"], cwd=workspace, env=None, timeout=30.0, effect="compute")
+    if ahead.strip() in ("", "0"):
+        return None
+    _, head = await _governed_run(["git", "rev-parse", "HEAD"], cwd=workspace, env=None, timeout=30.0,
+                                  effect="compute")
+    file = fault.call.file
+    _, before = await _governed_run(["git", "show", f"{record.base}:{file}"], cwd=workspace, env=None, timeout=30.0,
+                                    effect="compute")
+    after = (Path(workspace) / file).read_text(encoding="utf-8")
+    record.status = goals.OFFERED
+    record.offer = {**offer, "commit": head.strip(), "at": time.time(), "asked_again_on": record.base}
+    record.said.append({"words": f"My draft is on my source as it is now ({record.base[:9]}); I asked my gates again.",
+                        "at": time.time()})
+    await goals.save(record)
+    taken = await _taken_and_loaded(record, fault, (before, after))
     return {"slug": record.slug, "status": "merged" if taken.get("ok") else goals.OFFERED, "commit": head.strip(),
-            "origin": best.origin, "taken": taken, "loaded": taken.get("loaded") or {}}
+            "origin": str(offer.get("origin") or ""), "taken": taken, "loaded": taken.get("loaded") or {},
+            "why": "her draft asked of her gates again"}
 
 
 async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[dict[str, Any]]:

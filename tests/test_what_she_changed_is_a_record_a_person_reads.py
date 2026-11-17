@@ -105,3 +105,20 @@ def test_an_older_landing_says_its_load_was_not_recorded_and_a_stalled_try_is_no
     change = changes_by_day()[0]["changes"][0]
     assert change["state"] == "landed, its load not recorded"
     assert change["last_words"] == ""
+
+
+def test_a_change_taken_back_stays_on_the_page_when_the_goal_is_offered_again():
+    """LIVE 17 November 2026: her drill's mend landed at 03:41 and was taken back out at 04:06, and the goal's next
+    draft, offered at 04:16, took its place on her record and on her page."""
+    from core.agency.her_goal_at_work import WORKING, GoalRecord
+    from core.agency.what_she_changed import changes_by_day
+
+    landed = {"summary": "Mend priced: it raised KeyError", "commit": "052670e4a", "at": 1794915700.0,
+              "merged_at": 1794915705.0, "taken_by": "herself", "loaded": {"functions": ["priced"], "waits": []},
+              "reverted": "66ac59a02", "reverted_at": 1794917184.0}
+    refused = {"summary": "Mend priced: it raised KeyError", "commit": "ec6c4a7cc", "at": 1794917779.0,
+               "gates": {"tests": {"passed": True}, "governance-lint": {"passed": False}}}
+    record = GoalRecord(goal="Mend priced", slug="mend-priced", status=WORKING, offer=refused,
+                        offers_before=[landed])
+    states = {change["commit"]: change["state"] for day in changes_by_day([record]) for change in day["changes"]}
+    assert states == {"052670e4a": "taken back out", "ec6c4a7cc": "her gates refused it"}
