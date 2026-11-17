@@ -395,6 +395,9 @@ def test_the_shared_thing_speaking_is_not_a_turn_of_theirs():
 HER_FAST_MODEL = Path.home() / ".aura/models/Qwen2.5-1.5B-Instruct-4bit"
 
 
+# External: it loads her fast model from her models directory into the test's own process, beside her resident 27B
+# (tests/conftest.py refuses that in an unmarked test, 17 November 2026).
+@pytest.mark.external
 @pytest.mark.skipif(not HER_FAST_MODEL.exists(), reason="her fast model is not on this host")
 def test_her_own_model_tells_bryans_invitation_from_bryans_task():
     """His two sentences, with nothing told to the model and no system message."""

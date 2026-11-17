@@ -1028,7 +1028,38 @@ def _no_test_starts_a_real_model_worker(request, monkeypatch):
         return original(self, spec, *args, **kwargs)
 
     monkeypatch.setattr(SubprocessGateway, "spawn_python_process", refused)
+    _no_test_loads_a_model_of_hers_in_process(request, monkeypatch)
     yield
+
+
+def _no_test_loads_a_model_of_hers_in_process(request, monkeypatch) -> None:
+    """Nor loads one of her models into its own process.
+
+    17 November 2026: tests/test_inference_gate_tiering.py loaded Qwen2.5-1.5B-Instruct-4bit from her models directory
+    for scoring next turns (core/brain/llm/what_she_expects_next.py), 8.4 s on every run beside her resident 27B, and its
+    deadline assertion failed on the time that took. An in-process load starts no worker, so the guard above did not
+    see it. A model in a test's own directory still loads.
+    """
+    try:
+        import mlx_lm
+        import mlx_lm.utils
+        from core.brain.llm.model_registry import _IMPORT_MODELS_DIR
+    except ImportError:
+        return
+    hers = [Path.home() / ".aura" / "models", Path(_IMPORT_MODELS_DIR)]
+
+    def guarded(load):
+        def refusing(path_or_hf_repo, *args, **kwargs):
+            where = Path(str(path_or_hf_repo)).expanduser().resolve()
+            if any(where == root.resolve() or root.resolve() in where.parents for root in hers):
+                raise RuntimeError(f"{request.node.nodeid} loaded her model {where.name} into its process; "
+                                   "give it a stand-in or mark it live")
+            return load(path_or_hf_repo, *args, **kwargs)
+        return refusing
+
+    for module in (mlx_lm, mlx_lm.utils):
+        if callable(getattr(module, "load", None)):
+            monkeypatch.setattr(module, "load", guarded(module.load))
 
 
 @pytest.fixture(autouse=True)

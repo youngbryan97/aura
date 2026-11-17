@@ -1046,6 +1046,7 @@ async def test_desktop_cortex_only_contract_does_not_reserve_for_forbidden_lane(
     )
     gate._mlx_client = cortex
 
+    started = time.monotonic()
     result = await gate.generate(
         "Explain the design and verify the failure case.",
         context={
@@ -1057,9 +1058,13 @@ async def test_desktop_cortex_only_contract_does_not_reserve_for_forbidden_lane(
         },
         timeout=200.0,
     )
+    took = time.monotonic() - started
 
     assert result.startswith("Design: the foreground owner")
-    assert cortex.deadlines[0]._timeout == 196.0
+    # The whole 200 s less the 4 s margin, less only what the turn spent before it dispatched: nothing is held back for
+    # a lane this contract forbids. It was "== 196.0", which the gate's deadline, counted from when the turn began,
+    # cannot be once anything precedes dispatch (17 November 2026: 180 s, after an in-process model load).
+    assert 196.0 - took <= cortex.deadlines[0]._timeout <= 196.0
 
 
 @pytest.mark.asyncio
