@@ -7444,6 +7444,22 @@ needs her 27B free (her app down, or her app's own influence trials).
   missing, a route that dropped the request, a permission); build or mend it
   through the same gates; use it in the same session.
   Parts 3 and 5: not started.
+  Part 5, 16 November evening (229bb91c9, fd27db0b9). Each change she lands already kept its commit, who took it,
+  what made it and the gates it passed; now what of it was loaded into her running process (or waits for her next
+  start) and an undo when a loaded mend faulted are kept on her record as they happen (note_on_offer). The undo was
+  held only in memory, so a restart between it and her taking the mend back out on origin left the mend in her
+  source; her loop now takes back every mend her records say was undone and not reverted. Her changes by day are
+  read from her records (core/agency/what_she_changed.py), served at /api/self/changes and shown at
+  /static/what_she_changed.html: live at 19:49 with her three mends of the day, each with its commit, what found
+  it, who took it and its gates. Left: a load or an undo seen live on the page (the three landed before her record
+  kept loads, and say so), and a mend undone in her running process and taken back out seen end to end.
+  Part 4, 16 November evening (a2de24f17). After each typed exchange, in her memory outbox, every sentence of hers
+  saying she cannot (the capability ledger's frame of a denial) is read by her own embedding model against the
+  capabilities she has, and traced through the turn's receipts: nothing of hers is clearly what it names (kept as
+  named); the capability ran (kept with what it came to); or the route never reached it, where a request that
+  already sat nearest it without standing out is taught to it as a meaning and kept only if it is then read as
+  meaning it (taken back otherwise). Each gap is kept in gaps_she_named.json and shown on the same page. Left: a
+  gap heard live and a taught route used in the same session; what she lacks built rather than only named.
 
 ## Live session 2026-09-07: what the runtime showed
 

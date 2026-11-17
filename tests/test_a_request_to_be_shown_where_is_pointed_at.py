@@ -41,8 +41,8 @@ def test_pointing_is_a_step_with_its_receipt(monkeypatch):
     assert asyncio.run(screen_highlight.point_as_asked("What time is it?")) is None
 
 
-@pytest.mark.parametrize("shown,said", [(True, "She drew a rectangle around 'back button'"),
-                                        (False, "She did not draw it: could not locate it")])
+@pytest.mark.parametrize("shown,said", [(True, "Aura drew a rectangle around 'back button'"),
+                                        (False, "Aura did not draw it: could not locate it")])
 @pytest.mark.asyncio
 async def test_what_the_pointing_came_to_is_beside_her_turn_and_the_lane_says_nothing(monkeypatch, shown, said):
     from interface.routes import chat as chat_routes
@@ -84,8 +84,8 @@ async def test_the_desktop_task_points_where_nothing_else_is_asked(monkeypatch):
     assert result["status"] == "pointed_on_screen" and result["ok"] is True
 
 
-@pytest.mark.parametrize("shown,said", [(True, "She drew a rectangle around 'back button'"),
-                                        (False, "She did not draw it: could not locate it")])
+@pytest.mark.parametrize("shown,said", [(True, "Aura drew a rectangle around 'back button'"),
+                                        (False, "Aura did not draw it: could not locate it")])
 @pytest.mark.asyncio
 async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_to_say(monkeypatch, shown, said):
     """LIVE 16 November 2026, 12:30 local: the ring was drawn around Chrome's back button and Bryan saw it, and he was
