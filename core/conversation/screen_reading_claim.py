@@ -39,6 +39,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from core.utils.reading_form import as_read
+
 #: The turn asked her to READ or QUOTE what is on the screen, as opposed to
 #: describing the arrangement of windows (which `occluded_view_intent` owns).
 _READ_THE_SCREEN_RE = re.compile(
@@ -244,7 +246,7 @@ _ARRANGEMENT_RE = re.compile(
 
 def asks_to_read_the_screen(user_message: Any) -> bool:
     """True when the turn asks what is on the screen."""
-    text = str(user_message or "")
+    text = as_read(user_message)
     if not text.strip():
         return False
     if not _SCREEN_SUBJECT_RE.search(text):
@@ -280,8 +282,11 @@ def quotes_screen_content(reply_text: Any, *, display_binding_required: bool = F
     bind a perception verb to a display referent inside one sentence before it
     counts as claiming a reading. See ``_BOUND_READING_RE`` for the live
     defect that made the distinction necessary.
+
+    Read in its reading form (core/utils/reading_form.py): "I can’t read your screen right now" is an admission with
+    a typographic apostrophe, and was taken for a reading of the screen live on 17 November 2026.
     """
-    body = str(reply_text or "")
+    body = as_read(reply_text)
     if not body.strip():
         return False
     if _ADMITS_NO_READING_RE.search(body):
@@ -306,7 +311,7 @@ def what_reads_as_a_screen_reading(reply_text: Any, *, display_binding_required:
     """The words of the reply that ``quotes_screen_content`` took for a reading of the screen, for her log; empty
     when it took none. LIVE 11 November 2026 the same typed follow-up failed this check twice, and her log said only
     the check's name, so whether it read her reply right could not be told."""
-    body = str(reply_text or "")
+    body = as_read(reply_text)
     if not quotes_screen_content(body, display_binding_required=display_binding_required):
         return ""
     patterns = ((_EXPLICIT_READING_RE, _BOUND_READING_RE, _DISPLAY_QUOTATION_RE) if display_binding_required

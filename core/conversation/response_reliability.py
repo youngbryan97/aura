@@ -79,6 +79,7 @@ from core.runtime.structured_input import (
     looks_like_learning_resource_bundle,
 )
 from core.runtime.turn_outcome import note_candidate, note_suppression
+from core.utils.reading_form import as_read
 
 from .response_reliability_requests import (  # noqa: F401  (re-exported: they were defined here)
     _BREVITY_PSEUDO_PHRASE_HEADS,
@@ -6476,7 +6477,8 @@ def _model_text_integrity_reasons(
     tool_receipts: Iterable[Any] | None = None,
     generation_stop_reason: Any = "",
 ) -> list[str]:
-    raw = str(reply_text or "").strip()
+    raw = as_read(str(reply_text or "").strip())  # read as the detectors are written; see _assess_user_facing_reply
+    prompt = as_read(prompt) if isinstance(prompt, str) else prompt
     reasons: list[str] = []
     if not raw or _normalize(raw) == "...":
         reasons.append("empty_reply" if user_facing else "empty_model_output")
@@ -7275,15 +7277,10 @@ def _assess_user_facing_reply(
     _original_user_message = user_message
     _visible = visible_user_request(user_message)
     request_is_knowable = bool(_visible)
-    user_message = _visible if request_is_knowable else ""
-    recent_messages = [
-        message
-        for message in (
-            visible_user_request(item) for item in (recent_user_messages or ())
-        )
-        if message
-    ]
-    raw = str(reply_text or "").strip()
+    # Read as the detectors are written: her model writes "can’t", they say "can'?t" (core/utils/reading_form.py).
+    user_message = as_read(_visible) if request_is_knowable else ""
+    recent_messages = [as_read(message) for message in map(visible_user_request, recent_user_messages or ()) if message]
+    raw = as_read(str(reply_text or "").strip())
 
     # CONTENT, NOT LENGTH — checked before any branch, because a reply made
     # entirely of punctuation is not an answer to ANY kind of question.
