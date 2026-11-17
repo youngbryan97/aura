@@ -10206,11 +10206,11 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             preserve_admitted_capacity=bool(
                 progress_owned_completion and foreground_request
             ),
-            # A call that carries a program is sized by what it has to say,
-            # not by how depleted she is.
+            # A call is sized by what it has to say, not by how depleted she is: cut short, it is no call at all. LIVE
+            # 16 November 2026, 23:08: notify_user stopped at "<parameter=title> Stretch", asked 713 and given 170.
             tool_call_floor=(
                 kwargs.get("max_tokens")
-                if _tools_can_carry_a_document(_offered_for_budgeting(kwargs))
+                if _offered_for_budgeting(kwargs)
                 else None
             ),
         )

@@ -124,14 +124,24 @@ def test_a_call_is_not_sized_by_how_depleted_she_feels() -> None:
     )
 
 
-def test_the_floor_only_applies_to_calls_that_carry_something() -> None:
-    """A call with no document argument does not need the whole budget."""
+def test_every_call_keeps_its_budget_whatever_it_carries() -> None:
+    """A call's length is not known before it is written, and a cut one is no call.
 
-    from pathlib import Path
+    This said "a call with no document argument does not need the whole budget". LIVE 16 November 2026, 23:08: asked
+    for a desktop notification, her model's notify_user call was given 170 of the 713 tokens asked, scaled down by her
+    state, and stopped at "<parameter=title> Stretch"; the loop reported "none called".
+    """
+    from types import SimpleNamespace
 
-    body = Path("core/brain/llm/mlx_client.py").read_text()
-    start = body.index("tool_call_floor=(")
-    window = body[start : start + 200]
-    assert "_tools_can_carry_a_document" in window
-    assert "_offered_for_budgeting" in window
-    assert "else None" in window
+    from core.brain.llm.mlx_client import MLXLocalClient
+
+    notify_user = [{"type": "function", "function": {"name": "notify_user", "parameters": {
+        "type": "object", "properties": {"message": {"type": "string"}, "title": {"type": "string"}}}}}]
+
+    def granted(**asked):
+        return MLXLocalClient._generate_inner_contract_generation_floor(
+            SimpleNamespace(max_tokens=4096), 170, True, None, asked, False, None)[1]
+
+    assert granted(max_tokens=713, tools=notify_user) == 713
+    assert granted(max_tokens=713, tool_budget_definitions=notify_user) == 713  # the JSON protocol's call too
+    assert granted(max_tokens=713) == 170, "prose still yields to her state"
