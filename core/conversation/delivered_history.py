@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -186,7 +187,14 @@ def reached_exchange_messages(
         # Only a turn that answers a request. Her own turns read the sitting whole as it is, and their prompts begin
         # the same way each time, so each reuses what the last one read (core/brain/llm/prompt_cache.py).
         pairs = _the_sitting_fitted(pairs)
+    began = time.monotonic()
     reach = measure_reach(pairs, budget_chars=budget_chars, request=request)
+    if str(request or "").strip():
+        # Which earlier exchanges the request bears on is read by meaning: retrieval, on the turn's receipt. LIVE
+        # 16 November 2026, 14:41 local, 3.25 s passed between her thinking's start and this choice, untimed.
+        from core.verify.turn_receipt import record_latency
+
+        record_latency("retrieval", time.monotonic() - began)
     if not reach.cuts_anything:
         return ReachedHistory(messages=_as_messages(pairs), reach=reach)
 

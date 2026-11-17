@@ -2217,6 +2217,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   if the decoded text still fails. Live on db927e0fe at 14:41, a typed
   turn of 34.68 s: decode 14.95, prefill 7.13, queue 2.18, retrieval
   0.35, delivery 0.29, 9.79 unattributed.
+  Where those 9.79 s went, read off her log: the route's preparation took
+  3.10 s, 3.07 s of it context; her thinking then began, and 3.25 s passed
+  with nothing logged before the line that names which earlier exchanges
+  the request bears on, 2.5 s more before her prompt's blocks, and a
+  one-token generation on her cortex for her reading of whether the
+  words propose doing something together (1.44 s) before the reply's
+  generation was sent. The choice of earlier exchanges is made by
+  meaning, and it is timed as retrieval now, so the next receipt says
+  whether it is that 3.25 s or something before it.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
