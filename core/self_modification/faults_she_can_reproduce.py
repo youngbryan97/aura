@@ -199,6 +199,7 @@ def _from_row(row: Any) -> HeardFault | None:
     try:
         call = dict(row["call"])
         call["keywords"] = tuple((str(key), str(value)) for key, value in call.get("keywords") or ())
+        call["receiver_state"] = tuple((str(key), str(value)) for key, value in call.get("receiver_state") or ())
         for name in ("positional", "below"):
             call[name] = tuple(str(part) for part in call.get(name) or ())
         return HeardFault(call=FailedCall(**call), subsystem=str(row["subsystem"]), first_at=float(row["first_at"]),
@@ -285,12 +286,25 @@ def test_source(fault: HeardFault) -> str:
     callee = f"{owner}.{rest}" if rest else owner
     when = time.strftime("%d %B %Y %H:%M", time.localtime(fault.first_at))
     said = call.error_message.replace('"""', "'''")
-    return (
+    head = (
         f'"""A fault from her own running, made again: {call.module}.{call.qualname} raised {call.error_type}.\n\n'
         f"Heard {fault.times} time(s) from {fault.subsystem}, first at {when}: {said}\n"
         f"Raised at {call.file}:{call.line}. Written by core/self_modification/faults_she_can_reproduce.py.\n"
         '"""\n'
-        f"from {call.module} import {owner}\n\n\n"
+    )
+    if call.receiver_class:
+        # A method: its instance rebuilt as it was when it raised, without its __init__ (test carving).
+        root = call.receiver_class.split(".")[0]
+        state = "{" + ", ".join(f"{name!r}: {value}" for name, value in call.receiver_state) + "}"
+        return (
+            head + f"from {call.receiver_module} import {root}\n\n\n"
+            f"def {Path(name_of(fault)).stem}():\n"
+            f"    receiver = {call.receiver_class}.__new__({call.receiver_class})\n"
+            f"    receiver.__dict__.update({state})\n"
+            f"    {call.call_source('receiver.' + call.qualname.rsplit('.', 1)[-1])}\n"
+        )
+    return (
+        head + f"from {call.module} import {owner}\n\n\n"
         f"def {Path(name_of(fault)).stem}():\n"
         f"    {call.call_source(callee)}\n"
     )

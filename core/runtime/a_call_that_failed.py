@@ -17,6 +17,7 @@ import asyncio
 import concurrent.futures
 import inspect
 import subprocess
+import sys
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -55,6 +56,11 @@ class FailedCall:
     star_kwargs: str = ""
     #: Where the call went on from here before it raised: the frames below it, innermost last.
     below: tuple[str, ...] = field(default=())
+    #: For a method: the class its instance was, where that class is defined, and the instance's state, each
+    #: attribute as Python source. The test builds the instance from these without running ``__init__``.
+    receiver_module: str = ""
+    receiver_class: str = ""
+    receiver_state: tuple[tuple[str, str], ...] = ()
 
     @property
     def fingerprint(self) -> tuple[str, str, str]:
@@ -131,6 +137,48 @@ def _written_back(value: Any) -> str | None:
     return source if same else None
 
 
+def _names_read(code: CodeType) -> set[str]:
+    """Every attribute and global name a function's code reads, its nested functions' included."""
+    names = set(code.co_names)
+    for constant in code.co_consts:
+        if isinstance(constant, CodeType):
+            names |= _names_read(constant)
+    return names
+
+
+def _the_instance_written_back(instance: Any, code: CodeType, qualname: str) -> dict[str, str] | str:
+    """The instance a method raised on, as its class and its state written back, or why it cannot be.
+
+    A test rebuilds it the way test carving does (Elbaum, Chin, Dwyer and Jorde, FSE 2006): the class's ``__new__``
+    with no ``__init__``, then each attribute set as it was. An attribute that is not a plain value is left out when
+    the method never names it, and stops the rebuild when it does, since the call would then run on a different
+    instance than the one that raised.
+    """
+    cls = type(instance)
+    where, name = str(getattr(cls, "__module__", "") or ""), str(getattr(cls, "__qualname__", "") or "")
+    if not where or "<" in name or not _hers(str(getattr(sys.modules.get(where), "__file__", "") or "")):
+        return f"{qualname} runs on a {name or type(instance).__name__}, a class outside her source"
+    state = getattr(instance, "__dict__", None)
+    if not isinstance(state, dict):
+        return f"{qualname} runs on a {name} that keeps its state outside a __dict__"
+    named = _names_read(code)
+    kept: dict[str, str] = {"module": where, "class": name}
+    budget = _LONGEST_ARGUMENT * 4
+    for attribute, value in state.items():
+        if not isinstance(attribute, str) or not attribute.isidentifier():
+            continue
+        source = _written_back(value)
+        if source is None:
+            if attribute in named:
+                return f"{qualname} reads self.{attribute}, a {type(value).__name__}, not a plain value"
+            continue
+        budget -= len(source)
+        if budget < 0:
+            return f"{qualname} runs on a {name} whose state is too large to write back"
+        kept[attribute] = source
+    return kept
+
+
 def _innermost_frame_of_hers(error: BaseException) -> tuple[FrameType, int, str, tuple[str, ...]] | None:
     """The frame nearest the raise that is in her source, its line, its path, and where the call went below it."""
     walked = list(traceback.walk_tb(error.__traceback__))
@@ -189,14 +237,18 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
     positional_only, either, keyword_only, star_args, star_kwargs = _parameters(code)
     values = frame.f_locals
     leading = (positional_only or either or [""])[0]
+    receiver: dict[str, str] = {}
     if leading == "self":
-        return f"{qualname} runs on an instance it cannot rebuild"
+        rebuilt = _the_instance_written_back(values.get("self"), code, qualname)
+        if isinstance(rebuilt, str):
+            return rebuilt
+        receiver = rebuilt
     owner = qualname.split(".")[0]
     if owner not in frame.f_globals:
         return f"{owner} is not a name in {module}"
     written: dict[str, str] = {}
     for name in [*positional_only, *either, *keyword_only, *(n for n in (star_args, star_kwargs) if n)]:
-        if name == leading == "cls":
+        if name == leading and name in ("cls", "self"):
             continue
         if name not in values:
             return f"{name} was not bound when {qualname} raised"
@@ -211,11 +263,14 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
         line=int(line or 0),
         error_type=f"{type(error).__module__}.{type(error).__qualname__}",
         error_message=str(error)[:500],
-        positional=tuple(written[name] for name in positional_only),
+        positional=tuple(written[name] for name in positional_only if name in written),
         keywords=tuple((name, written[name]) for name in [*either, *keyword_only] if name in written),
         star_args=written.get(star_args, "") if star_args else "",
         star_kwargs=written.get(star_kwargs, "") if star_kwargs else "",
         below=below,
+        receiver_module=receiver.get("module", ""),
+        receiver_class=receiver.get("class", ""),
+        receiver_state=tuple(sorted((k, v) for k, v in receiver.items() if k not in ("module", "class"))),
     )
 
 

@@ -53,6 +53,15 @@ _PLANTED = textwrap.dedent('''
 
     def waits(seconds):
         raise TimeoutError(f"no answer in {seconds} s")
+
+
+    class Holder:
+        def __init__(self):
+            self.thing = object()
+            self.count = 3
+
+        def use(self):
+            return self.thing.missing
 ''')
 
 
@@ -91,7 +100,7 @@ def test_a_function_and_its_plain_arguments_are_kept(planted):
 
 
 @pytest.mark.parametrize("call, why", [
-    (lambda m: m.Ledger().last(), "runs on an instance it cannot rebuild"),
+    (lambda m: m.Holder().use(), "reads self.thing, a object, not a plain value"),
     (lambda m: m.nested(), "is defined inside another function"),
     (lambda m: m.takes_anything(object()), "is a object, not a plain value"),
 ])
@@ -133,7 +142,7 @@ def test_each_fault_is_heard_once_however_often_it_recurs(planted):
 
     faults.hear(record_of(_raised(lambda: planted.share(1, 0)), 1.0))
     faults.hear(record_of(_raised(lambda: planted.share(2, 0)), 2.0))
-    faults.hear(record_of(_raised(lambda: planted.Ledger().last()), 3.0))     # cannot be made again: not kept
+    faults.hear(record_of(_raised(lambda: planted.Holder().use()), 3.0))     # cannot be made again: not kept
     (heard,) = faults.faults_heard()
     assert heard.call.qualname == "share" and heard.times == 2 and heard.last_at == 2.0
 
@@ -167,13 +176,14 @@ def test_why_a_fault_cannot_be_made_again_is_said_once(planted, caplog):
 
     from core.runtime.errors import DegradationRecord
 
-    exc = _raised(lambda: planted.Ledger().last())
-    record = DegradationRecord("planted", "warning", "IndexError", "", "", 1.0, failed_call=the_call_that_failed(exc))
+    exc = _raised(lambda: planted.Holder().use())
+    record = DegradationRecord("planted", "warning", "AttributeError", "", "", 1.0,
+                               failed_call=the_call_that_failed(exc))
     with caplog.at_level(logging.INFO, logger="Aura.SelfModification.Faults"):
         faults.hear(record)
         faults.hear(record)
     said = [r.getMessage() for r in caplog.records if "Not a fault she can make again" in r.getMessage()]
-    assert len(said) == 1 and "runs on an instance it cannot rebuild" in said[0]
+    assert len(said) == 1 and "reads self.thing" in said[0]
 
 
 def _caught(error):
@@ -259,3 +269,42 @@ def test_a_fault_recorded_before_she_began_listening_is_heard(planted, monkeypat
     assert faults.listen() is True
     (heard,) = faults.faults_heard()
     assert heard.call.qualname == "share"
+
+
+def test_a_method_is_kept_with_its_instance_written_back(planted):
+    """Test carving: the instance a method raised on is rebuilt from its state, without its __init__."""
+    ledger = planted.Ledger()
+    ledger.rows = []
+    kept = the_call_that_failed(_raised(ledger.last))
+    assert isinstance(kept, FailedCall) and kept.qualname == "Ledger.last"
+    assert (kept.receiver_module, kept.receiver_class, kept.receiver_state) == (
+        "planted_pkg.planted", "Ledger", (("rows", "[]"),))
+    source = faults.test_source(faults.HeardFault(kept, "planted", 0.0, 0.0))
+    ast.parse(source)
+    assert "receiver = Ledger.__new__(Ledger)" in source and "receiver.last()" in source
+
+
+def test_an_attribute_a_method_never_names_is_left_out_of_its_instance(planted):
+    holder = planted.Holder()
+    holder.thing = None                  # plain now, and still named: kept
+    kept = the_call_that_failed(_raised(holder.use))
+    assert dict(kept.receiver_state) == {"thing": "None", "count": "3"}
+
+
+def test_a_method_fault_is_reproduced_on_its_rebuilt_instance(planted, tmp_path):
+    """Run for real: the written test rebuilds the ledger with no rows and calls last() on it."""
+    heard = faults.HeardFault(the_call_that_failed(_raised(planted.Ledger().last)), "planted", 0.0, 0.0)
+    reproduced = asyncio.run(faults.reproduce(heard, tmp_path))
+    assert reproduced.reproduced, reproduced.output
+
+
+def test_a_kept_method_fault_survives_a_restart(planted):
+    from core.runtime.errors import DegradationRecord
+
+    exc = _raised(planted.Ledger().last)
+    faults.hear(DegradationRecord("planted", "warning", "IndexError", str(exc), "", 1.0,
+                                  failed_call=the_call_that_failed(exc)))
+    assert asyncio.run(faults.keep_what_was_heard())
+    before = faults.faults_heard()
+    faults.forget_for_test()
+    assert faults.recall() == 1 and faults.faults_heard() == before

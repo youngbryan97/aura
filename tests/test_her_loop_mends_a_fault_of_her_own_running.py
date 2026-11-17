@@ -42,6 +42,22 @@ _GUARD = textwrap.dedent('''
 ''')
 _UNGUARDED = "def half(n):\n    return n / 0\n"
 _PEOPLE = "def label(person):\n    return person.name.title()\n"
+_BASKET = textwrap.dedent('''
+    class Basket:
+        def __init__(self, items):
+            self.items = list(items)
+
+        def first(self):
+            if len(self.items) > 0:
+                raise ValueError("the basket is empty")
+            return self.items[0]
+
+
+    def size(basket):
+        return len(basket.items)
+''')
+_BASKET_GUARD = ("from planted_pkg.basket import Basket, size\n\n\n"
+                 "def test_size():\n    assert size(Basket([1, 2])) == 2\n")
 _COUNTS = "def count_in(text):\n    digits = text.strip()\n    return int(digits)\n"
 _COUNTS_GUARD = ("from planted_pkg.counts import count_in\n\n\n"
                  "def test_count_in():\n    assert count_in(' 12 ') == 12\n")
@@ -63,6 +79,8 @@ def her_source(tmp_path, monkeypatch):
     (source / "planted_pkg" / "rows.py").write_text(_ROWS)
     (source / "planted_pkg" / "alone.py").write_text(_UNGUARDED)
     (source / "planted_pkg" / "people.py").write_text(_PEOPLE)
+    (source / "planted_pkg" / "basket.py").write_text(_BASKET)
+    (source / "tests" / "test_basket.py").write_text(_BASKET_GUARD)
     (source / "planted_pkg" / "counts.py").write_text(_COUNTS)
     (source / "tests" / "test_counts.py").write_text(_COUNTS_GUARD)
     (source / "tests" / "test_rows.py").write_text(_GUARD)
@@ -78,7 +96,8 @@ def her_source(tmp_path, monkeypatch):
     monkeypatch.setattr(a_call_that_failed, "_ROOT", source.resolve())
     monkeypatch.setattr(faults_she_can_reproduce, "where_heard_faults_are_kept", lambda: tmp_path / "heard.json")
     monkeypatch.syspath_prepend(str(source))
-    for name in ("planted_pkg", "planted_pkg.rows", "planted_pkg.alone", "planted_pkg.people", "planted_pkg.counts"):
+    for name in ("planted_pkg", "planted_pkg.rows", "planted_pkg.alone", "planted_pkg.people", "planted_pkg.counts",
+                 "planted_pkg.basket"):
         sys.modules.pop(name, None)
     yield source
     from core.self_modification.into_the_running_process import undo_every_load_for_test
@@ -246,3 +265,17 @@ def test_a_fault_no_template_reaches_is_mended_from_the_values_her_runs_had(her_
     done = asyncio.run(mend(_fault(lambda: counts.count_in("  ")), proposals=200, seconds=900))
     assert done["status"] == "merged" and done["origin"].startswith("semantic"), done
     assert counts.count_in("  ") is None and counts.count_in(" 12 ") == 12, "the running process runs the mend"
+
+
+def test_a_fault_in_a_method_is_mended_on_its_rebuilt_instance_and_loaded(her_source):
+    """A method raised on an instance of hers: its test rebuilds the instance from its state (test carving), the mend
+    is found there, and an instance made before the mend runs the mended method."""
+    import planted_pkg.basket as basket
+
+    held = basket.Basket([1, 2])
+    done = asyncio.run(mend(_fault(held.first), proposals=120, seconds=900))
+    assert done["status"] == "merged", done
+    assert done["loaded"]["functions"] == ["Basket.first"], done["loaded"]
+    assert held.first() == 1
+    with pytest.raises(ValueError, match="empty"):
+        basket.Basket([]).first()
