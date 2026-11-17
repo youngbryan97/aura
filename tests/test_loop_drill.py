@@ -27,6 +27,10 @@ def test_a_count_written_as_text_comes_back_as_a_number():
     assert loop_drill.count_in(" 12 ") == 12
 
 
+def test_a_price_the_table_holds_comes_back():
+    assert loop_drill.priced({"tea": 3, "cake": 5}, "cake") == 5
+
+
 def test_the_drill_runs_only_when_armed(tmp_path, monkeypatch, caplog):
     import logging
 

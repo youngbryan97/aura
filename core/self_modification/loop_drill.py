@@ -6,8 +6,9 @@ test, mend it, pass her own gates, land the mend on origin, and load it into her
 fire drills test an incident response the same way, with a known fault.
 
 Armed by a person: the file ``loop_drill.armed`` in her state root. While it is absent nothing here runs. ``label``,
-``nth`` and ``count_in`` below are the planted faults, on purpose: one reads a person's name without checking there is
-a person, one reads a row past the end, one reads a number from blank text. A mend of either is a drill result, not a fault of her own running, and is counted
+``nth``, ``count_in`` and ``priced`` below are the planted faults, on purpose: one reads a person's name without checking
+there is a person, one reads a row past the end, one reads a number from blank text, one reads a price the table does
+not hold. A mend of either is a drill result, not a fault of her own running, and is counted
 apart from those.
 """
 from __future__ import annotations
@@ -20,7 +21,7 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.SelfModification.Drill")
 
-__all__ = ["armed_at", "count_in", "label", "nth", "run_the_drill_if_armed"]
+__all__ = ["armed_at", "count_in", "label", "nth", "priced", "run_the_drill_if_armed"]
 
 
 def armed_at() -> Path:
@@ -50,10 +51,17 @@ def count_in(text: str) -> Any:
     return int(digits)
 
 
+def priced(prices: dict[str, Any], item: str) -> Any:
+    """What an item costs: the drill's fourth planted fault, for an item the table does not hold. Planted 17 November
+    2026, when her loop had mended the other three, for a load of hers to be seen on the record of what she changed."""
+    return prices[item]
+
+
 #: The planted faults, in the order a drill raises them: each drill raises the first that still raises, so a fault
-#: her loop mended in one drill leaves the next for the drill after it. 16 November 2026: label and nth were mended
-#: live.
-_PLANTED = (("label", lambda: label(None)), ("nth", lambda: nth([1], 2)), ("count_in", lambda: count_in("  ")))
+#: her loop mended in one drill leaves the next for the drill after it. 16 November 2026: label, nth and count_in were
+#: mended live.
+_PLANTED = (("label", lambda: label(None)), ("nth", lambda: nth([1], 2)), ("count_in", lambda: count_in("  ")),
+            ("priced", lambda: priced({"tea": 3}, "cake")))
 
 
 def run_the_drill_if_armed() -> bool:
