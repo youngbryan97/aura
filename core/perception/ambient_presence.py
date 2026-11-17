@@ -732,6 +732,9 @@ class AmbientPresence(_CarriesTheBubble):
                     if reason is SkipReason.PRIVACY_DEFERRED:
                         with self._lock:
                             self._private_skips += 1
+                        # A private window her capture refused when its title did not say so: Chrome's private
+                        # windows carry the page's title (LIVE 17 November 2026, 08:44, "Example Domain").
+                        _a_private_window_is_what_she_last_saw()
                     return self._skip(reason, context=context, detail=detail)
                 return self._skip(
                     SkipReason.CAPTURE_FAILED,

@@ -1053,3 +1053,31 @@ def test_a_private_window_in_front_supersedes_the_reading_of_the_window_before_i
     _with_context(presence, "Google Chrome", "GitHub — aura", text="Pull requests")
     asyncio.run(presence.tick())
     assert "Pull requests" in memory.sensory_brief()
+
+
+def test_a_private_window_her_capture_refused_supersedes_the_reading_before_it(presence, monkeypatch):
+    """LIVE 17 November 2026, 08:44: a private Chrome window carries its page's title ("Example Domain"), so her
+    screen sense tried the read and the capture's admission refused it as a private foreground. That refusal kept
+    nothing, and her turn was given her reading of her own window from a moment before, as the screen."""
+    from core.perception import observation_evidence
+    from core.security import screen_capture_policy as policy
+
+    memory = observation_evidence.ObservationMemory()
+    monkeypatch.setattr(observation_evidence, "_MEMORY", memory)
+    _with_context(presence, "Aura", "Aura Zenith", text="LIVE NEURAL FEED")
+    assert asyncio.run(presence.tick()).observed is True and memory.sensory_brief()
+
+    refused = policy.ScreenCaptureAdmission(allowed=False, reason=policy.ScreenCaptureDenial.PRIVATE_FOREGROUND,
+                                            authority="browser_accessibility_titles")
+
+    async def _context():
+        return ScreenContext(app="Google Chrome", title="Example Domain")
+
+    async def _read():
+        return SimpleNamespace(success=False, error="private content is visible",
+                               evidence={"capture_admission": refused.to_receipt()})
+
+    presence._current_context, presence._read_screen_text = _context, _read
+    result = asyncio.run(presence.tick())
+    assert result.skip_reason is SkipReason.PRIVACY_DEFERRED
+    assert memory.sensory_brief() == ""
