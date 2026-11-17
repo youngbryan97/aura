@@ -123,7 +123,7 @@ async def test_search_pipeline_retains_successful_search(tmp_path: Path):
     async def _expand_queries(query, context):
         return [query]
 
-    async def _search_candidates(queries, *, num_results):
+    async def _search_candidates(queries, *, num_results, recent_days=0):
         return [
             SearchHit(
                 title="Rayleigh scattering",
@@ -181,7 +181,7 @@ async def test_search_pipeline_skips_ddgs_when_runtime_disables_it(tmp_path: Pat
         calls["ddgs"] += 1
         return []
 
-    def _fake_legacy(query, num_results):
+    def _fake_legacy(query, num_results, recent_days=0):
         calls["legacy"] += 1
         return [
             SearchHit(
@@ -209,7 +209,7 @@ async def test_expanded_candidate_searches_run_concurrently(tmp_path: Path, monk
     pipeline = ResearchSearchPipeline(SearchArtifactStore(tmp_path / "web_artifacts.jsonl"))
     barrier = threading.Barrier(2, timeout=2.0)
 
-    def _fake_legacy(query, _num_results):
+    def _fake_legacy(query, _num_results, _recent_days=0):
         barrier.wait()
         return [
             SearchHit(
@@ -398,7 +398,7 @@ async def test_evidence_only_search_skips_model_work_and_preserves_source_divers
     async def _no_reason(*_args, **_kwargs):
         raise AssertionError("evidence-only retrieval must not allocate a synthesis model")
 
-    async def _search_candidates(queries, *, num_results):
+    async def _search_candidates(queries, *, num_results, recent_days=0):
         observed["queries"] = list(queries)
         observed["num_results"] = num_results
         return [

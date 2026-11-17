@@ -197,7 +197,7 @@ async def test_research_pipeline_prioritizes_exact_title_page(tmp_path: Path):
     async def _expand_queries(q, context):
         return [q]
 
-    async def _search_candidates(queries, *, num_results):
+    async def _search_candidates(queries, *, num_results, recent_days=0):
         return [
             SearchHit(
                 title="Future AI Overview",

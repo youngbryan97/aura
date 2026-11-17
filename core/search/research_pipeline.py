@@ -19,6 +19,7 @@ from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.network_gateway import get_network_gateway
 from core.runtime.state_ownership import state_root
+from core.search.recent_pages import ddg_within, ddgs_timelimit, recency_key
 from core.thought_stream import get_emitter
 from core.utils.task_tracker import get_task_tracker
 
@@ -480,6 +481,7 @@ class ResearchSearchPipeline:
         emitter.emit("🔍 Searching...", f"Gathering sources for: {cleaned_query}", category="Research")
         stage_started = time.perf_counter()
         expanded_queries = await self._expand_queries(cleaned_query, ctx)
+        recent_days = max(0, int(ctx.get("recent_days") or 0))  # a turn about the world now asks for this week's pages
         timing_ms["query_expansion"] = round(
             (time.perf_counter() - stage_started) * 1000.0,
             1,
@@ -494,7 +496,7 @@ class ResearchSearchPipeline:
         stage_started = time.perf_counter()
         hits = await self._search_candidates(
             expanded_queries,
-            num_results=candidate_count,
+            num_results=candidate_count, recent_days=recent_days,
         )
         timing_ms["candidate_search"] = round(
             (time.perf_counter() - stage_started) * 1000.0,
@@ -661,20 +663,20 @@ class ResearchSearchPipeline:
                 expansions.append(overview_variant)
         return expansions[:4]
 
-    async def _search_candidates(self, queries: Iterable[str], *, num_results: int) -> list[SearchHit]:
+    async def _search_candidates(self, queries: Iterable[str], *, num_results: int, recent_days: int = 0) -> list[SearchHit]:
         aggregated: dict[str, SearchHit] = {}
         ordered: list[SearchHit] = []
         use_ddgs = _ddgs_enabled()
 
         async def _search_one(query: str) -> list[SearchHit]:
-            cached_hits = self._load_cached_search_hits(query, limit=num_results)
+            cached_hits = self._load_cached_search_hits(recency_key(query, recent_days), limit=num_results)
             if cached_hits:
                 return cached_hits
             if use_ddgs:
-                ddgs_hits = await asyncio.to_thread(self._ddgs_search, query, num_results)
+                ddgs_hits = await asyncio.to_thread(self._ddgs_search, query, num_results, recent_days)
                 if ddgs_hits:
                     return ddgs_hits
-            return await asyncio.to_thread(self._legacy_html_search, query, num_results)
+            return await asyncio.to_thread(self._legacy_html_search, query, num_results, recent_days)
 
         query_list = list(queries)
         batches = await asyncio.gather(
@@ -699,7 +701,7 @@ class ResearchSearchPipeline:
                     return ordered
         return ordered
 
-    def _ddgs_search(self, query: str, num_results: int) -> list[SearchHit]:
+    def _ddgs_search(self, query: str, num_results: int, recent_days: int = 0) -> list[SearchHit]:
         if not _ddgs_enabled():
             return []
 
@@ -725,9 +727,9 @@ class ResearchSearchPipeline:
         try:
             with ddgs_cls(timeout=8) as client:
                 methods = []
-                if _query_is_current(query) and hasattr(client, "news"):
-                    methods.append(("news", {"max_results": max(4, num_results)}))
-                methods.append(("text", {"max_results": max(4, num_results)}))
+                if (_query_is_current(query) or recent_days) and hasattr(client, "news"):
+                    methods.append(("news", {"max_results": max(4, num_results), **ddgs_timelimit(recent_days)}))
+                methods.append(("text", {"max_results": max(4, num_results), **ddgs_timelimit(recent_days)}))
 
                 for method_name, kwargs in methods:
                     method = getattr(client, method_name, None)
@@ -754,14 +756,14 @@ class ResearchSearchPipeline:
         except (ConnectionError, OSError, RuntimeError, TimeoutError, TypeError) as exc:
             record_degradation('research_pipeline', exc)
             logger.debug("DDGS search failed for %s: %s", query, exc)
-            return self._load_cached_search_hits(query, limit=num_results)
+            return self._load_cached_search_hits(recency_key(query, recent_days), limit=num_results)
 
         deduped = self._dedupe_hits(hits)
         if deduped:
-            self._store_cached_search_hits(query, deduped)
+            self._store_cached_search_hits(recency_key(query, recent_days), deduped)
         return deduped
 
-    def _legacy_html_search(self, query: str, num_results: int) -> list[SearchHit]:
+    def _legacy_html_search(self, query: str, num_results: int, recent_days: int = 0) -> list[SearchHit]:
         import urllib.parse
 
         from bs4 import BeautifulSoup
@@ -778,7 +780,7 @@ class ResearchSearchPipeline:
         seen_urls: set[str] = set()
 
         for base_url, source_engine, parser in endpoints:
-            url = f"{base_url}{encoded}"
+            url = f"{base_url}{encoded}{ddg_within(recent_days) if source_engine.startswith('ddg') else ''}"
 
             try:
                 response = get_network_gateway().request(
@@ -814,11 +816,11 @@ class ResearchSearchPipeline:
                     )
                 )
                 if len(aggregated) >= num_results:
-                    self._store_cached_search_hits(query, aggregated)
+                    self._store_cached_search_hits(recency_key(query, recent_days), aggregated)
                     return aggregated
 
         if aggregated:
-            self._store_cached_search_hits(query, aggregated)
+            self._store_cached_search_hits(recency_key(query, recent_days), aggregated)
         return aggregated
 
     def _parse_ddg_html_results(

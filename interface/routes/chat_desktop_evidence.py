@@ -660,6 +660,7 @@ async def _collect_desktop_required_search_evidence(
     user_message: str,
     *,
     session_id: str,
+    recent_days: int = 0,
 ) -> dict[str, Any] | None:
     should_collect, query, contract = _should_collect_desktop_required_search_evidence(user_message)
     if not should_collect:
@@ -695,6 +696,7 @@ async def _collect_desktop_required_search_evidence(
                     "intent_source": "autonomous_research",
                     "confidence_tier": "provisional",
                     "requires_reconciliation": True,
+                    "recent_days": recent_days,
                 },
             ),
             timeout=35.0,
@@ -1205,6 +1207,8 @@ async def _what_the_world_says_for_the_turn(
                 "effect_scope": "read_only_external_io", "risk_level": "low", "foreground_request": True,
                 # Her cortex answers the turn; the search returns what it read.
                 "evidence_only": True,
+                # About the world as it is now: this week's pages (core/search/recent_pages.py).
+                "recent_days": 7 if current else 0,
             },
         )
         ran.update(query=query, result=result if isinstance(result, dict) else {"ok": bool(result)})
@@ -1226,7 +1230,7 @@ async def _what_the_world_says_for_the_turn(
         previous_reply and asks_about_grounds(user_message) is True
     )
     contracted = (
-        await _collect_desktop_required_search_evidence(user_message, session_id=session_id)
+        await _collect_desktop_required_search_evidence(user_message, session_id=session_id, recent_days=7 if current else 0)
         if should_collect and not instructed else None
     )
     try:
