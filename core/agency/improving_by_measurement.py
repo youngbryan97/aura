@@ -85,6 +85,7 @@ def young_collection_in_place_of(source: str, line: int) -> str | None:
     holds no such call."""
     try:
         tree = ast.parse(source)
+    # not a failure: source that does not parse holds no such call, which None says.
     except SyntaxError:
         return None
     calls = [node for node in ast.walk(tree)

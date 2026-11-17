@@ -242,6 +242,7 @@ def _variants(original: str, constants: Sequence[Any], examples: Sequence[Exampl
     """
     try:
         tree = ast.parse(original, mode="eval")
+    # not a failure: a condition that does not parse has no parts to change, so none is offered.
     except SyntaxError:
         return
     seen: set[str] = {original}
@@ -331,6 +332,7 @@ def _pins(text: str, written: Sequence[Any] = ()) -> int:
     neutral nor written in the code, two for an ordering against such a value (a bound the runs supplied), else 0."""
     try:
         tree = ast.parse(text, mode="eval")
+    # not a failure: a test that does not parse pins no value, which 0 says.
     except SyntaxError:
         return 0
     worst = 0
@@ -374,6 +376,7 @@ def _decides_both_ways(text: str, examples: Sequence[Example]) -> bool:
     """
     try:
         body = ast.parse(text, mode="eval").body
+    # not a failure: a condition that does not parse cannot come out either way, which False says.
     except SyntaxError:
         return False
     terms = sorted({t for e in examples for t in [*e.terms, *(e.parts or {})] if t in text}, key=len, reverse=True)
