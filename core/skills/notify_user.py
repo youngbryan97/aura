@@ -39,6 +39,14 @@ class NotifyUserSkill(BaseSkill):
         "assume the user saw anything unless delivered=True."
     )
 
+    def _the_person_asked_for_it(self, context: dict[str, Any]) -> bool:
+        """Whether the person waiting on this turn asked for this notification: their words ask for something to be
+        done, and what they mean needs this skill (the router's reading of the request, ``required_skills``)."""
+        from core.capabilities.user_advocate import the_person_asked_for_an_act
+
+        needed = context.get("required_skills") or ()
+        return self.name in needed and the_person_asked_for_an_act(context, str(context.get("origin") or ""))
+
     async def execute(self, params: Any, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             params = NotifyUserInput(**params)
@@ -46,7 +54,8 @@ class NotifyUserSkill(BaseSkill):
         outcome = DesktopNotifier.send(
             title=params.title,
             message=params.message,
-            sound=params.sound
+            sound=params.sound,
+            asked_for=self._the_person_asked_for_it(context or {}),
         )
 
         if outcome is None:

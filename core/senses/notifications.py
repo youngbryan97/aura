@@ -77,7 +77,8 @@ class DesktopNotifier:
     """Handles native OS desktop notifications (macOS focuses)."""
 
     @staticmethod
-    def send(title: str, message: str, subtitle: str | None = None, sound: str = "Tink") -> DeliveryResult:
+    def send(title: str, message: str, subtitle: str | None = None, sound: str = "Tink", *,
+             asked_for: bool = False) -> DeliveryResult:
         """Send a native macOS desktop notification.
 
         Args:
@@ -90,6 +91,11 @@ class DesktopNotifier:
             DeliveryResult stating whether the user was actually reached.
             Callers must not assume delivery — quiet hours, the notify.enabled
             setting, or an osascript failure all yield delivered=False.
+
+        ``asked_for``: the person waiting on this turn asked for this notification. Quiet hours keep her from
+        interrupting on her own; they do not refuse what the person has just asked for. LIVE 16 November 2026, 22:16:
+        "Could you put up a desktop notification that says time to stretch?" was suppressed by the 21:00 to 08:30
+        window, and she said so. Turning notifications off (notify.enabled) still refuses it.
         """
         if not bool(get_runtime_setting("notify.enabled", True)):
             logger.debug("🔕 Notification suppressed: notifications disabled in settings: %s", title)
@@ -98,7 +104,7 @@ class DesktopNotifier:
                 status="disabled",
                 detail="Notifications are disabled in user settings (notify.enabled=false).",
             )
-        if _within_quiet_hours(
+        if not asked_for and _within_quiet_hours(
             datetime.now(),
             get_runtime_setting("notify.quiet_hours_start", "22:00"),
             get_runtime_setting("notify.quiet_hours_end", "08:00"),
@@ -110,23 +116,17 @@ class DesktopNotifier:
                 detail="Within the user's configured quiet hours window.",
             )
         try:
-            # Escape strings to prevent shell injection via AppleScript
-            safe_title = title.replace('"', '\\"')
-            safe_msg = message.replace('"', '\\"')
-            
-            script = f'display notification "{safe_msg}" with title "{safe_title}"'
-            
+            # The words go to AppleScript as arguments, never inside its source. Pasted into a string literal with
+            # only its quotation marks escaped, a message holding \" closed the literal, and what followed it ran
+            # as AppleScript.
+            clause = "display notification (item 1 of argv) with title (item 2 of argv)"
             if subtitle:
-                safe_sub = subtitle.replace('"', '\\"')
-                script += f' subtitle "{safe_sub}"'
-            
+                clause += " subtitle (item 3 of argv)"
             if sound:
-                safe_sound = sound.replace('"', '\\"')
-                script += f' sound name "{safe_sound}"'
-
-            # Run AppleScript to trigger the native macOS toast
+                clause += " sound name (item 4 of argv)"
+            script = ["-e", "on run argv", "-e", clause, "-e", "end run"]
             result = get_subprocess_gateway().run(
-                ["osascript", "-e", script],
+                ["osascript", *script, str(message), str(title), str(subtitle or ""), str(sound or "")],
                 capture_output=True,
                 timeout=5,
                 source="senses.notifications.desktop_notification",

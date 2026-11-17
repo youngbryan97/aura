@@ -55,6 +55,16 @@ def _clear_cache():
     chat_format._THINKING_SUPPORT.clear()
 
 
+@pytest.fixture(autouse=True)
+def _each_verdict_stays_with_its_test():
+    """A verdict here is cached under its stand-in template's text, and stayed in the process after the test: on 16
+    November 2026 "{{ enable_thinking }}" judged inert here answered for tests/test_cortex_generation_upgrade.py's
+    tokenizer, which uses the same text and honours the flag, and that test failed in the same xdist worker."""
+    _clear_cache()
+    yield
+    _clear_cache()
+
+
 def test_flag_that_changes_the_output_is_supported():
     _clear_cache()
     tok = _Tokenizer("{{ enable_thinking }}", honours=True)

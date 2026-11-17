@@ -32,6 +32,15 @@ from core.governance.capability_chain import (  # noqa: E402
 from core.runtime.errors import record_degradation
 
 
+def the_person_asked_for_an_act(ctx: dict[str, Any], origin: str = "") -> bool:
+    """Did a person waiting on this turn ask, in their own words, for something to be done?
+
+    The conscience's own test (``_directly_requested_by_the_user``), named for the other places that need the same
+    answer: a skill deciding whether a standing preference about interruptions applies to what it was just asked for.
+    """
+    return _AsksWhetherThePersonWouldWantThis._directly_requested_by_the_user(ctx, origin)
+
+
 class _AsksWhetherThePersonWouldWantThis:
     """Lifted whole from CapabilityEngine; see capability_engine.py."""
 

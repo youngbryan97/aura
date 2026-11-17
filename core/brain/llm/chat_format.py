@@ -1041,6 +1041,48 @@ def render_chat_continuation_template(
     return rendered
 
 
+def _leaves_its_channel_open(text: str, tokenizer: object) -> bool:
+    """Whether ``text`` opens the model's private channel and does not close it, by the tokenizer's own markers."""
+    opens = getattr(tokenizer, "think_start", None) or "<think>"
+    closes = getattr(tokenizer, "think_end", None) or "</think>"
+    return text.rfind(str(opens)) > text.rfind(str(closes))
+
+
+def render_where_the_decode_begins(
+    tokenizer: object,
+    messages: object,
+    *,
+    tools: object = None,
+    enable_thinking: bool | None = None,
+    reasoning_effort: str | None = None,
+    continuation: bool = False,
+) -> tuple[str, bool | None]:
+    """The prompt for a generation, and whether its decode begins inside the private channel.
+
+    A continuation's decode begins where its assistant prefix ends: in the reply, unless the prefix itself
+    opened the channel and left it open. Whether the template may think is a different question; the
+    decode loop reads this answer to know which channel its first token is in. LIVE 16 November 2026,
+    22:17: her reply was cut at "if 10:15 PM shouldn't be a", and its continuation ran with the channel
+    taken as open. The 12 tokens that finished her sentence were read as private reasoning and dropped,
+    the loop asked her for an answer it thought she had not begun, and she wrote the whole reply again
+    after the cut.
+    """
+    if not continuation:
+        return render_chat_template(
+            tokenizer,
+            messages,
+            tools=tools,
+            add_generation_prompt=True,
+            enable_thinking=enable_thinking,
+            reasoning_effort=reasoning_effort,
+        ), enable_thinking
+    prompt = render_chat_continuation_template(
+        tokenizer, messages, tools=tools, enable_thinking=enable_thinking, reasoning_effort=reasoning_effort,
+    )
+    prefix = str(messages[-1].get("content") or "")  # type: ignore[index]  # checked by the render above
+    return prompt, bool(enable_thinking) and _leaves_its_channel_open(prefix, tokenizer)
+
+
 def normalize_chat_continuation_messages(
     messages: object,
     assistant_prefix: object,

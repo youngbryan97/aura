@@ -6729,8 +6729,7 @@ def _mlx_worker_loop(
                             conversation_resume_context_digest,
                             reasoning_effort_for_generation,
                             render_chat_append_template,
-                            render_chat_continuation_template,
-                            render_chat_template,
+                            render_where_the_decode_begins,
                             thinking_enabled_for_generation,
                         )
 
@@ -6800,23 +6799,12 @@ def _mlx_worker_loop(
                                     exc,
                                 )
 
-                        if job.get("user_surface_continuation_contract", False):
-                            prompt = render_chat_continuation_template(
-                                tokenizer,
-                                messages,
-                                tools=tools,
-                                enable_thinking=native_thinking,
-                                reasoning_effort=native_effort,
-                            )
-                        else:
-                            prompt = render_chat_template(
-                                tokenizer,
-                                messages,
-                                tools=tools,
-                                add_generation_prompt=True,
-                                enable_thinking=native_thinking,
-                                reasoning_effort=native_effort,
-                            )
+                        continuation = bool(job.get("user_surface_continuation_contract", False))
+                        prompt, native_thinking = render_where_the_decode_begins(
+                            tokenizer, messages, tools=tools, enable_thinking=native_thinking,
+                            reasoning_effort=native_effort, continuation=continuation,
+                        )
+                        if not continuation:
                             _mlx_worker_loop_part_7(logger, messages, prompt, tools)
                     except Exception as e:  # noqa: BLE001 - one bad job must not kill the resident model
                         if tools:
