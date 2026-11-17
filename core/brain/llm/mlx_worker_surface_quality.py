@@ -31,7 +31,6 @@ from core.language.terminal_boundary import has_terminal_sentence_boundary
 from core.runtime.errors import record_degradation
 from core.runtime.model_layers import resolve_model_layers
 
-
 logger = logging.getLogger("MLXWorker")
 
 
@@ -167,7 +166,6 @@ def _surface_control_alpha(
         # A reply gets what the checkpoint has earned, unless what was asked
         # has one right answer.
         from core.brain.a_turn_with_one_right_answer import has_one_right_answer
-
         from core.runtime.flags import env_str
 
         configured = env_str("AURA_USER_SURFACE_STEERING_ALPHA", default="", owner=__name__,
@@ -1230,6 +1228,19 @@ def _classify_generation_stop_reason(
     if int(generated_tokens) >= max(1, int(max_tokens)):
         return "max_tokens"
     return "eos"
+
+
+#: The terminal events in which her model itself ended its turn: its end-of-turn token, a stop sequence it wrote, or
+#: the start of another role's turn. Every other event is the runtime ending it: a deadline, a cancel, a sentinel, a
+#: token limit.
+_THE_MODEL_ENDED_IT = frozenset({"eos", "configured_stop", "role_continuation"})
+
+
+def the_model_ended_its_turn(generation_stop_reason: str) -> bool:
+    """Whether the model ended this generation itself, read off the terminal event ``_classify_generation_stop_reason``
+    named. A text the runtime stopped is what there was of a turn when it was stopped, and a caller that serves it
+    should know that."""
+    return str(generation_stop_reason or "").strip().lower() in _THE_MODEL_ENDED_IT
 
 
 def _continuation_resume_unavailable_reason(

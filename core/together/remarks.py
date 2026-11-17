@@ -1,11 +1,9 @@
 """Saying something while watching together, when it is worth saying now.
 
-Alone at his desk a person is interrupted by a remark, and her unprompted
-speech there is weighed as an interruption and composed against a list of
-what not to say (core/perception/ambient_utterance.py). Inside a with he
-asked her into, a remark is part of what they are doing
-(core/together/a_with.py). So while a with is open, each look her screen sense
-takes goes here instead:
+Unless she is hidden she is in a with beside the person, keeping them
+company at the desk if they asked her into nothing else
+(core/perception/ambient_presence.py), and a remark is part of what they are
+doing (core/together/a_with.py). Each look her screen sense takes goes here:
 
     what the screen shows becomes the with's shared field, with how much it
     changed since the with last saw it;

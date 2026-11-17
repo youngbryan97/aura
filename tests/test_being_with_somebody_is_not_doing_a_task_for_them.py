@@ -952,10 +952,12 @@ def test_while_a_with_is_open_her_screen_looks_go_to_it():
     # Everything before the offer, however the offer is written: since 60e61b09a its result is kept, to be logged.
     body = body[:body.index("self.offer_utterance(thought)")]
     assert "held = get_together().current()" in body
-    assert "remark_in_a_with(held, latest_screen()) if held is not None else consider_utterance(result)" in body
+    # Unless she is hidden she keeps the person company, and with nobody to keep company with she says nothing:
+    # there is no list of fault words to speak from instead (17 November 2026).
+    assert "if held is None and self.mode is not PresenceMode.HIDDEN:" in body
+    assert "consider_utterance" not in body
     # Keeping him company at the desk, the with decides and her own unprompted turn writes it.
-    assert "remark_in_a_with(held, latest_screen(), against_usual=True" in body
-    assert "held is None and time.time() - self._last_spoke_at < self._min_speech_gap_s" in body
+    assert "remark_in_a_with(held, seen, against_usual=True, compose=compose_at_the_desk)" in body
 
 
 def test_the_space_between_her_own_remarks_is_no_silence_of_the_pair():

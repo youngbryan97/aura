@@ -264,6 +264,7 @@ def test_successful_observation_retains_end_to_end_capture_provenance(presence):
             "receipt_id": "capture-456",
             "duration_ms": 8.75,
         },
+        "drawn_by_her": False,
     }
     latest = memory.latest()
     assert latest is not None
@@ -626,65 +627,23 @@ def test_the_loop_backs_off_instead_of_spinning_on_a_broken_capture(presence, mo
     assert max(sleeps) <= 300.0, "back-off is unbounded"
 
 
-def test_she_does_not_speak_twice_in_quick_succession(presence, monkeypatch):
-    """Unsolicited comment is a budget, not a feature."""
-    presence._last_spoke_at = __import__("time").time()
-
-    async def _would_speak(result):
-        raise AssertionError("the speech gap was not honoured")
-
-    monkeypatch.setattr(
-        "core.perception.ambient_utterance.consider_utterance", _would_speak
-    )
-    _with_context(presence, "Terminal", "pytest")
-
-    asyncio.run(presence._consider_speaking(asyncio.run(presence.tick())))
-
-
 def test_a_waiting_message_is_not_replaced(presence, monkeypatch):
     """A person who has not read the last one does not get a stream."""
     presence.offer_utterance("the first thing")
 
-    async def _would_speak(result):
+    async def _would_speak(*_args, **_kwargs):
         raise AssertionError("she spoke over an unread message")
 
-    monkeypatch.setattr(
-        "core.perception.ambient_utterance.consider_utterance", _would_speak
-    )
+    monkeypatch.setattr("core.together.remarks.remark_in_a_with", _would_speak)
+    monkeypatch.setattr("core.together.taking_it_up.the_person_she_is_with", lambda: "person:bryan")
     _with_context(presence, "Terminal", "pytest")
 
     asyncio.run(presence._consider_speaking(asyncio.run(presence.tick())))
     assert presence.state()["utterance"] == "the first thing"
 
 
-class TestUtteranceFilter:
-    """The default is silence, and it takes a fault to leave it."""
-
-    def test_an_ordinary_screen_says_nothing(self):
-        from core.perception.ambient_utterance import _worth_noticing
-
-        assert _worth_noticing("inbox — 4 unread\nCalendar\nDraft: quarterly plan") == ""
-
-    def test_a_traceback_is_worth_noticing(self):
-        from core.perception.ambient_utterance import _worth_noticing
-
-        assert _worth_noticing(
-            "Traceback (most recent call last):\n  File x\nValueError"
-        )
-
-    def test_documentation_about_errors_is_not_a_fault(self):
-        from core.perception.ambient_utterance import _worth_noticing
-
-        assert _worth_noticing(
-            "Stack Overflow — how to fix error: connection refused"
-        ) == ""
-
-    def test_a_single_bare_error_word_is_not_enough(self):
-        from core.perception.ambient_utterance import _worth_noticing
-
-        assert _worth_noticing("the error: field is optional in this schema") == ""
-
-
+class TestNoCannedRemark:
+    """Silence, not a line written for her, when her own voice is not available."""
 
     def test_no_canned_fallback_when_her_voice_is_unavailable(self, monkeypatch):
         """Silence beats "I noticed an error on your screen!".
@@ -696,19 +655,12 @@ class TestUtteranceFilter:
 
         class _Observation:
             capture = "Traceback (most recent call last): ValueError somewhere"
+            source = "Terminal"
 
-            def for_reasoning(self):
-                return "framed"
+        monkeypatch.setattr("core.runtime.service_access.resolve_inference_gate", lambda default=None: default)
+        monkeypatch.setattr("core.brain.llm_health_router.a_person_is_waiting_for_her_model", lambda: False)
 
-        monkeypatch.setattr(
-            ambient_utterance, "_latest_observation", lambda: _Observation()
-        )
-        monkeypatch.setattr(
-            "core.container.ServiceContainer.get",
-            staticmethod(lambda name, default=None: None),
-        )
-
-        assert asyncio.run(ambient_utterance._compose(_Observation(), "traceback")) == ""
+        assert asyncio.run(ambient_utterance.compose_at_the_desk(_Observation())) == ""
 
 
 class TestTheLatencyPayoff:

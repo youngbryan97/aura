@@ -3618,6 +3618,7 @@ from .mlx_worker_surface_quality import (  # noqa: E402
     _surface_quality_failure_reasons,
     _surface_quality_gate_enabled,
     _surface_validation_prompt,
+    the_model_ended_its_turn,
 )
 from .mlx_worker_surface_repair import (  # noqa: E402
     _DELIVERABLE_RESIDUAL_SURFACE_REASONS,  # noqa: F401
@@ -8989,6 +8990,7 @@ def _mlx_worker_loop(
                         ),
                     )
                     surface_control_state["generation_stop_reason"] = generation_stop_reason
+                    surface_control_state["ended_by_the_model"] = the_model_ended_its_turn(generation_stop_reason)
                     surface_control_state["generation_configured_stop_sequence"] = (
                         configured_stop_sequence
                     )

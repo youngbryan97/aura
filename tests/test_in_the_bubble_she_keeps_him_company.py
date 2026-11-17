@@ -33,13 +33,8 @@ def presence(monkeypatch):
         routed["kwargs"] = kwargs
         return "That second question wants the five layers of one thing you built, not five things."
 
-    async def fault_gate(_result):
-        routed["fault_gate"] = True
-        return ""
-
     monkeypatch.setattr("core.together.remarks.remark_in_a_with", in_a_with)
-    monkeypatch.setattr("core.perception.ambient_utterance.consider_utterance", fault_gate)
-    monkeypatch.setattr("core.perception.ambient_utterance.latest_screen", lambda: object())
+    monkeypatch.setattr("core.perception.ambient_utterance.latest_screen", lambda: routed.get("seen", object()))
 
     async def kept(words, *, origin):
         routed.setdefault("kept", []).append((words, origin))
@@ -62,7 +57,6 @@ def test_in_the_bubble_what_she_sees_goes_to_the_company_she_is_keeping(presence
     from core.perception.ambient_utterance import compose_at_the_desk
 
     assert routed["kwargs"]["against_usual"] is True and routed["kwargs"]["compose"] is compose_at_the_desk
-    assert "fault_gate" not in routed
     assert held.state()["has_utterance"] is True
 
 
@@ -79,29 +73,68 @@ def test_what_she_says_in_the_bubble_is_kept_in_her_conversation(presence):
         "That second question wants the five layers of one thing you built, not five things.", "ambient_remark")]
 
 
-def test_her_window_opening_ends_the_company_kept_at_the_desk(presence):
+def test_hiding_her_ends_the_company_kept_at_the_desk_and_her_window_does_not(presence):
+    """Her window up, the person is still there and so is she; hidden, she observes nothing and says nothing."""
     from core.perception.ambient_presence import PresenceMode
     from core.together.a_with import get_together
 
     held, _routed = presence
     held.set_mode(PresenceMode.BUBBLE)
     asyncio.run(held._consider_speaking(None))
+    held.set_mode(PresenceMode.WINDOW)
     assert get_together().current(PERSON) is not None
 
-    held.set_mode(PresenceMode.WINDOW)
+    held.set_mode(PresenceMode.HIDDEN)
 
     assert get_together().current(PERSON) is None
 
 
-def test_with_her_window_up_only_the_fault_gate_reaches_her(presence):
-    from core.perception.ambient_presence import PresenceMode
+def test_with_her_window_up_what_she_sees_goes_to_the_company_she_is_keeping(presence):
+    """With her window up her remark was gated on a list of fault words (core/perception/ambient_utterance.py, removed
+    17 November 2026): a form, a draft or a conversation on screen never reached her, and two of her own earlier
+    replies with "failed:" in them did."""
+    from core.perception.ambient_presence import KEEPING_COMPANY, PresenceMode
 
     held, routed = presence
     held.set_mode(PresenceMode.WINDOW)
 
     asyncio.run(held._consider_speaking(None))
 
-    assert routed.get("fault_gate") is True and "with" not in routed
+    assert routed["with"].who == PERSON and routed["with"].what == KEEPING_COMPANY
+
+
+def test_her_own_window_in_front_is_not_something_she_remarks_on(presence):
+    """LIVE 17 November 2026, 09:50: her own window in front, her remark described her own window."""
+    from types import SimpleNamespace
+
+    from core.perception.ambient_presence import PresenceMode
+
+    held, routed = presence
+    held.set_mode(PresenceMode.WINDOW)
+    routed["seen"] = SimpleNamespace(capture="This did not complete: read screen text failed", source="Python",
+                                     detail={"drawn_by_her": True})
+
+    asyncio.run(held._consider_speaking(None))
+
+    assert "with" not in routed and held.state()["has_utterance"] is False
+
+
+def test_a_window_is_hers_when_her_process_or_one_it_started_owns_it():
+    import os
+    import subprocess
+    import sys
+
+    from core.perception.ambient_presence import ScreenContext
+
+    assert ScreenContext(app="Python", owner_pid=os.getpid()).drawn_by_her
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"])
+    try:
+        assert ScreenContext(app="Python", owner_pid=child.pid).drawn_by_her, "her window is drawn by a child of hers"
+    finally:
+        child.kill()
+        child.wait()
+    assert not ScreenContext(app="Python", owner_pid=1).drawn_by_her
+    assert not ScreenContext(app="Aura").drawn_by_her, "a name is not whose window it is"
 
 
 def test_the_person_at_the_desk_is_someone_she_knows_by_name():

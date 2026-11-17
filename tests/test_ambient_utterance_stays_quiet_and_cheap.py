@@ -1,16 +1,14 @@
-"""An unprompted remark must never make the person's own question slower.
+"""Her unprompted turn must never make the person's own question slower.
 
-``consider_utterance`` runs off the ambient observation loop — every time she
-notices the screen changed, on a machine whose resident 27B is the same model
-answering whatever the person just typed. So the judgment has two costs and
-both have to stay small: the cheap gate must reject almost everything before
-any model call, and the model call it does make must be BACKGROUND.
+It runs off her ambient loop and her host monitor, on a machine whose resident 27B is the same model answering
+whatever the person just typed. So the model call it makes must be BACKGROUND, bounded, and give way to a person.
 
-It was neither marked background nor bounded. Then, marked background and asked
-of her router, it never reached her cortex: the router sends background work to
-its tertiary tier (LIVE 14 November 2026, eleven remarks with nothing formed, a
-traceback on the screen). It now takes the generation lane's background lease,
-as her goal pass does, and her cortex's own client.
+It was neither marked background nor bounded. Then, marked background and asked of her router, it never reached her
+cortex: the router sends background work to its tertiary tier (LIVE 14 November 2026, eleven remarks with nothing
+formed, a traceback on the screen). It now takes the generation lane's background lease, as her goal pass does, and
+her cortex's own client. Whether she says anything about the screen at all is the company she keeps
+(tests/test_in_the_bubble_she_keeps_him_company.py); the list of fault words that decided it with her window up is
+gone.
 """
 from __future__ import annotations
 
@@ -20,13 +18,14 @@ import time
 
 import pytest
 
-from core.brain.her_unprompted_turn import on_her_cortex
-from core.perception.ambient_utterance import (
-    _COMPOSE_TIMEOUT_S,
-    _compose,
-    _worth_noticing,
-    consider_utterance,
-)
+from core.brain.her_unprompted_turn import her_turn_on, on_her_cortex
+from core.perception import ambient_utterance
+
+
+def _compose(observation, _trigger):
+    """Her unprompted turn on what the screen shows, as her host monitor and her remarks ask for it."""
+    return her_turn_on("WHAT IS ON THE SCREEN", observation.capture, origin="ambient_remark",
+                       least_s=ambient_utterance._COMPOSE_TIMEOUT_S)
 
 
 class _Observation:
@@ -133,7 +132,7 @@ def test_composing_is_bounded(router):
 
     assert "wait_for" in source and "least_s" in source
     assert "least_s" in lane and "time_a_prompt_needs" in lane
-    assert 0 < _COMPOSE_TIMEOUT_S <= 60
+    assert 0 < ambient_utterance._COMPOSE_TIMEOUT_S <= 60
 
 
 def test_a_slow_composition_is_silence_not_a_late_remark(monkeypatch):
@@ -156,57 +155,6 @@ def test_no_cognition_means_no_fallback_line(monkeypatch):
     _her_cortex_is(monkeypatch, None)
 
     assert asyncio.run(_compose(_Observation("build failed"), "build failed")) == ""
-
-
-# ──────────────────────────────────── the cheap gate rejects almost everything
-
-
-@pytest.mark.parametrize(
-    "capture",
-    [
-        "Traceback (most recent call last):\n  File 'x.py'",
-        "AssertionError: expected 3, got 5",
-        "build failed after 12 seconds",
-        "panic: runtime error: index out of range",
-    ],
-)
-def test_a_visible_fault_is_worth_noticing(capture):
-    assert _worth_noticing(capture) != ""
-
-
-@pytest.mark.parametrize(
-    "capture",
-    [
-        "def handler(): pass  # ordinary code with no fault",
-        "Stack Overflow — how to fix error: undefined",
-        "Read the documentation about error: codes here",
-        "One error: appears once in ordinary prose",
-    ],
-)
-def test_ordinary_screens_are_not_worth_interrupting_for(capture):
-    assert _worth_noticing(capture) == ""
-
-
-def test_the_cheap_gate_runs_before_any_model_call(router):
-    """Most ticks must cost nothing. Otherwise the loop is unaffordable."""
-    import core.perception.ambient_utterance as module
-
-    calls: list[str] = []
-
-    class _Memory:
-        def latest(self, _kind):
-            calls.append("latest")
-            return _Observation("def handler(): pass  # nothing wrong here at all")
-
-    module_memory = _Memory()
-    original = module._latest_observation
-    module._latest_observation = lambda: module_memory.latest(None)
-    try:
-        assert asyncio.run(consider_utterance(object())) == ""
-    finally:
-        module._latest_observation = original
-
-    assert router.kwargs == {}, "an ordinary screen reached the model"
 
 
 # ─────────────────────────────────────── her own words, with nothing added to her turn
@@ -246,3 +194,28 @@ def test_a_whole_remark_is_served_whole_however_long(monkeypatch):
     whole = "The traceback is a JSONDecodeError: settings.json ends after its opening brace. " * 8
     _her_cortex_is(monkeypatch, _Cortex(whole.strip()))
     assert asyncio.run(_compose(_Observation("Traceback (most recent call last):"), "traceback")) == whole.strip()
+
+
+@pytest.mark.parametrize("ended_by,said", [("deadline_exceeded", ""), ("soft_cancelled", ""), ("max_tokens", ""),
+                                           ("eos", "The test on line 42 fails.")])
+def test_a_turn_her_model_did_not_end_is_not_said(monkeypatch, ended_by, said):
+    """LIVE 17 November 2026, 09:50: her remark was ended by its deadline mid-table, and the client handed back what there
+    was of it, which went to the bubble as hers. The client records why it ended in the calling task's context."""
+    import contextvars
+
+    receipt: contextvars.ContextVar[dict | None] = contextvars.ContextVar("receipt", default=None)
+
+    class _Stopped(_Cortex):
+        async def generate_text_async(self, prompt, **kwargs):
+            from core.brain.llm.mlx_worker_surface_quality import the_model_ended_its_turn
+
+            receipt.set({"generation_stop_reason": ended_by, "ended_by_the_model": the_model_ended_its_turn(ended_by)})
+            return "The test on line 42 fails."
+
+        def get_last_surface_control_receipt(self):
+            return dict(receipt.get() or {})
+
+    cortex = _Stopped()
+    _her_cortex_is(monkeypatch, cortex)
+    assert asyncio.run(_compose(_Observation("panic: nil map"), "panic:")) == said
+    assert cortex.released == [7], "the lease is given back"

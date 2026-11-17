@@ -99,6 +99,23 @@ def what_she_finished(text: str) -> str:
     return ""
 
 
+def _she_ended_it(client: Any, origin: str) -> bool:
+    """Whether her model ended the generation that wrote her turn, not her time or a request to stop.
+
+    Read off her worker's terminal event (core/brain/llm/mlx_worker_surface_quality.the_model_ended_its_turn), which
+    her client keeps in the calling task's context, so it is asked inside the wait that ran the generation. Nobody asked
+    for this turn, so nobody is owed what there was of it when it was stopped. LIVE 17 November 2026, 09:50, her
+    remark was ended by its deadline in a table she was still writing, and its rows up to the last full stop went to
+    the bubble and her conversation as what she had said.
+    """
+    receipt = getattr(client, "get_last_surface_control_receipt", dict)() or {}
+    if receipt.get("ended_by_the_model") is False:
+        logger.info("🫧 %s: her turn was ended by %s before she finished it; nothing is said", origin,
+                    receipt.get("generation_stop_reason") or "the runtime")
+        return False
+    return True
+
+
 async def on_her_cortex(messages: list[dict[str, Any]], *, origin: str, least_s: float) -> str:
     """Her cortex's next turn on these messages, admitted as her goal pass is; "" when her model is not free for it.
 
@@ -114,13 +131,14 @@ async def on_her_cortex(messages: list[dict[str, Any]], *, origin: str, least_s:
 
     from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
+    async def said(client: Any, seconds: float) -> str:
+        text = await client.generate_text_async(
+            "", messages=messages, system_prompt="", origin=origin, is_background=True,
+            cognitive_mode=_HER_MODE, max_tokens=A_CLOSED_QUESTIONS_FLOOR, timeout=seconds) or ""
+        return text if _she_ended_it(client, origin) else ""
+
     async def generate(client: Any, seconds: float) -> str:
-        return await asyncio.wait_for(
-            client.generate_text_async(
-                "", messages=messages, system_prompt="", origin=origin, is_background=True,
-                cognitive_mode=_HER_MODE, max_tokens=A_CLOSED_QUESTIONS_FLOOR, timeout=seconds),
-            timeout=seconds,
-        ) or ""
+        return await asyncio.wait_for(said(client, seconds), timeout=seconds)
 
     return str(await _on_her_lane(messages, origin=origin, least_s=least_s, generations=1,
                                   needs="generate_text_async", work=generate) or "")
@@ -150,17 +168,18 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) ->
 
     messages = her_conversation_now_with(heading, reading)
 
-    async def act(client: Any, seconds: float) -> dict[str, Any]:
+    async def acted(client: Any) -> dict[str, Any]:
         # The allowance her time was worked out for (_on_her_lane). LIVE 16 November 2026, 01:58, without it the loop
         # asked for the client's 4,096 tokens, and her turn was cancelled at the 50 s it had been given.
-        return await asyncio.wait_for(
-            client.think_and_act(
-                "", system_prompt="", tools=tool_definitions(), max_turns=_DESK_GENERATIONS,
-                context={"origin": DESK_ORIGIN, "requested_by": "aura"}, origin=DESK_ORIGIN,
-                conversation=messages, work_in_background=True, native_tools_only=True, cognitive_mode=_HER_MODE,
-                max_tokens=A_CLOSED_QUESTIONS_FLOOR),
-            timeout=seconds,
-        ) or {}
+        result = dict(await client.think_and_act(
+            "", system_prompt="", tools=tool_definitions(), max_turns=_DESK_GENERATIONS,
+            context={"origin": DESK_ORIGIN, "requested_by": "aura"}, origin=DESK_ORIGIN,
+            conversation=messages, work_in_background=True, native_tools_only=True, cognitive_mode=_HER_MODE,
+            max_tokens=A_CLOSED_QUESTIONS_FLOOR) or {})
+        return result if _she_ended_it(client, DESK_ORIGIN) else {**result, "content": ""}
+
+    async def act(client: Any, seconds: float) -> dict[str, Any]:
+        return await asyncio.wait_for(acted(client), timeout=seconds)
 
     try:
         result = await _on_her_lane(messages, origin=DESK_ORIGIN, least_s=least_s, generations=_DESK_GENERATIONS,
@@ -209,7 +228,10 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
         # and a pass of hers keeps what it had done. LIVE 16 November 2026, 08:31 local, keeping Bryan company, her
         # turn at the desk waited out its time behind her goal pass writing a history of quantum error correction,
         # "her model is held for something else", and nothing was said.
-        from core.brain.llm_health_router_gate_owners import _a_person_waits, _background_stands_aside
+        from core.brain.llm_health_router_gate_owners import (
+            _a_person_waits,
+            _background_stands_aside,
+        )
 
         waits = _a_person_waits()
         _background_stands_aside(f"{origin}: she has something to say to the person here")

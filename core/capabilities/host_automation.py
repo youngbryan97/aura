@@ -758,15 +758,19 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
         admission: a public app name paired with a newly private title can make
         the capture decision describe no window that ever existed.
         """
+        # The process that owns the window comes back after a unit separator, which no title carries, and goes in
+        # the receipt's evidence: whose window is in front is a fact about processes, not about names.
         script = '''
             tell application "System Events"
-                set frontApp to name of first application process whose frontmost is true
+                set frontProc to first application process whose frontmost is true
+                set frontApp to name of frontProc
+                set frontPid to unix id of frontProc
                 set winTitle to ""
                 try
-                    set winTitle to name of front window of process frontApp
+                    set winTitle to name of front window of frontProc
                 end try
             end tell
-            return frontApp & "|" & winTitle
+            return frontApp & "|" & winTitle & (character id 31) & (frontPid as text)
         '''
         receipt = await AppleScriptRunner.run(
             script,
@@ -776,6 +780,11 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
         )
         receipt.action = "get_frontmost_window_context"
         receipt.target = "frontmost_window"
+        said, separated, owner = str(receipt.result or "").rpartition("\x1f")
+        if separated:
+            receipt.result = said
+            if owner.strip().isdigit():
+                receipt.evidence = {**dict(receipt.evidence or {}), "owner_pid": int(owner.strip())}
         if receipt.success and str(receipt.result or "").strip("|").strip():
             return receipt
 

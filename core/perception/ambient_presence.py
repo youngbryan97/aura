@@ -135,7 +135,8 @@ KEEPING_COMPANY = "keeping company at the desk"
 
 
 def _keeping_company() -> Any:
-    """The with she is in while she sits in the bubble beside the person, begun if it is not; None if nobody is there.
+    """The with she is in beside the person, in the bubble or with her window up, begun if it is not; None if nobody is
+    there.
 
     It is held under whoever she is talking with (core/together/taking_it_up.the_person_she_is_with), so each thing the
     person says to her is a turn in it, and whether her remarks are taken up is learned from them.
@@ -148,12 +149,34 @@ def _keeping_company() -> Any:
         return get_together().begin(who, KEEPING_COMPANY, proposed_by=THEM) if who else None
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("ambient_presence", exc, severity="warning",
-                           action="she sat in the bubble without keeping company, so only a fault reached her")
+                           action="she sat beside the person without keeping company, so nothing on the screen reached her")
         return None
 
 
+def _her_own_process(pid: int) -> bool:
+    """Whether ``pid`` is this process or one it started: her window is drawn by a child of hers
+    (interface/gui_actor.py)."""
+    import os
+
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return True
+    try:
+        import psutil
+
+        return any(parent.pid == os.getpid() for parent in psutil.Process(pid).parents())
+    # not a failure: a process gone or not ours to inspect is not one of hers.
+    except (ImportError, OSError, ValueError) as exc:
+        import logging
+
+        logging.getLogger("Aura.Perception.AmbientPresence").debug("whose window %d is could not be read: %s", pid, exc)
+        return False
+
+
 def _stop_keeping_company() -> None:
-    """Her window opened or she was hidden: the company she was keeping at the desk ends."""
+    """She was hidden: the company she was keeping at the desk ends. Her window opening does not end it; the person
+    is still there, and so is she."""
     try:
         from core.together.a_with import THEM, get_together
 
@@ -280,6 +303,15 @@ class ScreenContext:
     adapter: str = ""
     receipt_id: str = ""
     duration_ms: float = 0.0
+    #: The process that owns the window in front; 0 when the probe did not say.
+    owner_pid: int = 0
+
+    @property
+    def drawn_by_her(self) -> bool:
+        """Whether the window in front belongs to her own process or one it started: her own window, showing what she
+        wrote. LIVE 17 November 2026, 09:50, her window in front with two of her earlier replies on it, her remark was
+        a description of her own window."""
+        return _her_own_process(self.owner_pid)
 
     @property
     def key(self) -> str:
@@ -395,9 +427,6 @@ class AmbientPresence(_CarriesTheBubble):
         self._bubble_move_sequence = 0
         self._bubble_move_acks: dict[int, tuple[float, float]] = {}
         self._last_surface_poll_at = 0.0
-        #: She does not speak twice in quick succession. Unsolicited comment
-        #: is a budget, not a feature, and the budget is deliberately small.
-        self._min_speech_gap_s = 180.0
 
     # ── mode ─────────────────────────────────────────────────────────────
 
@@ -411,7 +440,7 @@ class AmbientPresence(_CarriesTheBubble):
                 self._pending_utterance = ""
                 self._pending_highlight = None
                 self._pending_bubble_move = None
-        if resolved is not PresenceMode.BUBBLE:
+        if resolved is PresenceMode.HIDDEN:
             _stop_keeping_company()
         return resolved
 
@@ -777,6 +806,7 @@ class AmbientPresence(_CarriesTheBubble):
                 "receipt_id": capture_receipt_id,
                 "duration_ms": round(capture_duration_ms, 3),
             },
+            "drawn_by_her": context.drawn_by_her,
         }
 
         remember_observation(
@@ -889,6 +919,7 @@ class AmbientPresence(_CarriesTheBubble):
         return ScreenContext(
             app=app.strip(),
             title=title.strip(),
+            owner_pid=int((getattr(receipt, "evidence", None) or {}).get("owner_pid") or 0),
             adapter=str(getattr(receipt, "adapter", "") or ""),
             receipt_id=str(getattr(receipt, "receipt_id", "") or ""),
             duration_ms=_nonnegative_finite_float(
@@ -1040,42 +1071,41 @@ class AmbientPresence(_CarriesTheBubble):
           * a message already waiting is not replaced, so a person who has
             not read the last one does not get a stream.
 
-        In the bubble she is keeping the person company, and that is a with
-        (``_keeping_company``): what is on screen interests her or not by her
-        own record, and whether to say something now is the with's expected
-        utility. Bryan, 15 November 2026: "a companion is actually watching
-        and thinking about what's going on with the screen too ... the idea
-        ultimately is for aura to always have presence". Her remark had been
-        gated on a list of fault words, so a form he was filling in, a draft,
-        or a conversation on screen never reached her.
+        Unless she is hidden she is keeping the person company, and that is a
+        with (``_keeping_company``): what is on screen interests her or not by
+        her own record, and whether to say something now is the with's
+        expected utility, learned from whether her remarks are taken up.
+        Bryan, 15 November 2026: "a companion is actually watching and
+        thinking about what's going on with the screen too ... the idea
+        ultimately is for aura to always have presence". With her window up
+        her remark was gated on a list of fault words, and on 17 November
+        "failed:" twice in her own window, her own earlier replies, made her
+        describe her own window. What she drew herself is not something to
+        remark on.
         """
         from core.together.a_with import get_together
 
-        # Inside a shared activity he asked her into, a remark is part of
-        # what they are doing, and when to make one is the with's own
-        # question (core/together/remarks.py), not the gap between
-        # interruptions of somebody alone.
         held = get_together().current()
-        if held is None and self.mode is PresenceMode.BUBBLE:
+        if held is None and self.mode is not PresenceMode.HIDDEN:
             held = _keeping_company()
+        if held is None:
+            return  # nobody she is with, so nobody to say it to
         with self._lock:
             if self._pending_utterance:
                 return
-            if held is None and time.time() - self._last_spoke_at < self._min_speech_gap_s:
-                return
         try:
-            from core.perception.ambient_utterance import consider_utterance, latest_screen
+            from core.perception.ambient_utterance import compose_at_the_desk, latest_screen
             from core.together.remarks import remark_in_a_with
 
-            if held is not None and held.what == KEEPING_COMPANY:
+            seen = latest_screen()
+            if (getattr(seen, "detail", None) or {}).get("drawn_by_her"):
+                return
+            if held.what == KEEPING_COMPANY:
                 # Her own turn at the desk writes it, on her cortex, with what she can do on the screen offered to
                 # it; the with decides when, weighing a look against what usually crosses the person's screen.
-                from core.perception.ambient_utterance import compose_at_the_desk
-
-                thought = await remark_in_a_with(held, latest_screen(), against_usual=True,
-                                                 compose=compose_at_the_desk)
+                thought = await remark_in_a_with(held, seen, against_usual=True, compose=compose_at_the_desk)
             else:
-                thought = await (remark_in_a_with(held, latest_screen()) if held is not None else consider_utterance(result))
+                thought = await remark_in_a_with(held, seen)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "ambient_presence", exc, severity="debug",

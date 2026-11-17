@@ -3221,6 +3221,7 @@ def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
         "user_surface_completion_floor",
         "completion_floor_applied",
         "generation_stop_reason",
+        "ended_by_the_model",
         "generation_configured_stop_sequence",
         "semantic_completion_contract",
         "semantic_completion_satisfied",
