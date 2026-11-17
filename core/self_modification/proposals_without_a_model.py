@@ -27,7 +27,7 @@ from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 
-__all__ = ["import_for", "proposals_without_a_model"]
+__all__ = ["import_for", "proposals_without_a_model", "template_proposals"]
 
 _UNDEFINED = re.compile(r"name '([A-Za-z_][A-Za-z0-9_]*)' is not defined")
 
@@ -97,14 +97,24 @@ def _ruff_fixed(source: str, path: str, repo: Path) -> str:
     return done.stdout if done.returncode == 0 and done.stdout else source
 
 
+def template_proposals(sources: Mapping[str, str], ranked: Sequence[tuple[tuple[str, int], float]],
+                       error_type: str = "") -> Iterator[tuple[str, str]]:
+    """The fix templates at the ranked lines, as (origin, SEARCH/REPLACE text)."""
+    from core.self_modification.fix_templates import template_changes
+
+    for path, name, changed in template_changes(ranked, sources, error_type):
+        yield f"template:{name}", _whole(path, sources[path], changed)
+
+
 def proposals_without_a_model(failure: str, sources: Mapping[str, str], repo: Path,
                               ranked: Sequence[tuple[tuple[str, int], float]] = (),
-                              error_type: str = "") -> Iterator[tuple[str, str]]:
+                              error_type: str = "", *, templates: bool = True) -> Iterator[tuple[str, str]]:
     """Every exact change these proposers write for ``sources``, as (origin, SEARCH/REPLACE text).
 
     ``ranked`` is the lines the failing tests ran, most suspicious first (fix_templates.ochiai); the fix
-    templates are tried there after the import, the shapes and ruff. ``error_type`` is the exception the fault
-    raised, when it is known, and puts the checkers it asks for first at each line.
+    templates are tried there after the import, the shapes and ruff, unless ``templates`` is False (semantic
+    repair goes between them: semantic_repair.her_own_python). ``error_type`` is the exception the fault raised,
+    when it is known, and puts the checkers it asks for first at each line.
     """
     from core.self_modification.code_that_looks_wrong import applied, what_looks_wrong
     from core.self_modification.repairing_by_behaviour import _candidates
@@ -129,7 +139,5 @@ def proposals_without_a_model(failure: str, sources: Mapping[str, str], repo: Pa
             fixed = _ruff_fixed(source, path, repo)
             if fixed != source:
                 yield "ruff", _whole(path, source, fixed)
-    from core.self_modification.fix_templates import template_changes
-
-    for path, name, changed in template_changes(ranked, sources, error_type):
-        yield f"template:{name}", _whole(path, sources[path], changed)
+    if templates:
+        yield from template_proposals(sources, ranked, error_type)

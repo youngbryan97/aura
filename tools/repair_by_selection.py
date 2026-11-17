@@ -5,8 +5,9 @@ The search is core/self_modification/repair_by_selection.py. This gives it a
 copy of the repository to run tests in (a detached git worktree at HEAD, never
 the checkout her app runs from), the tests that import the files a change may
 touch as the ones it must not break, and proposals: first the exact changes her
-own Python writes (core/self_modification/proposals_without_a_model.py), and
-only when those are spent her code lane's model, or a file of proposals. It writes every candidate, its parent and its fitness to
+own Python writes (core/self_modification/proposals_without_a_model.py), then semantic repair from her program's
+values at the suspect lines (core/self_modification/semantic_repair.py), then the fix templates, and only when those
+are spent her code lane's model, or a file of proposals. It writes every candidate, its parent and its fitness to
 ``OUT/lineage.json`` and the patch genealogy graph in ``OUT``, and the fittest
 change to ``OUT/best.diff``. It applies nothing to her code.
 
@@ -44,6 +45,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 PYTHON = sys.executable
+#: The most suspicious lines semantic repair looks at (core/self_modification/semantic_repair.semantic_repairs).
+SUSPECT_LINES = 15
+#: Passing tests run with the probe: those that run the most suspect lines. Each is examples of what a condition
+#: there must keep deciding, and each is time in the run that records them.
+PASSING_KEPT = 40
 _RESULT = re.compile(r"^(PASSED|FAILED|ERROR|XPASS|XFAIL|SKIPPED)\s+(\S+)", re.MULTILINE)
 
 
@@ -285,29 +291,6 @@ def findings(sources: Mapping[str, str], repo: Path) -> int:
     return count
 
 
-def first_without_a_model(then, repo: Path, rank=None):
-    """Her own Python's exact changes for the current code first (proposals_without_a_model.py), then ``then``.
-
-    ``rank(start)`` returns the lines the failing tests run, most suspicious first, for the fix templates.
-    """
-    from core.self_modification.proposals_without_a_model import proposals_without_a_model
-
-    pending: dict[str, object] = {}
-
-    async def propose(defect, start, parent, n):
-        key = parent.id if parent is not None else ""
-        if key not in pending:
-            failure = parent.fitness.failures if parent is not None and parent.fitness else defect.seen
-            ranked = await rank(start) if rank is not None else ()
-            pending[key] = proposals_without_a_model(failure, start, repo, ranked)
-        exact = next(pending[key], None)
-        if exact is not None:
-            return [exact]
-        return await then(defect, start, parent, n) if then is not None else []
-
-    return propose
-
-
 def from_file(path: Path):
     texts = list(json.loads(path.read_text()))
 
@@ -331,6 +314,8 @@ def main() -> int:
     parser.add_argument("--tests-from", default="", help="a commit whose versions of the --test files are put in")
     parser.add_argument("--only-model", action="store_true",
                         help="ask only the model, to measure what it adds beyond her own Python's exact changes")
+    parser.add_argument("--without-semantic", action="store_true",
+                        help="leave semantic repair out, to measure what it adds beyond the exact changes and templates")
     args = parser.parse_args()
     if args.model_path and args.proposals_from:
         parser.error("give at most one of --model-path and --proposals-from")
@@ -383,15 +368,29 @@ def main() -> int:
 
         model = (code_lane(args.model_path, args.out) if args.model_path
                  else from_file(args.proposals_from) if args.proposals_from else None)
+        spectrum: dict[str, dict[str, set]] = {}
+
         async def rank(start):
             from core.self_modification.fix_templates import ochiai
 
             failing, passing = await copy.lines_each_test_runs(args.test, args.file, start, original=sources,
                                                                seconds=max(1.0, deadline - time.time()))
             failing = {t: lines for t, lines in failing.items() if t in args.test} or failing
+            spectrum["passing"] = passing
             return ochiai(failing, passing)
 
-        propose = model if args.only_model and model is not None else first_without_a_model(model, copy.path, rank)
+        async def passing_at(start, ranked):
+            """The tests that pass now and run the suspect lines, those that run most of them first."""
+            top = {line for line, score in ranked[:SUSPECT_LINES] if score > 0}
+            ran = {t: len(lines & top) for t, lines in spectrum.get("passing", {}).items() if t not in args.test}
+            return [t for t, count in sorted(ran.items(), key=lambda item: -item[1]) if count][:PASSING_KEPT]
+
+        from core.self_modification.semantic_repair import Evidence, her_own_python
+
+        evidence = Evidence()
+        propose = model if args.only_model and model is not None else her_own_python(
+            repo=copy.path, rank=rank, run=None if args.without_semantic else run, passing=passing_at,
+            workdir=where / "semantic", deadline=lambda: deadline, then=model, evidence=evidence)
         before = findings(sources, copy.path)
 
         async def standards(changed) -> int:
@@ -402,6 +401,7 @@ def main() -> int:
             propose=propose, proposals=args.proposals, deadline=deadline, record=record, standards=standards))
         (args.out / "lineage.json").write_text(json.dumps(
             {**lineage.to_json(), "guarding_files": files, "guarding_tests": found, "planted": args.plant}, indent=1))
+        (args.out / "semantic.json").write_text(json.dumps(evidence.to_json(), indent=1, default=str))
         if lineage.best is not None:
             import difflib
 

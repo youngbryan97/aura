@@ -102,7 +102,7 @@ def test_a_fault_of_her_running_is_mended_and_taken_into_her_source(her_source):
 
     done = asyncio.run(mend(_fault(lambda: rows.first([1, 2])), proposals=80, seconds=900))
     assert done["status"] == "merged", done
-    assert done["origin"].startswith(("template:", "looks_wrong:"))
+    assert done["origin"].startswith(("template:", "looks_wrong:", "semantic:"))
     assert done["loaded"] == {"functions": ["first"], "waits": []}
     assert rows.first([1, 2]) == 1, "the process she is running runs the mend without a restart"
     mended = (her_source / "planted_pkg" / "rows.py").read_text()

@@ -112,7 +112,11 @@ def test_with_origin_moved_her_mend_is_replayed_onto_it_and_her_disk_waits(with_
     landed = _origin_main(origin)
     assert _git("log", "--format=%s", "-2", landed, cwd=source).splitlines() == [
         _git("log", "--format=%s", "-1", done["commit"], cwd=source), "someone else changed NOTES.md"]
-    assert "if not (len(rows) > 0):" in _git("show", f"{landed}:planted_pkg/rows.py", cwd=source)
+    shipped: dict = {}
+    exec(compile(_git("show", f"{landed}:planted_pkg/rows.py", cwd=source), "rows.py", "exec"), shipped)  # noqa: S102
+    assert shipped["first"]([1, 2]) == 1, "what landed on origin mends the fault"
+    with pytest.raises(ValueError, match="no rows"):
+        shipped["first"]([])  # and still refuses what it refused
     assert _git("rev-parse", "HEAD", cwd=source) == before, "her disk does not take someone else's commit"
     assert done["taken"]["on_origin"] and not done["taken"]["on_disk"]
 

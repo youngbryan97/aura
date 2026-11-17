@@ -119,26 +119,28 @@ def the_lines_it_ran(source: str, path: str, line: int) -> list[tuple[tuple[str,
 
 
 def her_own_python_first(workspace: Path, at: tuple[str, int],
-                         then: Callable[..., Awaitable[list[tuple[str, str]]]] | None = None, error_type: str = ""):
-    """Her own Python's exact changes first, at the lines of the function the fault was raised in, then ``then``'s
+                         then: Callable[..., Awaitable[list[tuple[str, str]]]] | None = None, error_type: str = "", *,
+                         run: Callable[..., Awaitable[tuple[dict[str, bool], str]]] | None = None,
+                         passing: Callable[[], Awaitable[Sequence[str] | None]] | None = None,
+                         deadline: float | None = None):
+    """Her own Python's changes first, at the lines of the function the fault was raised in: the exact ones, then
+    semantic repair from her program's values there when ``run`` is given, then the fix templates; then ``then``'s
     (her model's)."""
-    from core.self_modification.proposals_without_a_model import proposals_without_a_model
+    import tempfile
 
-    pending: dict[str, Any] = {}
+    from core.self_modification.semantic_repair import her_own_python
 
-    async def propose(defect: Any, start: Mapping[str, str], parent: Any, n: int) -> list[tuple[str, str]]:
-        key = parent.id if parent is not None else ""
-        if key not in pending:
-            failure = parent.fitness.failures if parent is not None and parent.fitness else defect.seen
-            path, line = at
-            ranked = the_lines_it_ran(start.get(path, ""), path, line)
-            pending[key] = proposals_without_a_model(failure, start, workspace, ranked, error_type)
-        exact = next(pending[key], None)
-        if exact is not None:
-            return [exact]
-        return await then(defect, start, parent, n) if then is not None else []
+    async def rank(start: Mapping[str, str]) -> list[tuple[tuple[str, int], float]]:
+        path, line = at
+        return the_lines_it_ran(start.get(path, ""), path, line)
 
-    return propose
+    async def passing_at(start: Mapping[str, str], ranked: Sequence[Any]) -> Sequence[str] | None:
+        return await passing() if passing is not None else []
+
+    return her_own_python(repo=workspace, rank=rank, run=run, passing=passing_at,
+                          workdir=Path(tempfile.mkdtemp(prefix="her-semantic-repair-")),
+                          deadline=(lambda: deadline) if deadline is not None else None, error_type=error_type,
+                          then=then)
 
 
 async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None) -> dict[str, Any]:
@@ -181,10 +183,21 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
         passed, _ = await runner.run(named, sources)
         return [test for test in named if passed.get(test)]
 
+    held: list[str] | None = None
+
+    async def guarding() -> list[str] | None:
+        """The tests that touch the file and pass now, found once: the guard and semantic repair's passing runs."""
+        nonlocal held
+        if held is None:
+            held = await neighbours()
+        return held
+
+    deadline = time.time() + seconds
     lineage = await repair_by_selection(
-        defect, sources=sources, neighbours=neighbours, run=runner.run,
-        propose=her_own_python_first(Path(workspace), (file, fault.call.line), model, fault.call.error_type),
-        proposals=proposals, deadline=time.time() + seconds,
+        defect, sources=sources, neighbours=guarding, run=runner.run,
+        propose=her_own_python_first(Path(workspace), (file, fault.call.line), model, fault.call.error_type,
+                                     run=runner.run, passing=guarding, deadline=deadline),
+        proposals=proposals, deadline=deadline,
     )
     best = lineage.best
     if best is None or best.fitness is None or not best.fitness.mends:

@@ -6665,6 +6665,30 @@
       "scope": "<module>.save_repair"
     },
     {
+      "callee": "<file_write_gateway>.delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/semantic_repair.py",
+      "scope": "<module>._plan_and_clear"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/semantic_repair.py",
+      "scope": "<module>._plan_and_clear"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/semantic_repair.py",
+      "scope": "<module>._plan_and_clear"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -14449,6 +14473,14 @@
       "scope": "<module>.SafePipeline.run"
     },
     {
+      "callee": "open",
+      "canonical_owner": false,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/self_modification/semantic_probe.py",
+      "scope": "<module>._record"
+    },
+    {
       "callee": "shutil.copy2",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -17386,6 +17418,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "8dd38d110af0e85ea13f692ae42efbc104e786a428775f5bac973b522a81a781",
+  "inventory_sha256": "3a85678fde9659fc836f129388ce27230fa92ea271e65e08e996119225d372d2",
   "schema_version": 1
 }
