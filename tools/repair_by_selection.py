@@ -82,14 +82,22 @@ class Copy:
             (self.path / path).write_text(text, encoding="utf-8")
 
     async def run(self, tests: Sequence[str], sources: Mapping[str, str], *, original: Mapping[str, str],
-                  seconds: float) -> tuple[dict[str, bool], str]:
+                  seconds: float, forcings: Path | None = None) -> tuple[dict[str, bool], str]:
+        """``tests`` run on the copy holding ``sources``; with ``forcings``, once for each of its plans in one session
+        (core/self_modification/forcing_session.py), whose verdicts are in its own file."""
         self.write(sources)
         env = {k: v for k, v in os.environ.items() if k not in {"AURA_TESTING"}}
         env.update(AURA_STATE_ROOT=str(self.state), AURA_LOG_DIR=str(self.logs), PYTHONDONTWRITEBYTECODE="1",
                    VECLIB_MAXIMUM_THREADS="1", OMP_NUM_THREADS="1")
+        plugin: list[str] = []
+        if forcings is not None:
+            from core.self_modification.forcing_session import pytest_invocation
+
+            plugin, more = pytest_invocation(forcings)
+            env.update(more)
         try:
             proc = await asyncio.create_subprocess_exec(
-                PYTHON, "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider", *tests,
+                PYTHON, "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider", *plugin, *tests,
                 cwd=self.path, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
             try:
                 out, _ = await asyncio.wait_for(proc.communicate(), timeout=seconds)
@@ -316,6 +324,9 @@ def main() -> int:
                         help="ask only the model, to measure what it adds beyond her own Python's exact changes")
     parser.add_argument("--without-semantic", action="store_true",
                         help="leave semantic repair out, to measure what it adds beyond the exact changes and templates")
+    parser.add_argument("--one-forcing-a-run", action="store_true",
+                        help="force each place in a pytest run of its own, as before sessions of many forcings, to "
+                             "measure what the sessions add")
     args = parser.parse_args()
     if args.model_path and args.proposals_from:
         parser.error("give at most one of --model-path and --proposals-from")
@@ -343,6 +354,9 @@ def main() -> int:
         sources = copy.read(args.file)
         # Each run may take what the whole search has left.
         run = lambda tests, s: copy.run(tests, s, original=sources, seconds=max(1.0, deadline - time.time()))  # noqa: E731
+
+        async def run_forcings(tests, s, spec) -> None:
+            await copy.run(tests, s, original=sources, seconds=max(1.0, deadline - time.time()), forcings=spec)
         # What must not break is each test, not each file: a file with one failing test still guards the rest.
         # Found only when a candidate first fixes something (repair_by_selection.py).
         files = neighbours_of(args.file, copy.path)
@@ -390,7 +404,8 @@ def main() -> int:
         evidence = Evidence()
         propose = model if args.only_model and model is not None else her_own_python(
             repo=copy.path, rank=rank, run=None if args.without_semantic else run, passing=passing_at,
-            workdir=where / "semantic", deadline=lambda: deadline, then=model, evidence=evidence)
+            workdir=where / "semantic", deadline=lambda: deadline, then=model, evidence=evidence,
+            run_forcings=None if args.one_forcing_a_run else run_forcings)
         before = findings(sources, copy.path)
 
         async def standards(changed) -> int:

@@ -41,7 +41,7 @@ from core.self_modification.condition_synthesis import Example, ranked_condition
 
 logger = logging.getLogger("SelfModification.SemanticRepair")
 
-__all__ = ["Place", "her_own_python", "instrumented", "places_at", "semantic_repairs"]
+__all__ = ["Place", "RunForcings", "her_own_python", "instrumented", "places_at", "semantic_repairs"]
 
 PROBE = "__aura_probe__"
 CHOICE = "_aura_choice_"
@@ -55,6 +55,9 @@ _EMPTY_RETURNS = ("None",)
 RETURNS_OFFERED = 4
 
 Run = Callable[[Sequence[str], Mapping[str, str]], Awaitable[tuple[dict[str, bool], str]]]
+#: ``run_forcings(tests, sources, spec)`` runs ``tests`` on a copy holding ``sources`` in one session with the plans in
+#: ``spec`` (forcing_session.py).
+RunForcings = Callable[[Sequence[str], Mapping[str, str], Path], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -468,9 +471,13 @@ class Evidence:
     places: list[dict[str, Any]] = field(default_factory=list)
     runs: int = 0
     stopped: str = ""
+    #: Forcings run in sessions of many (forcing_session.py), and the sessions they took.
+    forcings: int = 0
+    sessions: int = 0
 
     def to_json(self) -> dict[str, Any]:
-        return {"places": self.places, "runs": self.runs, "stopped": self.stopped}
+        return {"places": self.places, "runs": self.runs, "stopped": self.stopped, "forcings": self.forcings,
+                "sessions": self.sessions}
 
 
 def _plan_and_clear(plan: Path, record: Path, steps: Mapping[str, Any]) -> None:
@@ -521,13 +528,14 @@ def _matches(node: str, test: str) -> bool:
 
 async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str], passing: Sequence[str],
                            ranked: Sequence[tuple[tuple[str, int], float]], run: Run, workdir: Path,
-                           deadline: float, lines: int = 15,
-                           evidence: Evidence | None = None) -> AsyncIterator[tuple[str, str]]:
+                           deadline: float, lines: int = 15, evidence: Evidence | None = None,
+                           run_forcings: RunForcings | None = None) -> AsyncIterator[tuple[str, str]]:
     """Each repair the recorded and forced runs support, as (origin, SEARCH/REPLACE text), the likeliest first.
 
     ``run(tests, sources)`` runs tests on a copy holding ``sources``. ``failing`` are the defect's tests, ``passing``
     tests that pass now and run the suspect lines. ``ranked`` is fix_templates.ochiai's order; its first ``lines``
-    lines with a score are looked at.
+    lines with a score are looked at. With ``run_forcings``, the forcings run ahead in sessions of many, and one that
+    mends there is run again on its own before it is used.
     """
     import asyncio
 
@@ -583,17 +591,45 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
     schedule += [(place, *steps[depth]) for depth in range(deepest) for place, steps in queues
                  if place.kind == "value" and depth < len(steps)]
     done: set[str] = set()
-    for place, step, option in schedule:
+    ahead: dict[int, bool] = {}
+
+    async def a_session_from(first: int) -> None:
+        """The scheduled forcings from ``first`` on, of places not yet mended, in one session; what each came to."""
+        from core.self_modification.forcing_session import read_results, write_spec
+
+        indexes = [k for k in range(first, len(schedule)) if schedule[k][0].id not in done]
+        spec, results = workdir / f"session-{first}.json", workdir / f"session-{first}.jsonl"
+        await asyncio.to_thread(_plan_and_clear, plan, record, {})
+        await asyncio.to_thread(write_spec, spec, plan=plan, results=results, deadline=deadline,
+                                steps=[{schedule[k][0].id: schedule[k][1]} for k in indexes])
+        await run_forcings(list(failing), changed, spec)
+        got = await asyncio.to_thread(read_results, results)
+        evidence.sessions += 1
+        evidence.forcings += len(got)
+        for k, verdicts in zip(indexes, got, strict=False):
+            ahead[k] = all(any(_matches(t, node) and ok for node, ok in verdicts.items()) for t in failing)
+        if len(got) < len(indexes):
+            ahead[indexes[len(got)]] = False  # it hung or ended the session: not a forcing that mends
+
+    async def mends(index: int, place: Place, step: Mapping[str, Any]) -> bool:
+        if run_forcings is not None:
+            if index not in ahead:
+                await a_session_from(index)
+            if not ahead.get(index):
+                return False
+        await asyncio.to_thread(_plan_and_clear, plan, record, {place.id: step})
+        outcome, _ = await run(list(failing), changed)
+        evidence.runs += 1
+        return all(outcome.get(t) for t in failing)
+
+    for index, (place, step, option) in enumerate(schedule):
         if place.id in done:
             continue
         if time.time() >= deadline:
             evidence.stopped = "deadline"
             break
         note, kept_runs, order = notes[place.id]
-        await asyncio.to_thread(_plan_and_clear, plan, record, {place.id: step})
-        outcome, _ = await run(list(failing), changed)
-        evidence.runs += 1
-        if not all(outcome.get(t) for t in failing):
+        if not await mends(index, place, step):
             note.setdefault("forced_without_effect", []).append(step)
             continue
         note.setdefault("angelic", []).append(step)
@@ -738,7 +774,8 @@ Propose = Callable[..., Awaitable[list[tuple[str, str]]]]
 
 def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: Passing | None = None,
                    workdir: Path | None = None, deadline: Callable[[], float] | None = None, error_type: str = "",
-                   then: Propose | None = None, evidence: Evidence | None = None) -> Propose:
+                   then: Propose | None = None, evidence: Evidence | None = None,
+                   run_forcings: RunForcings | None = None) -> Propose:
     """A proposer for repair_by_selection, her own Python's in four stages, each exact and each judged by the tests:
 
     1. the exact changes of proposals_without_a_model (a missing import, a shape almost never meant, ruff's fixes);
@@ -776,7 +813,7 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
             stage["semantic"] = semantic_repairs(
                 sources=start, failing=list(defect.tests), passing=tests, ranked=stage["ranked"], run=run,
                 workdir=workdir, deadline=deadline() if deadline is not None else time.time() + 600,
-                evidence=evidence)
+                evidence=evidence, run_forcings=run_forcings)
         if stage["semantic"]:
             offered = await anext(stage["semantic"], None)
             if offered is not None:

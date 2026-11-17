@@ -70,7 +70,10 @@ class InHerWorkspace:
             for path, text in sources.items():
                 await gateway.write_text_async(self.workspace / path, text, source="mending_a_fault_of_hers")
 
-    async def run(self, tests: Sequence[str], sources: Mapping[str, str]) -> tuple[dict[str, bool], str]:
+    async def run(self, tests: Sequence[str], sources: Mapping[str, str], *,
+                  forcings: Path | None = None) -> tuple[dict[str, bool], str]:
+        """``tests`` run on ``sources``; with ``forcings``, once for each of its plans in one session
+        (core/self_modification/forcing_session.py), whose verdicts are in its own file."""
         import os
         import tempfile
 
@@ -78,10 +81,17 @@ class InHerWorkspace:
             return {}, ""
         env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-mend-logs-"),
                "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+        plugin: list[str] = []
+        if forcings is not None:
+            from core.self_modification.forcing_session import pytest_invocation
+
+            plugin, more = pytest_invocation(forcings)
+            env.update(more)
         await self._write(sources)
         try:
             code, text = await _governed_run(
-                ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider", *tests],
+                ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider", *plugin,
+                 *tests],
                 cwd=self.workspace, env=env, timeout=_RUN_SECONDS, effect="compute")
         finally:
             await self._write(self.original)
@@ -137,10 +147,13 @@ def her_own_python_first(workspace: Path, at: tuple[str, int],
     async def passing_at(start: Mapping[str, str], ranked: Sequence[Any]) -> Sequence[str] | None:
         return await passing() if passing is not None else []
 
+    async def run_forcings(tests: Sequence[str], sources: Mapping[str, str], spec: Path) -> None:
+        await run(tests, sources, forcings=spec)
+
     return her_own_python(repo=workspace, rank=rank, run=run, passing=passing_at,
                           workdir=Path(tempfile.mkdtemp(prefix="her-semantic-repair-")),
                           deadline=(lambda: deadline) if deadline is not None else None, error_type=error_type,
-                          then=then)
+                          then=then, run_forcings=run_forcings if run is not None else None)
 
 
 async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None) -> dict[str, Any]:

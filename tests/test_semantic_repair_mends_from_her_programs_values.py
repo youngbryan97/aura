@@ -38,17 +38,28 @@ class Planted:
         self.path = "planted/mod.py"
         self.source = module
 
-    async def run(self, tests: Sequence[str], sources: Mapping[str, str]) -> tuple[dict[str, bool], str]:
+    timeout = 120.0
+
+    async def run(self, tests: Sequence[str], sources: Mapping[str, str], *,
+                  forcings: Path | None = None) -> tuple[dict[str, bool], str]:
         for path, text in sources.items():
             (self.where / path).write_text(text)
         env = {k: v for k, v in os.environ.items() if k != "AURA_TESTING"}
         env.update(PYTHONPATH=f"{self.where}{os.pathsep}{ROOT}", AURA_LOG_DIR=str(self.where / "logs"),
                    AURA_STATE_ROOT=str(self.where / "state"), PYTHONDONTWRITEBYTECODE="1")
+        plugin: list[str] = []
+        if forcings is not None:
+            from core.self_modification.forcing_session import pytest_invocation
+
+            plugin, more = pytest_invocation(forcings)
+            env.update(more, PYTHONPATH=f"{more['PYTHONPATH']}{os.pathsep}{self.where}{os.pathsep}{ROOT}")
         try:
             done = await asyncio.to_thread(
-                subprocess.run, [sys.executable, "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider",
+                subprocess.run, [sys.executable, "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider", *plugin,
                                  "--rootdir", str(self.where), *tests],
-                cwd=self.where, env=env, capture_output=True, text=True, timeout=120)
+                cwd=self.where, env=env, capture_output=True, text=True, timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            return {t: False for t in tests}, f"ran past {self.timeout} s"
         finally:
             (self.where / self.path).write_text(self.source)
         # In a folder of its own pytest names a test by a path relative to wherever it settles on; the test's own
@@ -61,11 +72,16 @@ class Planted:
 
 
 async def _first_mend(planted: Planted, failing: Sequence[str], passing: Sequence[str],
-                      tmp: Path) -> tuple[str, Evidence]:
+                      tmp: Path, *, sessions: bool = False) -> tuple[str, Evidence]:
     evidence = Evidence()
+
+    async def run_forcings(tests, sources, spec) -> None:
+        await planted.run(tests, sources, forcings=spec)
+
     async for _origin, text in semantic_repairs(
             sources={planted.path: planted.source}, failing=failing, passing=passing, ranked=planted.lines(),
-            run=planted.run, workdir=tmp / "probe", deadline=time.time() + 240, evidence=evidence):
+            run=planted.run, workdir=tmp / "probe", deadline=time.time() + 240, evidence=evidence,
+            run_forcings=run_forcings if sessions else None):
         after, refused = applied({planted.path: planted.source}, edits_in(text, [planted.path]))
         if refused:
             continue
@@ -252,3 +268,73 @@ def test_a_value_the_passing_runs_need_is_not_replaced(plant, tmp_path):
     assert not any(origin.startswith("semantic:value") for origin in origins), evidence.to_json()
     broke = [p for p in evidence.places if p["kind"] == "value" and p.get("breaks_passing")]
     assert broke and "backup" in broke[0]["breaks_passing"], evidence.to_json()
+
+
+@pytest.mark.parametrize("which", ["boundary", "value"])
+def test_forcings_run_in_sessions_of_many_find_the_same_mends(plant, tmp_path, which):
+    """Each forcing in a pytest process of its own cost about 6.8 s on her repository, mostly starting and her
+    session's fixtures; in a session of many it costs the test. The mends found are the same, each confirmed in a run
+    of its own before it is used (forcing_session.py)."""
+    if which == "boundary":
+        planted = plant(
+            "def counted(items, limit):\n"
+            "    count = 0\n"
+            "    for item in items:\n"
+            "        if item < limit:\n"
+            "            count += 1\n"
+            "    return count\n",
+            "from planted.mod import counted\n\n"
+            "def test_all_under():\n    assert counted([1, 2, 3], 10) == 3\n\n"
+            "def test_the_limit_itself_counts():\n    assert counted([1, 2, 3], 2) == 2\n")
+        failing, passing, want = [_node("test_the_limit_itself_counts")], [_node("test_all_under")], "item <= limit"
+    else:
+        planted = plant(
+            "def chosen(primary, backup):\n"
+            "    pick = primary\n"
+            "    return pick\n",
+            "from planted.mod import chosen\n\n"
+            "def test_the_backup_is_chosen():\n    assert chosen(1, 2) == 2\n")
+        failing, passing, want = [_node("test_the_backup_is_chosen")], [], "pick = backup"
+    mended, evidence = asyncio.run(_first_mend(planted, failing, passing, tmp_path, sessions=True))
+    assert want in mended, evidence.to_json()
+    assert evidence.sessions >= 1 and evidence.forcings >= 1, evidence.to_json()
+
+
+def test_a_forcing_that_hangs_costs_only_itself(plant, tmp_path):
+    """A forcing that keeps a loop running past the session's time ends the session; the forcings after it run in
+    the next session, and the mend is still found."""
+    planted = plant(
+        "def drained(items):\n"
+        "    left = list(items)\n"
+        "    while left:\n"
+        "        if left:\n"
+        "            left.pop()\n"
+        "    return len(items) - 1\n",
+        "from planted.mod import drained\n\n"
+        "def test_all_of_them_drain():\n    assert drained([1, 2, 3]) == 3\n")
+    planted.timeout = 20.0
+    mended, evidence = asyncio.run(_first_mend(planted, [_node("test_all_of_them_drain")], [], tmp_path,
+                                               sessions=True))
+    assert "return len(items)" in mended and "len(items) - 1" not in mended, evidence.to_json()
+    # Forced not to pop, the inner branch keeps the loop running; the forcing after it ran in the next session.
+    inner = next(p for p in evidence.places if p["kind"] == "cond" and p["line"] == 4)
+    assert {"decide": False} in (inner.get("forced_without_effect") or []), evidence.to_json()
+    assert evidence.sessions >= 2, evidence.to_json()
+
+
+def test_a_lookup_is_guarded_by_whether_the_table_holds_the_key(plant, tmp_path):
+    """LIVE 17 November 2026, the drill's fourth planted fault: her loop mended ``prices[item]`` with ``if
+    len(prices) <= 1: return None``, which told the failing run's one-item table from the passing run's two-item table
+    and returned None for an item a one-item table holds. Whether the table holds the item is now a term."""
+    planted = plant(
+        "def priced(prices, item):\n"
+        "    return prices[item]\n",
+        "from planted.mod import priced\n\n"
+        "def test_a_price_the_table_holds():\n    assert priced({'tea': 3, 'cake': 5}, 'cake') == 5\n\n"
+        "def test_an_item_the_table_does_not_hold():\n    assert priced({'tea': 3}, 'cake') is None\n")
+    mended, evidence = asyncio.run(_first_mend(
+        planted, [_node("test_an_item_the_table_does_not_hold")], [_node("test_a_price_the_table_holds")], tmp_path))
+    assert "if item not in prices:" in mended, evidence.to_json()
+    namespace: dict = {}
+    exec(mended, namespace)  # noqa: S102 - the planted module, repaired, run on the case the live mend got wrong
+    assert namespace["priced"]({"tea": 3}, "tea") == 3

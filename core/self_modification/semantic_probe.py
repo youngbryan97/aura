@@ -31,6 +31,8 @@ ATTRIBUTES_LOOKED_AT = 20
 
 _plans: dict[str, dict[str, Any]] = {}
 _counts: dict[tuple[str, str, str], int] = {}
+#: Which of a session's plans is running, when one session runs many (forcing_session.py); None when it runs one.
+FORCING: int | None = None
 
 
 def _plan(path: str) -> dict[str, Any]:
@@ -71,10 +73,30 @@ def _sized(value: Any) -> int | None:
     return None
 
 
+#: The containers whose membership of a plain value in scope is kept as a term.
+_HOLDERS = (dict, list, tuple, set, frozenset)
+
+
 def summarise(scope: Mapping[str, Any]) -> dict[str, Any]:
     """The terms a condition here could be built from, by the expression that reads each: ``x`` for a plain value,
-    ``len(x)`` for a size, ``x is None`` for anything else, and ``x.a`` for an object's plain attributes."""
+    ``len(x)`` for a size, ``x is None`` for anything else, ``x.a`` for an object's plain attributes, and ``k in d``
+    for a plain value and a container both in scope.
+
+    Membership is what a lookup depends on. LIVE 17 November 2026 her loop mended ``prices[item]``, which raised
+    KeyError, with ``if len(prices) <= 1: return None``: it told the failing run's one-item table from the passing
+    run's two, and returned None for an item a one-item table holds. Whether the table holds the item was not a term
+    it could use."""
     terms: dict[str, Any] = {}
+    plain_names = [n for n, v in list(scope.items())[:NAMES_LOOKED_AT]
+                   if not n.startswith(("__", "_aura_")) and _plain(v) is not _OPAQUE and not isinstance(v, bool)]
+    for holder, held in list(scope.items())[:NAMES_LOOKED_AT]:
+        if holder.startswith(("__", "_aura_")) or not isinstance(held, _HOLDERS):
+            continue
+        for name in plain_names:
+            try:
+                terms[f"{name} in {holder}"] = scope[name] in held
+            except TypeError:
+                continue  # not a value this container can hold
     for name, value in list(scope.items())[:NAMES_LOOKED_AT]:
         if name.startswith("__") or name.startswith("_aura_"):
             continue
@@ -128,7 +150,7 @@ def _record(record: str, location: str, kind: str, scope: Mapping[str, Any], dec
         return
     try:
         row = {"location": location, "kind": kind, "test": _test(), "n": n, "decided": decided,
-               "terms": summarise(scope), **more}
+               "terms": summarise(scope), "forcing": FORCING, **more}
         # A raw append, not her write gateway: this module runs inside the test process of whatever copy is being
         # repaired, an old commit or a planted package, where her governance is not running, and the record is a
         # scratch file of the search's own (governance baseline, 16 November 2026).
