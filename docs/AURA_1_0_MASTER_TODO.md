@@ -4345,6 +4345,29 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   is her brainstem's model in live-source/models, and those are skills
   in her catalogue. Neither word list refused it. The time was spent
   waiting behind her mail reply (R11).
+  17 November, Bryan: asked about the world as it is, she should inform
+  herself of today's situation, which she can, and not say she lacks a
+  feed. At 09:49, "What do you make of the current Israel/Palestine
+  situation and America's role in it? Furthermore, what do you think of
+  America's role in the conflict with Iran?", she answered well and said
+  "I don't know what's happened in the last 48-72 hours specifically";
+  at 08:06, on the recent outages, she said she could search and did
+  not. Her reading of the world for the turn ran both times and searched
+  nothing, while at 01:54 "What do you make of current world news?" was
+  searched and read. The reader of whether a question is about her
+  matched "you think" on its list, so a question asking her view of the
+  world read as one about her, and a question about her is never looked
+  up. How she is asked is not what she is asked about: the frame that
+  asks her view ("what do you make of", "how do you feel about", "do you
+  think", "your take on") is set aside and what follows it is read.
+  "How do you feel?" and "Do you think you are conscious?" stay hers.
+  Left: a follow-up with no question of its own ("All of the outages
+  recently. Airlines, Outlook, banks, now the NSA...") is not read as
+  continuing the question before it; and the turn's reading decides for
+  her whether to look, before she answers, while her own tools on a chat
+  turn stop below web search (ceiling sandboxed_compute), so she cannot
+  decide mid-answer that she needs to look. To see live: the same two
+  questions asked again.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

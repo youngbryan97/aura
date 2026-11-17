@@ -646,3 +646,28 @@ def test_a_question_her_own_readings_answer_is_not_about_the_world_now() -> None
     for asked in ("Is it raining in London right now?", "Who won the game tonight?", "Any news today?",
                   "what is the current price of bitcoin?", "What's the weather in Paris right now?"):
         assert _about_the_world_now(asked, seeks_the_world=False), asked
+
+
+def test_her_view_of_the_world_now_is_a_question_about_the_world_now() -> None:
+    """LIVE 17 November 2026, 09:49: "What do you make of the current Israel/Palestine situation and America's role in
+    it? Furthermore, what do you think of America's role in the conflict with Iran?" read as a question about her,
+    because "you think" is on the list of words that say so, and nothing current was looked up; she said she had no
+    feed for this week's events. At 08:06, the recent outages, the same. The frame that asks her view is how she
+    is asked; what it asks about is the rest. Questions whose rest is her stay hers."""
+    from core.conversation.asks_about_the_world import is_about_her, wants_outside_evidence
+    from interface.routes.chat_desktop_evidence import _about_the_world_now
+
+    for the_worlds in (
+        "What do you make of the current Israel/Palestine situation and America's role in it? Furthermore, what do "
+        "you think of America's role in the conflict with Iran?",
+        "What do you personally make of the all of the recent outages happeninig in the world? Thoughts? Do you think "
+        "it's a coincidence?",
+        "How do you feel about the latest jobs report?",
+        "What's your take on the current state of the election?",
+    ):
+        assert not is_about_her(the_worlds), the_worlds
+        assert _about_the_world_now(the_worlds, wants_outside_evidence(the_worlds)), the_worlds
+    for hers in ("How do you feel right now?", "What do you think of yourself these days?",
+                 "Do you think you are conscious?", "What's your take on your own latest memory?"):
+        assert is_about_her(hers), hers
+        assert not _about_the_world_now(hers, wants_outside_evidence(hers)), hers

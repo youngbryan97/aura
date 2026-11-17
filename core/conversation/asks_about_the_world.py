@@ -137,6 +137,25 @@ _ABOUT_HER = re.compile(
     re.IGNORECASE,
 )
 
+#: How she is asked for a view of something, which is not what the question is about. What follows the frame is: in
+#: "what do you make of the current Israel/Palestine situation", the situation; in "how do you feel about it", "it";
+#: in "how do you feel?", nothing, and the frame alone is about her. LIVE 17 November 2026, "What do you make of the
+#: current Israel/Palestine situation and America's role in it? ... what do you think of America's role in the
+#: conflict with Iran?" read as a question about her ("you think"), so nothing current was looked up, and she said she
+#: had no feed for this week's events.
+_A_VIEW_OF = re.compile(
+    r"\b(?:what|how)\s+do\s+you\s+(?:\w+ly\s+)?(?:think|feel|reckon|make)\s+(?:of|about)\b"
+    r"|\b(?:do|would|did|don'?t|wouldn'?t)\s+you\s+(?:\w+ly\s+)?(?:think|believe|reckon|suppose)\b(?=\s+\S)"
+    r"|\bwhat(?:'s|’s|\s+is|\s+are)\s+your\s+(?:opinion|take|view|views|thoughts|read|stance)\s+(?:of|on|about)\b"
+    r"|\bin\s+your\s+(?:opinion|view)\b",
+    re.IGNORECASE,
+)
+
+
+def _about_her_beyond_the_ask(text: str) -> bool:
+    """Whether what the question is about, once the frame that asks her view is set aside, is her."""
+    return bool(_ABOUT_HER.search(_A_VIEW_OF.sub(" ", text)))
+
 
 def _said(message: object) -> str:
     """The message with its addresses removed.
@@ -243,7 +262,7 @@ def is_about_her(message: object) -> bool:
     question about something as it is now, and wikiHow's advice on answering the phrase reached her as evidence.
     """
     text = _said(message)
-    if _ABOUT_HER.search(text):
+    if _about_her_beyond_the_ask(text):
         return True
     from core.self.recent_activity import looks_like_a_question_about_recent_activity
 
@@ -267,8 +286,8 @@ def wants_outside_evidence(message: object) -> bool:
         _teach(text, True)
         return True
     # A turn plainly about her, or about this machine, is settled the other
-    # way and is worth teaching too.
-    if _ABOUT_HER.search(text):
+    # way and is worth teaching too. Asked her view of the world, it is about the world.
+    if _about_her_beyond_the_ask(text):
         _teach(text, False)
         return False
     # A recency adjective says when, not where. It reaches outside unless what
