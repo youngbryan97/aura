@@ -9,6 +9,7 @@ import asyncio
 
 import pytest
 
+from core.conversation.surface_disposition import what_she_did_this_turn
 from core.conversation.turn_evidence_custody import bind_turn_evidence_custody, turn_world_evidence
 from core.perception import screen_highlight
 from core.perception.screen_highlight import HighlightResult, Rect
@@ -41,10 +42,14 @@ def test_pointing_is_a_step_with_its_receipt(monkeypatch):
     assert asyncio.run(screen_highlight.point_as_asked("What time is it?")) is None
 
 
-@pytest.mark.parametrize("shown,said", [(True, "Aura drew a rectangle around 'back button'"),
-                                        (False, "Aura did not draw it: could not locate it")])
+DREW = "drew a rectangle around 'back button' at x 795, y 287, 36 by 36"
+DID_NOT = "did not draw a rectangle around 'back button': could not locate it"
+
+
+@pytest.mark.parametrize("shown", [True, False])
 @pytest.mark.asyncio
-async def test_what_the_pointing_came_to_is_beside_her_turn_and_the_lane_says_nothing(monkeypatch, shown, said):
+async def test_a_pointing_hands_the_reply_to_her_and_the_lane_says_nothing(monkeypatch, shown):
+    """No reading of the route's own: what the pointing came to reaches her as its receipt (the tests below)."""
     from interface.routes import chat as chat_routes
 
     _drawn(monkeypatch, shown)
@@ -62,7 +67,7 @@ async def test_what_the_pointing_came_to_is_beside_her_turn_and_the_lane_says_no
                                                                         cognitive_reply="")
         beside = "\n".join(turn_world_evidence())
     assert result["status"] == "desktop_objective_pointing_read" and result["response"] == ""
-    assert said in beside
+    assert "rectangle" not in beside
 
 
 @pytest.mark.asyncio
@@ -79,13 +84,15 @@ async def test_the_desktop_task_points_where_nothing_else_is_asked(monkeypatch):
     _drawn(monkeypatch, True)
     monkeypatch.setattr(ServiceContainer, "get",
                         lambda name, default=None: _Engine() if name == "capability_engine" else default)
-    result = await DesktopTaskSkill().execute({"objective": "Can you highlight the back button?", "steps": []},
-                                              {"origin": "desktop_ui"})
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-task"):
+        result = await DesktopTaskSkill().execute({"objective": "Can you highlight the back button?", "steps": []},
+                                                  {"origin": "desktop_ui"})
+        told = what_she_did_this_turn()
     assert result["status"] == "pointed_on_screen" and result["ok"] is True
+    assert f"done: {DREW}" in told, told
 
 
-@pytest.mark.parametrize("shown,said", [(True, "Aura drew a rectangle around 'back button'"),
-                                        (False, "Aura did not draw it: could not locate it")])
+@pytest.mark.parametrize("shown,said", [(True, f"done: {DREW}"), (False, f"failed: {DID_NOT}")])
 @pytest.mark.asyncio
 async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_to_say(monkeypatch, tmp_path, shown,
                                                                                       said):
@@ -112,7 +119,7 @@ async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_t
         with bind_turn_evidence_custody(session_id="s", turn_id=f"engine-{shown}"):
             result = await chat_routes._execute_desktop_objective_from_chat("Can you highlight the back button?",
                                                                             cognitive_reply="")
-            beside = "\n".join(turn_world_evidence())
+            told = what_she_did_this_turn()
     finally:
         ServiceContainer.unregister("capability_engine")
         ServiceContainer.unregister("permission_model")
@@ -120,7 +127,7 @@ async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_t
         intentions.close()
 
     assert result["status"] == "desktop_objective_pointing_read" and result["response"] == "", result
-    assert said in beside
+    assert said in told, told
 
 
 @pytest.mark.asyncio

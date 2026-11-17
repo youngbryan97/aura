@@ -411,7 +411,23 @@ async def with_pointing(objective: str, payload: dict[str, Any]) -> dict[str, An
     payload["highlight"] = result.to_dict()
     payload["pointed_at"] = result.matched_text if result.shown else ""
     payload["pointing_refused_because"] = "" if result.shown else result.reason
+    held = list(payload.get("receipts") or [])
+    payload["receipts"] = [*held, {**pointing_receipt(needle, result), "index": len(held) + 1}]
     return payload
+
+
+def pointing_receipt(needle: str, result: HighlightResult) -> dict[str, Any]:
+    """A pointing as a desktop step's receipt: drawn or not, where, and in which window. The desktop task emits it as
+    it emits every step's (core/skills/desktop_task.py), which puts it on the turn's effect ledger and in the record of
+    what she did in the turn that her model reads (core/conversation/surface_disposition.py, what_she_did_this_turn)."""
+    where = result.to_dict().get("rect") or {}
+    inside = f", in the window {result.window}" if result.window else ""
+    evidence = (f"drew a rectangle around {needle!r} at x {where.get('x')}, y {where.get('y')}, "
+                f"{where.get('width')} by {where.get('height')}{inside}" if result.shown else
+                f"did not draw a rectangle around {needle!r}: {result.reason}{inside}")
+    return {"index": 1, "action": "highlight_on_screen", "reason": "point at what was asked about",
+            "expect": f"a rectangle around {needle!r}", "ok": result.shown, "effect_verified": result.shown,
+            "effect_evidence": evidence, "result": result.to_dict()}
 
 
 async def point_as_asked(objective: str) -> dict[str, Any] | None:
@@ -430,12 +446,7 @@ async def point_as_asked(objective: str) -> dict[str, Any] | None:
     began = time.monotonic()
     result = await highlight(needle, requested=True)
     logger.info("🖍️ asked to point at %r: %s in %.2fs", needle, result.reason, time.monotonic() - began)
-    where = result.to_dict().get("rect") or {}
-    evidence = (f"drew a rectangle around {needle!r} at x {where.get('x')}, y {where.get('y')}, "
-                f"{where.get('width')} by {where.get('height')}" if result.shown else result.reason)
-    receipt = {"index": 1, "action": "highlight_on_screen", "reason": "point at what was asked about",
-               "expect": f"a rectangle around {needle!r}", "ok": result.shown, "effect_verified": result.shown,
-               "effect_evidence": evidence, "result": result.to_dict()}
+    receipt = pointing_receipt(needle, result)
     # "pointing" says what came of it: her capability engine writes its own verdict over "status" on the way back.
     came_to = "pointed_on_screen" if result.shown else "pointing_refused"
     payload = {"ok": result.shown, "status": came_to, "pointing": came_to, "objective": objective,
@@ -522,6 +533,7 @@ __all__ = [
     "highlight",
     "locate_on_screen",
     "point_as_asked",
+    "pointing_receipt",
     "with_pointing",
     "rate_limited",
 ]

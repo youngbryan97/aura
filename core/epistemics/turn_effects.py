@@ -51,12 +51,16 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
     """Put this lane's step receipts onto the current turn's effect ledger.
 
     Returns how many verified effects were recorded, so a caller can log the
-    number without re-deriving it. Absent a bound turn this is a no-op: a
-    background tick has no user-facing reply to keep honest.
+    number without re-deriving it. Absent a bound turn the ledger is left
+    alone: a background tick has no user-facing reply to keep honest. The
+    receipt still goes to the turn's evidence custody, which has its own
+    binding and refuses it where there is no turn; returning before it, as
+    this did, kept a step's receipt from every turn bound without an outcome,
+    and left that turn's record with the skill's bare error in its place.
     """
 
     outcome = current_turn()
-    if outcome is None or not isinstance(receipts, list):
+    if not isinstance(receipts, list):
         return 0
     recorded = 0
     for index, receipt in enumerate(receipts):
@@ -116,6 +120,8 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("turn surface receipt unavailable for %s: %s", action, exc)
+        if outcome is None:
+            continue
         try:
             if receipt.get("ok"):
                 # ok is the conjunction: the tool returned success AND the

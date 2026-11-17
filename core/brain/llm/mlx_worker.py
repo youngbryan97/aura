@@ -64,9 +64,10 @@ from .mlx_worker_surface_markers import (  # noqa: F401  (re-exported: they were
     _LEADING_ROLE_NO_SEPARATOR_RE,
     _ROLE_CONTINUATION_RE,
     _first_stop_in_reply,
-    _strip_leading_chatml_prefix, _turns_end_at_its_control_tokens,
+    _strip_leading_chatml_prefix,
     _truncate_reply_role_continuation,
     _truncate_role_continuation,
+    _turns_end_at_its_control_tokens,
 )
 from .model_registry import resolve_personality_adapter
 from .reply_previews import a_sentence_failed, continuing_after, her_retry_continues

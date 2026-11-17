@@ -345,6 +345,6 @@ def test_a_highlight_that_raises_is_said_as_not_drawn(monkeypatch):
         raise RuntimeError("no accessibility tree")
 
     monkeypatch.setattr(screen_highlight, "highlight", broken)
-    payload = asyncio.run(DesktopTaskSkill._attach_pointing(None, "show me where the submit button is", {}))
+    payload = asyncio.run(DesktopTaskSkill()._attach_pointing("show me where the submit button is", {}))
     assert "no accessibility tree" in payload["pointing_refused_because"]
     assert "highlight" not in payload

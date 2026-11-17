@@ -373,6 +373,16 @@ def _open_url_target_for(
     return url
 
 
+async def _its_pointing_emitted(payload: dict[str, Any], objective: str, *, planner: str) -> dict[str, Any]:
+    """``payload`` once its pointing receipt is emitted as every step's is: durable, and on the turn's ledger and record
+    (core/perception/screen_highlight.py, pointing_receipt)."""
+    for receipt in payload.get("receipts") or ():
+        if isinstance(receipt, dict) and receipt.get("action") == "highlight_on_screen":
+            await DesktopTaskSkill._emit_durable_step_receipt(receipt, objective=objective, planner=planner,
+                                                              tool="screen_highlight")
+    return payload
+
+
 class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill):
     #: What a caller gets back. The shared part only: every skill
     #: here returns `ok`, and a schema claiming to be complete
@@ -4595,7 +4605,7 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
         """If she was asked to point, try to; either way say which happened (core/perception/screen_highlight.py)."""
         from core.perception.screen_highlight import with_pointing
 
-        return await with_pointing(objective, payload)
+        return await _its_pointing_emitted(await with_pointing(objective, payload), objective, planner="ambient_pointing")
 
     async def _delegate_page_objective(
         self, params: Any, context: dict[str, Any]
@@ -5269,7 +5279,7 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             for step in self._derive_steps_from_objective(objective, dict(context or {})) or ())
         pointed = None if acts else await point_as_asked(objective)
         if pointed is not None:
-            return pointed
+            return await _its_pointing_emitted(pointed, objective, planner="pointing")
 
         task_context = dict(context or {})
         task_context.setdefault("objective", objective)

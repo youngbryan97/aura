@@ -765,33 +765,16 @@ def _the_page_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
 
 
 def _what_the_pointing_came_to_goes_to_her_turn(result: dict[str, Any]) -> bool:
-    """When she was asked to point at something and the step pointed or could not, that goes beside her turn as a
-    reading; whether it went. A pointing step's own account was "Done - ..." or the lane's failure sentence, in her
-    place (core/perception/screen_highlight.py, point_as_asked)."""
-    drawn = result.get("highlight") if isinstance(result.get("highlight"), dict) else None
+    """Whether a step asked to point at something pointed or could not, which makes the reply hers. What it came to
+    reaches her as its receipt, in the record of what she did in the turn (core/conversation/surface_disposition.py,
+    what_she_did_this_turn); a pointing step's own account was "Done - ..." or the lane's failure sentence, in her place.
+    """
     # Not "status": LIVE 16 November 2026 her capability engine had written "success_verified" over it, and Bryan saw
     # the ring drawn and was given "Done - the desktop steps completed and their effects verified."
-    if drawn is None or result.get("pointing") not in {"pointed_on_screen", "pointing_refused"}:
+    if not isinstance(result.get("highlight"), dict) or result.get("pointing") not in {"pointed_on_screen",
+                                                                                         "pointing_refused"}:
         return False
-    from core.conversation.turn_evidence_custody import record_turn_grounding, record_turn_world_evidence
-
-    where = drawn.get("rect") or {}
-    asked = str(drawn.get("matched") or result.get("pointed_at") or "").strip()
-    window = str(drawn.get("window") or "").strip()
-    inside = f" in the window {window}" if window else ""
-    # Hers, said by her name: LIVE 16 November 2026, 20:18, given "A rectangle was drawn on the screen around 'back
-    # button'", her reply offered to highlight the button she had just highlighted; at 20:30, given "She drew a
-    # rectangle around 'back button'" under "You are Aura Luna", it asked where the back button was.
-    said = (f"Aura drew a rectangle around {asked!r}{inside}, at x {where.get('x')}, y {where.get('y')}, "
-            f"{where.get('width')} by {where.get('height')} points; it stays up a few seconds."
-            if drawn.get("shown") else
-            f"Aura did not draw it: {str(drawn.get('reason') or 'it was not found')}{inside}." + (
-                f" It is at x {where.get('x')}, y {where.get('y')}." if where else ""))
-    reading = f"[WHAT AURA'S POINTING CAME TO]\n{said}\n[END WHAT AURA'S POINTING CAME TO]"
-    if not record_turn_world_evidence(reading):
-        return False
-    record_turn_grounding(reading)
-    logger.info("🖥️ What her pointing came to goes to her turn: %s", said[:160])
+    logger.info("🖥️ Her pointing (%s) is hers to speak of; its receipt is in the turn's record.", result["pointing"])
     return True
 
 
