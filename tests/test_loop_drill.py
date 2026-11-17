@@ -23,6 +23,10 @@ def test_a_row_the_rows_reach_comes_back():
     assert loop_drill.nth([1, 2, 3], 1) == 2
 
 
+def test_a_count_written_as_text_comes_back_as_a_number():
+    assert loop_drill.count_in(" 12 ") == 12
+
+
 def test_the_drill_runs_only_when_armed(tmp_path, monkeypatch, caplog):
     import logging
 

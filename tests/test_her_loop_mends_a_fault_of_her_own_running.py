@@ -42,6 +42,9 @@ _GUARD = textwrap.dedent('''
 ''')
 _UNGUARDED = "def half(n):\n    return n / 0\n"
 _PEOPLE = "def label(person):\n    return person.name.title()\n"
+_COUNTS = "def count_in(text):\n    digits = text.strip()\n    return int(digits)\n"
+_COUNTS_GUARD = ("from planted_pkg.counts import count_in\n\n\n"
+                 "def test_count_in():\n    assert count_in(' 12 ') == 12\n")
 _PEOPLE_GUARD = ("from planted_pkg.people import label\n\n\nclass _Person:\n    name = 'ada'\n\n\n"
                  "def test_label():\n    assert label(_Person()) == 'Ada'\n")
 
@@ -60,6 +63,8 @@ def her_source(tmp_path, monkeypatch):
     (source / "planted_pkg" / "rows.py").write_text(_ROWS)
     (source / "planted_pkg" / "alone.py").write_text(_UNGUARDED)
     (source / "planted_pkg" / "people.py").write_text(_PEOPLE)
+    (source / "planted_pkg" / "counts.py").write_text(_COUNTS)
+    (source / "tests" / "test_counts.py").write_text(_COUNTS_GUARD)
     (source / "tests" / "test_rows.py").write_text(_GUARD)
     (source / "tests" / "test_people.py").write_text(_PEOPLE_GUARD)
     _git("init", "-q", "-b", "main", cwd=source)
@@ -73,7 +78,7 @@ def her_source(tmp_path, monkeypatch):
     monkeypatch.setattr(a_call_that_failed, "_ROOT", source.resolve())
     monkeypatch.setattr(faults_she_can_reproduce, "where_heard_faults_are_kept", lambda: tmp_path / "heard.json")
     monkeypatch.syspath_prepend(str(source))
-    for name in ("planted_pkg", "planted_pkg.rows", "planted_pkg.alone", "planted_pkg.people"):
+    for name in ("planted_pkg", "planted_pkg.rows", "planted_pkg.alone", "planted_pkg.people", "planted_pkg.counts"):
         sys.modules.pop(name, None)
     yield source
     from core.self_modification.into_the_running_process import undo_every_load_for_test
@@ -231,3 +236,13 @@ def test_her_mend_outlives_a_bound_put_on_the_cycle_that_started_it(monkeypatch)
 
     asyncio.run(run())
     assert finished == ["mended"]
+
+
+def test_a_fault_no_template_reaches_is_mended_from_the_values_her_runs_had(her_source):
+    """ValueError from blank text: no checker answers it and no template at its lines stops it. Semantic repair finds
+    the condition from what her runs had at the return: digits was '' where the test failed and '12' where it passed."""
+    import planted_pkg.counts as counts
+
+    done = asyncio.run(mend(_fault(lambda: counts.count_in("  ")), proposals=200, seconds=900))
+    assert done["status"] == "merged" and done["origin"].startswith("semantic"), done
+    assert counts.count_in("  ") is None and counts.count_in(" 12 ") == 12, "the running process runs the mend"

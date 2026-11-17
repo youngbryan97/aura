@@ -5,9 +5,9 @@ she is running: the planted fault is raised once, when she starts, and her loop 
 test, mend it, pass her own gates, land the mend on origin, and load it into her running process. Game days and
 fire drills test an incident response the same way, with a known fault.
 
-Armed by a person: the file ``loop_drill.armed`` in her state root. While it is absent nothing here runs. ``label``
-and ``nth`` below are the planted faults, on purpose: one reads a person's name without checking there is a person,
-the other reads a row past the end. A mend of either is a drill result, not a fault of her own running, and is counted
+Armed by a person: the file ``loop_drill.armed`` in her state root. While it is absent nothing here runs. ``label``,
+``nth`` and ``count_in`` below are the planted faults, on purpose: one reads a person's name without checking there is
+a person, one reads a row past the end, one reads a number from blank text. A mend of either is a drill result, not a fault of her own running, and is counted
 apart from those.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.SelfModification.Drill")
 
-__all__ = ["armed_at", "label", "nth", "run_the_drill_if_armed"]
+__all__ = ["armed_at", "count_in", "label", "nth", "run_the_drill_if_armed"]
 
 
 def armed_at() -> Path:
@@ -39,9 +39,19 @@ def nth(rows: list[Any], n: int) -> Any:
     return (rows[n] if -len(rows) <= n < len(rows) else None)
 
 
+def count_in(text: str) -> Any:
+    """A count written as text: the drill's third planted fault, for text with no digits in it.
+
+    No fix template and no checker mends it: it needs a condition over a value the function computes (``digits``),
+    which only semantic repair finds, from the values her runs had there (semantic_repair.py)."""
+    digits = text.strip()
+    return int(digits)
+
+
 #: The planted faults, in the order a drill raises them: each drill raises the first that still raises, so a fault
-#: her loop mended in one drill leaves the next for the drill after it. 16 November 2026: label was mended live.
-_PLANTED = (("label", lambda: label(None)), ("nth", lambda: nth([1], 2)))
+#: her loop mended in one drill leaves the next for the drill after it. 16 November 2026: label and nth were mended
+#: live.
+_PLANTED = (("label", lambda: label(None)), ("nth", lambda: nth([1], 2)), ("count_in", lambda: count_in("  ")))
 
 
 def run_the_drill_if_armed() -> bool:
