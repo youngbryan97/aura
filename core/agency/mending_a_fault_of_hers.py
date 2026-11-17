@@ -368,16 +368,17 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     if taken_back:
         return taken_back
     heard = faults_heard()
-    if not heard:
-        return []
-    head = await asyncio.to_thread(goals.source_head)
+    head = await asyncio.to_thread(goals.source_head) if heard else ""
     for fault in heard:
         record = goals.load(goals.slug_of(goal_for(fault)))
         if record is not None and (record.status in (goals.OFFERED, goals.MERGED)
                                    or (record.status == goals.STALLED and record.stalled_on == head)):
             continue
         return [await mend(fault, proposals=sys.maxsize, seconds=seconds)]
-    return []
+    # Nothing heard to mend: a change for a cost her running measures, or the judgement of one she made (F16, part 3).
+    from core.agency.improving_by_measurement import improve_by_measurement
+
+    return await improve_by_measurement()
 
 
 __all__ = ["InHerWorkspace", "goal_for", "her_own_python_first", "mend", "mend_the_faults_she_heard"]

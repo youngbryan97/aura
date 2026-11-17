@@ -86,3 +86,29 @@ def test_a_long_collection_says_whether_a_line_asked_for_it_or_an_allocation_set
         collector_pauses.uninstall_collector_timing()
     said = [r.getMessage() for r in caplog.records if "collection held" in r.getMessage()]
     assert made and said and all("set off by an allocation at" in line for line in said)
+
+
+def test_each_line_that_asks_for_collections_is_measured_over_a_window():
+    """What a line that asks for collections costs and frees, every collection it asks for, so that a change to what it
+    asks for is measured on the same terms before and after (Master Todo F16, part 3)."""
+    import gc
+    import time
+
+    from core.runtime import collector_pauses
+
+    collector_pauses.install_collector_timing()
+    try:
+        began = time.time()
+        for _ in range(3):
+            gc.collect()
+        gc.collect(1)
+        sites = collector_pauses.asked_for_collections(since=began)
+    finally:
+        collector_pauses.uninstall_collector_timing()
+    here = [site for site in sites if site.startswith("tests/test_the_collector_is_timed.py:")]
+    assert len(here) == 2, sites
+    full = next(sites[s] for s in here if sites[s]["generations"] == [2])
+    young = next(sites[s] for s in here if sites[s]["generations"] == [1])
+    assert full["collections"] == 3 and young["collections"] == 1
+    assert full["total_s"] >= full["median_s"] > 0
+    assert collector_pauses.asked_for_collections(since=time.time() + 60) == {}

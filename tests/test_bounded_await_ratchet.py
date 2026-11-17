@@ -102,7 +102,6 @@ ALLOWED_LEGACY_OFFENDERS: frozenset[tuple[str, str, str]] = frozenset(
         ("core/sandbox/bash_daemon.py", "execute", "drain"),
         ("core/sandbox/bash_daemon.py", "kill", "wait"),
         ("core/self_modification/safe_pipeline.py", "_run_shadow", "wait"),
-        ("core/self_modification/self_modification_engine.py", "_monitoring_loop", "wait"),
         ("core/senses/interaction_signals.py", "_typing_consumer", "get"),
         ("core/senses/interaction_signals.py", "_vision_consumer", "get"),
         ("core/senses/interaction_signals.py", "_voice_consumer", "get"),

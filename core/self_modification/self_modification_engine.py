@@ -1367,7 +1367,17 @@ class AutonomousSelfModificationEngine:
 
         while self.monitoring_enabled:
             try:
-                await self._repair_event.wait()
+                try:
+                    await asyncio.wait_for(self._repair_event.wait(), timeout=float(self.monitor_interval))
+                except TimeoutError:
+                    # No fault heard in an interval: her own loop may still have a change to make for a cost her
+                    # running measures, or one to judge (F16, part 3), in idle time, under the policy for work that
+                    # does not use her model. The rest of the cycle waits for a fault.
+                    if not background_activity_reason(resolve_orchestrator(), require_conversation_ready=False,
+                                                      min_idle_seconds=float(self.monitor_interval),
+                                                      needs_the_model=False):
+                        self._start_mending()
+                    continue
                 await _keep_the_faults_she_heard()
                 orch = resolve_orchestrator()
                 policy_reason = background_activity_reason(

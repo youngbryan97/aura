@@ -26,7 +26,8 @@ from typing import Any
 from core.runtime.lockdep import LOOP_BLOCKING_HOLD_S
 from core.runtime.which_thread_may_do_this import the_loop_thread
 
-__all__ = ["collector_pauses", "freeze_what_boot_made", "install_collector_timing", "uninstall_collector_timing"]
+__all__ = ["asked_for_collections", "collector_pauses", "freeze_what_boot_made", "install_collector_timing",
+           "uninstall_collector_timing"]
 
 logger = logging.getLogger("Aura.CollectorPauses")
 
@@ -36,6 +37,21 @@ _BEGAN: dict[int, float] = {}
 _BY_GENERATION: dict[int, list[float]] = {}  # generation -> [count, total seconds, worst seconds, over budget]
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _ASKS_FOR_ONE = re.compile(r"\bgc\.collect\(")
+#: Each line that asked for collections: (when, seconds, generation, collected), the newest kept. Every one it asked
+#: for, not only those past the loop budget, so that a change to what it asks for is measured on the same terms.
+_ASKED_FOR: dict[str, list[tuple[float, float, int, int]]] = {}
+_ASKED_FOR_KEPT = 512
+
+
+def _asked_for_at(frame: Any) -> str:
+    """``path:line`` of the line that asked for this collection, or "" when an allocation set it off."""
+    if frame is None:
+        return ""
+    path = frame.f_code.co_filename
+    if not _ASKS_FOR_ONE.search(linecache.getline(path, frame.f_lineno)):
+        return ""
+    shown = os.path.relpath(path, _ROOT) if path.startswith(_ROOT + os.sep) else os.path.join(*path.split(os.sep)[-2:])
+    return f"{shown}:{frame.f_lineno}"
 
 
 def _where_it_came_from(frame: Any) -> str:
@@ -69,6 +85,13 @@ def _timed(phase: str, info: dict[str, Any]) -> None:
     row[0] += 1
     row[1] += took
     row[2] = max(row[2], took)
+    # A young collection runs every few thousand allocations; only an older one is looked up to see whether a line
+    # asked for it, and a line asking for a young one says so in its argument.
+    asked = _asked_for_at(sys._getframe(1)) if generation >= 1 else ""
+    if asked:
+        held = _ASKED_FOR.setdefault(asked, [])
+        held.append((time.time(), took, generation, int(info.get("collected", 0) or 0)))
+        del held[:-_ASKED_FOR_KEPT]
     if took > LOOP_BLOCKING_HOLD_S:
         row[3] += 1
         on_the_loop = thread == the_loop_thread()
@@ -97,6 +120,7 @@ def uninstall_collector_timing() -> None:
         gc.callbacks.remove(_timed)
     _BEGAN.clear()
     _BY_GENERATION.clear()
+    _ASKED_FOR.clear()
 
 
 def collector_pauses() -> dict[str, Any]:
@@ -113,6 +137,22 @@ def collector_pauses() -> dict[str, Any]:
             for generation, row in sorted(_BY_GENERATION.items())
         },
     }
+
+
+def asked_for_collections(since: float = 0.0, until: float = float("inf")) -> dict[str, dict[str, Any]]:
+    """Per line that asked for collections, between ``since`` and ``until``: how many, what they held their thread in
+    all and at the median, what they collected at the median, and of which generations."""
+    out: dict[str, dict[str, Any]] = {}
+    for site, held in list(_ASKED_FOR.items()):
+        rows = [row for row in list(held) if since <= row[0] < until]
+        if not rows:
+            continue
+        took = sorted(row[1] for row in rows)
+        collected = sorted(row[3] for row in rows)
+        out[site] = {"collections": len(rows), "total_s": round(sum(took), 4),
+                     "median_s": round(took[len(took) // 2], 4), "median_collected": collected[len(collected) // 2],
+                     "generations": sorted({row[2] for row in rows}), "first_at": rows[0][0], "last_at": rows[-1][0]}
+    return out
 
 
 def freeze_what_boot_made() -> int:

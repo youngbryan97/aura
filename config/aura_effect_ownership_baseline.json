@@ -3369,6 +3369,14 @@
       "scope": "<module>.save"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/improving_by_measurement.py",
+      "scope": "<module>._written"
+    },
+    {
       "callee": "<file_write_gateway>.write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -17442,6 +17450,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "285c731ee203daebc2cd9461dfc7ea77d9bf2a234c14f8a2cb0b167ea5066552",
+  "inventory_sha256": "4183e94af59994bd087cf64a5ed03b7b7de55bcf83e85c4eabf1cd04d05f6b84",
   "schema_version": 1
 }
