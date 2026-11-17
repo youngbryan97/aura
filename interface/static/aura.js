@@ -2993,6 +2993,8 @@ function renderChatDeliveryAnswer(item, data) {
     const metadata = { deliveryTurnId: identity };
     if (data.thought) metadata.thought = data.thought;
     if (data.response_confidence) metadata.responseConfidence = data.response_confidence;
+    // A file the turn wrote out of her reply: shown beneath her words, never written into them.
+    if (data.saved_file) metadata.savedFile = String(data.saved_file);
     appendMsg('aura', data.response, false, metadata);
 }
 
@@ -6603,7 +6605,10 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
     const renderFinal = () => {
         if (isAura) {
             const body = narrated ? narrationCardHtml(narrated, text, render) : render(text);
-            div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + `<div class="msg-content">` + body + thoughtHtml + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
+            const savedFile = metadata.savedFile
+                ? `<div class="msg-attachments"><span class="msg-attachment" title="${escHtml(metadata.savedFile)}">Saved file: ${escHtml(metadata.savedFile)}</span></div>`
+                : '';
+            div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + `<div class="msg-content">` + body + savedFile + thoughtHtml + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
         } else {
             const attached = Array.isArray(metadata.attachmentNames) && metadata.attachmentNames.length
                 ? `<div class="msg-attachments">` + metadata.attachmentNames

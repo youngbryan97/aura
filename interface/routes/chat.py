@@ -52,6 +52,7 @@ from core.brain.llm.latent_cortex.output_quality import (
 from core.container import ServiceContainer
 from core.conversation.continuation import continuation_state_text
 from core.conversation.persistence import ConversationRevisionConflictError
+from core.conversation.requested_artifact import the_file_this_turn_saved
 from core.conversation.session_scope import (
     conversation_session_var as _CHAT_REQUEST_SESSION,  # noqa: N812
 )
@@ -7792,9 +7793,8 @@ def _api_chat_turn_response_data(_affordance_results, _desktop_exec_state, _fina
             "desktop_result": _json_safe_payload(_desktop_exec_state["result"])
         }
     if _affordance_results:
-        response_data.setdefault("data", {})["affordances"] = [
-            _json_safe_payload(r) for r in _affordance_results
-        ]
+        response_data.setdefault("data", {})["affordances"] = [_json_safe_payload(r) for r in _affordance_results]
+    response_data.update(the_file_this_turn_saved())  # beside her reply, for her window; never in her words
 
     # The durable delivery boundary may still replace these bytes through
     # recorded-answer composition, paired projection, or control-syntax

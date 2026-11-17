@@ -96,17 +96,30 @@ def test_an_unknown_language_is_not_guessed_at(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_reply_keeps_the_page_and_gains_the_path() -> None:
+async def test_the_reply_is_her_words_and_the_path_goes_beside_it() -> None:
+    """LIVE 17 November 2026: "Saved it to <path>." was appended to her words, after her "I couldn't save or run it
+    as a script this turn", and contradicted her."""
+    from core.conversation.requested_artifact import saved_this_turn
+    from core.conversation.session_scope import conversation_turn_var
     from interface.routes.chat import _save_requested_artifact
 
-    out = str(
-        await _save_requested_artifact(
-            "build me a self-contained HTML page",
-            REPLY,
-        )
-    )
-    assert "<!DOCTYPE html>" in out
-    assert "Saved it to " in out
+    token = conversation_turn_var.set("turn-saving-a-page")
+    try:
+        out = str(await _save_requested_artifact("build me a self-contained HTML page", REPLY))
+        assert out == REPLY, "her words, as she wrote them"
+        assert saved_this_turn().endswith(".html")
+    finally:
+        conversation_turn_var.reset(token)
+    assert saved_this_turn() == "", "another turn has saved nothing"
+
+
+def test_a_short_function_asked_for_in_the_reply_is_not_laid_out_as_a_page(tmp_path) -> None:
+    """LIVE 17 November 2026: a three-line function went to disk as an HTML page of the prose around it."""
+    reply = ("```python\ndef squares_of_evens(numbers):\n    return [n ** 2 for n in numbers if n % 2 == 0]\n```\n\n"
+             + "A few notes on the design choices. " * 12)
+    assert save_requested_artifact("Write a short Python function that returns the squares of the even numbers.",
+                                   reply, root=tmp_path) is None
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.asyncio

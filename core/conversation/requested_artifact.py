@@ -82,6 +82,35 @@ def _slug(text: str, *, words: int = 6) -> str:
     return "-".join(parts).lower()[:48] or "answer"
 
 
+#: The file each turn wrote out of her reply, by turn: sent beside her reply, never in it. The newest few turns only.
+_SAVED_BY_TURN: dict[str, str] = {}
+_SAVED_KEPT = 64
+
+
+def note_saved_this_turn(path: object) -> None:
+    """Keep the file this turn wrote out of her reply, for the reply's delivery to send beside it."""
+    from core.conversation.session_scope import conversation_turn_var
+
+    turn = conversation_turn_var.get() or ""
+    if turn and str(path or "").strip():
+        _SAVED_BY_TURN[turn] = str(path).strip()
+        for stale in list(_SAVED_BY_TURN)[:-_SAVED_KEPT]:
+            _SAVED_BY_TURN.pop(stale, None)
+
+
+def saved_this_turn() -> str:
+    """The file this turn wrote out of her reply, or ""."""
+    from core.conversation.session_scope import conversation_turn_var
+
+    return _SAVED_BY_TURN.get(conversation_turn_var.get() or "", "")
+
+
+def the_file_this_turn_saved() -> dict[str, str]:
+    """``{"saved_file": path}`` when this turn wrote a file out of her reply, for her window to show beside it."""
+    saved = saved_this_turn()
+    return {"saved_file": saved} if saved else {}
+
+
 def largest_document(reply: str) -> tuple[str, str]:
     """The biggest fenced block in the reply, as (language, body).
 
@@ -143,6 +172,10 @@ def save_requested_artifact(
         return None
 
     language, body = largest_document(reply)
+    if body and len(body) < _MIN_DOCUMENT_CHARS:
+        # Her deliverable is code, and too little of it to be a file. LIVE 17 November 2026, a three-line function asked
+        # for in her reply went to disk as an HTML page of the prose around it.
+        return None
     if len(body) < _MIN_DOCUMENT_CHARS:
         # No fenced block, but a document may still be in front of us.
         #
@@ -209,6 +242,10 @@ async def save_requested_artifact_async(
         return None
 
     language, body = largest_document(reply)
+    if body and len(body) < _MIN_DOCUMENT_CHARS:
+        # Her deliverable is code, and too little of it to be a file. LIVE 17 November 2026, a three-line function asked
+        # for in her reply went to disk as an HTML page of the prose around it.
+        return None
     if len(body) < _MIN_DOCUMENT_CHARS:
         # No fenced block, but a document may still be in front of us.
         #

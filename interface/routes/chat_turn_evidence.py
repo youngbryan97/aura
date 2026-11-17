@@ -741,28 +741,36 @@ def _serve_built_artifact(reply: object) -> object:
 
 
 async def _save_requested_artifact(user_message: object, reply: object) -> object:
-    """Write the file the reply contains, and say where it went.
+    """Write the file the reply contains; where it went goes beside her reply, not into it.
 
     LIVE, 2026-08-21. "build me a small web app… Keep it one self-contained
     file. Tell me where you put it." The one thing that worked every time was
     the plain turn: she writes a complete, correct page into the reply in
     about thirty seconds. What never worked was saving it — a builder that
     needs a second code model this host cannot load, called from inside the
-    turn whose cortex it needs.
+    turn whose cortex it needs. So the file comes out of the answer she already gave.
 
-    So the file comes out of the answer she already gave. The sentence is
-    appended rather than replacing anything, because the page in the reply is
-    still the answer; the path is what was missing.
+    Where it went was a sentence the runtime appended to her words, "Saved it to <path>.". LIVE 17 November 2026 it
+    followed her "I couldn't save or run it as a script this turn" and contradicted her. The path is now the turn's
+    saved file, sent with her reply as data (``saved_file``) for her window to show beneath it, and the save is on
+    her record for the turns after.
     """
     body = str(reply or "")
     try:
-        from core.conversation.requested_artifact import save_requested_artifact_async
+        from core.conversation.requested_artifact import (
+            note_saved_this_turn,
+            save_requested_artifact_async,
+        )
+        from core.conversation.surface_disposition import record_tool_receipt
 
         saved = await save_requested_artifact_async(str(user_message or ""), body)
         if saved is None:
             return reply
         logger.info("💾 Saved the requested file to %s.", saved.path)
-        return f"{body.rstrip()}\n\nSaved it to {saved.path}."
+        note_saved_this_turn(saved.path)
+        record_tool_receipt("requested_artifact", ok=True, action="write", object_ref=str(saved.path),
+                            effect_observed=True, verification="written from the code or document in her reply")
+        return reply
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.requested_artifact",
