@@ -115,18 +115,22 @@ class DesktopNotifier:
                 status="suppressed_quiet_hours",
                 detail="Within the user's configured quiet hours window.",
             )
+        words = [str(message or "").strip(), str(title or "").strip() or "Aura"]
+        if not words[0]:
+            return DeliveryResult(delivered=False, status="failed", detail="A notification with no words in it.")
         try:
             # The words go to AppleScript as arguments, never inside its source. Pasted into a string literal with
             # only its quotation marks escaped, a message holding \" closed the literal, and what followed it ran
-            # as AppleScript.
+            # as AppleScript. Only what the script reads is passed: the gateway refuses an empty argument (LIVE 16
+            # November 2026, 23:31, "argv entries must not be empty" on a call with no subtitle, four times).
             clause = "display notification (item 1 of argv) with title (item 2 of argv)"
-            if subtitle:
-                clause += " subtitle (item 3 of argv)"
-            if sound:
-                clause += " sound name (item 4 of argv)"
+            for name, value in (("subtitle", subtitle), ("sound name", sound)):
+                if value:
+                    words.append(str(value))
+                    clause += f" {name} (item {len(words)} of argv)"
             script = ["-e", "on run argv", "-e", clause, "-e", "end run"]
             result = get_subprocess_gateway().run(
-                ["osascript", *script, str(message), str(title), str(subtitle or ""), str(sound or "")],
+                ["osascript", *script, *words],
                 capture_output=True,
                 timeout=5,
                 source="senses.notifications.desktop_notification",

@@ -22,9 +22,13 @@ ASKED = "Could you put up a desktop notification that says time to stretch?"
 def quiet_hours_now(monkeypatch):
     ran: list[list[str]] = []
 
+    from core.runtime.subprocess_gateway import _coerce_argv
+
     class _Gateway:
         def run(self, args, **_kwargs):
-            ran.append(list(args))
+            # The real gateway's own argument check: it refuses an empty one, and a stand-in that did not let a call
+            # with no subtitle pass here and fail live (16 November 2026, 23:31).
+            ran.append(_coerce_argv(args))
             return SimpleNamespace(returncode=0, args=args, stdout="", stderr="")
 
     monkeypatch.setattr(notifications, "_within_quiet_hours", lambda *_args: True)
@@ -57,7 +61,22 @@ def test_her_words_reach_applescript_as_arguments_not_source(quiet_hours_now):
     source = [args[i + 1] for i, arg in enumerate(args) if arg == "-e"]
     assert words in args and not any(words in line or "pwned" in line for line in source)
     assert source == ["on run argv", "display notification (item 1 of argv) with title (item 2 of argv) "
-                      "sound name (item 4 of argv)", "end run"]
+                      "sound name (item 3 of argv)", "end run"]
+    assert args[-3:] == [words, "Aura", "Glass"]
+
+
+def test_a_notification_with_a_subtitle_reads_each_argument_it_was_given(quiet_hours_now):
+    DesktopNotifier.send("Aura", "Time to stretch", subtitle="From Aura", sound="Glass", asked_for=True)
+    DesktopNotifier.send("Aura", "Time to stretch", sound="", asked_for=True)
+
+    with_subtitle, plain = quiet_hours_now
+    assert with_subtitle[-4:] == ["Time to stretch", "Aura", "From Aura", "Glass"]
+    assert "subtitle (item 3 of argv) sound name (item 4 of argv)" in with_subtitle[4]
+    assert plain[-2:] == ["Time to stretch", "Aura"] and plain[4].endswith("with title (item 2 of argv)")
+
+
+def test_a_notification_with_no_words_is_not_sent(quiet_hours_now):
+    assert DesktopNotifier.send("Aura", "   ", asked_for=True).status == "failed" and quiet_hours_now == []
 
 
 @pytest.mark.parametrize(("context", "asked"), [
