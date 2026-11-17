@@ -54,6 +54,8 @@ def count_in(text: str) -> Any:
 def priced(prices: dict[str, Any], item: str) -> Any:
     """What an item costs: the drill's fourth planted fault, for an item the table does not hold. Planted 17 November
     2026, when her loop had mended the other three, for a load of hers to be seen on the record of what she changed."""
+    if item not in prices:
+        return None
     return prices[item]
 
 
