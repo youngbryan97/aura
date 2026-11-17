@@ -105,10 +105,10 @@ async def _her_remark(held: With, capture: str, source: str) -> str:
         # however old, LIVE 16 November 2026 it answered a question of eight hours before
         # (core/brain/her_unprompted_turn.py, her_conversation_now_with). With nobody's words in the with or the
         # sitting there is no turn of hers to write here; at the desk her own turn speaks from the screen alone.
-        from core.brain.her_unprompted_turn import her_conversation_now_with
+        from core.brain.her_unprompted_turn import A_LOOK_AT_THE_SCREEN, her_conversation_now_with
 
-        messages = her_conversation_now_with("WHAT IS ON THE SCREEN", screen)
-        if not any(message["role"] == "user" for message in messages[:-1]):
+        messages = her_conversation_now_with("WHAT IS ON THE SCREEN", screen, looked_with=A_LOOK_AT_THE_SCREEN)
+        if not any(message["role"] == "user" and str(message.get("content") or "").strip() for message in messages):
             return ""
     try:
         from core.brain.llm.llm_tier import LLMTier

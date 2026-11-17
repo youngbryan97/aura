@@ -27,13 +27,14 @@ async def compose_at_the_desk(observation: Any) -> str:
     Whether to point at something there, and at what, is her call in that turn (core/brain/her_unprompted_turn.py,
     her_turn_at_the_desk). What she says is her words after it.
     """
-    from core.brain.her_unprompted_turn import her_turn_at_the_desk
+    from core.brain.her_unprompted_turn import A_LOOK_AT_THE_SCREEN, her_turn_at_the_desk
     from core.together.remarks import SCREEN_CHARS
 
     capture = str(getattr(observation, "capture", "") or "")
     source = str(getattr(observation, "source", "") or "")
     screen = "\n".join(part for part in (source, capture[:SCREEN_CHARS]) if part)
-    return await her_turn_at_the_desk("WHAT IS ON THE SCREEN", screen, least_s=_COMPOSE_TIMEOUT_S)
+    return await her_turn_at_the_desk("WHAT IS ON THE SCREEN", screen, least_s=_COMPOSE_TIMEOUT_S,
+                                      looked_with=A_LOOK_AT_THE_SCREEN)
 
 
 def _latest_observation() -> Any:

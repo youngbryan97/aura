@@ -16,10 +16,14 @@ import pytest
 from core.brain import her_unprompted_turn as turn
 from core.capabilities.permission_model import PermissionRiskModel
 from core.executive.execution_policy import classify_execution_risk, resolve_execution_effect_scope
-from core.executive.standing_authority import DESK_COMPANY_GRANT, DESK_COMPANY_ORIGIN, DESK_COMPANY_TOOLS
+from core.executive.standing_authority import (
+    DESK_COMPANY_GRANT,
+    DESK_COMPANY_ORIGIN,
+    DESK_COMPANY_TOOLS,
+)
 from core.skills.at_the_desk import PointAtOnScreenSkill, tool_definitions
-from core.skills.catalog_policy import NOT_OFFERED_TO_A_TURN
 from core.skills.catalog_policy import DESK_COMPANY_TOOLS as CATALOGUED_DESK_TOOLS
+from core.skills.catalog_policy import NOT_OFFERED_TO_A_TURN
 from tests.test_standing_authority import _manager
 
 POINT = {"words": "Back"}
@@ -173,7 +177,10 @@ def test_an_earlier_sitting_is_not_the_conversation_her_desk_turn_answers(monkey
 
 
 def test_the_loop_follows_a_conversation_in_place_of_a_request():
-    from core.brain.llm.mlx_client_tool_results import _how_the_loop_generates, _what_the_loop_answers
+    from core.brain.llm.mlx_client_tool_results import (
+        _how_the_loop_generates,
+        _what_the_loop_answers,
+    )
 
     conversation = [{"role": "user", "content": "Hi."}, {"role": "runtime_evidence", "content": "## SCREEN"}]
     assert _what_the_loop_answers("", conversation) == conversation
@@ -389,3 +396,32 @@ def test_a_call_to_a_tool_she_was_not_offered_goes_back_to_her_and_is_never_her_
     assert out["content"] == "That form wants one thing you built, five levels down."
     assert executed == [], "nothing she was not offered ran"
     assert "no tool by that name was offered" in str(seen[1][-1]["content"])
+
+
+def test_her_look_at_the_screen_reaches_her_model_as_her_own_call_not_the_persons_turn(monkeypatch):
+    """LIVE 17 November 2026, 09:50 and 12:08 local: the screen went in as the person's turn under a heading, and her
+    remarks were "Here's what I can see on your screen:" and "What can I help you with? Are you looking to: ..."."""
+    import time
+
+    from core.brain.her_unprompted_turn import A_LOOK_AT_THE_SCREEN, her_conversation_now_with
+
+    reading = "TextEdit\nDescribe a project you led."
+    monkeypatch.setattr("core.together.remarks.said_since",
+                        lambda _began: [(time.time() - 60.0, "user", "I'm on the second question."),
+                                        (time.time() - 30.0, "assistant", "Take your time.")])
+    messages = her_conversation_now_with("WHAT IS ON THE SCREEN", reading, looked_with=A_LOOK_AT_THE_SCREEN)
+    assert [m["role"] for m in messages] == ["user", "assistant", "assistant", "tool"]
+    call = messages[-2]["tool_calls"][0]["function"]
+    assert call == {"name": "computer_use", "arguments": {"action": "read_screen_text"}}
+    assert messages[-1]["content"] == reading and messages[-1]["tool_call_id"] == messages[-2]["tool_calls"][0]["id"]
+    assert not any(m["role"] == "user" and reading in str(m["content"]) for m in messages)
+
+    monkeypatch.setattr("core.together.remarks.said_since", lambda _began: [])
+    alone = her_conversation_now_with("WHAT IS ON THE SCREEN", reading, looked_with=A_LOOK_AT_THE_SCREEN)
+    assert alone[0] == {"role": "user", "content": ""}, "with nobody's words, the person is there and says nothing"
+    assert [m["role"] for m in alone] == ["user", "assistant", "tool"]
+
+    monkeypatch.setattr("core.together.remarks.said_since",
+                        lambda _began: [(time.time() - 5.0, "user", "What's this error?")])
+    waiting = her_conversation_now_with("WHAT IS ON THE SCREEN", reading, looked_with=A_LOOK_AT_THE_SCREEN)
+    assert waiting[-1]["role"] != "user" and waiting[-2] == {"role": "user", "content": "What's this error?"}

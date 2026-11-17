@@ -30,8 +30,13 @@ CONVERSATION_TURNS = 6
 _HER_MODE = "reflective"
 
 
-def her_conversation_now_with(heading: str, reading: str) -> list[dict[str, Any]]:
-    """The conversation of the sitting going on now, its last few turns, and ``reading`` under ``heading`` after it.
+#: Her look at the screen, as the call of hers that reads it (core/skills/computer_use.py, read_screen_text).
+A_LOOK_AT_THE_SCREEN: tuple[str, dict[str, Any]] = ("computer_use", {"action": "read_screen_text"})
+
+
+def her_conversation_now_with(heading: str, reading: str, *,
+                              looked_with: tuple[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """The conversation of the sitting going on now, its last few turns, and ``reading`` after it.
 
     An earlier sitting is not the conversation in front of her (core/conversation/sitting.py): it reaches her as
     memory, with when it was. LIVE 16 November 2026, 08:32 local, keeping Bryan company at the desk, her remark was
@@ -39,13 +44,14 @@ def her_conversation_now_with(heading: str, reading: str) -> list[dict[str, Any]
     she was given were "Can you highlight the back button?" from 00:40, eight hours and a sitting before, and she
     answered them, and pointed at an arrow for them.
 
-    Her model's template takes no turn of hers before somebody's ("No user query found in messages"). Unless somebody's
-    words are waiting for her, the reading is what is in front of them both, so it is the turn before hers; while they
-    wait, it stands beside them as runtime evidence. Her template writes runtime evidence as a tool's response, and
-    after her answer that reads as a tool she called for the question she had answered. LIVE 16 November 2026, 12:46
-    local, sixteen minutes after she drew a ring around Chrome's back button for Bryan, the reading of her host went in
-    after "Can you highlight the back button?" and her answer to it, and she said "Looking at the screenshot ... I don't
-    have the ability to visually highlight or draw on the screenshot."
+    While somebody's words wait for her, the reading stands beside them as runtime evidence. Otherwise, given
+    ``looked_with``, it is the call of hers that read it and what came back, in her template's form for a call of
+    hers, as her calls during a person's turn reach her (core/conversation/surface_disposition.her_calls_this_turn).
+    Without it the reading went in as the person's turn, under a heading: LIVE 17 November 2026, 09:50 and 12:08
+    local, her remarks were "Here's what I can see on your screen:" and "What can I help you with? Are you looking
+    to: ...", the answers to a person who had shown her their screen. Her template takes no turn of hers before
+    somebody's ("No user query found in messages"), so with no words of anyone's in the sitting the person's turn is
+    there and empty: they are with her and have said nothing.
     """
     import time
 
@@ -57,8 +63,16 @@ def her_conversation_now_with(heading: str, reading: str) -> list[dict[str, Any]
     now = said[sitting_begins([at for at, _role, _content in said], time.time()):][-CONVERSATION_TURNS:]
     messages = [{"role": role, "content": content} for _at, role, content in now]
     waiting = bool(messages) and messages[-1]["role"] == "user"
-    messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE if waiting else "user",
-                                     "content": f"## {heading}\n{reading}"}))
+    if waiting or looked_with is None:
+        messages.append(stamp_grounding({"role": RUNTIME_EVIDENCE_ROLE if waiting else "user",
+                                         "content": f"## {heading}\n{reading}"}))
+        return messages
+    if not any(message["role"] == "user" for message in messages):
+        messages.insert(0, {"role": "user", "content": ""})
+    tool, arguments = looked_with
+    messages.append({"role": "assistant", "content": "", "tool_calls": [
+        {"id": "her_look", "type": "function", "function": {"name": tool, "arguments": dict(arguments)}}]})
+    messages.append({"role": "tool", "tool_call_id": "her_look", "name": tool, "content": reading})
     return messages
 
 
@@ -153,7 +167,8 @@ DESK_ORIGIN = "her_desk_company"
 _DESK_GENERATIONS = 2
 
 
-async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) -> str:
+async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float,
+                               looked_with: tuple[str, dict[str, Any]] | None = None) -> str:
     """Her next turn at the desk, with her desk tools offered as data; what she says, "" when nothing formed.
 
     LIVE 16 November 2026, 01:04, in the bubble: "I can't highlight or interact with any UI elements on your screen -
@@ -166,7 +181,7 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float) ->
     from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
     from core.skills.at_the_desk import tool_definitions
 
-    messages = her_conversation_now_with(heading, reading)
+    messages = her_conversation_now_with(heading, reading, looked_with=looked_with)
 
     async def acted(client: Any) -> dict[str, Any]:
         # The allowance her time was worked out for (_on_her_lane). LIVE 16 November 2026, 01:58, without it the loop
@@ -247,5 +262,5 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
         release_external_generation_gate_lease(lease)
 
 
-__all__ = ["CONVERSATION_TURNS", "DESK_ORIGIN", "her_conversation_now_with", "her_turn_at_the_desk", "her_turn_on",
+__all__ = ["A_LOOK_AT_THE_SCREEN", "CONVERSATION_TURNS", "DESK_ORIGIN", "her_conversation_now_with", "her_turn_at_the_desk", "her_turn_on",
            "on_her_cortex", "what_she_finished"]

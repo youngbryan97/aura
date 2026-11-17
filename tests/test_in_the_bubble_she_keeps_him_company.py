@@ -176,8 +176,9 @@ def test_a_with_begun_without_a_word_carries_on_from_the_sitting_going_on_now(mo
     said = asyncio.run(remarks._her_remark(held, "Describe something you built from scratch.", "TextEdit"))
 
     assert said.startswith("That second question")
-    assert [m["role"] for m in seen["messages"]][:2] == ["user", "assistant"]
-    assert "WHAT IS ON THE SCREEN" in seen["messages"][-1]["content"]
+    assert [m["role"] for m in seen["messages"]] == ["user", "assistant", "assistant", "tool"]
+    assert seen["messages"][-2]["tool_calls"][0]["function"]["name"] == "computer_use", "her look is her own call"
+    assert seen["messages"][-1]["content"] == "TextEdit\nDescribe something you built from scratch."
 
 
 def test_a_highlight_nobody_asked_for_or_invited_is_still_refused():
