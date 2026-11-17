@@ -7399,6 +7399,25 @@ needs her 27B free (her app down, or her app's own influence trials).
   can design the scope and accuracy and capability from scratch ... + it
   wont hallucinate". Every change is computed from her program's own
   behaviour and judged by her tests; no part of the loop generates text.
+  16 November, part 2 built and carried live. Semantic repair
+  (`core/self_modification/semantic_repair.py`, `condition_synthesis.py`,
+  `semantic_probe.py`; 6572a4d04) records her program's values at the
+  suspect lines, forces each place to learn what the failing runs needed,
+  and synthesises the smallest condition that agrees with every run; it sits
+  between her exact changes and her templates, in her loop and in the history
+  benchmark. On its first live drill it proposed nothing: the drill's own
+  test reached the planted fault with the same blank input and passed either
+  way, which contradicted the failing run at the same value. A passing run
+  now constrains a place only when its test fails with the place forced,
+  each test asked on its own (541591d70). The drill's third planted fault,
+  `count_in`, raises ValueError on blank text; no checker and no template
+  mends it. Live, her loop mended it by semantic repair with "if not digits:
+  return None" before the return, passed her own gates, landed it on origin
+  and on her disk as 6e6b5a156, and loaded it into her running process at
+  18:58:06. Left for part 2: the 81 defects of her history, measured with and
+  without semantic repair. Its trials on two of them forced every place on
+  the suspect lines and none mended, since those defects need logic added,
+  not a decision changed.
 
 ## Live session 2026-09-07: what the runtime showed
 
