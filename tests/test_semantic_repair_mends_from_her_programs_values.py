@@ -338,3 +338,25 @@ def test_a_lookup_is_guarded_by_whether_the_table_holds_the_key(plant, tmp_path)
     namespace: dict = {}
     exec(mended, namespace)  # noqa: S102 - the planted module, repaired, run on the case the live mend got wrong
     assert namespace["priced"]({"tea": 3}, "tea") == 3
+
+
+def test_a_test_with_a_fixture_is_run_again_in_a_session_with_its_fixture(plant, tmp_path):
+    """LIVE 17 November 2026: in a session, every run of f5da1f5da's test after the first failed with ``KeyError:
+    'lane'``, its fixture, and the forcing that is the fix was read as mending nothing. The fix here is several
+    candidates in, so the test has run again many times before it is reached."""
+    planted = plant(
+        "def chosen(primary, backup):\n"
+        "    first = primary * 10\n"
+        "    second = primary + 5\n"
+        "    pick = primary\n"
+        "    return pick\n",
+        "import pytest\n"
+        "from planted.mod import chosen\n\n"
+        "@pytest.fixture\n"
+        "def numbers():\n    return (1, 2)\n\n"
+        "def test_the_backup_is_chosen(numbers):\n    assert chosen(*numbers) == 2\n")
+    mended, evidence = asyncio.run(_first_mend(planted, [_node("test_the_backup_is_chosen")], [], tmp_path,
+                                               sessions=True))
+    assert "pick = backup" in mended, evidence.to_json()
+    tried = next(p for p in evidence.places if p["kind"] == "value" and p["text"] == "primary" and p["line"] == 4)
+    assert len(tried.get("forced_without_effect") or []) >= 2, evidence.to_json()

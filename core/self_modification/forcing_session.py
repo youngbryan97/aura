@@ -87,6 +87,26 @@ def _probe() -> Any:
     return probe
 
 
+class _AgainAfter:
+    """Where a test run again stops tearing down: its own fixtures, not its module's or its session's.
+
+    Run again with itself as the next item, a test kept its fixtures set up, its request was asked afresh, and its
+    arguments were never filled again: LIVE 17 November 2026 every run of f5da1f5da's test after the first in a
+    session failed with ``KeyError: 'lane'``, its fixture, and the forcing that is the fix read as mending nothing.
+    pytest's teardown reads only the next item's chain (``SetupState.teardown_exact``); her conftest also reads its
+    module."""
+
+    def __init__(self, item: Any) -> None:
+        self._item = item
+        self.module = getattr(item, "module", None)
+
+    def listchain(self) -> list[Any]:
+        return self._item.listchain()[:-1]
+
+    def getparent(self, cls: Any) -> Any:
+        return self._item.getparent(cls)
+
+
 def _passed(reports: Sequence[Any]) -> bool:
     return any(r.when == "call" and r.passed for r in reports) and not any(r.failed for r in reports)
 
@@ -111,14 +131,19 @@ def pytest_runtestloop(session: Any) -> Any:
             probe._plans[spec["plan"]] = dict(step)
             probe._counts.clear()
             probe.FORCING = index
-            verdicts = {}
+            verdicts, why = {}, {}
             for at, item in enumerate(items):
                 last = index == len(steps) - 1 and at == len(items) - 1
                 if hasattr(item, "_initrequest"):
                     item._initrequest()  # its fixtures asked for afresh, as a test run again is (pytest-rerunfailures)
-                reports = runtestprotocol(item, log=False, nextitem=None if last else items[(at + 1) % len(items)])
+                after = items[(at + 1) % len(items)]
+                reports = runtestprotocol(item, log=False,
+                                          nextitem=None if last else _AgainAfter(item) if after is item else after)
                 verdicts[item.nodeid] = _passed(reports)
-            results.write(json.dumps({"step": index, "verdicts": verdicts}) + "\n")
+                failed = next((r for r in reports if r.failed), None)
+                if failed is not None:
+                    why[item.nodeid] = f"{failed.when}: {str(failed.longrepr)[-400:]}"
+            results.write(json.dumps({"step": index, "verdicts": verdicts, "why": why}) + "\n")
             results.flush()
     return True
 
