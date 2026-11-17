@@ -44,7 +44,8 @@ _DISTRIBUTION_OF = {
 def _locked_distributions() -> set[str]:
     names = set()
     for line in LOCK.read_text().splitlines():
-        match = re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?==", line)
+        # "name==version", or "name @ url" for a direct reference (the parser's English model, a release wheel).
+        match = re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?(?:==|\s+@\s)", line)
         if match:
             names.add(match.group(1).lower().replace("_", "-"))
     return names

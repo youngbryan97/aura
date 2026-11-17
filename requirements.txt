@@ -18,6 +18,9 @@ numpy>=1.26,<3.0
 scipy>=1.13
 pydantic
 structlog
+# The parse that reads which acts her replies claim she did (core/epistemics/acts_she_claims.py).
+spacy==3.8.18
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 snowballstemmer==3.0.1
 uvloop>=0.19.0
 pybreaker>=1.2.0
