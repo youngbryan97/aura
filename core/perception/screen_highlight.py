@@ -81,6 +81,8 @@ class HighlightResult:
     reason: str
     rect: Rect | None = None
     matched_text: str = ""
+    #: The window it was looked for in, as the window server names it ("Finder: bryan").
+    window: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -88,6 +90,7 @@ class HighlightResult:
             "shown": self.shown,
             "reason": self.reason,
             "matched": self.matched_text[:120],
+            "window": self.window[:160],
             "rect": (
                 None
                 if self.rect is None
@@ -344,10 +347,14 @@ async def highlight(
     looked = time.monotonic()
     rect = await asyncio.to_thread(locate_on_screen, needle)  # a walk of the window's tree, off her event loop
     logger.info("🖍️ %r located %s in %.2fs", needle, "at " + str(rect) if rect else "nowhere", time.monotonic() - looked)
+    # Which window it was in, said with what came of it: LIVE 16 November 2026, 20:18, drawn around Finder's back
+    # button, her reply put it "in the browser toolbar ... right next to the address bar".
+    window = ": ".join(part for part in (str(app or "").strip(), str(title or "").strip()) if part)
     if rect is None:
         return HighlightResult(
             shown=False,
             reason="could not locate it in the accessibility tree; describing it instead",
+            window=window,
         )
 
     area = _screen_area()
@@ -376,9 +383,10 @@ async def highlight(
 
     return HighlightResult(
         shown=drawn,
-        reason="drawn" if drawn else "overlay declined",
+        reason="drawn" if drawn else "nothing that draws on the screen was listening",
         rect=rect,
         matched_text=str(needle),
+        window=window,
     )
 
 

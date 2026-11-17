@@ -777,9 +777,15 @@ def _what_the_pointing_came_to_goes_to_her_turn(result: dict[str, Any]) -> bool:
 
     where = drawn.get("rect") or {}
     asked = str(drawn.get("matched") or result.get("pointed_at") or "").strip()
-    said = (f"A rectangle was drawn on the screen around {asked!r}, at x {where.get('x')}, y {where.get('y')}, "
-            f"{where.get('width')} by {where.get('height')} points, for a few seconds."
-            if drawn.get("shown") else f"Nothing was drawn: {str(drawn.get('reason') or 'it was not found')}.")
+    window = str(drawn.get("window") or "").strip()
+    inside = f" in the window {window}" if window else ""
+    # Hers, said as hers: LIVE 16 November 2026, 20:18, given "A rectangle was drawn on the screen around 'back button'",
+    # her reply offered to highlight the button she had just highlighted.
+    said = (f"She drew a rectangle around {asked!r}{inside}, at x {where.get('x')}, y {where.get('y')}, "
+            f"{where.get('width')} by {where.get('height')} points; it stays up a few seconds."
+            if drawn.get("shown") else
+            f"She did not draw it: {str(drawn.get('reason') or 'it was not found')}{inside}." + (
+                f" It is at x {where.get('x')}, y {where.get('y')}." if where else ""))
     reading = f"[WHAT HER POINTING CAME TO]\n{said}\n[END WHAT HER POINTING CAME TO]"
     if not record_turn_world_evidence(reading):
         return False

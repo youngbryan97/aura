@@ -41,8 +41,8 @@ def test_pointing_is_a_step_with_its_receipt(monkeypatch):
     assert asyncio.run(screen_highlight.point_as_asked("What time is it?")) is None
 
 
-@pytest.mark.parametrize("shown,said", [(True, "A rectangle was drawn on the screen around 'back button'"),
-                                        (False, "Nothing was drawn: could not locate it")])
+@pytest.mark.parametrize("shown,said", [(True, "She drew a rectangle around 'back button'"),
+                                        (False, "She did not draw it: could not locate it")])
 @pytest.mark.asyncio
 async def test_what_the_pointing_came_to_is_beside_her_turn_and_the_lane_says_nothing(monkeypatch, shown, said):
     from interface.routes import chat as chat_routes
@@ -84,8 +84,8 @@ async def test_the_desktop_task_points_where_nothing_else_is_asked(monkeypatch):
     assert result["status"] == "pointed_on_screen" and result["ok"] is True
 
 
-@pytest.mark.parametrize("shown,said", [(True, "A rectangle was drawn on the screen around 'back button'"),
-                                        (False, "Nothing was drawn: could not locate it")])
+@pytest.mark.parametrize("shown,said", [(True, "She drew a rectangle around 'back button'"),
+                                        (False, "She did not draw it: could not locate it")])
 @pytest.mark.asyncio
 async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_to_say(monkeypatch, shown, said):
     """LIVE 16 November 2026, 12:30 local: the ring was drawn around Chrome's back button and Bryan saw it, and he was
@@ -111,3 +111,21 @@ async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_t
 
     assert result["status"] == "desktop_objective_pointing_read" and result["response"] == "", result
     assert said in beside
+
+
+@pytest.mark.asyncio
+async def test_the_window_she_pointed_in_is_named_with_what_came_of_it(monkeypatch):
+    """LIVE 16 November 2026, 20:18: drawn around Finder's back button, her reply put it "in the browser toolbar"."""
+    monkeypatch.setattr(screen_highlight, "_suppressed", lambda: False)
+    monkeypatch.setattr(screen_highlight, "rate_limited", lambda: False)
+    monkeypatch.setattr("core.senses.screen_context.frontmost_window_hint", lambda: ("Finder", "bryan"))
+    monkeypatch.setattr(screen_highlight, "_whose_window_is_meant_by", lambda app, title: (app, title))
+    monkeypatch.setattr(screen_highlight, "locate_on_screen", lambda needle: Rect(824, 316, 36, 36))
+    monkeypatch.setattr(screen_highlight, "_screen_area", lambda: 1_930_176.0)
+
+    async def drawn(rect, seconds):
+        return True
+
+    monkeypatch.setattr(screen_highlight, "_draw", drawn)
+    result = await screen_highlight.highlight("back button", requested=True)
+    assert result.shown and result.window == "Finder: bryan" and result.to_dict()["window"] == "Finder: bryan"
