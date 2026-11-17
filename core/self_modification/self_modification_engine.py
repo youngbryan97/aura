@@ -1374,9 +1374,20 @@ class AutonomousSelfModificationEngine:
                     orch,
                     min_idle_seconds=float(self.monitor_interval),
                     require_conversation_ready=False,
+                    needs_the_model=False,
                 )
                 if policy_reason:
                     logger.info("Skipping autonomous self-modification cycle: %s", policy_reason)
+                    await asyncio.sleep(min(_backoff, 60.0))
+                    continue
+                # Her mend works on her Python and her tests, and starts while her model's lane is busy; the rest of
+                # the cycle asks her model and waits for it (LIVE 17 November 2026: fourteen minutes held behind her
+                # curriculum loop's background generations, with nobody talking to her).
+                model_busy = background_activity_reason(orch, min_idle_seconds=float(self.monitor_interval),
+                                                        require_conversation_ready=False)
+                if model_busy:
+                    if self._start_mending():
+                        logger.info("🩹 Her mend started while her model's lane is busy (%s).", model_busy)
                     await asyncio.sleep(min(_backoff, 60.0))
                     continue
 

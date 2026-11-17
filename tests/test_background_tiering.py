@@ -174,5 +174,27 @@ class TestBackgroundTiering(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(reason, "foreground_generation_active")
 
+    def test_work_that_does_not_use_her_model_is_held_by_a_persons_turn_not_by_her_models_lane(self):
+        """LIVE 17 November 2026: her repair loop, which works on her Python and tests, waited fourteen minutes as
+        "foreground_generation_active" behind her curriculum loop's background generations, nobody talking to her."""
+        from unittest import mock
+
+        from core.runtime import foreground_guard
+        from core.runtime.background_policy import background_activity_reason
+
+        gate = SimpleNamespace(get_conversation_status=lambda: {"foreground_owned": False, "active_generations": 1})
+        orch = SimpleNamespace(is_busy=False, _suppress_unsolicited_proactivity_until=0.0,
+                               _foreground_user_quiet_until=0.0, _last_user_interaction_time=0.0)
+
+        with _service_get_overrides(inference_gate=gate):
+            self.assertEqual(background_activity_reason(orch, allow_no_user_anchor=True),
+                             "foreground_generation_active")
+            self.assertNotIn("foreground", background_activity_reason(orch, allow_no_user_anchor=True,
+                                                                      needs_the_model=False))
+            with mock.patch.object(foreground_guard, "foreground_activity_reason",
+                                   lambda: "foreground_chat_active"):
+                self.assertEqual(background_activity_reason(orch, allow_no_user_anchor=True, needs_the_model=False),
+                                 "foreground_chat_active")
+
 if __name__ == "__main__":
     unittest.main()

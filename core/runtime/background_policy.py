@@ -672,7 +672,11 @@ def _runtime_uptime_seconds(orchestrator: Any = None) -> float:
     return max(0.0, time.time() - max(valid_starts))
 
 
-def _foreground_activity_reason() -> str:
+def _foreground_activity_reason(*, needs_the_model: bool = True) -> str:
+    """Why foreground activity holds background work back, or "". Work that does not use her model is held only by a
+    person's turn, not by a generation on her model's lane: LIVE 17 November 2026 her repair loop, which works on her
+    Python and her tests, waited fourteen minutes as "foreground_generation_active" while her curriculum loop asked
+    her model for one background generation after another, and nobody was talking to her."""
     guard_reason = ""
     try:
         from core.runtime.foreground_guard import foreground_activity_reason
@@ -688,6 +692,8 @@ def _foreground_activity_reason() -> str:
         )
         logger.warning("Background policy foreground guard probe failed: %s", _exc)
         return "foreground_guard_unavailable"
+    if not needs_the_model:
+        return guard_reason
 
     try:
         from core.container import ServiceContainer
@@ -768,6 +774,7 @@ def background_activity_reason(
     require_conversation_ready: bool | None = None,
     allow_no_user_anchor: bool = False,
     allow_desktop_safe_boot: bool = False,
+    needs_the_model: bool = True,
 ) -> str:
     if profile is not None:
         if min_idle_seconds is None:
@@ -826,7 +833,7 @@ def background_activity_reason(
         if last_user <= 0.0 and not allow_no_user_anchor:
             return "no_user_anchor"
 
-    foreground_reason = _foreground_activity_reason()
+    foreground_reason = _foreground_activity_reason(needs_the_model=needs_the_model)
     if foreground_reason:
         return foreground_reason
 
