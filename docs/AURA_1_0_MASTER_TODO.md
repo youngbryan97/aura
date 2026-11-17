@@ -7368,11 +7368,15 @@ needs her 27B free (her app down, or her app's own influence trials).
      timeouts measured as faults of performance. Closes when, over a week of
      her running, every reason she gives for a fault she cannot keep is one
      no capture removes: time, cancellation, the world outside her.
-  2. Changes wider than one line. Localisation by the lines her failing test
-     runs and her passing tests do not (Ochiai over coverage), and her model
-     as the last proposer, given the failure, the code it ran through and
-     the tests, its output judged by the same gates. Closes when her loop
-     mends more of the 81 defects from her history
+  2. Changes wider than one fixed template, made from evidence. Her program's
+     values are recorded at the suspect lines while her failing and passing
+     tests run. The outcome a branch needed for the failing test to pass is
+     found by forcing it (angelic fix localisation), and the smallest
+     condition or expression that agrees with every run is synthesised:
+     the semantic repair of SemFix (Nguyen et al., ICSE 2013), Nopol (Xuan et
+     al., TSE 2017) and Angelix (Mechtaev et al., ICSE 2016). Localisation is
+     by the lines her failing test runs and her passing tests do not. Closes
+     when her loop mends more of the 81 defects from her history
      (`tools/defects_from_her_history.py`) than her 27B alone did, 4 of 79.
   3. Improvement by measurement. A change proposed for a cost her stream
      measures (a function that holds her event loop, a prompt larger than
@@ -7388,9 +7392,13 @@ needs her 27B free (her app down, or her app's own influence trials).
   5. A record a person can read. Every change she lands has a receipt, is
      loaded or waits for her next start, is undone when it faults, and is
      reverted on origin, and one page shows what she changed each day.
-  Bryan's decision: her code proposer. Her 27B persona cortex mended 4 of
-  79. A code model on her code lane would propose better, and needs memory
-  beside the resident cortex.
+  Bryan's decision, 16 November: an engineered system, no code model. "build
+  a system that does it so that A) we dont have to train a local code model
+  B) so that we dont have to worry about loading another model and fitting
+  it into RAM and C) building an engineered solution that does it means we
+  can design the scope and accuracy and capability from scratch ... + it
+  wont hallucinate". Every change is computed from her program's own
+  behaviour and judged by her tests; no part of the loop generates text.
 
 ## Live session 2026-09-07: what the runtime showed
 
