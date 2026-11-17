@@ -41,6 +41,7 @@ draft is kept, and it is the floor nothing is allowed to fall below.
 from __future__ import annotations
 
 import contextvars
+import json
 import logging
 import re
 import time
@@ -71,6 +72,7 @@ __all__ = [
     "short_draft_answers_closed_question",
     "begin_turn_tool_receipts",
     "capabilities_run_this_turn",
+    "her_calls_this_turn",
     "record_tool_receipt",
     "turn_tool_receipts",
 ]
@@ -287,25 +289,33 @@ def turn_tool_receipts() -> tuple[dict[str, Any], ...]:
     return custody.receipts() if custody is not None else ()
 
 
-#: The heading her model reads this turn's calls under.
+#: The heading this turn's calls are written under as a record.
 WHAT_SHE_DID_THIS_TURN = "## WHAT SHE DID IN THIS TURN"
 
 
-def what_she_did_this_turn() -> str:
-    """This turn's calls and what each came to, a reading for every generation of the turn; "" when none ran.
-
-    LIVE 16 November 2026, 23:30 to 23:35: asked for a desktop notification, four notify_user calls in her tool loop
-    each failed ("argv entries must not be empty"), the loop ran out of time, and the pass that then wrote her reply
-    was given her capabilities and not this record. She said "I have a notify_user capability available, so let me push it
-    to your desktop now." Repeats of one outcome are told once, with how many.
-    """
-    told: dict[tuple[str, bool, str], int] = {}
+def _this_turns_calls() -> dict[tuple[str, str, str, bool, str], int]:
+    """This turn's calls by what each was and what it came to, with how many times: one call recorded again is still
+    one (core/conversation/turn_evidence_custody.py), and calls with other arguments are other calls."""
+    told: dict[tuple[str, str, str, bool, str], int] = {}
     for receipt in turn_tool_receipts()[:16]:
         if not isinstance(receipt, dict):
             continue
         came_to = " ".join(str(receipt.get("observed_content") or receipt.get("evidence") or "").split())[:300]
-        key = (str(receipt.get("tool") or "a tool"), bool(receipt.get("ok")), came_to)
+        tool = str(receipt.get("tool") or "a tool")
+        action = str(receipt.get("action") or "")
+        key = (tool, "" if action == tool else action, str(receipt.get("object_ref") or ""), bool(receipt.get("ok")),
+               came_to)
         told[key] = told.get(key, 0) + 1
+    return told
+
+
+def what_she_did_this_turn() -> str:
+    """This turn's calls and what each came to, as a record a person reads; "" when none ran. Repeats of one outcome
+    are told once, with how many: LIVE 16 November 2026, 23:30 to 23:35, four notify_user calls failed alike ("argv
+    entries must not be empty"). Her model reads the calls themselves as her own (her_calls_this_turn, below)."""
+    told: dict[tuple[str, bool, str], int] = {}
+    for (tool, _action, _object, ok, came_to), times in _this_turns_calls().items():
+        told[(tool, ok, came_to)] = told.get((tool, ok, came_to), 0) + times
     if not told:
         return ""
     lines = []
@@ -313,6 +323,30 @@ def what_she_did_this_turn() -> str:
         how_often = f" ({times} times)" if times > 1 else ""
         lines.append(f"- {tool}: {'done' if ok else 'failed'}{how_often}" + (f": {came_to}" if came_to else ""))
     return "\n".join([WHAT_SHE_DID_THIS_TURN, *lines])
+
+
+def her_calls_this_turn() -> list[dict[str, Any]]:
+    """This turn's calls as her own transcript, for after the person's message: each call she made, in the form her
+    template gives a call of hers, then what it came back with as its result. [] when none ran.
+
+    Her tool loop writes every call it makes this way, and her model reads them as calls it made. The same calls made
+    on the turn's way to her (a desktop step, a page read for her) reached her as a reading under a heading, among the
+    grounding a character budget fits whole blocks into and drops the rest of without a word
+    (core/brain/inference_gate_prompt.py, _fit_grounding_blocks). LIVE 17 November 2026, 01:58: the ring was drawn
+    around Finder's back button and her reply offered to point at Chrome's.
+    """
+    messages: list[dict[str, Any]] = []
+    for index, ((tool, action, object_ref, ok, came_to), times) in enumerate(_this_turns_calls().items()):
+        call_id = f"call_this_turn_{index}"
+        arguments = {name: value for name, value in (("action", action), ("object", object_ref)) if value}
+        result: dict[str, Any] = {"ok": ok, "came_to": came_to or ("done" if ok else "failed")}
+        if times > 1:
+            result["times"] = times
+        messages.append({"role": "assistant", "content": "", "tool_calls": [
+            {"id": call_id, "type": "function", "function": {"name": tool, "arguments": arguments}}]})
+        messages.append({"role": "tool", "tool_call_id": call_id, "name": tool,
+                         "content": json.dumps(result, ensure_ascii=False)})
+    return messages
 
 
 def bounded_turn_tool_receipts() -> list[dict[str, Any]]:

@@ -9464,7 +9464,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 # while still carrying substantial living-mind context.
                 foreground_profile = "extended"
             messages, system_prompt = self._generate_with_metadata_sink_messages(context, deep_probe_context, foreground_profile, is_background, messages, visible_user_prompt)
-        messages, system_prompt = self._generate_with_metadata_sink_volatile_grounding_rides(ambient_grounding_blocks, context, contract_grounding_blocks, messages, morpho_kwargs, system_prompt, task_grounding_blocks)
+        messages, system_prompt = self._generate_with_metadata_sink_volatile_grounding_rides(ambient_grounding_blocks, context, contract_grounding_blocks, messages, morpho_kwargs, system_prompt, task_grounding_blocks, isolated_generation_contract)
 
         # Last word on size, in the unit the window is actually measured in.
         # Every budget above this line is in characters; this one is in tokens

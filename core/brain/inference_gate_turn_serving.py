@@ -12,6 +12,24 @@ from typing import Any
 from core.verify.turn_receipt import timed_as
 
 
+def _her_calls_after_the_persons_message(messages: Any) -> Any:
+    """``messages`` with this turn's calls after the person's message, where her tool loop leaves the calls it makes
+    (core/conversation/surface_disposition.py, her_calls_this_turn); unchanged when none ran or when the person's message
+    is not the last thing said, as it is not inside her tool loop, whose calls are already there."""
+    if not isinstance(messages, list) or not messages or not isinstance(messages[-1], dict):
+        return messages
+    if str(messages[-1].get("role") or "").strip().lower() != "user":
+        return messages
+    from core.conversation.surface_disposition import her_calls_this_turn
+
+    calls = her_calls_this_turn()
+    if calls:
+        logging.getLogger("Aura.InferenceGate").info(
+            "🧾 %d call(s) of hers this turn follow the person's message: %s", len(calls) // 2,
+            ", ".join(str(call["tool_calls"][0]["function"]["name"]) for call in calls[::2]))
+    return [*messages, *calls] if calls else messages
+
+
 class _ServesTheTurn:
     """Lifted whole out of InferenceGate; see inference_gate.py."""
 
@@ -255,6 +273,7 @@ class _ServesTheTurn:
         morpho_kwargs: Any,
         system_prompt: Any,
         task_grounding_blocks: Any,
+        isolated_generation_contract: Any = False,
     ) -> tuple[Any, Any]:
         # Volatile grounding rides LAST, behind the conversation, so the KV
         # prefix covering the history survives from one turn to the next.
@@ -282,6 +301,8 @@ class _ServesTheTurn:
             system_prompt=system_prompt,
             task_grounding_blocks=task_grounding_blocks,
         )
+        if not isolated_generation_contract:
+            messages = _her_calls_after_the_persons_message(messages)
         # Cache policy is not a caller preference.
         #
         # morpho_kwargs is populated from `context` early, then several

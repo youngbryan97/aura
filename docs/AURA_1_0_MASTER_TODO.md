@@ -4807,6 +4807,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   model refused (6ad4d12fc). At 20:34 on da9449e90: located in 0.13 s, drawn, and her reply placed it "in the Finder
   toolbar ... just to the right of the close/minimize/zoom buttons". Open: the ring is drawn when the step runs and
   lasts 3 s, about 45 s before her words arrive, and her reply says "I'll point it out for you now".
+  17 November, 01:58, on 129700f0c, with Finder in front: drawn around Finder's back button in 0.03 s, and her reply
+  said the back button "should be in Chrome's toolbar" and offered to point at it. da9449e90 had renamed the reading's
+  subject from "She" to "Aura" because her model did not act on the first wording; choosing words for what a model
+  heeds is prompt engineering, and Bryan ruled it out the same night. 129700f0c made the pointing an ordinary step
+  receipt, emitted as every desktop step's is, and took the route's own reading out. The receipt then reached the
+  turn's record and not her reply: the record was a heading among her grounding, which a character budget fits whole
+  blocks into and drops the rest of without a word. Her calls this turn now reach her model in her template's own
+  form for a call of hers, after the person's message (core/conversation/surface_disposition.py,
+  her_calls_this_turn), where her tool loop leaves the calls it makes.
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:

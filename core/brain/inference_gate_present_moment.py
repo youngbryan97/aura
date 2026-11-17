@@ -165,9 +165,6 @@ async def _attach_the_present_moment(
             _present = present_moment_block()
             if _present:
                 ambient_grounding_blocks.append(_present)
-            from core.conversation.surface_disposition import what_she_did_this_turn
-
-            ambient_grounding_blocks.extend(block for block in (what_she_did_this_turn(),) if block)
 
             # Suppressing the web search is only half the fix; without the
             # readings she still has to invent them, which is how "I

@@ -239,10 +239,17 @@ class DevMode:
                     ),
                     "",
                 )
+                # Or from its steps: a lane that ran steps verifies each one's effect on its receipt, and says
+                # nothing at the top. Read only from the top, every desktop task went on the turn's ledger as
+                # asserted, never confirmed, beside its own steps confirmed under their names, and the turn ended
+                # "requested_effect_observed_but_unconfirmed" (live 13 and 16 November 2026, and 17 November at 01:59
+                # after a ring drawn in 0.03 s).
+                steps = [step for step in result.get("receipts") or () if isinstance(step, dict)]
                 effect_observed = bool(
                     result.get("effect_verified")
                     or result.get("postcondition_verified")
                     or result.get("verification") in {"observed", "verified", "postcondition_verified"}
+                    or (steps and all(step.get("effect_verified") is True for step in steps))
                 )
                 record_tool_receipt(
                     trace.tool_name,
