@@ -4799,6 +4799,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   a tool that can highlight ...") at 00:32, and the honest failure at 00:42. The fix is a second cognitive pass
   (_run_cognitive_engine_chat_turn) once the step's reading is recorded, with its reply going through the same gates
   as the first, extracted from the handler, which is over its method-size baseline.
+  16 November, evening, requested highlighting live with Finder in front, typed into her window. The highlighter
+  found nothing in a real window (it asked only the window's own children) and took 120 s measuring the screen through
+  an Apple Event to Finder; both fixed (d4ec2c2c2, ff2acbf58). A pointing request reaches a step that points
+  (6c705a8f6), her launcher draws while her window is up (2bd62792d), and what came of it goes to her turn naming
+  the window and her (69b83c30f, da9449e90). Marked self-sufficient, the turn skipped her cognition and a stand-in
+  model refused (6ad4d12fc). At 20:34 on da9449e90: located in 0.13 s, drawn, and her reply placed it "in the Finder
+  toolbar ... just to the right of the close/minimize/zoom buttons". Open: the ring is drawn when the step runs and
+  lasts 3 s, about 45 s before her words arrive, and her reply says "I'll point it out for you now".
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
