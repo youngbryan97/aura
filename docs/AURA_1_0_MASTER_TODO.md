@@ -7510,6 +7510,22 @@ needs her 27B free (her app down, or her app's own influence trials).
   "headlines, not the day's twists". Neither her sentence nor the request stands out for one capability by her
   embedding model (web_search 0.52 beside x_tools 0.517 for the request), her reply had read Reuters' world page, and
   the gap is kept as nothing clearly named; it is not a capability she has and denied.
+  17 November, night. Part 2: a value read on a suspect line is now a place, read as each of the function's own
+  expressions and parameters of its type, nearest first (7f7fe92a4); values are searched breadth-first after the
+  decisions (96f49aaad); a lookup's mend can ask whether the table holds the key (188ad444f). Run on f5da1f5da, the
+  line its fix is on was reached and given two candidates before the deadline: a forcing costs about 6.8 s, 1.4 s of
+  it starting and 4 s in her session's fixtures. Forcings now run in sessions of many (1dec3d5b7), each mend
+  confirmed in a run of its own; f5da1f5da and the history run have not been run on them yet. ca975c498's fix sets
+  an object's state where it was loaded, a kind of change no place makes yet. Part 5, live: a fourth planted fault
+  (priced, a lookup of an item the table does not hold) was raised at her start, heard, mended, passed her seven
+  gates, landed on origin as 052670e4a and loaded into her running process at 03:41; her page read "landed and
+  loaded". Her repair loop had first waited 24 minutes behind her curriculum loop's background generations, which
+  the policy read as foreground work (5c2977974). Her mend was wrong, `if len(prices) <= 1: return None`, which
+  returns None for an item a one-item table holds; it was taken back out through take_it_back at 04:06 (66ac59a02)
+  and her record said so. Her loop then mended it again as `if item not in prices: return None` (ec6c4a7cc), and her
+  gates refused it at governance-lint, red on main from 1dec3d5b7's raw writes (mended in 98320cb45); her retry
+  made the fault again over her own draft and stalled. A refused draft is now asked of her gates again, and every
+  draft a goal offered stays on her page (879d15c35).
 
 ## Live session 2026-09-07: what the runtime showed
 
