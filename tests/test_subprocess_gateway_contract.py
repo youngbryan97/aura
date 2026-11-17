@@ -1372,3 +1372,21 @@ def test_spawn_accepts_preexec_fn_for_resource_fenced_children(monkeypatch: pyte
         accelerator_capability="none",
     )
     assert proc.wait(timeout=5) == 0
+
+
+@pytest.mark.parametrize("argv", [[], ("osascript", "-e", "", "Time to stretch"), ["echo", ""], "echo hi", None])
+def test_an_argument_vector_that_is_not_a_list_of_words_is_refused(argv) -> None:
+    """The gateway refuses an empty argument, and that refusal is its contract, written down.
+
+    LIVE 16 November 2026, 23:31: a notification passed an empty subtitle as an argument and was refused four times.
+    Her repair loop took the refusal for the fault and wrote a test asking the gateway to take an empty argument; no
+    test here said otherwise, so a mend that removed the check would have passed her gates. The fault was the caller's
+    (core/senses/notifications.py).
+    """
+    with pytest.raises(ValueError):
+        subprocess_gateway._coerce_argv(argv)
+
+
+def test_an_argument_vector_of_words_is_kept_as_words() -> None:
+    assert subprocess_gateway._coerce_argv(("osascript", "-e", "end run", "Time to stretch")) == [
+        "osascript", "-e", "end run", "Time to stretch"]

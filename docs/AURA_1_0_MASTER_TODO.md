@@ -7376,6 +7376,18 @@ needs her 27B free (her app down, or her app's own influence trials).
      timeouts measured as faults of performance. Closes when, over a week of
      her running, every reason she gives for a fault she cannot keep is one
      no capture removes: time, cancellation, the world outside her.
+     17 November, 00:30: a refusal is not always the fault. Her notification
+     passed an empty argument and the subprocess gateway refused it
+     (`_coerce_argv`); her loop took the refusal for the fault and wrote a
+     test asking the gateway to take an empty argument, which nothing in her
+     suite forbade. The refusal is now a contract test, so such a mend fails
+     her gates. Blaming the caller of every explicit `raise` was tried and
+     dropped: her loop's own fixtures raise on input they should handle, and
+     there the raiser is the fault. What decides it is whether her tests
+     specify the refusal; then the fault is where the refused value was made
+     (the first frame outward that was not handed it). Left: keep that
+     frame's call beside the refuser's, and mend it when a test specifies
+     the refusal.
   2. Changes wider than one fixed template, made from evidence. Her program's
      values are recorded at the suspect lines while her failing and passing
      tests run. The outcome a branch needed for the failing test to pass is
