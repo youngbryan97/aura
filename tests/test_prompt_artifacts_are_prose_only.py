@@ -67,3 +67,14 @@ def test_a_leaked_line_is_still_removed_from_prose() -> None:
 
 def test_a_reply_with_no_fence_is_unaffected() -> None:
     assert not _contains_prompt_artifact("The function reverses the string.")
+
+
+def test_her_templates_own_call_format_in_a_reply_is_an_artifact_and_in_code_it_is_not():
+    """LIVE 16 November 2026, 20:37: "Let me do that now." and a <function=computer_use> block were served."""
+    from core.conversation.response_reliability import contains_prompt_artifact
+
+    served = ("I can send a desktop notification for you. Let me do that now.\n\n<function=computer_use>\n"
+              "<parameter=action>\nleft_click\n</parameter>\n<parameter=x>\n0\n</parameter>\n</function>")
+    assert contains_prompt_artifact(served)
+    assert not contains_prompt_artifact("Her template writes calls as `<function=name>` blocks.")
+    assert not contains_prompt_artifact("This function returns a parameter, and I'll explain it.")

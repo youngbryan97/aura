@@ -87,7 +87,8 @@ async def test_the_desktop_task_points_where_nothing_else_is_asked(monkeypatch):
 @pytest.mark.parametrize("shown,said", [(True, "Aura drew a rectangle around 'back button'"),
                                         (False, "Aura did not draw it: could not locate it")])
 @pytest.mark.asyncio
-async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_to_say(monkeypatch, shown, said):
+async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_to_say(monkeypatch, tmp_path, shown,
+                                                                                      said):
     """LIVE 16 November 2026, 12:30 local: the ring was drawn around Chrome's back button and Bryan saw it, and he was
     given "Done - the desktop steps completed and their effects verified." Her capability engine writes its own verdict
     over a result's "status" ("success_verified"), and the stand-in engine in the test above did not."""
@@ -96,8 +97,15 @@ async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_t
     from core.container import ServiceContainer
     from interface.routes import chat as chat_routes
 
+    from core.agency.intention_loop import IntentionLoop
+
     _drawn(monkeypatch, shown)
     monkeypatch.setattr("core.runtime.runtime_settings.runtime_approval_mode", lambda: "none")  # as Bryan runs her
+    # Its intentions kept apart: in the suite's shared data they became the "real traffic" a later test's routing
+    # surface is seeded from (tests/test_routing_consults_what_actually_ran.py, 16 November 2026).
+    intentions = IntentionLoop(db_path=str(tmp_path / "intention_loop.db"))
+    monkeypatch.setattr("core.agency.intention_loop._instance", intentions)
+    ServiceContainer.register_instance("intention_loop", intentions, required=False)
     ServiceContainer.register_instance("permission_model", PermissionRiskModel(), required=False)
     ServiceContainer.register_instance("capability_engine", CapabilityEngine(), required=False)
     try:
@@ -108,6 +116,8 @@ async def test_through_her_own_capability_engine_what_it_came_to_is_still_hers_t
     finally:
         ServiceContainer.unregister("capability_engine")
         ServiceContainer.unregister("permission_model")
+        ServiceContainer.unregister("intention_loop")
+        intentions.close()
 
     assert result["status"] == "desktop_objective_pointing_read" and result["response"] == "", result
     assert said in beside

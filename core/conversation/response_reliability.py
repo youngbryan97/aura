@@ -151,7 +151,7 @@ _TURN_OR_CONTROL_ARTIFACT_RE = re.compile(
     # from the first such marker is transcript continuation, not an answer, so
     # the same cut that handles "user:" and <|im_start|> belongs here.
     r"|(?:</?tool_call>)"
-    r"|(?:</?function_call>)"
+    r"|(?:</?function_call>)|(?:</?(?:function|parameter)(?:=[A-Za-z_][A-Za-z0-9_.:-]{0,127})?>)"
     r"|(?:</?tool_response>)"
     r"|(?:!\s*(?:user|assistant|human|system)\b)"
     r"|(?:<\|(?:start|end)_of_turn\|>)"
