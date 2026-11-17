@@ -7154,6 +7154,19 @@ needs her 27B free (her app down, or her app's own influence trials).
   pending-goal lines are readings now, given to her cortex beside her recent conversation by the path her screen
   remark takes (core/brain/her_unprompted_turn.py); the sentence, if one forms, is hers, and none is sent when none
   forms. A host condition that clears is re-armed, which its guard promised and nothing called.
+  16 November, her census (tools/what_instructs_her.py over 14 to 16 November): the identity lock reached her
+  cortex on 7 user turns of her full-phase path, the last at 07:16 UTC on the 16th, though a person's turn in a
+  worded lane has gone without it since 4b485b767 ("fixed after" above). The strip matched the whole lock, and a
+  system prompt over its budget keeps a head of a third of its cap: with a cap of 6,617 characters the head ends
+  inside the lock's 2,353, so the cut lock went through. It is taken out from its opening as far as it runs now.
+  Her waking went with "You are waking. Be honest, brief, and grounded." and four lines of how to sound; it goes
+  as the reading of her waking under its own origin, and that reading says what happened instead of addressing
+  her. The note on how much of her conversation is in front of her told her what to say of the rest ("say you
+  would need to look it up"), under a "[SYSTEM:" label, in two places; it is the counts now. Left, as listed
+  above and all background: the curriculum loop's lock on her brainstem (66 dispatches in those three days),
+  her browser's, the reimplementation lab's code generator, and the amplifier's role prompts on her deep turns
+  (F04). On typed turns the census also counts readings phrased in the second person, as with "- You are in the
+  middle of: ..." (now "- In the middle of: ..."); one, "You are here.", is not yet traced to its source.
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the

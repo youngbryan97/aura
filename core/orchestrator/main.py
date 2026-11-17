@@ -327,17 +327,13 @@ async def _start_the_perception_organs(
                     _gate = resolve_inference_gate()
                     if _gate is None:
                         _gate = InferenceGate(self)
-                    _orientation_prompt = (
-                        f"[WAKING SEQUENCE]\n{_ctx}\n\n"
-                        "In one or two sentences, synthesize your re-orientation. "
-                        "What do you notice? What are you picking up from where you left off? "
-                        "Be terse, authentic — no performance, just the felt sense of resuming."
-                    )
+                    # The reading of her waking, and nothing on how to take it (F06): "You are waking. Be honest,
+                    # brief, and grounded." and four lines of how to sound went with it until 16 November 2026.
                     _narrative = await _gate.think(
-                        _orientation_prompt,
-                        system_prompt="You are waking. Be honest, brief, and grounded.",
+                        f"[WAKING SEQUENCE]\n{_ctx}",
                         prefer_tier="tertiary",
                         is_background=True,
+                        origin="waking_orientation",
                     )
                     if _narrative and _narrative.strip():
                         from core.thought_stream import get_emitter as _get_emitter2

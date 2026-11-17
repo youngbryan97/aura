@@ -79,4 +79,5 @@ def test_the_fallback_transcript_is_cut_at_an_exchange(judge) -> None:
     assert [m["content"] for m in reached_history.messages if m["role"] == "user"] == [
         CONVERSATION[0]["user"], CONVERSATION[1]["user"], CONVERSATION[3]["user"]
     ]
-    assert "The other 1 are not in front of you" in reached_history.note
+    assert "1 not here" in reached_history.note
+    assert "say you would" not in reached_history.note, "how much is here is a reading, not a direction"

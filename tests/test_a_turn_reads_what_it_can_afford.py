@@ -70,8 +70,9 @@ def test_the_cut_is_said_out_loud_rather_than_hidden():
         _stamped(pairs), budget_chars=per_pair * 6
     )
     assert len(reached.messages) == 12
-    assert "34" in reached.note
-    assert "look it up" in reached.note
+    assert "34 not here" in reached.note
+    # How much is here is a reading; what to say of the rest is hers (F06, 16 November 2026).
+    assert "look it up" not in reached.note and "SYSTEM" not in reached.note
     assert reached.reach is not None
     assert reached.reach.to_dict()["dropped"] == 34
 

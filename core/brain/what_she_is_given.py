@@ -368,8 +368,23 @@ def without_the_identity_lock(messages: Any, system_prompt: Any) -> tuple[Any, A
     if not lock:
         return messages, system_prompt
 
+    opening = lock.split("\n", 1)[0]
+
     def without(text: Any) -> Any:
-        return text.replace(lock, "").strip() if isinstance(text, str) and lock in text else text
+        """The text with the lock taken out, whole or cut short. A system prompt over its budget keeps a head of a
+        third of its cap, and with a cap of 6,617 that head ends inside the lock's 2,353 characters: LIVE 16 November
+        2026 at 06:23 UTC her census counted the cut lock on a person's turn, which a match on the whole lock missed."""
+        if not isinstance(text, str):
+            return text
+        if lock in text:
+            return text.replace(lock, "").strip()
+        at = text.find(opening)
+        if at < 0:
+            return text
+        run = len(opening)
+        while run < len(lock) and at + run < len(text) and text[at + run] == lock[run]:
+            run += 1
+        return (text[:at] + text[at + run:]).strip()
 
     if isinstance(messages, list):
         messages = [{**message, "content": without(message.get("content"))}

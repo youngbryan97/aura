@@ -198,12 +198,11 @@ def reached_exchange_messages(
     if not reach.cuts_anything:
         return ReachedHistory(messages=_as_messages(pairs), reach=reach)
 
+    # How much of the conversation is here, as a reading: what to say about the rest is hers (F06; its sentence
+    # telling her to "say you would need to look it up" went on 16 November 2026).
     note = (
-        f"[SYSTEM: this conversation has {len(pairs)} completed exchanges and "
-        f"{reach.retained} are below: the most recent and the earlier ones this "
-        f"request bears on. The other {reach.dropped} are not in front of you. If "
-        "the person refers to one of them, say you would need to look it up "
-        "rather than reconstructing it.]"
+        f"[CONVERSATION HELD: {len(pairs)} completed exchanges; {reach.retained} below, the most recent and the "
+        f"earlier ones this request bears on; {reach.dropped} not here.]"
     )
     return ReachedHistory(
         messages=_as_messages([pairs[index] for index in reach.kept]),

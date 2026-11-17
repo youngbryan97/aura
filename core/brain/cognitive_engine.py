@@ -339,11 +339,10 @@ def _fit_history_to_what_is_left(
         len(kept),
         reach.reason,
     )
+    # A reading of how much is here; what to say of the rest is hers (F06, 16 November 2026).
     note = (
-        f"[SYSTEM: this conversation has {len(pairs)} completed exchanges and "
-        f"the {reach.retained} most recent are below. The other {reach.dropped} "
-        "are not in front of you. If the person refers to something older, say "
-        "you would need to look it up rather than reconstructing it.]"
+        f"[CONVERSATION HELD: {len(pairs)} completed exchanges; the {reach.retained} "
+        f"most recent below; {reach.dropped} older ones not here.]"
     )
     return kept, note
 

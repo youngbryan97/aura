@@ -287,7 +287,7 @@ class TakingItUp:
             f"- Your record: {wants}.",
         ]
         if answer["leaving"]:
-            lines.append(f"- You are in the middle of: {answer['leaving']}.")
+            lines.append(f"- In the middle of: {answer['leaving']}.")
         if answer["unknown"]:
             lines.append(f"- New to you: {', '.join(key.split(':', 1)[-1] for key in answer['unknown'])}.")
         return "\n\n".join(["\n".join(lines), *blocks])

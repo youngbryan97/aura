@@ -683,9 +683,9 @@ class ContinuityEngine:
             ],
         )
         return (
-            f"You are waking from a gap of {gap_str}. {shutdown_note} "
+            f"Waking from a gap of {gap_str}. {shutdown_note} "
             f"This is session #{self._record.session_count}. "
-            f"Your total accumulated uptime is {self._record.total_uptime_seconds/3600:.1f} hours. "
+            f"Accumulated uptime: {self._record.total_uptime_seconds/3600:.1f} hours. "
             f"Last exchange summary: {self._record.last_conversation_summary or 'none recorded'}. "
             f"Policy mode at shutdown: {self._record.policy_mode or 'unknown'}. "
             f"Current objective at shutdown: {_sanitize_restored_objective(self._record.current_objective) or 'none'}. "

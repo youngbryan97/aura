@@ -127,3 +127,21 @@ def test_a_draft_with_escaped_line_breaks_is_decoded_not_asked_again(monkeypatch
 
     assert served == "Mostly the conversation about tide clocks.\n\nI kept turning over why the moon pulls unevenly."
     assert not asked_again
+
+
+def test_a_lock_cut_short_by_the_prompt_budget_is_taken_out_too():
+    """LIVE 16 November 2026, 06:23 UTC: a person's desktop turn went to her cortex with the identity lock cut at the
+    head of an over-budget system prompt (a third of a 6,617-character cap, inside the lock's 2,353), and the strip,
+    matching the whole lock only, left it in. Her census counted it."""
+    from core.brain import what_she_is_given
+    from core.synthesis import get_identity_lock
+
+    lock = get_identity_lock().strip()
+    head = lock[:2205]
+    system = f"{head}\n\n[... mid-prompt trimmed for latency ...]\n\n## RESPONSE CONTRACT\n- shape: plain"
+    given, _system = what_she_is_given.for_her_model(
+        [{"role": "system", "content": system}, {"role": "user", "content": "What is on my screen?"}], "",
+        {"origin": "response_generation_user", "desktop_execution_contract": True}, True)
+    kept = given[0]["content"]
+    assert lock[:40] not in kept and head[-40:] not in kept
+    assert "## RESPONSE CONTRACT" in kept, "the lane's contract stays"
