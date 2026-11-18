@@ -1226,8 +1226,14 @@ async def _what_the_world_says_for_the_turn(
     # A question about her grounds is read the same way: what it checks is
     # the claim it points at in her last answer, not its own words
     # (core/conversation/what_the_world_says.py, claim_asked_about).
-    instructed = read_search_request(user_message, previous).decided_by == "instruction" or bool(
-        previous_reply and asks_about_grounds(user_message) is True
+    # Read as asking to find something out by meaning, not only by an instruction that opens its sentence, the
+    # same: LIVE 17 November 2026, typed into her window, "You should be able to google them. All flights were
+    # grounded on Friday. ..." went to the contract's collector and was searched as one query of the whole message.
+    asked = read_search_request(user_message, previous)
+    instructed = (
+        asked.decided_by == "instruction"
+        or (asked.decided_by == "learned" and asked.about_the_world)
+        or bool(previous_reply and asks_about_grounds(user_message) is True)
     )
     contracted = (
         await _collect_desktop_required_search_evidence(user_message, session_id=session_id, recent_days=7 if current else 0)

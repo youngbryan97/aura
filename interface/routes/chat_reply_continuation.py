@@ -12,9 +12,15 @@ import re
 def _continuation_restates(head: str, tail: str) -> bool:
     """Whether the continuation says again what the head already said.
 
-    Its subject words are the head's, in any form, and it brings no number
-    the head did not have. Short tails are not judged: a few words can
-    coincide by chance.
+    Its subject words are the head's, in any form, it carries most of the head's
+    in turn, and it brings no number the head did not have. Short tails are not
+    judged: a few words can coincide by chance.
+
+    Saying it again goes both ways. LIVE 17 November 2026 her answer about the
+    week's outages, 1,362 characters cut at its token ceiling, was continued
+    with ", or what the Apple/NSA outages specifically affected?". Every subject
+    word of that is in her answer, so it was read as a restatement, and the
+    fragment went to the person in place of the answer.
     """
     from core.conversation.thread_continuity import content_terms
     from core.language.word_forms import matching_word_forms
@@ -25,6 +31,9 @@ def _continuation_restates(head: str, tail: str) -> bool:
     head_terms = content_terms(head)
     shared = (tail_terms & head_terms) | matching_word_forms(tail_terms, head_terms)
     if len(shared) / float(len(tail_terms)) < 0.7:
+        return False
+    carried = (head_terms & tail_terms) | matching_word_forms(head_terms, tail_terms)
+    if len(carried) / float(len(head_terms) or 1) < 0.7:
         return False
     numbers = lambda text: set(re.findall(r"\d[\d,]*(?:\.\d+)?", text))  # noqa: E731
     return numbers(tail) <= numbers(head)
