@@ -209,6 +209,7 @@ def record_tool_receipt(
     observed_content: Any = "",
     mirror_to_turn: bool = True,
     vouches_for: str = "",  # core/conversation/what_a_record_vouches_for.py
+    as_made: Any = None,
 ) -> bool:
     """Record one structured effect under the exact active turn custody.
 
@@ -220,6 +221,9 @@ def record_tool_receipt(
     ``mirror_to_turn`` also puts the effect on the turn's effect ledger, which
     is what the honesty guards read. Callers that record the effect there
     themselves pass False rather than recording it twice under two names.
+
+    ``as_made`` is a call of her own tool loop as her model made it: ``{"arguments": ..., "returned": ...}``, the
+    arguments she gave and the result as the loop showed it to her (her_calls_this_turn).
     """
     name = str(tool_name or "").strip()
     if not name:
@@ -277,6 +281,7 @@ def record_tool_receipt(
             "observed_content": str(observed_content or "")[:16000],
             "vouches_for": str(vouches_for or "")[:32],
             "recorded_at": time.time(),
+            **({"as_made": dict(as_made)} if isinstance(as_made, dict) else {}),
         }
     )
 
@@ -296,6 +301,14 @@ WHAT_SHE_DID_THIS_TURN = "## WHAT SHE DID IN THIS TURN"
 def _this_turns_calls() -> dict[tuple[str, str, str, bool, str], int]:
     """This turn's calls by what each was and what it came to, with how many times: one call recorded again is still
     one (core/conversation/turn_evidence_custody.py), and calls with other arguments are other calls."""
+    told: dict[tuple[str, str, str, bool, str], int] = {}
+    for key, _receipt in _this_turns_receipts():
+        told[key] = told.get(key, 0) + 1
+    return told
+
+
+def _this_turns_receipts() -> list[tuple[tuple[str, str, str, bool, str], dict[str, Any]]]:
+    """Each receipt of a call this turn, under what the call was and what it came to."""
     receipts = [receipt for receipt in turn_tool_receipts()[:16] if isinstance(receipt, dict)]
     # A lane records each of its steps under its own name with the step's action (core/epistemics/turn_effects.py), and
     # the dispatcher records the call itself under the same name with no action of its own
@@ -303,7 +316,7 @@ def _this_turns_calls() -> dict[tuple[str, str, str, bool, str], int]:
     # not a second one: LIVE 17 November 2026, 02:41, one pointing reached her model as two desktop_task calls.
     with_steps = {str(receipt.get("tool")) for receipt in receipts
                   if str(receipt.get("action") or receipt.get("tool")) != str(receipt.get("tool"))}
-    told: dict[tuple[str, str, str, bool, str], int] = {}
+    kept: list[tuple[tuple[str, str, str, bool, str], dict[str, Any]]] = []
     for receipt in receipts:
         came_to = " ".join(str(receipt.get("observed_content") or receipt.get("evidence") or "").split())[:300]
         tool = str(receipt.get("tool") or "a tool")
@@ -312,8 +325,8 @@ def _this_turns_calls() -> dict[tuple[str, str, str, bool, str], int]:
             continue
         key = (tool, "" if action == tool else action, str(receipt.get("object_ref") or ""), bool(receipt.get("ok")),
                came_to)
-        told[key] = told.get(key, 0) + 1
-    return told
+        kept.append((key, receipt))
+    return kept
 
 
 def what_she_did_this_turn() -> str:
@@ -341,18 +354,26 @@ def her_calls_this_turn() -> list[dict[str, Any]]:
     grounding a character budget fits whole blocks into and drops the rest of without a word
     (core/brain/inference_gate_prompt.py, _fit_grounding_blocks). LIVE 17 November 2026, 01:58: the ring was drawn
     around Finder's back button and her reply offered to point at Chrome's.
+
+    A call her own tool loop made goes back as she made it, with what the loop showed her. Summarised, it read as a
+    call she had never made: LIVE 17 and 18 November 2026, code_repl had answered, and the transcript her reply was
+    written from showed her calling it with an "action" of "execute" and her program cut off at 200 characters, so she
+    called it again, in a pass that runs no tools, until the turn ran out.
     """
     messages: list[dict[str, Any]] = []
     for index, ((tool, action, object_ref, ok, came_to), times) in enumerate(_this_turns_calls().items()):
         call_id = f"call_this_turn_{index}"
+        made = next((receipt.get("as_made") for key, receipt in _this_turns_receipts()
+                     if key == (tool, action, object_ref, ok, came_to) and receipt.get("as_made")), None)
         arguments = {name: value for name, value in (("action", action), ("object", object_ref)) if value}
         result: dict[str, Any] = {"ok": ok, "came_to": came_to or ("done" if ok else "failed")}
         if times > 1:
             result["times"] = times
         messages.append({"role": "assistant", "content": "", "tool_calls": [
-            {"id": call_id, "type": "function", "function": {"name": tool, "arguments": arguments}}]})
+            {"id": call_id, "type": "function",
+             "function": {"name": tool, "arguments": dict(made["arguments"]) if made else arguments}}]})
         messages.append({"role": "tool", "tool_call_id": call_id, "name": tool,
-                         "content": json.dumps(result, ensure_ascii=False)})
+                         "content": str(made["returned"]) if made else json.dumps(result, ensure_ascii=False)})
     return messages
 
 

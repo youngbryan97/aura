@@ -81,3 +81,21 @@ def test_no_call_this_turn_adds_nothing():
     with bind_turn_evidence_custody(session_id="s", turn_id="t-quiet"):
         assert _her_calls_after_the_persons_message(list(asked)) == asked
     assert _her_calls_after_the_persons_message(list(asked)) == asked
+
+
+def test_a_call_of_her_tool_loop_goes_back_as_she_made_it(monkeypatch):
+    """LIVE 18 November 2026: code_repl had answered, and her reply pass saw herself calling it with an "action" of
+    "execute" and her program cut at 200 characters, so she called it again in a pass that runs no tools."""
+    from core.conversation import surface_disposition as disposition
+
+    program = "import sympy\n" + "# a long program\n" * 40 + "print(sympy.isprime(2**61 - 1))"
+    returned = '{"ok":true,"status":"ok","stdout":"True\\n"}'
+    monkeypatch.setattr(disposition, "turn_tool_receipts", lambda: ({
+        "tool": "code_repl", "action": "execute", "object_ref": str({"code": program})[:200], "ok": True,
+        "observed_content": "True", "as_made": {"arguments": {"code": program, "timeout": 30}, "returned": returned},
+    },))
+
+    call, answer = disposition.her_calls_this_turn()
+
+    assert call["tool_calls"][0]["function"] == {"name": "code_repl", "arguments": {"code": program, "timeout": 30}}
+    assert answer["content"] == returned and answer["tool_call_id"] == call["tool_calls"][0]["id"]

@@ -12039,8 +12039,8 @@ def _record_tool_receipt_for_this_turn(
             action="execute",
             object_ref=str(tool_args or "")[:200],
             effect_observed=True,
-            verification="the tool returned a result during this turn",
-            observed_content=observed[:2000],
+            verification="the tool returned a result during this turn", observed_content=observed[:2000],
+            as_made={"arguments": dict(tool_args or {}), "returned": str(serialized or observed)},
         )
     except Exception as exc:  # noqa: BLE001 - a receipt must never end a turn
         logger.debug(
