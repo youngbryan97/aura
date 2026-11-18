@@ -209,35 +209,20 @@ def test_the_refusal_path_asks_whether_the_runtime_holds_the_answer() -> None:
 
 
     source = chat_lane_source()
-    assert source.count("_self_health_answer_or_empty(") >= 3  # definition + both sites
+    assert source.count("_self_health_answer_or_empty(") >= 3  # definition + the sites
 
-    # Anchor on the assignment that BUILDS the refusal, not on the sentence —
-    # which also appears in comments describing past defects.
-    #
-    # The refusal is a named constant now rather than a parenthesised literal,
-    # so anchoring on its spelling stopped finding any site at all and the test
-    # passed its first assertion while measuring nothing. What it is for is
-    # that every place which gives up asks first.
-    marker = "failure_reply = THE_HONEST_FAILURE"
-    sites = _positions(source, marker)
-    assert sites, "the refusal is no longer built where this test expects"
-    # The window has to cover every reading the site consults before giving
-    # up, and more of them have been added since: a computed arithmetic answer
-    # now comes first, because it needs no channel at all. What matters is
-    # that the health reading is still ASKED at each site, not where in the
-    # queue it sits.
-    # Both sites, and the tool results as well as the health reading: two
-    # places build this reply and a fix applied to one of them leaves the other
-    # saying "I couldn't get to an answer" on top of a result it is holding.
-    assert len(sites) >= 2, f"expected both giving-up sites, found {len(sites)}"
-    for index in sites:
-        window = source[index : index + 2600]
-        assert "_what_the_tools_found" in window, (
-            "a site that gives up without asking what its tools returned"
-        )
-        assert "_self_health_answer_or_empty" in window, (
-            "a refusal site stopped asking whether the runtime holds the answer"
-        )
+    # Both turns her engine could not serve end in one helper, and the helper
+    # asks every reading before it says no reply formed. Two places once built
+    # this end and a fix applied to one of them left the other giving up on
+    # top of a result it was holding.
+    assert source.count("_chat_no_reply.what_a_turn_with_no_reply_returns(") == 2
+    held = source.split("def what_the_runtime_held", 1)[1].split("\ndef ", 1)[0]
+    assert "_what_the_tools_found" in held, "a site that gives up without asking what its tools returned"
+    assert "_self_health_answer_or_empty" in held, (
+        "a refusal site stopped asking whether the runtime holds the answer"
+    )
+    giving_up = source.split("async def what_a_turn_with_no_reply_returns", 1)[1].split("\nasync def ", 1)[0]
+    assert "what_the_runtime_held(" in giving_up
 
 
 def test_helper_returns_empty_rather_than_raising(monkeypatch) -> None:

@@ -23,7 +23,16 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-_CHAT = Path(__file__).resolve().parents[1] / "interface" / "routes" / "chat.py"
+_ROOT = Path(__file__).resolve().parents[1]
+#: Where the words a person is shown on a failed turn are written. Since 18
+#: November they are the runtime's notices, not sentences in her voice.
+_SOURCES = (
+    _ROOT / "interface" / "routes" / "chat.py",
+    _ROOT / "interface" / "routes" / "chat_refusals.py",
+    _ROOT / "interface" / "routes" / "chat_lane_state.py",
+    _ROOT / "interface" / "routes" / "chat_no_reply.py",
+    _ROOT / "core" / "conversation" / "runtime_notice.py",
+)
 
 # Vocabulary that belongs in the log, never in a sentence aimed at a person.
 _JARGON = (
@@ -41,31 +50,35 @@ _JARGON = (
 
 # A user-visible failure string is long enough to be prose and reads as an
 # apology/refusal rather than a log line.
-_USER_FACING_HINTS = ("I could not", "I couldn't", "I can't", "I was unable")
+_USER_FACING_HINTS = (
+    "I could not", "I couldn't", "I can't", "I was unable",
+    "No reply formed", "Her model", "Her draft", "This turn", "no reply was started",
+)
 
 
-def _user_facing_failure_strings() -> list[tuple[int, str]]:
-    tree = ast.parse(_CHAT.read_text(encoding="utf-8"))
-    found: list[tuple[int, str]] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
-            continue
-        text = node.value
-        if len(text) < 40:
-            continue
-        if not any(hint in text for hint in _USER_FACING_HINTS):
-            continue
-        found.append((node.lineno, text))
+def _user_facing_failure_strings() -> list[tuple[str, str]]:
+    found: list[tuple[str, str]] = []
+    for path in _SOURCES:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            text = node.value
+            if len(text) < 30:
+                continue
+            if not any(hint in text for hint in _USER_FACING_HINTS):
+                continue
+            found.append((f"{path.name}:{node.lineno}", text))
     return found
 
 
 def test_no_user_facing_failure_reply_speaks_in_jargon():
     offenders: list[str] = []
-    for lineno, text in _user_facing_failure_strings():
+    for where, text in _user_facing_failure_strings():
         lowered = text.lower()
         hits = [word for word in _JARGON if word in lowered]
         if hits:
-            offenders.append(f"chat.py:{lineno} uses {hits}: {text[:90]!r}")
+            offenders.append(f"{where} uses {hits}: {text[:90]!r}")
     assert not offenders, (
         "these replies are shown to a person and read like a subsystem "
         "describing itself:\n  " + "\n  ".join(offenders)

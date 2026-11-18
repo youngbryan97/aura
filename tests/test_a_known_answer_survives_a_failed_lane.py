@@ -38,27 +38,47 @@ def test_outside_a_turn_there_is_no_question():
     assert current_user_question() == ""
 
 
-def test_a_computable_question_is_answered_despite_the_lane():
-    from interface.routes.chat import _conversation_lane_user_message
+async def test_a_computable_question_is_answered_despite_the_lane(monkeypatch):
+    """The exact answer reaches the person, in the runtime's notice and not as her words.
 
+    Since 18 November the lane's exits return the runtime's notice
+    (core/conversation/runtime_notice.py), and what the runtime held goes
+    under its own heading in it.
+    """
+    import json
+
+    from interface.routes import chat
+
+    async def receipt(text, **kwargs):
+        return None
+
+    monkeypatch.setattr(chat, "_emit_chat_output_receipt", receipt)
     set_user_question("what is 7919 * 6367?")
-    served = _conversation_lane_user_message(
-        {"state": "failed"}, status_override="warming_failed"
+    response = await chat._the_lane_formed_no_reply(
+        {"state": "failed"}, status="conversation_warming", status_override="warming_failed"
     )
-    assert served == "50,420,273."
-    assert "lane" not in served.lower()
+    out = json.loads(bytes(response.body).decode())
+    assert out["response"] == ""
+    assert out["notice"].endswith("What the runtime held for it:\n50,420,273.")
 
 
-def test_a_question_the_runtime_cannot_answer_still_reports_the_lane():
-    """Only a KNOWN answer displaces the status; nothing is invented."""
-    from interface.routes.chat import _conversation_lane_user_message
+async def test_a_question_the_runtime_cannot_answer_still_reports_the_lane(monkeypatch):
+    """Only a KNOWN answer is added; nothing is invented."""
+    import json
 
+    from interface.routes import chat
+
+    async def receipt(text, **kwargs):
+        return None
+
+    monkeypatch.setattr(chat, "_emit_chat_output_receipt", receipt)
     set_user_question("how are you feeling today")
-    served = _conversation_lane_user_message(
-        {"state": "failed"}, status_override="warming_failed"
+    response = await chat._the_lane_formed_no_reply(
+        {"state": "failed"}, status="conversation_warming", status_override="warming_failed"
     )
-    assert "50,420,273" not in served
-    assert "lane" in served.lower()
+    out = json.loads(bytes(response.body).decode())
+    assert "50,420,273" not in out["notice"]
+    assert "could not finish preparing" in out["notice"]
 
 
 def test_the_number_is_written_the_way_a_person_writes_it():
@@ -90,38 +110,20 @@ def test_every_refusal_site_uses_the_same_helper():
     preflight held the product — was fixed inline at the site it happened on.
     The other refusal site and every lane-status path kept giving the same
     apology for the same computable question, which is how the identical
-    defect arrived again on 2026-08-19 with 7919 * 6367.
+    defect arrived again on 2026-08-19 with 7919 * 6367. Both refusal sites
+    and the lane's exits now go through one reading each.
     """
-    import re
     from pathlib import Path as _Path
 
-    source = (_Path(__file__).resolve().parents[1] / "interface/routes/chat.py").read_text()
-    refusals = source.count("won't send you a thinner one and pass it off as the real thing")
-    rescues = len(re.findall(r"_known_answer_for_this_turn\(\)", source))
-    # One definition, one lane path, and one per refusal site.
-    assert rescues >= refusals + 1, (
-        f"{refusals} refusal sites but only {rescues} references to the helper"
-    )
-    assert "requested_arithmetic_result(_semantic_user_message)" not in source, (
+    root = _Path(__file__).resolve().parents[1] / "interface/routes"
+    chat_source = (root / "chat.py").read_text()
+    no_reply = (root / "chat_no_reply.py").read_text()
+    assert chat_source.count("_chat_no_reply.what_a_turn_with_no_reply_returns(") == 2
+    assert "_known_answer_for_this_turn()" in no_reply.split("def what_the_runtime_held", 1)[1]
+    lane_exit = chat_source.split("async def _the_lane_formed_no_reply", 1)[1].split("\ndef ", 1)[0]
+    assert "held=_known_answer_for_this_turn()" in lane_exit
+    assert "requested_arithmetic_result(_semantic_user_message)" not in chat_source, (
         "a second inline copy of the rescue has appeared"
-    )
-
-
-def test_a_computed_answer_is_not_badged_as_no_answer():
-    """It is the most reliable answer the runtime can give.
-
-    Live 2026-08-19 the exact product 50,420,273 was served and badged "No
-    answer" — the opposite of true, and exactly what someone checking her work
-    would catch.
-    """
-    from interface.routes.chat import _lane_reply_confidence
-
-    set_user_question("what is 7919 * 6367?")
-    assert _lane_reply_confidence("50,420,273.", "not_generated") == "computed"
-    # Only the computed text earns it; a status message keeps the status.
-    assert (
-        _lane_reply_confidence("the lane could not finish preparing", "not_generated")
-        == "not_generated"
     )
 
 

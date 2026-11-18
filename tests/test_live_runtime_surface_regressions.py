@@ -2764,8 +2764,8 @@ def test_conversation_lane_degraded_messages_do_not_ask_user_to_repeat():
     for sample in samples:
         assert_no_live_reset_boilerplate(sample)
 
-    assert "unified-memory guard" in samples[-1]
-    assert "unsafe RAM spike" in samples[-1]
+    assert "memory guard" in samples[-1]
+    assert "not enough free memory" in samples[-1]
 
 
 

@@ -2982,6 +2982,10 @@ function discardChatDraft(item) {
 
 function renderChatDeliveryAnswer(item, data) {
     discardChatDraft(item);
+    if (!String(data.response || '').trim() && String(data.notice || '').trim()) {
+        appendMsg('system', String(data.notice), false, { system: true, diagnostic: true });
+        return;
+    }
     const messages = DOM.messages || $('messages');
     const identity = String(data.turn_id || item.turnId || item.idempotencyKey);
     const existing = Array.from(messages.children).find(node =>
@@ -6234,7 +6238,8 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
         item.approvalResumeToken = '';
 
         if (!outcome.ok) {
-            const failureText = data.response || '⚠ Communication error. Check connection.';
+            // A turn with no reply of hers carries the runtime's notice; it is drawn as the runtime's, never as hers.
+            const failureText = data.notice || data.response || '⚠ Communication error. Check connection.';
             appendMsg('system', failureText, false, { system: true, diagnostic: true });
             return;
         }
@@ -6242,7 +6247,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
         markLiveSurfaceResponsive('chat_success');
 
         // If it's just a dispatch confirmation, don't clutter the chat
-        if (data.response && data.response !== "Message dispatched to cognitive core.") {
+        if ((data.response || data.notice) && data.response !== "Message dispatched to cognitive core.") {
             renderChatDeliveryAnswer(item, data);
         }
     } catch (err) {

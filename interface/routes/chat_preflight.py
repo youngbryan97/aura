@@ -112,7 +112,9 @@ async def finalize_terminal_exchanges(capture: TerminalExchangeCapture, payload:
     """Persist the exact sealed answer, including early returns and cancellation."""
     reply = str(payload.get("response") or "")
     if not reply.strip():
-        return not capture.exchanges
+        from .chat_no_reply import close_unanswered_exchanges
+
+        return await close_unanswered_exchanges(capture, payload) if payload.get("notice") else not capture.exchanges
     committed = True
     token = _TERMINAL_EXCHANGES.set(None)
     try:

@@ -82,33 +82,6 @@ async def test_a_ladder_that_raises_does_not_take_the_turn_with_it(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_what_the_smaller_model_wrote_is_served_as_its_answer(monkeypatch):
-    """Both sites that would serve the honest failure ask the ladder through one helper.
-
-    Its reply goes out marked "fallback", which the page tags "Smaller model";
-    a reading the runtime already had, or the refusal itself, stays "failed".
-    """
-    async def ladder(message, *, reason, budget_s=None):
-        return "Kobe's 81."
-
-    monkeypatch.setattr(chat, "_answer_from_fallback_ladder", ladder)
-    refusal = "I could not answer that one."
-    assert await chat._what_to_serve_instead("Bam or Kobe?", found="", failure_reply=refusal) == (
-        "Kobe's 81.",
-        "fallback",
-    )
-    assert await chat._what_to_serve_instead("how are you?", found="Calm, 0.4.", failure_reply=refusal) == (
-        "Calm, 0.4.",
-        "failed",
-    )
-
-    async def silent(message, *, reason, budget_s=None):
-        return ""
-
-    monkeypatch.setattr(chat, "_answer_from_fallback_ladder", silent)
-    assert await chat._what_to_serve_instead("x", found="", failure_reply=refusal) == (refusal, "failed")
-
-
 def test_the_self_process_repair_is_the_second_choice():
     """"I am tracking what I am keeping in memory" is not an answer to anything."""
     import inspect

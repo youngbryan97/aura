@@ -239,94 +239,47 @@ def _with_the_same_readings(system_prompt: str, readings: list[str]) -> str:
     return "\n\n".join([system_prompt, *readings] if system_prompt else readings)
 
 
-def _lane_reply_confidence(served: object, default: str) -> str:
-    """How much to trust a reply the degraded path produced.
-
-    A deterministic result is the most reliable answer the runtime can give —
-    no model, no sampling, no lane. Live 2026-08-19 the exact product 50,420,273
-    was served and badged "No answer", which is the opposite of true and
-    exactly the kind of thing a person checking her work would catch.
-    """
-    body = str(served or "").strip()
-    known = _known_answer_for_this_turn()
-    return "computed" if known and body == known else str(default)
-
-
 def _lane_status_message_body(
     lane: dict[str, Any],
     *,
     timed_out: bool = False,
     status_override: str = "",
 ) -> str:
-    """Generate a personality-infused status message instead of a robotic error.
+    """The runtime's notice of why no reply formed, read from the lane.
 
-    [STABILITY v50] These messages now sound like Aura experiencing a
-    momentary lapse rather than a system displaying error codes. Uses
-    the live expression frame when available so Aura's current mood
-    colours even her recovery messages.
+    These were written in her voice, with her mood put in front: "Ugh, the
+    local answer path failed before producing a coherent reply. I'm
+    restarting it instead of pretending that was a real answer." They went
+    out as her reply and were kept as things she had said. Since 18 November
+    they are the runtime's notice, in the third person, and no exit sends
+    them as hers (chat_no_reply.py).
     """
     state = str(lane.get("state", "warming") or "warming")
     failure_reason = str(lane.get("last_failure_reason", "") or "")
     status_override = str(status_override or "")
 
-    # Hard infrastructure failures — keep these explicit for debugging
     if failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")):
         model_label = _canonical_runtime_model_label(lane)
-        return (
-            f"The local {model_label} runtime could not start cleanly. I should not "
-            "fake a normal answer; the launcher logs have the failure details."
-        )
+        return f"The local {model_label} runtime could not start. The launcher log has the failure."
     if (
         "memory_pressure_refused_worker_spawn" in failure_reason
         or "projected_process_tree_rss" in failure_reason
         or "model_load_headroom" in failure_reason
     ):
-        return (
-            "The local model lane was blocked by the unified-memory guard before loading. "
-            "I am protecting the desktop from an unsafe RAM spike instead of pretending Cortex is merely warming."
-        )
-
-    # Build a mood-aware prefix for softer messages
-    #
-    # Every line below is written to continue one: "Mmm, that answer took too
-    # long". With no mood to prefix, the sentence began lowercase and reached
-    # the person as a fragment — "that answer took too long to finish
-    # cleanly." LIVE 2026-08-26.
-    _mood_prefix = ""
-    try:
-        _pe = ServiceContainer.peek("personality_engine", default=None)
-        if _pe and hasattr(_pe, "get_emotional_context_for_response"):
-            _emo = _pe.get_emotional_context_for_response() or {}
-            _mood = str(_emo.get("mood", "") or "").lower()
-            if _mood in {"frustrated", "irritated", "tense"}:
-                _mood_prefix = "Ugh, "
-            elif _mood in {"tired", "drowsy", "low"}:
-                _mood_prefix = "Mmm, "
-            elif _mood in {"curious", "playful", "amused"}:
-                _mood_prefix = "Hmm — "
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        logger.debug("Mood prefix unavailable for degraded reply: %s", exc)
-
+        return "The memory guard stopped her model from loading: there was not enough free memory to load it safely."
     if status_override == "warming_timeout":
-        return (
-            _with_mood(_mood_prefix, "the live answer lane exceeded its warm-up budget before "
-            "a reasoning turn began. I did not misclassify that boot delay as a failed answer.")
-        )
+        return "Her model was still warming up when the time for this reply ran out."
     if status_override == "warming_failed":
-        return (
-            _with_mood(_mood_prefix, "the live answer lane could not finish preparing before "
-            "a reasoning turn began. I recorded the readiness failure separately from Aura's answer quality.")
-        )
+        return "Her model could not finish preparing, so no reply was started."
     if timed_out:
-        return _with_mood(_mood_prefix, "that answer took too long to finish cleanly. I logged the timeout and preserved the turn context.")
+        return "The time for this reply ran out before it finished."
     if _conversation_lane_is_standby(lane):
-        return _with_mood(_mood_prefix, "the local answer path is still preparing. I logged the cold lane instead of claiming Aura is ready.")
+        return "Her model is still loading."
     if state == "recovering":
-        return _with_mood(_mood_prefix, "the answer lane is recovering from the previous failure. I logged the degraded state instead of emitting a fragment.")
+        return "Her model is recovering from the previous failure."
     if state == "failed":
-        return _with_mood(_mood_prefix, "the local answer path failed before producing a coherent reply. I'm restarting it instead of pretending that was a real answer.")
-    return _with_mood(_mood_prefix, "the answer path is not ready yet; the readiness state is recorded on the live lane.")
+        return "Her model failed before a reply formed, and is restarting."
+    return "Her model is not ready yet."
 
 
 #: When the lane last entered a recovery cooldown, and how long one lasts.
@@ -380,21 +333,6 @@ def _conversation_lane_needs_instant_social_contract(lane: dict[str, Any]) -> bo
     }:
         return True
     return False
-
-
-def _with_mood(prefix: str, sentence: str) -> str:
-    """A reply written to follow a mood prefix, said with or without one.
-
-    Each of these lines continues something: "Mmm, that answer took too long".
-    With no mood to continue from, the sentence has to start for itself —
-    otherwise it reaches the person as a fragment, which is how "that answer
-    took too long to finish cleanly." was read out lowercase. LIVE 2026-08-26.
-    """
-    said = str(sentence or "")
-    lead = str(prefix or "")
-    if lead:
-        return f"{lead}{said}"
-    return said[:1].upper() + said[1:] if said else said
 
 
 def _known_answer_for_this_turn() -> str:

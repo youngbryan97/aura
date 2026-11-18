@@ -4416,6 +4416,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   29 October test that held a success's summary to be her answer
   ("Mended: the ball now bounces.") now holds the opposite, after the
   13 November rule that the runtime's text never stands in her voice.
+  18 November, the apology itself and its kind. Every exit of the chat
+  route with nothing of hers to send wrote a sentence for her: the giving-up
+  line (7 times in the week to the 17th), the lane's lines with her mood put
+  in front ("Ugh, the local answer path failed ... I'm restarting it"), the
+  error floor's, the timeout's, the cancel's, two contract refusals, the
+  regenerate route's, and the delivery boundary's three. Each went out as her
+  reply, her voice read it aloud, and it was kept in her conversation as
+  something she had said. Now each returns an empty reply and the runtime's
+  notice (core/conversation/runtime_notice.py, through
+  interface/routes/chat_no_reply.py): the window draws it as the runtime's,
+  her voice says nothing, and the exchange keeps the person's words with no
+  reply of hers. What the runtime held for the message, a computed result or
+  what a tool returned, goes in the notice under its own heading; with nothing
+  held the smaller model is still asked, and its answer is served marked as
+  its own. Left: the repair floors in core/conversation/response_reliability.py
+  ("I should not call that a clean turn ...") are the same kind on the repair
+  path.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched
@@ -7297,6 +7314,9 @@ needs her 27B free (her app down, or her app's own influence trials).
   her browser's, the reimplementation lab's code generator, and the amplifier's role prompts on her deep turns
   (F04). On typed turns the census also counts readings phrased in the second person, as with "- You are in the
   middle of: ..." (now "- In the middle of: ..."); one, "You are here.", is not yet traced to its source.
+  18 November: the chat route's no-reply exits no longer write in her voice (see U01, 18 November): 30 strings
+  in her first person or with her mood put in front, across 21 exits, are the runtime's notices now, kept out of
+  her conversation. Left on her reply path: the repair floors in core/conversation/response_reliability.py.
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the

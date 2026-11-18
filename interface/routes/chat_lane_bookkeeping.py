@@ -70,13 +70,11 @@ from .chat_lane_state import (
     _host_condition,  # noqa: F401
     _in_recovery_cooldown,  # noqa: F401
     _known_answer_for_this_turn,  # noqa: F401
-    _lane_reply_confidence,  # noqa: F401
     _lane_status_message_body,  # noqa: F401
     _mark_conversation_lane_state,  # noqa: F401
     _mark_conversation_lane_timeout,  # noqa: F401
     _status_represents_memory_state_result,  # noqa: F401
     _turn_count_ordinal,  # noqa: F401
-    _with_mood,  # noqa: F401
     _with_the_same_readings,  # noqa: F401
 )
 

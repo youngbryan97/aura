@@ -8,8 +8,9 @@ foreground turns averaged sixteen seconds. Each refusal said:
     won't hand you a thinner substitute and call it mine.
 
 She had not weighed an answer and found it wanting. She ran out of time. A
-person can act on "I ran out of time, ask me again" and can do nothing with a
-statement about her standards.
+person can act on "the time ran out" and can do nothing with a statement about
+her standards. Since 18 November these are the runtime's notices, in the third
+person: no exit writes them in her voice.
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from interface.routes.chat import _why_there_is_no_answer
 
 def test_a_timeout_is_called_a_timeout():
     said = _why_there_is_no_answer({"last_failure_reason": "foreground_timeout"})
-    assert "ran out of time" in said
+    assert "time for this reply ran out" in said
     assert "stand behind" not in said
 
 
@@ -29,12 +30,12 @@ def test_a_mind_still_coming_up_says_so_and_names_what_it_waits_on():
         {"warmup_in_flight": True, "readiness_blockers": ["model_not_loaded"]}
     )
     assert "still loading" in said
-    assert "Give me a moment" in said
+    assert "No reply formed" in said
 
 
 def test_an_empty_cycle_says_nothing_came_back_rather_than_claiming_a_judgement():
     said = _why_there_is_no_answer({"last_failure_reason": ""})
-    assert "Nothing came back" in said
+    assert "returned nothing" in said
     assert "stand behind" not in said
 
 
@@ -89,15 +90,15 @@ def test_a_lane_this_turn_just_marked_failed_is_not_called_warming():
             "last_failure_reason": "",
         }
     )
-    assert "still coming up" not in said
-    assert "Nothing came back" in said
+    assert "still starting" not in said
+    assert "returned nothing" in said
 
 
 def test_a_real_warm_up_still_says_so():
     said = _why_there_is_no_answer(
         {"warmup_in_flight": True, "readiness_blockers": ["worker_not_alive"]}
     )
-    assert "starting up" in said
+    assert "still starting" in said
 
 
 def test_an_internal_token_never_reaches_the_person():
@@ -106,7 +107,7 @@ def test_an_internal_token_never_reaches_the_person():
     than shown raw — the sentence around it already says she is not ready."""
     from interface.routes.chat import _in_plain_words
 
-    assert _in_plain_words("worker_not_alive") == "My mind is still starting up."
+    assert _in_plain_words("worker_not_alive") == "Her model is still starting."
     assert _in_plain_words("some_internal_thing_42") == ""
     said = _why_there_is_no_answer(
         {"warmup_in_flight": True, "readiness_blockers": ["some_internal_thing_42"]}

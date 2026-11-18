@@ -470,9 +470,12 @@ class TestChatHandlerResilience:
         def _status_codes_returned(handler: ast.ExceptHandler) -> set:
             codes = set()
             for node in ast.walk(handler):
-                if not isinstance(node, ast.Return) or not isinstance(node.value, ast.Call):
+                if not isinstance(node, ast.Return):
                     continue
-                for keyword in node.value.keywords:
+                call = node.value.value if isinstance(node.value, ast.Await) else node.value
+                if not isinstance(call, ast.Call):
+                    continue
+                for keyword in call.keywords:
                     if keyword.arg == "status_code" and isinstance(
                         keyword.value, ast.Constant
                     ):

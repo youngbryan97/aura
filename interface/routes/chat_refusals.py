@@ -13,8 +13,10 @@ from typing import Any
 
 from fastapi.responses import JSONResponse
 
+from core.conversation.runtime_notice import NO_REPLY_FORMED
 from core.runtime.errors import record_degradation
 from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
+from interface.routes import chat_no_reply as _chat_no_reply  # noqa: E402
 from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
 from interface.routes.chat_common import (  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
@@ -75,13 +77,13 @@ logger = logging.getLogger(__name__)
 #: Internal names for the things that keep her from answering, and what each
 #: of them means to the person waiting.
 _BLOCKER_IN_WORDS: tuple[tuple[str, str], ...] = (
-    ("worker_not_alive", "My mind is still starting up."),
-    ("model_not_loaded", "My mind is still loading."),
-    ("warmup", "I am still warming up."),
-    ("cortex", "My main reasoning is still coming online."),
-    ("foreground_owner", "I am still finishing something else."),
-    ("recovery", "I am recovering from a problem a moment ago."),
-    ("memory", "I am still loading what I remember."),
+    ("worker_not_alive", "Her model is still starting."),
+    ("model_not_loaded", "Her model is still loading."),
+    ("warmup", "Her model is still warming up."),
+    ("cortex", "Her main model is still coming online."),
+    ("foreground_owner", "Another turn of hers is still finishing."),
+    ("recovery", "Her model is recovering from a failure a moment ago."),
+    ("memory", "Her memory is still loading."),
 )
 #: Proofs that say the ANSWER is unfinished, as opposed to the bookkeeping.
 #:
@@ -161,9 +163,11 @@ def _why_there_is_no_answer(lane: Any) -> str:
     turns were averaging sixteen seconds. She had not weighed an answer and
     found it wanting. She ran out of time.
 
-    A person can act on "I ran out of time, ask me again" and can do nothing
-    with a statement about her standards. The lane already carries why, so
-    the reply is built from it rather than from a constant.
+    A person can act on "the time ran out" and can do nothing with a
+    statement about her standards. The lane already carries why, so the
+    notice is built from it rather than from a constant. It is the runtime's
+    notice, in the third person: since 18 November no exit writes these in
+    her voice (chat_no_reply.py).
     """
     state = lane if isinstance(lane, dict) else {}
     reason = str(state.get("last_failure_reason") or "").strip().lower()
@@ -177,26 +181,14 @@ def _why_there_is_no_answer(lane: Any) -> str:
     warming = bool(state.get("warmup_in_flight")) or bool(state.get("readiness_blockers"))
 
     if "timeout" in reason or "deadline" in reason or "slow" in reason:
-        return (
-            "That one took longer than I had for it and I ran out of time before "
-            "I had an answer. Ask me again and it should come back."
-        )
+        return "The time for this reply ran out before one formed."
     if warming or blockers:
         # The specific reason instead of the general one, where there is one.
         waiting_on = _in_plain_words(blockers[0]) if blockers else ""
-        return (
-            f"{waiting_on or 'I am not ready to answer that yet — my mind is still coming up.'}"
-            " Give me a moment and ask again."
-        )
+        return f"{waiting_on or 'Her model is still starting.'} {NO_REPLY_FORMED}"
     if "unavailable" in reason or "no_reply" in reason or not reason:
-        return (
-            "Nothing came back from my own reasoning on that one, so I have "
-            "nothing to give you rather than something I made up. Ask me again."
-        )
-    return (
-        f"I could not answer that one: {reason.replace('_', ' ')}. "
-        "Ask me again in a moment."
-    )
+        return "Her model returned nothing for this message."
+    return f"No reply formed for this message: {reason.replace('_', ' ')}."
 
 
 async def _anything_better_than_giving_up(
@@ -240,22 +232,6 @@ async def _anything_better_than_giving_up(
             reason[:80],
         )
     return said
-
-
-async def _what_to_serve_instead(
-    message: object, *, found: str, failure_reply: str, budget_s: float | None = None
-) -> tuple[str, str]:
-    """The reply a turn the cognitive engine could not serve gives, and its confidence.
-
-    ``found`` is what the runtime already read for the turn; with nothing found
-    the smaller model is asked. What it writes is an answer, marked "fallback":
-    it went out marked failed, so a reply the person had been given was shown
-    to them as a turn that failed. A reading or a refusal stays "failed".
-    """
-    said = await _anything_better_than_giving_up(
-        message, reason="the cognitive engine could not serve this turn", already=found, budget_s=budget_s
-    )
-    return (said or failure_reply), ("fallback" if said and not found else "failed")
 
 
 def refusal_receipt(
@@ -350,59 +326,33 @@ async def _refuse_an_empty_canonical_reply(
             # raw 'status=' token straight to the user — internal vocabulary
             # that explains nothing to the person waiting for an answer
             # (2026-07-18 soak: 32 turns of it).
-            failure_reply = _why_there_is_no_answer(lane)
-            # Same reading as the other two refusal sites. "The runtime logs
+            # Same reading as the other refusal sites. "The runtime logs
             # carry the detail" is the sharpest form of the defect: it tells the
             # person their answer exists somewhere she declined to look.
             evidenced_reply = _chat_conversation_repair._self_health_answer_or_empty(
                 _semantic_user_message
             )
-            if evidenced_reply:
-                failure_reply = evidenced_reply
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    failure_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            else:
-                await _chat_preflight._log_exchange(
-                    _original_user_message,
-                    failure_reply,
-                    record_experience=False,
-                    session_id=_chat_session_id,
-                )
-            await _emit_chat_output_receipt(
-                failure_reply,
-                cause="chat_response",
-                metadata={
-                    "response_confidence": "failed",
-                    "path": "canonical_chat",
-                    "status": "canonical_chat_no_reply",
-                    "reason": "implicit_legacy_orchestrator_fallback_refused",
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": failure_reply,
-                    "status": "canonical_chat_no_reply",
-                    "conversation_lane": lane,
-                    "response_confidence": "failed",
-                    # A refused turn is receipted too. Without this the
-                    # caller got four keys and no way to tell a discarded
-                    # draft from a lane that never ran.
-                    "live_turn_contract": refusal_receipt(
-                        status="canonical_chat_no_reply",
-                        reason="implicit_legacy_orchestrator_fallback_refused",
-                        lane=lane,
-                        question=_semantic_user_message,
-                        served_by_ladder=bool(evidenced_reply),
-                    ),
-                },
-                # In-band fail-closed delivery for real users.
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _chat_no_reply.no_reply_response(
+                why=_why_there_is_no_answer(lane),
+                held=evidenced_reply,
+                status="canonical_chat_no_reply",
+                user_message=_semantic_user_message if exchange_id else _original_user_message,
+                pending_exchange_id=exchange_id,
+                # In-band for real users.
                 status_code=503 if is_benchmark else 200,
+                reason="implicit_legacy_orchestrator_fallback_refused",
+                conversation_lane=lane,
+                # A refused turn is receipted too. Without this the caller got
+                # four keys and no way to tell a discarded draft from a lane
+                # that never ran.
+                live_turn_contract=refusal_receipt(
+                    status="canonical_chat_no_reply",
+                    reason="implicit_legacy_orchestrator_fallback_refused",
+                    lane=lane,
+                    question=_semantic_user_message,
+                    served_by_ladder=bool(evidenced_reply),
+                ),
             )
         return _SEAM_FELL_THROUGH
 
@@ -516,11 +466,7 @@ def _fail_closed_on_an_unproven_full_mind_contract(
                 )
                 or "unrecorded",
             )
-            fail_closed_reply = (
-                "I couldn't get my full attention onto that one, and I'd rather "
-                "tell you that than answer from half of it. Try me again in a "
-                "moment."
-            )
+            fail_closed_reply = ""
             _append_turn_text_mutation(
                 _live_turn_trace,
                 stage="chat.full_mind_contract_fail_closed",
@@ -544,16 +490,13 @@ def _fail_closed_on_an_unproven_full_mind_contract(
                 status="desktop_full_mind_contract_not_proven",
                 reply_source="desktop_full_mind_contract_not_proven",
             )
-            return JSONResponse(
-                {
-                    "response": fail_closed_reply,
-                    "status": "desktop_full_mind_contract_not_proven",
-                    "reason": "desktop_full_mind_contract_not_proven",
-                    "conversation_lane": lane_status,
-                    "response_confidence": "failed_closed",
-                    "live_turn_contract": final_live_turn_contract,
-                },
-                # In-band fail-closed delivery for real users.
+            return _chat_no_reply.no_reply_payload(
+                why="Her draft for this message was held back: it could not be shown to come from her whole turn.",
+                status="desktop_full_mind_contract_not_proven",
+                reason="desktop_full_mind_contract_not_proven",
+                conversation_lane=lane_status,
+                live_turn_contract=final_live_turn_contract,
+                # In-band for real users.
                 status_code=503 if is_benchmark else 200,
             )
         return _SEAM_FELL_THROUGH
@@ -670,11 +613,7 @@ def _fail_closed_on_an_unproven_output_contract(
                 )
                 or "unknown",
             )
-            fail_closed_reply = (
-                "I couldn't confirm that my answer matched the exact form you asked "
-                "for, so I'd rather not send it than send something that only looks "
-                "right. Ask again and I'll have another go."
-            )
+            fail_closed_reply = ""
             _append_turn_text_mutation(
                 _live_turn_trace,
                 stage="chat.final_requested_output_contract_fail_closed",
@@ -698,15 +637,12 @@ def _fail_closed_on_an_unproven_output_contract(
                 status="requested_output_contract_not_proven",
                 reply_source="requested_output_contract_not_proven",
             )
-            return JSONResponse(
-                {
-                    "response": fail_closed_reply,
-                    "status": "requested_output_contract_not_proven",
-                    "reason": "requested_output_contract_not_proven",
-                    "conversation_lane": lane_status,
-                    "response_confidence": "failed_closed",
-                    "live_turn_contract": failed_contract,
-                },
+            return _chat_no_reply.no_reply_payload(
+                why="Her draft for this message was held back: it could not be confirmed to be in the form asked for.",
+                status="requested_output_contract_not_proven",
+                reason="requested_output_contract_not_proven",
+                conversation_lane=lane_status,
+                live_turn_contract=failed_contract,
                 status_code=503,
             )
         return _SEAM_FELL_THROUGH
@@ -749,46 +685,21 @@ async def _refuse_an_unmet_benchmark_contract(
                 "Benchmark request failed closed because the canonical kernel response "
                 f"did not satisfy the requested artifact contract: {contract_reason}."
             )
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    failed_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            else:
-                await _chat_preflight._log_exchange(
-                    _original_user_message,
-                    failed_reply,
-                    record_experience=False,
-                    session_id=_chat_session_id,
-                )
-            await _emit_chat_output_receipt(
-                failed_reply,
-                cause="chat_response",
-                metadata={
-                    "response_confidence": "failed",
-                    "path": "kernel_benchmark",
-                    "status": "benchmark_artifact_contract_unmet",
-                    "reason": contract_reason,
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": failed_reply,
-                    "status": "benchmark_artifact_contract_unmet",
-                    "reason": contract_reason,
-                    "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
-                    "response_confidence": "failed",
-                    "live_turn_contract": refusal_receipt(
-                        status="benchmark_artifact_contract_unmet",
-                        reason=contract_reason,
-                        lane=_chat_preflight._collect_conversation_lane_status(),
-                        question=_semantic_user_message,
-                    ),
-                },
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _chat_no_reply.no_reply_response(
+                why=failed_reply,
+                status="benchmark_artifact_contract_unmet",
+                user_message=_semantic_user_message if exchange_id else _original_user_message,
+                pending_exchange_id=exchange_id,
                 status_code=502,
+                reason=contract_reason,
+                conversation_lane=_chat_preflight._collect_conversation_lane_status(),
+                live_turn_contract=refusal_receipt(
+                    status="benchmark_artifact_contract_unmet",
+                    reason=contract_reason,
+                    lane=_chat_preflight._collect_conversation_lane_status(),
+                    question=_semantic_user_message,
+                ),
             )
         return _SEAM_FELL_THROUGH
 
@@ -829,38 +740,14 @@ async def _refuse_an_empty_benchmark_reply(
                 severity="warning",
                 action="refused the benchmark turn with no canonical response",
             )
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    empty_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            else:
-                await _chat_preflight._log_exchange(
-                    _original_user_message,
-                    empty_reply,
-                    record_experience=False,
-                    session_id=_chat_session_id,
-                )
-            await _emit_chat_output_receipt(
-                empty_reply,
-                cause="chat_response",
-                metadata={
-                    "response_confidence": "failed",
-                    "path": "kernel_benchmark",
-                    "status": "benchmark_no_response",
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": empty_reply,
-                    "status": "benchmark_no_response",
-                    "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
-                    "response_confidence": "failed",
-                },
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _chat_no_reply.no_reply_response(
+                why=empty_reply,
+                status="benchmark_no_response",
+                user_message=_semantic_user_message if exchange_id else _original_user_message,
+                pending_exchange_id=exchange_id,
                 status_code=502,
+                conversation_lane=_chat_preflight._collect_conversation_lane_status(),
             )
         return _SEAM_FELL_THROUGH
 

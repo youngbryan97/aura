@@ -1260,14 +1260,11 @@ def _build_bounded_status_repair_reply(user_message: str) -> str:
     )
 
 
-def _grounded_chat_failure_reply() -> str:
-    """Report a failed turn without manufacturing diagnosis or recovery state."""
+def _grounded_chat_failure_reply(error_type: str = "") -> str:
+    """The runtime's notice of a turn that stopped on an error, naming only the error's type."""
 
-    return (
-        "I hit an error before a coherent answer formed. I'm returning that "
-        "failure honestly instead of guessing at its cause or claiming the "
-        "unfinished work succeeded."
-    )
+    named = f" ({error_type})" if error_type else ""
+    return f"This turn stopped on an error{named} before a reply formed."
 
 
 async def _grounded_competent_recovery(

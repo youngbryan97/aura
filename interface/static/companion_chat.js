@@ -53,6 +53,11 @@
     return String(data.response ?? data.reply ?? data.message ?? "").trim();
   }
 
+  // When no reply of hers formed the turn carries the runtime's notice, shown as the runtime's and never as hers.
+  function noticeText(payload) {
+    return String(replyEnvelope(payload).notice ?? "").trim();
+  }
+
   function storePending(item) {
     try { localStorage.setItem(PENDING_KEY, JSON.stringify(item)); } catch (_error) {}
   }
@@ -117,7 +122,7 @@
     updateProgress(payload);
     if (response.ok && response.status !== 202) return { terminal: true, payload };
     if (response.status === 202) return { terminal: false, payload };
-    const detail = replyText(payload) || payload.detail || payload.status || `chat ${response.status}`;
+    const detail = replyText(payload) || noticeText(payload) || payload.detail || payload.status || `chat ${response.status}`;
     const error = new Error(detail);
     error.fatal = [400, 401, 403, 409, 422].includes(response.status);
     throw error;
@@ -292,7 +297,7 @@
       // An empty reply is reported as one. Rendering nothing would leave the
       // window looking like the message was never sent, and the person would
       // send it again.
-      bubble(reply || "Aura completed the turn without a deliverable reply.", reply ? "her" : "err");
+      bubble(reply || noticeText(data) || "Aura completed the turn without a deliverable reply.", reply ? "her" : "err");
       clearPending(item.key);
     } catch (error) {
       // The failure is shown in the transcript rather than swallowed: a
@@ -389,7 +394,7 @@
         busy(true);
         const recovered = await sendDurably(pending);
         const reply = replyText(recovered);
-        bubble(reply || "Aura completed the recovered turn without a deliverable reply.", reply ? "her" : "err");
+        bubble(reply || noticeText(recovered) || "Aura completed the recovered turn without a deliverable reply.", reply ? "her" : "err");
         clearPending(pending.key);
       }
     } catch (error) {

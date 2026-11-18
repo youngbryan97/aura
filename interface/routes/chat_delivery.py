@@ -884,7 +884,8 @@ def _report_an_empty_answer_as_one(response: Any, payload: Any) -> Any:
 
     if not isinstance(payload, dict) or "response" not in payload:
         return response
-    if str(payload.get("response") or "").strip():
+    # A turn that already carries the runtime's notice reports itself.
+    if str(payload.get("response") or "").strip() or str(payload.get("notice") or "").strip():
         return response
     status = str(payload.get("status") or "")
     # Substring, deliberately: `status` is a status CODE, as above.
@@ -896,15 +897,10 @@ def _report_an_empty_answer_as_one(response: Any, payload: Any) -> Any:
         "that produced no answer instead.",
         status,
     )
-    try:
-        from core.conversation.reply_provenance import THE_HONEST_FAILURE
+    from core.conversation.runtime_notice import NO_REPLY_FORMED, no_reply_fields
 
-        honest = str(THE_HONEST_FAILURE)
-    except (ImportError, AttributeError):
-        honest = "No answer formed for that turn."
-    payload["response"] = honest
+    payload.update(no_reply_fields(NO_REPLY_FORMED))
     payload["status"] = f"empty_answer_withheld:{status}" if status else "empty_answer_withheld"
-    payload["response_confidence"] = "failed"
     payload["empty_answer_original_status"] = status
     return JSONResponse(payload, status_code=response.status_code)
 
@@ -1248,10 +1244,11 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                             "malformed_controls": affordance_sanitization.malformed_controls,
                         },
                     )
-                    payload["response"] = (
-                        affordance_sanitization.text
-                        or "I wasn't able to realize that action in this turn."
-                    )
+                    payload["response"] = affordance_sanitization.text
+                    if not affordance_sanitization.text:
+                        from core.conversation.runtime_notice import no_reply_fields
+
+                        payload.update(no_reply_fields("Her reply held only an action control, which is never shown."))
                     if str(payload.get("response_confidence") or "").casefold() not in {
                         "failed",
                         "failed_closed",
@@ -1281,12 +1278,12 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                 )
                 if unsafe_control_visible:
                     pre_sanitization_text = str(payload.get("response") or "")
-                    payload["response"] = (
-                        "I couldn't verify that the action control stayed private, so I "
-                        "did not deliver that draft."
-                    )
+                    from core.conversation.runtime_notice import no_reply_fields
+
+                    payload.update(no_reply_fields(
+                        "Her draft was not sent: it could not be checked for a private action control."
+                    ))
                     payload["status"] = "chat_affordance_visibility_unavailable"
-                    payload["response_confidence"] = "failed"
                     _invalidate_answer_proof_after_delivery_mutation(
                         payload,
                         original_text=pre_sanitization_text,

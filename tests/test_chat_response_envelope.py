@@ -47,6 +47,8 @@ def test_the_salvage_path_returns_a_json_response():
         assert (
             statement.startswith("return JSONResponse")
             or statement == "return served"  # already a JSONResponse | None
+            # The end of a turn with no reply of hers, typed -> JSONResponse.
+            or statement.startswith("return await _chat_no_reply.what_a_turn_with_no_reply_returns(")
         ), f"non-JSONResponse exit from the salvage path: {statement!r}"
 
 

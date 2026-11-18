@@ -43,7 +43,10 @@ def test_an_empty_answer_under_a_success_status_is_reported(status: str) -> None
         JSONResponse({"response": "", "status": status})
     )
     payload = _payload(guarded)
-    assert payload["response"].strip()
+    # Reported as the runtime's notice; nothing is written in her voice.
+    assert payload["response"] == ""
+    assert payload["notice"].strip()
+    assert payload["said_by"] == "runtime"
     assert payload["status"].startswith("empty_answer_withheld")
     assert payload["empty_answer_original_status"] == status
     assert payload["response_confidence"] == "failed"

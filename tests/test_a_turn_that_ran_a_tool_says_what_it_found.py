@@ -111,12 +111,11 @@ def test_both_giving_up_paths_ask_what_the_tools_found() -> None:
     from pathlib import Path
 
     source = family_text_at(Path('interface/routes/chat.py'))
-    builds = source.count("failure_reply = THE_HONEST_FAILURE")
-    asks = source.count("evidenced_reply = _what_the_tools_found()")
-    assert builds >= 2, "the refusal is built somewhere this no longer counts"
-    assert asks == builds, (
-        f"{builds} paths build the refusal and {asks} ask what the tools returned"
-    )
+    ends = source.count("_chat_no_reply.what_a_turn_with_no_reply_returns(")
+    assert ends == 2, f"{ends} paths end a turn her engine could not serve through the one helper"
+    helper = Path("interface/routes/chat_no_reply.py").read_text()
+    held = helper.split("def what_the_runtime_held", 1)[1].split("\ndef ", 1)[0]
+    assert "_what_the_tools_found()" in held, "the helper gives up without asking what the tools returned"
 
 
 def test_the_runtimes_own_plumbing_never_reaches_the_screen() -> None:

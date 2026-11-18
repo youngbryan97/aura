@@ -253,8 +253,15 @@ def test_evidence_is_never_followed_by_an_admission_of_having_none(deals: Path) 
     failure. The sentence was written inline in two places and recognised in
     none.
     """
-    from core.conversation.reply_provenance import THE_HONEST_FAILURE, admits_no_answer
+    from core.conversation.reply_provenance import admits_no_answer
     from interface.routes.chat import _serve_tabular_answer
+
+    # The sentence as it was sent until 18 November; her older records carry it.
+    THE_HONEST_FAILURE = (
+        "I couldn't get to an answer I'd stand behind on that one, and I "
+        "won't send you a thinner one and pass it off as the real thing. "
+        "Ask me again in a moment and I should have it."
+    )
 
     assert admits_no_answer(THE_HONEST_FAILURE) is True
     assert admits_no_answer("Marek leads at 21, so I would not move her yet.") is False

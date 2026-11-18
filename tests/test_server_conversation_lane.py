@@ -17,6 +17,7 @@ import interface.routes.chat_conversation_repair as _chat_conversation_repair
 import interface.routes.chat_desktop_objective as _chat_desktop_objective
 import interface.routes.chat_desktop_repair as _chat_desktop_repair
 import interface.routes.chat_memory_state as _chat_memory_state
+import interface.routes.chat_no_reply as _chat_no_reply
 import interface.routes.chat_preflight as _chat_preflight
 import interface.routes.chat_protected_prompt as _chat_protected_prompt
 import interface.routes.chat_runtime_proof as _chat_runtime_proof
@@ -6193,11 +6194,13 @@ async def test_api_chat_desktop_cold_lane_timeout_is_not_reported_as_failed_reas
     assert response.status_code == 200
     assert payload["status"] == "conversation_warming"
     assert payload["reason"] == "foreground_warmup_timeout"
-    assert payload["response_confidence"] == "not_generated"
+    assert payload["response_confidence"] == "failed"
     assert payload["live_turn_contract"]["engine_think_invoked"] is False
     assert payload["live_turn_contract"]["full_mind_path"] is False
-    assert "stand behind" not in payload["response"]
-    assert "boot delay" in payload["response"]
+    # A boot delay, said as the runtime's notice and not as a judgement of hers.
+    assert payload["response"] == ""
+    assert "stand behind" not in payload["notice"]
+    assert "still warming up" in payload["notice"]
     assert calls == ["warmup"]
 
 
@@ -7142,7 +7145,8 @@ async def test_api_chat_desktop_surface_requires_cognitive_engine_and_blocks_ker
     # wording is user-facing prose and was deliberately rewritten out of
     # engineering vocabulary. tests/test_failure_replies_speak_plainly.py owns
     # the wording; this test owns the behaviour.
-    assert b"stand behind" in response.body
+    assert b"No reply formed for this message." in response.body
+    assert payload["response"] == ""
     assert b"desktop_cognitive_engine_required_no_reply" in response.body
     assert payload["live_turn_contract"]["final_requested_output_contract_required"] is True
     assert payload["live_turn_contract"]["final_requested_output_contract_evaluated"] is False
@@ -7280,6 +7284,10 @@ async def test_api_chat_desktop_low_risk_social_no_reply_fails_closed(monkeypatc
         completed_exchanges.append((args, kwargs))
         return None
 
+    async def _fake_close_unanswered(exchange_id, user_message, *, notice):
+        completed_exchanges.append(((exchange_id, user_message), {"record_experience": False, "notice": notice}))
+        return "committed"
+
     async def _fake_output_receipt(*args, **kwargs):
         output_receipts.append((args, kwargs))
         return None
@@ -7306,6 +7314,7 @@ async def test_api_chat_desktop_low_risk_social_no_reply_fails_closed(monkeypatc
     patch_chat_lane(monkeypatch, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_chat_preflight, "_begin_logged_exchange", _fake_begin_exchange)
     monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
+    monkeypatch.setattr(_chat_no_reply, "close_unanswered", _fake_close_unanswered)
     patch_chat_lane(monkeypatch, "_emit_chat_output_receipt", _fake_output_receipt)
     patch_chat_lane(monkeypatch, "_run_cognitive_engine_chat_turn", _no_cognitive_reply)
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
@@ -7352,9 +7361,11 @@ async def test_api_chat_desktop_low_risk_social_no_reply_fails_closed(monkeypatc
     assert payload["status"] == "desktop_cognitive_engine_unavailable"
     assert payload["reason"] == "desktop_cognitive_engine_required_no_reply"
     assert payload["response_confidence"] == "failed"
-    assert "stand behind" in payload["response"]
-    assert "reply-quality gate" not in payload["response"]
-    assert "second foreground generation" not in payload["response"]
+    # No reply of hers formed: the runtime's notice, and nothing in her voice.
+    assert payload["response"] == ""
+    assert "No reply formed" in payload["notice"]
+    assert "reply-quality gate" not in payload["notice"]
+    assert "second foreground generation" not in payload["notice"]
     assert kernel_calls == []
     assert len(completed_exchanges) == 1
     assert completed_exchanges[0][1]["record_experience"] is False
@@ -7512,6 +7523,10 @@ async def test_api_chat_desktop_runtime_path_no_reply_is_not_answered_by_a_statu
         completed_exchanges.append((args, kwargs))
         return None
 
+    async def _fake_close_unanswered(exchange_id, user_message, *, notice):
+        completed_exchanges.append(((exchange_id, user_message), {"record_experience": False, "notice": notice}))
+        return "committed"
+
     async def _fake_output_receipt(*args, **kwargs):
         output_receipts.append((args, kwargs))
         return None
@@ -7538,6 +7553,7 @@ async def test_api_chat_desktop_runtime_path_no_reply_is_not_answered_by_a_statu
     patch_chat_lane(monkeypatch, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_chat_preflight, "_begin_logged_exchange", _fake_begin_exchange)
     monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
+    monkeypatch.setattr(_chat_no_reply, "close_unanswered", _fake_close_unanswered)
     patch_chat_lane(monkeypatch, "_emit_chat_output_receipt", _fake_output_receipt)
     patch_chat_lane(monkeypatch, "_run_cognitive_engine_chat_turn", _no_cognitive_reply)
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
@@ -7762,6 +7778,10 @@ async def test_api_chat_desktop_capability_no_reply_fails_closed_without_invento
         completed_exchanges.append((args, kwargs))
         return None
 
+    async def _fake_close_unanswered(exchange_id, user_message, *, notice):
+        completed_exchanges.append(((exchange_id, user_message), {"record_experience": False, "notice": notice}))
+        return "committed"
+
     async def _fake_output_receipt(*args, **kwargs):
         output_receipts.append((args, kwargs))
         return None
@@ -7778,6 +7798,7 @@ async def test_api_chat_desktop_capability_no_reply_fails_closed_without_invento
     patch_chat_lane(monkeypatch, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_chat_preflight, "_begin_logged_exchange", _fake_begin_exchange)
     monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
+    monkeypatch.setattr(_chat_no_reply, "close_unanswered", _fake_close_unanswered)
     patch_chat_lane(monkeypatch, "_emit_chat_output_receipt", _fake_output_receipt)
     patch_chat_lane(monkeypatch, "_run_cognitive_engine_chat_turn", _no_cognitive_reply)
     patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
@@ -7825,12 +7846,13 @@ async def test_api_chat_desktop_capability_no_reply_fails_closed_without_invento
     )
 
     payload = json.loads(response.body)
-    lowered = payload["response"].lower()
+    lowered = payload["notice"].lower()
     assert response.status_code == 200  # in-band fail-closed delivery for real users
     assert payload["status"] == "desktop_cognitive_engine_unavailable"
     assert payload["response_confidence"] == "failed"
     assert payload["reason"] == "desktop_cognitive_engine_required_no_reply"
-    assert "stand behind" in lowered
+    assert payload["response"] == ""
+    assert "no reply formed" in lowered
     assert "computer_use" not in payload["response"]
     assert "web_search" not in payload["response"]
     assert "legacy fallback" not in lowered
@@ -8700,6 +8722,10 @@ async def test_api_chat_desktop_surface_outer_timeout_refuses_direct_gate_fallba
         completed_exchanges.append((args, kwargs))
         return None
 
+    async def _fake_close_unanswered(exchange_id, user_message, *, notice):
+        completed_exchanges.append(((exchange_id, user_message), {"record_experience": False, "notice": notice}))
+        return "committed"
+
     async def _fake_output_receipt(*args, **kwargs):
         output_receipts.append((args, kwargs))
         return None
@@ -8713,6 +8739,7 @@ async def test_api_chat_desktop_surface_outer_timeout_refuses_direct_gate_fallba
     patch_chat_lane(monkeypatch, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_chat_preflight, "_begin_logged_exchange", _fake_begin_exchange)
     monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
+    monkeypatch.setattr(_chat_no_reply, "close_unanswered", _fake_close_unanswered)
     patch_chat_lane(monkeypatch, "_emit_chat_output_receipt", _fake_output_receipt)
     patch_chat_lane(monkeypatch, "_run_cognitive_engine_chat_turn", _timeout_cognitive_turn)
     monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(_fake_get))
@@ -8757,7 +8784,7 @@ async def test_api_chat_desktop_surface_outer_timeout_refuses_direct_gate_fallba
     assert len(completed_exchanges) == 1
     assert completed_exchanges[0][1]["record_experience"] is False
     assert len(output_receipts) == 1
-    assert output_receipts[0][1]["cause"] == "chat_timeout"
+    assert output_receipts[0][1]["cause"] == "runtime_notice"
     assert output_receipts[0][1]["metadata"]["path"] == "desktop_cognitive_engine"
 
 
@@ -8845,11 +8872,12 @@ async def test_api_chat_desktop_surface_blocks_thin_cognitive_engine_recovery_re
     # not served, and the reply says she could not answer.
     assert b"What&apos;s the puzzle" not in response.body
     assert b"What's the puzzle" not in response.body
-    said = json.loads(response.body)["response"]
+    said = json.loads(response.body)["notice"]
     assert said.strip(), "failing closed still has to say something"
+    assert json.loads(response.body)["response"] == ""
     assert any(
         one in said.lower()
-        for one in ("couldn't", "could not", "unavailable", "rather tell you")
+        for one in ("no reply formed", "could not", "unavailable", "held back")
     ), said
     # The status marker used to be asserted here. It named one of several
     # fail-closed exits, and the turn now leaves by a different one — her own
@@ -8874,6 +8902,10 @@ async def test_api_chat_desktop_required_blocks_unfounded_voice_intrusion(monkey
     async def _fake_complete_exchange(*args, **kwargs):
         completed_exchanges.append((args, kwargs))
         return None
+
+    async def _fake_close_unanswered(exchange_id, user_message, *, notice):
+        completed_exchanges.append(((exchange_id, user_message), {"record_experience": False, "notice": notice}))
+        return "committed"
 
     async def _fake_output_receipt(*args, **kwargs):
         output_receipts.append((args, kwargs))
@@ -8906,6 +8938,7 @@ async def test_api_chat_desktop_required_blocks_unfounded_voice_intrusion(monkey
     patch_chat_lane(monkeypatch, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_chat_preflight, "_begin_logged_exchange", _fake_begin_exchange)
     monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
+    monkeypatch.setattr(_chat_no_reply, "close_unanswered", _fake_close_unanswered)
     patch_chat_lane(monkeypatch, "_emit_chat_output_receipt", _fake_output_receipt)
     patch_chat_lane(monkeypatch, "_run_cognitive_engine_chat_turn", _bad_cognitive_turn)
     patch_chat_lane(monkeypatch, "_stabilize_user_facing_reply", _no_stabilize)
@@ -16866,7 +16899,7 @@ async def test_api_chat_returns_hard_local_failure_without_kernel_fallback(monke
     )
 
     assert response.status_code == 200  # in-band fail-closed delivery for real users
-    assert b"local Cortex runtime could not start cleanly" in response.body
+    assert b"local Cortex runtime could not start" in response.body
     assert b"\"status\":\"conversation_unavailable\"" in response.body
     assert b"\"state\":\"failed\"" in response.body
 
@@ -16931,7 +16964,7 @@ async def test_api_chat_skips_protected_foreground_rescue_under_memory_warning(m
     )
 
     assert response.status_code == 200  # in-band fail-closed delivery for real users
-    assert b"local Cortex runtime could not start cleanly" in response.body
+    assert b"local Cortex runtime could not start" in response.body
     assert b"\"status\":\"conversation_unavailable\"" in response.body
     assert generate_calls == []
 
@@ -17339,7 +17372,7 @@ async def test_api_chat_returns_structured_timeout_when_kernel_times_out(monkeyp
     # in-band (200) so the UI shows the honest text instead of silence.
     # Benchmarks keep true 503/504 via X-Aura-Benchmark.
     assert response.status_code == 200
-    assert b"took too long to finish cleanly" in response.body
+    assert b"time for this reply ran out" in response.body
     assert b"\"status\":\"timeout\"" in response.body
 
 
@@ -17805,7 +17838,7 @@ def test_conversation_lane_user_message_reports_local_runtime_failure():
         }
     )
 
-    assert "local Cortex runtime could not start cleanly" in message
+    assert "local Cortex runtime could not start" in message
 
 
 def test_feedback_observer_imports_cleanly_on_fresh_load():

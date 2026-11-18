@@ -140,6 +140,7 @@ from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E4
 
 # The lane modules own these names. Reached through the module object
 # so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_no_reply as _chat_no_reply  # noqa: E402
 from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
 # The self-reply helpers moved to their own module; re-exported here so every
 # existing reference keeps resolving. See interface/routes/chat_self_reply.py.
@@ -699,7 +700,6 @@ from .chat_lane_bookkeeping import (  # noqa: E402
     _is_simple_affect_check_request,
     _is_simple_subjective_reflex_request,
     _known_answer_for_this_turn,
-    _lane_reply_confidence,
     _lane_status_message_body,
     _launcher_desktop_runtime_active,
     _looks_safely_grounded_search_reply,
@@ -743,7 +743,6 @@ from .chat_lane_bookkeeping import (  # noqa: E402
     _this_turn_generated_something,
     _turn_count_ordinal,
     _user_requested_research_memory_save,
-    _with_mood,
     _with_the_same_readings,
     _word_set,
     _worth_more_than_a_refusal,
@@ -5395,7 +5394,6 @@ from .chat_refusals import (
     _refuse_an_empty_canonical_reply,
     _refuse_an_unmet_benchmark_contract,
     _serve_the_capability_inventory,
-    _what_to_serve_instead,
     _why_there_is_no_answer,  # noqa: F401
 )
 from .chat_recorded_answers import (
@@ -5505,9 +5503,9 @@ def _lane_status_repeat_suffix(message: str) -> str:
     if count <= _LANE_STATUS_REPEAT_NOTICE_AFTER:
         return ""
     return (
-        f" (This is the {_turn_count_ordinal(count)} turn in a row I've had to say this — "
-        "the lane is not recovering on its own, so this is worth looking at "
-        "rather than retrying.)"
+        f" This is the {_turn_count_ordinal(count)} turn in a row with this notice: "
+        "her model is not recovering on its own, so it is worth looking at rather "
+        "than retrying."
     )
 
 
@@ -5547,28 +5545,37 @@ _FINISHED = frozenset({"configured_stop", "eos", "semantic_contract_satisfied"})
 _A_DANGLING_MARKER = re.compile(r"(?:\n|^)\s*(?:\d+[.)]|[-*\u2022]|#{1,6})\s*$")
 
 
-
-
-
-
-
-
-
-
-
-
 def _conversation_lane_user_message(
     lane: dict[str, Any],
     *,
     timed_out: bool = False,
     status_override: str = "",
 ) -> str:
-    # A fact the machine holds is not the lane's to withhold.
-    known = _known_answer_for_this_turn()
-    if known:
-        return known
+    """Why the lane formed no reply, as the runtime's notice."""
     message = _lane_status_message_body(lane, timed_out=timed_out, status_override=status_override)
     return message + _lane_status_repeat_suffix(message)
+
+
+async def _the_lane_formed_no_reply(
+    lane: dict[str, Any],
+    *,
+    status: str,
+    user_message: str = "",
+    pending_exchange_id: str | None = None,
+    timed_out: bool = False,
+    status_override: str = "",
+    **fields: Any,
+) -> JSONResponse:
+    """A turn the lane could not serve: the lane's notice, with any exact answer the runtime holds beside it.
+
+    A fact the machine holds is not the lane's to withhold, and it is not hers
+    to have said either: it goes in the notice under its own heading.
+    """
+    return await _chat_no_reply.no_reply_response(
+        why=_conversation_lane_user_message(lane, timed_out=timed_out, status_override=status_override),
+        held=_known_answer_for_this_turn(), status=status, user_message=user_message,
+        pending_exchange_id=pending_exchange_id, conversation_lane=lane, **fields,
+    )
 
 
 _PROTECTED_FOREGROUND_LOCK_BYPASS_SECONDS: float = 1.0
@@ -6527,29 +6534,19 @@ async def api_chat_regenerate(
                 "Desktop regenerate required CognitiveEngine but no acceptable reply was produced. Surface=%s",
                 request_surface or "unknown",
             )
-            return JSONResponse(
-                {
-                    "response": (
-                        "I couldn't put together a better version of that answer just "
-                        "now — my main reasoning path isn't available this moment. The "
-                        "reply you already have still stands; try again shortly."
-                    ),
-                    "status": "desktop_cognitive_engine_unavailable",
-                    "reason": "desktop_cognitive_engine_required_no_reply",
-                    "conversation_lane": lane,
-                    "response_confidence": "failed",
-                    "live_turn_contract": _regen_live_turn_contract(
-                        lane_status=lane,
-                        response_confidence="failed",
-                        status="desktop_cognitive_engine_unavailable",
-                        reply_source="desktop_cognitive_engine_required_no_reply",
-                    ),
-                    "regenerated": False,
-                },
-                # Regenerate is a desktop-user surface with no benchmark
-                # concept: the honest fail-closed text must arrive in-band,
-                # never as a raw 503 the UI renders as silence.
-                status_code=200,
+            # In-band, as the runtime's notice: the reply already shown stands.
+            return await _chat_no_reply.no_reply_response(
+                why="No new version of that reply formed. The reply already shown stands.",
+                status="desktop_cognitive_engine_unavailable",
+                reason="desktop_cognitive_engine_required_no_reply",
+                conversation_lane=lane,
+                live_turn_contract=_regen_live_turn_contract(
+                    lane_status=lane,
+                    response_confidence="failed",
+                    status="desktop_cognitive_engine_unavailable",
+                    reply_source="desktop_cognitive_engine_required_no_reply",
+                ),
+                regenerated=False,
             )
 
         if not reply_text and ki.is_ready():
@@ -8702,106 +8699,22 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     "rejected_reply_len": len(str(rejected_reply or "")),
                 }
             )
-            # Plain speech. "full-mind", "failed closed" and "ungrounded" are
-            # words for the engineering log, not for the person waiting — the
-            # 2026-07-25 endurance probe served this exact sentence on the
-            # retention turns and it reads like a subsystem talking about
-            # itself. Say what happened and what they can do.
-            from core.conversation.reply_provenance import THE_HONEST_FAILURE
-
-            failure_reply = THE_HONEST_FAILURE
-            # Before giving up, ask whether the runtime already HOLDS the answer.
-            #
-            # Live 2026-08-10: asked which of her subsystems were degraded and
-            # whether any job had been failing repeatedly, she served the
-            # sentence above — while /api/health carried integrity=degraded and
-            # overt_action_cycle at failures=13 with its exact TypeError. The
-            # answer was structured, live, and hers. Nothing had fetched it.
-            #
-            # This is a reading, not a rescue: self_health_answer() returns text
-            # only when a channel actually produced a value, and the text is
-            # built from those values, so it cannot describe a health she does
-            # not have. When no channel reads, it returns "" and the honest
-            # refusal above stands.
-            evidenced_reply = ""
-            # An exact answer is the strongest reading of all: it needs no
-            # channel, no generation and no model. Live 2026-08-19 the
-            # arithmetic drafts were rejected three times for missing the very
-            # number the runtime could compute, and the turn ended in the
-            # sentence above with the answer sitting one function call away.
-            computed = _known_answer_for_this_turn()
-            if computed:
-                evidenced_reply = computed
-            if not evidenced_reply and _is_simple_affect_check_request(_semantic_user_message):
-                evidenced_reply = _build_grounded_self_condition_reply(
-                    _semantic_user_message,
-                    session_id=_chat_session_id,
-                )
-            if not evidenced_reply:
-                evidenced_reply = _chat_conversation_repair._self_health_answer_or_empty(
-                    _semantic_user_message
-                )
-            if not evidenced_reply:
-                # A tool ran and found something. Saying "I couldn't get to an
-                # answer" on top of that is not honesty, it is losing the work.
-                #
-                # LIVE, 2026-08-27, repeatedly: file_operation read the docs in
-                # 4ms, diagnose_repo returned a complete finding in 276ms,
-                # code_repl ran — and the turn still ended in the sentence
-                # above, because the model wrote nothing usable afterwards.
-                # Every governance link was clear by then; what was missing was
-                # somebody saying what the tool had returned.
-                evidenced_reply = _what_the_tools_found()
-            failure_reply, served_confidence = await _what_to_serve_instead(
-                _semantic_user_message, found=evidenced_reply, failure_reply=failure_reply,
+            # No reply of hers formed. What the runtime holds goes in the
+            # notice, the smaller model is asked when it holds nothing, and
+            # nothing is written in her voice (chat_no_reply.py).
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _chat_no_reply.what_a_turn_with_no_reply_returns(
+                semantic_message=_semantic_user_message,
+                original_message=_original_user_message,
+                session_id=_chat_session_id,
+                pending_exchange_id=exchange_id,
+                status=status,
+                reason=reason,
+                lane=lane,
+                reply_source=response_path,
+                is_benchmark=is_benchmark,
                 budget_s=_remaining_foreground_budget(),
-            )
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    failure_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            else:
-                await _chat_preflight._log_exchange(
-                    _original_user_message,
-                    failure_reply,
-                    record_experience=False,
-                    session_id=_chat_session_id,
-                )
-            await _emit_chat_output_receipt(
-                failure_reply,
-                cause="chat_response",
-                metadata={
-                    "response_confidence": served_confidence,
-                    "path": response_path,
-                    "status": status,
-                    "reason": reason,
-                    "rejected_reply_len": len(str(rejected_reply or "")),
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": failure_reply,
-                    "status": status,
-                    "reason": reason,
-                    "conversation_lane": lane,
-                    "response_confidence": served_confidence,
-                    "live_turn_contract": _live_turn_contract(
-                        lane_status=lane,
-                        response_confidence=served_confidence,
-                        status=status,
-                        reply_source=response_path,
-                    ),
-                },
-                # A real user gets the honest fail-closed reply IN-BAND (200)
-                # so the UI renders it as a message; raw 503s here surfaced
-                # as bare "HTTP Error 503" to clients (both July 8 soaks).
-                # Benchmarks keep the strict status code — same contract as
-                # the foreground_busy path above.
-                status_code=503 if is_benchmark else 200,
+                live_turn_contract=_live_turn_contract,
             )
 
         async def _finalize_fastpath(
@@ -9536,16 +9449,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     rescue_reply,
                     status="protected_foreground",
                 )
-            return JSONResponse(
-                {
-                    "response": _conversation_lane_user_message(lane),
-                    "status": "conversation_unavailable",
-                    "conversation_lane": lane,
-                },
-                # In-band for real users (the lane message IS the answer);
-                # strict 503 stays benchmark-only. This producer surfaced as
-                # bare 'HTTP Error 503' in the nightcap soak.
-                status_code=503 if is_benchmark else 200,
+            # In-band for real users; strict 503 stays benchmark-only. This
+            # producer surfaced as bare 'HTTP Error 503' in the nightcap soak.
+            return await _the_lane_formed_no_reply(
+                lane, status="conversation_unavailable", status_code=503 if is_benchmark else 200,
             )
 
         if allow_chat_fastpaths:
@@ -9803,25 +9710,29 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
                 waking_reply = None if hard_lane_failure else await her_reply_while_waking(
                     _original_user_message, session_id=_chat_session_id, timeout_s=_remaining_foreground_budget())
-                response_text = waking_reply or _conversation_lane_user_message(lane, status_override=admission_override)
                 logger.warning(
                     "Required desktop CognitiveEngine turn was not admitted before generation: %s",
                     admission_reason,
                 )
+                if not waking_reply:
+                    return await _the_lane_formed_no_reply(
+                        lane, status=status, status_override=admission_override,
+                        status_code=503 if is_benchmark else 200, headers={"Retry-After": "2"},
+                        reason=admission_reason, live_turn_contract=_live_turn_contract(
+                            lane_status=lane, response_confidence="failed", status=status,
+                            reply_source="required_cognitive_lane_admission",
+                        ),
+                    )
                 return JSONResponse(
                     {
-                        "response": response_text,
+                        "response": waking_reply,
                         "status": status,
                         "reason": admission_reason,
                         "conversation_lane": lane,
-                        "response_confidence": _lane_reply_confidence(
-                            response_text, "not_generated"
-                        ),
+                        "response_confidence": "not_generated",
                         "live_turn_contract": _live_turn_contract(
                             lane_status=lane,
-                            response_confidence=_lane_reply_confidence(
-                                response_text, "not_generated"
-                            ),
+                            response_confidence="not_generated",
                             status=status,
                             reply_source="required_cognitive_lane_admission",
                         ),
@@ -10340,97 +10251,22 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     "response_path": "desktop_cognitive_engine_required_no_reply",
                 }
             )
-            from core.conversation.reply_provenance import THE_HONEST_FAILURE
-
-            failure_reply = THE_HONEST_FAILURE
-            # Before giving up, ask whether the runtime already HOLDS the answer.
-            #
-            # Live 2026-08-10: asked which of her subsystems were degraded and
-            # whether any job had been failing repeatedly, she served the
-            # sentence above — while /api/health carried integrity=degraded and
-            # overt_action_cycle at failures=13 with its exact TypeError. The
-            # answer was structured, live, and hers. Nothing had fetched it.
-            #
-            # This is a reading, not a rescue: self_health_answer() returns text
-            # only when a channel actually produced a value, and the text is
-            # built from those values, so it cannot describe a health she does
-            # not have. When no channel reads, it returns "" and the honest
-            # refusal above stands.
-            evidenced_reply = _chat_conversation_repair._self_health_answer_or_empty(
-                _semantic_user_message
-            )
-            if not evidenced_reply:
-                # And what this turn's tools actually returned. The same rescue
-                # as the other giving-up path, which is why both exist: two
-                # places build this reply and a fix applied to one of them
-                # leaves the other saying "I couldn't get to an answer" on top
-                # of a tool result.
-                evidenced_reply = _what_the_tools_found()
-            failure_reply, served_confidence = await _what_to_serve_instead(
-                _semantic_user_message, found=evidenced_reply, failure_reply=failure_reply,
+            # The same end as the other turn her engine could not serve: one
+            # helper, so a fix applied to one exit reaches both.
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _chat_no_reply.what_a_turn_with_no_reply_returns(
+                semantic_message=_semantic_user_message,
+                original_message=_original_user_message,
+                session_id=_chat_session_id,
+                pending_exchange_id=exchange_id,
+                status="desktop_cognitive_engine_unavailable",
+                reason="desktop_cognitive_engine_required_no_reply",
+                lane=lane,
+                reply_source="desktop_cognitive_engine_required_no_reply",
+                is_benchmark=is_benchmark,
                 budget_s=_remaining_foreground_budget(),
-            )
-            # A refusal is the right answer when nothing better is known. When
-            # the runtime has ALREADY worked the answer out, it is the worst of
-            # the three options available.
-            #
-            # LIVE, 2026-08-10: "7919 times 6421 — what do you get?" The
-            # preflight computed 50847899. The model produced 50864799 five
-            # times; the worker's own gate rejected each one as
-            # arithmetic_answer_missing — correctly — and then the turn died
-            # with nothing served. So the number was known, the wrong number
-            # was caught, and the person got neither fact.
-            #
-            # Deterministic beats absent. This does not ask the model again,
-            # because the model has just demonstrated five times that it cannot
-            # produce this value; a calculator's answer does not need one.
-            # This rescue lived HERE and only here, so the other refusal site
-            # and every lane-status path gave the same apology for the same
-            # computable question. One helper now, used by all of them.
-            _computed = _known_answer_for_this_turn()
-            if _computed:
-                failure_reply = _computed
-                served_confidence = "computed"
-                logger.warning(
-                    "🔢 Serving the computed arithmetic result (%s) instead of "
-                    "a refusal — the value was known the whole turn.",
-                    _computed,
-                )
-            logger.error("%s Surface=%s", failure_reply, request_surface or "unknown")
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    failure_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            await _emit_chat_output_receipt(
-                failure_reply,
-                cause="chat_response",
-                metadata={
-                    "response_confidence": served_confidence,
-                    "path": "desktop_cognitive_engine",
-                    "status": "desktop_cognitive_engine_unavailable",
-                    "reason": "desktop_cognitive_engine_required_no_reply",
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": failure_reply,
-                    "status": "desktop_cognitive_engine_unavailable",
-                    "reason": "desktop_cognitive_engine_required_no_reply",
-                    "conversation_lane": lane,
-                    "response_confidence": served_confidence,
-                    "live_turn_contract": _live_turn_contract(
-                        lane_status=lane,
-                        response_confidence=served_confidence,
-                        status="desktop_cognitive_engine_unavailable",
-                        reply_source="desktop_cognitive_engine_required_no_reply",
-                    ),
-                },
-                # In-band fail-closed delivery for real users.
-                status_code=503 if is_benchmark else 200,
+                live_turn_contract=_live_turn_contract,
+                receipt_path="desktop_cognitive_engine",
             )
 
         if reply_text and not conversation_only_surface:
@@ -10496,25 +10332,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             reply_source = "kernel_interface"
 
         if kernel_timed_out and is_benchmark:
-            timeout_reply = _conversation_lane_user_message(
-                _mark_conversation_lane_timeout(),
-                timed_out=True,
-            )
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    timeout_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            return JSONResponse(
-                {
-                    "response": timeout_reply,
-                    "status": "benchmark_kernel_timeout",
-                    "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
-                },
-                status_code=503,
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _the_lane_formed_no_reply(
+                _mark_conversation_lane_timeout(), timed_out=True, status="benchmark_kernel_timeout",
+                user_message=_semantic_user_message, pending_exchange_id=exchange_id, status_code=503,
             )
 
         if kernel_timed_out:
@@ -10540,21 +10361,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # soak caught two turns leaking through this exact path);
             # benchmarks keep true status codes via X-Aura-Benchmark.
             status_code = (503 if was_ready else 504) if is_benchmark else 200
-            timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    timeout_reply,
-                )
-                pending_exchange_id = None
-            return JSONResponse(
-                {
-                    "response": timeout_reply,
-                    "status": "timeout",
-                    "conversation_lane": lane,
-                },
-                status_code=status_code,
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _the_lane_formed_no_reply(
+                lane, timed_out=True, status="timeout", user_message=_semantic_user_message,
+                pending_exchange_id=exchange_id, status_code=status_code,
             )
 
         # Legacy Orchestrator Fallback. This is no longer automatic for live
@@ -11398,74 +11208,25 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     "bounded_contract_used": False,
                 }
             )
-            timeout_reply = (
-                "That one took me longer than I'm willing to keep you waiting for, "
-                "and I won't send a rushed answer instead. Ask again and I should "
-                "be quicker."
-            )
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    timeout_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            await _emit_chat_output_receipt(
-                timeout_reply,
-                cause="chat_timeout",
-                metadata={
-                    "response_confidence": "failed",
-                    "path": "desktop_cognitive_engine",
-                    "status": "desktop_cognitive_engine_timeout",
-                    "reason": "desktop_cognitive_engine_timeout",
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": timeout_reply,
-                    "status": "desktop_cognitive_engine_unavailable",
-                    "reason": "desktop_cognitive_engine_timeout",
-                    "conversation_lane": lane,
-                    "response_confidence": "failed",
-                    "live_turn_contract": _live_turn_contract(
-                        lane_status=lane,
-                        response_confidence="failed",
-                        status="desktop_cognitive_engine_unavailable",
-                        reply_source="desktop_cognitive_engine_timeout",
-                    ),
-                },
-                # In-band fail-closed delivery for real users.
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _the_lane_formed_no_reply(
+                lane, timed_out=True, status="desktop_cognitive_engine_unavailable",
+                user_message=_semantic_user_message, pending_exchange_id=exchange_id,
+                # In-band for real users.
                 status_code=503 if is_benchmark else 200,
+                reason="desktop_cognitive_engine_timeout", path="desktop_cognitive_engine",
+                live_turn_contract=_live_turn_contract(
+                    lane_status=lane,
+                    response_confidence="failed",
+                    status="desktop_cognitive_engine_unavailable",
+                    reply_source="desktop_cognitive_engine_timeout",
+                ),
             )
         if is_benchmark:
-            timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    body.message,
-                    timeout_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            await _emit_chat_output_receipt(
-                timeout_reply,
-                cause="chat_timeout",
-                origin="benchmark",
-                metadata={
-                    "response_confidence": "failed",
-                    "path": "benchmark_timeout",
-                    "status": "timeout",
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": timeout_reply,
-                    "status": "benchmark_timeout",
-                    "conversation_lane": lane,
-                    "response_confidence": "failed",
-                },
-                status_code=503,
+            exchange_id, pending_exchange_id = pending_exchange_id, None
+            return await _the_lane_formed_no_reply(
+                lane, timed_out=True, status="benchmark_timeout", user_message=body.message,
+                pending_exchange_id=exchange_id, status_code=503,
             )
 
         # The kernel timed out, but the resident worker may still be responsive.
@@ -11495,23 +11256,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # prepended it to an unrelated future turn under that turn's receipt.
         # Do not create ownerless speech. A timeout remains attached to this
         # exact exchange; a later user turn starts cleanly.
-        timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
-
-        if pending_exchange_id:
-            await _chat_preflight._complete_logged_exchange(
-                pending_exchange_id,
-                body.message,
-                timeout_reply,
-            )
-            pending_exchange_id = None
-        return JSONResponse(
-            {
-                "response": timeout_reply,
-                "status": "timeout",
-                "conversation_lane": lane,
-                "response_confidence": "degraded",
-            },
-            status_code=200,  # [STABILITY v53] Changed from 503/504 to 200
+        exchange_id, pending_exchange_id = pending_exchange_id, None
+        return await _the_lane_formed_no_reply(
+            lane, timed_out=True, status="timeout", user_message=body.message, pending_exchange_id=exchange_id,
+            status_code=200,  # [STABILITY v53] In-band, not 503/504.
         )
     except asyncio.CancelledError as cancel_exc:
         await _cancel_kernel_task_if_pending("request_cancelled")
@@ -11527,84 +11275,29 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # message was already inbound, the user has already moved on; if
         # the client just disconnected, the reply is never seen anyway.
         user_cancelled = _chat_delivery.USER_CANCEL_REASON in {str(value) for value in cancel_exc.args}
-        from core.conversation.response_reliability import TURN_CUT_SHORT_REPLY
-
-        cancel_reply = (
-            "Stopped this turn. Actions already completed were not undone."
-            if user_cancelled else
-            TURN_CUT_SHORT_REPLY
-        )
-        if pending_exchange_id:
-            await _chat_preflight._complete_logged_exchange(
-                pending_exchange_id,
-                body.message,
-                cancel_reply,
-                record_experience=not is_benchmark,
-            )
-            pending_exchange_id = None
-        if is_benchmark:
-            return JSONResponse(
-                {
-                    "response": cancel_reply,
-                    "status": "benchmark_cancelled",
-                    "conversation_lane": lane,
-                    "response_confidence": "failed",
-                },
-                status_code=503,
-            )
-        return JSONResponse(
-            {
-                "response": cancel_reply,
-                "status": "cancelled",
-                "conversation_lane": lane,
-                "response_confidence": "degraded",
-            },
-            status_code=200,  # [STABILITY v53] Changed from 503 to 200
+        exchange_id, pending_exchange_id = pending_exchange_id, None
+        return await _chat_no_reply.no_reply_response(
+            why=(
+                "Stopped this turn. Actions already completed were not undone."
+                if user_cancelled else
+                "This turn was cut short before her reply finished."
+            ),
+            status="benchmark_cancelled" if is_benchmark else "cancelled",
+            user_message=body.message, pending_exchange_id=exchange_id,
+            status_code=503 if is_benchmark else 200, conversation_lane=lane,
         )
     except _CHAT_RECOVERABLE_ERRORS as e:
         await _cancel_kernel_task_if_pending("chat_error")
         record_degradation("chat", e)
         logger.error("Chat error: %s", e, exc_info=True)
-        error_reply = _grounded_chat_failure_reply()
-        status_code = 200
-        if pending_exchange_id:
-            await _chat_preflight._complete_logged_exchange(
-                pending_exchange_id,
-                body.message,
-                error_reply,
-                record_experience=not is_benchmark,
-            )
-            pending_exchange_id = None
-        if is_benchmark:
-            await _emit_chat_output_receipt(
-                error_reply,
-                cause="chat_error",
-                origin="benchmark",
-                metadata={
-                    "response_confidence": "failed",
-                    "path": "benchmark_error",
-                    "status": type(e).__name__,
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": error_reply,
-                    "status": "benchmark_error",
-                    "error_type": type(e).__name__,
-                    "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
-                    "response_confidence": "failed",
-                },
-                status_code=503,
-            )
-        # [STABILITY v53] ALWAYS return 200 with a response. Chat must never
-        # appear broken to the user. The "status" field conveys error state.
-        return JSONResponse(
-            {
-                "response": error_reply,
-                "status": "error",
-                "response_confidence": "degraded",
-            },
-            status_code=status_code,
+        exchange_id, pending_exchange_id = pending_exchange_id, None
+        # [STABILITY v53] In-band for real users; the "status" field carries the error.
+        return await _chat_no_reply.no_reply_response(
+            why=_grounded_chat_failure_reply(type(e).__name__),
+            status="benchmark_error" if is_benchmark else "error",
+            user_message=body.message, pending_exchange_id=exchange_id,
+            status_code=503 if is_benchmark else 200, error_type=type(e).__name__,
+            **({"conversation_lane": _chat_preflight._collect_conversation_lane_status()} if is_benchmark else {}),
         )
     except Exception as e:  # noqa: BLE001 — last-resort turn-death floor
         if is_shutdown_requested():
@@ -11625,27 +11318,18 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             logger.debug("Turn-death floor: kernel-task cleanup failed: %s", cleanup_exc)
         record_degradation("chat.uncaught_turn_error", e)
         logger.error("Chat uncaught error (turn-death floor engaged): %s", e, exc_info=True)
-        error_reply = _grounded_chat_failure_reply()
+        exchange_id, pending_exchange_id = pending_exchange_id, None
+        why = _grounded_chat_failure_reply(type(e).__name__)
         try:
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    body.message,
-                    error_reply,
-                    record_experience=not is_benchmark,
-                )
-                pending_exchange_id = None
+            return await _chat_no_reply.no_reply_response(
+                why=why, status="error", user_message=body.message, pending_exchange_id=exchange_id,
+                error_type=type(e).__name__, status_code=200,
+            )
         except BaseException as log_exc:  # noqa: BLE001 — logging must not break the floor
-            logger.debug("Turn-death floor: exchange logging failed: %s", log_exc)
-        return JSONResponse(
-            {
-                "response": error_reply,
-                "status": "error",
-                "error_type": type(e).__name__,
-                "response_confidence": "degraded",
-            },
-            status_code=200,
-        )
+            logger.debug("Turn-death floor: closing the exchange failed: %s", log_exc)
+            return _chat_no_reply.no_reply_payload(
+                why=why, status="error", error_type=type(e).__name__, status_code=200,
+            )
     finally:
         if foreground_slot_acquired:
             _foreground_chat_lock.release(foreground_lock_token)

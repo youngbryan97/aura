@@ -88,6 +88,6 @@ def test_both_refusal_responses_carry_it():
     from interface.routes import chat_refusals
 
     source = inspect.getsource(chat_refusals)
-    assert source.count('"live_turn_contract": refusal_receipt(') == 2, (
+    assert source.count("live_turn_contract=refusal_receipt(") == 2, (
         "a refusal path that returns without a receipt is the defect this fixes"
     )
