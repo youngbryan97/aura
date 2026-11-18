@@ -2353,13 +2353,12 @@ def test_unitary_response_minimal_live_voice_reply_contains_runtime_grounding():
     reply = UnitaryResponsePhase._build_minimal_live_voice_reply(state)
 
     lowered = reply.lower()
-    # Minimal reply should use natural language, not raw metric values
+    # No raw metric values, and since 18 November no sentence in her voice: the runtime's notice.
+    from core.conversation.runtime_notice import is_the_runtimes_notice
+
     assert "free energy" not in lowered
     assert "0.42" not in reply
-    assert "live answer path failed" in lowered
-    assert "preserving the request" in lowered
-    # Should still have a meaningful response
-    assert len(reply) > 5
+    assert is_the_runtimes_notice(reply)
 
 
 def test_unitary_response_recovery_variant_prefers_valid_raw_reply(monkeypatch):
@@ -2572,15 +2571,6 @@ def test_social_greeting_detection_only_matches_pure_greetings():
     assert _is_live_presence_check_request("Hey Aura, quick live check.")
     assert _is_live_presence_check_request("Aura, you there?")
     assert not _is_live_presence_check_request("Please check the live server logs.")
-
-
-def test_social_presence_reply_stays_in_aura_voice():
-    from interface.routes.chat import _build_social_presence_reply
-
-    reply = _build_social_presence_reply("hey")
-
-    assert "i'm here" in reply.lower()
-    assert "how can i help" not in reply.lower()
 
 
 def test_session_memory_pin_extracts_phrase():

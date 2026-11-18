@@ -3414,39 +3414,30 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
     @classmethod
     @_builds_fixed_text
     def _build_minimal_live_voice_reply(cls, state: AuraState, user_message: str = "") -> str:
-        """Last-resort fallback when LLM inference timed out or failed.
+        """Last resort when inference timed out or failed: the runtime's notice.
 
-        Prefer a deterministic floor when one exists. If not, return one
-        compact, state-grounded sentence rather than a blank response. The
-        caller may still retry or escalate, but the hard last-resort path must
-        remain conversationally legible.
+        A deterministic floor, when one exists, goes in the notice under its
+        own heading. The caller may still retry or escalate.
         """
+        deterministic = ""
         try:
             from core.synthesis import deterministic_user_facing_floor
 
             deterministic = deterministic_user_facing_floor(
                 user_message or getattr(state.cognition, "current_objective", "") or ""
             )
-            if deterministic:
-                return deterministic
         except _RESPONSE_RECOVERABLE_ERRORS as exc:
             _record_response_degradation(
                 exc, "UnitaryResponse: deterministic minimal reply skipped: %s"
             )
 
-        focus = cls._normalize_text(
-            getattr(getattr(state, "cognition", None), "current_objective", "") or "",
-            96,
-        )
-        if focus:
-            return (
-                f"The live answer path failed before I could produce a verified reply for {focus}. "
-                "I am preserving the request instead of inventing a result."
-            )
-        return (
-            "The live answer path failed before I could produce a verified reply. "
-            "I am preserving the request instead of inventing a result."
-        )
+        # No reply of hers formed: the runtime's notice, never a sentence in
+        # her voice ("The live answer path failed before I could produce a
+        # verified reply", until 18 November). The delivery boundary moves it
+        # out of her reply (core/conversation/runtime_notice.py).
+        from core.conversation.runtime_notice import the_runtimes_notice
+
+        return the_runtimes_notice(deterministic)
 
     @classmethod
     def _build_governed_user_recovery_reply(
@@ -6269,7 +6260,6 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     from core.conversation.response_reliability import (
                         assess_user_facing_reply,
                         is_live_self_reflection_turn,
-                        reliability_floor_for_user,
                     )
                     from core.conversation.style_judgments import only_style_judgments
 
@@ -6360,56 +6350,26 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                     )
                                     response_text = retried_text
                                     quality = retried_quality
-                            if quality.retryable:
-                                deterministic_floor = ""
-                                try:
-                                    from core.synthesis import deterministic_user_facing_floor
-
-                                    deterministic_floor = deterministic_user_facing_floor(objective)
-                                except _RESPONSE_RECOVERABLE_ERRORS as exc:
-                                    # The floor is what gets served when the draft is retryable.
-                                    logger.warning(
-                                        "No deterministic floor for a retryable draft: %s", exc
-                                    )
-                                    deterministic_floor = ""
-                                floor = (
-                                    reliability_floor_for_user(objective)
-                                    or deterministic_floor
-                                    or self._build_minimal_live_voice_reply(new_state, objective)
+                            if quality.retryable and desktop_cognitive_engine_required:
+                                # No draft of hers passed. The runtime's notice stands in no
+                                # voice of hers, with any exact answer it holds under its own
+                                # heading; a floor chosen by phrases in the request, or "I
+                                # couldn't produce a reliable answer to that turn", stood here
+                                # until 18 November.
+                                _record_response_degradation(
+                                    RuntimeError(
+                                        "no desktop Cortex draft passed the user-facing reliability checks"
+                                    ),
+                                    "UnitaryResponse ended the turn with the runtime's notice: %s",
+                                    action="served the runtime's notice; nothing was written in her voice",
+                                    severity="degraded",
                                 )
-                                shaped_floor = self._shape_user_facing_response(floor, objective)
-                                floor_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, shaped_floor))
-                                if not floor_quality.retryable:
-                                    logger.warning(
-                                        "🛡️ UnitaryResponse replaced unsafe final 32B draft (%s, len=%d).",
-                                        ",".join(quality.reasons) or "unknown",
-                                        len(str(response_text or "")),
-                                    )
-                                    response_text = shaped_floor
-                                elif desktop_cognitive_engine_required:
-                                    failure_reply = (
-                                        "I couldn't produce a reliable answer to that turn, and I won't "
-                                        "fabricate one. The Cortex draft failed its output checks, so I "
-                                        "recorded the failure instead of sending nonsense."
-                                    )
-                                    _record_response_degradation(
-                                        RuntimeError(
-                                            "desktop Cortex draft and deterministic repair floor "
-                                            "both failed user-facing reliability checks"
-                                        ),
-                                        "UnitaryResponse emitted an explicit desktop inference failure: %s",
-                                        action=(
-                                            "surfaced a bounded desktop runtime failure instead of "
-                                            "retrying the heavyweight model or returning HTTP 503"
-                                        ),
-                                        severity="degraded",
-                                    )
-                                    response_text = failure_reply
-                                else:
-                                    raise TimeoutError(
-                                        "Foreground conversation lane produced only unsafe drafts: "
-                                        + ",".join(quality.reasons)
-                                    )
+                                response_text = self._build_minimal_live_voice_reply(new_state, objective)
+                            elif quality.retryable:
+                                raise TimeoutError(
+                                    "Foreground conversation lane produced only unsafe drafts: "
+                                    + ",".join(quality.reasons)
+                                )
                 except TimeoutError:
                     raise
                 except _RESPONSE_RECOVERABLE_ERRORS as quality_exc:

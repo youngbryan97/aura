@@ -581,7 +581,7 @@ def test_the_last_resort_consults_the_record_before_apologising() -> None:
     source = chat_lane_source()
     composer = source.split("def _build_degraded_live_reply(", 1)[1].split("\ndef ", 1)[0]
     assert "_self_health_answer_or_empty(user_message)" in composer
-    assert "notice_with_what_was_held(NO_REPLY_FORMED, held)" in composer
+    assert "the_runtimes_notice(" in composer
 
 
 def test_the_refusal_helper_covers_recall_as_well_as_health() -> None:

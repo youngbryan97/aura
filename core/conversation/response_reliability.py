@@ -6540,11 +6540,9 @@ def _model_text_integrity_reasons(
         reasons.append("pseudo_commitment_status_leak")
     if user_facing and _is_promise_without_answer(prompt, raw):
         reasons.append("promise_without_answer")
+    # No floor is served as her reply since 18 November, so one is never the expected answer.
     if user_facing and is_non_answer_repair_floor_reply(raw):
-        expected_floor = reliability_floor_for_user(prompt) if prompt else ""
-        matches_expected_floor = bool(expected_floor and _normalize(expected_floor) == _normalize(raw))
-        if not matches_expected_floor:
-            reasons.append("friendly_failure_floor")
+        reasons.append("friendly_failure_floor")
     if _KNOWN_CORRUPT_RE.search(raw):
         reasons.append("corrupted_language")
     if user_facing and _has_punctuation_join_artifact(raw):
@@ -7917,22 +7915,6 @@ def conversation_reliability_system_block(user_message: Any = "") -> str:
         return ""
     return "## USER-FACING CONVERSATION RELIABILITY CONTRACT\n" + body.lstrip("\n")
 
-
-def reliability_floor_for_user(user_message: Any) -> str:
-    from core.conversation.session_scope import is_her_own_turn
-
-    if is_her_own_turn():  # nobody asked anything on a turn of hers (core/conversation/session_scope.py)
-        return ""
-    diagnostic = live_chat_diagnostic_floor(user_message)
-    if diagnostic:
-        return diagnostic
-    if is_reliability_concern(user_message):
-        return _RELIABILITY_REPAIR_FLOOR
-    if is_confusion_repair_turn(user_message):
-        return _CONFUSION_REPAIR_FLOOR
-    if is_status_check_turn(user_message):
-        return _STATUS_REPAIR_FLOOR
-    return ""
 
 #: Calling evidence in hand hypothetical.
 #:

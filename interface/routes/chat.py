@@ -339,14 +339,11 @@ from interface.routes.chat_desktop_repair import (  # noqa: E402
     _build_aura_expression_frame,  # noqa: F401
     _build_bounded_capability_inventory_repair_reply,  # noqa: F401
     _build_bounded_cognitive_process_reply,  # noqa: F401
-    _build_bounded_desktop_repair_reply,  # noqa: F401
     _build_bounded_identity_repair_reply,  # noqa: F401
     _build_bounded_planning_reply,  # noqa: F401
     _build_failure_mode_surface_reply,  # noqa: F401
     _build_grounded_capability_inventory_reply,  # noqa: F401
     _build_identity_reply,  # noqa: F401
-    _build_social_continuity_repair_reply,  # noqa: F401
-    _build_social_presence_reply,  # noqa: F401
     _capability_catalog_memory_block_reason,  # noqa: F401
     _capability_inventory_reply_is_inadequate,  # noqa: F401
     _CapabilityCatalogSnapshot,  # noqa: F401
@@ -7600,16 +7597,6 @@ def _api_chat_turn_desktop_speech_must(_semantic_user_message):
                 "Desktop no-reply repair scope check skipped: %s",
                 repair_scope_exc,
             )
-    if _chat_desktop_repair._is_low_risk_social_continuity_request(_semantic_user_message):
-        social_reply = _chat_desktop_repair._build_social_continuity_repair_reply(
-            _semantic_user_message
-        )
-        logger.warning(
-            "Desktop CognitiveEngine produced no acceptable reply for low-risk social turn; "
-            "not serving bounded social repair as a successful full-mind desktop turn "
-            "(candidate repair len=%d).",
-            len(social_reply),
-        )
     return allow_required_desktop_no_reply_repairs
 
 def _api_chat_turn_proactive_recovery_consecutive(_qualified_exact_delivery, _semantic_user_message, reply_text, response_confidence):
@@ -9223,16 +9210,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     _semantic_user_message
                 ),
                 status="cognitive_engine_capability_inventory",
-            )
-
-        if (
-            allow_chat_fastpaths
-            and _chat_desktop_repair._is_low_risk_social_continuity_request(_semantic_user_message)
-            and not _conversation_lane_blocks_fallback(lane)
-        ):
-            return await _finalize_fastpath(
-                _chat_desktop_repair._build_social_continuity_repair_reply(_semantic_user_message),
-                status="social_presence_reflex",
             )
 
         diagnostic_target = None

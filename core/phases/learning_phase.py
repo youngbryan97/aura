@@ -5,6 +5,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from core.conversation.runtime_notice import is_the_runtimes_notice
 from core.kernel.bridge import Phase
 from core.phases.dialogue_policy import validate_dialogue_response
 from core.phases.response_contract import ResponseContract
@@ -385,7 +386,8 @@ class LearningPhase(Phase):
         if learner is None:
             return state
         response = state.cognition.last_response
-        if not response:
+        # The runtime's notice is not a reply of hers to learn from (core/conversation/runtime_notice.py).
+        if not response or is_the_runtimes_notice(response):
             return state
 
         follow_up = self._detect_follow_up(state)
@@ -512,7 +514,7 @@ class LearningPhase(Phase):
 
     async def _wire_conversation_learning(self, state: AuraState, objective: str) -> None:
         response = str(getattr(state.cognition, "last_response", "") or "").strip()
-        if not objective or not response:
+        if not objective or not response or is_the_runtimes_notice(response):
             return
 
         from core.container import ServiceContainer

@@ -11,7 +11,6 @@ from typing import Any
 from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
 from core.conversation.response_reliability import (
     assess_user_facing_reply,
-    live_chat_diagnostic_floor,
     normalize_user_facing_format,
     occluded_screen_view_floor,
     own_source_excerpt_floor,
@@ -331,11 +330,6 @@ def verified_answer_floor(user_message: str) -> str:
     q = re.sub(r"\s+", " ", str(user_message or "").strip())
     if not q or _hers():
         return ""
-
-    # A status question, answered from the live health surface.
-    diagnostic = live_chat_diagnostic_floor(q)
-    if diagnostic:
-        return diagnostic
 
     # "Show me your actual code" is answerable from the source tree. Left to
     # the model it produced a transformer pipeline that exists in no file here
@@ -1289,55 +1283,3 @@ class ConversationalSynthesizer:
     def clear_history(self):
         """Clear conversation history"""
         self.conversation_history.clear()
-
-
-_OFFLINE_TECHNICAL_WORDS = frozenset(
-    {"code", "write", "run", "execute", "debug", "fix", "error"}
-)
-_OFFLINE_LOOKUP_WORDS = frozenset(
-    {"search", "find", "look", "check", "get", "show"}
-)
-_OFFLINE_QUESTION_WORDS = frozenset(
-    {"why", "how", "what", "when", "where", "who"}
-)
-
-
-def generate_offline_fallback_response(prompt: str) -> str:
-    """
-    [HARDENING v57] Generate a minimum viable response when all inference fails.
-
-    This function runs when local models crash, cloud is unavailable, and all
-    fallback paths are exhausted. It returns IMMEDIATELY with no work
-    scheduled, so the text must NOT imply active continuation ("let me
-    think", "I'm searching now", "I'm analyzing") — that promises work that
-    will never happen. It states the honest situation: inference is
-    unavailable right now.
-
-    Never returns empty string.
-    """
-    prompt_lower = str(prompt or "").lower().strip()
-
-    # Tailor only the SUBJECT acknowledged, never a false promise of ongoing work.
-    #
-    # CP126 42cb9651: these were substring tests, so "run" matched "brunch",
-    # "get" matched "forget", "who" matched "whole" and "error" matched
-    # "terror". The subject picked was then unrelated to what was asked. Whole
-    # words only — and a prompt that matches nothing gets the neutral subject
-    # rather than the first accidental hit.
-    words = set(re.findall(r"[a-z']+", prompt_lower))
-    if words & _OFFLINE_TECHNICAL_WORDS:
-        subject = "that technical request"
-    elif words & _OFFLINE_LOOKUP_WORDS:
-        subject = "that lookup"
-    elif "?" in prompt_lower or (words & _OFFLINE_QUESTION_WORDS):
-        subject = "that question"
-    else:
-        subject = "that"
-
-    # No retry-filler ("try again"/"send your message again"): the recovery-no-
-    # echo contract wants a self-contained honest statement, not an instruction
-    # to resend.
-    return (
-        f"I can't work through {subject} right now — my language backend is "
-        "temporarily unavailable on my side."
-    )

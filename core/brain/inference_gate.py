@@ -3280,48 +3280,29 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
 
     @classmethod
     def _user_facing_recovery_response(cls, prompt: str) -> str:
-        # [HARDENING v54] NEVER echo prompt content back to the user.
-        # The prompt may contain system prompts, stale conversation history from
-        # memory retrieval, or fragments from previous sessions. Echoing it back
-        # fabricates hallucinated statements the user never made.
+        """The runtime's notice when no generation reached a person, never a sentence in her voice.
+
+        This wrote "I can't work through that right now — my language backend
+        is temporarily unavailable on my side." as her reply, and it reached
+        Bryan so on 17 November. A deterministic floor, when one exists, goes in
+        the notice under its own heading; the delivery boundary moves the notice
+        out of her reply (core/conversation/runtime_notice.py). The prompt is
+        never echoed: it may hold system text or another session's history.
+        """
+        from core.conversation.runtime_notice import the_runtimes_notice
+
+        direct = ""
         try:
             from core.synthesis import deterministic_user_facing_floor
 
             direct = deterministic_user_facing_floor(prompt)
-            if direct:
-                return direct
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
             _record_inference_degradation(
                 exc,
-                action="returned deterministic recovery response without optional narrative variation",
+                action="gave the runtime's notice without a deterministic floor",
             )
             logger.debug("Deterministic recovery response unavailable: %s", exc)
-        
-        # [HARDENING v57] OFFLINE RESILIENCE: Return GENUINE offline-safe response
-        # instead of empty string. System must function perfectly offline without
-        # cloud. This is a minimum viable response, never empty.
-        try:
-            from core.synthesis import generate_offline_fallback_response
-            
-            fallback = generate_offline_fallback_response(prompt)
-            if fallback and len(str(fallback).strip()) > 0:
-                return fallback
-        except _INFERENCE_RECOVERABLE_ERRORS as _exc:
-            _record_inference_degradation(
-                _exc,
-                action="fell through to terminal recovery text after offline fallback generation failed",
-            )
-            logger.warning("Offline fallback response generation failed: %s", _exc)
-
-        # Last resort: an honest terminal response. Both generation paths have
-        # already failed at this point and no asynchronous continuation exists,
-        # so the text must not promise that work is still in progress NOR fall
-        # back to retry-filler ("try again"/"send your message again"), which the
-        # recovery-no-echo contract forbids as non-substantive.
-        return (
-            "I couldn't finish generating a response just now — my language "
-            "backend hit an internal problem on my side."
-        )
+        return the_runtimes_notice(direct)
 
     def _stabilize_user_facing_text(
         self,
@@ -3330,7 +3311,9 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         *,
         is_user_facing: bool,
     ) -> str:
-        if not is_user_facing:
+        from core.conversation.runtime_notice import is_the_runtimes_notice
+
+        if not is_user_facing or is_the_runtimes_notice(text):  # the runtime's notice is not hers to shape
             return str(text or "").strip()
         original = str(text or "").strip()
         # The vanilla floor. This is the last point at which the model's own

@@ -1696,14 +1696,15 @@ def test_how_i_talk_to_you_prompt_routes_as_live_self_reflection():
 
 def test_reliability_floor_replies_do_not_reenter_prompt_history():
     from core.brain.llm.context_assembler import ContextAssembler
+    from core.conversation.reliability_floors import _CONFUSION_REPAIR_FLOOR
     from core.conversation.response_reliability import (
         is_non_answer_repair_floor_reply,
         is_reliability_floor_reply,
-        reliability_floor_for_user,
     )
     from core.state.aura_state import AuraState
 
-    floor = reliability_floor_for_user("Huh?")
+    # No floor is served since 18 November; one from her older records is still kept out of her history.
+    floor = _CONFUSION_REPAIR_FLOOR
     state = AuraState.default()
     state.cognition.working_memory = [
         {"role": "assistant", "content": floor},
@@ -1723,15 +1724,12 @@ def test_reliability_floor_replies_do_not_reenter_prompt_history():
 
 def test_diagnostic_floors_do_not_poison_next_prompt_history():
     from core.brain.llm.context_assembler import ContextAssembler
-    from core.conversation.response_reliability import (
-        is_reliability_floor_reply,
-        reliability_floor_for_user,
-    )
+    from core.conversation.reliability_floors import _LIVE_CHAT_DIAGNOSTIC_FLOOR
+    from core.conversation.response_reliability import is_reliability_floor_reply
     from core.state.aura_state import AuraState
 
-    floor = reliability_floor_for_user(
-        "The conversation lane died again earlier. What exactly was breaking live?"
-    )
+    # As it stands in her older records; no floor is served since 18 November.
+    floor = _LIVE_CHAT_DIAGNOSTIC_FLOOR
     state = AuraState.default()
     state.cognition.working_memory = [
         {"role": "user", "content": "The conversation lane died again earlier. What exactly was breaking live?"},
@@ -2124,27 +2122,8 @@ def test_user_facing_gate_rejects_raw_tool_result_fragment():
 
 
 
-def test_reliability_floor_answers_live_headless_diagnosis():
-    from core.conversation.response_reliability import (
-        assess_user_facing_reply,
-        reliability_floor_for_user,
-    )
-
-    prompt = "A live chat reply passes in headless testing but fails in the GUI. What coding checks would you run first?"
-    floor = reliability_floor_for_user(prompt)
-    assessment = assess_user_facing_reply(prompt, floor)
-
-    assert "/api/chat" in floor
-    assert "routing" in floor.lower()
-    assert "place" "holder" in floor.lower()
-    assert not assessment.retryable
-
-
 def test_live_conversation_lane_failure_rejects_deflecting_corrupted_reply():
-    from core.conversation.response_reliability import (
-        assess_user_facing_reply,
-        reliability_floor_for_user,
-    )
+    from core.conversation.response_reliability import assess_user_facing_reply
 
     prompt = (
         "The conversation lane died again earlier. What exactly was breaking live, "
@@ -2156,11 +2135,8 @@ def test_live_conversation_lane_failure_rejects_deflecting_corrupted_reply():
         "committing quality o!"
     )
 
-    floor = reliability_floor_for_user(prompt)
     assessment = assess_user_facing_reply(prompt, bad)
 
-    assert "/api/chat" in floor
-    assert "final response repair" in floor
     assert assessment.retryable
     assert assessment.hard_failure
     assert "reliability_diagnostic_deflection" in assessment.reasons
@@ -2197,19 +2173,6 @@ def test_user_facing_gate_rejects_stale_live_diagnostic_floor_on_unrelated_turn(
     assert assessment.hard_failure
     assert "stale_diagnostic_floor_leak" in assessment.reasons
 
-
-def test_reliability_floor_answers_live_headless_fix_first_followup():
-    from core.conversation.response_reliability import reliability_floor_for_user
-
-    prompt = (
-        "Keep continuity from the last answer: what should we fix first, and why?\n"
-        "[REFERENTIAL ANCHOR] A live chat reply passes in headless testing but fails in the GUI."
-    )
-
-    floor = reliability_floor_for_user(prompt)
-
-    assert "live parity harness first" in floor.lower()
-    assert "repeated diagnostic floor" in floor.lower()
 
 
 def test_live_chat_diagnostic_floor_ignores_structured_learning_bundle():

@@ -1536,10 +1536,6 @@ def test_recovery_surfaces_do_not_assert_unmeasured_runtime_facts(monkeypatch):
         chat_routes._build_identity_challenge_reply(
             "You're just an AI assistant."
         ),
-        chat_routes._build_social_continuity_repair_reply("Thanks, talk later."),
-        chat_routes._build_bounded_desktop_repair_reply(
-            "Give me a reliable answer to this unusual request."
-        ),
         chat_routes._grounded_chat_failure_reply(),
     )
     forbidden_claims = (
@@ -2264,7 +2260,7 @@ async def test_api_chat_continues_to_kernel_when_lane_warmup_times_out(monkeypat
 
         async def process(self, *args, **_kwargs):
             kernel_calls.append(args)
-            return "Fallback local lane answered."
+            return "Yes, I'm with you, and I'm following what you said about the warmup."
 
     monkeypatch.setattr(server_module, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -2301,9 +2297,7 @@ async def test_api_chat_continues_to_kernel_when_lane_warmup_times_out(monkeypat
     assert kernel_calls, "kernel lane was never reached after the warmup timeout"
     assert payload["response"].strip()
     assert payload["response_confidence"] == "high"
-    # The canned "I'm right here with you" reflex is no longer the contract:
-    # response_reliability now classifies it as a fluent, ungrounded reflex and
-    # the endurance probe flags it (REFLEX_CANNED_RE).
+    # Her reply is what is served; no floor stands in for it since 18 November.
     assert "right here with you" not in payload["response"].lower()
     assert "following what you said" in payload["response"].lower()
     assert "mind feels" not in payload["response"].lower()
@@ -6079,11 +6073,6 @@ async def test_api_chat_desktop_required_presence_check_uses_cognitive_engine(mo
             "foreground_endpoint": None,
             "background_endpoint": "Brainstem",
         },
-    )
-    monkeypatch.setattr(
-        _chat_desktop_repair,
-        "_build_social_continuity_repair_reply",
-        lambda _message: "hey. i'm here with the live thread intact.",
     )
     monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(_fake_get))
 
@@ -11332,10 +11321,7 @@ def test_live_desktop_gate_leak_is_retryable_user_facing_failure():
 
 
 def test_conceptual_live_chat_reliability_question_does_not_force_diagnostic_floor():
-    from core.conversation.response_reliability import (
-        is_reliability_concern,
-        reliability_floor_for_user,
-    )
+    from core.conversation.response_reliability import is_reliability_concern
 
     message = (
         "In two direct sentences, explain why the live desktop chat path must "
@@ -11343,19 +11329,15 @@ def test_conceptual_live_chat_reliability_question_does_not_force_diagnostic_flo
     )
 
     assert is_reliability_concern(message) is False
-    assert reliability_floor_for_user(message) == ""
 
 
 def test_reported_live_chat_breakage_still_uses_reliability_floor():
-    from core.conversation.response_reliability import (
-        is_reliability_concern,
-        reliability_floor_for_user,
-    )
+    from core.conversation.response_reliability import is_reliability_concern
 
     message = "The live chat path broke again after a few turns."
 
+    # Read as a concern; no floor answers it since 18 November.
     assert is_reliability_concern(message) is True
-    assert reliability_floor_for_user(message)
 
 
 @pytest.mark.asyncio
@@ -16221,16 +16203,6 @@ async def test_cognitive_engine_desktop_condition_binds_thin_draft_to_canonical_
     patch_chat_lane(monkeypatch, "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "test_same_worker_ready"),
     )
-    social_repair_calls = []
-
-    def _unexpected_social_repair(_message):
-        social_repair_calls.append(_message)
-        return (
-            "hey. i'm here. I'm feeling steady and leaning toward engage right now. "
-            "My attention is on you."
-        )
-
-    monkeypatch.setattr(_chat_desktop_repair, "_build_social_presence_reply", _unexpected_social_repair)
 
     trace = {}
     result = await chat_routes._run_cognitive_engine_chat_turn(
@@ -16252,7 +16224,6 @@ async def test_cognitive_engine_desktop_condition_binds_thin_draft_to_canonical_
     assert result is not None
     assert assess_user_facing_reply("You ok?", result).ok
     assert engine_calls == ["engine_think", "engine_think"]
-    assert social_repair_calls == []
     assert trace["engine_think_invoked"] is True
     assert trace["cognitive_engine_reply_accepted"] is False
     assert trace["cognitive_engine_reply_failed"] is True
@@ -17576,50 +17547,6 @@ async def test_api_chat_uses_protected_foreground_lane_when_kernel_lock_is_held(
     assert gate_calls[0]["context"]["deep_handoff"] is False
     assert stabilize_calls == []
 
-
-@pytest.mark.asyncio
-async def test_api_chat_uses_social_presence_before_protected_foreground_for_live_check(monkeypatch):
-    from interface import server as server_module
-    from interface.routes import chat as chat_routes
-
-    class _FailingGate:
-        async def generate(self, *_args, **_kwargs):
-            self.unexpected_generate_calls = getattr(self, "unexpected_generate_calls", 0) + 1
-            raise AssertionError("live presence checks should not enter protected foreground")
-
-    patch_chat_lane(monkeypatch, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None)
-    patch_chat_lane(monkeypatch, "_notify_user_spoke", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(_chat_preflight, "_log_exchange", AsyncCallFixture())
-    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
-    patch_chat_lane(monkeypatch, "_is_stale_repeated_response", lambda _text: False)
-    patch_chat_lane(monkeypatch, "_is_same_answer_different_prompt", lambda *_args, **_kwargs: False)
-    patch_chat_lane(monkeypatch, "_evaluate_reply_topicality", lambda *_args, **_kwargs: (False, ""))
-    patch_chat_lane(monkeypatch, "_looks_semantically_glitched", lambda *_args, **_kwargs: (False, ""))
-    monkeypatch.setattr(_chat_desktop_repair, "_build_social_presence_reply", lambda _message: "hey. i'm here. My attention is on you.")
-    patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
-        lambda: {
-            "conversation_ready": True,
-            "state": "ready",
-            "kernel_lock_held": True,
-            "kernel_lock_held_s": 12.0,
-        },
-    )
-    monkeypatch.setattr(
-        chat_routes.ServiceContainer,
-        "get",
-        staticmethod(lambda name, default=None: _FailingGate() if name == "inference_gate" else default),
-    )
-
-    response = await server_module.api_chat(
-        server_module.ChatRequest(message="Hey Aura, quick live check."),
-        SimpleNamespace(headers={}),
-        None,
-        None,
-    )
-
-    assert response.status_code == 200
-    assert b"social_presence_reflex" in response.body
-    assert b"hey. i'm here" in response.body
 
 
 @pytest.mark.asyncio

@@ -34,7 +34,6 @@ import time
 
 # Lifted alongside this module; imported rather than re-derived.
 from .chat_lane_bookkeeping import (
-    _conversation_lane_needs_instant_social_contract,
     _resolve_chat_response_contract,
     _user_requested_research_memory_save,
 )
@@ -215,14 +214,6 @@ def _desktop_required_bounded_reply_status(
             reply
         ) == _chat_memory_state._normalize_user_message(expected)
 
-    lane_status = dict(lane or {})
-    if _chat_desktop_repair._is_low_risk_social_continuity_request(
-        user_message
-    ) and _conversation_lane_needs_instant_social_contract(lane_status):
-        if _matches_bounded_contract(
-            _chat_desktop_repair._build_social_continuity_repair_reply(user_message)
-        ):
-            return "desktop_social_presence_contract"
     if _chat_preflight._is_explicit_capability_inventory_request(user_message):
         return "cognitive_engine_capability_inventory"
     if _matches_bounded_contract(_chat_desktop_repair._build_bounded_planning_reply(user_message)):

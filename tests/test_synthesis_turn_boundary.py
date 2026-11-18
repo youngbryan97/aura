@@ -14,7 +14,6 @@ from core.synthesis import (
     _render_tool_results,
     _synthesis_failure_reply,
     _tool_result_verification,
-    generate_offline_fallback_response,
 )
 
 pytestmark = pytest.mark.unit
@@ -227,43 +226,6 @@ def test_history_is_capped():
 
 
 # --- offline subject selection matches words, not substrings (42cb9651) --
-
-
-@pytest.mark.parametrize(
-    "prompt,unexpected",
-    [
-        ("what time is brunch", "technical request"),
-        ("don't forget the milk", "lookup"),
-        ("tell me about the whole thing", "question"),
-        ("that was a terror of a day", "technical request"),
-    ],
-)
-def test_an_incidental_substring_no_longer_picks_the_subject(prompt, unexpected):
-    assert unexpected not in generate_offline_fallback_response(prompt)
-
-
-@pytest.mark.parametrize(
-    "prompt,expected",
-    [
-        ("debug this stack trace", "technical request"),
-        ("search for the ferry timetable", "lookup"),
-        ("why does the tide turn", "question"),
-        ("is it nine or ten?", "question"),
-    ],
-)
-def test_a_real_instruction_still_picks_its_subject(prompt, expected):
-    assert expected in generate_offline_fallback_response(prompt)
-
-
-def test_the_offline_reply_never_promises_work_it_will_not_do():
-    for prompt in ("search for x", "debug this", "why", ""):
-        reply = generate_offline_fallback_response(prompt).lower()
-        assert reply
-        for promise in ("let me think", "i'm searching", "i am analyzing", "i'll get back"):
-            assert promise not in reply
-
-
-# --- untrusted content cannot leave its fence (2ac84449, cad2edd5) ------
 
 
 @pytest.mark.asyncio

@@ -190,28 +190,6 @@ def test_simple_foreground_floor_does_not_bypass_live_conversation_turns():
     assert UnitaryResponsePhase._simple_foreground_floor_reply("what is 17 + 8?") == "25"
 
 
-def test_simple_foreground_floor_handles_live_headless_diagnosis():
-    prompt = "A live chat reply passes in headless testing but fails in the GUI. What coding checks would you run first?"
-
-    reply = UnitaryResponsePhase._simple_foreground_floor_reply(prompt)
-
-    assert "/api/chat" in reply
-    assert "routing" in reply.lower()
-    assert "place" "holder" in reply.lower()
-
-
-def test_simple_foreground_floor_handles_live_headless_fix_first_followup():
-    prompt = (
-        "Keep continuity from the last answer: what should we fix first, and why?\n"
-        "[REFERENTIAL ANCHOR] A live chat reply passes in headless testing but fails in the GUI."
-    )
-
-    reply = UnitaryResponsePhase._simple_foreground_floor_reply(prompt)
-
-    assert "live parity harness first" in reply.lower()
-    assert "repeated diagnostic floor" in reply.lower()
-
-
 def test_substantive_truncated_foreground_reply_is_completed_without_new_model_call():
     from core.conversation.response_reliability import assess_user_facing_reply
 

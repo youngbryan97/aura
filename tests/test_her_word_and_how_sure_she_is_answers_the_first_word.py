@@ -21,7 +21,6 @@ from core.phases.dialogue_policy import validate_dialogue_response
 from core.runtime.structured_input import analyze_prompt_shape
 from core.subject.self_prediction import ITEMS_V2
 from core.subject.self_prediction_by_moment import stated_prompt
-from core.synthesis import generate_offline_fallback_response
 from tools.run_self_prediction import _cortex_answered
 
 pytestmark = pytest.mark.unit
@@ -65,10 +64,14 @@ def test_an_open_question_is_still_open():
         assert not asks_for_a_closed_answer(open_question)
 
 
-def test_the_offline_sentence_is_never_counted_as_her_prediction():
+def test_the_runtimes_notice_is_never_counted_as_her_prediction():
+    """The offline sentence is the runtime's notice since 18 November (core/conversation/runtime_notice.py)."""
+    from core.brain.inference_gate import InferenceGate
+    from core.conversation.runtime_notice import is_the_runtimes_notice
+
     question = stated_prompt(FIRST_WORDS[0])
-    reply = generate_offline_fallback_response(question)
-    assert "temporarily unavailable" in reply
+    reply = InferenceGate._user_facing_recovery_response(question)
+    assert is_the_runtimes_notice(reply)
     from core.brain.llm.model_registry import PRIMARY_ENDPOINT
 
     # Her cortex wrote the drafts that were refused, so every user-facing answer on the turn is the primary endpoint's.

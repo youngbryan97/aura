@@ -14,7 +14,6 @@ import inspect
 
 from core.conversation.response_reliability import (
     live_chat_diagnostic_floor,
-    reliability_floor_for_user,
 )
 from core.conversation.session_scope import her_own_turn_scope, is_her_own_turn
 from core.skills.watching_along import first_thought, whole_paragraphs, without_asides
@@ -36,11 +35,8 @@ def test_the_scope_is_hers_only_inside_it():
 
 def test_the_diagnostic_floor_answers_a_person_and_not_her_turn():
     assert live_chat_diagnostic_floor(A_QUESTION_ABOUT_HER_CHAT)
-    assert reliability_floor_for_user(A_QUESTION_ABOUT_HER_CHAT)
     with her_own_turn_scope():
         assert live_chat_diagnostic_floor(A_QUESTION_ABOUT_HER_CHAT) == ""
-        assert reliability_floor_for_user(A_QUESTION_ABOUT_HER_CHAT) == ""
-        assert reliability_floor_for_user(WHAT_SHE_HEARD) == ""
 
 
 def test_no_deterministic_floor_answers_what_she_heard():

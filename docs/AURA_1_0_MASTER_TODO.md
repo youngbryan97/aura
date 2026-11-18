@@ -4446,6 +4446,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   appender that added "Limitation: ..." under her name when the request said
   "add" or "include". Left: the keyword-chosen floors (reliability, confusion,
   status, the two live-chat diagnostics).
+  Then the floors and the social lines. No floor chosen by phrases in the
+  request is served any more: not in the final gate, not in the unitary
+  phase, and the live-chat diagnostic is no longer offered as an answer read
+  from evidence. The unitary phase ends a failed desktop turn in the runtime's
+  notice where it wrote "I couldn't produce a reliable answer to that turn"
+  or "The live answer path failed before I could produce a verified reply",
+  the inference gate's recovery does the same where it wrote "I can't work
+  through that right now — my language backend is temporarily unavailable on
+  my side" (sent to Bryan at 20:02 on the 17th), and her learning no longer
+  learns the notice as a reply of hers. A "thanks"
+  or "goodnight" is hers to answer: "You're welcome.", "Ok. Talk later." and
+  "hey. i'm here with you. I'm following the thread, not dropping into a
+  status script" were served without her model, on the fast path and in the
+  final gate. Left: the identity, capability, planning and failure-mode
+  builders in interface/routes/chat_desktop_repair.py, still served on some
+  exits, and the phrase lists that decide which turns are social or ask for a
+  diagnosis.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

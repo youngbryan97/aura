@@ -308,3 +308,32 @@ def test_a_person_saying_huh_does_not_replace_her_reply():
     )
     assert "James" in kept
     assert not kept.startswith(NO_REPLY_FORMED)
+
+
+def test_the_inference_gates_recovery_is_the_notice():
+    """It wrote "I can't work through that right now — my language backend is temporarily unavailable on my side."
+    as her reply, and Bryan was sent it on 17 November."""
+    from core.brain.inference_gate import InferenceGate
+
+    said = InferenceGate._user_facing_recovery_response("You should be able to google them.")
+    assert said.startswith(NO_REPLY_FORMED)
+    assert "google" not in said  # the prompt is never echoed
+    assert not _IN_HER_VOICE.search(said), said
+
+
+def test_the_unitary_phases_last_resort_is_the_notice():
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+
+    said = UnitaryResponsePhase._build_minimal_live_voice_reply(AuraState.default(), "what happened to the banks?")
+    assert said.startswith(NO_REPLY_FORMED)
+    assert not _IN_HER_VOICE.search(said), said
+
+
+def test_no_floor_is_chosen_for_her_by_phrases_in_the_request():
+    from core.conversation import response_reliability
+    from core.synthesis import verified_answer_floor
+
+    assert not hasattr(response_reliability, "reliability_floor_for_user")
+    asked = "A live chat reply passes in headless testing but fails in the GUI. What coding checks would you run first?"
+    assert verified_answer_floor(asked) == ""

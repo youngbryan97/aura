@@ -563,12 +563,6 @@ async def _repair_final_degraded_reply_assessment_reasons(
                 )
                 return self_process_repair, False, False, False, "", True
 
-    if (
-        _chat_desktop_repair._is_low_risk_social_continuity_request(user_message)
-        and not desktop_cognitive_engine_required
-    ):
-        social_repair = _chat_desktop_repair._build_social_continuity_repair_reply(user_message)
-        return social_repair, False, False, False, "", True
     return _FALL_THROUGH
 
 def _repair_final_degraded_reply_part_2(
@@ -670,7 +664,6 @@ def _repair_final_degraded_reply_repaired_stale(
     assess_user_facing_reply: Any,
     desktop_cognitive_engine_required: bool,
     recent_user_messages: Any,
-    reliability_floor_for_user: Any,
     repaired: Any,
     reply_text: str,
     user_message: str,
@@ -726,39 +719,6 @@ def _repair_final_degraded_reply_repaired_stale(
             True,
         )
 
-    floor = reliability_floor_for_user(user_message) if reliability_floor_for_user else ""
-    if floor:
-        floor_stale = _is_actionably_stale_response(user_message, floor)
-        floor_same_diff = _is_same_answer_different_prompt(user_message, floor)
-        floor_off_topic, floor_off_topic_reason = _evaluate_reply_topicality(
-            user_message,
-            floor,
-            recent_user_messages=recent_user_messages,
-        )
-        floor_assessment = (
-            assess_user_facing_reply(
-                user_message,
-                floor,
-                recent_user_messages=recent_user_messages,
-            )
-            if assess_user_facing_reply
-            else None
-        )
-        if not (
-            floor_stale
-            or floor_same_diff
-            or floor_off_topic
-            or _reply_assessment_requires_repair(floor_assessment)
-        ):
-            return (
-                floor,
-                floor_stale,
-                floor_same_diff,
-                floor_off_topic,
-                floor_off_topic_reason,
-                True,
-            )
-
     if desktop_cognitive_engine_required:
         logger.warning(
             "🛡️ Final reply quality gate refused freeform reflex fallback for desktop-required CognitiveEngine turn."
@@ -799,12 +759,12 @@ async def _repair_final_degraded_reply(
     try:
         from core.conversation.response_reliability import (
             assess_user_facing_reply,
-            reliability_floor_for_user,
             repair_instruction_shape,
         )
+    # not a failure: without the gate the reply goes unassessed, and the
+    # staleness and topicality checks below still judge it.
     except _CHAT_RECOVERABLE_ERRORS:
         assess_user_facing_reply = None
-        reliability_floor_for_user = None
         repair_instruction_shape = None
 
     recent_user_messages = await _gather_recent_user_messages_for_relevance(user_message)
@@ -861,7 +821,7 @@ async def _repair_final_degraded_reply(
         )
     else:
         repaired = await _stabilize_user_facing_reply(user_message, reply_text)
-    _left = _repair_final_degraded_reply_repaired_stale(assess_user_facing_reply, desktop_cognitive_engine_required, recent_user_messages, reliability_floor_for_user, repaired, reply_text, user_message)
+    _left = _repair_final_degraded_reply_repaired_stale(assess_user_facing_reply, desktop_cognitive_engine_required, recent_user_messages, repaired, reply_text, user_message)
     if _left is not _FALL_THROUGH:
         return _left
 

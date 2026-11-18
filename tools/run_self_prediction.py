@@ -71,18 +71,15 @@ def _marked_fixed(state: Any, reply: str) -> bool:
 def _cortex_answered(answers: list[dict[str, Any]], reply: str, state: Any, question: str) -> bool:
     """Whether her cortex gave this fork's reply, as the reports harness decides it, for this fork's question."""
     from core.brain.llm.model_registry import PRIMARY_ENDPOINT
-    from core.phases.response_generation_unitary import UnitaryResponsePhase
+
+    from core.conversation.runtime_notice import is_the_runtimes_notice
 
     if _marked_fixed(state, reply):
         return False
-    if reply.strip() == UnitaryResponsePhase._build_minimal_live_voice_reply(state, question).strip():
-        return False
-    # The offline sentence her reply path serves when its checks refuse her drafts ("I can't work through that question
-    # right now — my language backend is temporarily unavailable on my side."). On 5 and 6 November it was counted as
-    # her prediction on 75 and 95 first-word questions.
-    from core.synthesis import generate_offline_fallback_response
-
-    if reply.strip() == generate_offline_fallback_response(question).strip():
+    # The runtime's notice, served when its checks refuse her drafts. Before 18 November it was the offline sentence
+    # ("I can't work through that question right now — my language backend is temporarily unavailable on my side."),
+    # and on 5 and 6 November it was counted as her prediction on 75 and 95 first-word questions.
+    if is_the_runtimes_notice(reply):
         return False
     replies = [answer for answer in answers if answer.get("user_facing")]
     return bool(replies) and all(answer.get("endpoint") == PRIMARY_ENDPOINT for answer in replies)

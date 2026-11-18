@@ -147,27 +147,11 @@ def _build_degraded_live_reply(
     readings, or a record of what she did. ``frame`` and ``reason`` are kept
     for the callers; the notice does not narrate either.
     """
-    from core.conversation.runtime_notice import NO_REPLY_FORMED, notice_with_what_was_held
+    from core.conversation.runtime_notice import the_runtimes_notice
 
     del frame, reason
-    held = _verified_floor_answer(user_message) or _self_health_answer_or_empty(user_message)
-    notice = notice_with_what_was_held(NO_REPLY_FORMED, held)
-    _declare_the_notice(notice)
-    return notice
+    return the_runtimes_notice(_verified_floor_answer(user_message) or _self_health_answer_or_empty(user_message))
 
-
-def _declare_the_notice(notice: str) -> None:
-    """Say once, where the fact is known, that this text is the runtime's.
-
-    Every gate downstream reads the declaration from the text, so none of
-    them takes the notice for a draft of hers narrating the runtime.
-    """
-    try:
-        from core.conversation.reply_provenance import ReplyProvenance, declare_provenance
-
-        declare_provenance(notice, ReplyProvenance.HONEST_FAILURE)
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat.last_resort_notice", exc, severity="warning")
 
 def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, bool, bool, bool]:
     """Returns (asks_internal_state, asks_free_energy, asks_topology, asks_authority)."""

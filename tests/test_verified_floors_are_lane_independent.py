@@ -48,7 +48,6 @@ class TestOneDefinitionForBothLanes:
         for individual in (
             "own_source_excerpt_floor",
             "occluded_screen_view_floor",
-            "live_chat_diagnostic_floor",
         ):
             assert individual not in body, (
                 f"{individual} named directly — add it to verified_answer_floor instead"
@@ -67,7 +66,6 @@ class TestOneDefinitionForBothLanes:
         for individual in (
             "own_source_excerpt_floor",
             "occluded_screen_view_floor",
-            "live_chat_diagnostic_floor",
         ):
             assert individual in shared, f"{individual} is not reachable from both lanes"
 
