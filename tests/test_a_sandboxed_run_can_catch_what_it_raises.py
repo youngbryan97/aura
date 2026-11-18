@@ -12,7 +12,7 @@ from core.sandbox.runner import run_untrusted
 
 @pytest.mark.parametrize("caught", ["ImportError", "ValueError", "ZeroDivisionError", "KeyError", "OverflowError"])
 def test_each_builtin_exception_can_be_caught(caught):
-    raised = {"ImportError": "import sympy", "ValueError": "int('x')", "ZeroDivisionError": "1 / 0",
+    raised = {"ImportError": "import no_such_module_here", "ValueError": "int('x')", "ZeroDivisionError": "1 / 0",
               "KeyError": "{}['k']", "OverflowError": "2.0 ** 100000"}[caught]
     result = run_untrusted(f"try:\n    {raised}\nexcept {caught}:\n    print('caught')\n", timeout=20)
     assert result.get("status") == "ok" and result.get("stdout") == "caught\n", result

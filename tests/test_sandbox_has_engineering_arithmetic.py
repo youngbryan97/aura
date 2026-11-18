@@ -24,6 +24,12 @@ def _run(code: str) -> dict:
     return asyncio.run(CodeREPLSkill().execute({"code": code}, {}))
 
 
+@pytest.fixture
+def no_kernel_boundary(monkeypatch):
+    """A host with no kernel boundary: the restricted namespace is then what holds the code."""
+    monkeypatch.setattr("core.sandbox.runner.available_boundary", lambda: "")
+
+
 @pytest.mark.slow
 def test_dimensional_arithmetic_works_without_an_import():
     out = _run(
@@ -49,6 +55,7 @@ def test_a_dimension_error_is_raised_inside_the_sandbox():
     assert "length and time" in out["stdout"]
 
 
+@pytest.mark.usefixtures("no_kernel_boundary")
 @pytest.mark.slow
 def test_the_sandbox_still_cannot_open_a_file():
     out = _run('print(open("/etc/passwd").read())')
@@ -56,6 +63,7 @@ def test_the_sandbox_still_cannot_open_a_file():
     assert "open" in str(out.get("error"))
 
 
+@pytest.mark.usefixtures("no_kernel_boundary")
 @pytest.mark.slow
 def test_the_sandbox_still_cannot_import_anything():
     out = _run("import os\nprint(os.listdir('/'))")
@@ -65,6 +73,7 @@ def test_the_sandbox_still_cannot_import_anything():
     assert "cannot be imported here" in str(out.get("error"))
 
 
+@pytest.mark.usefixtures("no_kernel_boundary")
 @pytest.mark.slow
 def test_the_sandbox_cannot_reach_the_engineering_module_by_import():
     """The names are handed over; the door stays shut."""
@@ -77,7 +86,6 @@ def test_the_sandbox_cannot_reach_the_engineering_module_by_import():
 
 def test_the_injected_names_are_pure_computation():
     """Nothing handed to the sandbox may read, write or spawn."""
-    import inspect
 
     from core.sandbox import runner
 

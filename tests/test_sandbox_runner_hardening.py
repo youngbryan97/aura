@@ -1,4 +1,12 @@
+import pytest
+
 from core.sandbox.runner import DEFAULT_CODE_BYTES, DEFAULT_MEM_BYTES, run_untrusted
+
+
+@pytest.fixture
+def no_kernel_boundary(monkeypatch):
+    """A host with no kernel boundary: the restricted namespace is then what holds the code."""
+    monkeypatch.setattr("core.sandbox.runner.available_boundary", lambda: "")
 
 
 def test_sandbox_default_memory_budget_is_bounded_but_realistic():
@@ -14,6 +22,7 @@ def test_run_untrusted_returns_structured_stdout():
     assert result["returncode"] == 0
 
 
+@pytest.mark.usefixtures("no_kernel_boundary")
 def test_run_untrusted_blocks_import_escape():
     result = run_untrusted("__import__('os')", timeout=2)
 

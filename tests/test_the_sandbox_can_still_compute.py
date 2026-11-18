@@ -39,6 +39,12 @@ class Ledger:
 
 
 @pytest.fixture
+def no_kernel_boundary(monkeypatch):
+    """A host with no kernel boundary: the restricted namespace is then what holds the code."""
+    monkeypatch.setattr("core.sandbox.runner.available_boundary", lambda: "")
+
+
+@pytest.fixture
 def library(tmp_path: Path) -> str:
     (tmp_path / "ledgerkit.py").write_text(textwrap.dedent(LIBRARY))
     return str(tmp_path)
@@ -78,6 +84,7 @@ def test_a_named_library_composes_with_them(library: str) -> None:
     assert result["stdout"].strip() == '{"AR": 25000, "Revenue": -25000}'
 
 
+@pytest.mark.usefixtures("no_kernel_boundary")
 @pytest.mark.parametrize("banned", ["os", "sys", "subprocess", "socket", "pathlib", "io"])
 def test_nothing_that_reaches_outside_the_process_is_importable(banned: str) -> None:
     """io is absent too, because io.open is a file open by another name."""
@@ -86,6 +93,7 @@ def test_nothing_that_reaches_outside_the_process_is_importable(banned: str) -> 
     assert result.get("status") != "ok", f"{banned} was importable"
 
 
+@pytest.mark.usefixtures("no_kernel_boundary")
 def test_the_refusal_says_what_is_available() -> None:
     """The alternative was the model finding out one turn at a time."""
 
@@ -95,6 +103,7 @@ def test_the_refusal_says_what_is_available() -> None:
     assert "no filesystem, network or process access" in said
 
 
+@pytest.mark.usefixtures("no_kernel_boundary")
 def test_the_sandbox_still_refuses_the_dangerous_builtins() -> None:
     for attempt in ("open('/etc/hosts')", "eval('1+1')", "exec('x=1')", "globals()"):
         result = _run(f"print({attempt})\n")

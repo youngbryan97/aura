@@ -15,6 +15,13 @@ from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.task_ownership import create_tracked_task
+from core.sandbox.untrusted_python import (
+    DEFAULT_FILE_SIZE_BYTES,
+    _child_environment,
+    _interpreter_paths,
+    _wrap_with_boundary,
+    available_boundary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +33,8 @@ DEFAULT_TIMEOUT = 10
 DEFAULT_MEM_BYTES = 500 * 1024 * 1024  # 500MB limit
 DEFAULT_OUTPUT_LIMIT = 200 * 1024  # 200KB limit for std output
 DEFAULT_CODE_BYTES = 512 * 1024
+#: Comes before the child's result on its stdout, so what native code wrote to the same descriptor is not read as it.
+_RESULT_MARK = "\x00AURA_RUNNER\x00"
 _PIPE = -1
 _SANDBOX_RUNNER_ERRORS = (
     FileNotFoundError,
@@ -52,7 +61,18 @@ try:
 except ImportError:
     resource = None
 
+_actual_stdout = sys.stdout
+sys.dont_write_bytecode = True
+
+def _report(payload):
+    _actual_stdout.write("\x00AURA_RUNNER\x00" + json.dumps(payload) + "\n")
+    _actual_stdout.flush()
+
 params = json.loads(sys.stdin.read())
+# Held by the kernel (core/sandbox/untrusted_python.py): no network, no user data, no exec but this interpreter, writes
+# only in its working directory. Python is then whole, because nothing it can reach is the person's. Without that
+# boundary on the host, the restricted namespace below is what holds the code.
+confined = bool(params.get("confined"))
 code = params.get("code", "")
 mem_bytes = params.get("mem_bytes", None)
 cpu_seconds = params.get("cpu_seconds", None)
@@ -79,7 +99,17 @@ resource_warning = None
 # open the import door for everything.
 engineering_namespace = {}
 engineering_error = None
-if repo_root and repo_root not in sys.path:
+if confined and repo_root:
+    # The tree's root holds what is not the code's to read, and an import lists the directory it looks in, so the
+    # package is named by its own path and only it need be readable.
+    import importlib.util as _import_util
+
+    _core_dir = os.path.join(repo_root, "core")
+    _core_spec = _import_util.spec_from_file_location(
+        "core", os.path.join(_core_dir, "__init__.py"), submodule_search_locations=[_core_dir])
+    sys.modules["core"] = _import_util.module_from_spec(_core_spec)
+    _core_spec.loader.exec_module(sys.modules["core"])
+elif repo_root and repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 library_namespace = {}
 library_modules = {}
@@ -145,6 +175,8 @@ try:
             apply_limit(resource.RLIMIT_AS, int(mem_bytes))
         if cpu_seconds:
             apply_limit(resource.RLIMIT_CPU, int(cpu_seconds))
+        apply_limit(resource.RLIMIT_FSIZE, params.get("file_size_bytes"))
+        apply_limit(resource.RLIMIT_NPROC, params.get("processes"))
 except (OSError, ValueError) as e:
     resource_warning = repr(e)
 
@@ -160,28 +192,22 @@ except (OSError, ValueError) as e:
 # sat at 100% CPU until the limit killed it, three times, and the machine ran
 # hot. The API it had just read describes four calls.
 try:
-    # The real one, taken before anything redirects it. The sandboxed code
-    # runs inside redirect_stdout, so a print from this handler would land in
-    # the capture buffer that is about to be abandoned.
-    _actual_stdout = sys.stdout
-
+    # _report writes to the real stdout, taken before anything redirects it. The
+    # sandboxed code runs inside redirect_stdout, so a print from this handler
+    # would land in the capture buffer that is about to be abandoned.
     def _say_where_the_budget_went(_signum, frame):
         where = "".join(traceback.format_stack(frame)[-3:]).strip()
-        _actual_stdout.write(
-            json.dumps(
-                {
-                    "status": "cpu_exhausted",
-                    "stdout": "",
-                    "stderr": (
-                        "the code used its whole computation budget and was "
-                        "still running. It was here when the budget ran out:\n"
-                        f"{where}"
-                    ),
-                }
-            )
-            + "\n"
+        _report(
+            {
+                "status": "cpu_exhausted",
+                "stdout": "",
+                "stderr": (
+                    "the code used its whole computation budget and was "
+                    "still running. It was here when the budget ran out:\n"
+                    f"{where}"
+                ),
+            }
         )
-        _actual_stdout.flush()
         # Straight out, without unwinding: the child's own SystemExit handler
         # would print a second result and the parent reads the last one.
         os._exit(0)
@@ -256,11 +282,13 @@ for _name in _PURE_COMPUTATION:
     except ImportError:
         continue
 
+stdout_capture = io.StringIO()
+stderr_capture = io.StringIO()
 try:
-    globals_dict = {"__name__": "__main__", "__builtins__": safe_builtins}
+    globals_dict = {"__name__": "__main__"}
     globals_dict.update(engineering_namespace)
     globals_dict.update(library_namespace)
-    if True:
+    if not confined:
         # An import that can only hand back what is already here.
         #
         # The modules of the named library are imported above, while real
@@ -295,34 +323,33 @@ try:
 
         safe_builtins["__import__"] = _import_from_the_named_library
         globals_dict["__builtins__"] = safe_builtins
-    stdout_capture = io.StringIO()
-    stderr_capture = io.StringIO()
     with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
         exec(code, globals_dict, globals_dict)
-    print(json.dumps({
+    _report({
         "status": "ok",
         "stdout": stdout_capture.getvalue(),
         "stderr": stderr_capture.getvalue(),
         "resource_warning": resource_warning,
-    }))
+    })
 except SystemExit as e:
-    print(json.dumps({
-        "status": "exit",
-        "code": int(e.code if isinstance(e.code, int) else 0),
-        "stdout": "",
-        "stderr": "",
+    exit_code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+    _report({
+        "status": "ok" if exit_code == 0 else "exit",
+        "code": exit_code,
+        "stdout": stdout_capture.getvalue(),
+        "stderr": stderr_capture.getvalue(),
         "resource_warning": resource_warning,
-    }))
+    })
 except RUNNER_RUNTIME_ERRORS as e:
     tb = traceback.format_exc()
-    print(json.dumps({
+    _report({
         "status": "error",
         "repr": repr(e),
         "traceback": tb,
-        "stdout": "",
-        "stderr": "",
+        "stdout": stdout_capture.getvalue(),
+        "stderr": stderr_capture.getvalue(),
         "resource_warning": resource_warning,
-    }))
+    })
 """
 
 
@@ -384,6 +411,8 @@ async def _communicate_process(
     payload: bytes,
     timeout_s: float,
     mem_bytes: int,
+    env: dict[str, str] | None = None,
+    cwd: str | None = None,
 ) -> _RunnerProcessResult:
     process = await get_subprocess_gateway().spawn_async(
         command,
@@ -392,7 +421,8 @@ async def _communicate_process(
         stderr=_PIPE,
         source="sandbox.runner.untrusted_child",
         accelerator_capability="auto",
-        env=_untrusted_environment(),
+        env=_untrusted_environment() if env is None else env,
+        cwd=cwd,
     )
     communicate_task = create_tracked_task(
         process.communicate(input=payload),
@@ -449,11 +479,13 @@ def _run_process_blocking(
     payload: bytes,
     timeout: float,
     mem_bytes: int,
+    env: dict[str, str] | None = None,
+    cwd: str | None = None,
 ) -> _RunnerProcessResult:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(_communicate_process(command, payload, timeout, mem_bytes))
+        return asyncio.run(_communicate_process(command, payload, timeout, mem_bytes, env, cwd))
 
     result: dict[str, _RunnerProcessResult] = {}
     failures: list[BaseException] = []
@@ -461,7 +493,7 @@ def _run_process_blocking(
     def runner() -> None:
         try:
             result["value"] = asyncio.run(
-                _communicate_process(command, payload, timeout, mem_bytes)
+                _communicate_process(command, payload, timeout, mem_bytes, env, cwd)
             )
         except _SANDBOX_RUNNER_ERRORS as exc:
             failures.append(exc)
@@ -534,14 +566,22 @@ def run_untrusted(
     timeout: int = DEFAULT_TIMEOUT,
     mem_bytes: int = DEFAULT_MEM_BYTES,
     library_root: str = "",
+    workdir: str = "",
 ) -> dict:
     """
     Executes an untrusted block of Python code in an isolated child process with strict safety limits.
+
+    Where the host has a kernel boundary the code runs inside it as ordinary Python: it may import what is installed
+    and use the files of its working directory, and the kernel keeps it from the network, the person's data, other
+    programs and every other place to write. LIVE 17 November 2026, asked whether 2**61 - 1 is prime, her code imported
+    sympy and a list of permitted modules refused it.
 
     Args:
         code: The Python script string to execute.
         timeout: Maximum execution CPU time allowed.
         mem_bytes: Maximum RAM consumption allowed.
+        library_root: A directory of Python the person named, made importable.
+        workdir: The directory the code works in and may write to; a temporary one when empty.
 
     Returns:
         Dict: Structured result payload with stdout and stderr output.
@@ -557,10 +597,15 @@ def run_untrusted(
     with tempfile.TemporaryDirectory() as d:
         runner_path = Path(d) / "runner.py"
         atomic_write_text(runner_path, RUNNER_PY)
+        boundary = available_boundary()
+        held_in = Path(d).resolve()  # the runner and the profile: read by the child, written by nobody in it
+        scratch = Path(workdir or tempfile.mkdtemp(prefix="work", dir=str(held_in))).resolve()
 
         payload = json.dumps(
             {
                 "code": code,
+                "confined": bool(boundary),
+                **({"file_size_bytes": DEFAULT_FILE_SIZE_BYTES, "processes": 64} if boundary else {}),
                 "mem_bytes": mem_bytes,
                 # Not the caller's timeout. That number says how long they
                 # are willing to WAIT; this one says how much computation the
@@ -588,6 +633,15 @@ def run_untrusted(
         ).encode("utf-8")
 
         command = (sys.executable, "-I", str(runner_path))
+        env = None
+        if boundary:
+            read_paths = [*_interpreter_paths(), str(held_in), str((_REPO_ROOT / "core").resolve())]
+            if library_root:
+                read_paths.append(str(Path(library_root).resolve()))
+            command = tuple(_wrap_with_boundary(
+                boundary, scratch=scratch, read_paths=read_paths, profile_dir=held_in,
+                command=[sys.executable, "-I", str(held_in / "runner.py")]))
+            env = _child_environment(scratch)
         # Two limits, and they bound different things.
         #
         # `cpu_seconds` above is the real limit on the computation: it is what
@@ -608,7 +662,7 @@ def run_untrusted(
         # is no longer treated as the same thing.
         wall_clock_wait = wall_clock_allowance(timeout)
         process_result = _run_process_blocking(
-            command, payload, wall_clock_wait, mem_bytes
+            command, payload, wall_clock_wait, mem_bytes, env, str(scratch) if boundary else None
         )
 
         if process_result.timed_out:
@@ -640,8 +694,9 @@ def run_untrusted(
             }
 
         stderr = _truncate(process_result.stderr, DEFAULT_OUTPUT_LIMIT)
+        native_output, marked, reported = process_result.stdout.rpartition(_RESULT_MARK)
         try:
-            child_payload = json.loads(process_result.stdout or "{}")
+            child_payload = json.loads((reported if marked else process_result.stdout) or "{}")
         except _SANDBOX_RUNNER_ERRORS as exc:
             record_degradation("sandbox_runner", exc)
             termination_detail = _termination_detail(process_result.returncode)
@@ -656,9 +711,11 @@ def run_untrusted(
         combined_stderr = "\n".join(part for part in (child_stderr, stderr) if part)
         result: dict[str, object] = {
             "status": str(child_payload.get("status", "runner_error")),
-            "stdout": _truncate(str(child_payload.get("stdout") or ""), DEFAULT_OUTPUT_LIMIT),
+            "stdout": _truncate(native_output + str(child_payload.get("stdout") or ""), DEFAULT_OUTPUT_LIMIT),
             "stderr": _truncate(combined_stderr, DEFAULT_OUTPUT_LIMIT),
             "returncode": process_result.returncode,
+            "sandboxed": bool(boundary),
+            "boundary": boundary or "none",
         }
         for key in ("code", "repr", "traceback", "resource_warning"):
             value = child_payload.get(key)

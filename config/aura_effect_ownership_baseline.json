@@ -92,14 +92,6 @@
       "callee": "core.runtime.action_executor.ActionExecutor.execute",
       "canonical_owner": true,
       "category": "action_executor",
-      "count": 1,
-      "path": "core/skills/code_repl.py",
-      "scope": "<module>.CodeREPLSkill._execute_via_subprocess"
-    },
-    {
-      "callee": "core.runtime.action_executor.ActionExecutor.execute",
-      "canonical_owner": true,
-      "category": "action_executor",
       "count": 6,
       "path": "core/skills/file_operation.py",
       "scope": "<module>.FileOperationSkill.execute"
@@ -6879,22 +6871,6 @@
       "count": 1,
       "path": "core/skills/build_document.py",
       "scope": "<module>.BuildDocumentSkill.execute"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/skills/code_repl.py",
-      "scope": "<module>.CodeREPLSkill._execute_via_subprocess"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/skills/code_repl.py",
-      "scope": "<module>.CodeREPLSkill._execute_via_subprocess"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory_async",
@@ -17450,6 +17426,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "4183e94af59994bd087cf64a5ed03b7b7de55bcf83e85c4eabf1cd04d05f6b84",
+  "inventory_sha256": "9e5455af07d29261ea75de103ef758dbc14a51cfb42c92abf21596daa0b30571",
   "schema_version": 1
 }

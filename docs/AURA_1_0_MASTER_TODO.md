@@ -5083,8 +5083,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     True, so all 456 tokens of her working came back as the reply. The render now reads the channel from what
     the template appended. Waits for a live check.
   - A call she makes in a reply pass is rejected instead of being run.
-  - code_repl contains code with stripped builtins and a module list, not the kernel boundary the amplifier's
-    sandbox uses.
+  - code_repl contained code with stripped builtins and a module list. 18 November: it runs inside the kernel
+    boundary the amplifier's sandbox uses, as ordinary Python. sympy, numpy, os and sys work; the person's files,
+    the network, other programs and writes outside its working directory are refused by the kernel
+    (tests/test_code_she_runs_is_held_by_the_kernel.py attacks each). The two weaker backends a refused snippet used
+    to fall through to are gone.
   - Planning and a multi-step task are not yet run live.
 - [ ] U08 Exercise every capability from I05 with varied phrasing, follow-ups,
   failures, cancellation, and recovery; track every observed defect.

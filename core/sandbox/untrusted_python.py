@@ -592,9 +592,10 @@ def _wrap_with_boundary(
     scratch: Path,
     read_paths: Sequence[str],
     command: Sequence[str],
+    profile_dir: Path | None = None,
 ) -> list[str]:
     if boundary == "seatbelt":
-        profile_path = scratch / "profile.sb"
+        profile_path = (profile_dir or scratch) / "profile.sb"
         atomic_write_text(profile_path, _seatbelt_profile(scratch=scratch, read_paths=read_paths))
         # Absolute path, because the child environment carries an empty
         # PATH by design. Naming the bare binary makes the boundary itself

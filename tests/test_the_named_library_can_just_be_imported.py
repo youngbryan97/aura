@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 _LIBRARY = Path(
     "/private/tmp/claude-501/-Users-bryan--aura-live-source/"
     "7a6cdc9e-da7f-47f7-8c38-8cfadf95a75e/scratchpad/ledgerkit"
@@ -30,6 +32,12 @@ def _run(code: str, *, library_root: str) -> dict:
     return run_untrusted(
         code, timeout=20, mem_bytes=512 * 1024 * 1024, library_root=library_root
     )
+
+
+@pytest.fixture
+def no_kernel_boundary(monkeypatch):
+    """A host with no kernel boundary: the restricted namespace is then what holds the code."""
+    monkeypatch.setattr("core.sandbox.runner.available_boundary", lambda: "")
 
 
 def test_the_import_anyone_would_write_works() -> None:
@@ -61,6 +69,7 @@ def test_it_hands_back_nothing_it_has_not_already_loaded() -> None:
     assert "not part of the library" in json.dumps(out)
 
 
+@pytest.mark.usefixtures("no_kernel_boundary")
 def test_without_a_library_only_computation_imports() -> None:
     """A sandbox given no library imports what only computes, and nothing else.
 

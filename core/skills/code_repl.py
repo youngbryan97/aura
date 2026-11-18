@@ -2,10 +2,10 @@
 ====================================================
 First-class BaseSkill that gives Aura a live, stateful Python REPL.
 This is the exact equivalent of a code_execution/code_interpreter tool:
-  - Execute arbitrary Python in a sandboxed subprocess
-  - Maintain per-session variable state across turns
-  - Capture stdout, stderr, return values, and generated files
-  - Enforce memory/CPU/time limits via core.sandbox.runner
+  - Execute Python inside the host's kernel sandbox (core/sandbox/runner.py)
+  - Keep each session's working directory across runs
+  - Capture stdout, stderr and generated files
+  - Enforce memory/CPU/time limits
 
 This closes the "code REPL" gap in tool parity.
 """
@@ -16,7 +16,6 @@ import hashlib
 import json
 import logging
 import os
-import tempfile
 import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -24,9 +23,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.being.body_state_service import BodyStateService
+from core.being.welfare_state import WelfareState
+from core.being.welfare_transaction import WelfareTransaction
 from core.config import config
-from core.governance.action_domain import ActionDomain
-from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.skills.base_skill import BaseSkill
@@ -397,31 +397,6 @@ def _record_repl_degradation(
     )
 
 
-#: What the restricted runner removes. A snippet that needs one of these is
-#: outside what that strategy can run, whatever the program itself is doing.
-_STRIPPED_BUILTINS = (
-    "__import__ not found",
-    "name 'open' is not defined",
-    "name 'eval' is not defined",
-    "name 'exec' is not defined",
-    "name 'compile' is not defined",
-    "name 'globals' is not defined",
-    "name 'locals' is not defined",
-    "name '__import__' is not defined",
-)
-
-
-def _is_a_sandbox_limit(result: dict[str, Any]) -> bool:
-    """Whether this failure is the sandbox refusing rather than the code failing."""
-    if result.get("ok"):
-        return False
-    said = " ".join(
-        str(result.get(key) or "")
-        for key in ("stderr", "error", "traceback", "summary")
-    )
-    return any(marker in said for marker in _STRIPPED_BUILTINS)
-
-
 def _resolved(path: str) -> Callable[[], str]:
     """The resolution, as work to hand to a thread."""
 
@@ -661,9 +636,10 @@ class CodeREPLInput(BaseModel):
 class CodeREPLSkill(BaseSkill):
     name = "code_repl"
     description = (
-        "Execute Python code in a real-time, sandboxed REPL. "
-        "Supports multi-turn sessions with persistent state, file generation, "
-        "and full stdout/stderr capture. Use for calculations, data processing, "
+        "Execute Python code in a sandbox and return its stdout and stderr. "
+        "Installed packages import normally, and files written to the working "
+        "directory stay there for the session's next run. It has no network and "
+        "no access to the person's files. Use for calculations, data processing, "
         "prototyping, and any computational task."
     )
     input_model = CodeREPLInput
@@ -763,12 +739,6 @@ class CodeREPLSkill(BaseSkill):
 
         # A library the person named, made importable.
         #
-        # ``sys`` is banned in the sandbox and rightly so — it is the
-        # interpreter itself — but sys.path is the only way to import a module
-        # from a directory, so "read the docs at this path, then use it" was
-        # impossible by construction: every attempt came back "banned import or
-        # call" for doing the one thing the request asked for.
-        #
         # Naming the directory as an argument makes it checkable in the way
         # every other path this runtime accepts is checkable, instead of
         # arriving inside a program nobody has read.
@@ -831,43 +801,12 @@ class CodeREPLSkill(BaseSkill):
             except OSError as _exc:
                 logger.debug("Suppressed %s in core.skills.code_repl: %s", type(_exc).__name__, _exc)
 
-        # Strategy 1: Use core.sandbox.runner (preferred — full isolation)
-        result = await self._execute_via_sandbox_runner(
-            code, timeout_s, session_dir, library_root=library
+        # One way to run it: inside the kernel boundary (core/sandbox/runner.py). There were three, and a snippet the
+        # first refused went on to the next, each less contained than the one before, the last an ordinary subprocess
+        # with her own reach. What the code may touch is the kernel's to say, so a refusal here is the answer.
+        result = await self._run_as_one_transaction(
+            code, timeout_s, session_dir, library_root=library, context=context
         )
-        # A strategy that CANNOT run this code has not run it.
-        #
-        # The restricted runner strips __import__, open, eval and the rest, so
-        # any snippet that imports anything comes back
-        # ImportError('__import__ not found'). That is the sandbox refusing,
-        # not the program being wrong, and returning it as the result stopped
-        # the chain at its most restricted link.
-        #
-        # LIVE, 2026-08-27: "read these docs, then actually use the library"
-        # got through routing, offering, leasing, permission and the executive
-        # — five separate fixes — reached this skill, and died here, on a
-        # description that calls itself "the exact equivalent of a
-        # code_execution/code_interpreter tool".
-        if result is not None and _is_a_sandbox_limit(result):
-            logger.info(
-                "code_repl: the restricted runner cannot run this snippet (%s); "
-                "falling through to the next strategy.",
-                str(result.get("stderr") or result.get("error") or "")[:120],
-            )
-            result = None
-
-        if result is None:
-            # Strategy 2: Use SandboxOperator (fallback)
-            result = await self._execute_via_sandbox_operator(
-                code, timeout_s
-            )
-
-        if result is None:
-            # Strategy 3: Governed subprocess (last resort)
-            result = await self._execute_via_subprocess(
-                code, timeout_s, session_dir
-            )
-
         if result is None:
             result = {
                 "ok": False,
@@ -904,6 +843,35 @@ class CodeREPLSkill(BaseSkill):
 
         return result
 
+    async def _run_as_one_transaction(
+        self, code: str, timeout_s: int, cwd: Path, *, library_root: str, context: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        """The run, recorded with what it did to her welfare, unless the action executor is already recording it."""
+        transaction = None
+        if not (context or {}).get("action_executor_managed_welfare_transaction"):
+            try:
+                transaction = WelfareTransaction.begin(
+                    domain="tool_execution",
+                    action="code_repl.run",
+                    welfare_before=WelfareState.get().last_outputs,
+                    body_before=BodyStateService.get().snapshot(),
+                    will_receipt_id=str((context or {}).get("will_receipt_id") or ""),
+                )
+            except _REPL_RECOVERABLE_ERRORS as exc:
+                _record_repl_degradation(exc, action="ran the code without a welfare transaction")
+        result = await self._execute_via_sandbox_runner(code, timeout_s, cwd, library_root=library_root)
+        if transaction is not None:
+            try:
+                transaction.complete(
+                    outcome="success" if result and result.get("ok") else "failure",
+                    welfare_after=WelfareState.get().last_outputs,
+                    body_after=BodyStateService.get().snapshot(),
+                    error=str((result or {}).get("error") or ""),
+                )
+            except _REPL_RECOVERABLE_ERRORS as exc:
+                _record_repl_degradation(exc, action="returned the run without completing its welfare transaction")
+        return result
+
     async def _execute_via_sandbox_runner(
         self, code: str, timeout_s: int, cwd: Path, library_root: str = ""
     ) -> dict[str, Any] | None:
@@ -911,15 +879,13 @@ class CodeREPLSkill(BaseSkill):
         try:
             from core.sandbox.runner import run_untrusted
 
-            # Note: The restricted sandbox strips __import__ from builtins,
-            # so we cannot prepend 'import os; os.chdir(...)' here.
-            # The sandbox runs in a temporary directory by default.
             raw = await asyncio.to_thread(
                 run_untrusted,
                 code,
                 timeout=timeout_s,
                 mem_bytes=512 * 1024 * 1024,
                 library_root=library_root,
+                workdir=str(cwd),  # what it writes there stays for the session's next run
             )
 
             if not isinstance(raw, dict):
@@ -956,96 +922,6 @@ class CodeREPLSkill(BaseSkill):
             )
             logger.debug("sandbox_runner unavailable: %s", exc)
             return None
-
-    async def _execute_via_sandbox_operator(
-        self, code: str, timeout_s: int
-    ) -> dict[str, Any] | None:
-        """Execute via SandboxOperator (affect-grounded fallback)."""
-        try:
-            from core.actuators.sandbox_operator import SandboxOperator
-
-            operator = SandboxOperator()
-            raw = await asyncio.to_thread(
-                operator.execute_synthesized_tool,
-                code,
-                float(timeout_s),
-            )
-
-            return {
-                "ok": raw.get("success", False),
-                "stdout": raw.get("stdout", ""),
-                "stderr": raw.get("stderr", ""),
-                "returncode": raw.get("exit_code"),
-                "engine": "sandbox_operator",
-                "summary": (
-                    "Code executed via SandboxOperator."
-                    if raw.get("success")
-                    else "Execution failed."
-                ),
-            }
-
-        except _REPL_RECOVERABLE_ERRORS as exc:
-            _record_repl_degradation(
-                exc,
-                action="fell back from sandbox_operator to subprocess execution",
-                extra={"engine": "sandbox_operator"},
-            )
-            logger.debug("SandboxOperator unavailable: %s", exc)
-            return None
-
-    async def _execute_via_subprocess(
-        self, code: str, timeout_s: int, cwd: Path
-    ) -> dict[str, Any] | None:
-        """Execute via the canonical ActionExecutor subprocess pathway."""
-        import sys
-
-        temp_path = None
-        try:
-            fd, temp_path = tempfile.mkstemp(suffix=".py", dir=str(cwd))
-            os.close(fd)
-            await get_file_write_gateway().write_text_async(
-                temp_path,
-                code,
-                encoding="utf-8",
-                source="core.skills.code_repl.temp_script",
-            )
-
-            # Execute via ActionExecutor
-            res = await ActionExecutor.execute(
-                domain=ActionDomain.TOOL_EXECUTION,
-                action_name="code_repl.run_script",
-                params={
-                    "argv": [sys.executable, temp_path],
-                    "cwd": str(cwd),
-                    "timeout": float(timeout_s),
-                },
-                source="code_repl",
-            )
-
-            # Map ActionExecutor result to expected REPL format
-            return {
-                "ok": res.get("ok", False),
-                "stdout": res.get("stdout", ""),
-                "stderr": res.get("stderr", ""),
-                "returncode": res.get("exit_code", -1),
-                "engine": "subprocess",
-                "summary": res.get("error", "Code executed via ActionExecutor."),
-            }
-
-        except _REPL_RECOVERABLE_ERRORS as exc:
-            _record_repl_degradation(
-                exc,
-                action="reported execution failure after all backends exhausted",
-                extra={"engine": "subprocess"},
-            )
-            return {"ok": False, "error": f"Subprocess failed: {exc}", "engine": "subprocess"}
-        finally:
-            if temp_path:
-                try:
-                    await asyncio.to_thread(get_file_write_gateway().delete_file, temp_path,
-                                            source="core.skills.code_repl.temp_script")
-                except OSError as _exc:
-                    logger.debug("Suppressed %s in core.skills.code_repl: %s", type(_exc).__name__, _exc)
 
     def _ground_affect(self, success: bool, stderr: str) -> None:
         """Ground execution results into Heartstone Values."""
