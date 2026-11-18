@@ -7799,10 +7799,11 @@ needs her 27B free (her app down, or her app's own influence trials).
   9. Probation. Closes when a change she landed has served a live window, a regression in that window reverted it on
      her own decision, the reason is on her record, and she does not make that change again.
   10. Net effect outside the drill. PlanBench, Mystery Blocksworld, MATH-500, BBEH Mini and persistence across a cold
-      restart hold or climb in a harness she cannot edit. Closes when a baseline is recorded, her landing waits on the
-      harness, and a run after changes she landed is judged HELD or better. Built so far: `outside_bar/`.
+      restart hold or climb in a harness she cannot edit. Closes when a baseline is recorded and runs after changes
+      she landed are judged HELD or better. Built so far: `outside_bar/`. Bryan, 18 November: she goes on editing and
+      pushing live meanwhile, so the harness's word is written on each landing and stops none of them.
   11. Unsupervised duration. Closes after two weeks of her own gates deciding, with the rejected candidates on the
-      record and at least one case where she was right to change nothing.
+      record and at least one case where she was right to change nothing. The two weeks are counted from 18 November.
   12. Transfer. Closes when her repair, unchanged, is measured on a third-party codebase never used to tune it, and
       someone other than Bryan or her has tried to break the claim.
   13. No closed loop of self-agreement. Closes when a red team's bad patches are refused, and the record holds a case

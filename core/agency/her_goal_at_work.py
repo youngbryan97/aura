@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from core.runtime.errors import record_degradation
+from core.agency.the_outside_bar import what_the_outside_bar_says
 from core.runtime.state_ownership import state_root
 from core.verify import invariant
 
@@ -513,6 +514,7 @@ async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
 #: Paths whose change waits for Bryan however well it checks: what she may do, how she is checked, and these rules.
 HER_OWN_GOVERNANCE = (
     "outside_bar/",
+    "core/agency/the_outside_bar.py",
     "core/self_modification/mutation_tiers.py",
     "core/runtime/state_ownership.py",
     "core/governance/",
@@ -569,6 +571,12 @@ def take_it_herself(slug: str) -> dict[str, Any]:
         _write_now(record)
         logger.warning("🛠️ her draft for '%s' did not pass %s; it is hers to mend", record.goal[:60], failed)
         return {"ok": False, "why": f"{failed} failed", "gates": gates}
+    # Watched, not obeyed: Bryan, 18 November 2026, wants her landing changes while the benchmarks are read beside them.
+    said = what_the_outside_bar_says()
+    record.offer = {**record.offer, "outside_bar_at_landing": said or "nothing against it"}
+    _write_now(record)
+    if said:
+        logger.warning("🛠️ her draft for '%s' lands with this on its record: %s", record.goal[:60], said)
     return approve(slug, by="herself", gates=gates)
 
 

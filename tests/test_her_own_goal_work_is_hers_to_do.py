@@ -122,6 +122,14 @@ def test_a_draft_waits_while_a_run_measures_her_and_is_taken_after(her_source, m
     assert (her_source / "core" / "more_notes.py").exists()
 
 
+def test_a_draft_lands_whatever_the_outside_benchmarks_say_and_her_record_keeps_what_they_said(her_source, monkeypatch):
+    """Bryan, 18 November 2026: she goes on landing her changes, and the benchmarks are watched beside them."""
+    monkeypatch.setattr(work, "what_the_outside_bar_says", lambda *_: "the outside benchmarks regressed in run b")
+    record = _offer(her_source, "core/more_notes.py", "MORE = []\n")
+    assert record.status == work.MERGED and (her_source / "core" / "more_notes.py").exists()
+    assert work.load(record.slug).offer["outside_bar_at_landing"] == "the outside benchmarks regressed in run b"
+
+
 @pytest.mark.parametrize(("path", "governs"), [
     ("core/executive/standing_authority.py", True),
     ("core/governance/will.py", True),

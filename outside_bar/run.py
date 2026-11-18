@@ -3,6 +3,7 @@
     python -m outside_bar.run check
     python -m outside_bar.run ask --run NAME --each N [--part panel|pilot]
     python -m outside_bar.run score --run NAME
+    python -m outside_bar.run baseline --run NAME
     python -m outside_bar.run compare --baseline NAME --candidate NAME
 """
 from __future__ import annotations
@@ -195,6 +196,18 @@ def compare(baseline: str, candidate: str) -> int:
     return {"HELD": 0, "REGRESSED": 1}.get(result["verdict"], 2)
 
 
+def baseline(name: str) -> int:
+    """Name a finished run as what later runs are compared with."""
+    meta = json.loads((HOME / "runs" / name / "meta.json").read_text(encoding="utf-8"))
+    wanted = {task["id"] for task in tasks(meta["each"], meta["part"])}
+    if meta["part"] != "panel" or meta["seal"] != seal_id() or wanted != set(rows_of(name)):
+        print("refused: a baseline is a whole panel run made under this seal")
+        return 2
+    print(json.dumps(append_to_ledger({"kind": "baseline", "run": name, "commit": meta["commit"], "score": score(name)}),
+                     indent=1))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -206,6 +219,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     asking.add_argument("--base", default="http://127.0.0.1:8000")
     asking.add_argument("--source", type=Path, default=Path("~/.aura/live-source").expanduser())
     commands.add_parser("score").add_argument("--run", required=True)
+    commands.add_parser("baseline").add_argument("--run", required=True)
     comparing = commands.add_parser("compare")
     comparing.add_argument("--baseline", required=True)
     comparing.add_argument("--candidate", required=True)
@@ -219,6 +233,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "score":
         print(json.dumps(score(args.run), indent=1))
         return 0
+    if args.command == "baseline":
+        return baseline(args.run)
     return compare(args.baseline, args.candidate)
 
 

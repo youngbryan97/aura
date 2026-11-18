@@ -207,3 +207,48 @@ def test_a_digest_is_of_the_bytes(tmp_path):
     path = tmp_path / "f"
     path.write_bytes(b"x")
     assert bar._digest(path) == hashlib.sha256(b"x").hexdigest()
+
+
+def _a_ledger(tmp_path, monkeypatch, *entries):
+    monkeypatch.setattr(bar, "HOME", tmp_path)
+    monkeypatch.setattr(bar, "seal_id", lambda: "seal")
+    for entry in entries:
+        bar.append_to_ledger(entry)
+    return tmp_path / "ledger.jsonl"
+
+
+def test_no_baseline_is_said_plainly(tmp_path, monkeypatch):
+    from core.agency.the_outside_bar import what_the_outside_bar_says
+
+    assert "no baseline" in what_the_outside_bar_says(tmp_path / "missing.jsonl")
+    assert "no baseline" in what_the_outside_bar_says(_a_ledger(tmp_path, monkeypatch, {"kind": "run", "run": "a"}))
+
+
+def test_nothing_stands_against_her_after_a_baseline_and_a_run_that_held(tmp_path, monkeypatch):
+    from core.agency.the_outside_bar import what_the_outside_bar_says
+
+    ledger = _a_ledger(tmp_path, monkeypatch, {"kind": "baseline", "run": "a"},
+                       {"kind": "compare", "verdict": "HELD", "candidate": "b"})
+    assert what_the_outside_bar_says(ledger) == ""
+
+
+def test_a_regression_stands_until_a_later_run_holds(tmp_path, monkeypatch):
+    from core.agency.the_outside_bar import what_the_outside_bar_says
+
+    ledger = _a_ledger(tmp_path, monkeypatch, {"kind": "baseline", "run": "a"},
+                       {"kind": "compare", "verdict": "REGRESSED", "candidate": "b"},
+                       {"kind": "compare", "verdict": "INCOMPLETE", "candidate": "c"})
+    assert "regressed in run b" in what_the_outside_bar_says(ledger)
+    bar.append_to_ledger({"kind": "compare", "verdict": "HELD", "candidate": "d"})
+    assert what_the_outside_bar_says(ledger) == ""
+
+
+@pytest.mark.parametrize("damage", ["edited", "garbled"])
+def test_a_ledger_nobody_can_trust_is_said_plainly(tmp_path, monkeypatch, damage):
+    from core.agency.the_outside_bar import what_the_outside_bar_says
+
+    ledger = _a_ledger(tmp_path, monkeypatch, {"kind": "compare", "verdict": "REGRESSED", "candidate": "b"},
+                       {"kind": "baseline", "run": "a"}, {"kind": "compare", "verdict": "HELD", "candidate": "c"})
+    text = ledger.read_text()
+    ledger.write_text(text.replace("REGRESSED", "HELD") if damage == "edited" else text + "not json\n")
+    assert what_the_outside_bar_says(ledger)
