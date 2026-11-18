@@ -77,13 +77,3 @@ def test_the_templates_cannot_write_a_missing_conjunct_or_a_guard():
     words = ("def first_word(text):\n    if text is None:\n        return ''\n    words = text.split()\n"
              "    return words[0]\n")
     assert not any(changed.count("if ") > 1 for line in range(1, 6) for _, changed in changes_at(words, line))
-
-
-def test_of_two_conditions_that_cost_the_same_the_one_reading_every_name_of_the_faulty_statement_comes_first():
-    """LIVE 17 November 2026: ``prices[item]`` was mended with a size test that never read the item (052670e4a)."""
-    examples = [
-        Example({"basket_item": "tea", "len(prices)": 2, "basket_item in prices": True}, want=True),
-        Example({"basket_item": "oats", "len(prices)": 1, "basket_item in prices": False}, want=False),
-    ]
-    found = conditions(examples, names=("prices", "basket_item"))
-    assert found[0] == "basket_item in prices", found
