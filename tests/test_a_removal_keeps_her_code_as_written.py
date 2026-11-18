@@ -45,3 +45,8 @@ def test_a_citation_with_no_source_taken_out_leaves_her_code_indented():
 
 def test_maths_made_plain_leaves_her_code_indented():
     assert _CODE in _plain_text_maths(f"So \\(x = 2\\).\n\n{_CODE}")
+
+
+def test_an_answer_marked_with_a_box_keeps_its_box():
+    """LIVE 18 November 2026: MATH-500 asks for \\boxed{}, and a right answer lost it on the way to the person."""
+    assert _plain_text_maths("So \\(d = \\boxed{\\frac{35}{64}}\\).") == "So d = \\boxed{35/64}."

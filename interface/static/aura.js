@@ -6484,6 +6484,8 @@ function renderMessageMarkdown(t, isHtml = false) {
 
     // Maths, after code so a dollar in code stays code, and before emphasis so a * in TeX stays TeX.
     h = typesetMath(h, protect);
+    // An answer marked \\boxed{...} outside maths reads as the answer; the reply's own text keeps the mark.
+    h = h.replace(/\\boxed\{([^{}]*)\}/g, '<strong>$1</strong>');
 
     // Headers (# through ####)
     h = h.replace(/^#### (.+)$/gm, '<h4>$1</h4>');

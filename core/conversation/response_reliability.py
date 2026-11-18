@@ -2523,7 +2523,7 @@ def _normalize_prose_format(text: str) -> str:
 # is left exactly as it is, and a fenced code block is never touched.
 _MATHS_DELIMITERS_RE = re.compile(r"\\[\[\]()]")
 _FRAC_RE = re.compile(r"\\[dt]?frac\s*\{([^{}]{1,40})\}\s*\{([^{}]{1,40})\}")
-_TEX_WRAPPER_RE = re.compile(r"\\(?:text|mathrm|mathbf|boxed|left|right)\s*(?:\{([^{}]{0,80})\})?")
+_TEX_WRAPPER_RE = re.compile(r"\\(?:text|mathrm|mathbf|left|right)\s*(?:\{([^{}]{0,80})\})?")
 _TEX_BINOM_RE = re.compile(r"_\{?(\d{1,3})\}?\s*C\s*_\{?(\d{1,3})\}?")
 _TEX_BINOM_CMD_RE = re.compile(r"\\[dt]?binom\s*\{([^{}]{1,20})\}\s*\{([^{}]{1,20})\}")
 _TEX_SYMBOL_MAP = {

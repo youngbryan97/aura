@@ -252,3 +252,39 @@ def test_a_ledger_nobody_can_trust_is_said_plainly(tmp_path, monkeypatch, damage
     text = ledger.read_text()
     ledger.write_text(text.replace("REGRESSED", "HELD") if damage == "edited" else text + "not json\n")
     assert what_the_outside_bar_says(ledger)
+
+
+def test_a_turn_still_running_is_followed_to_her_finished_reply(monkeypatch):
+    pending = {"status": "delivery_pending", "idempotency_key": "key-0123456789abcdef"}
+    answers = [(202, pending), (202, {"state": "running"}), (200, {"terminal": True, "result": {"response": "done"}})]
+    asked = []
+
+    def opened(request, _seconds):
+        asked.append(request.full_url)
+        return answers.pop(0)
+
+    monkeypatch.setattr(bar, "_opened", opened)
+    monkeypatch.setattr(bar, "DELIVERY_POLL_SECONDS", 0)
+    assert bar._her_reply("http://door", "two", "the-session", 30)["response"] == "done"
+    assert asked[1] == "http://door/api/chat/delivery/key-0123456789abcdef?session_id=the-session"
+
+
+def test_a_turn_that_never_finishes_runs_out_of_time(monkeypatch):
+    monkeypatch.setattr(bar, "_opened", lambda *_: (202, {"idempotency_key": "key-0123456789abcdef"}))
+    monkeypatch.setattr(bar, "DELIVERY_POLL_SECONDS", 0)
+    with pytest.raises(TimeoutError):
+        bar._her_reply("http://door", "two", "the-session", 0)
+
+
+def test_a_refusal_with_a_body_is_read_as_her_answer(her_door):
+    refused = bar.urllib.error.HTTPError("http://door", 503, "busy", {}, __import__("io").BytesIO(b'{"status": "busy"}'))
+
+    def raises(*_a, **_k):
+        raise refused
+
+    original = bar.urllib.request.urlopen
+    bar.urllib.request.urlopen = raises
+    try:
+        assert bar._opened(bar.urllib.request.Request("http://door"), 1) == (503, {"status": "busy"})
+    finally:
+        bar.urllib.request.urlopen = original

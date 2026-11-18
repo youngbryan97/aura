@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
@@ -32,6 +33,8 @@ SEAL = HERE / "SEAL.json"
 HOLD = Path(os.environ.get("AURA_OUTSIDE_BAR_HOLD") or "~/.aura/measuring.hold").expanduser()
 #: How long one reply may take, in seconds. Past this the problem counts as unanswered.
 REPLY_SECONDS = 1800
+#: How long to wait between asks of the delivery route, in seconds: the Retry-After her route sends.
+DELIVERY_POLL_SECONDS = 1.0
 #: The chance of a loss this lopsided by luck that counts as a regression, the convention G09 was judged by.
 ALPHA = 0.05
 
@@ -95,11 +98,34 @@ def the_ledger_holds() -> bool:
                for index, line in enumerate(lines) if index) and (not lines or json.loads(lines[0])["previous"] == "")
 
 
+def _opened(request: urllib.request.Request, seconds: float) -> tuple[int, dict[str, Any]]:
+    """The status and JSON body of one request; a 4xx or 5xx carries her answer as much as a 200 does."""
+    try:
+        with urllib.request.urlopen(request, timeout=seconds) as answer:  # noqa: S310 - her own local port
+            return answer.status, json.loads(answer.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as refused:
+        try:
+            return refused.code, json.loads(refused.read().decode("utf-8") or "{}")
+        except ValueError:
+            return refused.code, {}
+
+
 def _her_reply(base: str, message: str, session: str, seconds: float) -> dict[str, Any]:
-    request = urllib.request.Request(f"{base}/api/chat", data=json.dumps({"message": message, "session_id": session}).encode(),
-                                     headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=seconds) as answer:  # noqa: S310 - her own local port
-        return json.loads(answer.read().decode("utf-8"))
+    """Her finished reply. A turn still running answers 202, and her window then asks the delivery route until it ends."""
+    ends = time.monotonic() + seconds
+    status, said = _opened(urllib.request.Request(
+        f"{base}/api/chat", data=json.dumps({"message": message, "session_id": session}).encode(),
+        headers={"Content-Type": "application/json"}), seconds)
+    key = str(said.get("idempotency_key") or "")
+    while status == 202 and key:
+        if time.monotonic() >= ends:
+            raise TimeoutError
+        time.sleep(DELIVERY_POLL_SECONDS)
+        query = urllib.parse.urlencode({"session_id": session})
+        status, polled = _opened(urllib.request.Request(f"{base}/api/chat/delivery/{urllib.parse.quote(key)}?{query}"),
+                                 max(1.0, ends - time.monotonic()))
+        said = polled.get("result") if isinstance(polled.get("result"), dict) else polled
+    return said
 
 
 def source_commit(root: Path) -> str:
