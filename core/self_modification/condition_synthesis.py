@@ -444,7 +444,9 @@ def ranked_conditions(examples: Sequence[Example], *, original: str = "", consta
     when it compares with a value the runs supplied (it may hold for the runs seen and no others), less one when it
     reads a name
     the code at the place already reads: a repair over the names the fault's own statement uses is the likelier one
-    (ACS, Xiong et al., ICSE 2017, rank predicates the same way).
+    (ACS, Xiong et al., ICSE 2017, rank predicates the same way). Of two that cost the same, the one reading more of
+    those names comes first. LIVE 17 November 2026 ``prices[item]`` was mended with ``len(prices) <= 1``, which reads
+    the table and not the item, and returned None for an item a one-item table holds (052670e4a).
     """
     if not examples:
         return []
@@ -494,7 +496,7 @@ def ranked_conditions(examples: Sequence[Example], *, original: str = "", consta
             keep(4 - left.original - right.original, _join("or", left.text, right.text))
     changed = {text: _changed_points(text, original, examples) if original else 0 for text in found}
     return sorted(((cost, text) for text, cost in found.items()),
-                  key=lambda pair: (pair[0], changed[pair[1]], len(pair[1])))[:most]
+                  key=lambda pair: (pair[0], -len(_names(pair[1]) & used), changed[pair[1]], len(pair[1])))[:most]
 
 
 def conditions(examples: Sequence[Example], *, original: str = "", constants: Sequence[Any] = (),
