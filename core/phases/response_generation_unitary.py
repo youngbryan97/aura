@@ -3059,8 +3059,10 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 # her evidence and she writes the answer (_format_grounded_search_reply), so a synthesis there is a
                 # second pass on her model for words nobody serves. LIVE 17 November 2026 it held her cortex until the
                 # skill's 45 s ran out, and her own reply had no time left.
+                # Asked to search, she searches the web, not the offline copy first: LIVE 17 November 2026 at 19:59
+                # this answered in 263 ms from what was already stored, for a question about this week.
                 tool_sequence = (
-                    ("web_search", {"query": query, "deep": False}),
+                    ("web_search", {"query": query, "deep": False, "force_refresh": True}),
                     ("sovereign_browser", {"mode": "search", "query": query, "deep": True}),
                 )
 

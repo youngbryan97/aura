@@ -4991,7 +4991,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     described. Measured on 40 such requests and 60 others, none used to write it: 31 of the 40 read with the
     grammar, none of the 60. Read that way, the words of searching are no longer screen work; each sentence that
     names something gets its own search; and os_automation's "google them" searches what the request names.
+    At 17:46 the same request was searched and read, and the runtime served the search skill's own report as her
+    reply: cut at 420 characters behind "I searched it live." A search's result is now evidence for her model
+    (688e7395c), the search returns pages and not its own synthesis (b09957af3), and asked to search she searches
+    the web. Live at 19:59 her model then had the evidence and wrote 637 tokens of reasoning as prose ("The user is
+    saying that I should be able to google them … Let me think about what's actually in my evidence") over 141 s.
+    The gate refused it, and the runtime said its language backend was unavailable.
   Open:
+  - On a turn with evidence her reply pass writes its reasoning as the reply and runs out of budget before the
+    answer (19:59 above); the canned search reply had hidden this on every explicit search.
   - A call she makes in a reply pass is rejected instead of being run.
   - code_repl contains code with stripped builtins and a module list, not the kernel boundary the amplifier's
     sandbox uses.
