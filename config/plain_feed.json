@@ -611,11 +611,6 @@
    "plain": "She was offered tools and her model gave back nothing."
   },
   {
-   "logger": "Aura.Perception.AmbientUtterance",
-   "says": "🫧 remark: quiet, nothing in the %d characters read is a fault",
-   "plain": "Read the screen; nothing there to remark on."
-  },
-  {
    "logger": "core.brain.cognitive_engine",
    "says": "🧠 CognitiveEngine: Registered augmentor %s",
    "plain": "Added {0} to how she thinks."
@@ -739,6 +734,11 @@
    "logger": "Aura.Resilience.RunawayBudget",
    "says": "✅ [%s] trend back to nominal: %s",
    "plain": "{0} is back to normal growth."
+  },
+  {
+   "logger": "Aura.Telemetry",
+   "says": "📡 EVR[%s] %s",
+   "plain": "One of her measured readings crossed one of its limits, or came back inside them."
   }
  ]
 }
