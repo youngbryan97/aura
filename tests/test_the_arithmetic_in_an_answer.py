@@ -124,3 +124,24 @@ def test_the_delivery_appends_the_note_and_replaces_nothing():
     assert 'authorship_effect="preserved"' in window
     # It appends. It never becomes the reply.
     assert "_final_reply = _arithmetic_note" not in route
+
+
+def test_a_sum_that_opens_partway_through_a_longer_expression_is_not_read_as_the_whole():
+    """LIVE 18 November 2026: a correct 2^61 - 1 was served with a note that it comes to 60."""
+    for correct in (
+        "n = 2^61 - 1 = 2305843009213693951",
+        "2 ** 61 - 1 = 2305843009213693951",
+        "2^63 - 1 = 7² · 73 · 127 · 337 · 92737 · 649657",
+        "3^2 + 4 = 13",
+        "10 / (2 + 3) * 4 - 1 = 7",
+        "7 · 3 + 1 = 22",
+        "3 + 6 = 3²",
+        "1 + 7 = 2^3",
+    ):
+        assert sums_that_do_not_hold(correct) == (), correct
+
+
+def test_a_wrong_sum_is_still_caught_where_it_stands_whole():
+    for wrong in ("926 - 720 = 105", "- 926 - 720 = 105", "* 926 - 720 = 105", "Working: 926 - 720 = 105",
+                  "(926 - 720 = 105)", "first line 2^3\n926 - 720 = 105"):
+        assert [item.expected for item in sums_that_do_not_hold(wrong)] == ["206"], wrong

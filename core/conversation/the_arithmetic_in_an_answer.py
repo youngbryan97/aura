@@ -45,7 +45,17 @@ _A_STATED_SUM = re.compile(
     rf"({_AN_OPERAND}(?:\s*{_AN_OPERATOR}\s*{_AN_OPERAND})+)\s*"
     r"(?:=|is|gives|comes to|equals|→|->)\s*"
     r"(?:about\s+|roughly\s+|approximately\s+|~\s*|≈\s*)?"
-    rf"({_AN_OPERAND})(?![\d.]*\s*{_AN_OPERATOR}\s*\d)",
+    rf"({_AN_OPERAND})(?![\d.]*(?:\s*{_AN_OPERATOR}\s*\d|\s*(?:\^|\*\*|[·⋅])|[²³¹⁰⁴-⁹(]))",
+    re.IGNORECASE,
+)
+
+#: What a sum is the tail of when it opens partway through a longer expression:
+#: `2^61 - 1 = 2305843009213693951` is not `61 - 1`, and `10 / (2 + 3) * 4 - 1 = 7`
+#: is not `4 - 1`. LIVE 18 November 2026: a correct 2^61 - 1 was served with a note
+#: that it comes to 60. An operator opening its line is a list bullet, so something
+#: has to stand before it.
+_THE_EXPRESSION_BEGAN_EARLIER = re.compile(
+    rf"(?:\S[ \t]*(?:{_AN_OPERATOR}|[*·⋅])|[\^)\]])[ \t]*\Z",
     re.IGNORECASE,
 )
 
@@ -211,6 +221,8 @@ def sums_that_do_not_hold(text: object) -> tuple[ASumThatDoesNotHold, ...]:
 
     for match in _A_STATED_SUM.finditer(body):
         expression, said_text = match.groups()
+        if _THE_EXPRESSION_BEGAN_EARLIER.search(body, body.rfind("\n", 0, match.start()) + 1, match.start()):
+            continue
         expected = _value_of(expression)
         said = _as_number(said_text)
         if expected is None or said is None:
