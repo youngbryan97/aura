@@ -357,7 +357,7 @@ class LymphaticReaper:
         """Clear internal Python caches and trigger GC."""
         import gc
 
-        gc.collect()
+        gc.collect(1)
         return True
 
     def _emit_metrics(self, duration: float, memory_defragmented: bool) -> None:
