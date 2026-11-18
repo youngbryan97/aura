@@ -121,6 +121,16 @@ class _StaleSinkFreshSnapshotRouter(_Router):
         return dict(self._fresh_metadata)
 
 
+def test_a_computed_answer_that_waits_needs_no_draft_continued():
+    """LIVE 18 November 2026: her kept procedure had a Mystery Blocksworld plan, and her unfinished reasoning was served."""
+    unfinished = {
+        "surface_control_receipt": {"semantic_completion_contract": True, "semantic_completion_satisfied": True},
+        "post_generation_completion_evidence": ["truncated_tail"],
+    }
+    assert _append_only_continuation_pending(unfinished, clean_user_surface_contract=True)
+    assert not _append_only_continuation_pending(unfinished, clean_user_surface_contract=True, kept_answer_waits=True)
+
+
 def test_parent_completion_evidence_overrides_a_stale_positive_worker_receipt():
     assert _append_only_continuation_pending(
         {

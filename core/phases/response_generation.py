@@ -84,18 +84,18 @@ def _append_only_continuation_pending(
     generation_metadata: Any,
     *,
     clean_user_surface_contract: bool,
+    kept_answer_waits: bool = False,
 ) -> bool:
     """Whether the exact draft must remain untouched for route continuation.
 
     A worker receipt that marks a clean user-surface answer incomplete assigns
     the next model call to the route's append-only continuation owner. Any
     response rewrite before that owner runs invalidates the relationship
-    between the visible prefix and the saved KV state.
+    between the visible prefix and the saved KV state. A computed answer that
+    waits for this turn needs no draft finished.
     """
 
-    if not clean_user_surface_contract or not isinstance(
-        generation_metadata, dict
-    ):
+    if kept_answer_waits or not clean_user_surface_contract or not isinstance(generation_metadata, dict):
         return False
     receipt = generation_metadata.get("surface_control_receipt")
     if not isinstance(receipt, dict):
@@ -2051,22 +2051,16 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     )
                     generation_metadata, response_text = await self._execute_tenth_clock_same(is_background, latent_trace, ordinary_timeout, origin, router, router_generation_metadata_sink, think_coro)
 
-                append_only_continuation_pending = (
-                    _append_only_continuation_pending(
-                        generation_metadata,
-                        clean_user_surface_contract=clean_user_surface_contract,
-                    )
+                from core.phases.kept_procedures_in_a_turn import planted_for
+
+                append_only_continuation_pending = _append_only_continuation_pending(
+                    generation_metadata,
+                    clean_user_surface_contract=clean_user_surface_contract,
+                    kept_answer_waits=planted_for(state, objective) is not None,
                 )
-                continuation_draft = (
-                    str(response_text or "")
-                    if append_only_continuation_pending
-                    else ""
-                )
+                continuation_draft = str(response_text or "") if append_only_continuation_pending else ""
                 if append_only_continuation_pending:
-                    logger.info(
-                        "ResponseGeneration preserved a resumable foreground draft "
-                        "for the route's append-only continuation owner."
-                    )
+                    logger.info("ResponseGeneration preserved a resumable foreground draft for the route's continuation.")
 
                 shape_repaired = False
                 if (
