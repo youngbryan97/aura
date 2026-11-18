@@ -136,6 +136,26 @@ def test_a_candidate_that_mends_nothing_is_no_ones_parent():
     assert lineage.stopped == "mended" and lineage.best.parent == ""
 
 
+def test_a_parent_with_nothing_more_to_propose_hands_the_search_back():
+    """LIVE 16 November 2026: a702a104eb27's first candidate fixed its test and broke 2,129 others, became the
+    parent, had nothing to propose as a child, and the search ended there with the defect's own code untried."""
+    breaks = _block("    if x < lo:\n        return hi\n    if x > hi:\n        return hi",
+                    "    if x < lo:\n        return lo\n    if x > hi:\n        return lo")
+    mends = _block("    if x < lo:\n        return hi", "    if x < lo:\n        return lo")
+    parents = []
+
+    async def propose(defect, sources, parent, n):
+        parents.append(parent)
+        if parent is not None:
+            return []
+        return [("model", breaks if len(parents) == 1 else mends)]
+
+    lineage = asyncio.run(repair_by_selection(DEFECT, sources=SOURCE, neighbours=NEIGHBOURS, run=_run,
+                                              propose=propose, proposals=4, deadline=time.time() + 60))
+    assert parents == [None, lineage.candidates[0], None]
+    assert lineage.stopped == "mended" and lineage.best.parent == ""
+
+
 def test_a_missing_import_is_written_from_where_her_code_already_imports_it(tmp_path):
     from core.self_modification.proposals_without_a_model import (
         import_for,

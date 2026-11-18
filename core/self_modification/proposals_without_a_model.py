@@ -27,7 +27,7 @@ from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 
-__all__ = ["import_for", "proposals_without_a_model", "template_proposals"]
+__all__ = ["import_for", "ingredient_proposals", "proposals_without_a_model", "template_proposals"]
 
 _UNDEFINED = re.compile(r"name '([A-Za-z_][A-Za-z0-9_]*)' is not defined")
 
@@ -104,6 +104,16 @@ def template_proposals(sources: Mapping[str, str], ranked: Sequence[tuple[tuple[
 
     for path, name, changed in template_changes(ranked, sources, error_type):
         yield f"template:{name}", _whole(path, sources[path], changed)
+
+
+def ingredient_proposals(sources: Mapping[str, str],
+                         ranked: Sequence[tuple[tuple[str, int], float]]) -> Iterator[tuple[str, str]]:
+    """Expressions her own file writes elsewhere, put in place of one at the ranked lines (ingredient_repair.py), as
+    (origin, SEARCH/REPLACE text)."""
+    from core.self_modification.ingredient_repair import ingredient_changes
+
+    for path, context, changed in ingredient_changes(ranked, sources):
+        yield f"ingredient:{context}", _whole(path, sources[path], changed)
 
 
 def proposals_without_a_model(failure: str, sources: Mapping[str, str], repo: Path,

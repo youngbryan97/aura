@@ -61,6 +61,16 @@ EXEMPT_CRASH_DUMPS: frozenset[str] = frozenset({
     "core/resilience/stall_watchdog.py::StallWatchdog._force_exit_for_restart::open",
 })
 
+#: Appends that run only in a process that is not her runtime: inside the test process of a copy semantic repair is
+#: searching (an old commit, or a planted package), where her write gateway cannot be imported, into scratch records
+#: in a directory of the search's own. Each reader skips a row cut short (semantic_repair._rows,
+#: forcing_session.read_results), so nothing durable is at risk. Kept apart from the crash dumps, whose reason is a
+#: dying process, not a foreign one.
+EXEMPT_FOREIGN_SCRATCH: frozenset[str] = frozenset({
+    "core/self_modification/semantic_probe.py::_record::open",
+    "core/self_modification/forcing_session.py::pytest_runtestloop::open",
+})
+
 _SKIP_PARTS = frozenset({
     "__pycache__", ".venv", "node_modules", ".git", "build", "dist",
     ".claude", "artifacts",
@@ -126,7 +136,7 @@ class DurableWriteReport:
     @property
     def enforceable(self) -> list[DirectWrite]:
         """Bypasses that are actually defects — crash dumps excluded."""
-        return [w for w in self.writes if w.key() not in EXEMPT_CRASH_DUMPS]
+        return [w for w in self.writes if w.key() not in EXEMPT_CRASH_DUMPS | EXEMPT_FOREIGN_SCRATCH]
 
     def new_since(self, baseline: Iterable[str]) -> list[DirectWrite]:
         known = set(baseline)
@@ -387,6 +397,7 @@ def scan_direct_writes(
 
 __all__ = [
     "EXEMPT_CRASH_DUMPS",
+    "EXEMPT_FOREIGN_SCRATCH",
     "DirectWrite",
     "DurableWriteReport",
     "scan_direct_writes",

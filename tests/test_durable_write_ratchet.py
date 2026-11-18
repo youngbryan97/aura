@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from core.runtime.durable_write_audit import (
     EXEMPT_CRASH_DUMPS,
+    EXEMPT_FOREIGN_SCRATCH,
     DirectWrite,
     scan_direct_writes,
 )
@@ -43,12 +44,26 @@ class TestNoUnexemptedBypasses:
         """An exemption for code that has moved is a stale allowance, and the
         next real bypass would hide behind it."""
         found = scan_direct_writes().keys
-        stale = sorted(EXEMPT_CRASH_DUMPS - found)
+        stale = sorted((EXEMPT_CRASH_DUMPS | EXEMPT_FOREIGN_SCRATCH) - found)
         assert not stale, f"exempted writes no longer present: {stale}"
 
     def test_the_exemption_list_stays_small(self):
         """Exemptions are for dying-process forensics, not convenience."""
         assert len(EXEMPT_CRASH_DUMPS) <= 4
+
+    def test_a_foreign_scratch_write_is_one_her_runtime_never_runs(self):
+        """Each module exempted as foreign scratch imports nothing of hers at its top: it runs where her code is not
+        importable, which is the whole reason it may not use her gateway."""
+        import ast
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        for key in EXEMPT_FOREIGN_SCRATCH:
+            tree = ast.parse((root / key.split("::")[0]).read_text(encoding="utf-8"))
+            top = [n for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))]
+            names = [a.name for n in top if isinstance(n, ast.Import) for a in n.names]
+            names += [n.module or "" for n in top if isinstance(n, ast.ImportFrom)]
+            assert not [n for n in names if n.split(".")[0] in {"core", "interface", "skills"}], key
 
 
 class TestTheScannerRecognisesCompliantWrites:

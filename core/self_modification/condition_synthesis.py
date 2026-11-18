@@ -367,6 +367,26 @@ def _domain(term: str, examples: Sequence[Example]) -> list[Any]:
     return list(dict.fromkeys([*seen, None]))
 
 
+def _points(texts: Sequence[str], examples: Sequence[Example]) -> Iterator[dict[str, Any]]:
+    """The values the terms read by ``texts`` can take together, at most _TRIED_AT_MOST of them, each with what a
+    size or a None test says of the name it reads."""
+    terms = sorted({t for e in examples for t in [*e.terms, *(e.parts or {})] if any(t in text for text in texts)},
+                   key=len, reverse=True)
+    if not terms:
+        return
+    domains = [_domain(t, examples) for t in terms]
+    for tried, values in enumerate(itertools.product(*domains)):
+        if tried >= _TRIED_AT_MOST:
+            return
+        env = dict(zip(terms, values, strict=True))
+        for term, value in list(env.items()):
+            if term.startswith("len(") and term.endswith(")"):
+                env.setdefault(term[4:-1], value > 0)
+            if term.endswith(" is None"):
+                env.setdefault(term[: -len(" is None")], None if value else 0)
+        yield env
+
+
 def _decides_both_ways(text: str, examples: Sequence[Example]) -> bool:
     """Whether the condition can come out true and false over the values its terms can take.
 
@@ -379,27 +399,33 @@ def _decides_both_ways(text: str, examples: Sequence[Example]) -> bool:
     # not a failure: a condition that does not parse cannot come out either way, which False says.
     except SyntaxError:
         return False
-    terms = sorted({t for e in examples for t in [*e.terms, *(e.parts or {})] if t in text}, key=len, reverse=True)
-    if not terms:
-        return True
-    domains = [_domain(t, examples) for t in terms]
     outcomes: set[bool] = set()
-    for tried, values in enumerate(itertools.product(*domains)):
-        if tried >= _TRIED_AT_MOST:
-            break
-        env = dict(zip(terms, values, strict=True))
-        for term, value in list(env.items()):
-            if term.startswith("len(") and term.endswith(")"):
-                env.setdefault(term[4:-1], value > 0)
-            if term.endswith(" is None"):
-                env.setdefault(term[: -len(" is None")], None if value else 0)
+    points = 0
+    for env in _points([text], examples):
+        points += 1
         outcome = _evaluate(body, env)
         if outcome is _MISSING:
             continue
         outcomes.add(bool(outcome))
         if len(outcomes) == 2:
             return True
-    return not outcomes
+    return not points or not outcomes
+
+
+def _changed_points(text: str, original: str, examples: Sequence[Example]) -> int:
+    """At how many of the values its terms can take ``text`` decides otherwise than ``original``: of two repairs
+    that change as much code, the one that changes what the program does in fewer places comes first (the smallest
+    semantic change, as Angelix ranks its repairs). LIVE 16 November 2026, ``len(recent) > 3`` and ``len(recent) <
+    2`` tied for a702a104eb27; the first decides otherwise for every size but 3, and broke 2,068 tests."""
+    try:
+        new, old = ast.parse(text, mode="eval").body, ast.parse(original, mode="eval").body
+    except SyntaxError:
+        return 0
+    changed = 0
+    for env in _points([text, original], examples):
+        after, before = _evaluate(new, env), _evaluate(old, env)
+        changed += after is not _MISSING and before is not _MISSING and bool(after) != bool(before)
+    return changed
 
 
 def _names(text: str) -> set[str]:
@@ -465,7 +491,9 @@ def ranked_conditions(examples: Sequence[Example], *, original: str = "", consta
     for left, right in itertools.combinations(misses, 2):
         if tuple(x or y for x, y in zip(left.values, right.values, strict=True)) == want:
             keep(4 - left.original - right.original, _join("or", left.text, right.text))
-    return sorted(((cost, text) for text, cost in found.items()), key=lambda pair: (pair[0], len(pair[1])))[:most]
+    changed = {text: _changed_points(text, original, examples) if original else 0 for text in found}
+    return sorted(((cost, text) for text, cost in found.items()),
+                  key=lambda pair: (pair[0], changed[pair[1]], len(pair[1])))[:most]
 
 
 def conditions(examples: Sequence[Example], *, original: str = "", constants: Sequence[Any] = (),

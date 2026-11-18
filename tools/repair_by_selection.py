@@ -64,6 +64,12 @@ def neighbours_of(files: Sequence[str], repo: Path) -> list[str]:
     return found
 
 
+def guarding_groups(files: Sequence[str], repo: Path) -> list[list[str]]:
+    """neighbours_of each file on its own, the file fewest tests import first: the tests nearest a change, before
+    those of a module half her suite imports (a702a104eb27's two files: 2 test files and 123)."""
+    return sorted((neighbours_of([f], repo) for f in files), key=len)
+
+
 class Copy:
     """A detached worktree at HEAD whose files are set for each run and put back after it."""
 
@@ -82,9 +88,11 @@ class Copy:
             (self.path / path).write_text(text, encoding="utf-8")
 
     async def run(self, tests: Sequence[str], sources: Mapping[str, str], *, original: Mapping[str, str],
-                  seconds: float, forcings: Path | None = None) -> tuple[dict[str, bool], str]:
+                  seconds: float, forcings: Path | None = None,
+                  first_failure: bool = False) -> tuple[dict[str, bool], str]:
         """``tests`` run on the copy holding ``sources``; with ``forcings``, once for each of its plans in one session
-        (core/self_modification/forcing_session.py), whose verdicts are in its own file."""
+        (core/self_modification/forcing_session.py), whose verdicts are in its own file. With ``first_failure`` the
+        session stops at the first test that fails, and the tests it did not reach are left out of the verdicts."""
         self.write(sources)
         env = {k: v for k, v in os.environ.items() if k not in {"AURA_TESTING"}}
         env.update(AURA_STATE_ROOT=str(self.state), AURA_LOG_DIR=str(self.logs), PYTHONDONTWRITEBYTECODE="1",
@@ -97,7 +105,8 @@ class Copy:
             env.update(more)
         try:
             proc = await asyncio.create_subprocess_exec(
-                PYTHON, "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider", *plugin, *tests,
+                PYTHON, "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider", *(["-x"] if first_failure else []),
+                *plugin, *tests,
                 cwd=self.path, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
             try:
                 out, _ = await asyncio.wait_for(proc.communicate(), timeout=seconds)
@@ -118,7 +127,8 @@ class Copy:
             else:
                 # A whole file passes when every test in it that ran passed.
                 inside = [ok for node, ok in verdicts.items() if node.split("::")[0] == t]
-                results[t] = bool(inside) and all(inside)
+                if inside or not first_failure:
+                    results[t] = bool(inside) and all(inside)
         failures = text[text.find("= FAILURES ="):] if "= FAILURES =" in text else text[-4000:]
         return results, failures
 
@@ -143,65 +153,85 @@ class Copy:
         return [node for word, node in _RESULT.findall(out.decode("utf-8", errors="replace")) if word == "PASSED"]
 
     async def lines_each_test_runs(self, tests: Sequence[str], files: Sequence[str], sources: Mapping[str, str], *,
-                                   original: Mapping[str, str], seconds: float) -> tuple[dict[str, set], dict[str, set]]:
-        """For each test run (``tests`` and the rest of their files), the lines of ``files`` it ran: failing, passing.
+                                   original: Mapping[str, str], seconds: float,
+                                   groups: Sequence[Sequence[str]] = ()) -> tuple[dict[str, set], dict[str, set], int]:
+        """For each test run (``tests``, the rest of their files, and each group of test files in ``groups``), the
+        lines of ``files`` it ran: failing, passing, and how many of ``groups`` were run whole.
 
         coverage.py's per-test contexts (dynamic_context = test_function) say which test ran which line.
         """
         try:
-            return await asyncio.to_thread(self._lines_each_test_runs, tests, files, sources, seconds=seconds)
+            return await asyncio.to_thread(self._lines_each_test_runs, tests, files, sources, seconds=seconds,
+                                           groups=groups)
         finally:
             self.write(original)
 
-    def _lines_each_test_runs(self, tests, files, sources, *, seconds):
+    def _lines_each_test_runs(self, tests, files, sources, *, seconds, groups=()):
         self.write(sources)
         where = self.path.parent / "coverage"
         where.mkdir(exist_ok=True)
-        rc = where / "rc"
-        rc.write_text("[run]\ndynamic_context = test_function\ndata_file = " + str(where / "data") + "\ninclude =\n"
-                      + "".join(f"    {self.path / f}\n" for f in files))
         env = {k: v for k, v in os.environ.items() if k not in {"AURA_TESTING"}}
         env.update(AURA_STATE_ROOT=str(self.state), AURA_LOG_DIR=str(self.logs), PYTHONDONTWRITEBYTECODE="1",
                    VECLIB_MAXIMUM_THREADS="1", OMP_NUM_THREADS="1")
-        # The failing tests alone first: seconds, and enough to rank. The rest of their files add the passing
-        # tests' spectrum when they fit in half of what is left; a file of hundreds of slow tests does not.
-        test_files = list(dict.fromkeys(t.split("::")[0] for t in tests))
+        # The failing tests alone first: seconds, and enough to rank. Then the rest of their files, then each group
+        # of the files that guard the change, each measured on its own so that one that runs out of time loses
+        # nothing measured before it. A group is run when the seconds a test file has taken so far say it fits in
+        # half of what is left: a702a104eb27's second group took 4 min 45 s alone. Without passing tests every line
+        # the failing tests run scores the same, and the lines are tried in the order written: LIVE 16 November
+        # 2026, f5da1f5da653's faulty line held her own fix first, and its turn never came.
+        own = list(dict.fromkeys(t.split("::")[0] for t in tests))
+        phases = [list(tests), own]
+        done = set(own)
+        for group in groups:
+            phases.append([f for f in group if f not in done])
+            done.update(group)
         started = time.time()
-        out = ""
-        for targets, budget in ((list(tests), seconds), (test_files, None)):
+        verdicts: dict[str, bool] = {}
+        ran: dict[str, set] = {}
+        whole = 0
+        spent, files_run = 0.0, 0
+        for n, targets in enumerate(phases):
+            if not targets:
+                whole += n >= 2
+                continue
             left = seconds - (time.time() - started)
+            if n >= 2 and files_run and spent / files_run * len(targets) > left / 2:
+                break
+            began = time.time()
+            rc = where / f"rc.{n}"
+            data = where / f"data.{n}"
+            data.unlink(missing_ok=True)
+            rc.write_text("[run]\ndynamic_context = test_function\ndata_file = " + str(data) + "\ninclude =\n"
+                          + "".join(f"    {self.path / f}\n" for f in files))
             try:
                 out = subprocess.run(
                     [PYTHON, "-m", "coverage", "run", f"--rcfile={rc}", "-m", "pytest", "-q", "-rA", "-p",
                      "no:cacheprovider", *targets], cwd=self.path, env=env, capture_output=True, text=True,
-                    timeout=max(1.0, left if budget else left / 2)).stdout
+                    timeout=max(1.0, left if n == 0 else left / 2)).stdout
             except subprocess.TimeoutExpired:
-                if targets is test_files:
-                    # Keep the failing tests' run: measure it again, since the timed-out run overwrote the data.
-                    out = subprocess.run(
-                        [PYTHON, "-m", "coverage", "run", f"--rcfile={rc}", "-m", "pytest", "-q", "-rA", "-p",
-                         "no:cacheprovider", *tests], cwd=self.path, env=env, capture_output=True, text=True,
-                        timeout=max(1.0, seconds - (time.time() - started))).stdout
                 break
-        verdicts = {node: word == "PASSED" for word, node in _RESULT.findall(out)}
-        report = where / "report.json"
-        subprocess.run([PYTHON, "-m", "coverage", "json", f"--rcfile={rc}", "--show-contexts", "-o", str(report)],
-                       cwd=self.path, env=env, capture_output=True)
-        if not report.exists():
-            return {}, {}
-        ran: dict[str, set] = {}
-        for path, data in json.loads(report.read_text())["files"].items():
-            relative = str(Path(path).resolve().relative_to(self.path.resolve())) if Path(path).is_absolute() else path
-            for line, contexts in (data.get("contexts") or {}).items():
-                for context in contexts:
-                    name = context.split("|")[0].rsplit(".", 1)[-1]
-                    if name:
-                        ran.setdefault(name, set()).add((relative, int(line)))
+            verdicts.update({node: word == "PASSED" for word, node in _RESULT.findall(out)})
+            whole += n >= 2
+            if n >= 1:
+                spent, files_run = spent + time.time() - began, files_run + len(targets)
+            report = where / f"report.{n}.json"
+            subprocess.run([PYTHON, "-m", "coverage", "json", f"--rcfile={rc}", "--show-contexts", "-o", str(report)],
+                           cwd=self.path, env=env, capture_output=True)
+            if not report.exists():
+                continue
+            for path, measured in json.loads(report.read_text())["files"].items():
+                relative = (str(Path(path).resolve().relative_to(self.path.resolve())) if Path(path).is_absolute()
+                            else path)
+                for line, contexts in (measured.get("contexts") or {}).items():
+                    for context in contexts:
+                        name = context.split("|")[0].rsplit(".", 1)[-1]
+                        if name:
+                            ran.setdefault(name, set()).add((relative, int(line)))
         failing, passing = {}, {}
         for node, passed in verdicts.items():
             name = node.split("::")[-1].split("[")[0]
             (passing if passed else failing)[node] = ran.get(name, set())
-        return failing, passing
+        return failing, passing, whole
 
     def remove(self) -> None:
         subprocess.run(["git", "-C", str(self.repo), "-c", "core.fsmonitor=false", "worktree", "remove", "--force",
@@ -340,7 +370,14 @@ def main() -> int:
     copy = Copy(ROOT, where, args.at)
     try:
         if args.tests_from:
-            for path in dict.fromkeys(t.split("::")[0] for t in args.test):
+            # Every test file the fixing commit came with, not only the failing tests' own: a commit that changes
+            # what a test expects changes it with the fix, and the parent's copy would hold the old behaviour against
+            # every right repair (a702a104eb27 rewrote test_control_trials_use_the_observed_cadence.py; 11 of the
+            # 81 defects changed test files beyond their failing tests').
+            came_with = subprocess.run(
+                ["git", "-C", str(ROOT), "-c", "core.fsmonitor=false", "diff", "--name-only", "--diff-filter=d",
+                 args.at, args.tests_from, "--", "tests"], check=True, capture_output=True, text=True).stdout.split()
+            for path in dict.fromkeys([*(t.split("::")[0] for t in args.test), *came_with]):
                 shown = subprocess.run(["git", "-C", str(ROOT), "show", f"{args.tests_from}:{path}"], check=True,
                                        capture_output=True, text=True).stdout
                 (copy.path / path).parent.mkdir(parents=True, exist_ok=True)
@@ -353,16 +390,46 @@ def main() -> int:
             (copy.path / path).write_text(text.replace(old, new, 1), encoding="utf-8")
         sources = copy.read(args.file)
         # Each run may take what the whole search has left.
-        run = lambda tests, s: copy.run(tests, s, original=sources, seconds=max(1.0, deadline - time.time()))  # noqa: E731
+
+        async def run(tests, s):
+            """Tests on the copy holding ``s``. The guard runs a group of files at a time, nearest the change first,
+            and stops at the first group that breaks: the change does not mend, and a group of 2,129 tests is not
+            run to say so; within a group it stops at the first test that breaks (a702a104eb27's widest group broke
+            2,068 tests after 4 min 45 s). What it did not run is left out of what it reports, not counted as held."""
+            seconds = lambda: max(1.0, deadline - time.time())  # noqa: E731 - each run may take what is left
+            if not found or list(tests) != found or len(groups) < 2:
+                return await copy.run(tests, s, original=sources, seconds=seconds())
+            results: dict[str, bool] = {}
+            said: list[str] = []
+            left = list(tests)
+            for group in [*groups, None]:
+                within = set(group) if group is not None else None
+                mine = [t for t in left if within is None or t.split("::")[0] in within]
+                if not mine:
+                    continue
+                taken = set(mine)
+                left = [t for t in left if t not in taken]
+                held, failures = await copy.run(mine, s, original=sources, seconds=seconds(), first_failure=True)
+                results.update(held)
+                said.append(failures)
+                if not all(held.get(t) for t in mine):
+                    break
+            return results, "\n".join(part for part in said if part)
 
         async def run_forcings(tests, s, spec) -> None:
             await copy.run(tests, s, original=sources, seconds=max(1.0, deadline - time.time()), forcings=spec)
         # What must not break is each test, not each file: a file with one failing test still guards the rest.
-        # Found only when a candidate first fixes something (repair_by_selection.py).
+        # Read from the spectrum of the defect's own code when its run held them, else run once a candidate first
+        # fixes something (repair_by_selection.py).
         files = neighbours_of(args.file, copy.path)
+        groups = guarding_groups(args.file, copy.path)
         found: list[str] = []
 
         async def neighbours() -> list[str] | None:
+            # The spectrum of the defect's own code ran every guarding file already, when they fitted its time.
+            if spectrum.get("whole"):
+                found[:] = [t for t in spectrum["original"] if t.split("::")[0] in files and t not in args.test]
+                return found
             passing = await copy.passing_in(files, sources, seconds=max(1.0, deadline - time.time()))
             if passing is None:
                 return None
@@ -387,11 +454,15 @@ def main() -> int:
         async def rank(start):
             from core.self_modification.fix_templates import ochiai
 
-            failing, passing = await copy.lines_each_test_runs(args.test, args.file, start, original=sources,
-                                                               seconds=max(1.0, deadline - time.time()))
+            failing, passing, whole = await copy.lines_each_test_runs(
+                args.test, args.file, start, original=sources, groups=groups, seconds=max(1.0, deadline - time.time()))
             failing = {t: lines for t, lines in failing.items() if t in args.test} or failing
             spectrum["passing"] = passing
-            return ochiai(failing, passing)
+            ranked = ochiai(failing, passing)
+            if start == sources:
+                spectrum["original"], spectrum["whole"] = passing, whole == len(groups)
+                spectrum["ranked"] = ranked
+            return ranked
 
         async def passing_at(start, ranked):
             """The tests that pass now and run the suspect lines, those that run most of them first."""
@@ -417,6 +488,12 @@ def main() -> int:
         (args.out / "lineage.json").write_text(json.dumps(
             {**lineage.to_json(), "guarding_files": files, "guarding_tests": found, "planted": args.plant}, indent=1))
         (args.out / "semantic.json").write_text(json.dumps(evidence.to_json(), indent=1, default=str))
+        # Where the search looked: the lines of the defect's own code, most suspicious first, and what ranked them.
+        (args.out / "ranked.json").write_text(json.dumps({
+            "groups": [len(g) for g in groups], "whole": bool(spectrum.get("whole")),
+            "passing": len(spectrum.get("original") or {}),
+            "lines": [[list(line), round(score, 4)] for line, score in spectrum.get("ranked", [])[:SUSPECT_LINES * 2]]},
+            indent=1))
         if lineage.best is not None:
             import difflib
 

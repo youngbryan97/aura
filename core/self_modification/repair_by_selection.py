@@ -250,6 +250,10 @@ async def repair_by_selection(
         return standing
 
     asked = 0
+    # Parents with nothing more to propose. LIVE 16 November 2026: a candidate that fixed a702a104eb27's test and
+    # broke 2,129 others became the parent, its children had no failing test left to look at, and the search ended
+    # with the defect's own code still holding candidates never tried.
+    spent: set[str] = set()
     while asked < proposals:
         if time.time() >= deadline:
             lineage.stopped = "deadline"
@@ -257,13 +261,17 @@ async def repair_by_selection(
         # A candidate is a parent once it mends something and meets her standards. Built on one that mends
         # nothing, a child would inherit a change with no evidence for it and lose the original lines its own
         # edits are written to; built on one below her standards, it would inherit what fell below them.
-        best = lineage.best.fitness if lineage.best is not None else None
-        parent = lineage.best if best is not None and best.fixed > 0 and best.below_standard == 0 else None
+        parent = max((c for c in lineage.candidates if c.fitness is not None and c.fitness.fixed > 0
+                      and c.fitness.below_standard == 0 and c.id not in spent),
+                     key=lambda c: c.fitness.key(), default=None)
         # A child starts from its parent's code and inherits its edits; what it proposes is added to them.
         inherited = parent.edits if parent else ()
         start = applied(sources, inherited)[0] if parent else dict(sources)
         offered = await propose(defect, start, parent, proposals - asked)
         if not offered:
+            if parent is not None:
+                spent.add(parent.id)
+                continue
             lineage.stopped = "nothing proposed"
             break
         for origin, text in offered:
@@ -284,7 +292,9 @@ async def repair_by_selection(
                 # checked: on 19 October a change to a tool no test imports counted as mended with no guard at all.
                 if guard:
                     held, broke = await run(guard, changed)
-                    broken, guarded = sum(1 for t in guard if not held.get(t)), True
+                    # A runner may stop at the first part of the guard that breaks and leave out the rest; what it
+                    # left out was not run, so it is not counted either way.
+                    broken, guarded = sum(1 for t in guard if t in held and not held[t]), True
                     failures = "\n".join(part for part in (failures, broke) if part)
                 candidate.fitness = Fitness(
                     fixed=fixed,

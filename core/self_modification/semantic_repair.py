@@ -246,6 +246,21 @@ def _values_read(node: ast.AST) -> list[ast.AST]:
     return []
 
 
+def _one_line(text: str, test: ast.AST) -> str:
+    """A condition written over several lines, as one line: its own words joined, or, when a comment among them
+    stops that parsing, the condition as the syntax tree writes it. Its continuation lines are indented, and
+    indented text does not parse alone (LIVE 16 November 2026: the condition before ``recent`` in a702a104eb27's
+    file left the whole file uninstrumented)."""
+    if "\n" not in text:
+        return text
+    joined = " ".join(part.strip() for part in text.splitlines())
+    try:
+        ast.parse(joined, mode="eval")
+    except SyntaxError:
+        return ast.unparse(test)
+    return joined
+
+
 def places_at(source: str, path: str, lines: Sequence[int]) -> list[Place]:
     """Every place on ``lines`` of ``source`` a repair can be made, in the order the lines were given."""
     try:
@@ -279,7 +294,8 @@ def places_at(source: str, path: str, lines: Sequence[int]) -> list[Place]:
                     continue
                 start = _offset(source, starts, test.lineno, test.col_offset)
                 end = _offset(source, starts, test.end_lineno or test.lineno, test.end_col_offset or 0)
-                places.append(Place(f"c{len(places)}", "cond", path, line, text=source[start:end], start=start,
+                text = _one_line(source[start:end], test)
+                places.append(Place(f"c{len(places)}", "cond", path, line, text=text, start=start,
                                     end=end, parts=_parts(test), constants=constants, names=_read(test)))
             for read in _values_read(node) if function is not None else ():
                 if not _readable_again(read) or (read.lineno, read.col_offset) in valued:
@@ -557,6 +573,9 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
         except (SyntaxError, ValueError, TypeError) as exc:
             logger.info("%s could not be instrumented: %s", path, exc)
     places = [p for p in places if p.path in probed]
+    if not places:
+        evidence.stopped = "no file with a place could be instrumented"
+        return
     changed = {**sources, **probed}
     await asyncio.to_thread(_plan_and_clear, plan, record, {})
     tests = list(dict.fromkeys([*failing, *passing]))
@@ -664,6 +683,7 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
                             parts=r.get("parts")) for r in forced_rows]
         examples += [Example(r.get("terms") or {}, want=_kept(place, r), decided=r.get("decided"),
                              parts=r.get("parts")) for r in kept_here]
+        examples = _distinct(examples)
         original = place.text if place.kind == "cond" else ""
         found = ranked_conditions(examples, original=original, constants=place.constants, names=place.names)
         note.setdefault("synthesised", []).extend(text for _, text in found)
@@ -706,6 +726,13 @@ async def _the_tests_that_depend_on(place: Place, step: Any, held: Sequence[str]
     await asyncio.to_thread(_plan_and_clear, plan, record, {place.id: step})
     outcome, _ = await run(reached, changed)
     return [t for t in reached if not outcome.get(t)], 1
+
+
+def _distinct(examples: Sequence[Example]) -> list[Example]:
+    """The examples with repeats left out: a run that repeats another adds nothing to what a condition must agree
+    with, and every condition tried is evaluated on every example."""
+    return list({json.dumps([e.terms, e.want, e.decided, e.parts], sort_keys=True, default=str): e
+                 for e in examples}.values())
 
 
 def _forcings(place: Place, unforced: Sequence[Mapping[str, Any]],
@@ -780,13 +807,15 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
 
     1. the exact changes of proposals_without_a_model (a missing import, a shape almost never meant, ruff's fixes);
     2. semantic repair from her program's values at the ranked lines (this module), when ``run`` is given;
-    3. the fix templates at the ranked lines (fix_templates.py);
+    3. expressions her own file writes elsewhere (ingredient_repair.py) and the fix templates (fix_templates.py) at
+       the ranked lines, one of each in turn, so that neither waits for the other's whole list;
     4. ``then``'s proposals, when one is given.
 
     ``rank(start)`` gives the lines most suspicious first; ``passing(start, ranked)`` the tests that pass now and run
     them, which semantic repair keeps deciding as they did; ``deadline()`` when to stop forcing.
     """
     from core.self_modification.proposals_without_a_model import (
+        ingredient_proposals,
         proposals_without_a_model,
         template_proposals,
     )
@@ -794,6 +823,11 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
     stages: dict[str, dict[str, Any]] = {}
 
     async def propose(defect: Any, start: Mapping[str, str], parent: Any, n: int) -> list[tuple[str, str]]:
+        fitness = getattr(parent, "fitness", None)
+        if fitness is not None and fitness.fixed >= fitness.of:
+            # Every test of the defect passes under this parent. What is left is what it broke or fell short of,
+            # and the lines the defect's tests run cannot point at that; only ``then`` is shown those failures.
+            return await then(defect, start, parent, n) if then is not None else []
         key = parent.id if parent is not None else ""
         if key not in stages:
             failure = parent.fitness.failures if parent is not None and parent.fitness else defect.seen
@@ -801,7 +835,8 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
             stages[key] = {"ranked": ranked, "semantic": None,
                            "exact": iter(proposals_without_a_model(failure, start, repo, ranked, error_type,
                                                                    templates=False)),
-                           "templates": iter(template_proposals(start, ranked, error_type))}
+                           "turns": [iter(ingredient_proposals(start, ranked)),
+                                     iter(template_proposals(start, ranked, error_type))]}
         stage = stages[key]
         offered = next(stage["exact"], None)
         if offered is not None:
@@ -819,9 +854,12 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
             if offered is not None:
                 return [offered]
             stage["semantic"] = False
-        offered = next(stage["templates"], None)
-        if offered is not None:
-            return [offered]
+        while stage["turns"]:
+            stream = stage["turns"].pop(0)
+            offered = next(stream, None)
+            if offered is not None:
+                stage["turns"].append(stream)
+                return [offered]
         return await then(defect, start, parent, n) if then is not None else []
 
     return propose

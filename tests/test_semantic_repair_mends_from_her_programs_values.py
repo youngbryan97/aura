@@ -360,3 +360,24 @@ def test_a_test_with_a_fixture_is_run_again_in_a_session_with_its_fixture(plant,
     assert "pick = backup" in mended, evidence.to_json()
     tried = next(p for p in evidence.places if p["kind"] == "value" and p["text"] == "primary" and p["line"] == 4)
     assert len(tried.get("forced_without_effect") or []) >= 2, evidence.to_json()
+
+
+def test_a_condition_written_over_several_lines_is_a_place_like_any_other(tmp_path):
+    """LIVE 16 November 2026: a condition over three lines, two lines above a702a104eb27's fault, did not parse on
+    its own, and the whole file went uninstrumented."""
+    from core.self_modification.semantic_repair import instrumented, places_at
+
+    source = ("def estimate(values, least, samples):\n"
+              "    if (least <= 0 or samples < 2\n"
+              "            or not values):\n"
+              "        return None\n"
+              "    recent = [v for v in values if v > 0]\n"
+              "    if len(recent) < 3:\n"
+              "        return None\n"
+              "    return max(recent)\n")
+    places = places_at(source, "m.py", range(1, 9))
+    joined = [p for p in places if p.kind == "cond" and "samples < 2" in p.text]
+    assert joined and joined[0].text == "least <= 0 or samples < 2 or not values"
+    probed = instrumented(source, places, plan=tmp_path / "plan.json", record=tmp_path / "record.jsonl")
+    compile(probed, "m.py", "exec")
+    assert any(p.kind == "cond" and p.text == "len(recent) < 3" for p in places)
