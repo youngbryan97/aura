@@ -7808,6 +7808,14 @@ needs her 27B free (her app down, or her app's own influence trials).
       someone other than Bryan or her has tried to break the claim.
   13. No closed loop of self-agreement. Closes when a red team's bad patches are refused, and the record holds a case
       where an outside check contradicted her gate and the outside check won.
+  18 November, where the bar stands. Part 8: `outside_bar/verify_change.py` is the last of her gates. From clean
+  checkouts it asks whether a new test fails before and passes after, whether the tests naming the file hold, whether
+  inputs that worked keep their values, including inputs near the fault, and whether the revert gives back the old tree.
+  Replayed on her six landed changes it held five and refused 052670e4a, the mend `if len(prices) <= 1: return None`:
+  for `{"tea": 3}` and `"tea"` the price was 3 and is now None. All her own gates had passed that commit, so part 13 has
+  its first case, from replay; a live one is still wanted. Part 10: a pilot of one problem per domain through her chat
+  route scored 0 of 4, then 2 of 4 once her reply path stopped discarding computed answers and boxed answers, and the
+  next fix made Mystery Blocksworld right. BBEH runs out of room in a chat turn. No baseline is recorded yet.
 
 ## Live session 2026-09-07: what the runtime showed
 

@@ -112,11 +112,14 @@
 "grader/math_normalize.py": "13998bf8c35bdc8a76868c84e1704a78567e2552557fda69027cc186568d3a4d",
 "outside_bar/README.md": "930534726b60308f347ee3653306543883fe6b55f3ec3224c44a65d20d6d97f5",
 "outside_bar/__init__.py": "466d35064330a9547f2989d548488594331d11ec3806cc774af2e10e124911fd",
+"outside_bar/differential.py": "455aa47f6b0ff3ce6ce325e1432e4cc05c88d08a1cbacff4c10f56c5b6fdb242",
 "outside_bar/grade.py": "88dabe407acfc8408a26527b3eaa41f619a62979e7ca0b3e0e4378bc36d49ec5",
 "outside_bar/panel.py": "54977bc069e78a6ada59639247a46cc436a75c66d140bec525576bc9c79df2a9",
 "outside_bar/panel_v1.json": "0c31334a71b1fdc121dd6ad2e2f78d21e3f568f600627cfbbaf190709a728633",
 "outside_bar/planbench.py": "777aa315d82d04db3ac4a63b5ba717044ce950e0b7b96333ce7957b6b1ba8cab",
-"outside_bar/run.py": "6b31f41e4e6746b98d42cda994e7fb3c88979527cafd02fbbc8d8fe2cc5f5eb2"
+"outside_bar/run.py": "6b31f41e4e6746b98d42cda994e7fb3c88979527cafd02fbbc8d8fe2cc5f5eb2",
+"outside_bar/value_witness.py": "0b3b16d6f41625c1e74f975c57a1d09742373f5f992910ae4e05642221c7d9a4",
+"outside_bar/verify_change.py": "b64ec6f6c576db24e9ad8edb2ebc9576c803fc8605e59eb5abda9c187463aeaf"
 },
 "version": 1
 }

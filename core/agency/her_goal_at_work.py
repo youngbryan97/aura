@@ -636,6 +636,13 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     # and the governance and DEPS checks.
     gates += [(name, ["nice", "-n", "10", "make", name])
               for name in ("smoke", "lint", "layering", "writing", "governance-lint", "deps-check")]
+    # Last, from clean checkouts, by code that shares nothing with her search: does the change keep what worked?
+    # Replayed on 18 November 2026 it refused her overfit 052670e4a, which every gate above had passed, and held her
+    # five other landed changes.
+    outside = source_root() / "outside_bar" / "verify_change.py"
+    if record.offer.get("commit") and outside.exists():
+        gates.append(("outside-check", ["nice", "-n", "10", sys.executable, str(outside), "--repo", str(workspace),
+                                        "--commit", str(record.offer["commit"])]))
     results: dict[str, dict[str, Any]] = {}
     for name, argv in gates:
         started = time.time()

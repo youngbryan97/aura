@@ -50,6 +50,24 @@ def test_her_yes_takes_a_draft_that_passes_every_gate_and_keeps_what_they_said(h
     assert (her_source / "core" / "more_notes.py").exists()
 
 
+def test_the_outside_check_is_asked_last_and_its_refusal_sends_the_draft_back(her_source, monkeypatch):
+    """Replayed on 18 November 2026 it refused her overfit 052670e4a, which every other gate had passed."""
+    (her_source / "outside_bar").mkdir()
+    (her_source / "outside_bar" / "verify_change.py").write_text("")
+    asked: list[list[str]] = []
+
+    def run(argv, *, cwd, env):
+        asked.append(list(argv))
+        refused = any(part.endswith("verify_change.py") for part in argv)
+        return (not refused, "did not hold: an input that worked gives another value" if refused else "fine")
+
+    monkeypatch.setattr(work, "_run_a_gate", run)
+    record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    assert record.status == work.WORKING and not (her_source / "core" / "more_notes.py").exists()
+    assert "outside-check failed" in record.said[-1]["words"] and "gives another value" in record.said[-1]["words"]
+    assert any(part.endswith("verify_change.py") for part in asked[-1]), "after every other gate"
+
+
 def test_a_gate_that_fails_sends_the_draft_back_to_her_with_its_words(her_source, gates_asked):
     asked, failing = gates_asked
     failing.add("smoke")
