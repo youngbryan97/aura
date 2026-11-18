@@ -545,13 +545,20 @@ def _matches(node: str, test: str) -> bool:
 async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str], passing: Sequence[str],
                            ranked: Sequence[tuple[tuple[str, int], float]], run: Run, workdir: Path,
                            deadline: float, lines: int = 15, evidence: Evidence | None = None,
-                           run_forcings: RunForcings | None = None) -> AsyncIterator[tuple[str, str]]:
+                           run_forcings: RunForcings | None = None,
+                           share: int = 1) -> AsyncIterator[tuple[str, str] | None]:
     """Each repair the recorded and forced runs support, as (origin, SEARCH/REPLACE text), the likeliest first.
 
     ``run(tests, sources)`` runs tests on a copy holding ``sources``. ``failing`` are the defect's tests, ``passing``
     tests that pass now and run the suspect lines. ``ranked`` is fix_templates.ochiai's order; its first ``lines``
     lines with a score are looked at. With ``run_forcings``, the forcings run ahead in sessions of many, and one that
     mends there is run again on its own before it is used.
+
+    ``share`` is how many proposers share the search's time, this one among them. With more than one, forcing runs
+    in turns of an equal share of the time left; at the end of a turn this yields what the turn found, best first,
+    and then None so that the others take theirs. LIVE 17 November 2026, of 19 defects from her history that ran out of time, 11 tried one or two
+    candidates: the forcing of 30 to 70 places took all ten minutes before anything was offered, though the real fix
+    was ranked first to sixth on several of them.
     """
     import asyncio
 
@@ -586,7 +593,6 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
         evidence.stopped = "a failing test passed under the probe, so what it records is not the fault"
         return
     unforced = await asyncio.to_thread(_rows, record)
-    gathered: list[tuple[tuple[int, int, int], Place, str]] = []
     notes: dict[str, tuple[dict[str, Any], list[dict[str, Any]], int]] = {}
     queues: list[tuple[Place, list[tuple[dict[str, Any], Any]]]] = []
     for order, place in enumerate(places):
@@ -611,6 +617,17 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
                  if place.kind == "value" and depth < len(steps)]
     done: set[str] = set()
     ahead: dict[int, bool] = {}
+    # When this proposer's present turn began and must end: an equal share of what the search has left.
+    turn = [time.time(), time.time() + max(0.0, deadline - time.time()) / max(1, share)]
+    gathered: list[tuple[tuple[int, int, int], Place, str]] = []
+
+    def best_first() -> list[tuple[str, str]]:
+        """The repairs gathered so far, cheapest first across places: a repair that changes less, over the names
+        the faulty code reads, before one that pins a run at an earlier line. Then forgotten, so none comes twice."""
+        out = [(f"semantic:{place.kind}:{place.path}:{place.line}", _whole(place.path, sources[place.path], after))
+               for _, place, after in sorted(gathered, key=lambda item: item[0])]
+        gathered.clear()
+        return out
 
     async def a_session_from(first: int) -> None:
         """The scheduled forcings from ``first`` on, of places not yet mended, in one session; what each came to."""
@@ -618,8 +635,9 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
 
         indexes = [k for k in range(first, len(schedule)) if schedule[k][0].id not in done]
         spec, results = workdir / f"session-{first}.json", workdir / f"session-{first}.jsonl"
+        ends = min(deadline, turn[1])
         await asyncio.to_thread(_plan_and_clear, plan, record, {})
-        await asyncio.to_thread(write_spec, spec, plan=plan, results=results, deadline=deadline,
+        await asyncio.to_thread(write_spec, spec, plan=plan, results=results, deadline=ends,
                                 steps=[{schedule[k][0].id: schedule[k][1]} for k in indexes])
         await run_forcings(list(failing), changed, spec)
         got = await asyncio.to_thread(read_results, results)
@@ -627,8 +645,9 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
         evidence.forcings += len(got)
         for k, verdicts in zip(indexes, got, strict=False):
             ahead[k] = all(any(_matches(t, node) and ok for node, ok in verdicts.items()) for t in failing)
-        if len(got) < len(indexes):
+        if len(got) < len(indexes) and time.time() < ends:
             ahead[indexes[len(got)]] = False  # it hung or ended the session: not a forcing that mends
+        # A session its turn ended stopped before a plan, not in one: those left are run in a later turn.
 
     async def mends(index: int, place: Place, step: Mapping[str, Any]) -> bool:
         if run_forcings is not None:
@@ -648,7 +667,14 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
             evidence.stopped = "deadline"
             break
         note, kept_runs, order = notes[place.id]
-        if not await mends(index, place, step):
+        mended = await mends(index, place, step)
+        if share > 1 and time.time() >= turn[1]:
+            # This turn's share is spent: what it found, best first, and then the other proposers take theirs.
+            for offered in best_first():
+                yield offered
+            yield None
+            turn[:] = [time.time(), time.time() + max(0.0, deadline - time.time()) / share]
+        if not mended:
             note.setdefault("forced_without_effect", []).append(step)
             continue
         note.setdefault("angelic", []).append(step)
@@ -697,10 +723,8 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
             gathered.append(((cost, order, len(condition)), place, after))
         if found:
             done.add(place.id)  # the first forcing that mends is the outcome the failing runs needed here
-    # Every place's repairs, cheapest first across places: a repair that changes less, over the names the faulty
-    # code reads, is offered before one that pins a run at an earlier line.
-    for _, place, after in sorted(gathered, key=lambda item: item[0]):
-        yield f"semantic:{place.kind}:{place.path}:{place.line}", _whole(place.path, sources[place.path], after)
+    for offered in best_first():
+        yield offered
     evidence.stopped = evidence.stopped or "places spent"
 
 
@@ -803,13 +827,13 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
                    workdir: Path | None = None, deadline: Callable[[], float] | None = None, error_type: str = "",
                    then: Propose | None = None, evidence: Evidence | None = None,
                    run_forcings: RunForcings | None = None) -> Propose:
-    """A proposer for repair_by_selection, her own Python's in four stages, each exact and each judged by the tests:
+    """A proposer for repair_by_selection, her own Python's in three stages, each exact and each judged by the tests:
 
     1. the exact changes of proposals_without_a_model (a missing import, a shape almost never meant, ruff's fixes);
-    2. semantic repair from her program's values at the ranked lines (this module), when ``run`` is given;
-    3. expressions her own file writes elsewhere (ingredient_repair.py) and the fix templates (fix_templates.py) at
-       the ranked lines, one of each in turn, so that neither waits for the other's whole list;
-    4. ``then``'s proposals, when one is given.
+    2. in turn, so that none waits for another's whole list: semantic repair from her program's values at the ranked
+       lines (this module, when ``run`` is given; a turn of it is an equal share of the time left), expressions her
+       own file writes elsewhere (ingredient_repair.py), and the fix templates (fix_templates.py);
+    3. ``then``'s proposals, when one is given.
 
     ``rank(start)`` gives the lines most suspicious first; ``passing(start, ranked)`` the tests that pass now and run
     them, which semantic repair keeps deciding as they did; ``deadline()`` when to stop forcing.
@@ -843,19 +867,25 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
             return [offered]
         # Semantic repair on the defect's own code only: a child of a candidate already carries a change, and its
         # values would be read on code nobody wrote.
+        # It takes turns with the other two, first, each turn of forcing an equal share of the time left.
         if key == "" and run is not None and workdir is not None and stage["semantic"] is None:
             tests = list(await passing(start, stage["ranked"]) or []) if passing is not None else []
             stage["semantic"] = semantic_repairs(
                 sources=start, failing=list(defect.tests), passing=tests, ranked=stage["ranked"], run=run,
                 workdir=workdir, deadline=deadline() if deadline is not None else time.time() + 600,
-                evidence=evidence, run_forcings=run_forcings)
-        if stage["semantic"]:
-            offered = await anext(stage["semantic"], None)
-            if offered is not None:
-                return [offered]
-            stage["semantic"] = False
+                evidence=evidence, run_forcings=run_forcings, share=1 + len(stage["turns"]))
+            stage["turns"].insert(0, stage["semantic"])
         while stage["turns"]:
             stream = stage["turns"].pop(0)
+            if hasattr(stream, "__anext__"):
+                try:
+                    offered = await anext(stream)
+                except StopAsyncIteration:
+                    continue
+                stage["turns"].append(stream)
+                if offered is not None:
+                    return [offered]
+                continue  # its turn of forcing found nothing yet; the next proposer's turn
             offered = next(stream, None)
             if offered is not None:
                 stage["turns"].append(stream)
