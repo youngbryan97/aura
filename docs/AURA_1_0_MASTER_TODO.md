@@ -4980,6 +4980,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     tool loop, and the worker rejected the call three times as prose ("function_word_starvation,
     prompt_artifact").
   - At 14:07 her whole runtime wedged: a collection logged from inside lockdep's lock (1a8f1aebd).
+  - At 16:03 "You should be able to google them. All flights were grounded on Friday. Major banks were having
+    outages yesterday. Apple outages today. NSA outage today" opened a Google search for "them" and was answered
+    "Done — the desktop steps completed and their effects verified." Three causes:
+    - The grammar reads an instruction only where it opens its sentence.
+    - The learned surface behind it read her model's hidden states, which no live turn waits for, so it abstained
+      on every phrasing it had not met.
+    - "google" is both an action and a surface in the desktop vocabulary.
+    Now a surface over her loaded encoder reads whether a request asks her to find something out, from each side
+    described. Measured on 40 such requests and 60 others, none used to write it: 31 of the 40 read with the
+    grammar, none of the 60. Read that way, the words of searching are no longer screen work; each sentence that
+    names something gets its own search; and os_automation's "google them" searches what the request names.
   Open:
   - A call she makes in a reply pass is rejected instead of being run.
   - code_repl contains code with stripped builtins and a module list, not the kernel boundary the amplifier's

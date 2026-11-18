@@ -21,6 +21,9 @@ _WEB_SEARCH_REQUEST_SPAN_RE = re.compile(
     r"\b(?:the\s+)?(?:internet|web|online)\b",
     re.IGNORECASE,
 )
+#: The terms below that are ways of finding something out, not of acting on a screen.
+_WAYS_OF_FINDING_OUT = ("find", "search", "google", "look up")
+_WAYS_OF_FINDING_OUT_RE = re.compile(r"\b(?:find|search|google|look\s+up)\b", re.IGNORECASE)
 _CANONICAL_RESEARCH_TOOL_SPAN_RE = re.compile(
     r"\b(?:use|run|call|invoke|route\s+through|with|via)?\s*"
     r"(?:web_search|grounded_search|search_web|free_search)\b"
@@ -443,6 +446,7 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     # scoped authority, and came back as a failure report instead of an answer.
     if asks_about_screens_in_general(text):
         return False
+    finding_out = False
     # Finding something out is reading, not driving the screen.
     #
     # LIVE 2026-10-03: "Google it. Bam had an 83 point game" came here because
@@ -456,7 +460,14 @@ def looks_like_desktop_objective(user_message: str) -> bool:
 
         asked = read_search_request(user_message)
         if asked.about_the_world and not extract_direct_application_targets(user_message):
-            return False
+            if asked.decided_by == "instruction":
+                return False
+            # Read as finding something out by meaning, not by an instruction that opens its sentence: the words of
+            # searching are then not what makes it screen work, and only what else it asks for can. LIVE 17 November
+            # 2026 "You should be able to google them. All flights were grounded on Friday. ..." was screen work
+            # because "google" is both an action and a surface below; "Go to Google Chrome, find 3 articles, open
+            # Google Docs and summarize them" still is, by what it asks to open.
+            finding_out = True
     except (ImportError, RuntimeError, TypeError, ValueError):
         # not a failure: the substrate reader is one signal; the checks below still run.
         pass
@@ -615,6 +626,8 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     # research/tool path; "open Chrome and search" still routes to desktop
     # because the visible app action remains after this span is stripped.
     sanitized_text = _CANONICAL_RESEARCH_TOOL_SPAN_RE.sub(" ", sanitized_text)
+    if finding_out:
+        sanitized_text = _WAYS_OF_FINDING_OUT_RE.sub(" ", sanitized_text)
     # A concrete filesystem path in the request IS the routing signal.
     #
     # LIVE, 2026-08-10: "Count how many .py files are in
@@ -786,7 +799,7 @@ def _learned_actuation_decision(user_message: str) -> bool | None:
 _MUTATING_ACTION_TERMS: tuple[str, ...] = tuple(
     term
     for term in _DESKTOP_OBJECTIVE_ACTION_TERMS
-    if term not in {"find", "search", "google", "look up", "show me", "tab", "pdf"}
+    if term not in {*_WAYS_OF_FINDING_OUT, "show me", "tab", "pdf"}
 )
 
 

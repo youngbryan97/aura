@@ -18,11 +18,11 @@ Two readers, the same arrangement as core/conversation/asks_about_the_world.py:
   what to search for; an object that only points back ("it", "that") takes its
   content from the rest of the request or, failing that, from what was asked
   before. That parse is exact where it applies and silent where it does not;
-* a learned surface over her own model's representation decides the cases the
-  grammar does not reach ("can you check what time the game starts?", "what
-  does the internet say about X"), with a boundary measured by leave-one-out
-  and an abstention between the classes. Receipts teach it: a search that ran
-  and was read is a labelled example.
+* a learned surface over her encoder decides the cases the grammar does not
+  reach ("can you check what time the game starts?", "you should be able to
+  google them"), from each side described rather than listed, with a boundary
+  measured by leave-one-out and an abstention between the classes. Receipts
+  teach it: a search that ran and was read is a labelled example.
 
 What it does not decide: where to search. A request to search her own files,
 mail, notes or memory, or something on the screen, names its place, and that
@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from core.language.concepts import mentions_object_class
@@ -49,6 +50,8 @@ __all__ = [
     "asks_to_check",
     "asks_to_find_out",
     "asks_what_was_found",
+    "only_points_back",
+    "prewarm_search_requests",
     "read_search_request",
     "teach_from_the_floor",
 ]
@@ -90,30 +93,86 @@ class SearchRequest:
         return self.asked and not self.local_place
 
 
+#: Whether a request asks her to go and find something out, judged by meaning: each side described in the voice a
+#: request comes in, not listed, on the encoder her other meaning readers use, with the boundary the matcher measures
+#: by leaving each description out in turn (core/language/learned_matcher.py). Where the grammar above does not reach,
+#: this decides.
+#:
+#: LIVE 17 November 2026, "You should be able to google them. All flights were grounded on Friday. Major banks were
+#: having outages yesterday. Apple outages today. NSA outage today": the instruction does not open its sentence, so
+#: the grammar did not read it; the learned surface before this one read her model's hidden states, which no live turn
+#: waits for, so it abstained on every phrasing it had not met; the request went to the desktop lane, which opened a
+#: search for "them" and said "Done". Measured before this went in, on 40 requests to find something out and 60 that
+#: were not (opening applications and windows, clicks and typing, documents, arithmetic, her own life, small talk,
+#: what someone thinks of a team, her view of which was better), none of them used to write these descriptions: it
+#: read 25 of the 40 and none of the 60, and abstained on the rest, where the grammar's reading stands. The ones it
+#: leaves are mostly questions about the world as it is now ("is ChatGPT down right now?"), which the world's own
+#: reader takes (core/conversation/asks_about_the_world.py).
+def _her_encoder(texts: Sequence[str]) -> list[list[float]]:
+    """Vectors from the encoder her evidence judge holds, only once it is loaded; none otherwise. The shared runtime's
+    handle embeds by word counts when a model lane refuses it, and a boundary measured on those decides nothing."""
+    from core.cognition.evidence_relevance import vectors_if_ready
+
+    return vectors_if_ready(texts)
+
+
 _FINDS_OUT = LearnedMatcher(
-    name="asks_to_find_out",
+    name="asks_to_find_out_by_meaning",
     positives=(
-        "google it",
-        "look that up for me",
-        "can you find out who won the game last night",
-        "search for the latest release notes",
-        "check online what time the match starts",
-        "what does the internet say about this",
-        "go read about the eruption and tell me what happened",
-        "research the company before my interview",
+        "look something up on the web and find out what is true",
+        "search the internet about a news event, a person, a company or a fact",
+        "you can check online yourself instead of asking me",
+        "go and read what the news and the web say about something that happened",
+        "find out who won, what happened, when something starts or what it costs",
+        "check a claim against sources online",
+        "research a topic and tell me what you found",
+        "how something in the world stands right now: news, scores, prices, schedules, opening hours, closures, outages",
+        "what people online are saying about something new",
     ),
     negatives=(
-        "how are you feeling today?",
-        "open safari",
-        "what do you think about consciousness?",
-        "click the search bar",
-        "tell me a story about a dragon",
-        "what is 7919 times 6421?",
-        "remember that my sister's birthday is in May",
-        "write a poem about autumn",
+        "open an application, a website or a window on my computer and do something in it",
+        "click, type, scroll, drag or press keys on the screen",
+        "create, write or edit a document, note, file or spreadsheet",
+        "what you yourself think, feel, want or remember",
+        "answer from what you already know: explain or define something",
+        "do arithmetic, convert units or solve a math problem",
+        "write a story, a poem or a joke, or brainstorm ideas",
+        "greetings, thanks and small talk",
+        "my own day, my plans, my health and my feelings",
+        "remember something I tell you",
+        "describe what is on my screen right now",
+        "change a setting, play music, set a timer or take a screenshot",
+        "telling you what I or someone else thinks about a person, a team or a thing",
+        "asking your own opinion, or which of two things you think was better",
     ),
-    features=model_hidden_features,
+    features=_her_encoder,
 )
+
+
+def _finds_out_by_meaning(text: str) -> bool | None:
+    """True or False when her encoder can say whether ``text`` asks her to find something out; None when it is not
+    loaded yet. It never loads a model on a turn: before the encoder is up, the grammar alone stands."""
+    try:
+        from core.cognition.evidence_relevance import semantic_routing_ready
+
+        if not semantic_routing_ready():
+            return None
+        return _FINDS_OUT.decide(text)
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("whether this asks to find something out was not measured (%s: %s)", type(exc).__name__, exc)
+        return None
+
+
+def prewarm_search_requests() -> bool:
+    """Measure the find-out boundary at boot, after her encoder is up, so no turn pays for it.
+
+    Never raises: a boundary not measured here is measured by the first turn that asks, and chat stays ready.
+    """
+    try:
+        return _FINDS_OUT.decide("Can you look up what happened at the election?") is not None
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("the find-out boundary was not measured at boot (%s: %s); a turn measures it", type(exc).__name__, exc)
+        return False
 
 
 #: A question about what a lookup found, as opposed to a request to make one or
@@ -323,6 +382,11 @@ def asks_to_check(text: str) -> CheckRequest:
     return CheckRequest(asked, _REPORTED.sub("", claim), points_back and not claim)
 
 
+def only_points_back(text: str) -> bool:
+    """Whether the object of an instruction to search only points back ("them", "it", "that") and names nothing."""
+    return bool(_POINTS_BACK.match(str(text or "").strip()))
+
+
 def _local_place(text: str) -> str:
     for place in _LOCAL_PLACES:
         if mentions_object_class(text, place):
@@ -352,7 +416,7 @@ def read_search_request(text: str, previous_request: str = "") -> SearchRequest:
     if instructed:
         query = target or " ".join(rest).strip(" .!?") or str(previous_request or "").strip()
         return SearchRequest(True, query, place, "instruction")
-    learned = _FINDS_OUT.decide_without_waiting(message)
+    learned = _finds_out_by_meaning(message)
     if learned:
         return SearchRequest(True, message, place, "learned")
     return SearchRequest(False)
@@ -363,20 +427,18 @@ def asks_to_find_out(text: str) -> bool:
     return read_search_request(text).about_the_world
 
 
-def teach(text: str, *, holds: bool) -> None:
-    """Record a request whose nature a receipt settled."""
-    try:
-        _FINDS_OUT.observe(text, holds=holds)
-    except (RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("the search-request surface was not taught this example: %s", exc)
-
-
 def teach_from_the_floor(text: str) -> None:
     """What the grammar read exactly becomes an example for the learned surfaces.
 
     Called where the reading acted: a search that ran, a question answered from
     earlier reading. The learned surfaces then decide the phrasings the grammar
     does not reach with these among their examples.
+
+    Not the find-out surface: it reads what a request asks for from descriptions
+    of each kind, and a request taught to it carries its topic too. Under test on
+    17 November 2026, once "Google Bam's 83 point game" was taught, "Which was
+    better, Bam's 83 point game or Kobe's 81 point game?" read as a request to
+    search, by what it was about.
     """
     message = re.sub(r"https?://\S+", " ", str(text or "")).strip()
     try:
@@ -384,7 +446,5 @@ def teach_from_the_floor(text: str) -> None:
             _ASKS_WHAT_WAS_FOUND.observe(message, holds=True)
         elif _GROUNDS_QUESTION.search(message):
             _ASKS_ABOUT_GROUNDS.observe(message, holds=True)
-        elif read_search_request(message).decided_by == "instruction":
-            _FINDS_OUT.observe(message, holds=True)
     except (RuntimeError, TypeError, ValueError) as exc:
         logger.debug("the floor's reading was not kept as an example: %s", exc)

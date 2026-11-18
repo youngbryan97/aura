@@ -233,7 +233,9 @@ def test_what_the_grammar_reads_exactly_teaches_the_learned_surfaces(judge, monk
         return [{"title": "Bam scores 83", "url": "https://news.example/bam", "text": "Bam Adebayo scored 83 points."}]
 
     asyncio.run(gather_world_evidence("Look up Bam's 83 point game", store=_Corpus(), search=search))
-    assert "Look up Bam's 83 point game" in search_request._FINDS_OUT.positives
+    # The find-out surface reads what a request asks for from descriptions, and a taught request carries its topic: it
+    # is not taught (core/language/search_request.py, teach_from_the_floor).
+    assert "Look up Bam's 83 point game" not in search_request._FINDS_OUT.positives
     search_request.teach_from_the_floor("so what did you find?")
     assert "so what did you find?" in search_request._ASKS_WHAT_WAS_FOUND.positives
     search_request.teach_from_the_floor("How are you feeling tonight?")

@@ -196,7 +196,9 @@ def _about_her_by_meaning(text: str) -> bool | None:
 
         if not semantic_routing_ready():
             return None
-        return bool(_ABOUT_HER_BY_MEANING.decide(text))
+        # Read without its addresses, as the words are: a path read as words made "how are you doing?" about the
+        # world once her encoder was warm (tests/test_an_address_does_not_change_what_a_sentence_means.py).
+        return bool(_ABOUT_HER_BY_MEANING.decide(_said(text)))
     except (ImportError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("what the question is about was not measured (%s: %s); its words stand", type(exc).__name__, exc)
         return None

@@ -68,7 +68,7 @@ def test_a_resident_model_with_cold_anchors_is_not_ready(monkeypatch):
     class _Embedder:
         _model = object()
 
-    monkeypatch.setattr(m, "_embedder", lambda: _Embedder())
+    monkeypatch.setattr(m, "_embedder", lambda **_: _Embedder())
     monkeypatch.setattr(m, "_bind_cache_to_engine", lambda engine: None)
     with m._LOCK:
         saved = dict(m._ANCHOR_CACHE)

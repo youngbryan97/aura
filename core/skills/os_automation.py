@@ -1348,15 +1348,26 @@ end tell
 
     @staticmethod
     def _search_query_from_goal(goal: str) -> str:
+        """What a goal asks to search for. An object that only points back ("google them") takes its content from
+        the rest of the goal, as core/language/search_request.py reads it: LIVE 17 November 2026, "You should be able
+        to google them. All flights were grounded on Friday. ..." opened a Google search for "them"."""
+        from core.language.search_request import only_points_back
+
         patterns = (
             r"\bsearch\s+(?:google\s+)?(?:for\s+)?([^.;\n]+)",
             r"\blook\s+up\s+([^.;\n]+)",
             r"\bgoogle\s+([^.;\n]+)",
         )
+        text = str(goal or "")
         for pattern in patterns:
-            match = re.search(pattern, str(goal or ""), flags=re.IGNORECASE)
+            match = re.search(pattern, text, flags=re.IGNORECASE)
             if match:
                 query = match.group(1).strip(" ,")
+                if query and only_points_back(query):
+                    sentence = re.search(r"[^.!?]*$", text[: match.start()]).start()
+                    end = re.search(r"[.!?]|$", text[match.end():])
+                    rest = (text[:sentence] + " " + text[match.end() + (end.end() if end else 0):]).strip(" .!?")
+                    query = " ".join(rest.split())
                 if query:
                     return query[:240]
         return ""

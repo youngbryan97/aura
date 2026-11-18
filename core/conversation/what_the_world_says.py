@@ -229,6 +229,20 @@ def links_in(request: str) -> list[str]:
     return [url.rstrip(".,;") for url in URL_RE.findall(str(request or ""))]
 
 
+def searches_for(text: str) -> list[str]:
+    """One web search for each sentence of a request that names something of its own; one for the whole otherwise.
+
+    A request can name several things to find out about. LIVE 17 November 2026, "You should be able to google them.
+    All flights were grounded on Friday. Major banks were having outages yesterday. Apple outages today. NSA outage
+    today" named four, and one search for all of them is a query no engine reads well. A sentence that names nothing
+    ("You should be able to google them") is left out; a request of one sentence is one search, so "who won the
+    Lakers and Celtics game" is not split where the encyclopedia's phrases are.
+    """
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", str(text or "").strip()) if part.strip()]
+    named = [sentence.rstrip(" .!?") for sentence in sentences if referent_phrases(sentence)]
+    return named if len(named) > 1 else [str(text or "").strip()]
+
+
 def referent_phrases(text: str) -> list[str]:
     """The separate things a request names, as corpus queries.
 
@@ -563,24 +577,35 @@ async def gather_world_evidence(
         asked_for or (outside_wanted and (not local or now_wanted))
         or (not _asks_her_view(question) and _answers_only_in_part(question, local))
     ):
-        query = asked_for or question
-        try:
-            results = await asyncio.wait_for(search(query), timeout=remaining())
-        except (TimeoutError, OSError, RuntimeError, ValueError):
-            results = []
-        evidence.searched.append(query)
-        if render is not None:
-            await read_as_shown(results, render, remaining)
-        candidates = []
-        for result in results[: 2 * _PAGES_PER_SEARCH]:
-            text = str(result.get("text") or result.get("snippet") or "").strip()
-            if not text:
-                continue
-            url = str(result.get("url") or "")
-            if result.get("text"):
-                evidence.read.append(url)
-            candidates.append(WorldSource("web", str(result.get("title") or url), url, passage_of(text, terms), full_text=text))
-        evidence.sources.extend(_judge(asked_for or question, candidates, solicited=True)[:_PAGES_PER_SEARCH])
+        queries = searches_for(asked_for) if asked_for else [question]
+
+        async def one(query: str) -> list[dict]:
+            try:
+                return await asyncio.wait_for(search(query), timeout=remaining())
+            except (TimeoutError, OSError, RuntimeError, ValueError):
+                return []
+
+        # Together, each within what the turn has left: four searches one after another would take four times as long.
+        found = await asyncio.gather(*(one(query) for query in queries))
+        judged: list[list[WorldSource]] = []
+        for query, results in zip(queries, found, strict=True):
+            evidence.searched.append(query)
+            if render is not None:
+                await read_as_shown(results, render, remaining)
+            candidates = []
+            for result in results[: 2 * _PAGES_PER_SEARCH]:
+                text = str(result.get("text") or result.get("snippet") or "").strip()
+                if not text:
+                    continue
+                url = str(result.get("url") or "")
+                if result.get("text"):
+                    evidence.read.append(url)
+                candidates.append(WorldSource("web", str(result.get("title") or url), url, passage_of(text, terms), full_text=text))
+            judged.append(_judge(query, candidates, solicited=True)[:_PAGES_PER_SEARCH])
+        # The best page of each search first, then the next of each: what the evidence budget keeps covers every
+        # thing the request named, not only the first.
+        for rank in range(_PAGES_PER_SEARCH):
+            evidence.sources.extend(pages[rank] for pages in judged if rank < len(pages))
         if asked.decided_by == "instruction":
             from core.language.search_request import teach_from_the_floor
 

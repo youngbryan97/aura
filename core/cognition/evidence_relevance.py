@@ -368,15 +368,22 @@ def _bind_cache_to_engine(engine: Any) -> None:
     _WARMING["asked"] = False
 
 
-def _embedder() -> Any | None:
-    """The live embedding engine, or None when there is not one."""
+def _embedder(*, initialize: bool = True) -> Any | None:
+    """The live embedding engine, or None when there is not one.
+
+    ``initialize=False`` only looks: no service is built and no lease taken. A readiness question asks that way; LIVE
+    17 November 2026 the desktop router asked whether her encoder was up, and asking built the vector memory engine
+    from inside a routing check.
+    """
 
     global _SHARED_ENGINE_LEASE
     engine: Any | None = None
     try:
         from core.container import get_container
 
-        memory = get_container().get("vector_memory_engine", default=None)
+        container = get_container()
+        memory = (container.get("vector_memory_engine", default=None) if initialize
+                  else container.peek("vector_memory_engine", default=None))
         engine = getattr(memory, "embedder", None)
     except (ImportError, AttributeError, RuntimeError, LookupError):
         # not a failure: no memory engine to borrow one from, so the shared
@@ -385,6 +392,8 @@ def _embedder() -> Any | None:
     if engine is None:
         with _LOCK:
             engine = _SHARED_ENGINE_LEASE
+        if engine is None and not initialize:
+            return None
         if engine is None:
             try:
                 from core.memory.embedding_runtime import acquire_shared_embedding_engine
@@ -427,7 +436,7 @@ def semantic_routing_ready() -> bool:
     the resident model, synchronously, on the API server's event loop. The
     server answered nothing for fifty minutes, health probes included.
     """
-    embedder = _embedder()
+    embedder = _embedder(initialize=False)
     if embedder is None:
         return False
     if getattr(embedder, "_model", None) is None:
@@ -444,7 +453,7 @@ def vectors_if_ready(texts: Sequence[str]) -> list[Any]:
     """
     if not semantic_routing_ready():
         return []
-    vectors = _encode_documents([str(text or "") for text in texts], _embedder())
+    vectors = _encode_documents([str(text or "") for text in texts], _embedder(initialize=False))
     return [] if any(vector is None for vector in vectors) else [[float(x) for x in vector] for vector in vectors]
 
 
