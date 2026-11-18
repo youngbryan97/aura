@@ -1057,7 +1057,9 @@ async def test_unitary_response_does_not_surface_raw_memory_search_miss(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_unitary_response_uses_direct_grounded_reply_for_research_about_turns(monkeypatch):
+async def test_a_research_turn_is_answered_by_her_model_from_what_the_search_found(monkeypatch):
+    """LIVE 17 November 2026 a search's report was served as her reply, cut at 420 characters behind "I searched it
+    live.", and her model never read what was found. The result is her evidence; the words are hers."""
     state = AuraState()
     state.cognition.current_origin = "user"
     state.cognition.current_objective = "research about Python 3.12 release notes key improvements"
@@ -1078,7 +1080,8 @@ async def test_unitary_response_uses_direct_grounded_reply_for_research_about_tu
         ],
     }
 
-    llm = SimpleNamespace(think=AsyncCallProbe(return_value="I should not be called."))
+    hers = "From the release notes: Python 3.12 brought PEP 695 type parameters and a faster interpreter."
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value=hers))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -1089,9 +1092,8 @@ async def test_unitary_response_uses_direct_grounded_reply_for_research_about_tu
 
     new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
 
-    llm.think.assert_not_awaited()
-    assert "Python 3.12 added the new type parameter syntax" in new_state.cognition.last_response
-    assert "docs.python.org/3.12/whatsnew/3.12.html" in new_state.cognition.last_response
+    llm.think.assert_awaited()
+    assert "I searched it live" not in new_state.cognition.last_response
 
 
 @pytest.mark.asyncio

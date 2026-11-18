@@ -1505,7 +1505,10 @@ def test_unitary_response_uses_cached_grounded_search_result():
     assert reply == "Python 3.12.12 Documentation"
 
 
-def test_unitary_response_uses_working_memory_skill_result_when_cached_payload_missing():
+def test_a_working_memory_skill_line_is_evidence_not_the_reply_when_the_payload_is_missing():
+    """LIVE 17 November 2026 a search's own words were served as her reply; a search's line in her working memory is
+    the skill's summary, not the datum it extracted, so her model answers from it (tests/test_what_a_search_found_is_
+    hers_to_say.py)."""
     from core.phases.response_generation_unitary import UnitaryResponsePhase
 
     state = SimpleNamespace(
@@ -1530,7 +1533,7 @@ def test_unitary_response_uses_working_memory_skill_result_when_cached_payload_m
         SimpleNamespace(requires_search=True),
     )
 
-    assert reply == "Python 3.12.0 Documentation"
+    assert reply == ""
 
 
 

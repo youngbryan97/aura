@@ -2453,15 +2453,10 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             return ""
 
         lowered = cls._normalize_text(objective).lower()
-        answer = cls._normalize_text(result.get("answer", "") or "", 420)
         results = list(result.get("results") or [])
         top = results[0] if results else {}
         top_title = cls._normalize_text(top.get("title", "") or result.get("title", ""), 300)
-        top_snippet = cls._normalize_text(top.get("snippet", "") or result.get("summary", ""), 2000)
         top_source = cls._normalize_text(top.get("url", "") or result.get("source", ""), 400)
-        top_content = cls._normalize_text(
-            result.get("content", "") or result.get("result", ""), 8000
-        )
 
         if "page title" in lowered or "title only" in lowered or "only the title" in lowered:
             if top_title:
@@ -2471,23 +2466,10 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             if top_source:
                 return top_source
 
-        if cls._objective_requires_page_grounded_synthesis(objective):
-            return ""
-
-        if answer and top_source:
-            return f"I searched it live. {answer} Source: {top_source}"
-        if answer:
-            return f"I searched it live. {answer}"
-        if top_title and top_snippet:
-            return f"I searched it live. Top result: {top_title}. {top_snippet}"
-        if top_title and top_source:
-            return f"I searched it live. Top result: {top_title}. Source: {top_source}"
-        if top_content:
-            return f"I searched it live. {top_content}"
-        if top_title:
-            return f"I searched it live. Top result: {top_title}"
-        if top_snippet:
-            return f"I searched it live. {top_snippet}"
+        # Anything more than the one datum asked for is hers to write from what the search read. LIVE 17 November
+        # 2026 "You should be able to google them. All flights were grounded on Friday. ..." was answered with the
+        # search skill's own report cut at 420 characters behind "I searched it live.", mid-sentence, and her model
+        # never read what was found. The result is in her working memory for her to answer from.
         return ""
 
     @classmethod
@@ -2520,26 +2502,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         for skill_name in ("web_search", "search_web", "free_search", "grounded_search"):
             cached = cls._cached_grounded_tool_result(state, skill_name=skill_name)
             if not cached:
-                wm = list(getattr(getattr(state, "cognition", None), "working_memory", []) or [])
-                for msg in reversed(wm[-8:]):
-                    if not isinstance(msg, dict):
-                        continue
-                    metadata = msg.get("metadata") or {}
-                    if str(metadata.get("type", "")).lower() != "skill_result":
-                        continue
-                    if str(metadata.get("skill", "")).strip() != skill_name or not metadata.get(
-                        "ok"
-                    ):
-                        continue
-                    content = cls._normalize_text(msg.get("content", ""), 600)
-                    stripped = re.sub(
-                        rf"^\[SKILL RESULT:\s*{re.escape(skill_name)}\]\s*[✅⚠️]?\s*",
-                        "",
-                        content,
-                        flags=re.IGNORECASE,
-                    ).strip()
-                    if stripped:
-                        return stripped
+                # A search's line in her working memory is evidence for her to answer from, not her reply.
                 continue
             reply = cls._format_grounded_search_reply(objective, cached)
             if reply:
