@@ -667,6 +667,8 @@ class _BuildsTheLivingContext:
                 effect_observed=True,
                 verification="tool loop returned a result for this turn",
                 observed_content=observed[:2000],
+                as_made={"id": str(call.get("id") or ""), "arguments": dict(call.get("args") or {}),
+                         "returned": str(call.get("result") or "")},
             )
         return text or None
 

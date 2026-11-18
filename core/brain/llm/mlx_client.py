@@ -11293,7 +11293,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # the path where it finishes, and custody now treats a receipt
             # naming the same call and the same result as the one call it is.
             _record_tool_receipt_for_this_turn(
-                tool_name, tool_args, raw_result, tool_result
+                tool_name, tool_args, raw_result, tool_result, tool_call_id
             )
             # Report what actually happened. This line said "ok" for every
             # outcome — a missing capability engine, a caught exception, and a
@@ -12014,7 +12014,7 @@ def _record_an_empty_generation(
 
 
 def _record_tool_receipt_for_this_turn(
-    tool_name: Any, tool_args: Any, raw_result: Any, serialized: Any
+    tool_name: Any, tool_args: Any, raw_result: Any, serialized: Any, call_id: Any = ""
 ) -> None:
     """Attach one finished tool call to the turn that asked for it."""
 
@@ -12040,7 +12040,7 @@ def _record_tool_receipt_for_this_turn(
             object_ref=str(tool_args or "")[:200],
             effect_observed=True,
             verification="the tool returned a result during this turn", observed_content=observed[:2000],
-            as_made={"arguments": dict(tool_args or {}), "returned": str(serialized or observed)},
+            as_made={"id": str(call_id), "arguments": dict(tool_args or {}), "returned": str(serialized or observed)},
         )
     except Exception as exc:  # noqa: BLE001 - a receipt must never end a turn
         logger.debug(

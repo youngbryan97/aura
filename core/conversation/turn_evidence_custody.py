@@ -71,8 +71,14 @@ _logger = logging.getLogger(__name__)
 
 
 def _the_same_call(one: dict[str, Any], other: dict[str, Any]) -> bool:
-    """Whether two receipts describe one tool call rather than two."""
+    """Whether two receipts describe one tool call rather than two.
 
+    Her tool loop's calls carry what she made, so they are told apart by that: the loop and the caller that writes its
+    batch word what came back differently, and LIVE 18 November 2026 one call reached her reply as two.
+    """
+    made, also_made = one.get("as_made"), other.get("as_made")
+    if made and also_made:
+        return (made.get("id"), made.get("arguments")) == (also_made.get("id"), also_made.get("arguments"))
     return all(
         str(one.get(field) or "") == str(other.get(field) or "")
         for field in ("tool", "object_ref", "observed_content", "ok")

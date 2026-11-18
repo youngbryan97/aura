@@ -99,3 +99,23 @@ def test_a_call_of_her_tool_loop_goes_back_as_she_made_it(monkeypatch):
 
     assert call["tool_calls"][0]["function"] == {"name": "code_repl", "arguments": {"code": program, "timeout": 30}}
     assert answer["content"] == returned and answer["tool_call_id"] == call["tool_calls"][0]["id"]
+
+
+def test_one_call_written_by_the_loop_and_by_its_caller_is_one_call():
+    """LIVE 18 November 2026: the loop and the caller worded what came back differently, and her reply saw two calls."""
+    from core.conversation.surface_disposition import her_calls_this_turn
+
+    made = {"id": "call_1", "arguments": {"code": "print(1)"}, "returned": '{"stdout":"1"}'}
+
+    async def scenario():
+        with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+            record_tool_receipt("code_repl", ok=True, action="execute", object_ref="{'code': 'print(1)'}",
+                                observed_content="1", as_made=made)
+            record_tool_receipt("code_repl", ok=True, action="execute", object_ref="{'code': 'print(1)'}",
+                                observed_content='{"stdout":"1"}', as_made=made)
+            record_tool_receipt("code_repl", ok=True, action="execute", object_ref="{'code': 'print(2)'}",
+                                observed_content="2", as_made={**made, "id": "call_2", "arguments": {"code": "print(2)"}})
+            return her_calls_this_turn()
+
+    calls = asyncio.run(scenario())
+    assert [m["tool_calls"][0]["function"]["arguments"]["code"] for m in calls[::2]] == ["print(1)", "print(2)"]
