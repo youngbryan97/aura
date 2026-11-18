@@ -338,6 +338,27 @@ def from_file(path: Path):
     return propose
 
 
+def _carry_what_the_fix_wrote_to_check_itself(copy: Path, fix: str, files: list[str], came_with: list[str],
+                                               tests: list[str]) -> list[str]:
+    """The invariants the fix added to the files under repair that its tests name, put into those modules from the
+    copy's conftest, outside the code a candidate can change (core/self_modification/a_fixs_own_specification.py)."""
+    from core.self_modification.a_fixs_own_specification import injected, module_of, specification_in
+
+    said = "\n".join((copy / path).read_text(encoding="utf-8") for path in
+                     dict.fromkeys([*(t.split("::")[0] for t in tests), *came_with]) if (copy / path).is_file())
+    named = set(re.findall(r"\w+", said))
+    carried: list[str] = []
+    for path in files:
+        after = subprocess.run(["git", "-C", str(ROOT), "-c", "core.fsmonitor=false", "show", f"{fix}:{path}"],
+                               capture_output=True, text=True).stdout
+        specification, names = specification_in((copy / path).read_text(encoding="utf-8"), after, named)
+        if specification:
+            with (copy / "tests" / "conftest.py").open("a", encoding="utf-8") as conftest:
+                conftest.write(injected(module_of(path), specification))
+            carried.extend(names)
+    return carried
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--test", action="append", required=True)
@@ -368,6 +389,7 @@ def main() -> int:
     deadline = time.time() + args.minutes * 60
     where = Path(tempfile.mkdtemp(prefix="repair-by-selection-"))
     copy = Copy(ROOT, where, args.at)
+    carried: list[str] = []
     try:
         if args.tests_from:
             # Every test file the fixing commit came with, not only the failing tests' own: a commit that changes
@@ -382,6 +404,7 @@ def main() -> int:
                                        capture_output=True, text=True).stdout
                 (copy.path / path).parent.mkdir(parents=True, exist_ok=True)
                 (copy.path / path).write_text(shown, encoding="utf-8")
+            carried = _carry_what_the_fix_wrote_to_check_itself(copy.path, args.tests_from, args.file, came_with, args.test)
         if args.plant:
             path, old, new = args.plant
             text = (copy.path / path).read_text(encoding="utf-8")
@@ -486,7 +509,8 @@ def main() -> int:
             Defect(tuple(args.test), tuple(args.file)), sources=sources, neighbours=neighbours, run=run,
             propose=propose, proposals=args.proposals, deadline=deadline, record=record, standards=standards))
         (args.out / "lineage.json").write_text(json.dumps(
-            {**lineage.to_json(), "guarding_files": files, "guarding_tests": found, "planted": args.plant}, indent=1))
+            {**lineage.to_json(), "guarding_files": files, "guarding_tests": found, "planted": args.plant,
+             "specification_carried": carried}, indent=1))
         (args.out / "semantic.json").write_text(json.dumps(evidence.to_json(), indent=1, default=str))
         # Where the search looked: the lines of the defect's own code, most suspicious first, and what ranked them.
         (args.out / "ranked.json").write_text(json.dumps({
