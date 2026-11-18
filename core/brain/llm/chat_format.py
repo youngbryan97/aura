@@ -1048,6 +1048,39 @@ def _leaves_its_channel_open(text: str, tokenizer: object) -> bool:
     return text.rfind(str(opens)) > text.rfind(str(closes))
 
 
+def _the_generation_prompt_opens_the_channel(
+    tokenizer: object,
+    messages: object,
+    prompt: str,
+    *,
+    tools: object,
+    enable_thinking: bool | None,
+    reasoning_effort: str | None,
+) -> bool | None:
+    """Whether the turn the template opened for her begins inside her private channel, read from what it appended.
+
+    What the turn asked for is not the answer. Asked for nothing, her template opens the channel anyway: LIVE 17
+    November 2026, 22:35, her tool loop logged "Native thinking None" over a prompt ending "<think>\\n". The
+    channel had no bound, nothing split it, and the 456 tokens of her working ("Let me parse this. The user is
+    saying: ...") came back as her reply. Where the appended part cannot be isolated, the request stands.
+    """
+    try:
+        before = render_chat_template(
+            tokenizer,
+            messages,
+            tools=tools,
+            add_generation_prompt=False,
+            enable_thinking=enable_thinking,
+            reasoning_effort=reasoning_effort,
+        )
+    except (TypeError, ValueError, KeyError, RuntimeError, AttributeError) as exc:
+        logger.debug("The turn's opening could not be isolated (%s); the request stands", exc)
+        return enable_thinking
+    if not prompt.startswith(before) or len(prompt) == len(before):
+        return enable_thinking
+    return _leaves_its_channel_open(prompt[len(before):], tokenizer)
+
+
 def render_where_the_decode_begins(
     tokenizer: object,
     messages: object,
@@ -1068,14 +1101,18 @@ def render_where_the_decode_begins(
     after the cut.
     """
     if not continuation:
-        return render_chat_template(
+        prompt = render_chat_template(
             tokenizer,
             messages,
             tools=tools,
             add_generation_prompt=True,
             enable_thinking=enable_thinking,
             reasoning_effort=reasoning_effort,
-        ), enable_thinking
+        )
+        return prompt, _the_generation_prompt_opens_the_channel(
+            tokenizer, messages, prompt, tools=tools, enable_thinking=enable_thinking,
+            reasoning_effort=reasoning_effort,
+        )
     prompt = render_chat_continuation_template(
         tokenizer, messages, tools=tools, enable_thinking=enable_thinking, reasoning_effort=reasoning_effort,
     )

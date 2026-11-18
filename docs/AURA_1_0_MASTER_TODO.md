@@ -5014,7 +5014,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     -0.39, invented "your flight being cancelled on Friday" +0.88. Needs a judgement of attribution by meaning
     that is measured before it replaces the word check.
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
-    saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35).
+    saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
+    November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her
+    template opened the channel anyway (the prompt ended "<think>\n"). Every bound, reserve and split keys on
+    True, so all 456 tokens of her working came back as the reply. The render now reads the channel from what
+    the template appended. Waits for a live check.
   - A call she makes in a reply pass is rejected instead of being run.
   - code_repl contains code with stripped builtins and a module list, not the kernel boundary the amplifier's
     sandbox uses.

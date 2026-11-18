@@ -52,11 +52,47 @@ def test_a_prefix_that_left_the_channel_open_is_continued_in_it():
     assert in_the_channel is True
 
 
-def test_a_fresh_turn_keeps_what_the_turn_was_given():
+def test_a_fresh_turn_begins_where_her_template_put_it():
     prompt, in_the_channel = render_where_the_decode_begins(_ChatML(), ASKED, enable_thinking=True)
 
     assert prompt.endswith("<|im_start|>assistant\n<think>\n") and in_the_channel is True
-    assert render_where_the_decode_begins(_ChatML(), ASKED, enable_thinking=None)[1] is None
+    assert render_where_the_decode_begins(_ChatML(), ASKED, enable_thinking=False)[1] is False
+
+
+class _OpensUnlessToldNot(_ChatML):
+    """Her real template: asked for nothing, it opens the channel."""
+
+    def apply_chat_template(self, messages, *, enable_thinking=True, **kwargs):
+        return super().apply_chat_template(messages, enable_thinking=enable_thinking, **kwargs)
+
+
+GOOGLE_THEM = [{"role": "user", "content": (
+    "You should be able to google them. All flights were grounded on Friday. Major banks were having outages "
+    "yesterday. Apple outages today. NSA outage today")}]
+
+
+def test_a_turn_that_asked_for_nothing_is_in_the_channel_her_template_opened():
+    """LIVE 17 November 2026, 22:35: her tool loop logged "Native thinking None" over a prompt ending "<think>\n",
+    and the 456 tokens of her working came back as her reply: "Let me parse this. The user is saying: ..."."""
+    prompt, in_the_channel = render_where_the_decode_begins(_OpensUnlessToldNot(), GOOGLE_THEM, enable_thinking=None)
+
+    assert prompt.endswith("<|im_start|>assistant\n<think>\n")
+    assert in_the_channel is True, "a channel the template opened must be bounded and split"
+
+
+def test_a_template_that_asked_for_nothing_and_closed_the_channel_is_in_the_reply():
+    assert render_where_the_decode_begins(_ChatML(), GOOGLE_THEM, enable_thinking=None)[1] is False
+
+
+def test_a_turn_whose_opening_cannot_be_isolated_keeps_what_it_asked_for():
+    class _NoPlainRender(_ChatML):
+        def apply_chat_template(self, messages, *, add_generation_prompt=False, **kwargs):
+            if not add_generation_prompt:
+                raise ValueError("this template renders only a turn to answer")
+            return super().apply_chat_template(messages, add_generation_prompt=True, **kwargs)
+
+    assert render_where_the_decode_begins(_NoPlainRender(), GOOGLE_THEM, enable_thinking=None)[1] is None
+    assert render_where_the_decode_begins(_NoPlainRender(), GOOGLE_THEM, enable_thinking=True)[1] is True
 
 
 def test_her_worker_takes_the_channel_from_the_render():
