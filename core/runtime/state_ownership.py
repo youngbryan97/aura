@@ -461,6 +461,17 @@ def _source_roots() -> tuple[Path, ...]:
     return tuple(dict.fromkeys(roots))
 
 
+#: The folders of the outside benchmark harness: its code in the source tree, its results under her home.
+_HELD_OUTSIDE_HER = frozenset({"outside_bar", "outside-bar"})
+
+
+def _held_outside_her(path: Path | str) -> bool:
+    try:
+        return bool(_HELD_OUTSIDE_HER & set(Path(os.path.realpath(Path(path).expanduser())).parts))
+    except (OSError, RuntimeError, ValueError):
+        return False  # a path that cannot be resolved is the live-state check's to refuse
+
+
 def assert_state_path_allowed(path: Path | str, *, source: str = "unknown") -> None:
     """Refuse a write into live state from a runtime that does not own it.
 
@@ -471,7 +482,12 @@ def assert_state_path_allowed(path: Path | str, *, source: str = "unknown") -> N
     A LIVE runtime is unaffected. Everything else raises on contact with
     the live root, which is what turns "tests wrote into Aura's real
     learning memory" from a thing that happened into a thing that cannot.
+
+    The harness that measures her from outside, and its results, refuse every
+    runtime, the live one too: what grades her is not hers to change.
     """
+    if _held_outside_her(path):
+        raise StateOwnershipViolation(f"{path} is held outside her (source={source}); see outside_bar/README.md")
     profile = runtime_profile()
     if profile.may_touch_live_state:
         return

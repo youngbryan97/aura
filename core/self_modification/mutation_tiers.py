@@ -109,6 +109,7 @@ _TIER3_PATTERNS: tuple[str, ...] = (
     "core/security/**",
     "core/guardians/**",
     "aura_main.py",
+    "outside_bar/**",
 )
 
 _TIER2_PATTERNS: tuple[str, ...] = (

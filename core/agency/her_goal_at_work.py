@@ -512,6 +512,9 @@ async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
 
 #: Paths whose change waits for Bryan however well it checks: what she may do, how she is checked, and these rules.
 HER_OWN_GOVERNANCE = (
+    "outside_bar/",
+    "core/self_modification/mutation_tiers.py",
+    "core/runtime/state_ownership.py",
     "core/governance/",
     "core/governance_context.py",
     "core/executive/",

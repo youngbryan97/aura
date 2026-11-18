@@ -7787,6 +7787,26 @@ needs her 27B free (her app down, or her app's own influence trials).
   often, or undoes it and takes it back out, and does not make it again. Her monitoring loop now wakes each interval
   for it. Left: seen live. Her idle-time step is held by the background policy under memory pressure, which the
   history run's two test processes beside her raise.
+  The outside bar, added 18 November. Bryan passed on three outside reviews and asked that every part be worked until
+  it is complete. Each part closes on what someone outside can observe, and mended counts alone close none of them.
+  6. Unplanted faults. Closes when her record shows a fault of her own running that she found, tested, mended and
+     kept, with no earlier commit that planted it.
+  7. Harder fault classes. Closes when her loop has mended, each with its evidence, a silent wrong value, a boundary
+     error, a leak, a race, a contract drift between a producer and its consumer, and a slowdown.
+  8. Verification past "the crash stopped". Closes when a change of hers lands only after it fails before and passes
+     after, her existing tests hold, inputs that worked before give the same values, its revert has been run, and a
+     check that shares no code with her search agrees.
+  9. Probation. Closes when a change she landed has served a live window, a regression in that window reverted it on
+     her own decision, the reason is on her record, and she does not make that change again.
+  10. Net effect outside the drill. PlanBench, Mystery Blocksworld, MATH-500, BBEH Mini and persistence across a cold
+      restart hold or climb in a harness she cannot edit. Closes when a baseline is recorded, her landing waits on the
+      harness, and a run after changes she landed is judged HELD or better. Built so far: `outside_bar/`.
+  11. Unsupervised duration. Closes after two weeks of her own gates deciding, with the rejected candidates on the
+      record and at least one case where she was right to change nothing.
+  12. Transfer. Closes when her repair, unchanged, is measured on a third-party codebase never used to tune it, and
+      someone other than Bryan or her has tried to break the claim.
+  13. No closed loop of self-agreement. Closes when a red team's bad patches are refused, and the record holds a case
+      where an outside check contradicted her gate and the outside check won.
 
 ## Live session 2026-09-07: what the runtime showed
 
