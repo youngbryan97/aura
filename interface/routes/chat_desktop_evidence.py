@@ -1239,6 +1239,26 @@ async def _what_the_world_says_for_the_turn(
         await _collect_desktop_required_search_evidence(user_message, session_id=session_id, recent_days=7 if current else 0)
         if should_collect and not instructed else None
     )
+    # Looking something up for the person comes on top of the time her answer needs, not out of it: the turn asks
+    # its clock for both. LIVE 17 November 2026, typed into her window, four searches and the reading of their
+    # pages left 59.8 s of a turn whose answer needs 60 s held for it, so her model was never asked and a smaller
+    # model's line that it could not answer went to the person.
+    try:
+        from core.conversation.what_the_world_says import LOOKING_UP_S
+        from core.runtime.the_turn_clock import the_turn_clock
+
+        from .chat import _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S
+        from .chat_desktop_mode import _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
+
+        clock = the_turn_clock()
+        if clock is not None:
+            clock.ask_for(
+                time.monotonic() - clock.started_at + LOOKING_UP_S
+                + _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S + _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S,
+                "looking up what the request names, and her answer from what was read",
+            )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.world_evidence", exc, severity="debug", action="looked up within the turn's own clock")
     try:
         evidence = await gather_world_evidence(
             user_message, previous_request=previous, fetch=_read_a_page,

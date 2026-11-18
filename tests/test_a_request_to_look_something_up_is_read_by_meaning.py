@@ -149,3 +149,33 @@ def test_each_thing_the_request_names_is_searched_for_itself():
     asyncio.run(gather_world_evidence("Google it. Apple had an outage today. So did the NSA.", search=search,
                                       store=_Nothing()))
     assert sorted(asked) == ["Apple had an outage today", "So did the NSA"]
+
+
+@pytest.mark.asyncio
+async def test_looking_something_up_comes_on_top_of_the_time_her_answer_needs(monkeypatch):
+    """LIVE 17 November 2026, typed into her window: four searches and their pages left 59.8 s of a turn whose answer
+    needs 60 s held for it, so her model was never asked and a smaller model's line went to the person."""
+    from core.conversation import what_the_world_says
+    from core.runtime.the_turn_clock import close_the_turn_clock, open_a_turn_clock
+    from interface.routes import chat_desktop_evidence
+    from interface.routes.chat import _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S
+    from interface.routes.chat_desktop_mode import _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
+
+    from interface.routes import chat_capability_inventory
+
+    async def gather(request, **_kwargs):
+        return what_the_world_says.WorldEvidence()
+
+    async def skill(name, params, *, objective, extra_context=None, **_kwargs):
+        return {"ok": True, "results": []}
+
+    monkeypatch.setattr(chat_capability_inventory, "_execute_governed_live_skill", skill)
+    monkeypatch.setattr(what_the_world_says, "gather_world_evidence", gather)
+    clock = open_a_turn_clock(60.0)
+    try:
+        await chat_desktop_evidence._what_the_world_says_for_the_turn(LIVE, LIVE, session_id="")
+        needed = (what_the_world_says.LOOKING_UP_S + _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S
+                  + _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S)
+        assert clock.budget() >= needed
+    finally:
+        close_the_turn_clock()

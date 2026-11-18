@@ -8358,8 +8358,19 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 return None
 
+            # What the turn was granted, or what it has since been shown it needs (the turn clock): looking things up
+            # for the person asks it for the time her answer needs on top (chat_desktop_evidence.py).
+            granted = foreground_timeout
+            try:
+                from core.runtime.the_turn_clock import the_turn_clock
+
+                clock = the_turn_clock()
+                if clock is not None:
+                    granted = max(granted, clock.budget())
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                record_degradation("chat", exc, severity="debug", action="used the admitted budget for recovery")
             recovery_budget = _desktop_required_cognitive_budget(
-                foreground_timeout=foreground_timeout,
+                foreground_timeout=granted,
                 elapsed_s=time.monotonic() - _her_answer_clock["from"],
             )
             if recovery_budget < _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S:
