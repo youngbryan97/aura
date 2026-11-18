@@ -449,11 +449,18 @@ def vectors_if_ready(texts: Sequence[str]) -> list[Any]:
 
     Loads nothing, as ``semantic_routing_ready`` does not. The shared embedding runtime is a different handle, and in
     her app it held no model while this one did: a judge that asked it fell back to words on every live turn
-    (13 November 2026).
+    (13 November 2026). Never hashed words in the model's place, which the engine gives while its lane is being
+    yielded or a refused load is asked for again.
     """
     if not semantic_routing_ready():
         return []
-    vectors = _encode_documents([str(text or "") for text in texts], _embedder(initialize=False))
+    wanted = [str(text or "") for text in texts]
+    embedder = _embedder(initialize=False)
+    by_meaning = getattr(embedder, "embed_batch_by_meaning", None)
+    if callable(by_meaning):
+        vectors = by_meaning(wanted)
+        return [] if vectors is None else [[float(x) for x in vector] for vector in vectors]
+    vectors = _encode_documents(wanted, embedder)
     return [] if any(vector is None for vector in vectors) else [[float(x) for x in vector] for vector in vectors]
 
 

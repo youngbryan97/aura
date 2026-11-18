@@ -117,19 +117,35 @@ def _cosines(rows: np.ndarray, columns: np.ndarray) -> np.ndarray:
 
 
 def embed_sentences(sentences: Iterable[str]) -> list[list[float]]:
-    """Vectors for these sentences, or [] when no embedder is available.
+    """The model's vectors for these sentences, or [] when no model can make them now.
 
-    Uses the runtime's own vector memory, so there is one embedding model in
-    the process rather than a second one loaded beside it.
+    The encoder her app already holds comes first, asked without loading anything: beside it the shared runtime held
+    no model (13 November 2026). The shared runtime is asked next, for the model's vectors only; the MLX worker's
+    process has that one alone. Its ``embed`` answers a missing model with hashed words of the model's width, and a
+    surface keeps the boundary it measured, so one measured on hashed words and asked with model vectors (or the
+    reverse) compared two spaces that share nothing but their length.
     """
     texts = [str(text or "").strip() for text in sentences]
     if not any(texts):
         return []
     try:
+        from core.cognition.evidence_relevance import vectors_if_ready
+
+        held = vectors_if_ready(texts)
+    except _RECOVERABLE as exc:
+        logger.debug("her app's encoder was not asked (%s: %s); the shared runtime is", type(exc).__name__, exc)
+        held = []
+    if held:
+        return held
+    try:
         from core.memory.embedding_runtime import acquire_shared_embedding_engine
 
         with acquire_shared_embedding_engine("language.learned_matcher") as engine:
-            return [[float(value) for value in engine.embed(text)] for text in texts]
+            by_meaning = getattr(engine, "embed_batch_by_meaning", None)
+            if not callable(by_meaning):
+                return [[float(value) for value in engine.embed(text)] for text in texts]
+            vectors = by_meaning(texts)
+            return [] if vectors is None else [[float(value) for value in vector] for vector in vectors]
     except _RECOVERABLE as exc:
         record_degradation(
             "language.learned_matcher",
@@ -424,6 +440,13 @@ class LearnedMatcher:
                     self._preparing = False
                 self._settled.set()
 
+        if not positives or not negatives:
+            # No model to measure with yet is not a property of the declaration. Settled, it kept this surface
+            # silent for the life of the process, though the encoder came up later.
+            with self._lock:
+                self._preparing = False
+            self._settled.set()
+            return False
         if len(positives) != len(positive_examples) or len(negatives) != len(
             negative_examples
         ):

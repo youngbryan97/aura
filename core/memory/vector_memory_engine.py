@@ -929,24 +929,41 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
     ) -> np.ndarray:
         """Embed sources under bounded token work, preserving cardinality."""
 
+        vectors = self.embed_batch_by_meaning(texts, background=background)
+        if vectors is not None:
+            return vectors
+        return np.vstack([self._embed_hash(text) for text in texts])
+
+    def embed_batch_by_meaning(
+        self,
+        texts: list[str],
+        *,
+        background: bool = False,
+    ) -> np.ndarray | None:
+        """The model's vectors for ``texts``, or None while the model is not there to make them.
+
+        ``embed_batch`` answers a missing model with hashed words of the same width, which suits recall: a weaker
+        match beats none. A boundary measured once and kept cannot take that answer. A hashed vector and a model
+        vector of one sentence have the same length and nothing else in common, so a surface measured on one and
+        asked with the other decides at random (17 November 2026: every LearnedMatcher on the shared engine).
+        """
         if not texts:
             return np.empty((0, self.VECTOR_DIM), dtype=np.float32)
         model = self._checkout_model()
-        if model is not None:
-            try:
-                encoded = self._encode_views_with_model(
-                    model,
-                    texts,
-                    background=background,
-                )
-                return np.asarray(
-                    [self._aggregate_views(vectors, weights) for vectors, weights in encoded],
-                    dtype=np.float32,
-                )
-            finally:
-                self._return_model()
-
-        return np.vstack([self._embed_hash(text) for text in texts])
+        if model is None:
+            return None
+        try:
+            encoded = self._encode_views_with_model(
+                model,
+                texts,
+                background=background,
+            )
+            return np.asarray(
+                [self._aggregate_views(vectors, weights) for vectors, weights in encoded],
+                dtype=np.float32,
+            )
+        finally:
+            self._return_model()
 
     @staticmethod
     def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
