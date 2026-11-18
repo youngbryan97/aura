@@ -4997,9 +4997,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     the web. Live at 19:59 her model then had the evidence and wrote 637 tokens of reasoning as prose ("The user is
     saying that I should be able to google them … Let me think about what's actually in my evidence") over 141 s.
     The gate refused it, and the runtime said its language backend was unavailable.
+    Through her window from 21:15 the turn failed four more ways, each fixed and pushed:
+    - The continuation of her cut answer replaced it (6bcd81ba7).
+    - A request read by meaning was searched as one query (6bcd81ba7).
+    - Looking up ate the 60 s held for her answer (3d0c9b03b).
+    - The phase searched the whole message (2ca8b4b0b).
+    At 22:35 she searched once per event and wrote: "The sources I checked (Apple's system status page and an
+    NSA outage tracker) show current or recent incidents, but they don't confirm the exact dates or scope you're
+    describing — like all flights bein[g grounded] ...". `fabricated_shared_history` dropped that sentence, and
+    the person got the rest: "I can't verify those specific claims ... Otherwise, I can't confirm the details".
   Open:
-  - On a turn with evidence her reply pass writes its reasoning as the reply and runs out of budget before the
-    answer (19:59 above); the canned search reply had hidden this on every explicit search.
+  - `fabricated_shared_history` judges an attribution by its words, so her faithful paraphrase of the person's
+    own message reads as invented. Measured 17 November on that message: it flags "grounded nationwide", "every
+    major bank going down" and "grounded at once", and passes only "grounded on Friday". The NLI reader
+    (`how_her_words_stand`) does not separate them either: faithful "all flights being grounded nationwide"
+    -0.39, invented "your flight being cancelled on Friday" +0.88. Needs a judgement of attribution by meaning
+    that is measured before it replaces the word check.
+  - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
+    saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35).
   - A call she makes in a reply pass is rejected instead of being run.
   - code_repl contains code with stripped builtins and a module list, not the kernel boundary the amplifier's
     sandbox uses.
