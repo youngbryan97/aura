@@ -428,6 +428,17 @@ def _has_surface_nonsense_drift(user_message: Any, reply_text: Any) -> bool:
     return not _SURFACE_NONSENSE_DRIFT_RE.search(prompt_without_urls)
 
 
+def _one_item_to_a_line(lines: list[str]) -> bool:
+    """A plan's steps: none closed like a sentence, and the last as long as the list says its items are, which is as
+    long as an earlier item opening with the same word, or else the shortest before it. LIVE 18 November 2026 two
+    computed plans were read as cut off for ending without a full stop, and withheld."""
+    if len(lines) < 3 or any(line.rstrip().endswith((".", "!", "?", ":", ";", ",")) for line in lines):
+        return False
+    last = lines[-1].split()
+    alike = [len(line.split()) for line in lines[:-1] if line.split()[0].lower() == last[0].lower()]
+    return len(last) in alike if alike else len(last) >= min(len(line.split()) for line in lines[:-1])
+
+
 def _looks_like_structured_output(body: str) -> bool:
     """Code, JSON and list-shaped answers are legitimately function-word poor."""
     from .response_reliability import (
@@ -441,6 +452,8 @@ def _looks_like_structured_output(body: str) -> bool:
         return True
     lines = [line for line in body.splitlines() if line.strip()]
     if lines and sum(1 for line in lines if _LIST_LINE_RE.match(line)) * 2 >= len(lines):
+        return True
+    if _one_item_to_a_line(lines):
         return True
     # Scripted dialogue and labelled records ("Mainframe: First statement.")
     # are function-word poor by form, not by collapse. The discriminator is the
@@ -538,7 +551,12 @@ def _has_truncated_tail(
     # is cut whether it is 23 characters or 230, and the floor below is about
     # not demanding punctuation from a legitimately terse reply — a different
     # question that was silently answering this one.
-    if len(body.split()) >= 2 and _DANGLING_FUNCTION_WORD_TAIL_RE.search(body):
+    dangling = len(body.split()) >= 2 and bool(_DANGLING_FUNCTION_WORD_TAIL_RE.search(body))
+    items = [line for line in body.splitlines() if line.strip()]
+    # "object a" closes a step whole when the list has already named object a.
+    if _one_item_to_a_line(items) and (not dangling or " ".join(body.split()[-2:]) in "\n".join(items[:-1])):
+        return False
+    if dangling:
         return True
     if len(body) < 24:
         return False
