@@ -223,7 +223,7 @@ def freeze_what_boot_made() -> int:
     collection walks only what was made since. What was frozen is not collected again: a cycle among boot objects that
     becomes garbage later stays, which for objects that live as long as the process is no loss.
     """
-    gc.collect()
+    gc.collect(1)
     gc.freeze()
     frozen = gc.get_freeze_count()
     logger.info("🗑️ %d objects made during boot are frozen out of every later collection", frozen)
