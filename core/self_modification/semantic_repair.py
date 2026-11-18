@@ -831,8 +831,9 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
 
     1. the exact changes of proposals_without_a_model (a missing import, a shape almost never meant, ruff's fixes);
     2. in turn, so that none waits for another's whole list: semantic repair from her program's values at the ranked
-       lines (this module, when ``run`` is given; a turn of it is an equal share of the time left), expressions her
-       own file writes elsewhere (ingredient_repair.py), and the fix templates (fix_templates.py);
+       lines (this module, when ``run`` is given; a turn of it is an equal share of the time left), containers left
+       holding something (leftover_state.py, also when ``run`` is given), expressions her own file writes elsewhere
+       (ingredient_repair.py), and the fix templates (fix_templates.py);
     3. ``then``'s proposals, when one is given.
 
     ``rank(start)`` gives the lines most suspicious first; ``passing(start, ranked)`` the tests that pass now and run
@@ -873,8 +874,12 @@ def her_own_python(*, repo: Path, rank: Rank, run: Run | None = None, passing: P
             stage["semantic"] = semantic_repairs(
                 sources=start, failing=list(defect.tests), passing=tests, ranked=stage["ranked"], run=run,
                 workdir=workdir, deadline=deadline() if deadline is not None else time.time() + 600,
-                evidence=evidence, run_forcings=run_forcings, share=1 + len(stage["turns"]))
-            stage["turns"].insert(0, stage["semantic"])
+                evidence=evidence, run_forcings=run_forcings, share=2 + len(stage["turns"]))
+            from core.self_modification.leftover_state import leftover_state_repairs
+
+            stage["turns"][:0] = [stage["semantic"], leftover_state_repairs(
+                sources=start, failing=list(defect.tests), passing=tests, ranked=stage["ranked"], run=run,
+                workdir=workdir)]
         while stage["turns"]:
             stream = stage["turns"].pop(0)
             if hasattr(stream, "__anext__"):

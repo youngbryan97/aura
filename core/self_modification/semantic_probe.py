@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, MutableMapping, MutableSequence, MutableSet
+from types import ModuleType
 from typing import Any
 
-__all__ = ["cond", "guard", "leave", "summarise", "value"]
+__all__ = ["cond", "guard", "held", "leave", "summarise", "value"]
 
 #: Evaluations kept for one location in one test. A condition in a loop can run millions of times, and the synthesis
 #: needs examples, not all of them.
@@ -205,6 +206,18 @@ def leave(location: str, scope: Mapping[str, Any], plan: str, record: str) -> in
     forced = _forced(plan, location, n, -1)
     _record(record, location, "leave", scope, -1, n, forced=forced)
     return -1 if forced is None or isinstance(forced, bool) else int(forced)
+
+
+def held(location: str, bound: Any, record: str) -> None:
+    """Which of an object's mutable containers hold something just after it was bound (leftover_state.py)."""
+    try:
+        fields = None if isinstance(bound, (type, ModuleType)) else getattr(bound, "__dict__", None)
+        full = sorted(name for name, inner in fields.items() if isinstance(name, str) and name.isidentifier()
+                      and isinstance(inner, (MutableMapping, MutableSequence, MutableSet)) and len(inner) > 0) \
+            if isinstance(fields, dict) else []
+    except Exception:  # noqa: BLE001 - watching an object must never change what the program does
+        return
+    _record(record, location, "held", {}, None, _count(record, location), full=full)
 
 
 def value(location: str, read: Callable[[], Any], scope: Mapping[str, Any], plan: str, record: str,
