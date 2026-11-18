@@ -4400,6 +4400,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   each page once, at most four, read from the end of her store (about
   1 ms; cached until the store changes). What she makes of it, and
   whether she mentions it, is hers.
+  18 November, a canned dead end of the day before, read off her log. At
+  07:33 Bryan asked "Anything you notice about how you are running right
+  now?" and got "I couldn't get to an answer I'd stand behind on that
+  one". Her reading of the request picked system_proprioception, which
+  was called on the request alone (the hand-off's "the one capability
+  plainly asked for is called, not offered"), and its own summary was
+  handed on as her draft: no generation of hers came between the tool's
+  result and the draft. The reply check read that summary as cut off, two
+  retries without the reading wrote a cut sentence and then punctuation,
+  the fallback declined, and the runtime's apology went out. A
+  capability called that way now offers no words of its own: what it
+  said is her call's result, which her model reads after the person's
+  message in her template's own call form, and the reply is hers. A
+  29 October test that held a success's summary to be her answer
+  ("Mended: the ball now bounces.") now holds the opposite, after the
+  13 November rule that the runtime's text never stands in her voice.
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

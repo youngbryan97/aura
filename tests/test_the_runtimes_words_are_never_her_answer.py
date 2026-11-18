@@ -103,10 +103,13 @@ def test_an_error_is_not_her_answer(monkeypatch):
     assert result["tool_calls"][0]["ok"] is False
 
 
-def test_what_a_capability_produced_is_still_the_answer(monkeypatch):
+def test_what_a_capability_produced_reaches_her_as_her_call_not_as_her_words(monkeypatch):
+    """LIVE 17 November 2026, 07:34: a capability's own summary stood as her draft, was read as cut off, and the turn
+    ended on the runtime's apology. What it produced is her call's result; the reply is hers."""
     result = _call_the_one(monkeypatch, executed={"ok": True, "summary": "Mended: the ball now bounces."})
-    assert result["content"] == "Mended: the ball now bounces."
+    assert result["content"] == ""
     assert result["tool_calls"][0]["ok"] is True
+    assert "Mended: the ball now bounces." in str(result["tool_calls"][0]["result"])
 
 
 def _one_capability(monkeypatch, name: str, definition: dict[str, Any], called: list[str]) -> None:

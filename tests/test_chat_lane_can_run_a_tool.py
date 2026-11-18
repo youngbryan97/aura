@@ -432,3 +432,32 @@ def test_the_capability_plainly_asked_for_is_called_once_a_turn(gate, monkeypatc
     client = _Client({"content": "", "tool_calls": []})
     assert _answer(gate, client, "The game at /tmp/pong.html is broken. Fix it.") is None
     assert called == []
+
+
+def test_a_capability_called_on_the_request_leaves_the_reply_to_her(gate, monkeypatch):
+    """LIVE 17 November 2026, 07:34: system_proprioception was called on the request alone, its own summary stood as
+    her draft, the reply check read it as cut off, and the turn ended on the runtime's apology. Now the hand-off offers
+    no words; her ordinary generation writes the reply with the call and what it came back with in front of her."""
+    receipts: list[dict[str, Any]] = []
+
+    class _Engine:
+        async def execute(self, name, args, context):
+            return {"ok": True, "summary": "Processor 9.7%, memory 60.0%, thermal pressure low."}
+
+    monkeypatch.setattr("core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["system_proprioception"])
+    monkeypatch.setattr("core.brain.llm.runtime_wiring.build_agentic_tool_map",
+                        lambda *a, **k: {"system_proprioception": {"name": "system_proprioception"}})
+    monkeypatch.setattr("core.brain.inference_gate._tools_within_reach", lambda tools, scopes: (tools, ()))
+    monkeypatch.setattr("core.brain.inference_gate_living_context.the_one_asked_for", lambda text, tools: "system_proprioception")
+    monkeypatch.setattr("core.brain.inference_gate_living_context.capabilities_run_this_turn", lambda: frozenset())
+    monkeypatch.setattr("core.brain.llm.mlx_client._refuse_action_beyond_authority", lambda *a: None)
+    monkeypatch.setattr("core.container.ServiceContainer.get", lambda *a, **k: _Engine())
+    monkeypatch.setattr("core.brain.requests_by_meaning.served", lambda *a: None)
+    monkeypatch.setattr("core.conversation.surface_disposition.record_tool_receipt",
+                        lambda tool, **kwargs: receipts.append({"tool": tool, **kwargs}))
+    client = _Client({"content": "unused", "tool_calls": []})
+
+    assert _answer(gate, client, "Anything you notice about how you are running right now?") is None
+    assert client.calls == [], "the capability was called on the request, not offered to a loop"
+    assert receipts and receipts[0]["tool"] == "system_proprioception"
+    assert "Processor 9.7%" in receipts[0]["observed_content"]

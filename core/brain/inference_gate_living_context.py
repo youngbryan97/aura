@@ -46,21 +46,20 @@ async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> d
             name, {}, _agent_execution_context(loop_context, objective=text, tool_name=name, tool_call_id=call_id, model_path="")
         )
     ok = bool(isinstance(raw, dict) and raw.get("ok", True))
-    # What a refusal or an error says is addressed to the model that made the
-    # call, and it is never her answer. LIVE 2026-10-28 (seed 89's reports
-    # run): "'file_operation' with action 'unspecified' needs state_mutation
-    # authority ... Ask for it explicitly" was served as her reply to "Write
-    # today's plan into notes.txt", stored in 21 of her memories, and came
-    # back as her answer in a measured anchor. The receipt keeps the refusal;
-    # the reply is hers to write.
-    said = str(raw.get("summary") or "") if ok else ""
+    # What the capability says, refused, failed or done, goes back as her call's result, and the reply is hers to
+    # write. LIVE 2026-10-28 (seed 89's reports run) a refusal ("'file_operation' with action 'unspecified' needs
+    # state_mutation authority ... Ask for it explicitly") was served as her reply to "Write today's plan into
+    # notes.txt" and stored in 21 of her memories. A success's own summary stood as her reply until 18 November 2026:
+    # LIVE 17 November at 07:34, the summary of system_proprioception was her "draft", the reply check read it as cut
+    # off, two retries without the reading degraded, and the person got "I couldn't get to an answer I'd stand behind".
+    # Her model reads the call and its result after the person's message (surface_disposition.her_calls_this_turn).
     if isinstance(raw, dict) and raw.get("ok"):
         # A request this capability served is one of its meanings from now on (core/intent/capability_by_meaning.py).
         from core.brain.requests_by_meaning import served
 
         await asyncio.to_thread(served, text, name)
     return {
-        "content": said,
+        "content": "",
         "tool_calls": [{
             "id": call_id, "tool": name, "args": {}, "ok": ok,
             "result": _serialize_tool_result_for_model(name, raw),
