@@ -118,8 +118,8 @@
 "outside_bar/panel_v1.json": "0c31334a71b1fdc121dd6ad2e2f78d21e3f568f600627cfbbaf190709a728633",
 "outside_bar/planbench.py": "777aa315d82d04db3ac4a63b5ba717044ce950e0b7b96333ce7957b6b1ba8cab",
 "outside_bar/run.py": "6b31f41e4e6746b98d42cda994e7fb3c88979527cafd02fbbc8d8fe2cc5f5eb2",
-"outside_bar/value_witness.py": "0b3b16d6f41625c1e74f975c57a1d09742373f5f992910ae4e05642221c7d9a4",
-"outside_bar/verify_change.py": "b64ec6f6c576db24e9ad8edb2ebc9576c803fc8605e59eb5abda9c187463aeaf"
+"outside_bar/value_witness.py": "f4d854b249eb4f4333bee5376fbdd865bf6dcfaf37f40271dc7cb1972b469e4f",
+"outside_bar/verify_change.py": "ad8e0dcf6cf91d3f9c4080d6cbda15e24bedde18540846131f87be3508bcd716"
 },
 "version": 1
 }

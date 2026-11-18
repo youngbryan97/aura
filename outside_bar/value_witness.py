@@ -25,6 +25,7 @@ _functions = {path: frozenset(names) for path, names in
               json.loads(os.environ.get("OUTSIDE_BAR_WITNESS_FUNCTIONS") or "{}").items()}
 _seen: dict[str, str] = {}
 _inputs: dict[str, list[dict[str, Any]]] = {}
+_ran: set[str] = set()
 _counts: dict[tuple[str, str, str], int] = {}
 _open: dict[int, list[str | None]] = {}
 
@@ -37,8 +38,12 @@ def _text(value: Any) -> str | None:
     return None if " at 0x" in text else hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:16]
 
 
+def _named(code: Any) -> bool:
+    return code.co_qualname in _functions.get(code.co_filename, ())
+
+
 def _watched(code: Any) -> bool:
-    return code.co_qualname in _functions.get(code.co_filename, ()) and not code.co_flags & _SKIPPED_KINDS
+    return _named(code) and not code.co_flags & _SKIPPED_KINDS
 
 
 def _keep_the_input(code: Any, frame: Any, names: tuple[str, ...]) -> None:
@@ -70,6 +75,8 @@ def _key_of(code: Any, frame: Any) -> str | None:
 
 
 def _started(code: Any, _offset: int) -> Any:
+    if _named(code):
+        _ran.add(f"{code.co_filename}::{code.co_qualname}")
     if not _watched(code):
         return sys.monitoring.DISABLE
     _open.setdefault(id(code), []).append(_key_of(code, sys._getframe(1)))
@@ -105,4 +112,4 @@ def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
     sys.monitoring.set_events(_TOOL, 0)
     sys.monitoring.free_tool_id(_TOOL)
     with open(os.environ["OUTSIDE_BAR_WITNESS_OUT"], "w", encoding="utf-8") as handle:
-        json.dump({"values": _seen, "inputs": _inputs}, handle)
+        json.dump({"values": _seen, "inputs": _inputs, "ran": sorted(_ran)}, handle)

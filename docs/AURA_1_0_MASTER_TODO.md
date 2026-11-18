@@ -7816,6 +7816,10 @@ needs her 27B free (her app down, or her app's own influence trials).
   its first case, from replay; a live one is still wanted. Part 10: a pilot of one problem per domain through her chat
   route scored 0 of 4, then 2 of 4 once her reply path stopped discarding computed answers and boxed answers, and the
   next fix made Mystery Blocksworld right. BBEH runs out of room in a chat turn. No baseline is recorded yet.
+  Part 13, first round: `tests/test_outside_bar_red_team.py` holds nine patches written to pass without mending anything
+  (fitting one table, hardcoding the test's input, swallowing every error, removing a refusal, skipping, weakening or
+  deleting the failing test, changing code no test runs). The check refuses all nine and holds both honest mends. The
+  same author wrote the check and the attacks, so an outside attempt to break it is still wanted.
 
 ## Live session 2026-09-07: what the runtime showed
 
