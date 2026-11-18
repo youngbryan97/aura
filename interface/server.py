@@ -238,8 +238,7 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
         if failures:
             name, failure = failures[0]
             raise RuntimeError(
-                f"chat_dependency_stage_failed:{stage}:{name}:"
-                f"{type(failure).__name__}:{failure}"
+                f"chat_dependency_stage_failed:{stage}:{name}:{type(failure).__name__}:{failure}"
             ) from failure
         unexpected = [result for result in results if isinstance(result, BaseException)]
         if unexpected:
@@ -269,8 +268,7 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
             (
                 asyncio.to_thread(build_self_condition_projection),
                 asyncio.to_thread(prewarm_evidence_relevance),
-                # After the embedding model is up (the stage above): the first turn read by meaning embedded the
-                # whole catalogue itself (core/brain/requests_by_meaning.prewarm_capability_meanings).
+                # After the embedding model (the stage above), or the first turn read by meaning pays for each of these.
                 asyncio.to_thread(prewarm_capability_meanings), asyncio.to_thread(prewarm_what_questions_are_about),
                 asyncio.to_thread(prewarm_search_requests),
             ),
