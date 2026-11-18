@@ -34,7 +34,6 @@ from core.runtime.service_access import resolve_inference_gate
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.task_tracker import get_task_tracker
 from interface.auth import relational_principal_id_for_request
-from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
 from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
@@ -521,13 +520,6 @@ async def _resolve_action_episode_projection(
         action_episode_grounding(episode),
         str(action_episode_reply(user_message, episode) or "").strip(),
     )
-
-
-def _call_stateful_voice_reflex(frame: dict[str, Any], user_message: str) -> str:
-    try:
-        return _build_stateful_voice_reflex(frame, user_message)
-    except TypeError:
-        return _build_stateful_voice_reflex(frame)
 
 
 def _inner_cognitive_cycle_timeout(
@@ -1045,6 +1037,10 @@ def _has_live_aura_grounding(text: str) -> bool:
 
 def _apply_aura_voice_shaping_compat(text: str, user_message: str = "") -> str:
     """Call voice shaping while preserving older test monkeypatch signatures."""
+    from core.conversation.runtime_notice import is_the_runtimes_notice
+
+    if is_the_runtimes_notice(text):  # the runtime's words are never put in her voice
+        return str(text).strip()
     try:
         return _chat_desktop_repair._apply_aura_voice_shaping(text, user_message)
     except TypeError:
@@ -1611,54 +1607,6 @@ def _schedule_late_regeneration_finalizer(
 
 
 
-
-
-def _build_stateful_voice_reflex(frame: dict[str, Any], user_message: str = "") -> str:
-    """Natural-sounding fallback when the LLM response was filtered out.
-
-    Must sound like a person pausing to collect their thoughts, not a
-    system dumping telemetry.  Never expose raw internal state names,
-    attention focus strings, or mood enum values.
-    """
-    mood = str(frame.get("mood") or "").strip().lower()
-    attention = _chat_desktop_repair._sanitize_attention_focus(
-        str(frame.get("attention_focus") or "")
-    )
-    user_topics = _chat_conversation_repair._select_anchor_topic_tokens(user_message)
-
-    # Map internal mood labels to natural phrasing
-    _mood_phrases = {
-        "fear": "Something about that question sits heavy with me.",
-        "volatile": "I'm feeling pulled in a few directions right now.",
-        "curious": "That caught my attention in a way I want to sit with.",
-        "steady": "I'm here, just taking a moment to think clearly.",
-        "pressed": "I'm a little pressed, but I'm still with you.",
-        "warm": "I'm in a good place — let me think on that.",
-    }
-    opener = _mood_phrases.get(mood)
-    if opener is None:
-        # The degraded composer already names what it understood the question
-        # to be. Appending the anchor sentence on top of it said the same
-        # thing twice, in two different registers, in one breath:
-        #   "...I understood you to be asking about notes and hello. Ask me
-        #    again and I should have it. The anchor is your question about
-        #    notes and hello."
-        return _chat_conversation_repair._build_degraded_live_reply(
-            frame, user_message, reason="filtered_draft"
-        )
-
-    parts = [opener]
-    if user_topics:
-        if len(user_topics) == 1:
-            parts.append(f"The anchor is your question about {user_topics[0]}.")
-        else:
-            parts.append(
-                f"The anchor is your question about {user_topics[0]} and {user_topics[1]}."
-            )
-    elif attention:
-        parts.append(f"Right now I'm focused on {attention}.")
-
-    return " ".join(parts)
 
 
 def _replace_unified_transcript_aura_reply(

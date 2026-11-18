@@ -4433,6 +4433,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   its own. Left: the repair floors in core/conversation/response_reliability.py
   ("I should not call that a clean turn ...") are the same kind on the repair
   path.
+  18 November, later, the repair path. Her store for the 17th holds the last
+  resort twice for the outage question ("I couldn't get a clear enough answer
+  together ... What reached me was: Major banks were having outages
+  yesterday. Ask me again and I should have it."). The last resort is the
+  runtime's notice now, with what was read for the message under its own
+  heading, and the delivery boundary moves it out of her reply; her voice
+  shaping leaves it alone. Taken out: the fallback that opened with a sentence
+  chosen by her mood ("Something about that question sits heavy with me."),
+  the stabilizer's swap of her reply for a fixed one when the person's message
+  held a listed phrase ("huh", "be specific", "you repeated me"), and the
+  appender that added "Limitation: ..." under her name when the request said
+  "add" or "include". Left: the keyword-chosen floors (reliability, confusion,
+  status, the two live-chat diagnostics).
 - [x] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
   CLOSED 2026-11-11. Each part run live in the evening on her app launched

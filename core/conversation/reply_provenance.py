@@ -176,6 +176,12 @@ def admission_defects(user_message: str, reply_text: str) -> AdmissionCheck:
     if not text:
         defects.append("empty_admission")
         return AdmissionCheck(False, tuple(defects))
+    from core.conversation.runtime_notice import is_the_runtimes_notice
+
+    if is_the_runtimes_notice(text):
+        # The runtime's notice is not her admission; the person sees their own
+        # message beside it, so it need not give their words back.
+        return AdmissionCheck(True, ())
 
     echoed = _verbatim_echo_spans(user_message, text)
 

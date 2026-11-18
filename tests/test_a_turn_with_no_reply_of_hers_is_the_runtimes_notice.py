@@ -264,3 +264,47 @@ def test_no_exit_of_the_chat_route_writes_the_old_sentences():
         for sentence in retired:
             assert not any(sentence in text for text in said), f"{path}: {sentence}"
         assert "_mood_prefix" not in {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}, path
+
+
+def test_the_last_resort_leaves_the_boundary_as_a_notice():
+    """The last-resort composer returns down the path her replies take; the boundary moves it out of her reply."""
+    from fastapi.responses import JSONResponse
+
+    from interface.routes.chat_delivery import _no_empty_answer_leaves_this_boundary
+
+    said = notice_with_what_was_held(NO_REPLY_FORMED, "Source tree: core/mycelium.py:88")
+    out = json.loads(bytes(_no_empty_answer_leaves_this_boundary(
+        JSONResponse({"response": said, "status": "cognitive_engine", "response_confidence": "degraded"})
+    ).body).decode())
+    assert out["response"] == ""
+    assert out["notice"] == said
+    assert out["said_by"] == "runtime"
+    assert out["response_confidence"] == "failed"
+
+
+def test_her_voice_shaping_leaves_the_runtimes_notice_alone():
+    from interface.routes.chat_desktop_repair import _apply_aura_voice_shaping
+    from interface.routes.chat_lane_bookkeeping import _apply_aura_voice_shaping_compat
+
+    said = notice_with_what_was_held(NO_REPLY_FORMED, "50,847,899")
+    assert _apply_aura_voice_shaping(said, "7919 times 6421?") == said
+    assert _apply_aura_voice_shaping_compat(said, "7919 times 6421?") == said
+
+
+def test_the_last_resort_is_the_notice():
+    from interface.routes.chat_conversation_repair import _build_degraded_live_reply
+
+    said = _build_degraded_live_reply({"mood": "fear"}, "what is the weather", reason="filtered_draft")
+    assert said.startswith(NO_REPLY_FORMED)
+    assert not _IN_HER_VOICE.search(said), said
+
+
+def test_a_person_saying_huh_does_not_replace_her_reply():
+    """A fixed reply chosen by phrases in the person's message replaced hers until 18 November."""
+    from interface.routes.chat_reply_repair import _stabilize_user_facing_reply_architecture_self_assessment
+
+    _, kept = _stabilize_user_facing_reply_architecture_self_assessment(
+        "The demo slot routes through James, and regular users can apply later.", "Huh?"
+    )
+    assert "James" in kept
+    assert not kept.startswith(NO_REPLY_FORMED)

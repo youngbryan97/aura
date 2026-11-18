@@ -884,6 +884,14 @@ def _report_an_empty_answer_as_one(response: Any, payload: Any) -> Any:
 
     if not isinstance(payload, dict) or "response" not in payload:
         return response
+    from core.conversation.runtime_notice import RUNTIME, is_the_runtimes_notice
+
+    said = str(payload.get("response") or "").strip()
+    if is_the_runtimes_notice(said):
+        # The last resort's notice, carried here down the path her replies
+        # take. It leaves as the runtime's notice, never as her reply.
+        payload.update({"response": "", "notice": said, "said_by": RUNTIME, "response_confidence": "failed"})
+        return JSONResponse(payload, status_code=response.status_code)
     # A turn that already carries the runtime's notice reports itself.
     if str(payload.get("response") or "").strip() or str(payload.get("notice") or "").strip():
         return response

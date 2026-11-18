@@ -47,6 +47,16 @@ def no_reply_fields(why: str, *, held: str = "") -> dict[str, str]:
     }
 
 
+def is_the_runtimes_notice(text: Any) -> bool:
+    """Whether this text is the runtime's notice, wherever it travelled.
+
+    The last-resort composer returns its notice down a path built to carry
+    her replies; this is how the voice shaping and the delivery boundary know
+    the text is not hers to shape or to send as hers.
+    """
+    return str(text or "").strip().startswith(NO_REPLY_FORMED)
+
+
 def is_no_reply(payload: Any) -> bool:
     """Whether a turn's payload ended with the runtime's notice and no reply of hers."""
 
@@ -61,6 +71,7 @@ __all__ = [
     "NO_REPLY_FORMED",
     "RUNTIME",
     "is_no_reply",
+    "is_the_runtimes_notice",
     "no_reply_fields",
     "notice_with_what_was_held",
 ]

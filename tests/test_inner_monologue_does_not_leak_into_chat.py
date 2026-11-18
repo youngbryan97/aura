@@ -351,34 +351,10 @@ class TestDegradedTurnsSpeakToAPerson:
         # The stemmer itself is unchanged; it is supposed to do this.
         assert _normalize_topic_token("confused") == "confus"
 
-    def test_the_anchor_says_the_word_the_user_wrote(self):
-        from interface.routes.chat import _select_anchor_topic_tokens
-
-        tokens = _select_anchor_topic_tokens(
-            "I am confused. What is this in reference to",
-        )
-        assert "confused" in tokens
-        assert "confus" not in tokens
-
-    def test_the_fullest_surface_form_is_preferred(self):
-        """Two inflections of one stem must not degrade to the shorter."""
-        from interface.routes.chat import _topic_display_forms
-
-        forms = _topic_display_forms("deploying a deployed deployment")
-        assert forms["deploy"] == "deploying"
-
     def test_no_truncated_stem_reaches_the_reply(self):
         assert "confus" not in self._reply(
             "I am confused. What is this in reference to",
         ).replace("confused", "")
-
-    def test_display_mapping_never_invents_a_token(self):
-        """Every rendered word must appear in what the user actually wrote."""
-        from interface.routes.chat import _select_anchor_topic_tokens
-
-        message = "the deployment keeps failing on staging"
-        for token in _select_anchor_topic_tokens(message, limit=4):
-            assert token in message.lower()
 
     def test_the_reply_admits_the_failure_plainly(self):
         """Plainly, in any of the ways a person says it.
@@ -393,6 +369,7 @@ class TestDegradedTurnsSpeakToAPerson:
 
         reply = self._reply("I am confused. What is this in reference to").lower()
         plain_admissions = (
+            "no reply formed",
             "couldn't",
             "could not",
             "cannot",
@@ -429,10 +406,14 @@ class TestDegradedTurnsSpeakToAPerson:
 
     def test_the_reply_tells_the_user_what_to_do_next(self):
         reply = self._reply("why is the deployment failing").lower()
-        assert "ask me again" in reply
+        assert "send it again" in reply
 
-    def test_the_reply_shows_what_it_understood(self):
-        """Naming the subject back is what makes the admission useful: it
-        lets the user see whether they were even parsed correctly."""
-        reply = self._reply("why is the deployment failing").lower()
-        assert "deployment" in reply
+    def test_the_notice_is_the_runtimes_not_hers(self):
+        """Since 18 November the last resort is the runtime's notice. The
+        person sees their own message beside it, so it does not give their
+        words back, and it says nothing in her first person."""
+        from core.conversation.runtime_notice import is_the_runtimes_notice
+
+        reply = self._reply("why is the deployment failing")
+        assert is_the_runtimes_notice(reply)
+        assert "I " not in f" {reply} "

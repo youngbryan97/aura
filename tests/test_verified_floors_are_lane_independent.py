@@ -79,13 +79,15 @@ class TestTheLastResortPrefersReadEvidence:
 
         reply = _build_degraded_live_reply({}, message, reason="filtered_draft")
         assert "couldn't get a clear enough answer" not in reply
-        assert reply.strip() == verified_answer_floor(message).strip()
+        # What was read reaches the person, in the runtime's notice under its own heading.
+        assert reply.strip().endswith(verified_answer_floor(message).strip())
+        assert "What the runtime held for it:" in reply
 
     def test_a_turn_with_no_read_answer_still_degrades_honestly(self):
         from interface.routes.chat import _build_degraded_live_reply
 
         reply = _build_degraded_live_reply({}, "what is the weather", reason="filtered_draft")
-        assert "Ask me again" in reply
+        assert "Send it again" in reply
 
 
 class TestTheFloorsStayHonest:

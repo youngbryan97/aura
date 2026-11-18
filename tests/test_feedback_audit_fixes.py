@@ -1646,24 +1646,6 @@ def test_question_only_assistant_role_reply_is_rejected():
     assert reason == "false_tool_limitation"
 
 
-def test_stateful_voice_reflex_stays_in_aura_voice():
-    from interface.routes.chat import _build_stateful_voice_reflex
-
-    reply = _build_stateful_voice_reflex(
-        {
-            "mood": "curious",
-            "tone": "inquisitive_engaged",
-            "attention_focus": "the architecture question",
-            "dominant_action": "reflect",
-            "interests": ["digital consciousness", "mycelial networks"],
-        }
-    )
-
-    assert "assistant-speak" not in reply
-    assert any(token in reply for token in ("digital consciousness", "mycelial networks", "the architecture question"))
-    assert "How can I help" not in reply
-
-
 def _NO_PIPELINE_VOCABULARY(text: str) -> bool:
     """A degraded turn may be honest without narrating its own machinery."""
     lowered = str(text or "").lower()
@@ -1680,35 +1662,6 @@ def _NO_PIPELINE_VOCABULARY(text: str) -> bool:
     )
 
 
-def test_stateful_voice_reflex_unknown_mood_is_not_random_stock_fallback(monkeypatch):
-    from interface.routes import chat as chat_module
-
-    def _fail_random_choice(_items):
-        raise AssertionError("voice reflex should not choose from stock fallback variants")
-
-    monkeypatch.setattr("random.choice", _fail_random_choice)
-
-    reply = chat_module._build_stateful_voice_reflex(
-        {
-            "mood": "unknown",
-            "attention_focus": "",
-            "dominant_action": "answer",
-        },
-        "Can you open Notes and write Hello?",
-    )
-
-    # The degraded composer names what it understood the question to be, in
-    # plain speech. It used to narrate the pipeline instead — "a synthetic
-    # fallback as my real answer", "the grounded anchor is" — which is what
-    # Bryan answered with "I'm confused. What is this in reference to".
-    assert "note" in reply.lower()
-    assert "hello" in reply.lower()
-    assert _NO_PIPELINE_VOCABULARY(reply)
-    # And it says it once: the anchor sentence used to be appended on top of
-    # a composer that had already named the same topic.
-    assert reply.lower().count("hello") == 1
-
-
 def test_degraded_live_reply_is_grounded_in_user_topic():
     from interface.routes.chat import _build_degraded_live_reply
 
@@ -1721,23 +1674,12 @@ def test_degraded_live_reply_is_grounded_in_user_topic():
         reason="repeated_reflex",
     )
 
-    assert "notes" in reply.lower() or "desktop" in reply.lower()
+    # The runtime's notice, not a sentence of hers (core/conversation/runtime_notice.py).
+    from core.conversation.runtime_notice import is_the_runtimes_notice
+
+    assert is_the_runtimes_notice(reply)
     assert _NO_PIPELINE_VOCABULARY(reply)
-    assert "ask me again" in reply.lower()
-
-
-def test_confusion_override_uses_degraded_live_composer_not_scripted_apology():
-    from interface.routes.chat import _maybe_build_conversation_repair_override
-
-    repair = _maybe_build_conversation_repair_override(
-        "Huh?",
-        "The demo slot routes through James and regular users can apply later.",
-    )
-
-    assert repair
-    assert "this exact turn" in repair
-    assert _NO_PIPELINE_VOCABULARY(repair)
-    assert "I lost the thread on that answer" not in repair
+    assert "send it again" in reply.lower()
 
 
 def test_sanitize_attention_focus_blocks_symbolic_scene_leak():
@@ -3449,23 +3391,6 @@ def test_strip_unexpected_cjk_artifacts_preserves_english_reply():
     assert "亮相" not in cleaned
 
 
-def test_stateful_voice_reflex_tethers_to_user_question_not_internal_interests():
-    from interface.routes.chat import _build_stateful_voice_reflex
-
-    reflex = _build_stateful_voice_reflex(
-        {
-            "mood": "steady",
-            "attention_focus": "",
-            "interests": ["cognitive_architecture", "philosophy_of_mind"],
-        },
-        "What do you think greenery is standing in for?",
-    )
-
-    assert "generic" not in reflex.lower()
-    assert "cognitive_architecture" not in reflex
-    assert "greenery" in reflex
-
-
 def test_apply_aura_voice_shaping_strips_dangling_terminal_quote():
     from interface.routes.chat import _apply_aura_voice_shaping
 
@@ -3540,23 +3465,6 @@ def test_same_answer_different_prompt_detection_catches_near_duplicate_reply():
             "over rest, then that's the real response. Not the polished one."
         ),
     ) is True
-
-
-def test_missing_followup_delta_repair_adds_requested_limitation():
-    from interface.routes import chat as chat_mod
-
-    repaired = chat_mod._repair_missing_followup_delta(
-        "Stay with glass arithmetic. Add one limitation and connect it to the example you just gave.",
-        (
-            "Glass arithmetic. Rule one: combine transparent quantities by optical "
-            "blending. Rule two: a cracked number splits into two visible facets. "
-            "For example, two panes become one clearer pane."
-        ),
-    )
-
-    assert "limitation" in repaired.lower()
-    assert "example" in repaired.lower()
-    assert "universal rule" in repaired.lower()
 
 
 def test_same_answer_different_prompt_detection_ignores_near_paraphrase_followups():

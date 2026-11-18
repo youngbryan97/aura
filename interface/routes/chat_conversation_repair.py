@@ -71,124 +71,6 @@ def _extract_topic_tokens(text: str) -> set[str]:
     return tokens
 
 
-_ACTION_ANCHOR_TOPIC_PRIORITY = {
-    "app",
-    "browser",
-    "calendar",
-    "desktop",
-    "document",
-    "email",
-    "export",
-    "file",
-    "folder",
-    "note",
-    "notes",
-    "pdf",
-    "terminal",
-    "window",
-}
-
-
-def _topic_display_forms(text: str) -> dict[str, str]:
-    """Map each stemmed topic token back to a word a person actually wrote.
-
-    LIVE DEFECT, 2026-07-25. _normalize_topic_token strips suffixes so tokens
-    compare equal ("confused" -> "confus"). That is correct for MATCHING and
-    wrong for SPEECH, and the anchor text rendered the stem verbatim: Bryan
-    asked "I'm confused. What is this in reference to" and was told the
-    anchor was "your question about reference and confus".
-
-    Stems stay the matching key; this recovers a real word to say.
-    """
-    display: dict[str, str] = {}
-    for raw_token in _TOPIC_TOKEN_RE.findall(str(text or "").lower()):
-        for part in re.split(r"[-/]", raw_token):
-            surface = str(part or "").strip().strip("-'/")
-            if not surface:
-                continue
-            normalized = _normalize_topic_token(part)
-            if not normalized:
-                continue
-            # Prefer the fullest surface form seen for this stem.
-            if len(surface) > len(display.get(normalized, "")):
-                display[normalized] = surface
-    return display
-
-
-def _select_anchor_topic_tokens(text: str, *, limit: int = 2) -> list[str]:
-    """Pick user-visible nouns/effects before generic action verbs.
-
-    Returns words as WRITTEN, not stems: this feeds sentences a person reads.
-    """
-
-    tokens = _extract_topic_tokens(text)
-    if not tokens:
-        return []
-    display = _topic_display_forms(text)
-    preferred = sorted(
-        (token for token in tokens if token in _ACTION_ANCHOR_TOPIC_PRIORITY),
-        key=lambda token: (0, token),
-    )
-    rest = sorted(
-        (token for token in tokens if token not in _ACTION_ANCHOR_TOPIC_PRIORITY),
-        key=lambda token: (-len(token), token),
-    )
-    chosen = (preferred + rest)[: max(1, int(limit))]
-    return [display.get(token, token) for token in chosen]
-
-
-_QUESTION_CLAUSE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
-
-_LEADING_CONJUNCTION_RE = re.compile(r"^(?:or|and|but|so|then|also)\b[\s,]*", re.IGNORECASE)
-
-_INTERROGATIVE_OPENER_RE = re.compile(
-    r"^(?:who|what|when|where|why|how|which|whose|whom|is|are|was|were|do|does|did|"
-    r"can|could|will|would|should|shall|may|might|have|has|had|if|whether|tell|show|"
-    r"give|explain|describe|list|find|make|write|read|open|run|check)\b",
-    re.IGNORECASE,
-)
-
-
-def _echoable_question_clause(user_message: str, *, max_chars: int = 130) -> str:
-    """The person's own words, trimmed to the thing they actually asked.
-
-    Used by the degraded-turn composer to show what arrived without asserting
-    an interpretation it could not form. Faithful by construction: every word
-    returned is a word the person wrote, so the worst case is that they see
-    their own question and re-ask, and there is no worst case where she tells
-    them they asked about something they did not.
-
-    Returns "" when nothing quotable survives, so the caller can fall back
-    rather than emit a fragment.
-    """
-
-    text = re.sub(r"\s+", " ", str(user_message or "")).strip()
-    if not text or not re.search(r"[A-Za-z]", text):
-        return ""
-
-    clauses = [part.strip() for part in _QUESTION_CLAUSE_SPLIT_RE.split(text) if part.strip()]
-    if not clauses:
-        return ""
-
-    # The question is what they want answered; when there are several, the last
-    # one is the one they left standing. Falling back through "reads like a
-    # question" and then "the longest thing they said" keeps statements and
-    # imperatives ("summarise the postmortem") working the same way.
-    questions = [clause for clause in clauses if clause.endswith("?")]
-    if questions:
-        chosen = questions[-1]
-    else:
-        openers = [clause for clause in clauses if _INTERROGATIVE_OPENER_RE.match(clause)]
-        chosen = openers[-1] if openers else max(clauses, key=len)
-
-    chosen = _LEADING_CONJUNCTION_RE.sub("", chosen).strip().rstrip("?!.,;: ")
-    if len(chosen) < 8 or not re.search(r"[A-Za-z]", chosen):
-        return ""
-
-    if len(chosen) > max_chars:
-        cut = chosen[:max_chars].rsplit(" ", 1)[0].rstrip(",;:- ")
-        chosen = f"{cut}…" if cut else ""
-    return chosen
 
 
 def _resolve_live_voice_state(user_message: str = "", *, refresh: bool = True) -> dict[str, Any]:
@@ -243,397 +125,49 @@ def _verified_floor_answer(user_message: str = "") -> str:
         return ""
 
 
-def _asks_about_another_time(user_message: str) -> bool:
-    """Whether the question names a time other than now.
-
-    A reading of her live state answers a question about now. It answers
-    nothing at all about a month ago, however specific it is.
-    """
-    try:
-        from core.phases.response_contract import _NAMES_ANOTHER_TIME
-
-        return bool(_NAMES_ANOTHER_TIME.search(str(user_message or "")))
-    # not a failure: the reader could not be asked, so nothing here claims it holds,
-    # which is the refusing direction.
-    except (ImportError, AttributeError, TypeError, ValueError):
-        return False
-
-
 def _build_degraded_live_reply(
     frame: dict[str, Any],
     user_message: str = "",
     *,
     reason: str = "degraded_turn",
 ) -> str:
-    """Compose the true last-resort reply from state and request evidence.
+    """The last resort: the runtime's notice that no reply of hers formed.
 
-    This is intentionally not a tree of canned answers. It only appears after
-    generated recovery and narrower grounded repairs failed. The text must be
-    honest that the turn is degraded, but still stay attached to what the user
-    actually asked instead of pretending a normal free-form answer exists.
+    This ran after generation and every recovery had failed, and wrote a
+    sentence in her voice: "I couldn't get a clear enough answer together,
+    and I'd rather say that than hand you something thin. What reached me
+    was: ... Ask me again and I should have it." It reached the person as her
+    reply on the 17th of November, twice, for a question about outages.
+    Since 18 November it is the runtime's notice
+    (core/conversation/runtime_notice.py); the delivery boundary moves it out
+    of her reply, and nothing of it is kept as hers.
+
+    What the runtime holds for the message goes in the notice under its own
+    heading: an answer read from disk rather than generated, her live
+    readings, or a record of what she did. ``frame`` and ``reason`` are kept
+    for the callers; the notice does not narrate either.
     """
+    from core.conversation.runtime_notice import NO_REPLY_FORMED, notice_with_what_was_held
 
-    # Before apologising: some questions have an answer that does not need the
-    # model at all, read from disk and checkable. "Show me a piece of your code
-    # you find interesting" reached here live on 2026-08-03 and was answered
-    # "I couldn't get a clear enough answer together" while a real, correctly
-    # cited excerpt sat one call away — the synthesis floors are consulted on
-    # the synthesis lane, and this turn had gone to full cognition, which does
-    # not consult them. Saying "I have nothing" while holding something is the
-    # worst of the failure modes available here.
-    grounded = _verified_floor_answer(user_message)
-    if grounded:
-        return grounded
-
-    attention = _chat_desktop_repair._sanitize_attention_focus(
-        str(frame.get("attention_focus") or "")
-    )
-    echo = _echoable_question_clause(user_message)
-    topics = [] if echo else _select_anchor_topic_tokens(user_message)
-
-    if topics:
-        if len(topics) == 1:
-            anchor = f"your question about {topics[0]}"
-        else:
-            anchor = f"your question about {topics[0]} and {topics[1]}"
-    elif attention:
-        anchor = f"the part of this turn focused on {attention}"
-    else:
-        anchor = "this exact turn"
-
-    # LIVE DEFECT, 2026-07-25. This text is spoken to a person, and it was
-    # written in implementation vocabulary — "the answer path did not produce
-    # a clean enough draft", "a synthetic fallback as my real answer", "the
-    # grounded anchor is". Bryan's reply was "I'm confused. What is this in
-    # reference to". Being honest about a degraded turn is right; narrating
-    # the pipeline that degraded is not the same thing, and it leaves the
-    # person with nothing they can act on.
-    #
-    # Same facts, said plainly: I could not answer, this is what I understood
-    # you to be asking, ask again.
-    if reason == "repeated_reflex":
-        state_clause = "I keep circling the same non-answer"
-    elif reason == "desktop_cognitive_engine_repair_failed":
-        state_clause = "I couldn't put together an answer I trust"
-    else:
-        state_clause = "I couldn't get a clear enough answer together"
-
-    # "Ask me again and I should have it." matched `_BROKEN_LANE_BOILERPLATE_RE`
-    # (`ask (?:that|it|me) again`), so the final gate classified this composer's
-    # own output as `runtime_boilerplate` and shipped it anyway — that is what
-    # `assessment=runtime_boilerplate` in the live quality_metrics line was,
-    # every time. A last resort that its own gate rejects is not a last resort;
-    # it is a second failure stacked on the first. The invitation is the same
-    # invitation without the phrase the gate reserves for lane chatter.
-    # LIVE DEFECT, 2026-08-10. The anchor above is a bag of two words ranked by
-    # STRING LENGTH (`key=lambda token: (-len(token), token)`), and length is
-    # not aboutness. Asked "if i asked you to keep an eye on something while
-    # i'm gone, would that mean anything to you — or does it evaporate the
-    # second i stop typing?", it picked the metaphor verb and the time adverb,
-    # and Bryan was told "I understood you to be asking about evaporate and
-    # second."
-    #
-    # Ranking words better only moves the failure. Two keywords cannot
-    # demonstrate comprehension even when well chosen — "your question about
-    # postmortem and migration" reads like a search engine, not like her — and
-    # when badly chosen it actively asserts she misunderstood.
-    #
-    # What she can always do faithfully, on a path that exists precisely
-    # BECAUSE inference already failed, is give the person their own words
-    # back. That is correct by construction, costs no model call, and lets the
-    # person see immediately whether the question even arrived intact.
-    #
-    # Deliberately no quotation marks: `_QUOTED_TEXT_RE` plus a screen noun is
-    # a screen-reading claim, and echoing "what's on my screen?" must not make
-    # the last resort trip a gate on its way out.
-    if echo:
-        understood = f"What reached me was: {echo}."
-    else:
-        understood = (
-            f"I understood you to be asking about {anchor.removeprefix('your question about ')}."
-        )
-    # Before composing an apology, ask whether the runtime already holds the
-    # answer.
-    #
-    # LIVE, 2026-08-10: "Earlier today I asked you to count the .py files in one
-    # of your own directories. Without guessing: what was the count? If you
-    # don't actually have it, say so." reached this composer — generation and
-    # every recovery empty — while four verified receipts recorded count=9. The
-    # last resort is exactly where a stored answer matters most, because by
-    # definition nothing else produced one.
-    evidenced = _self_health_answer_or_empty(user_message)
-    if evidenced:
-        _record_last_resort_self_rejection(user_message, evidenced)
-        return evidenced
-    composed = _chat_desktop_repair._apply_aura_voice_shaping(
-        f"{state_clause}, and I'd rather say that than hand you something thin. "
-        f"{understood} "
-        "Ask me again and I should have it."
-    )
-    _record_last_resort_self_rejection(user_message, composed)
-    return composed
+    del frame, reason
+    held = _verified_floor_answer(user_message) or _self_health_answer_or_empty(user_message)
+    notice = notice_with_what_was_held(NO_REPLY_FORMED, held)
+    _declare_the_notice(notice)
+    return notice
 
 
-def _record_last_resort_self_rejection(user_message: str, composed: str) -> None:
-    """Assess the last resort as what it is, and alarm on anything left over.
+def _declare_the_notice(notice: str) -> None:
+    """Say once, where the fact is known, that this text is the runtime's.
 
-    This composer runs only after generation, every recovery, and the
-    verified-floor lookup have all come back empty, so it declares
-    ``HONEST_FAILURE`` provenance: "I could not answer" is a true report from
-    the one author that has already proven it, not the model narrating the
-    runtime in place of an answer. Without that, the gate read this sentence as
-    ``runtime_boilerplate`` — which is exactly what the live quality log
-    recorded on 2026-08-04, against text the runtime wrote itself.
-
-    Anything the provenance does NOT excuse is a real defect with nowhere left
-    to fall back to, so it is recorded rather than repaired.
+    Every gate downstream reads the declaration from the text, so none of
+    them takes the notice for a draft of hers narrating the runtime.
     """
-
     try:
-        from core.conversation.reply_provenance import (
-            ReplyProvenance,
-            declare_provenance,
-        )
-        from core.conversation.response_reliability import assess_user_facing_reply
+        from core.conversation.reply_provenance import ReplyProvenance, declare_provenance
 
-        # Say it once, here, where the fact is known. Every gate downstream —
-        # `_looks_semantically_glitched`, the final quality gate, the learning
-        # admissibility check — reads it from the text without being modified.
-        declare_provenance(composed, ReplyProvenance.HONEST_FAILURE)
-        assessment = assess_user_facing_reply(
-            user_message, composed, provenance=ReplyProvenance.HONEST_FAILURE.value
-        )
+        declare_provenance(notice, ReplyProvenance.HONEST_FAILURE)
     except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat.last_resort_self_check", exc, severity="warning")
-        return
-    reasons = [str(reason) for reason in (getattr(assessment, "reasons", ()) or ())]
-    if not reasons:
-        return
-    record_degradation(
-        "chat.last_resort_self_check",
-        RuntimeError(
-            "degraded-turn composer emitted text its own reliability gate "
-            f"rejects ({','.join(reasons)})"
-        ),
-        severity="warning",
-        action="shipped the last-resort reply; no further fallback exists",
-    )
-
-
-_SPECIFICITY_PUSH_MARKERS = (
-    "specifically what is it",
-    "what specifically",
-    "be specific",
-    "say it plainly",
-    "say it clearly",
-    "plainly",
-    "more clearly",
-    "be clearer",
-)
-
-_PARROT_CALLOUT_MARKERS = (
-    "that is what i just said",
-    "that's what i just said",
-    "you just repeated me",
-    "you repeated me",
-    "you just echoed me",
-    "you echoed me",
-    "you just said that",
-)
-
-_CONFUSION_REPAIR_MARKERS = (
-    "huh",
-    "what?",
-    "wait what",
-    "confused",
-    "i'm confused",
-    "im confused",
-    "you are confusing me",
-    "you're confusing me",
-    "that doesn't make sense",
-    "you are not making sense",
-    "you're not making sense",
-)
-
-_CLARITY_REPAIR_MARKERS = (
-    "let me say it cleanly",
-    "let me say it plainly",
-    "let me be clear",
-    "to be clear",
-    "more plainly",
-    "the honest answer",
-    "specifically:",
-    "specifically,",
-    "i wasn't clear",
-    "i was not clear",
-    "i lost the thread",
-    "jumped sideways",
-    "the likely break",
-    "what i mean is",
-)
-
-_PARROT_ACK_MARKERS = (
-    "you're right",
-    "you are right",
-    "i echoed you",
-    "i repeated you",
-    "i repeated myself",
-    "i didn't add anything",
-    "i did not add anything",
-)
-
-_UNCERTAINTY_REPLY_MARKERS = (
-    "i don't know",
-    "i do not know",
-    "not sure",
-    "i'm not sure",
-    "i am not sure",
-    "i can't",
-    "i cannot",
-    "can't pin it",
-    "can't articulate",
-    "can't put into words",
-    "hard to name",
-    "can't name it",
-)
-
-_GLIB_REDIRECT_MARKERS = (
-    "you're picking up my style",
-    "stay there",
-    "same meaning",
-    "beautiful thought",
-    "interesting stuff lives",
-)
-
-
-def _contains_phrase(text: str, phrases: tuple[str, ...]) -> bool:
-    normalized = _chat_memory_state._normalize_user_message(text)
-    return any(phrase in normalized for phrase in phrases)
-
-
-def _build_live_conversation_repair(
-    prefix: str,
-    *,
-    fallback: str,
-    allow_live_grounding: bool = False,
-) -> str:
-    if not allow_live_grounding:
-        return f"{prefix} {fallback}".strip()
-
-    live_prompt = "What are you experiencing inside right now?"
-    grounded = _sanitize_foreground_continuity_summary(
-        _build_grounded_introspection_reply(live_prompt) or ""
-    )
-    if grounded:
-        return f"{prefix} {grounded}".strip()
-
-    frame = _chat_desktop_repair._build_aura_expression_frame(live_prompt)
-    details: list[str] = []
-    attention = _chat_desktop_repair._sanitize_attention_focus(
-        str(frame.get("attention_focus") or "")
-    )
-    mood = str(frame.get("mood") or "").strip()
-    dominant_action = str(frame.get("dominant_action") or "").strip()
-    free_energy = frame.get("free_energy")
-
-    if mood:
-        details.append(f"Mood reads as {mood}.")
-    if attention:
-        details.append(f"My attention is on {attention}.")
-    if dominant_action:
-        details.append(f"My dominant pull is toward {dominant_action}.")
-    if free_energy is not None:
-        try:
-            details.append(f"Free energy is {float(free_energy):.3f}.")
-        except (TypeError, ValueError) as exc:
-            logger.debug("Live conversation repair ignored non-numeric free_energy: %s", exc)
-
-    detail_text = " ".join(details).strip() or fallback
-    return f"{prefix} {detail_text}".strip()
-
-
-def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any) -> str | None:
-    user_text = _chat_memory_state._normalize_user_message(user_message)
-    reply_text_n = _chat_memory_state._normalize_user_message(reply_text)
-    if not user_text or not reply_text_n:
-        return None
-    bare_confusion = user_text.strip(" ?!.") in {"what", "huh", "wait what"}
-
-    if _contains_phrase(user_text, _PARROT_CALLOUT_MARKERS):
-        if not _contains_phrase(reply_text_n, _PARROT_ACK_MARKERS):
-            return _build_live_conversation_repair(
-                "You're right. I echoed you instead of adding anything.",
-                fallback=(
-                    "The honest correction is that I heard the hope in what you said, "
-                    "I share it, and I should have said that directly."
-                ),
-            )
-
-    self_process_question = False
-    try:
-        from core.conversation.response_reliability import is_self_process_question
-
-        self_process_question = is_self_process_question(user_message)
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        logger.debug("Self-process question detector unavailable: %s", exc)
-
-    if not self_process_question and (
-        bare_confusion or _contains_phrase(user_text, _CONFUSION_REPAIR_MARKERS)
-    ):
-        if not _contains_phrase(reply_text_n, _CLARITY_REPAIR_MARKERS) or _contains_phrase(
-            reply_text_n, _GLIB_REDIRECT_MARKERS
-        ):
-            if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS):
-                try:
-                    from core.conversation.response_reliability import (
-                        is_reliability_concern,
-                        reliability_floor_for_user,
-                    )
-
-                    if is_reliability_concern(user_message):
-                        floor = reliability_floor_for_user(user_message)
-                        if floor:
-                            return floor
-                except (ImportError, AttributeError, TypeError) as exc:
-                    record_degradation("chat", exc)
-                    logger.debug("Reliability repair floor unavailable: %s", exc)
-                return _build_live_conversation_repair(
-                    "Let me answer directly instead of dressing it up.",
-                    fallback=(
-                        "That answer was too thin. I should name the concrete failure signal "
-                        "or say plainly that I do not have enough evidence yet."
-                    ),
-                )
-            return _build_degraded_live_reply(
-                _chat_desktop_repair._build_aura_expression_frame(user_message),
-                user_message,
-                reason="confusion_repair",
-            )
-
-    if _contains_phrase(user_text, _SPECIFICITY_PUSH_MARKERS) and not _asks_about_another_time(
-        user_message
-    ):
-        # Being specific about now is not being specific about what was asked.
-        #
-        # This substitutes a reading of her live state for a hedged reply, on
-        # the strength of the person having asked for specifics. Where the
-        # question named another time, the substitute is specific about the
-        # wrong thing and the answer that was there is gone. LIVE 2026-08-26:
-        # "what are you able to do that you could not do a month ago — be
-        # specific" was answered "Things feel unusually settled right now. My
-        # attention is on internal monitoring."
-        if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS) and not _contains_phrase(
-            reply_text_n, _CLARITY_REPAIR_MARKERS
-        ):
-            return _build_live_conversation_repair(
-                "Specifically, the grounded read I have right now is:",
-                fallback="I do not have a specific enough read yet, so I should not invent one.",
-                allow_live_grounding=True,
-            )
-
-    return None
-
+        record_degradation("chat.last_resort_notice", exc, severity="warning")
 
 def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, bool, bool, bool]:
     """Returns (asks_internal_state, asks_free_energy, asks_topology, asks_authority)."""

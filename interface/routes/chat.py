@@ -256,33 +256,15 @@ from interface.routes.chat_common import (  # noqa: E402  # noqa: E402  # noqa: 
     logger,  # noqa: F401
 )
 from interface.routes.chat_conversation_repair import (  # noqa: E402
-    _ACTION_ANCHOR_TOPIC_PRIORITY,  # noqa: F401
-    _CLARITY_REPAIR_MARKERS,  # noqa: F401
-    _CONFUSION_REPAIR_MARKERS,  # noqa: F401
-    _GLIB_REDIRECT_MARKERS,  # noqa: F401
-    _INTERROGATIVE_OPENER_RE,  # noqa: F401
-    _LEADING_CONJUNCTION_RE,  # noqa: F401
-    _PARROT_ACK_MARKERS,  # noqa: F401
-    _PARROT_CALLOUT_MARKERS,  # noqa: F401
-    _QUESTION_CLAUSE_SPLIT_RE,  # noqa: F401
-    _SPECIFICITY_PUSH_MARKERS,  # noqa: F401
     _TOPIC_TOKEN_RE,  # noqa: F401
-    _UNCERTAINTY_REPLY_MARKERS,  # noqa: F401
     _build_degraded_live_reply,  # noqa: F401
     _build_grounded_introspection_reply,  # noqa: F401
-    _build_live_conversation_repair,  # noqa: F401
     _classify_grounded_introspection_request,  # noqa: F401
-    _contains_phrase,  # noqa: F401
-    _echoable_question_clause,  # noqa: F401
     _extract_topic_tokens,  # noqa: F401
-    _maybe_build_conversation_repair_override,  # noqa: F401
     _normalize_topic_token,  # noqa: F401
-    _record_last_resort_self_rejection,  # noqa: F401
     _resolve_live_voice_state,  # noqa: F401
     _sanitize_foreground_continuity_summary,  # noqa: F401
-    _select_anchor_topic_tokens,  # noqa: F401
     _self_health_answer_or_empty,  # noqa: F401
-    _topic_display_forms,  # noqa: F401
     _verified_floor_answer,  # noqa: F401
 )
 from interface.routes.chat_delivery import (  # noqa: E402
@@ -670,8 +652,6 @@ from .chat_lane_bookkeeping import (  # noqa: E402
     _bound_stabilizer_generation_budget,
     _bounded_runtime_grounding_can_serve,
     _brevity_requested,
-    _build_stateful_voice_reflex,
-    _call_stateful_voice_reflex,
     _capabilities_this_turn_needs,
     _context_challenge_reply_is_inadequate,
     _conversation_lane_blocks_fallback,
@@ -5354,7 +5334,6 @@ from .chat_reply_repair import (
     _repair_a_degraded_identity_reply,
     _repair_final_degraded_reply,  # noqa: F401
     _repair_final_degraded_reply_with_provenance,
-    _repair_missing_followup_delta,  # noqa: F401
     _serve_the_bounded_repair,
     _serve_the_identity_repair,
     _stabilize_user_facing_reply,
@@ -5863,41 +5842,6 @@ def _has_unexpected_cjk(user_message: str, reply_text: Any) -> bool:
     ):
         return False
     return True
-
-
-
-
-
-
-
-
-_FOLLOWUP_DELTA_MARKERS: tuple[tuple[str, tuple[str, ...], str], ...] = (
-    (
-        "limitation",
-        ("limitation", "limited", "constraint", "caveat"),
-        (
-            "Limitation: this only holds inside the assumptions already established "
-            "for the example; outside that frame, it is a local model rather than a "
-            "universal rule."
-        ),
-    ),
-    (
-        "constraint",
-        ("constraint", "constrain", "bound", "boundary"),
-        (
-            "Constraint: the answer should be read within the current setup, not as "
-            "a claim that every adjacent case behaves the same way."
-        ),
-    ),
-    (
-        "caveat",
-        ("caveat", "qualification", "qualifier"),
-        (
-            "Caveat: the useful part is the relationship inside the example; the "
-            "rule still needs new evidence before being generalized."
-        ),
-    ),
-)
 
 
 

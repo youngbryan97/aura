@@ -103,7 +103,6 @@ from .chat_reply_repair import (
     _looks_semantically_glitched,
     _original_reply_is_safe_to_surface,  # noqa: F401
     _repair_final_degraded_reply,  # noqa: F401
-    _repair_missing_followup_delta,  # noqa: F401
 )
 from .chat_reply_shaping import (  # noqa: E402
     _remove_self_denials_the_record_refutes,

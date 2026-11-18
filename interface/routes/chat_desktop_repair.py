@@ -681,6 +681,10 @@ def _apply_aura_voice_shaping(text: str, user_message: str = "") -> str:
     shaped = str(text or "").strip()
     if not shaped:
         return shaped
+    from core.conversation.runtime_notice import is_the_runtimes_notice
+
+    if is_the_runtimes_notice(shaped):  # the runtime's words are never put in her voice
+        return shaped
 
     try:
         from core.synthesis import cure_personality_leak, stabilize_user_facing_response

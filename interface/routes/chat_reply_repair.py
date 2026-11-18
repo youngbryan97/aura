@@ -14,7 +14,6 @@ from typing import Any
 
 from fastapi.responses import JSONResponse
 
-from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import resolve_inference_gate
 from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
@@ -88,7 +87,6 @@ from interface.routes.chat_turn_evidence import (  # noqa: E402,F401
 from .chat_lane_bookkeeping import (  # noqa: E402
     _apply_aura_voice_shaping_compat,
     _bound_stabilizer_generation_budget,
-    _build_stateful_voice_reflex,
     _flag_unstable_choice_commitment,
     _gather_recent_user_messages_for_relevance,
     _has_first_person_anchor,
@@ -121,56 +119,6 @@ from .chat_reply_shaping import (  # noqa: E402
 
 #: What an extracted block returns when it fell through to the code after it.
 _FALL_THROUGH = object()
-
-
-def _repair_missing_followup_delta(user_message: str, reply_text: str) -> str:
-    """Add a requested follow-up delta when the draft mostly repeated context.
-
-    This is intentionally narrow and model-free. It handles same-topic turns
-    where the model preserved continuity but forgot the user's requested
-    incremental move, such as adding a limitation or caveat to the prior
-    example. It does not invent task-specific facts or execute tools.
-    """
-    from .chat import (
-        _FOLLOWUP_DELTA_MARKERS,
-    )
-
-
-    normalized_user = _chat_memory_state._normalize_user_message(user_message)
-    normalized_reply = _chat_memory_state._normalize_user_message(reply_text)
-    if not normalized_user or not normalized_reply:
-        return str(reply_text or "").strip()
-    if not names_any(normalized_user, ("add", "include", "give", "connect")):
-        return str(reply_text or "").strip()
-
-    additions: list[str] = []
-    for request_marker, reply_markers, addition in _FOLLOWUP_DELTA_MARKERS:
-        if request_marker not in normalized_user:
-            continue
-        if any(marker in normalized_reply for marker in reply_markers):
-            continue
-        additions.append(addition)
-
-    if (
-        "connect" in normalized_user
-        and "example" in normalized_user
-        and "example" not in normalized_reply
-    ):
-        additions.append(
-            "Connected back to the example, the new point changes how that example "
-            "should be interpreted rather than replacing the original setup."
-        )
-
-    if not additions:
-        return str(reply_text or "").strip()
-
-    base = str(reply_text or "").strip()
-    separator = " " if base.endswith((".", "!", "?")) else ". "
-    return f"{base}{separator}{' '.join(additions)}".strip()
-
-
-
-
 
 
 def _stabilize_user_facing_reply_architecture_self_assessment(
@@ -211,16 +159,11 @@ def _stabilize_user_facing_reply_architecture_self_assessment(
             severity="warning",
             action="returned empty rather than an ellipsis",
         )
-    text = stripped
-    repair_override = _chat_conversation_repair._maybe_build_conversation_repair_override(
-        user_message, text
-    )
-    if repair_override:
-        text = _apply_aura_voice_shaping_compat(
-            _strip_unexpected_cjk_artifacts(user_message, repair_override),
-            user_message,
-        )
-    return architecture_self_assessment, text
+    # Her reply stands as she wrote it. A fixed reply chosen by phrases in the
+    # person's message ("huh", "be specific", "you repeated me") replaced it
+    # here until 18 November: a word list deciding meaning, and the runtime's
+    # sentence in her voice.
+    return architecture_self_assessment, stripped
 
 async def _stabilize_user_facing_reply_part_3(
     asked: dict[str, Any],
@@ -721,43 +664,6 @@ def _repair_final_degraded_reply_part_2(
                     True,
                 )
 
-    if same_diff and not stale and not off_topic:
-        delta_repaired = _repair_missing_followup_delta(user_message, reply_text)
-        if delta_repaired and delta_repaired != str(reply_text or "").strip():
-            delta_repaired = _apply_aura_voice_shaping_compat(delta_repaired, user_message)
-            delta_stale = _is_actionably_stale_response(user_message, delta_repaired)
-            delta_same_diff = _is_same_answer_different_prompt(user_message, delta_repaired)
-            delta_off_topic, delta_off_topic_reason = _evaluate_reply_topicality(
-                user_message,
-                delta_repaired,
-                recent_user_messages=recent_user_messages,
-            )
-            delta_assessment = (
-                assess_user_facing_reply(
-                    user_message,
-                    delta_repaired,
-                    recent_user_messages=recent_user_messages,
-                )
-                if assess_user_facing_reply
-                else None
-            )
-            if not (
-                delta_stale
-                or delta_same_diff
-                or delta_off_topic
-                or _reply_assessment_requires_repair(delta_assessment)
-            ):
-                logger.warning(
-                    "🛡️ Final reply quality gate repaired missing follow-up delta without a second model call."
-                )
-                return (
-                    delta_repaired,
-                    delta_stale,
-                    delta_same_diff,
-                    delta_off_topic,
-                    delta_off_topic_reason,
-                    True,
-                )
     return _FALL_THROUGH
 
 def _repair_final_degraded_reply_repaired_stale(
@@ -866,54 +772,13 @@ def _repair_final_degraded_reply_repaired_stale(
             bool(repaired != str(reply_text or "").strip()),
         )
 
-    frame = _chat_desktop_repair._build_aura_expression_frame(user_message)
-    reflex = _build_stateful_voice_reflex(frame, user_message)
-    reflex_stale = _is_actionably_stale_response(user_message, reflex)
-    reflex_same_diff = _is_same_answer_different_prompt(user_message, reflex)
-    reflex_off_topic, reflex_off_topic_reason = _evaluate_reply_topicality(
-        user_message,
-        reflex,
-        recent_user_messages=recent_user_messages,
-    )
-    reflex_semantic, reflex_semantic_reason = _looks_semantically_glitched(user_message, reflex)
-    reflex_assessment = (
-        assess_user_facing_reply(
-            user_message,
-            reflex,
-            recent_user_messages=recent_user_messages,
-        )
-        if assess_user_facing_reply
-        else None
-    )
-    if not (
-        reflex_stale
-        or reflex_same_diff
-        or reflex_off_topic
-        or reflex_semantic
-        or _reply_assessment_requires_repair(reflex_assessment)
-    ):
-        return (
-            reflex,
-            reflex_stale,
-            reflex_same_diff,
-            reflex_off_topic,
-            reflex_off_topic_reason,
-            True,
-        )
-
-    honest_failure = _chat_conversation_repair._build_degraded_live_reply(
-        _chat_desktop_repair._build_aura_expression_frame(user_message),
-        user_message,
-        reason=reflex_off_topic_reason or reflex_semantic_reason or "unrepaired_degraded_turn",
-    )
-    return (
-        honest_failure,
-        False,
-        False,
-        True,
-        reflex_off_topic_reason or reflex_semantic_reason or "unrepaired_degraded_turn",
-        True,
-    )
+    # Nothing of hers passed. The turn ends with the runtime's notice, which
+    # the delivery boundary moves out of her reply. A sentence opened with her
+    # mood ("Something about that question sits heavy with me.") was tried
+    # here first until 18 November.
+    reason = repaired_off_topic_reason or "unrepaired_degraded_turn"
+    notice = _chat_conversation_repair._build_degraded_live_reply({}, user_message, reason=reason)
+    return (notice, False, False, True, reason, True)
     return _FALL_THROUGH
 
 async def _repair_final_degraded_reply(

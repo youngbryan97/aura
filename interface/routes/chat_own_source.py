@@ -73,7 +73,6 @@ from .chat_lane_bookkeeping import (  # noqa: E402
 from .chat_reply_repair import (
     _original_reply_is_safe_to_surface,  # noqa: F401
     _repair_final_degraded_reply,  # noqa: F401
-    _repair_missing_followup_delta,  # noqa: F401
     _strip_unexpected_cjk_artifacts,
     _strip_user_visible_context_leaks,
 )
