@@ -164,10 +164,36 @@ def test_her_cycle_tries_each_fault_once_on_a_source_and_mends_the_next(her_sour
     assert first["status"] == goals.STALLED
     (second,) = asyncio.run(mending_a_fault_of_hers.mend_the_faults_she_heard(seconds=900))
     assert second["status"] == "merged", second
-    # Her mend moved her source, so the stalled fault is tried once more on it, and stalls again.
-    (third,) = asyncio.run(mending_a_fault_of_hers.mend_the_faults_she_heard(seconds=900))
-    assert third["status"] == goals.STALLED and "alone" in third["slug"]
+    # Her mend moved her source but nothing the stalled fault stands on, so it is not tried again.
     assert asyncio.run(mending_a_fault_of_hers.mend_the_faults_she_heard(seconds=900)) == []
+
+
+def test_a_stalled_fault_is_tried_again_when_what_it_stands_on_moves(her_source, monkeypatch):
+    """LIVE, 17 and 18 November 2026: one locked database was tried 35 times, once for each commit to her source."""
+    import planted_pkg.alone as alone
+
+    from core.agency import mending_a_fault_of_hers
+
+    monkeypatch.setattr(faults_she_can_reproduce, "faults_heard", lambda: [_fault(lambda: alone.half(4))])
+
+    def cycle():
+        return asyncio.run(mending_a_fault_of_hers.mend_the_faults_she_heard(seconds=900))
+
+    def committed(path, text):
+        (her_source / path).parent.mkdir(parents=True, exist_ok=True)
+        (her_source / path).write_text(text, encoding="utf-8")
+        _git("add", "-A", cwd=her_source)
+        _git("commit", "-q", "-m", f"change {path}", cwd=her_source)
+
+    assert cycle()[0]["status"] == goals.STALLED
+    committed("planted_pkg/unrelated_notes.py", "NOTES = 1\n")
+    assert cycle() == [], "a commit elsewhere changes nothing it stands on"
+    committed("core/self_modification/a_new_way_to_repair.py", "WAY = 1\n")
+    assert cycle()[0]["status"] == goals.STALLED, "a new means of repair is worth another try"
+    assert cycle() == []
+    source = her_source / "planted_pkg" / "alone.py"
+    committed("planted_pkg/alone.py", source.read_text(encoding="utf-8") + "\n# moved\n")
+    assert cycle()[0]["status"] == goals.STALLED, "its own file moved"
 
 
 def test_a_fault_heard_for_the_first_time_wakes_whoever_waits():

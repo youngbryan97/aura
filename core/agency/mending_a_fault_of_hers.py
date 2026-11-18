@@ -26,6 +26,8 @@ _RESULT = re.compile(r"^(PASSED|FAILED|ERROR|XPASS|XFAIL|SKIPPED)\s+(\S+)", re.M
 
 #: As long as one run of tests is given: as long as one of her gates (her_goal_at_work.GATE_SECONDS).
 _RUN_SECONDS = 2400.0
+#: The code that finds and judges a repair: when it changes, a fault it could not mend may now be mended.
+_HER_MEANS_OF_REPAIR = ("core/self_modification/", "core/agency/mending_a_fault_of_hers.py")
 
 
 def goal_for(fault: Any) -> str:
@@ -344,11 +346,30 @@ async def _her_draft_asked_again(record: Any, workspace: Path, fault: Any) -> di
             "why": "her draft asked of her gates again"}
 
 
+def _what_it_stalled_on_has_moved(record: Any, file: str, head: str) -> bool:
+    """Whether trying a stalled fault again could end differently: the file it was raised in, a test naming that file,
+    or her means of repair changed since it stalled. LIVE, 17 and 18 November 2026: one locked database was tried 35
+    times, once for each commit to her source, none of which touched what it stood on."""
+    from core.agency import her_goal_at_work as goals
+
+    if record.stalled_on == head:
+        return False
+    if not record.stalled_on or not head:
+        return True
+    root = goals.source_root()
+    shown = goals._git("diff", "--name-only", record.stalled_on, head, cwd=root)
+    if shown.returncode != 0:
+        return True
+    changed = set(shown.stdout.splitlines())
+    return file in changed or any(name.startswith(_HER_MEANS_OF_REPAIR) for name in changed) \
+        or bool(changed & set(goals.tests_that_touch([file], root)))
+
+
 async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[dict[str, Any]]:
-    """The most frequent fault she heard and has not tried on this source, mended: one a cycle, in her idle time.
+    """The most frequent fault she heard and has not tried as things now stand, mended: one a cycle, in her idle time.
 
     Her own Python's proposals are finite, and ``seconds`` bounds the search; a fault that stalled is tried again once
-    her source has changed.
+    what it stands on has moved (``_what_it_stalled_on_has_moved``).
     """
     from core.agency import her_goal_at_work as goals
     from core.self_modification.faults_she_can_reproduce import (
@@ -371,8 +392,9 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     head = await asyncio.to_thread(goals.source_head) if heard else ""
     for fault in heard:
         record = goals.load(goals.slug_of(goal_for(fault)))
-        if record is not None and (record.status in (goals.OFFERED, goals.MERGED)
-                                   or (record.status == goals.STALLED and record.stalled_on == head)):
+        if record is not None and (record.status in (goals.OFFERED, goals.MERGED) or (
+                record.status == goals.STALLED
+                and not await asyncio.to_thread(_what_it_stalled_on_has_moved, record, fault.call.file, head))):
             continue
         return [await mend(fault, proposals=sys.maxsize, seconds=seconds)]
     # Nothing heard to mend: a change for a cost her running measures, or the judgement of one she made (F16, part 3).
