@@ -24,6 +24,24 @@ from core.utils.completed_capability import remaining_capabilities
 from core.verify.turn_receipt import timed_as
 
 
+def _her_loops_answer_is_read_as_any_reply_is(client: Any, answer: str, asked: str, stopped: Any) -> None:
+    """Her tool loop's last generation is her reply, so whether it is finished is read as for any reply of hers.
+
+    The loop's generations are asked for no such reading, so the turn held no proof that the answer was finished and
+    withheld it as unfinished. LIVE 18 November 2026, "Is 2^61 - 1 prime? Check it by actually computing": she ran the
+    code three times, wrote her answer and ended her turn, and the person got nothing.
+    """
+    from core.brain.llm.mlx_worker_surface_quality import _semantic_completion_receipt_state
+
+    keep = getattr(client, "_set_task_surface_control_receipt", None)
+    if not answer or not callable(keep):
+        return
+    reading = _semantic_completion_receipt_state(
+        {"semantic_completion_contract": True, "user_surface_validation_prompt": asked}, answer,
+        generated_tokens=len(answer.split()), generation_stop_reason=str(stopped or ""))
+    keep({**(client.get_last_surface_control_receipt() or {}), **reading, "generation_stop_reason": str(stopped or "")})
+
+
 async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> dict[str, Any]:
     """Run the one capability asked for, through the same refusal and dispatch as a model's call to it."""
     import uuid
@@ -670,6 +688,7 @@ class _BuildsTheLivingContext:
                 as_made={"id": str(call.get("id") or ""), "arguments": dict(call.get("args") or {}),
                          "returned": str(call.get("result") or "")},
             )
+        _her_loops_answer_is_read_as_any_reply_is(client, text, str(visible or ""), result.get("generation_stop_reason"))
         return text or None
 
     @staticmethod

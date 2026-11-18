@@ -11189,11 +11189,8 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     )
                     messages.append({"role": "assistant", "content": response_text})
                     continue
-                return {
-                    "content": response_text,
-                    "turns": turn + 1,
-                    "tool_calls": tool_calls_made,
-                }
+                return {"content": response_text, "turns": turn + 1, "tool_calls": tool_calls_made,
+                        "generation_stop_reason": self.get_last_surface_control_receipt().get("generation_stop_reason")}
 
             tool_name = tool_call.get("tool", "")
             tool_args = tool_call.get("args", {})
