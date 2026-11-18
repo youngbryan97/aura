@@ -50,7 +50,7 @@
       "max_class_methods": 5
     },
     "core/brain/inference_gate.py": {
-      "lines": 11229,
+      "lines": 11227,
       "max_class_methods": 142
     },
     "core/brain/latent_cortex_service.py": {

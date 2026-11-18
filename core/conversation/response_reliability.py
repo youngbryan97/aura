@@ -57,6 +57,7 @@ from core.conversation.arithmetic_check import (
 from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
 from core.conversation.closed_answer import adds_nothing_to_the_question, hands_the_question_back
 from core.conversation.escaped_controls import has_escaped_whitespace_artifact
+from core.conversation.names_her_calls_wrote import a_name_her_calls_wrote
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
 from core.conversation.request_coverage import gives_a_closed_answer, unanswered_question_parts
 from core.conversation.requested_reply_shape import reply_scope_text
@@ -3145,7 +3146,8 @@ def _a_name_not_a_join(raw: str, start: int, end: int) -> bool:
     while right < len(raw) and not raw[right].isspace():
         right += 1
     token = raw[left:right].rstrip(".,;:!?)'\"")
-    if "/" in token or "\\" in token or "~" in token or token.count(".") >= 2 or re.search(r"[_\-\d]", token):
+    if ("/" in token or "\\" in token or "~" in token or token.count(".") >= 2 or re.search(r"[_\-\d]", token)
+            or a_name_her_calls_wrote(token)):
         return True
     ending = token.rsplit(".", 1)[-1].lower() if "." in token else ""
     return ending in _FILE_ENDINGS

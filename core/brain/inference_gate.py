@@ -3555,11 +3555,9 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             return None
         try:
             assessment = assess_user_facing_reply(prompt, cleaned)
-            if assessment.retryable and _should_pass_user_facing_draft_downstream(
-                cleaned,
-                set(assessment.reasons or ()),
-                user_prompt=prompt,
-            ):
+            reasons = set(assessment.reasons or ())
+            if assessment.retryable and _should_pass_user_facing_draft_downstream(cleaned, reasons, user_prompt=prompt):
+                logger.info("🛡️ The draft goes on to repair for: %s", ", ".join(sorted(reasons)))
                 self._publish_downstream_repair_evidence(assessment)
                 return cleaned
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
