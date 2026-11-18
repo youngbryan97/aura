@@ -419,6 +419,7 @@ def _changed_points(text: str, original: str, examples: Sequence[Example]) -> in
     2`` tied for a702a104eb27; the first decides otherwise for every size but 3, and broke 2,068 tests."""
     try:
         new, old = ast.parse(text, mode="eval").body, ast.parse(original, mode="eval").body
+    # not a failure: a condition that does not parse decides nothing anywhere, which 0 says.
     except SyntaxError:
         return 0
     changed = 0

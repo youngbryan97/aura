@@ -386,6 +386,7 @@ def _window(lines: Sequence[Line], first: int, sources: Mapping[str, str],
         if path not in files:
             try:
                 files[path] = _File(sources[path])
+            # not a failure: a source that does not parse offers no ingredients, which None records.
             except SyntaxError:
                 files[path] = None
         file = files[path]

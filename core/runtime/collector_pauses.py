@@ -132,6 +132,7 @@ def _say_here() -> None:
     while True:
         try:
             item = _UNSAID.get_nowait()
+        # not a failure: an empty queue is everything already said.
         except queue.Empty:
             return
         if isinstance(item, threading.Event):
