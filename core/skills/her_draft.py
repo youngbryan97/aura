@@ -62,6 +62,16 @@ def _workspace(context: dict[str, Any] | None) -> Path:
     return path
 
 
+def _where_she_reads(context: dict[str, Any] | None) -> Path:
+    """Her goal's workspace, or with no goal the source she runs on: reading it changes nothing. LIVE 18 November 2026
+    these were offered on a question about her own code and refused it for having no goal."""
+    if (context or {}).get("her_goal_workspace"):
+        return _workspace(context)
+    from core.agency.her_goal_at_work import source_root
+
+    return Path(source_root()).resolve()
+
+
 def _inside(workspace: Path, relative: str) -> Path:
     name = str(relative or "").strip().lstrip("/")
     if not name:
@@ -143,7 +153,7 @@ class ReadSourceSkill(BaseSkill):
     async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
         try:
             asked = _params(ReadSourceInput, params)
-            workspace = _workspace(context)
+            workspace = _where_she_reads(context)
             path = _inside(workspace, asked.path)
             lines = (await asyncio.to_thread(path.read_text, encoding="utf-8", errors="replace")).splitlines()
         except FileNotFoundError:
@@ -183,7 +193,7 @@ class FindInSourceSkill(BaseSkill):
     async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
         try:
             asked = _params(FindInSourceInput, params)
-            workspace = _workspace(context)
+            workspace = _where_she_reads(context)
             where = _inside(workspace, asked.where or ".") if (asked.where or ".") != "." else workspace
         except Refused as why:
             return {"ok": False, "error": str(why)}

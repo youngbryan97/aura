@@ -633,6 +633,10 @@ class CodeREPLInput(BaseModel):
     )
 
 
+#: The package she runs, which the kernel boundary lets code she runs read (core/sandbox/runner.py).
+_HER_CODE = Path(__file__).resolve().parents[1]
+
+
 class CodeREPLSkill(BaseSkill):
     name = "code_repl"
     description = (
@@ -691,6 +695,11 @@ class CodeREPLSkill(BaseSkill):
             await get_file_write_gateway().ensure_directory_async(
                 session_dir,
                 source="skills.code_repl.session",
+            )
+            # Her own code, by the path she knows it by, read through the kernel boundary that already admits it.
+            # LIVE 18 November 2026 a count of the files in core/brain found no such directory.
+            await get_file_write_gateway().replace_symlink_async(
+                session_dir / "core", _HER_CODE, source="skills.code_repl.session",
             )
             self._session_dirs[session_id] = session_dir
         return self._session_dirs[session_id]

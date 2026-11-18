@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from typing import Any
 
 from core.brain.her_reading_of_a_request import her_reading, her_reading_chose
@@ -288,6 +289,21 @@ class _BuildsTheLivingContext:
                 user_facing=True,
                 person_is_waiting=True,
             )
+        loop_budget_s = _tool_loop_budget(
+            timeout_s,
+            _answer_reserve_seconds(
+                client,
+                # What the answer will be read from: everything handed
+                # to the loop, because that is what comes back with it.
+                len(str(text or ""))
+                + sum(
+                    len(str((item or {}).get("content") or ""))
+                    for item in (evidence or [])
+                    if isinstance(item, dict)
+                ),
+            ),
+        )
+        loop_context["write_by"] = time.monotonic() + loop_budget_s
         result = await _await_while_it_is_working(
             client.think_and_act(
                 objective=text,
@@ -355,20 +371,7 @@ class _BuildsTheLivingContext:
             # before dispatch, "because the request budget was already
             # spent". The answer was in hand and there was no time left to
             # say it.
-            budget_s=_tool_loop_budget(
-                timeout_s,
-                _answer_reserve_seconds(
-                    client,
-                    # What the answer will be read from: everything handed
-                    # to the loop, because that is what comes back with it.
-                    len(str(text or ""))
-                    + sum(
-                        len(str((item or {}).get("content") or ""))
-                        for item in (evidence or [])
-                        if isinstance(item, dict)
-                    ),
-                ),
-            ),
+            budget_s=loop_budget_s,
             user_facing=True,
             # The same fact the loop puts on its own context. A person
             # asked for this in the foreground and is sitting in front of

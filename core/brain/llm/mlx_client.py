@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from core.brain.llm.the_tool_loops_last_pass import this_pass_writes
 from core.runtime import resource_psutil as psutil
 from core.runtime.service_access import resolve_inference_gate
 
@@ -11051,15 +11052,18 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             len(messages) - 2,
             len(template_tools or []),
         )
+        write_by, longest_pass_s = float((context or {}).get("write_by") or 0.0), 0.0
         for turn in range(max_turns):
+            writes = this_pass_writes(turn, max_turns, write_by, longest_pass_s, time.monotonic())
+            if writes:
+                native_tools, template_tools = None, None
+                messages[0]["content"] = system_prompt
+            pass_began = time.monotonic()
             raw = await self.generate_text_async(
                 "",
                 messages=messages,
                 tools=native_tools,
-                # What this turn may call, for budgeting, whichever protocol it
-                # speaks. `tools` above is the native template's channel and is
-                # None on the JSON contract; the budget must not depend on
-                # which of the two is in use.
+                # What this turn may call, for budgeting, whichever protocol it speaks.
                 tool_budget_definitions=template_tools or None,
                 # A call is not a reply, and inheriting the reply's budget cut
                 # one in half.
@@ -11092,19 +11096,12 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # looked like a model that declined to call anything, when
                 # nothing had been generated at all.
                 #
-                # The user surface already decodes at alpha 0.0 for the same
-                # reason, and the code model is loaded unsteered outright. This
-                # is that rule applied to the third kind of structured
-                # generation the runtime performs.
-                # NOT under the clean-user-surface contract. It honours the
-                # decode controls AND turns on user-surface quality
-                # validation, so setting it here pointed the surface quality
-                # gate at a tool call — which is not a user-facing answer and
-                # never passes it. The worker generated 100 tokens and cleared
-                # them: "no text survived to the caller". A tool call must
-                # reach the parser exactly as produced; whether the eventual
-                # REPLY is a good answer is judged later, on the reply.
+                # NOT under the clean-user-surface contract: its quality gate
+                # never passes a tool call, and the worker cleared 100 tokens
+                # ("no text survived to the caller"). A call reaches the parser
+                # as produced; the REPLY is judged later, on the reply.
             )
+            longest_pass_s = max(longest_pass_s, time.monotonic() - pass_began)
             if not raw or not raw.strip():
                 # An empty generation in tool mode looks identical from the
                 # outside to a model that declined to call anything: both end
@@ -11192,6 +11189,8 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 return {"content": response_text, "turns": turn + 1, "tool_calls": tool_calls_made,
                         "generation_stop_reason": self.get_last_surface_control_receipt().get("generation_stop_reason")}
 
+            if writes:
+                break
             tool_name = tool_call.get("tool", "")
             tool_args = tool_call.get("args", {})
             # CP126 0da5db2e: bind the parsed arguments to the tool's own

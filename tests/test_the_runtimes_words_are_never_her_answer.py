@@ -176,4 +176,5 @@ def test_the_loop_writes_no_answer_of_its_own_when_it_runs_out(monkeypatch):
     client.max_tokens, client.model_path, client.generate_text_async = 512, "her-cortex", asks_again
     tools = {"code_repl": {"description": "run code", "parameters": {"code": {"type": "string"}}}}
     out = asyncio.run(client.think_and_act("Run Python to compute 2 + 2", "", tools=tools, max_turns=3))
-    assert out["exhausted"] is True and out["content"] == "" and len(out["tool_calls"]) == 3
+    # The last pass is offered no tools, so a call written there is not run (tests/test_the_tool_loops_last_pass.py).
+    assert out["exhausted"] is True and out["content"] == "" and len(out["tool_calls"]) == 2
