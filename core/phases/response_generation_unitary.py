@@ -3055,9 +3055,12 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 # Direct navigation — fetch the page content
                 tool_sequence = (("sovereign_browser", {"mode": "browse", "url": query}),)
             else:
-                # Search query — try web_search first (deep=True for synthesis), then browser
+                # Search query: web_search first, then the browser. Not web_search's own synthesis: what it reads is
+                # her evidence and she writes the answer (_format_grounded_search_reply), so a synthesis there is a
+                # second pass on her model for words nobody serves. LIVE 17 November 2026 it held her cortex until the
+                # skill's 45 s ran out, and her own reply had no time left.
                 tool_sequence = (
-                    ("web_search", {"query": query, "deep": True}),
+                    ("web_search", {"query": query, "deep": False}),
                     ("sovereign_browser", {"mode": "search", "query": query, "deep": True}),
                 )
 
