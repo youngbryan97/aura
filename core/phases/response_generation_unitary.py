@@ -27,11 +27,12 @@ from __future__ import annotations
 import asyncio
 import functools
 import hashlib
+import itertools
 import logging
 import re
 import threading
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from core.brain.latent_bridge import efference_copy
@@ -3030,6 +3031,67 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         return ""
 
     @classmethod
+    def _grounded_search_queries(cls, objective: str, contract: Any | None = None) -> list[str]:
+        """What to search for: the language substrate's reading of the request, one search for each sentence of it
+        that names something (core/conversation/what_the_world_says.searches_for); the patterns above only where
+        the substrate does not read a request to find something out.
+
+        LIVE 17 November 2026 "You should be able to google them. All flights were grounded on Friday. Major banks
+        were having outages yesterday. Apple outages today. NSA outage today" was searched as one query of all of
+        it, three times; and the first pattern above reads "google it. Bam had an 83 point game" as a search for
+        "it. Bam had an 83 point game", the defect of 3 October.
+        """
+        query = cls._extract_grounded_search_query(objective, contract)
+        if query.startswith(("http://", "https://")):
+            return [query]
+        try:
+            from core.conversation.what_the_world_says import searches_for
+            from core.language.search_request import read_search_request
+
+            asked = read_search_request(objective)
+            if asked.about_the_world and asked.query:
+                return searches_for(asked.query)
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("the substrate's reading of the search was not available (%s); the patterns stand", exc)
+        return [query] if query else []
+
+    @staticmethod
+    def _merged_searches(results: Sequence[dict[str, Any]], queries: Sequence[str]) -> dict[str, Any]:
+        """Several searches' results as one payload: each list taken a turn at a time, so every search's best comes
+        before any search's second; each text kept, one after another; anything else from the first."""
+        merged: dict[str, Any] = dict(results[0])
+        for key in {k for result in results for k in result}:
+            values = [result.get(key) for result in results if result.get(key)]
+            if values and all(isinstance(value, (list, tuple)) for value in values):
+                merged[key] = [item for row in itertools.zip_longest(*values) for item in row if item is not None]
+            elif values and all(isinstance(value, str) for value in values) and key != "query":
+                merged[key] = "\n\n".join(dict.fromkeys(values))
+        merged["queries"] = list(queries)
+        merged["ok"] = True
+        return merged
+
+    @classmethod
+    async def _search_each(cls, orchestrator: Any, queries: Sequence[str], args: Mapping[str, Any], *,
+                           origin: str) -> dict[str, Any]:
+        """web_search once for each query, together, each within the one search's 45 s."""
+        async def one(query: str) -> dict[str, Any] | None:
+            try:
+                result = await asyncio.wait_for(
+                    orchestrator.execute_tool("web_search", {**args, "query": query}, origin=origin), timeout=45.0)
+            except TimeoutError:
+                logger.warning("UnitaryResponse: web_search timed out after 45s for query: %s", query[:80])
+                return None
+            except _RESPONSE_RECOVERABLE_ERRORS as exc:
+                _record_response_degradation(
+                    exc, "UnitaryResponse: one of several searches failed: %s",
+                    action="kept the other searches' results", severity="warning")
+                return None
+            return result if isinstance(result, dict) and result.get("ok") else None
+
+        found = [result for result in await asyncio.gather(*(one(query) for query in queries)) if result]
+        return cls._merged_searches(found, queries) if found else {"ok": False}
+
+    @classmethod
     async def _attempt_grounded_search_reply(
         cls,
         objective: str,
@@ -3037,9 +3099,10 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         *,
         origin: str,
     ) -> dict[str, Any]:
-        query = cls._extract_grounded_search_query(objective, contract)
-        if not query:
+        queries = cls._grounded_search_queries(objective, contract)
+        if not queries:
             return {"reply": "", "payload": None, "skill_name": "", "attempted": False}
+        query = queries[0] if len(queries) == 1 else " ".join(queries)
 
         # If the query IS a URL, browse it directly instead of searching
         is_url = query.startswith("http://") or query.startswith("https://")
@@ -3069,10 +3132,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             for tool_name, args in tool_sequence:
                 try:
                     attempted = True
-                    result = await asyncio.wait_for(
-                        orchestrator.execute_tool(tool_name, args, origin=origin),
-                        timeout=45.0,
-                    )
+                    if tool_name == "web_search" and len(queries) > 1:
+                        result = await cls._search_each(orchestrator, queries, args, origin=origin)
+                    else:
+                        result = await asyncio.wait_for(
+                            orchestrator.execute_tool(tool_name, args, origin=origin),
+                            timeout=45.0,
+                        )
                 except TimeoutError:
                     logger.warning(
                         "UnitaryResponse: %s timed out after 45s for query: %s",
