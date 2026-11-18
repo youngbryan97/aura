@@ -102,3 +102,39 @@ def test_chat_last_resort_will_not_serve_a_known_partial_answer() -> None:
     )
 
     assert _servable_draft_or_none(partial, "Explain what this code does") == ""
+
+
+_ASKED = ("Under core/brain in your own source, find the three largest Python files by line count. For each one, tell me "
+          "its line count and how many functions it defines, counting methods and async functions too. Actually run "
+          "something to get the numbers, then tell me which of the three has the most functions.")
+_THE_TABLE = """Here are the results from actually running an AST walk over every `.py` file under `core/brain`:
+
+| # | File | Lines | Functions |
+|---|------|-------|-----------|
+| 1 | `core/brain/llm/mlx_client.py` | 12,589 | 324 |
+| 2 | `core/brain/inference_gate.py` | 11,227 | 199 |
+| 3 | `core/brain/llm/latent_cortex/engine.py` | 10,397 | 133 |
+
+`core/brain/llm/mlx_client.py` has the most functions of the three, with 324."""
+_HER_WORDS = {"engine_authored_the_text": True, "final_requested_output_contract_proven": True}
+
+
+def test_her_right_table_stands_at_the_last_exit():
+    """LIVE 18 November 2026: she ran the code and wrote this table, and it was held back for cue words it did not use."""
+    from interface.routes.chat_lane_bookkeeping import _only_cue_words_stand_against_her
+
+    assert _only_cue_words_stand_against_her(_HER_WORDS, _ASKED, _THE_TABLE)
+
+
+def test_words_that_are_not_hers_do_not_stand():
+    from interface.routes.chat_lane_bookkeeping import _only_cue_words_stand_against_her
+
+    assert not _only_cue_words_stand_against_her({**_HER_WORDS, "legacy_fallback_used": True}, _ASKED, _THE_TABLE)
+    assert not _only_cue_words_stand_against_her({}, _ASKED, _THE_TABLE)
+
+
+def test_a_voice_nobody_spoke_does_not_stand():
+    from interface.routes.chat_lane_bookkeeping import _only_cue_words_stand_against_her
+
+    heard = "The voices. The small ones. They're whispering in my ear. Telling me things."
+    assert not _only_cue_words_stand_against_her(_HER_WORDS, "Hey Aura", heard)

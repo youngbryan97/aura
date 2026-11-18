@@ -646,6 +646,7 @@ from .chat_lane_bookkeeping import (  # noqa: E402
     _assess_the_engine_reply,
     _audit_recent_response_reasoning_sync,
     _authored_answer_can_serve_unfinished,
+    _only_cue_words_stand_against_her,
     _bound_stabilizer_generation_budget,
     _bounded_runtime_grounding_can_serve,
     _brevity_requested,
@@ -8566,11 +8567,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 if not (
                     salvage_output_proven
-                    and _authored_answer_can_serve(salvage_contract)
+                    and (_authored_answer_can_serve(salvage_contract)
+                         or _only_cue_words_stand_against_her(salvage_contract, _semantic_user_message, salvaged))
                 ):
-                    logger.warning(
-                        "Preserved draft remained ineligible for delivery; "
-                        "withholding it (missing=%s).",
+                    logger.warning("Preserved draft remained ineligible for delivery; withholding it (missing=%s).",
                         ",".join(
                             salvage_contract.get("full_mind_missing_proofs") or ()
                         )

@@ -623,6 +623,20 @@ def _authored_answer_can_serve_unfinished(contract: Any) -> bool:
     )
 
 
+def _only_cue_words_stand_against_her(contract: Any, user_message: str, reply: str) -> bool:
+    """Her own answer stands at the last exit when the one objection left is the check that reads cue words in the request.
+
+    That check looks for words like "first" or "because" in the reply, so a right answer written as a table has none of
+    them. LIVE 18 November 2026 she ran the code, wrote the right table, and it was held back for that alone.
+    """
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    if not _authored_answer_can_serve_unfinished(contract):
+        return False
+    reasons = set(getattr(assess_user_facing_reply(user_message, reply), "reasons", ()) or ())
+    return reasons == {"missing_requested_objective_facets"}
+
+
 def _bounded_runtime_grounding_can_serve(contract: Any) -> bool:
     """Keep truthful runtime evidence without mislabeling it as model speech."""
 
