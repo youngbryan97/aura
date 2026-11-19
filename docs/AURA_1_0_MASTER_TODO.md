@@ -7882,9 +7882,12 @@ needs her 27B free (her app down, or her app's own influence trials).
   seal, nothing else is measuring her, she is on the charger, and nobody has talked with her for as long as the
   baseline took (`tests/test_her_change_on_probation_is_measured_on_its_own.py`). The run is handed to the system so
   her shutdown and the cold restart do not end it.
-  The seal covers every `outside_bar/*.py`, the change verifier with them, and a comparison across seals is refused.
-  So every build item below that edits the verifier makes this baseline unusable. They will be done together, with
-  the verifier moved out of the seal (her drafts are already refused in `outside_bar/`), and one new baseline.
+  The seal covered every `outside_bar/*.py`, the change verifier with them, and a comparison across seals is refused,
+  so every edit to the verifier made the baseline unusable. Since 19 November the verifier's three files
+  (`verify_change.py`, `value_witness.py`, `differential.py`) are left out: no result depends on them, no sealed file
+  imports them, and her drafts are refused anywhere in `outside_bar/`
+  (`tests/test_the_change_verifier_is_not_in_the_benchmark_seal.py`). Leaving them out changed the seal once, so the
+  baseline above no longer compares. One new baseline is owed, run after the verifier items below.
   To build for F16, from the six rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked.

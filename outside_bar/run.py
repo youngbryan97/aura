@@ -50,10 +50,17 @@ def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+#: The change verifier and the watch it runs code under. They judge her changes and no result depends on them, so they
+#: are not sealed: tightening the verifier must not make the baseline unusable for comparisons. Her own drafts may not
+#: touch anything under outside_bar/ (HER_OWN_GOVERNANCE in core/agency/her_goal_at_work.py).
+JUDGES_HER_CHANGES = ("verify_change.py", "value_witness.py", "differential.py")
+
+
 def sealed_files() -> dict[str, Path]:
     """Every file the result depends on: this harness, the benchmarks' data and MATH-500's grader."""
     files = {f"outside_bar/{path.name}": path for path in sorted(HERE.iterdir())
-             if path.is_file() and path.suffix in (".py", ".json", ".md") and path.name != SEAL.name}
+             if path.is_file() and path.suffix in (".py", ".json", ".md") and path.name != SEAL.name
+             and path.name not in JUDGES_HER_CHANGES}
     files.update({f"data/{name}": path for name, path in DATA.items()})
     frozen = json.loads(PANEL.read_text(encoding="utf-8"))["domains"]
     for domain in ("blocksworld", "mystery_blocksworld"):
