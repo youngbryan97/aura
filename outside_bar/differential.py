@@ -284,7 +284,23 @@ def _short(outcome: str) -> str:
 
 def main() -> int:
     clock, alarm, home = time.perf_counter, signal.alarm, os.path.realpath(os.getcwd())
-    monitoring = sys.monitoring
+    monitoring, printing, relative, real = sys.monitoring, io.StringIO, os.path.relpath, os.path.realpath
+    writing_flags = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC
+    # Side effects a call leaves outside its value: what it printed, and the files it opened to write. Audited from here,
+    # which no code under test can remove, and only while a call runs.
+    wrote: list[str] = []
+    watching_writes: list[bool] = [False]
+
+    def audited(event: str, args: tuple[Any, ...]) -> None:
+        if not watching_writes[0] or event != "open" or len(args) < 3 or not isinstance(args[0], (str, bytes)):
+            return
+        path, mode, flags = args[0], args[1], args[2]
+        if (isinstance(mode, str) and any(letter in mode for letter in "wax+")) or (
+                isinstance(flags, int) and flags & writing_flags):
+            where = real(path if isinstance(path, str) else path.decode("utf-8", "replace"))
+            wrote.append(relative(where, home) if where.startswith(home) else "a file outside the checkout")
+
+    sys.addaudithook(audited)
     sys.path.insert(0, os.getcwd())
     signal.signal(signal.SIGALRM, _too_long)
     questions = _LOADS(sys.stdin)
@@ -318,6 +334,10 @@ def main() -> int:
         before, held_before = _shown(arguments), _shown(_state_of(made)) if made is not None else ""
         around_before = _held_around(path, made)
         monitoring.set_events(tool, monitoring.events.EXCEPTION_HANDLED)
+        printed, shown_to = printing(), sys.stdout
+        sys.stdout = printed
+        wrote.clear()
+        watching_writes[0] = True
         try:
             outcome = _shown(_finished(target(*(arguments[name] for name in placed), *star, **named, **keywords)))
         except TimeoutError:
@@ -325,7 +345,12 @@ def main() -> int:
         except BaseException as error:  # noqa: BLE001 - what it raised is what the call came to, an exit included
             outcome = _refusal(error, arguments, home)
         finally:
+            watching_writes[0] = False
             monitoring.set_events(tool, 0)
+            sys.stdout = shown_to
+        said = printed.getvalue()
+        outcome = outcome if not said else f"{outcome}; it printed {said[:200]!r}"
+        outcome = outcome if not wrote else f"{outcome}; it opened to write {sorted(set(wrote))[:5]}"
         after, held_after = _shown(arguments), _shown(_state_of(made)) if made is not None else ""
         outcome = outcome if after == before else f"{outcome}; its arguments became {after[:200]}"
         outcome = outcome if held_after == held_before else f"{outcome}; the object became {held_after[:200]}"

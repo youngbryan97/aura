@@ -7917,8 +7917,13 @@ needs her 27B free (her app down, or her app's own influence trials).
     around `len(s) == C`, `P` around `s.startswith(P)`. Round five added every input within three steps along two
     numbers; a relation with larger coefficients still needs inputs solved from the condition.
   - Require every changed line to run in some test, so dead code cannot be stuffed in to satisfy a count.
+    Built 19 November as a doubt: the test runs record each line the change wrote that compiles to code, and lines no
+    test ran are named (`lines_no_test_ran`) and put the change on probation. Every pinned verdict of the six
+    red-team rounds holds with all three items built that day (226 tests). A refusal is not earned yet: nothing
+    measured shows an honest mend never adds a line its tests do not reach.
   - Compare side effects too (printed output, files written). Globals and class state are compared and reset between
-    calls since round five.
+    calls since round five. Built 19 November: what a call printed, and the files it opened to write (seen by an audit
+    hook the code under test cannot remove), are part of what it came to on each side.
   - Run the code under judgment where it cannot reach the watch at all: a separate process that only receives calls and
     returns values, so forged records stop being possible. Code that behaves well only while watched is still possible
     against any check that runs it; only judging the change in her own running answers that.
@@ -7930,7 +7935,9 @@ needs her 27B free (her app down, or her app's own influence trials).
     November: runs that start on their own, and the replay. Latency and memory, and a guard test made
     from a change that survives, are still to build.
   - Return each refusal's counterexample as data (input, before, after, kind), so her repair search can narrow a patch in
-    one step instead of reading prose.
+    one step instead of reading prose. Built 19 November: the verdict carries `counterexamples`, one per input behind
+    a line it counted, with whether it counted as lost or as a doubt; a passing test's call comes as the watch keeps
+    it, as digests. Her repair search does not read them yet.
   - Keep a small corpus of real calls per function from her own running, and try them on every change to that function.
     Built 19 November (part 9 above).
   - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was

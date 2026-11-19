@@ -39,6 +39,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import types
 from collections import abc
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -95,22 +96,35 @@ _LOCK_KINDS = frozenset({"Lock", "RLock", "Semaphore", "BoundedSemaphore", "Cond
 _BOUNDARY = ('(version 1)(allow default){network}(deny file-write*)(allow file-write* (subpath "{checkout}") '
              '(subpath "{scratch}") (literal "/dev/null") (literal "/dev/zero") (regex #"^/dev/(tty|fd/)"))')
 #: Loaded at the start of every Python process a test starts, so a function a test runs in a child process counts as run.
+#: A code object holding a changed line has line events turned on when it first starts, and each changed line is written
+#: down the first time it runs, then left alone.
 _RAN = '''import sys
-def _watching(watched, folder):
+def _watching(watched, lines, folder):
     import os
+    def write(text):
+        try:
+            with open(os.path.join(folder, str(os.getpid())), "a", encoding="utf-8") as handle:
+                handle.write(text + "\\n")
+        except OSError:
+            pass
     def seen(code, _offset):
         if code.co_qualname in watched.get(code.co_filename, ()):
-            try:
-                with open(os.path.join(folder, str(os.getpid())), "a", encoding="utf-8") as handle:
-                    handle.write(code.co_filename + "::" + code.co_qualname + "\\n")
-            except OSError:
-                pass
+            write(code.co_filename + "::" + code.co_qualname)
+        wanted = lines.get(code.co_filename)
+        if wanted and any(number in wanted for _start, _end, number in code.co_lines()):
+            sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)
         return sys.monitoring.DISABLE
-    return seen
+    def line(code, number):
+        if number in lines.get(code.co_filename, ()):
+            write(code.co_filename + "#" + str(number))
+        return sys.monitoring.DISABLE
+    return seen, line
 sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage")
-sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, _watching({watched!r}, {folder!r}))
+_seen, _line = _watching({watched!r}, {{name: frozenset(numbers) for name, numbers in {lines!r}.items()}}, {folder!r})
+sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, _seen)
+sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line)
 sys.monitoring.set_events(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START)
-del _watching
+del _watching, _seen, _line
 sys.modules.pop("sitecustomize", None)
 '''
 
@@ -255,10 +269,12 @@ def _read_all(descriptor: int, into: list[str]) -> threading.Thread:
 
 
 def run_tests(checkout: Path, tests: Sequence[str], work: Path,
-              functions: Mapping[str, Sequence[str]] | None = None) -> dict[str, Any]:
-    """Each test's verdict and what the changed functions did, from a pytest run inside the boundary."""
+              functions: Mapping[str, Sequence[str]] | None = None,
+              lines: Mapping[str, Sequence[int]] | None = None) -> dict[str, Any]:
+    """Each test's verdict and what the changed functions did, from a pytest run inside the boundary. ``lines`` names,
+    for each file, the lines whose running is written down; ``lines_ran`` gives back those that ran."""
     empty: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": [], "ran": [], "finished": True,
-                             "whole": True, "ran_here": []}
+                             "whole": True, "ran_here": [], "lines_ran": []}
     if not tests:
         return empty
     token = secrets.token_hex(8)
@@ -266,12 +282,14 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
     for folder in (private, scratch, ran):
         folder.mkdir()
     watched = {os.path.realpath(checkout / name): list(names) for name, names in (functions or {}).items()}
+    watched_lines = {os.path.realpath(checkout / name): sorted(numbers) for name, numbers in (lines or {}).items() if numbers}
     read_end, write_end = os.pipe()
     config = json.dumps({"functions": watched, "pipe": write_end, "mark": token})
     plugin = (HERE / "value_witness.py").read_text(encoding="utf-8").replace(
         "CONFIG: dict[str, Any] = {}", f"CONFIG: dict[str, Any] = json.loads({config!r})")
     (private / f"run_{token}.py").write_text(plugin, encoding="utf-8")
-    (private / "sitecustomize.py").write_text(_RAN.format(watched=watched, folder=str(ran)), encoding="utf-8")
+    (private / "sitecustomize.py").write_text(_RAN.format(watched=watched, lines=watched_lines, folder=str(ran)),
+                                              encoding="utf-8")
     argv = _bounded([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", f"run_{token}", *tests],
                     checkout, scratch, network=True, also=ran)
     got: list[str] = []
@@ -320,9 +338,10 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
         names.update(lines)
         here.update(lines if path.name == process_id else ())
     known = {f"{where}::{function}" for where, functions_there in watched.items() for function in functions_there}
+    lines_known = {f"{where}#{number}" for where, numbers in watched_lines.items() for number in numbers}
     # A run that did not say it ended, or whose watch was replaced, is evidence of nothing, and its verdicts with it.
     return {**report, "ran": sorted(names & known), "ran_here": sorted(here & known), "finished": finished,
-            "whole": whole}
+            "whole": whole, "lines_ran": sorted(names & lines_known)}
 
 
 def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path) -> dict[str, Any]:
@@ -379,6 +398,27 @@ def _changed_lines(repo: Path, commit: str, name: str) -> set[int]:
         first, count = int(found.group(1)), int(found.group(2) or 1)
         lines.update(range(first, first + max(count, 1)))
     return lines
+
+
+def lines_it_wrote_that_run(repo: Path, commit: str, name: str) -> set[int]:
+    """The lines ``commit`` added or changed in ``name`` that compile to something that runs: a comment, a blank line or
+    a docstring asks nothing of a test."""
+    diff = git(repo, "diff", "-U0", f"{commit}^", commit, "--", name)
+    written: set[int] = set()
+    for found in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", diff, re.MULTILINE):
+        first, count = int(found.group(1)), int(found.group(2) if found.group(2) is not None else 1)
+        written.update(range(first, first + count))
+    try:
+        code = compile(shown_at(repo, commit, name), name, "exec")
+    except (SyntaxError, ValueError):
+        return set()
+    runnable: set[int] = set()
+    pending = [code]
+    while pending:
+        each = pending.pop()
+        runnable.update(number for _start, _end, number in each.co_lines() if number is not None)
+        pending.extend(constant for constant in each.co_consts if isinstance(constant, types.CodeType))
+    return written & runnable
 
 
 _FOLDS = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b,
@@ -980,13 +1020,34 @@ def _vouched(call: Mapping[str, Any], refusal: str, handled: Sequence[str],
     return verdict
 
 
+def difference(before: str, after: str | None) -> str:
+    """What kind of difference one call shows between the code before a change and the change."""
+    if after is None:
+        return "came to nothing"
+    if after == "took too long":
+        return "no longer finishes"
+    was, now = _raised(before), _raised(after)
+    if was and now:
+        return "another refusal"
+    return "a refusal gone" if was else "now raises" if now else "another value"
+
+
+def _counterexample(function: str, call: Any, before: str, after: str | None, counted: str) -> dict[str, Any]:
+    """One input the change treats differently, as data a repair search can read: what it was, what it came to on
+    each side, the kind of difference, and whether the check counted it as lost or as a doubt."""
+    return {"function": function, "input": call, "before": before, "after": after, "kind": difference(before, after),
+            "counted": counted}
+
+
 def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[str, Any],
            pinned: Mapping[str, Sequence[Mapping[str, Any]]], near_the_pinned: Mapping[str, set[str]] | None = None,
            recorded: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
            caught: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
-           constants: Mapping[str, Sequence[Any]] | None = None) -> tuple[list[str], list[str], bool]:
+           constants: Mapping[str, Sequence[Any]] | None = None,
+           shown_by: list[dict[str, Any]] | None = None) -> tuple[list[str], list[str], bool]:
     """(what the change demonstrably lost, what stands in doubt, whether its tests pin a new value for an input that already
-    had one), from what each input came to before and after.
+    had one), from what each input came to before and after. ``shown_by``, when given, gets a counterexample for each
+    input behind a line of the first two.
 
     ``pinned`` holds the calls the commit's own tests make: those it has said what they should do. ``recorded`` holds every
     call seen. ``caught`` holds, for each input, the exceptions the new code caught while answering it. ``constants``
@@ -995,12 +1056,14 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
     """
     lost, doubted = [], []
     any_respecified = False
+    shown_by = shown_by if shown_by is not None else []
     for name, results in before.items():
         now = after.get(name, {})
         handled = (caught or {}).get(name, {})
         steady = {key: value for key, value in results.items() if again.get(name, {}).get(key) == value
                   and value != "took too long" and not value.startswith("unavailable")}
         lost += [f"{name}: {key[:160]} came to nothing in the new code, whose run ended first" for key in steady if key not in now]
+        shown_by += [_counterexample(name, json.loads(key), value, None, "lost") for key, value in steady.items() if key not in now]
         steady = {key: value for key, value in steady.items() if key in now}
         shown = {_key(call): call for call in pinned.get(name, ())}
         seen = list(recorded.get(name, ())) if recorded else list(shown.values())
@@ -1016,12 +1079,15 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
                 continue
             call = json.loads(key)
             refused_with = _kind(_raised(value))
+            counted = ""
             if now[key] == "took too long":  # no test says a function should stop answering
                 lost.append(f"{name}: {key[:160]} was {value[:60]}, and now does not finish")
+                counted = "lost"
             elif not _raised(value):
                 # Its own test says an answer this function gave was wrong, so other answers may rightly change with it.
                 # A function that now gives one answer to everything is caught below whatever its test says.
                 (doubted if respecified else lost).append(f"{name}: {key[:160]} was {value[:60]}, now {now[key][:60]}")
+                counted = "doubt" if respecified else "lost"
             elif not _raised(now[key]):
                 spoken = _vouched(call, _raised(value), handled.get(key, ()), mends)
                 if spoken == "mended":
@@ -1029,9 +1095,13 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
                 else:
                     (doubted if spoken == "beyond" else lost).append(
                         f"{name}: {key[:160]} was refused with {refused_with}, now {now[key][:60]}")
+                    counted = "doubt" if spoken == "beyond" else "lost"
             elif _kind(_raised(now[key])) != refused_with and not _injected_none(call, seen):
                 crashed = _deliberate(refused_with) and not _deliberate(_kind(_raised(now[key])))
                 (lost if crashed else doubted).append(f"{name}: {key[:160]} was refused with {refused_with}, now {_raised(now[key])[:60]}")
+                counted = "lost" if crashed else "doubt"
+            if counted:
+                shown_by.append(_counterexample(name, call, value, now[key], counted))
         # A refusal its own code raised on purpose, gone from every input that had it while its test spoke for one: the
         # guard may be gone, not mended.
         gone = {refusal for refusal in excused if _kind(refusal).endswith(" by the code")
@@ -1059,6 +1129,9 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
                     lost.append(f"{name}: the fault still happens on {_key(near[0])[:160]}: {now[_key(near[0])][:60]}")
                 elif still:
                     doubted.append(f"{name}: the fault still happens on {_key(still[0])[:160]}: {now[_key(still[0])][:60]}")
+                for item, counted in ((near[:1], "lost"), (still[:1] if not near else [], "doubt")):
+                    shown_by += [{"function": name, "input": one, "before": steady[key], "after": now[_key(one)],
+                                  "kind": "the fault still happens", "counted": counted} for one in item]
     return sorted(set(lost)), sorted(set(doubted)), any_respecified
 
 
@@ -1138,7 +1211,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         guards = sorted({*tests_naming(new, [*files, *readers, *source_of], functions), *edited})
         present = [name for name in guards if (new / name).is_file()]
         first, second = run_tests(old, guards, work, functions), run_tests(old, guards, work, functions)
-        third = run_tests(new, present, work, functions)
+        written_lines = {name: sorted(lines_it_wrote_that_run(repo, commit, name)) for name in functions
+                         if name not in readers and name not in source_of}
+        third = run_tests(new, present, work, functions, written_lines)
         for name in edited:
             if (new / name).is_dir():
                 shutil.rmtree(new / name)
@@ -1153,7 +1228,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                        and not (as_written.get(node, False) and (new / node.split("::")[0]).is_file()))
         rewritten = sorted(node for node, passed in first["verdicts"].items() if passed and node.split("::")[0] in edited
                            and node not in broke and not as_written.get(node, False))
-        spec = run_tests(new, added, work, functions)
+        spec = run_tests(new, added, work, functions, written_lines)
         # The commit's own tests, asked of the code before it, with any helper file it added beside its tests.
         helpers = [name for name in files if not name.endswith(".py") or not functions.get(name)]
         helpers = [name for name in helpers if not _a_test_file(name) and (new / name).is_file() and not (old / name).exists()
@@ -1189,8 +1264,14 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
             [run["outcomes"] for run in runs], [run["seconds"] for run in runs]
         sources = [name for name in functions if _in_tree(repo, f"{commit}^", name)]
         before_after = {name: (shown_at(repo, f"{commit}^", name), shown_at(repo, commit, name)) for name in sources}
+        # A passing test's call, as the watch keeps it: its arguments and values as digests, so "as" says so.
+        shown_by: list[dict[str, Any]] = [
+            {"function": key.split("|")[1], "input": key.split("|", 3)[3] if key.count("|") >= 3 else key,
+             "test": key.split("|")[0], "before": steady[key], "after": third["values"][key], "as": "digests",
+             "kind": difference(steady[key], third["values"][key]), "counted": "lost"}
+            for key in changed if not key.endswith("|every call")]
         lost, doubts, respecified = judged(old_near, again_near, new_near, pinned, near_the_pinned, seeds, runs[2]["caught"],
-                                           {name: constants.get(name.split("::")[0], []) for name in near})
+                                           {name: constants.get(name.split("::")[0], []) for name in near}, shown_by)
         unlocked = sorted(f"{name}::{function}: {', '.join(sorted(shared))}" for name, (was, now) in before_after.items()
                           for function, (guarded, _) in writes_under_lock(was).items()
                           if (shared := guarded & writes_under_lock(now).get(function, (set(), set()))[1]))
@@ -1201,6 +1282,10 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                for item in {*third["ran"], *spec["ran"]}}
         unreached = sorted(f"{name}::{function}" for name, names in functions.items() for function in names
                            if f"{name}::{function}" not in ran and f"{name}::{function}" in direct)
+        lines_ran = {*third["lines_ran"], *spec["lines_ran"]}
+        unrun_lines = {name: [number for number in numbers if f"{os.path.realpath(new / name)}#{number}" not in lines_ran]
+                       for name, numbers in written_lines.items()}
+        unrun_lines = {name: numbers for name, numbers in unrun_lines.items() if numbers}
         # A function the commit did not edit, that only reads a name it changed, is a doubt when no test runs it.
         unread = sorted(f"{name}::{function}" for name, names in functions.items() for function in names
                         if f"{name}::{function}" not in ran and f"{name}::{function}" not in direct)
@@ -1239,6 +1324,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         doubts += [f"this function is reachable only from inside another, so no input of its own was tried: {name}" for name in nested]
         doubts += [f"a test ran this function, but no input of its own could be tried on both sides: {name}" for name in unexamined]
         doubts += [f"no test ran this function, which reads a name the commit changed: {name}" for name in unread]
+        # Code no test runs says nothing either way, and a line added only to be counted is such code.
+        doubts += [f"no test ran these lines it wrote in {name}: {', '.join(map(str, numbers[:20]))}"
+                   for name, numbers in sorted(unrun_lines.items())]
         if files and not first["verdicts"] and not spec["verdicts"]:
             doubts.append("no test ran anything this change touches")
         if slowdown.endswith("an order of magnitude"):
@@ -1249,6 +1337,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                   "functions": {name: names for name, names in functions.items() if names},
                   "near_inputs": sum(len(calls) for calls in near.values()), "changed": changed[:20],
                   "changed_near": lost[:20], "no_test_ran": unreached[:20],
+                  "lines_no_test_ran": {name: numbers[:20] for name, numbers in unrun_lines.items()},
                   "held": not changed and not lost}
         try:
             git(new, "-c", "user.name=outside-bar", "-c", "user.email=bar@localhost", "revert", "--no-edit", commit)
@@ -1264,7 +1353,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         refused = not all(answer["held"] for answer in answers.values())
         verdict = "REFUSED" if refused or must_fix else "PROBATION" if doubts else "HELD"
         return {"commit": commit, "files": files, "verdict": verdict, "held": verdict == "HELD",
-                "must_fix": must_fix[:20], "doubts": doubts[:20], **answers}
+                "must_fix": must_fix[:20], "doubts": doubts[:20], **answers,
+                # Every input behind a line above, as data: a repair search narrows a patch on these without reading prose.
+                "counterexamples": shown_by}
     finally:
         for checkout in (old, new):
             subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(checkout)], check=False,
