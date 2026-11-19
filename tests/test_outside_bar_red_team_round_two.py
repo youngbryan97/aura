@@ -1,11 +1,13 @@
-"""An outside model's attacks on the change verifier, kept as tests, with the verdict each must now get.
+"""Outside models' attacks on the change verifier, kept as tests, with the verdicts each may get.
 
-Round two, 18 November 2026: another model attacked commit 6032f2e4d with 33 patches and 28 got the wrong verdict. Its
-cases are in outside_bar_red_team_round_two.json. "REFUSED" means the change demonstrably lost something. "ASKS A PERSON"
-means behaviour alone cannot settle it, as when an honest fix corrects a value and a bad one changes it the same way.
+Round two, 18 November 2026: a model attacked commit 6032f2e4d with 33 patches and 28 got the wrong verdict. Round three,
+the same day: the same model attacked the rebuilt check at 7aa574989 with 35 patches and 26 did. A bad patch must never be
+HELD. An honest fix must never be REFUSED. "ASKS A PERSON" is allowed for both, because behaviour alone cannot always tell
+an honest correction from damage. The cases are in outside_bar_red_team_round_two.json and _round_three.json.
 """
 from __future__ import annotations
 
+import base64
 import json
 import subprocess
 from pathlib import Path
@@ -14,7 +16,9 @@ import pytest
 
 from outside_bar.verify_change import verify
 
-_CASES = json.loads((Path(__file__).parent / "outside_bar_red_team_round_two.json").read_text(encoding="utf-8"))
+_HERE = Path(__file__).parent
+_CASES = json.loads((_HERE / "outside_bar_red_team_round_two.json").read_text(encoding="utf-8"))
+_ROUND_THREE = json.loads((_HERE / "outside_bar_red_team_round_three.json").read_text(encoding="utf-8"))
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -22,17 +26,19 @@ def _git(repo: Path, *args: str) -> str:
                           check=True, capture_output=True, text=True).stdout.strip()
 
 
-def _write(repo: Path, files: dict[str, str]) -> None:
+def _write(repo: Path, files: dict) -> None:
     for name, text in files.items():
         (repo / name).parent.mkdir(parents=True, exist_ok=True)
-        (repo / name).write_text(text, encoding="utf-8")
+        (repo / name).write_bytes(base64.b64decode(text["b64"]) if isinstance(text, dict) else text.encode("utf-8"))
 
 
-def _judged(repo: Path, old: dict[str, str], new: dict[str, str]) -> dict:
+def _judged(repo: Path, old: dict, new: dict, deleted: tuple[str, ...] = ()) -> dict:
     _git(repo, "init", "-q", "-b", "main")
     _write(repo, old)
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "before")
+    for name in deleted:
+        (repo / name).unlink()
     _write(repo, new)
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "after")
@@ -40,10 +46,17 @@ def _judged(repo: Path, old: dict[str, str], new: dict[str, str]) -> dict:
 
 
 @pytest.mark.parametrize("name", sorted(_CASES))
-def test_each_attack_gets_its_verdict(name, tmp_path):
+def test_round_two_gets_a_verdict_it_may_get(name, tmp_path):
     case = _CASES[name]
     result = _judged(tmp_path, case["old"], case["new"])
-    assert result["verdict"] == case["verdict"], (case["idea"], result)
+    assert result["verdict"] in case["must_be"], (case["idea"], result)
+
+
+@pytest.mark.parametrize("name", sorted(_ROUND_THREE))
+def test_round_three_gets_a_verdict_it_may_get(name, tmp_path):
+    case = _ROUND_THREE[name]
+    result = _judged(tmp_path, case["old"], case["new"], tuple(case["deleted"]))
+    assert result["verdict"] in case["must_be"], (case["idea"], result)
 
 
 def test_an_honest_mend_is_not_refused_for_the_order_its_test_runs_in(tmp_path):

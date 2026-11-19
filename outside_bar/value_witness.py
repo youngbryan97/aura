@@ -23,7 +23,8 @@ _KEPT = 200
 #: The longest argument text kept as an input.
 _LONGEST_INPUT = 4096
 _ITERATES = inspect.CO_GENERATOR | inspect.CO_ASYNC_GENERATOR
-_TAKES_ANY = inspect.CO_VARARGS | inspect.CO_VARKEYWORDS
+#: How deep an object's parts are followed when it is written down as an input.
+_DEEPEST = 4
 
 _functions = {path: frozenset(names) for path, names in CONFIG.get("functions", {}).items()}
 _seen: dict[str, str] = {}
@@ -41,13 +42,39 @@ def _text(value: Any) -> str | None:
     return None if " at 0x" in text else hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:16]
 
 
+def state_of(made: Any) -> dict[str, Any]:
+    """The attributes an object holds, in ``__dict__`` or in slots."""
+    state = dict(getattr(made, "__dict__", None) or {})
+    for klass in type(made).__mro__:
+        slots = getattr(klass, "__slots__", ())
+        for name in (slots,) if isinstance(slots, str) else slots:
+            if name not in ("__dict__", "__weakref__") and hasattr(made, name):
+                state[name] = getattr(made, name)
+    return state
+
+
+def _rebuildable(value: Any, depth: int = 0) -> Any:
+    """``value`` as plain data another process can rebuild: an object becomes its class's name and its parts."""
+    if value is None or isinstance(value, (bool, int, float, str, bytes)):
+        return value
+    if depth > _DEEPEST or callable(value) or inspect.ismodule(value) or "<locals>" in type(value).__qualname__:
+        raise ValueError("not rebuildable")
+    if isinstance(value, (list, tuple, set)):
+        return type(value)(_rebuildable(item, depth + 1) for item in value)
+    if isinstance(value, dict):
+        return {_rebuildable(key, depth + 1): _rebuildable(item, depth + 1) for key, item in value.items()}
+    parts = {name: _rebuildable(item, depth + 1) for name, item in state_of(value).items()}
+    return ("__object__", type(value).__module__, type(value).__qualname__, parts)
+
+
 def _literal(value: Any) -> str | None:
-    """The text of a plain value that can be rebuilt from it, in another process."""
+    """The text of a value that can be rebuilt from it, in another process."""
     try:
-        text = repr(value)
-        return text if len(text) <= _LONGEST_INPUT and ast.literal_eval(text) == value else None
+        text = repr(_rebuildable(value))
+        ast.literal_eval(text)
     except Exception:  # noqa: BLE001 - any value that cannot be rebuilt is simply not kept as an input
         return None
+    return text if len(text) <= _LONGEST_INPUT else None
 
 
 def _named(code: Any) -> bool:
@@ -60,14 +87,14 @@ def _test() -> str:
 
 def _keep_the_input(code: Any, frame: Any, names: tuple[str, ...]) -> None:
     where = f"{code.co_filename}::{code.co_qualname}"
-    if "<locals>" in code.co_qualname or code.co_flags & _TAKES_ANY or len(_inputs.get(where, ())) >= _KEPT:
+    if "<locals>" in code.co_qualname or len(_inputs.get(where, ())) >= _KEPT:
         return
     call: dict[str, Any] = {"args": {}}
     for name in names:
         if name == "cls":
             continue
         if name == "self":
-            state = {key: _literal(value) for key, value in vars(frame.f_locals[name]).items()}
+            state = {key: _literal(value) for key, value in state_of(frame.f_locals[name]).items()}
             if None in state.values():
                 return
             call["self"] = state
@@ -76,6 +103,14 @@ def _keep_the_input(code: Any, frame: Any, names: tuple[str, ...]) -> None:
         if text is None:
             return
         call["args"][name] = text
+    at = len(names)
+    for flag, field, kind in ((inspect.CO_VARARGS, "star", list), (inspect.CO_VARKEYWORDS, "keywords", dict)):
+        if code.co_flags & flag:
+            text = _literal(kind(frame.f_locals[code.co_varnames[at]]))
+            if text is None:
+                return
+            call[field] = text
+            at += 1
     _inputs.setdefault(where, []).append(call)
 
 

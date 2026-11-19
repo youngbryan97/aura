@@ -7831,8 +7831,10 @@ needs her 27B free (her app down, or her app's own influence trials).
   Part 13, second round, the same day: another model attacked the check with 33 patches and 28 got the wrong verdict
   (27 reproduced). The check was rebuilt, and all 28 are tests in `tests/test_outside_bar_red_team_round_two.py`. None of
   the 23 bad patches is held now. Three honest fixes wait for a person, since behaviour alone cannot settle them. See
-  `docs/evidence/F16_RED_TEAM_ROUND_2_2026-11-18.md`. Still open: a case in her live running where an outside check
-  overrules her gate.
+  `docs/evidence/F16_RED_TEAM_ROUND_2_2026-11-18.md`. Part 13, third round: the same model tried 35 patches on the rebuilt
+  check and 26 got the wrong verdict, all reproduced. None of the 20 bad patches is held now, and five of six honest fixes
+  wait for a person. See `docs/evidence/F16_RED_TEAM_ROUND_3_2026-11-18.md`. Still open: a case in her live running where
+  an outside check overrules her gate, and an attacker other than this one model.
 
 ## Live session 2026-09-07: what the runtime showed
 
