@@ -5014,11 +5014,10 @@ def _mlx_worker_loop_endogenous_language_pathway(job, logger, logits_processors,
     from core.brain.llm.her_earlier_answer import install as hold_her_earlier_answer
 
     hold_her_earlier_answer(tokenizer, job, logits_processors)
+    from core.brain.llm.no_call_on_this_pass import install as open_no_call
 
-    # Foreground non-parametric memory (KV-cache-correct): the tap captures the
-    # hidden state the generation forward already computes, so the processor adds
-    # recall at O(1)/token — no O(n²) recompute. Off by default, fail-open, and
-    # only installed when the datastore is non-empty.
+    open_no_call(tokenizer, job, logits_processors)
+    # Foreground non-parametric memory: the tap captures the hidden state the forward pass already computes.
     _np_tap = None
     try:
         from core.brain.nonparametric_worker import maybe_build_foreground

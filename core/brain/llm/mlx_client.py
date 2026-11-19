@@ -4821,6 +4821,7 @@ def _build_the_generation_request(
         "prompt": prompt,
         "messages": kwargs.get("messages"),
         "tools": kwargs.get("tools"),
+        "writes_no_call": kwargs.get("writes_no_call") is True,
         "cognitive_mode": str(kwargs.get("cognitive_mode") or "").strip().lower(),
         # The shape the caller will parse, held by the decoder in the worker.
         "output_shape": _the_shape_named(kwargs),
@@ -11063,6 +11064,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 "",
                 messages=messages,
                 tools=native_tools,
+                writes_no_call=writes,
                 # What this turn may call, for budgeting, whichever protocol it speaks.
                 tool_budget_definitions=template_tools or None,
                 # A call is not a reply, and inheriting the reply's budget cut
@@ -11096,10 +11098,8 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # looked like a model that declined to call anything, when
                 # nothing had been generated at all.
                 #
-                # NOT under the clean-user-surface contract: its quality gate
-                # never passes a tool call, and the worker cleared 100 tokens
-                # ("no text survived to the caller"). A call reaches the parser
-                # as produced; the REPLY is judged later, on the reply.
+                # NOT under the clean-user-surface contract: its quality gate never passes a tool call.
+                # A call reaches the parser as produced; the REPLY is judged later, on the reply.
             )
             longest_pass_s = max(longest_pass_s, time.monotonic() - pass_began)
             if not raw or not raw.strip():
