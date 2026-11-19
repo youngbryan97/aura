@@ -3369,6 +3369,14 @@
       "scope": "<module>._written"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/measuring_her_on_probation.py",
+      "scope": "<module>.start_a_comparison_when_due"
+    },
+    {
       "callee": "<file_write_gateway>.write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6543,6 +6551,30 @@
       "count": 1,
       "path": "core/self_modification/growth_ladder.py",
       "scope": "<module>.GrowthLadder._save"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/her_real_calls.py",
+      "scope": "<module>._write"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/her_real_calls.py",
+      "scope": "<module>.judged_on_her_real_calls"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/her_real_calls.py",
+      "scope": "<module>.keep_her_real_calls"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -15417,6 +15449,22 @@
       "scope": "<module>._run_a_gate"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/agency/measuring_her_on_probation.py",
+      "scope": "<module>._read"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/agency/measuring_her_on_probation.py",
+      "scope": "<module>.start_a_comparison_when_due"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -16601,6 +16649,14 @@
       "scope": "<module>._run_the_test"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 2,
+      "path": "core/self_modification/her_real_calls.py",
+      "scope": "<module>._run"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -17426,6 +17482,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "9e5455af07d29261ea75de103ef758dbc14a51cfb42c92abf21596daa0b30571",
+  "inventory_sha256": "607618f12af6a7508e05709ff46790f802fda411fa21dda19419ef1bcb3dcf46",
   "schema_version": 1
 }

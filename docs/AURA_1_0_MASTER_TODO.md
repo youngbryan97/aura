@@ -7861,6 +7861,30 @@ needs her 27B free (her app down, or her app's own influence trials).
   into the code speaks for that input alone; changed names are followed into the modules that read them; locks are
   followed down every branch; the watch takes its library functions before the code under test loads. See
   `docs/evidence/F16_RED_TEAM_ROUND_6_2026-11-18.md`.
+  Part 10, the baseline, 19 November. `baseline-20261118-after-round-6` ran at 63c42e903 under seal b867894f, from
+  23:43 to 04:12, and is on the ledger. The session that started it died at 01:27, and its finisher resumed it at
+  01:29. Of 12 in each: Blocksworld 9, Mystery Blocksworld 10, MATH-500 9, BBEH Mini 0, and 10 facts kept across a
+  cold restart. Only 3 of the 20 panel misses are turns she answered, all in MATH-500: one answer is wrong, and in
+  two the reader found no final answer. In the other 17, every BBEH problem among them, her chat route ended without
+  an answer: 11 report `desktop_cognitive_engine_unavailable`, and 6 a quality or contract check that served a partial
+  draft or nothing. The BBEH replies with text stop inside their reasoning. Until that is mended, BBEH measures how
+  much room her turn has, and a change that only gives the turn more room will raise it.
+  Part 9, 19 November: probation is settled on her own real calls, and the comparison starts itself.
+  `core/self_modification/her_real_calls.py` keeps up to 200 calls of each function she may change next (a fault she
+  heard, her change on probation, a draft she offered), sampled evenly from her running and kept in her state, never
+  in the repository, which is public. To judge a change, a scratch clone gets one test per call under the change. Each
+  call is run twice on the code before it; a refusal both runs agree on is pinned, and a returned value is left to
+  the check, which refuses a change to it. Calls that raised a fault she heard from that function are a mend's to
+  change and are not pinned. Her yes asks it as a gate, and `settle_probation` takes a change back when it refuses.
+  Round six's A10, a port range deleted, landed on probation under the check alone and is refused on a real call of
+  -5 (`tests/test_her_real_calls_are_tried_on_her_changes.py`). `core/agency/measuring_her_on_probation.py` starts
+  the panel, the cold restart and the comparison when a change is on probation, a baseline exists under the current
+  seal, nothing else is measuring her, she is on the charger, and nobody has talked with her for as long as the
+  baseline took (`tests/test_her_change_on_probation_is_measured_on_its_own.py`). The run is handed to the system so
+  her shutdown and the cold restart do not end it.
+  The seal covers every `outside_bar/*.py`, the change verifier with them, and a comparison across seals is refused.
+  So every build item below that edits the verifier makes this baseline unusable. They will be done together, with
+  the verifier moved out of the seal (her drafts are already refused in `outside_bar/`), and one new baseline.
   To build for F16, from the six rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked.
@@ -7877,11 +7901,15 @@ needs her 27B free (her app down, or her app's own influence trials).
   - Settle probation by measurement: start outside benchmark runs on their own, record latency and memory with each
     change on probation, and turn a change that survives into a guard test. Rounds five and six left changes on
     probation that a benchmark asking only valid questions will not notice (a guard deleted, bad input turned into 0),
-    so settling must also replay her recorded real calls on the changed function.
+    so settling must also replay her recorded real calls on the changed function. Built 19
+    November: runs that start on their own, and the replay. Latency and memory, and a guard test made
+    from a change that survives, are still to build.
   - Return each refusal's counterexample as data (input, before, after, kind), so her repair search can narrow a patch in
     one step instead of reading prose.
   - Keep a small corpus of real calls per function from her own running, and try them on every change to that function.
-  - Still open from the reviewers: an attacker other than these two models, and the outside benchmark baseline itself.
+    Built 19 November (part 9 above).
+  - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was
+    recorded 19 November (part 10 above).
     Six rounds ran; the next attacker should be neither Hydrogen nor Argon.
 
 ## Live session 2026-09-07: what the runtime showed

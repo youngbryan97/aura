@@ -209,7 +209,7 @@ def _from_row(row: Any) -> HeardFault | None:
         call = dict(row["call"])
         call["keywords"] = tuple((str(key), str(value)) for key, value in call.get("keywords") or ())
         call["receiver_state"] = tuple((str(key), str(value)) for key, value in call.get("receiver_state") or ())
-        for name in ("positional", "below"):
+        for name in ("positional", "positional_names", "below"):
             call[name] = tuple(str(part) for part in call.get(name) or ())
         return HeardFault(call=FailedCall(**call), subsystem=str(row["subsystem"]), first_at=float(row["first_at"]),
                           last_at=float(row["last_at"]), times=int(row["times"]))

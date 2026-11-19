@@ -15,6 +15,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import concurrent.futures
+import dataclasses
 import inspect
 import subprocess
 import sys
@@ -51,6 +52,8 @@ class FailedCall:
     error_message: str
     #: Each parameter's value as Python source, in the order the function takes them.
     positional: tuple[str, ...] = ()
+    #: The names of those positional-only parameters, in the same order.
+    positional_names: tuple[str, ...] = ()
     keywords: tuple[tuple[str, str], ...] = ()
     star_args: str = ""
     star_kwargs: str = ""
@@ -86,6 +89,11 @@ def _hers(filename: str) -> str:
     if relative.suffix != ".py" or relative.parts[0] in _NOT_HERS or "site-packages" in relative.parts:
         return ""
     return relative.as_posix()
+
+
+def path_in_her_source(filename: str) -> str:
+    """Her source path for a code object's file, relative to her tree; "" when it is not hers."""
+    return _hers(filename)
 
 
 _PLAIN = (type(None), bool, int, float, str, bytes)
@@ -226,8 +234,24 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
     found = _innermost_frame_of_hers(error)
     if found is None:
         return "raised outside her source"
-    frame, line, path, below = found
+    frame, line, _path, below = found
+    call = a_call_written_back(frame, raised=True)
+    if isinstance(call, str):
+        return call
+    return dataclasses.replace(call, line=int(line or 0), error_type=f"{type(error).__module__}.{type(error).__qualname__}",
+                               error_message=str(error)[:500], below=below)
+
+
+def a_call_written_back(frame: FrameType, *, raised: bool = False) -> FailedCall | str:
+    """The call ``frame`` is running, written back as source a test can make again, or why it cannot be.
+
+    A fault's call is this with what it raised. Her calls that raised nothing are kept the same way, as inputs her
+    change verifier tries on both sides of a change (core/self_modification/her_real_calls.py).
+    """
     code = frame.f_code
+    path = _hers(code.co_filename)
+    if not path:
+        return "raised outside her source" if raised else "outside her source"
     module = str(frame.f_globals.get("__name__") or "")
     if not module or module == "__main__":
         return f"{path} runs as a script, not a module"
@@ -251,7 +275,7 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
         if name == leading and name in ("cls", "self"):
             continue
         if name not in values:
-            return f"{name} was not bound when {qualname} raised"
+            return f"{name} was not bound when {qualname} {'raised' if raised else 'started'}"
         source = _written_back(values[name])
         if source is None:
             return f"{name} is a {type(values[name]).__name__}, not a plain value"
@@ -260,18 +284,18 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
         module=module,
         qualname=qualname,
         file=path,
-        line=int(line or 0),
-        error_type=f"{type(error).__module__}.{type(error).__qualname__}",
-        error_message=str(error)[:500],
+        line=int(frame.f_lineno or 0),
+        error_type="",
+        error_message="",
         positional=tuple(written[name] for name in positional_only if name in written),
+        positional_names=tuple(name for name in positional_only if name in written),
         keywords=tuple((name, written[name]) for name in [*either, *keyword_only] if name in written),
         star_args=written.get(star_args, "") if star_args else "",
         star_kwargs=written.get(star_kwargs, "") if star_kwargs else "",
-        below=below,
         receiver_module=receiver.get("module", ""),
         receiver_class=receiver.get("class", ""),
         receiver_state=tuple(sorted((k, v) for k, v in receiver.items() if k not in ("module", "class"))),
     )
 
 
-__all__ = ["FailedCall", "the_call_that_failed", "where_it_was_raised"]
+__all__ = ["FailedCall", "a_call_written_back", "path_in_her_source", "the_call_that_failed", "where_it_was_raised"]

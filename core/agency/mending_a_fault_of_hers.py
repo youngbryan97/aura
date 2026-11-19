@@ -365,6 +365,33 @@ def _what_it_stalled_on_has_moved(record: Any, file: str, head: str) -> bool:
         or bool(changed & set(goals.tests_that_touch([file], root)))
 
 
+async def _keep_her_real_calls_of_what_she_may_change() -> None:
+    """Her real calls watched for each function she may change next, and what was kept so far written to her state."""
+    from core.self_modification.her_real_calls import keep_her_real_calls, watch_what_she_may_change
+
+    try:
+        await asyncio.to_thread(watch_what_she_may_change)
+        await keep_her_real_calls()
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        record_degradation("her_real_calls", exc, severity="warning",
+                           action="her real calls were not kept this cycle; her changes are judged without them")
+
+
+async def _start_an_outside_comparison_when_due() -> None:
+    """The outside benchmarks asked again while a change of hers is on probation, when nobody waits on her."""
+    from core.agency import her_goal_at_work as goals
+    from core.agency.measuring_her_on_probation import start_a_comparison_when_due
+
+    if goals.change_on_probation() is None:
+        return
+    try:
+        # It says when it starts one; why it did not is in what it returns.
+        await asyncio.to_thread(start_a_comparison_when_due)
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError) as exc:
+        record_degradation("measuring_her_on_probation", exc, severity="warning",
+                           action="no outside comparison was started; her change stays on probation")
+
+
 async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[dict[str, Any]]:
     """The most frequent fault she heard and has not tried as things now stand, mended: one a cycle, in her idle time.
 
@@ -379,6 +406,7 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     )
 
     await keep_what_was_heard()
+    await _keep_her_real_calls_of_what_she_may_change()
     # A mend undone in her running process (it faulted after it was loaded) comes back out of her source first.
     taken_back = []
     for slug in dict.fromkeys([*mends_undone(), *goals.mends_undone_on_record()]):
@@ -386,9 +414,11 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
                                                                   "loaded, so it was undone there")
         taken_back.append({"slug": slug, "status": "taken back" if done.get("ok") else "not taken back",
                            "why": done.get("why") or done.get("revert", "")})
-    taken_back += goals.settle_probation()
+    # Off her loop: settling can run the outside check over her real calls, which takes minutes.
+    taken_back += await asyncio.to_thread(goals.settle_probation)
     if taken_back:
         return taken_back
+    await _start_an_outside_comparison_when_due()
     heard = faults_heard()
     head = await asyncio.to_thread(goals.source_head) if heard else ""
     for fault in heard:

@@ -515,6 +515,8 @@ async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
 HER_OWN_GOVERNANCE = (
     "outside_bar/",
     "core/agency/the_outside_bar.py",
+    "core/self_modification/her_real_calls.py",
+    "core/agency/measuring_her_on_probation.py",
     "core/self_modification/mutation_tiers.py",
     "core/runtime/state_ownership.py",
     "core/governance/",
@@ -553,18 +555,60 @@ def change_on_probation() -> GoalRecord | None:
 
 
 def settle_probation() -> list[dict[str, Any]]:
-    """What the outside benchmarks decided about the change on probation: it stays once they hold, and comes back out if
-    they fall."""
+    """What the outside benchmarks and her own real calls decided about the change on probation: it stays once the
+    benchmarks hold and her calls of what it changed lose nothing, and comes back out if either says otherwise.
+
+    The benchmarks ask only valid questions, so a guard deleted or bad input turned into 0 passes them (rounds five and
+    six of the red team). Her real calls of the changed functions, kept while she runs, are tried on the code before it
+    and on it by the outside check, whenever they have changed since they were last tried. Blocking: run it off her
+    event loop."""
     standing = change_on_probation()
-    verdicts = verdicts_since(float(standing.offer.get("merged_at") or 0.0)) if standing is not None else []
-    if standing is None or not verdicts:
+    if standing is None:
         return []
+    verdicts = verdicts_since(float(standing.offer.get("merged_at") or 0.0))
     if "REGRESSED" in verdicts:
         done = take_it_back(standing.slug, "the outside benchmarks fell while it was on probation")
         return [{"slug": standing.slug, "status": "taken back" if done.get("ok") else "not taken back", "why": done.get("why", "")}]
+    tried = _tried_on_her_real_calls(standing)
+    if tried.get("verdict") == "REFUSED":
+        # What the calls were stays in her record: they carry what people said to her, and her source is public.
+        done = take_it_back(standing.slug, "her own real calls of what it changed came to something else on it")
+        return [{"slug": standing.slug, "status": "taken back" if done.get("ok") else "not taken back", "why": done.get("why", "")}]
+    if not verdicts:
+        return []
     standing.offer = {**standing.offer, "probation_over": time.time()}
     _write_now(standing)
     return [{"slug": standing.slug, "status": "kept after probation", "why": ""}]
+
+
+def _tried_on_her_real_calls(standing: GoalRecord) -> dict[str, Any]:
+    """The outside check's verdict on the standing change over her real calls of what it changed, when those calls
+    are not the ones it was last tried on; {} otherwise. The verdict and what it said are kept on her record."""
+    from core.self_modification.her_real_calls import (
+        functions_a_commit_changed,
+        judged_on_her_real_calls,
+        sample_digest,
+        where_her_real_calls_are_kept,
+    )
+
+    commit, root = str(standing.offer.get("commit") or ""), source_root()
+    path = where_her_real_calls_are_kept()
+    try:
+        corpus = json.loads(path.read_text(encoding="utf-8")) if commit and path.exists() else {}
+    except (OSError, ValueError) as exc:
+        record_degradation("her_goal_at_work", exc, severity="warning",
+                           action="her real calls could not be read, so probation is settled without them")
+        return {}
+    digest = sample_digest(corpus, functions_a_commit_changed(root, commit)) if corpus else ""
+    if not digest or digest == standing.offer.get("real_calls_tried"):
+        return {}
+    tried = judged_on_her_real_calls(root, commit, corpus)
+    standing.offer = {**standing.offer, "real_calls_tried": digest,
+                      "real_calls_verdict": {key: tried.get(key) for key in ("verdict", "calls", "functions", "said")}}
+    _write_now(standing)
+    logger.info("🛠️ her change '%s' on probation, tried on %s real call(s) of hers: %s", standing.goal[:60],
+                tried.get("calls", 0), tried.get("verdict") or "not judged")
+    return tried
 
 
 def take_it_herself(slug: str) -> dict[str, Any]:
@@ -593,7 +637,7 @@ def take_it_herself(slug: str) -> dict[str, Any]:
         logger.warning("🛠️ her draft for '%s' did not pass %s; it is hers to mend", record.goal[:60], failed)
         return {"ok": False, "why": f"{failed} failed", "gates": gates}
     # A change her checks cannot settle lands on probation, one at a time, and no person is asked (Bryan, 18 November 2026).
-    doubted = "on probation:" in str((gates.get("outside-check") or {}).get("tail") or "")
+    doubted = any("on probation:" in str((gates.get(name) or {}).get("tail") or "") for name in ("outside-check", "her-real-calls"))
     standing = change_on_probation()
     if doubted and standing is not None:
         logger.info("🛠️ her draft for '%s' waits: '%s' is still on probation", record.goal[:60], standing.goal[:60])
@@ -645,8 +689,9 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
 
     Her check_draft runs the test files her draft changed or named, so a draft that changed only a module and named no
     test passed on its compile and lint alone. Before she takes one herself it now passes the tests that name each
-    module it changed, the smoke suite, lint, layering, the writing gate, the governance lint and the DEPS check. They
-    run in the order given and stop at the first that fails. Bryan's yes is his own judgment and asks none.
+    module it changed, the smoke suite, lint, layering, the writing gate, the governance lint and the DEPS check, then
+    the outside check, alone and again over her real calls of what the draft changes. They run in the order given and
+    stop at the first that fails. Bryan's yes is his own judgment and asks none.
     """
     import os
     import sys
@@ -671,10 +716,13 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     if record.offer.get("commit") and outside.exists():
         gates.append(("outside-check", ["nice", "-n", "10", sys.executable, str(outside), "--repo", str(workspace),
                                         "--commit", str(record.offer["commit"])]))
+        # And the same check over her real calls of what the draft changes, by the code she runs, not her draft's.
+        gates.append(("her-real-calls", ["nice", "-n", "10", sys.executable, "-m", "core.self_modification.her_real_calls",
+                                         "judge", "--repo", str(workspace), "--commit", str(record.offer["commit"])]))
     results: dict[str, dict[str, Any]] = {}
     for name, argv in gates:
         started = time.time()
-        passed, tail = _run_a_gate(argv, cwd=workspace, env=env)
+        passed, tail = _run_a_gate(argv, cwd=source_root() if name == "her-real-calls" else workspace, env=env)
         results[name] = {"passed": passed, "seconds": round(time.time() - started, 1), "tail": tail,
                          **({"files": len(tests)} if name == "tests" else {})}
         if not passed:
