@@ -7839,6 +7839,26 @@ needs her 27B free (her app down, or her app's own influence trials).
   lands on probation, one at a time. It stays once the outside benchmarks hold and is taken back if they fall. Over the 54
   attacks of rounds two and three: of 43 bad patches 35 are refused, 8 land on probation and none is held; of 11 honest
   fixes 2 are held, 6 land on probation and 3 go back to her to mend. Left: outside benchmark runs that start on their own.
+  Part 13, fourth round, 18 November, by a second model (Argon): 36 patches on 3548f37f0, 28 got the wrong verdict, all
+  28 reproduced. The check now streams what it sees the moment it happens, reads frame access by attribute name on any
+  object and through ``from ... import``, names both checkouts after the repository, judges a lost refusal by which side
+  of its line the input sits on, refuses a crash where a named refusal was, refuses a function that collapses to one
+  answer and a slowdown of ten times or more, and refuses a commit that cannot be checked out. Every attack of rounds two
+  to four is a test. Evidence: `~/.aura/rlc-evidence/red-team-round-4-20261118/`.
+  To build for F16, from the four rounds and the outside reviewers. Each closes a gap the check still has:
+  - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
+    locks, files, sockets or C state can then be checked.
+  - Make inputs from the changed conditions themselves: each side of `x < C`, both solutions of `x + y == C`, lengths
+    around `len(s) == C`, `P` around `s.startswith(P)`.
+  - Require every changed line to run in some test, so dead code cannot be stuffed in to satisfy a count.
+  - Compare side effects too (printed output, files written, globals touched), and reset globals between calls.
+  - Probe shared state with several threads and forced switches, instead of counting `with` blocks.
+  - Settle probation by measurement: start outside benchmark runs on their own, record latency and memory with each
+    change on probation, and turn a change that survives into a guard test.
+  - Return each refusal's counterexample as data (input, before, after, kind), so her repair search can narrow a patch in
+    one step instead of reading prose.
+  - Keep a small corpus of real calls per function from her own running, and try them on every change to that function.
+  - Still open from the reviewers: an attacker other than these two models, and the outside benchmark baseline itself.
 
 ## Live session 2026-09-07: what the runtime showed
 

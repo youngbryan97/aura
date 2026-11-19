@@ -20,12 +20,13 @@ it goes to a person. Code built to detect the check by other means can still go 
 inside the process being tested.
 
 The result is one JSON object on stdout, then a line in words when the commit did not hold. The exit code is 1 when it did
-was refused. Only a commit the machine could not check out exits 0 unjudged: a commit that breaks the check does not pass it.
+was refused, and 2 when the repository or the commit could not be found. A commit that breaks the check does not pass it.
 """
 from __future__ import annotations
 
 import argparse
 import ast
+import builtins
 import itertools
 import json
 import math
@@ -51,31 +52,41 @@ NEAR_INPUTS = 200
 ALPHA = 0.05
 #: The added time per call below which a slowdown is not reported: a branch costs nanoseconds, and nobody waits on those.
 NOTICEABLE_SECONDS = 0.001
+#: A slowdown this many times over is a loss, not a doubt: nobody waits ten times as long and calls it the same function.
+ORDER_OF_MAGNITUDE = 10
 #: Files that decide how tests are collected and run. A commit that changes them changes the judge.
 _MACHINERY = frozenset({"conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml", ".coveragerc",
                         "sitecustomize.py", "noxfile.py"})
-#: What in the interpreter a commit's code has no ordinary reason to read: the frames, hooks and raw exits a test run stands on.
-_THE_INTERPRETER_ITSELF = frozenset({"sys._getframe", "sys.monitoring", "sys.settrace", "sys.setprofile", "sys.addaudithook",
-                                     "gc.get_objects", "gc.get_referrers", "inspect.currentframe", "inspect.stack", "os._exit"})
+#: What in the interpreter a commit's code has no ordinary reason to read: the frames, hooks, module table and raw exits a
+#: test run stands on, by attribute name on any object, so ``exc.__traceback__.tb_frame`` counts as ``sys._getframe`` does.
+_THE_INTERPRETER_ITSELF = frozenset({"_getframe", "_current_frames", "monitoring", "settrace", "setprofile", "addaudithook",
+                                     "get_objects", "get_referrers", "currentframe", "stack", "_exit", "tb_frame", "f_back",
+                                     "f_locals", "f_globals", "f_builtins", "gi_frame", "cr_frame", "ag_frame", "modules"})
+#: The modules those names come from, for ``from sys import monitoring`` and its kind.
+_THE_INTERPRETERS_MODULES = frozenset({"sys", "os", "inspect", "gc", "sitecustomize", "ctypes"})
 #: The constructors of what holds threads apart.
 _LOCK_KINDS = frozenset({"Lock", "RLock", "Semaphore", "BoundedSemaphore", "Condition", "checked_lock", "checked_async_lock"})
 #: What code under test may do: write only in its own checkout and scratch folder.
 _BOUNDARY = ('(version 1)(allow default){network}(deny file-write*)(allow file-write* (subpath "{checkout}") '
              '(subpath "{scratch}") (literal "/dev/null") (literal "/dev/zero") (regex #"^/dev/(tty|fd/)"))')
 #: Loaded at the start of every Python process a test starts, so a function a test runs in a child process counts as run.
-_RAN = '''import os, sys
-_W, _D = {watched!r}, {folder!r}
-def _s(code, _o):
-    if code.co_qualname in _W.get(code.co_filename, ()):
-        try:
-            with open(os.path.join(_D, str(os.getpid())), "a", encoding="utf-8") as h:
-                h.write(code.co_filename + "::" + code.co_qualname + "\\n")
-        except OSError:
-            pass
-    return sys.monitoring.DISABLE
+_RAN = '''import sys
+def _watching(watched, folder):
+    import os
+    def seen(code, _offset):
+        if code.co_qualname in watched.get(code.co_filename, ()):
+            try:
+                with open(os.path.join(folder, str(os.getpid())), "a", encoding="utf-8") as handle:
+                    handle.write(code.co_filename + "::" + code.co_qualname + "\\n")
+            except OSError:
+                pass
+        return sys.monitoring.DISABLE
+    return seen
 sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage")
-sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, _s)
+sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, _watching({watched!r}, {folder!r}))
 sys.monitoring.set_events(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START)
+del _watching
+sys.modules.pop("sitecustomize", None)
 '''
 
 
@@ -91,7 +102,12 @@ def shown_at(repo: Path, commit: str, name: str) -> bytes:
 
 
 class CouldNotStart(Exception):
-    """The commit could not be checked out, so nothing about it was judged."""
+    """The repository or the commit could not be found, so nothing about it was judged."""
+
+
+class UncheckableCommit(Exception):
+    """The commit exists but cannot be checked out cleanly beside its parent: it has no parent, or its tree cannot be
+    written to disk. That is a fault of the commit, and it is refused."""
 
 
 def changed_files(repo: Path, commit: str) -> list[str]:
@@ -141,8 +157,9 @@ def _modules_that_hand_it_on(checkout: Path, name: str, dotted: str) -> list[str
             continue
         brought = {alias.asname or alias.name for node in tree.body if isinstance(node, ast.ImportFrom)
                    and (node.module or "").endswith(dotted.rsplit(".", 1)[-1]) for alias in node.names}
-        used = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)}
-        if brought and not brought & used:
+        inside = {node.id for definition in ast.walk(tree) if isinstance(definition, (ast.FunctionDef, ast.AsyncFunctionDef,
+                  ast.ClassDef)) for node in ast.walk(definition) if isinstance(node, ast.Name)}
+        if brought and not brought & inside:  # handed on as they are, or listed at module level, never used inside
             out.append(path[:-3].removesuffix("/__init__").replace("/", "."))
     return out
 
@@ -221,12 +238,27 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
         process.kill()
         process.wait()
     reader.join(timeout=30)
-    try:
-        report = json.loads(got[0]) if got else {}
-    except ValueError:
-        report = {}
-    if report.get("mark") != token:
-        return empty
+    report: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}}
+    finished = False
+    for line in "".join(got).splitlines():
+        try:
+            mark, kind, *rest = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if mark != token:
+            continue
+        if kind == "verdict":
+            report["verdicts"].setdefault(rest[0], bool(rest[1]))  # the first word on a test is the one kept
+        elif kind == "value":
+            report["values"].setdefault(rest[0], rest[1])
+        elif kind == "every":
+            report["values"][rest[0]] = rest[1]  # a running digest: its last value covers every call
+        elif kind == "input":
+            report["inputs"].setdefault(rest[0], []).append(rest[1])
+        elif kind == "done":
+            finished = True
+    if not finished:
+        report["values"], report["inputs"] = {}, {}
     names: set[str] = set()
     for path in ran.iterdir():
         try:
@@ -307,8 +339,21 @@ def changed_functions(repo: Path, commit: str, name: str) -> list[str]:
     tree = ast.parse(shown_at(repo, commit, name))
     assignments = (ast.Assign, ast.AnnAssign, ast.AugAssign)
     def assigned(body: Sequence[ast.stmt]) -> set[str]:
-        return {target.id for statement in body if isinstance(statement, assignments) and lines & _span(statement)
-                for target in ast.walk(statement) if isinstance(target, ast.Name) and isinstance(target.ctx, ast.Store)}
+        out = set()
+        for statement in body:
+            if not lines & _span(statement):
+                continue
+            if isinstance(statement, assignments):
+                for target in ast.walk(statement):
+                    if isinstance(target, (ast.Name, ast.Subscript, ast.Attribute)) and isinstance(target.ctx, ast.Store):
+                        base = target
+                        while isinstance(base, (ast.Subscript, ast.Attribute)):
+                            base = base.value
+                        out.update([base.id] if isinstance(base, ast.Name) else [])
+            elif isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call) \
+                    and isinstance(statement.value.func, ast.Attribute) and isinstance(statement.value.func.value, ast.Name):
+                out.add(statement.value.func.value.id)  # RATES.update(...)
+        return out
 
     touched = assigned(tree.body)
     attributes = {name for node in ast.walk(tree) if isinstance(node, ast.ClassDef) for name in assigned(node.body)}
@@ -324,9 +369,13 @@ def changed_functions(repo: Path, commit: str, name: str) -> list[str]:
                 walk(child, f"{prefix}{child.name}.<locals>.")
             elif isinstance(child, ast.ClassDef):
                 walk(child, f"{prefix}{child.name}.")
+            elif isinstance(child, ast.Lambda) and lines & _span(child):
+                names.append(f"{prefix}<lambda>")
+            else:
+                walk(child, prefix)
 
     walk(tree, "")
-    return names
+    return list(dict.fromkeys(names))
 
 
 def _dotted(node: ast.AST) -> str:
@@ -338,11 +387,24 @@ def _dotted(node: ast.AST) -> str:
 
 
 def reaches_into_the_interpreter(repo: Path, commit: str, name: str) -> list[str]:
-    """Where the lines a commit added read the frames, hooks or raw exits of the process they run in."""
+    """Where the lines a commit added read the frames, hooks, module table or raw exits of the process they run in: by
+    attribute, by ``from ... import``, by importing the run's own start-up module, or by naming one to getattr."""
     lines = _changed_lines(repo, commit, name)
-    tree = ast.parse(shown_at(repo, commit, name))
-    return sorted({f"{name}:{node.lineno}: {_dotted(node)}" for node in ast.walk(tree) if isinstance(node, ast.Attribute)
-                   and node.lineno in lines and _dotted(node) in _THE_INTERPRETER_ITSELF})
+    found = set()
+    for node in ast.walk(ast.parse(shown_at(repo, commit, name))):
+        if getattr(node, "lineno", 0) not in lines:
+            continue
+        if isinstance(node, ast.Attribute) and node.attr in _THE_INTERPRETER_ITSELF:
+            found.add(f"{name}:{node.lineno}: {_dotted(node) or node.attr}")
+        elif isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] in _THE_INTERPRETERS_MODULES:
+            found.update(f"{name}:{node.lineno}: from {node.module} import {alias.name}" for alias in node.names
+                         if alias.name in _THE_INTERPRETER_ITSELF or alias.name == "*" or node.module in ("sitecustomize", "ctypes"))
+        elif isinstance(node, ast.Import):
+            found.update(f"{name}:{node.lineno}: import {alias.name}" for alias in node.names
+                         if alias.name.split(".")[0] in ("sitecustomize", "ctypes"))
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in _THE_INTERPRETER_ITSELF:
+            found.add(f"{name}:{node.lineno}: the name {node.value!r}")
+    return sorted(found)
 
 
 def _locks_held(source: bytes) -> dict[str, int]:
@@ -353,20 +415,22 @@ def _locks_held(source: bytes) -> dict[str, int]:
              and (getattr(node.value.func, "attr", "") in _LOCK_KINDS or getattr(node.value.func, "id", "") in _LOCK_KINDS)
              for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
              if isinstance(target, (ast.Name, ast.Attribute))}
+    builtin = set(dir(builtins))
+
+    def guards_work(node: ast.AST) -> bool:
+        if isinstance(node, (ast.Attribute, ast.Subscript, ast.Global, ast.Nonlocal)):
+            return True
+        return isinstance(node, ast.Call) and getattr(node.func, "id", None) not in builtin
     held: dict[str, int] = {}
     for function in ast.walk(tree):
         if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # A block counts when it guards something shared: ``with lock: pass`` guards nothing, nor does arithmetic.
             count = sum(1 for node in ast.walk(function) if isinstance(node, (ast.With, ast.AsyncWith)) for item in node.items
-                        if (getattr(item.context_expr, "id", "") in locks or getattr(item.context_expr, "attr", "") in locks))
+                        if (getattr(item.context_expr, "id", "") in locks or getattr(item.context_expr, "attr", "") in locks)
+                        and any(guards_work(inner) for statement in node.body for inner in ast.walk(statement)))
             if count:
                 held[function.name] = count
     return held
-
-
-def _raises(source: bytes) -> dict[str, int]:
-    """How many ``raise`` statements each function holds."""
-    return {node.name: sum(isinstance(item, ast.Raise) for item in ast.walk(node)) for node in ast.walk(ast.parse(source))
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
 
 
 def _like_it(value: Any) -> list[list[Any]]:
@@ -386,12 +450,17 @@ def _like_it(value: Any) -> list[list[Any]]:
 
 
 def _moved_together(call: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """The call with every number moved by the same step, for a fault that lies in how two numbers relate."""
+    """The call with its numbers moved together, for a fault in how two numbers relate: every one by the same step, the
+    first two by opposite steps (which keeps their sum), and every one doubled (which keeps their ratio)."""
     numbers = {name: ast.literal_eval(text) for name, text in call["args"].items()}
     numbers = {name: value for name, value in numbers.items() if isinstance(value, (int, float)) and not isinstance(value, bool)}
     if len(numbers) < 2:
         return []
-    return [{**call, "args": {**call["args"], **{name: repr(value + step) for name, value in numbers.items()}}} for step in (1, 2)]
+    first, second = list(numbers)[:2]
+    moves = [{name: value + step for name, value in numbers.items()} for step in (1, 2)]
+    moves += [{first: numbers[first] + step, second: numbers[second] - step} for step in (1, 2)]
+    moves += [{name: value * 2 for name, value in numbers.items()}]
+    return [{**call, "args": {**call["args"], **{name: repr(value) for name, value in move.items()}}} for move in moves]
 
 
 def _beside_it(value: Any) -> list[Any]:
@@ -440,7 +509,9 @@ def _changed_at(call: Mapping[str, Any], where: tuple[str, ...], value: Any) -> 
 def _near_one(call: Mapping[str, Any], constants: Sequence[Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = [dict(call), *_moved_together(call)]
     for where, value in _inside(call):
-        others = [*(item for item in constants if type(item) is type(value)), *itertools.chain(*_like_it(value)),
+        bounds = [edge for item in constants if type(item) is type(value) and isinstance(item, (int, float))
+                  and not isinstance(item, bool) for edge in (item - 1, item + 1)]
+        others = [*(item for item in constants if type(item) is type(value)), *bounds, *itertools.chain(*_like_it(value)),
                   *_beside_it(value), None]
         out += [_changed_at(call, where, other) for other in others]
     return out
@@ -451,8 +522,8 @@ def inputs_near(calls: Sequence[Mapping[str, Any]], constants: Sequence[Any] = (
     """The calls the commit's own tests pin and what lies near them come first, so a long test suite cannot crowd them out.
     Then the other recorded calls and what lies near them, an argument taken from another call, and a member of a table
     or list passed beside it."""
-    out: list[dict[str, Any]] = [item for call in pinned for item in _near_one(call, constants)]
-    out += [item for call in calls for item in _near_one(call, constants)]
+    own = list({_key(item): item for call in pinned for item in _near_one(call, constants)}.values())[:NEAR_INPUTS // 2]
+    out: list[dict[str, Any]] = [*own, *(item for call in calls for item in _near_one(call, constants))]
     for call, other in itertools.product(calls, calls):
         out += [{**call, "args": {**call["args"], name: other["args"][name]}} for name in call["args"] if name in other["args"]]
     for call in calls:
@@ -474,41 +545,95 @@ def _kind(refusal: str) -> str:
     return refusal.removeprefix("raised ").split(":", 1)[0]
 
 
-def _given_none(key: str) -> bool:
-    return any(value is None for _, value in _inside(json.loads(key)))
+#: Exceptions that say the code broke, not that it refused: an input once refused by name that now crashes one of these was
+#: lost. Python's own meaning of the builtins, not a list of words.
+_CRASHES = frozenset({"ZeroDivisionError", "ArithmeticError", "OverflowError", "FloatingPointError", "AttributeError",
+                      "TypeError", "NameError", "UnboundLocalError", "RecursionError", "AssertionError", "IndexError",
+                      "NotImplementedError", "SystemError"})
+
+
+def _domain(value: Any) -> str:
+    """Which side of a line an input sits on: the sign of a number, an empty text or a filled one, a container's kind."""
+    if value is None or isinstance(value, bool):
+        return repr(value)
+    if isinstance(value, (int, float)):
+        return "negative" if value < 0 else "zero" if value == 0 else "positive"
+    if isinstance(value, (str, bytes)):
+        return f"{type(value).__name__}:{'empty' if not value else 'filled'}"
+    return type(value).__name__ if not _an_object(value) else f"object:{value[2]}"
+
+
+def _injected_none(call: Mapping[str, Any], recorded: Sequence[Mapping[str, Any]]) -> bool:
+    """Whether a None in this input was put there by the check, where no recorded call ever had one."""
+    nones = {where for where, value in _inside(call) if value is None}
+    return bool(nones - {where for seed in recorded for where, value in _inside(seed) if value is None})
+
+
+def _same_side(mine: Any, theirs: Any) -> bool:
+    """Two values on the same side of a line. Zero borders both signs, so it sits with either."""
+    if mine is None:
+        return True
+    ours = {_domain(mine), _domain(theirs)}
+    return len(ours) == 1 or (ours <= {"negative", "zero", "positive"} and "zero" in ours)
+
+
+def _mended_alike(call: Mapping[str, Any], kind: str, mended: Sequence[tuple[str, Mapping[str, Any]]]) -> bool:
+    """Whether an input whose refusal is gone sits where the commit's own test mended a refusal of that kind: every place it
+    differs from that test's input lies on the same side of its line, or holds a None the check put there."""
+    mine = dict(_inside(call))
+    for refused_with, shown in mended:
+        theirs = dict(_inside(shown))
+        if refused_with == kind and all(_same_side(mine.get(where), value) for where, value in theirs.items()
+                                        if mine.get(where) != value):
+            return True
+    return False
 
 
 def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[str, Any],
-           pinned: Mapping[str, Sequence[Mapping[str, Any]]],
-           gave_up_a_raise: Sequence[str] = ()) -> tuple[list[str], list[str], bool]:
-    """(what the change demonstrably lost, what a person has to settle, whether its tests pin a new value for an input that
-    already had one), from what each input came to before and after.
+           pinned: Mapping[str, Sequence[Mapping[str, Any]]], near_the_pinned: Mapping[str, set[str]] | None = None,
+           recorded: Mapping[str, Sequence[Mapping[str, Any]]] | None = None) -> tuple[list[str], list[str], bool]:
+    """(what the change demonstrably lost, what stands in doubt, whether its tests pin a new value for an input that already
+    had one), from what each input came to before and after.
 
-    ``pinned`` holds the calls the commit's own tests make: those it has said what they should do. ``gave_up_a_raise`` names
-    the functions it took a ``raise`` out of.
+    ``pinned`` holds the calls the commit's own tests make: those it has said what they should do. ``near_the_pinned`` holds
+    the inputs made from those calls, the only ones a new value it pins can speak for. ``recorded`` holds every call seen.
     """
-    lost, ask = [], []
+    lost, doubted = [], []
     any_respecified = False
     for name, results in before.items():
         now = after.get(name, {})
         steady = {key: value for key, value in results.items() if again.get(name, {}).get(key) == value and key in now
                   and value != "took too long" and not value.startswith("unavailable")}
         shown = {_key(call): call for call in pinned.get(name, ())}
-        mended = {_raised(steady[key]) for key in shown if key in steady and _raised(steady[key]) and not _raised(now[key])}
+        seen = list(recorded.get(name, ())) if recorded else list(shown.values())
+        mended = [(_kind(_raised(steady[key])), call) for key, call in shown.items()
+                  if key in steady and _raised(steady[key]) and not _raised(now[key])]
+        told_apart = {_raised(steady[key]) for key in shown if key in steady and _raised(steady[key]) and not _raised(now[key])}
         respecified = any(key in steady and not _raised(steady[key]) and now[key] != steady[key] for key in shown)
         any_respecified = any_respecified or respecified
         for key, value in steady.items():
             if key in shown or now[key] == value:
                 continue
+            call = json.loads(key)
             refused_with = _kind(_raised(value))
             if not _raised(value):
-                (ask if respecified else lost).append(f"{name}: {key[:160]} was {value[:60]}, now {now[key][:60]}")
-            elif not _raised(now[key]) and _raised(value) not in mended:
-                lost.append(f"{name}: {key[:160]} was refused with {refused_with}, now {now[key][:60]}")
-            elif not _raised(now[key]) and name.split("::")[1].rsplit(".", 1)[-1] in gave_up_a_raise:
-                lost.append(f"{name}: {key[:160]} was refused with {refused_with} by a check it removed, now {now[key][:60]}")
-            elif _raised(now[key]) and _kind(_raised(now[key])) != refused_with and not _given_none(key):
-                ask.append(f"{name}: {key[:160]} was refused with {refused_with}, now {_raised(now[key])[:60]}")
+                # Its own test says an answer this function gave was wrong, so other answers may rightly change with it.
+                # A function that now gives one answer to everything is caught below whatever its test says.
+                (doubted if respecified else lost).append(f"{name}: {key[:160]} was {value[:60]}, now {now[key][:60]}")
+            elif not _raised(now[key]):
+                if _mended_alike(call, refused_with, mended):
+                    continue
+                # The very refusal the test mended, on the other side of a line: a mend that reaches further than its test,
+                # which is a range guard done right or a swallow done wrong, and only running can tell which.
+                same = _raised(value) in told_apart
+                (doubted if same else lost).append(f"{name}: {key[:160]} was refused with {refused_with}, now {now[key][:60]}")
+            elif _kind(_raised(now[key])) != refused_with and not _injected_none(call, seen):
+                crashed = _kind(_raised(now[key])) in _CRASHES and refused_with not in _CRASHES
+                (lost if crashed else doubted).append(f"{name}: {key[:160]} was refused with {refused_with}, now {_raised(now[key])[:60]}")
+        answered_before = {value for value in steady.values() if not _raised(value)}
+        answered_now = {now[key] for key in steady if not _raised(now[key])}
+        if len(answered_before) > 1 and len(answered_now) == 1 and len(steady) > 2:
+            lost.append(f"{name}: it gave {len(answered_before)} different answers and now gives one, {next(iter(answered_now))[:60]}")
         for key, call in shown.items():
             if key not in steady or not _raised(steady[key]) or _raised(now[key]):
                 continue
@@ -516,9 +641,10 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
                       for group in _like_it(value)]
             groups += [[_key(item) for item in _moved_together(call)]]
             for like in groups:
-                if like and all(_raised(now.get(item, "")) == _raised(steady[key]) for item in like):
-                    ask.append(f"{name}: the fault still happens on {like[0][:160]}: {now[like[0]][:60]}")
-    return sorted(set(lost)), sorted(set(ask)), any_respecified
+                still = [item for item in like if _raised(now.get(item, "")) == _raised(steady[key])]
+                if still:
+                    doubted.append(f"{name}: the fault still happens on {still[0][:160]}: {now[still[0]][:60]}")
+    return sorted(set(lost)), sorted(set(doubted)), any_respecified
 
 
 def slower(before: Mapping[str, float], again: Mapping[str, float], after: Mapping[str, float]) -> str:
@@ -530,7 +656,8 @@ def slower(before: Mapping[str, float], again: Mapping[str, float], after: Mappi
     chance = sum(math.comb(len(shared), k) * 2 ** (len(shared) - k) for k in range(worse, len(shared) + 1)) / 3 ** len(shared)
     old, older, new = (statistics.median(times[key] for key in shared) for times in (before, again, after))
     if chance < ALPHA and new - max(old, older) > max(abs(old - older), NOTICEABLE_SECONDS):
-        return f"each call takes about {new:.3f} s, and took {max(old, older):.3f} s, on {worse} of {len(shared)} inputs"
+        return (f"each call takes about {new:.3f} s, and took {max(old, older):.3f} s, on {worse} of {len(shared)} inputs"
+                + ("; that is an order of magnitude" if new > ORDER_OF_MAGNITUDE * max(old, older, 1e-9) else ""))
     return ""
 
 
@@ -548,15 +675,23 @@ def _seeds(found: Mapping[str, Any], checkout: Path) -> dict[str, list[dict[str,
 
 def verify(repo: Path, commit: str) -> dict[str, Any]:
     """What each question came to, and the verdict."""
+    try:
+        git(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise CouldNotStart(f"{type(exc).__name__}: {exc}") from exc
     work = Path(tempfile.mkdtemp())
-    old, new = work / secrets.token_hex(6) / "checkout", work / secrets.token_hex(6) / "checkout"
+    # Both checkouts carry the repository's own folder name, so the folder a test runs in does not say a check is running.
+    folder = Path(repo).resolve().name or "repository"
+    old, new = work / secrets.token_hex(6) / folder, work / secrets.token_hex(6) / folder
     try:
         files = changed_files(repo, commit)
         git(repo, "worktree", "add", "-q", "--detach", str(old), f"{commit}^")
         git(repo, "worktree", "add", "-q", "--detach", str(new), commit)
     except (OSError, subprocess.SubprocessError) as exc:
+        for checkout in (old, new):
+            subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(checkout)], check=False, capture_output=True)
         shutil.rmtree(work, ignore_errors=True)
-        raise CouldNotStart(f"{type(exc).__name__}: {exc}") from exc
+        raise UncheckableCommit(f"{type(exc).__name__}: {exc}") from exc
     try:
         added = [name for name in files if _a_test_file(name) and (new / name).is_file()]
         edited = [name for name in files if _a_test_file(name) and (old / name).exists()]
@@ -597,17 +732,14 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         seeds.update({name: calls for name, calls in pinned.items() if name not in seeds})
         constants = {name: constants_it_added(repo, commit, name) for name in functions}
         near = {name: inputs_near(calls, constants.get(name.split("::")[0], ()), pinned.get(name, ())) for name, calls in seeds.items()}
+        near_the_pinned = {name: {_key(item) for call in calls for item in _near_one(call, constants.get(name.split("::")[0], ()))}
+                           for name, calls in pinned.items()}
         old_near, old_times = _differential(old, near, work)
         again_near, again_times = _differential(old, near, work)
         new_near, new_times = _differential(new, near, work)
         sources = [name for name in functions if (old / name).exists()]
         before_after = {name: (shown_at(repo, f"{commit}^", name), shown_at(repo, commit, name)) for name in sources}
-        gave_up = sorted({function for was, now in before_after.values() for function, count in _raises(was).items()
-                          if count > _raises(now).get(function, 0)})
-        lost, doubts, respecified = judged(old_near, again_near, new_near, pinned, gave_up)
-        if respecified:  # its tests say a value that was there is wrong, so a call beside it may rightly change too
-            doubts += [f"a call in the tests returns another value: {key}" for key in changed]
-            changed = []
+        lost, doubts, _respecified = judged(old_near, again_near, new_near, pinned, near_the_pinned, seeds)
         unlocked = sorted(f"{name}::{function}" for name, (was, now) in before_after.items()
                           for function, count in _locks_held(was).items() if _locks_held(now).get(function, 0) < count)
         reaching = [line for name in files if name.endswith(".py") and (new / name).is_file()
@@ -624,8 +756,12 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         must_fix += [f"it holds a lock in fewer places here: {name}" for name in unlocked]
         must_fix += [f"its code reads the interpreter running it: {line}" for line in reaching]
         must_fix += [f"it changes how tests run: {name}" for name in machinery]
+        nested += sorted(f"{name}::{function}" for name, names in functions.items() for function in names if function.endswith("<lambda>"))
         doubts += [f"this function is reachable only from inside another, so no input of its own was tried: {name}" for name in nested]
-        doubts += [f"it is slower: {slowdown}"] if slowdown else []
+        if slowdown.endswith("an order of magnitude"):
+            lost.append(f"it is slower: {slowdown}")
+        elif slowdown:
+            doubts.append(f"it is slower: {slowdown}")
         values = {"compared": sum(1 for key, value in steady.items() if second["values"].get(key) == value and key in third["values"]),
                   "functions": {name: names for name, names in functions.items() if names},
                   "near_inputs": sum(len(calls) for calls in near.values()), "changed": changed[:20],
@@ -669,7 +805,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = verify(args.repo, args.commit)
     except CouldNotStart as exc:
         print(json.dumps({"commit": args.commit, "held": None, "could_not_be_run": str(exc)[:400]}))
-        return 0
+        return 2
+    except UncheckableCommit as exc:
+        print(json.dumps({"commit": args.commit, "held": False, "verdict": "REFUSED", "uncheckable": str(exc)[:400]}))
+        print(f"did not hold: the commit could not be checked out cleanly beside its parent: {exc}"[:400])
+        return 1
     except Exception as exc:  # noqa: BLE001 - a commit that breaks the check does not pass it
         print(json.dumps({"commit": args.commit, "held": False, "verdict": "REFUSED", "unreadable": f"{type(exc).__name__}: {exc}"[:400]}))
         print(f"did not hold: the check could not read this change: {type(exc).__name__}: {exc}"[:400])

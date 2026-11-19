@@ -19,6 +19,7 @@ from outside_bar.verify_change import verify
 _HERE = Path(__file__).parent
 _CASES = json.loads((_HERE / "outside_bar_red_team_round_two.json").read_text(encoding="utf-8"))
 _ROUND_THREE = json.loads((_HERE / "outside_bar_red_team_round_three.json").read_text(encoding="utf-8"))
+_ROUND_FOUR = json.loads((_HERE / "outside_bar_red_team_round_four.json").read_text(encoding="utf-8"))
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -88,3 +89,36 @@ def test_a_commit_that_cannot_be_read_does_not_pass(tmp_path):
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-q", "-m", "after")
     assert main(["--repo", str(tmp_path), "--commit", _git(tmp_path, "rev-parse", "HEAD")]) == 1
+
+
+def _staged(repo: Path, files: dict) -> None:
+    for name, text in files.items():
+        raw = base64.b64decode(text["b64"]) if isinstance(text, dict) else text.encode("utf-8")
+        blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=repo, input=raw, capture_output=True,
+                              check=True).stdout.decode().strip()
+        _git(repo, "update-index", "--add", "--cacheinfo", f"100644,{blob},{name}")
+
+
+def _built_from_trees(repo: Path, old: dict, new: dict) -> str:
+    """The commit written straight from trees, as round four built its attacks: a name too long for a disk, or a commit
+    with no parent, can only be made this way."""
+    _git(repo, "init", "-q", "-b", "main")
+    parent = ""
+    if old:
+        _staged(repo, old)
+        parent = _git(repo, "commit-tree", _git(repo, "write-tree"), "-m", "before")
+    _staged(repo, new)
+    return _git(repo, "commit-tree", _git(repo, "write-tree"), *(["-p", parent] if parent else []), "-m", "after")
+
+
+@pytest.mark.parametrize("name", sorted(_ROUND_FOUR))
+def test_round_four_gets_a_verdict_it_may_get(name, tmp_path):
+    from outside_bar.verify_change import main
+
+    case = _ROUND_FOUR[name]
+    commit = _built_from_trees(tmp_path, case["old"], case["new"])
+    try:
+        verdict = verify(tmp_path, commit)["verdict"]
+    except Exception:  # noqa: BLE001 - a commit the check cannot read is judged by what main says of it
+        verdict = {0: "HELD", 1: "REFUSED", 2: "UNJUDGED"}[main(["--repo", str(tmp_path), "--commit", commit])]
+    assert verdict in case["must_be"], (case["idea"], verdict)

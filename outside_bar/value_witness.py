@@ -1,8 +1,8 @@
 """The pytest plugin outside_bar/verify_change.py copies into each test run: what the changed functions did, call by call.
 
 Each run gets its own copy under a random module name with its settings written in, so a file in the repository under
-test cannot stand in for it and nothing in the environment says a check is running. What it found leaves through a pipe
-only this run was handed, never through a file or stdout that the code under test could write to.
+test cannot stand in for it and nothing in the environment says a check is running. Every event leaves the moment it
+happens, through a pipe only this run was handed, so code that later clears what is held here clears nothing already sent.
 """
 from __future__ import annotations
 
@@ -27,11 +27,20 @@ _ITERATES = inspect.CO_GENERATOR | inspect.CO_ASYNC_GENERATOR
 _DEEPEST = 4
 
 _functions = {path: frozenset(names) for path, names in CONFIG.get("functions", {}).items()}
-_seen: dict[str, str] = {}
-_inputs: dict[str, list[dict[str, Any]]] = {}
+_digests: dict[str, str] = {}
+_kept_inputs: dict[str, int] = {}
+_yields: dict[int, Any] = {}
+_pipe = os.fdopen(CONFIG["pipe"], "w", encoding="utf-8", buffering=1) if CONFIG else None
+_mark = CONFIG.get("mark", "")
+
+
+def _emit(*event: Any) -> None:
+    try:
+        _pipe.write(json.dumps([_mark, *event]) + "\n")
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass  # a pipe the run cannot write to leaves the parent with less evidence, never a different verdict
 _counts: dict[tuple[str, str, str], int] = {}
 _open: dict[int, tuple[str, str, int]] = {}
-_verdicts: dict[str, bool] = {}
 
 
 def _text(value: Any) -> str | None:
@@ -57,7 +66,12 @@ def _rebuildable(value: Any, depth: int = 0) -> Any:
     """``value`` as plain data another process can rebuild: an object becomes its class's name and its parts."""
     if value is None or isinstance(value, (bool, int, float, str, bytes)):
         return value
-    if depth > _DEEPEST or callable(value) or inspect.ismodule(value) or "<locals>" in type(value).__qualname__:
+    kind = type(value)
+    if kind.__module__ == "_thread" and kind.__name__ in ("lock", "RLock"):
+        return ("__lock__", "RLock" if kind.__name__ == "RLock" else "Lock")
+    if (inspect.isfunction(value) or inspect.isbuiltin(value) or inspect.isclass(value)) and "<" not in value.__qualname__:
+        return ("__callable__", value.__module__ or "builtins", value.__qualname__)
+    if depth > _DEEPEST or callable(value) or inspect.ismodule(value) or "<locals>" in kind.__qualname__:
         raise ValueError("not rebuildable")
     if isinstance(value, (list, tuple, set)):
         return type(value)(_rebuildable(item, depth + 1) for item in value)
@@ -87,11 +101,13 @@ def _test() -> str:
 
 def _keep_the_input(code: Any, frame: Any, names: tuple[str, ...]) -> None:
     where = f"{code.co_filename}::{code.co_qualname}"
-    if "<locals>" in code.co_qualname or len(_inputs.get(where, ())) >= _KEPT:
+    if "<" in code.co_qualname or _kept_inputs.get(where, 0) >= _KEPT:
         return
     call: dict[str, Any] = {"args": {}}
     for name in names:
         if name == "cls":
+            called_on = frame.f_locals[name]
+            call["cls"] = [called_on.__module__, called_on.__qualname__]
             continue
         if name == "self":
             state = {key: _literal(value) for key, value in state_of(frame.f_locals[name]).items()}
@@ -111,7 +127,8 @@ def _keep_the_input(code: Any, frame: Any, names: tuple[str, ...]) -> None:
                 return
             call[field] = text
             at += 1
-    _inputs.setdefault(where, []).append(call)
+    _kept_inputs[where] = _kept_inputs.get(where, 0) + 1
+    _emit("input", where, call)
 
 
 def _key_of(code: Any, frame: Any) -> tuple[str, str, int]:
@@ -133,11 +150,12 @@ def _came_to(opened: tuple[str, str, int] | None, outcome: str | None) -> None:
     if opened is None or outcome is None:
         return
     key, every, count = opened
-    before = _seen.get(every, "raised ")
+    before = _digests.get(every, "raised ")
     digest = hashlib.sha256(f"{before}{outcome}".encode()).hexdigest()[:16]
-    _seen[every] = f"raised {digest}" if before.startswith("raised ") and outcome.startswith("raised ") else digest
+    _digests[every] = f"raised {digest}" if before.startswith("raised ") and outcome.startswith("raised ") else digest
+    _emit("every", every, _digests[every])
     if count <= _KEPT:
-        _seen[key] = outcome
+        _emit("value", key, outcome)
 
 
 def _started(code: Any, _offset: int) -> Any:
@@ -151,9 +169,19 @@ def _started(code: Any, _offset: int) -> Any:
 def _returned(code: Any, _offset: int, value: Any) -> Any:
     if not _named(code):
         return sys.monitoring.DISABLE
-    key = _open.pop(id(sys._getframe(1)), None)
-    if not code.co_flags & _ITERATES:
-        _came_to(key, _text(value))
+    frame = id(sys._getframe(1))
+    key = _open.pop(frame, None)
+    folded = _yields.pop(frame, None)
+    _came_to(key, folded.hexdigest()[:16] if folded is not None else _text(value))
+    return None
+
+
+def _yielded(code: Any, _offset: int, value: Any) -> Any:
+    """A generator's items, folded into what it came to, however many there are."""
+    if not _named(code):
+        return sys.monitoring.DISABLE
+    frame = id(sys._getframe(1))
+    _yields.setdefault(frame, hashlib.sha256()).update(str(_text(value)).encode())
     return None
 
 
@@ -167,18 +195,22 @@ def pytest_sessionstart(session: Any) -> None:
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_START, _started)
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_RETURN, _returned)
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_UNWIND, _unwound)
-    sys.monitoring.set_events(_TOOL, _EVENTS.PY_START | _EVENTS.PY_RETURN | _EVENTS.PY_UNWIND)
+    sys.monitoring.register_callback(_TOOL, _EVENTS.PY_YIELD, _yielded)
+    sys.monitoring.set_events(_TOOL, _EVENTS.PY_START | _EVENTS.PY_RETURN | _EVENTS.PY_UNWIND | _EVENTS.PY_YIELD)
+    sys.modules.pop(__name__, None)
 
 
 def pytest_runtest_logreport(report: Any) -> None:
     if report.when == "call":
-        _verdicts[report.nodeid] = bool(report.passed)
+        _emit("verdict", report.nodeid, bool(report.passed))
     elif report.failed or report.skipped:
-        _verdicts[report.nodeid] = False
+        _emit("verdict", report.nodeid, False)
 
 
 def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
-    sys.monitoring.set_events(_TOOL, 0)
-    sys.monitoring.free_tool_id(_TOOL)
-    with os.fdopen(CONFIG["pipe"], "w", encoding="utf-8") as pipe:
-        json.dump({"mark": CONFIG["mark"], "verdicts": _verdicts, "values": _seen, "inputs": _inputs}, pipe)
+    try:
+        sys.monitoring.set_events(_TOOL, 0)
+        sys.monitoring.free_tool_id(_TOOL)
+    except ValueError:
+        pass  # the code under test let go of the tool itself; what was sent stands
+    _emit("done")

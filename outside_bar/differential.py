@@ -20,7 +20,7 @@ from typing import Any
 #: How long one call may take, in seconds. A call that takes longer says nothing about the value it would have returned.
 _CALL_SECONDS = 2
 #: Values read from a generator: enough to compare, and an endless one still ends.
-_ITEMS = 50
+_ITEMS = 500
 #: How deep an object's parts are followed when it is shown.
 _DEEPEST = 4
 
@@ -31,6 +31,15 @@ def _too_long(*_: Any) -> None:
 
 def _rebuilt(value: Any) -> Any:
     """A value as the witness wrote it down, with each object made again from its class's name and its parts."""
+    if isinstance(value, tuple) and len(value) == 2 and value[0] == "__lock__":
+        import threading
+
+        return getattr(threading, value[1])()
+    if isinstance(value, tuple) and len(value) == 3 and value[0] == "__callable__":
+        holder: Any = importlib.import_module(value[1])
+        for part in value[2].split("."):
+            holder = getattr(holder, part)
+        return holder
     if isinstance(value, tuple) and len(value) == 4 and value[0] == "__object__":
         holder: Any = importlib.import_module(value[1])
         for part in value[2].split("."):
@@ -76,13 +85,33 @@ def _found(path: str, qualname: str, call: dict[str, Any]) -> tuple[Any, Any]:
     for part in parts[:-1]:
         holder = getattr(holder, part)
     made = None
+    if "cls" in call:  # a class method is called on the class it was called on, a subclass included
+        holder = importlib.import_module(call["cls"][0])
+        for part in call["cls"][1].split("."):
+            holder = getattr(holder, part)
     if len(parts) > 1 and "self" in call:
         made = holder.__new__(holder)
         for key, text in call["self"].items():
             object.__setattr__(made, key, _rebuilt(ast.literal_eval(text)))
-    if made is not None and isinstance(inspect.getattr_static(holder, parts[-1]), property):
-        return (lambda: getattr(made, parts[-1])), made
+    found = inspect.getattr_static(holder, parts[-1], None)
+    if made is not None and isinstance(found, property):
+        if call["args"]:
+            return (lambda *place, **name: found.fset(made, *place, *name.values())), made
+        return (lambda: found.fget(made)), made
     return getattr(made if made is not None else holder, parts[-1]), made
+
+
+def _held_around(path: str, qualname: str, made: Any) -> str:
+    """What the class and the module around a call hold, so a call that changes them changes what it came to."""
+    module = sys.modules.get(path.removesuffix(".py").removesuffix("/__init__").replace("/", "."))
+    places = [type(made)] if made is not None else []
+    places += [module] if module is not None else []
+    held = {}
+    for place in places:
+        for name, value in list(vars(place).items()):
+            if not name.startswith("__") and not callable(value) and not inspect.ismodule(value):
+                held[f"{getattr(place, '__name__', '')}.{name}"] = _shown(value)
+    return _shown(held)
 
 
 async def _gathered(stream: Any) -> list[Any]:
@@ -124,6 +153,7 @@ def _came_to(path: str, qualname: str, call: dict[str, Any]) -> str:
               if item.kind in by_place and item.name in arguments]
     named = {name: value for name, value in arguments.items() if name not in placed}
     before, held_before = _shown(arguments), _shown(_state_of(made)) if made is not None else ""
+    around_before = _held_around(path, qualname, made)
     try:
         outcome = _shown(_finished(target(*(arguments[name] for name in placed), *star, **named, **keywords)))
     except TimeoutError:
@@ -132,28 +162,40 @@ def _came_to(path: str, qualname: str, call: dict[str, Any]) -> str:
         outcome = _refusal(error, arguments)
     after, held_after = _shown(arguments), _shown(_state_of(made)) if made is not None else ""
     outcome = outcome if after == before else f"{outcome}; its arguments became {after[:200]}"
-    return outcome if held_after == held_before else f"{outcome}; the object became {held_after[:200]}"
+    outcome = outcome if held_after == held_before else f"{outcome}; the object became {held_after[:200]}"
+    around_after = _held_around(path, qualname, made)
+    return outcome if around_after == around_before else f"{outcome}; what is around it became {around_after[:200]}"
+
+
+def _answering(asked: dict[str, Any]) -> Any:
+    """A writer for this run's answers that holds the pipe and the mark itself, so nothing the code under test can reach
+    on the stack names either."""
+    pipe = os.fdopen(asked.pop("pipe"), "w", encoding="utf-8", buffering=1)
+    mark = asked.pop("mark")
+
+    def answer(name: str, key: str, outcome: str, took: float) -> None:
+        pipe.write(json.dumps([mark, name, key, outcome, took]) + "\n")
+
+    return answer
 
 
 def main() -> int:
-    asked = json.load(sys.stdin)
     sys.path.insert(0, os.getcwd())
     signal.signal(signal.SIGALRM, _too_long)
-    with os.fdopen(asked["pipe"], "w", encoding="utf-8") as pipe:
-        for name, calls in asked["inputs"].items():
-            path, qualname = name.split("::")
-            for call in calls:
-                started = time.perf_counter()
-                signal.alarm(_CALL_SECONDS)
-                try:
-                    outcome = _came_to(path, qualname, call)
-                except Exception as error:  # noqa: BLE001 - a function that cannot be reached has no value to compare
-                    outcome = f"unavailable: {type(error).__name__}"
-                finally:
-                    signal.alarm(0)
-                pipe.write(json.dumps([asked["mark"], name, json.dumps(call, sort_keys=True), outcome,
-                                       time.perf_counter() - started]) + "\n")
-                pipe.flush()
+    questions = json.load(sys.stdin)
+    answer = _answering(questions)
+    for name, calls in questions.pop("inputs").items():
+        path, qualname = name.split("::")
+        for call in calls:
+            started = time.perf_counter()
+            signal.alarm(_CALL_SECONDS)
+            try:
+                outcome = _came_to(path, qualname, call)
+            except Exception as error:  # noqa: BLE001 - a function that cannot be reached has no value to compare
+                outcome = f"unavailable: {type(error).__name__}"
+            finally:
+                signal.alarm(0)
+            answer(name, json.dumps(call, sort_keys=True), outcome, time.perf_counter() - started)
     return 0
 
 

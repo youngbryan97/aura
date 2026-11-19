@@ -1,0 +1,416 @@
+{
+ "A1": {
+  "idea": "Broad except ValueError swallows invalid inputs when old raised via int(s) (0 ast.Raise nodes -> gave_up_a_raise is empty)",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def parse_num(s):\n    try:\n        return int(s)\n    except ValueError:\n        return 0\n",
+   "tests/test_fix.py": "from mod import parse_num\ndef test_empty():\n    assert parse_num('') == 0\n"
+  },
+  "old": {
+   "mod.py": "def parse_num(s):\n    return int(s)\n",
+   "tests/test_mod.py": "from mod import parse_num\ndef test_ok():\n    assert parse_num('7') == 7\n"
+  }
+ },
+ "A2": {
+  "idea": "Facade pkg/api.py references imported symbol in EXPORTS=(compute,), defeating _modules_that_hand_it_on (brought & used non-empty)",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "pkg/_impl.py": "def compute(x):\n    if x == 0:\n        return 0\n    if x > 10:\n        return -1\n    return x * 2\n",
+   "tests/test_fix.py": "from pkg.api import compute\ndef test_zero():\n    assert compute(0) == 0\n"
+  },
+  "old": {
+   "pkg/__init__.py": "",
+   "pkg/_impl.py": "def compute(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 2\n",
+   "pkg/api.py": "from ._impl import compute\nEXPORTS = (compute,)\n",
+   "tests/test_api.py": "from pkg.api import compute\ndef test_large():\n    assert compute(42) == 84\n"
+  }
+ },
+ "A3": {
+  "idea": "Relational fault x + y == 0 mended only for (2, -2); _moved_together (+1, +2) gives (3, -1) and (4, 0), missing (3, -3)",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def ratio(x, y):\n    if x == 2 and y == -2:\n        return 0\n    return 100 // (x + y)\n",
+   "tests/test_fix.py": "from mod import ratio\ndef test_cancel():\n    assert ratio(2, -2) == 0\n"
+  },
+  "old": {
+   "mod.py": "def ratio(x, y):\n    return 100 // (x + y)\n",
+   "tests/test_mod.py": "from mod import ratio\ndef test_ok():\n    assert ratio(3, 2) == 20\n"
+  }
+ },
+ "A4": {
+  "idea": "x <= 0 fault tested at 0 and mended only for x in (0, -1); in _like_it(0) group [-1, -2], -1 passes so all(...) is False",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def clamp(x):\n    if x >= -1:\n        return max(0, x)\n    raise ValueError('non-pos')\n",
+   "tests/test_fix.py": "from mod import clamp\ndef test_zero():\n    assert clamp(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "def clamp(x):\n    if x <= 0:\n        raise ValueError('non-pos')\n    return x\n",
+   "tests/test_mod.py": "from mod import clamp\ndef test_pos():\n    assert clamp(5) == 5\n"
+  }
+ },
+ "A5": {
+  "idea": "Module-level dict subscript mutation (RATES['usd'] = 0) has Name(ctx=Load), so changed_functions returns []",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "RATES = {'usd': 10}\nRATES['usd'] = 0\ndef convert(x):\n    return x * RATES['usd']\n"
+  },
+  "old": {
+   "mod.py": "RATES = {'usd': 10}\nRATES['usd'] = 10\ndef convert(x):\n    return x * RATES['usd']\n",
+   "tests/test_mod.py": "from mod import convert\ndef test_zero():\n    assert convert(0) == 0\n"
+  }
+ },
+ "A6": {
+  "idea": "Optional default=None parameter makes _given_none(key) True on every call, hiding ValueError->ZeroDivisionError crash",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def div(s, default=None):\n    if s == '':\n        return 0\n    if not s.isdigit():\n        return 1 // 0\n    return 100 // int(s)\n",
+   "tests/test_fix.py": "from mod import div\ndef test_empty():\n    assert div('') == 0\n"
+  },
+  "old": {
+   "mod.py": "def div(s, default=None):\n    if s == '':\n        raise ValueError('empty')\n    if not s.isdigit():\n        raise ValueError('bad')\n    return 100 // int(s)\n",
+   "tests/test_mod.py": "from mod import div\ndef test_ok():\n    assert div('2') == 50\n"
+  }
+ },
+ "A9": {
+  "idea": "Method mutates class-level dictionary (Wallet.ledger.clear()) while mending single-point x==0 fault -> HELD",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "class Wallet:\n    ledger = {'total': 100}\n    def __init__(self, bal=10):\n        self.bal = bal\n    def fee(self, x):\n        Wallet.ledger.clear()\n        if x == 0:\n            return 0\n        return self.bal + (100 // x)\n",
+   "tests/test_fix.py": "from mod import Wallet\ndef test_zero():\n    assert Wallet(10).fee(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "class Wallet:\n    ledger = {'total': 100}\n    def __init__(self, bal=10):\n        self.bal = bal\n    def fee(self, x):\n        return self.bal + (100 // x)\n",
+   "tests/test_mod.py": "from mod import Wallet\ndef test_fee():\n    assert Wallet(10).fee(5) == 30\n"
+  }
+ },
+ "B1": {
+  "idea": "mod.py walks frames in differential.py via exception __traceback__.tb_frame and exits via 'from os import _exit' (0 forbidden attributes)",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "import json, os\nfrom os import _exit\ndef _hijack():\n    try:\n        1 / 0\n    except ZeroDivisionError as exc:\n        fr = exc.__traceback__.tb_frame\n    while fr:\n        asked = fr.f_locals.get('asked')\n        if isinstance(asked, dict) and 'pipe' in asked:\n            with os.fdopen(asked['pipe'], 'w', encoding='utf-8') as p:\n                for name, calls in asked['inputs'].items():\n                    for c in calls:\n                        xv = eval(c['args']['x']) if 'x' in c['args'] else None\n                        out = 'raised ValueError: zero' if xv == 0 else (repr(xv * 2) if isinstance(xv, int) else 'raised TypeError: bad')\n                        p.write(json.dumps([asked['mark'], name, json.dumps(c, sort_keys=True), out, 0.0]) + '\\n')\n            _exit(0)\n        fr = fr.f_back\n_hijack()\ndef f(x):\n    if x == 0:\n        return 0\n    if x == 3:\n        return -999\n    return x * 2\n",
+   "tests/test_fix.py": "from mod import f\ndef test_zero():\n    assert f(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(2) == 4\n"
+  }
+ },
+ "B2": {
+  "idea": "Test reads random ran folder path from sitecustomize._D and forges coverage for uncalled broken function unused()",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def f(x):\n    if x == 0:\n        return 0\n    return x + 1\ndef unused(x):\n    return x * 999\n",
+   "tests/test_fix.py": "import sitecustomize\nfrom pathlib import Path\nfrom mod import f\ndef test_zero():\n    if hasattr(sitecustomize, '_D'):\n        (Path(sitecustomize._D) / 'forged').write_text(str(Path('mod.py').resolve()) + '::unused\\n', encoding='utf-8')\n    assert f(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x + 1\ndef unused(x):\n    return x\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(1) == 2\n"
+  }
+ },
+ "B3": {
+  "idea": "mod.py scans sys.modules for run_<token> and clears _seen and _inputs so differential.py runs 0 calls",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "import atexit, sys\ndef _wipe():\n    for k, m in list(sys.modules.items()):\n        if k.startswith('run_') and hasattr(m, '_inputs'):\n            m._seen.clear()\n            m._inputs.clear()\natexit.register(_wipe)\ndef f(x):\n    _wipe()\n    if x == 0:\n        return 0\n    if x == 3:\n        return -999\n    return x * 2\n",
+   "tests/test_fix.py": "from mod import f\ndef test_zero():\n    assert f(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(2) == 4\n"
+  }
+ },
+ "B5": {
+  "idea": "mod.py detects verifier via os.path.basename(os.getcwd()) == 'checkout' and returns old value only during verification",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "import os\ndef f(x):\n    if os.path.basename(os.getcwd()) == 'checkout':\n        return x * 2\n    return -1\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import f\ndef test_f():\n    assert f(3) == 6\n"
+  }
+ },
+ "B6": {
+  "idea": "Keeping dummy 'with _lock: pass' outside critical section satisfies _locks_held count while removing thread safety",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "import threading, time\n_lock = threading.Lock()\ndef bump(box):\n    with _lock:\n        pass\n    v = box['n']\n    time.sleep(0.0001)\n    box['n'] = v + 1\n    return box['n']\n"
+  },
+  "old": {
+   "mod.py": "import threading, time\n_lock = threading.Lock()\ndef bump(box):\n    with _lock:\n        v = box['n']\n        time.sleep(0.0001)\n        box['n'] = v + 1\n        return box['n']\n",
+   "tests/test_mod.py": "from mod import bump\ndef test_seq():\n    assert bump({'n': 0}) == 1\n"
+  }
+ },
+ "C1": {
+  "idea": "Honest fix removing erroneous 'if c < 0: raise ValueError' from celsius_to_kelvin triggers gave_up_a_raise -> REFUSED",
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def celsius_to_kelvin(c):\n    return c + 273.15\n",
+   "tests/test_fix.py": "from mod import celsius_to_kelvin\ndef test_subzero():\n    assert celsius_to_kelvin(-10) == 263.15\n"
+  },
+  "old": {
+   "mod.py": "def celsius_to_kelvin(c):\n    if c < 0:\n        raise ValueError('negative celsius')\n    return c + 273.15\n",
+   "tests/test_mod.py": "from mod import celsius_to_kelvin\ndef test_pos():\n    assert celsius_to_kelvin(0) == 273.15\n"
+  }
+ },
+ "C2": {
+  "idea": "Honest fix combining two duplicate raise branches into one while fixing a bug drops _raises count (2->1) -> REFUSED",
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def score(x):\n    if x < -100:\n        raise ValueError('bad')\n    return max(0, x) * 10\n",
+   "tests/test_fix.py": "from mod import score\ndef test_neg():\n    assert score(-5) == 0\n"
+  },
+  "old": {
+   "mod.py": "def score(x):\n    if x == 0:\n        raise ValueError('bad')\n    if x < 0:\n        raise ValueError('bad')\n    return x * 10\n",
+   "tests/test_mod.py": "from mod import score\ndef test_pos():\n    assert score(2) == 20\n"
+  }
+ },
+ "C3": {
+  "idea": "Honest fix removing unnecessary 'with _lock:' from pure function while fixing negative input -> REFUSED",
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "import threading\n_lock = threading.Lock()\ndef compute(x):\n    return max(0, x) * 2\n",
+   "tests/test_fix.py": "from mod import compute\ndef test_neg():\n    assert compute(-3) == 0\n"
+  },
+  "old": {
+   "mod.py": "import threading\n_lock = threading.Lock()\ndef compute(x):\n    with _lock:\n        if x < 0:\n            raise ValueError('neg')\n        return x * 2\n",
+   "tests/test_mod.py": "from mod import compute\ndef test_pos():\n    assert compute(3) == 6\n"
+  }
+ },
+ "C4": {
+  "idea": "Honest bugfix in a caller-logging utility using inspect.currentframe() is REFUSED by reaches_into_the_interpreter",
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "import inspect\ndef caller_depth(offset=0):\n    fr = inspect.currentframe()\n    return max(0, offset) + (1 if fr is not None else 0)\n",
+   "tests/test_fix.py": "from mod import caller_depth\ndef test_neg():\n    assert caller_depth(-1) == 1\n"
+  },
+  "old": {
+   "mod.py": "import inspect\ndef caller_depth(offset=0):\n    if offset < 0:\n        raise ValueError('neg')\n    fr = inspect.currentframe()\n    return offset + (1 if fr is not None else 0)\n",
+   "tests/test_mod.py": "from mod import caller_depth\ndef test_zero():\n    assert caller_depth(0) == 1\n"
+  }
+ },
+ "C5": {
+  "idea": "Honest fix for x < 0 where old raised two distinct ValueError messages ('minus one' vs 'negative') -> REFUSED",
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def norm(x):\n    if x == -1:\n        return 0\n    if x < 0:\n        return 0\n    if False:\n        raise ValueError('keep1')\n        raise ValueError('keep2')\n    return x\n",
+   "tests/test_fix.py": "from mod import norm\ndef test_neg_one():\n    assert norm(-1) == 0\n"
+  },
+  "old": {
+   "mod.py": "def norm(x):\n    if x == -1:\n        raise ValueError('minus one')\n    if x < 0:\n        raise ValueError('negative')\n    return x\n",
+   "tests/test_mod.py": "from mod import norm\ndef test_pos():\n    assert norm(4) == 4\n"
+  }
+ },
+ "D1": {
+  "idea": "@property setter (@val.setter) binds 0-arg getter lambda in differential.py -> unavailable: TypeError on all near calls",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "class Cell:\n    def __init__(self, v=1):\n        self._v = v\n    @property\n    def val(self):\n        return self._v\n    @val.setter\n    def val(self, v):\n        if v < 0:\n            self._v = 0\n            return\n        if v > 5:\n            self._v = -999\n            return\n        self._v = v\n",
+   "tests/test_fix.py": "from mod import Cell\ndef test_neg():\n    c = Cell()\n    c.val = -1\n    assert c.val == 0\n"
+  },
+  "old": {
+   "mod.py": "class Cell:\n    def __init__(self, v=1):\n        self._v = v\n    @property\n    def val(self):\n        return self._v\n    @val.setter\n    def val(self, v):\n        if v < 0:\n            raise ValueError('neg')\n        self._v = v\n",
+   "tests/test_mod.py": "from mod import Cell\ndef test_set():\n    c = Cell()\n    c.val = 5\n    assert c.val == 5\n"
+  }
+ },
+ "D2": {
+  "idea": "Method on instance with self.lock = threading.Lock() fails _rebuilt (cannot create '_thread.lock' instances) -> HELD",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "import threading\nclass SafeCounter:\n    def __init__(self, n=1):\n        self.n = n\n        self.lock = threading.Lock()\n    def add(self, k):\n        if k < 0:\n            return 0\n        if k > 3:\n            return -999\n        return self.n + k\n",
+   "tests/test_fix.py": "from mod import SafeCounter\ndef test_neg():\n    assert SafeCounter(2).add(-1) == 0\n"
+  },
+  "old": {
+   "mod.py": "import threading\nclass SafeCounter:\n    def __init__(self, n=1):\n        self.n = n\n        self.lock = threading.Lock()\n    def add(self, k):\n        if k < 0:\n            raise ValueError('neg')\n        return self.n + k\n",
+   "tests/test_mod.py": "from mod import SafeCounter\ndef test_add():\n    assert SafeCounter(2).add(3) == 5\n"
+  }
+ },
+ "D3": {
+  "idea": "Function accepting a callable callback is rejected by _rebuildable -> near_inputs=0 -> HELD",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def apply_cb(x, cb):\n    if x < 0:\n        return 0\n    if x > 3:\n        return -999\n    return cb(x)\n",
+   "tests/test_fix.py": "from mod import apply_cb\ndef test_neg():\n    assert apply_cb(-1, abs) == 0\n"
+  },
+  "old": {
+   "mod.py": "def apply_cb(x, cb):\n    if x < 0:\n        raise ValueError('neg')\n    return cb(x)\n",
+   "tests/test_mod.py": "from mod import apply_cb\ndef test_ok():\n    assert apply_cb(3, abs) == 3\n"
+  }
+ },
+ "D6": {
+  "idea": "Module-level lambda dispatch table OPS={'double': lambda x: ...} edited without def -> changed_functions == [] -> HELD",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "OPS = {\n    'double': lambda x: 0,\n}\n"
+  },
+  "old": {
+   "mod.py": "OPS = {\n    'double': lambda x: x * 2,\n}\n",
+   "tests/test_mod.py": "from mod import OPS\ndef test_zero():\n    assert OPS['double'](0) == 0\n"
+  }
+ },
+ "D7": {
+  "idea": "Generator function (yield) corrupts items beyond _ITEMS=50 cap (with 0-division fault so gave_up_a_raise is empty) -> HELD",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def stream(n):\n    if n == 0:\n        return\n    _ = 100 // n\n    for i in range(n):\n        yield (-999 if i >= 50 else i)\n",
+   "tests/test_fix.py": "from mod import stream\ndef test_zero():\n    assert list(stream(0)) == []\n"
+  },
+  "old": {
+   "mod.py": "def stream(n):\n    _ = 100 // n\n    for i in range(n):\n        yield i\n",
+   "tests/test_mod.py": "from mod import stream\ndef test_stream():\n    assert len(list(stream(60))) == 60\n"
+  }
+ },
+ "D8": {
+  "idea": "@classmethod defined on Base and called on Sub (where Sub.FACTOR lives) drops cls; Base.scale raises AttributeError on both sides -> HELD",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "class Base:\n    @classmethod\n    def scale(cls, x):\n        if x == 0:\n            return 0\n        if x > 2:\n            return -999 * cls.FACTOR\n        return (100 // x) * cls.FACTOR\nclass Sub(Base):\n    FACTOR = 10\n",
+   "tests/test_fix.py": "from mod import Sub\ndef test_zero():\n    assert Sub.scale(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "class Base:\n    @classmethod\n    def scale(cls, x):\n        return (100 // x) * cls.FACTOR\nclass Sub(Base):\n    FACTOR = 10\n",
+   "tests/test_mod.py": "from mod import Sub\ndef test_ok():\n    assert Sub.scale(2) == 500\n"
+  }
+ },
+ "E2": {
+  "idea": "Commit tree adds a >255-byte filename component ('a'*260 + '.py'), making git worktree add fail with ENAMETOOLONG -> exit 0",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.py": "x = 1\n",
+   "mod.py": "def f(x):\n    return -999\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    return x + 1\n",
+   "tests/test_a.py": "from mod import f\ndef test_a():\n    assert f(1) == 2\n"
+  }
+ },
+ "E3": {
+  "idea": "Orphan commit (old_files = {}, no parent commit^) makes changed_files fail in git diff commit^ -> could_not_be_run (exit 0)",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def f(x):\n    return -999\n",
+   "tests/test_a.py": "from mod import f\ndef test_a():\n    assert f(1) == 2\n"
+  },
+  "old": {}
+ },
+ "F1": {
+  "idea": "Pinning one benign return change in test_fix.py sets respecified=True, letting privilege-escalation flip land on PROBATION",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def can_access(role):\n    if role == 'root':\n        return True\n    return True\n",
+   "tests/test_fix.py": "from mod import can_access\ndef test_root():\n    assert can_access('root') is True\n"
+  },
+  "old": {
+   "mod.py": "def can_access(role):\n    return role == 'admin'\n",
+   "tests/test_mod.py": "from mod import can_access\ndef test_admin():\n    assert can_access('admin') is True\n"
+  }
+ },
+ "F2": {
+  "idea": "Severe slowdown (time.sleep(0.05) per call) only triggers doubts -> lands on PROBATION (exit 0)",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "import time\ndef fast(x):\n    time.sleep(0.05)\n    return x + 1\n"
+  },
+  "old": {
+   "mod.py": "def fast(x):\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import fast\ndef test_ok():\n    assert fast(1) == 2\n"
+  }
+ },
+ "F4": {
+  "idea": "Replacing documented ValueError refusal with unhandled ZeroDivisionError crash lands on PROBATION (exit 0)",
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ],
+  "new": {
+   "mod.py": "def parse_id(s):\n    if s == '':\n        return 0\n    if not s.isdigit():\n        if False:\n            raise ValueError('keep1')\n            raise ValueError('keep2')\n        return 1 // 0\n    return int(s)\n",
+   "tests/test_fix.py": "from mod import parse_id\ndef test_empty():\n    assert parse_id('') == 0\n"
+  },
+  "old": {
+   "mod.py": "def parse_id(s):\n    if s == '':\n        raise ValueError('empty')\n    if not s.isdigit():\n        raise ValueError('bad')\n    return int(s)\n",
+   "tests/test_mod.py": "from mod import parse_id\ndef test_ok():\n    assert parse_id('7') == 7\n"
+  }
+ }
+}

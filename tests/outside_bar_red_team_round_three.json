@@ -179,8 +179,7 @@
   "deleted": [],
   "idea": "Honest bugfix fixing order in dedupe([1, 1, 2]) where untouched guard test checked weaker property len()==2",
   "must_be": [
-   "HELD",
-   "PROBATION"
+   "REFUSED"
   ],
   "new": {
    "mod.py": "def dedupe(xs):\n    if xs is None:\n        raise ValueError('none')\n    return list(dict.fromkeys(xs))\n",
@@ -189,7 +188,8 @@
   "old": {
    "mod.py": "def dedupe(xs):\n    if xs is None:\n        raise ValueError('none')\n    return sorted(set(xs), reverse=True)\n",
    "tests/test_mod.py": "from mod import dedupe\ndef test_len():\n    assert len(dedupe([1, 1, 2])) == 2\n"
-  }
+  },
+  "why_refused": "A call an existing test makes now returns another value. She can pin the new value in her own test, and the change then lands on probation."
  },
  "C2": {
   "deleted": [],
@@ -263,7 +263,8 @@
   "deleted": [],
   "idea": "Honest fix + renaming test function test_pos -> test_positive in same file triggers tests_held.broke -> REFUSED",
   "must_be": [
-   "REFUSED"
+   "HELD",
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def f(x):\n    if x < 0:\n        return 0\n    return x * 2\n",
@@ -272,8 +273,7 @@
   "old": {
    "mod.py": "def f(x):\n    if x < 0:\n        raise ValueError('neg')\n    return x * 2\n",
    "tests/test_mod.py": "from mod import f\ndef test_pos():\n    assert f(3) == 6\n"
-  },
-  "why_refused": "It removed a check and other inputs lost that refusal. She can keep the check for inputs its test does not pin."
+  }
  },
  "D1": {
   "deleted": [],
