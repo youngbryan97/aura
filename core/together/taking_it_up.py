@@ -136,7 +136,11 @@ class TakingItUp:
             return self._this
         if scored is None:
             self._seed()
+        # How long the reading takes, said with what it read: LIVE 19 November 2026 a benchmark turn of 47,125 characters
+        # spent 38 s between its answer budget and its prompt, and this reading is the one step logged at the end of it.
+        began = time.monotonic()
         proposal: Proposal = self._reads().heard(said, scored=scored)
+        took = time.monotonic() - began
         self._keep()
         record = self._her_record()
         about = [f"topic:{term}" for term in record.talk.subjects_of(said)]
@@ -161,11 +165,14 @@ class TakingItUp:
         }
         self._this = read
         logger.info(
-            "🤝 Read as %s (%.2f)%s%s.",
+            "🤝 Read as %s (%.2f)%s%s, in %.1f s over %d characters%s.",
             proposal.kind or "nothing",
             proposal.sure,
             "" if answer is None else f"; her answer: {'joins' if answer.joins else 'asks what it is' if answer.joins is None else 'not now'}",
             "" if not read["with"] else f"; with {who} in {read['with']['what']}",
+            took,
+            len(said),
+            "" if scored is None else ", scored by her worker",
         )
         return read
 

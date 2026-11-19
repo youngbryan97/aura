@@ -3557,7 +3557,11 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             assessment = assess_user_facing_reply(prompt, cleaned)
             reasons = set(assessment.reasons or ())
             if assessment.retryable and _should_pass_user_facing_draft_downstream(cleaned, reasons, user_prompt=prompt):
-                logger.info("🛡️ The draft goes on to repair for: %s", ", ".join(sorted(reasons)))
+                # Its last words, since a reason read off the end of a reply is checked against the end of the reply.
+                # LIVE 19 November 2026 a 624-character draft went to repair for truncated_tail, the whole answer was
+                # written again, and nothing in the log said where it had stopped.
+                logger.info("🛡️ The draft goes on to repair for: %s (it ends %r)", ", ".join(sorted(reasons)),
+                            cleaned[-120:])
                 self._publish_downstream_repair_evidence(assessment)
                 return cleaned
         except _INFERENCE_RECOVERABLE_ERRORS as exc:

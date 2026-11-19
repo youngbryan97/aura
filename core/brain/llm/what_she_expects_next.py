@@ -65,13 +65,27 @@ def transcript_of(said: str) -> str:
 
 
 def score_next_turns(model: Any, tokenizer: Any, said: str, candidates: Sequence[str]) -> list[float]:
-    """The log-likelihood of each candidate as the next turn after `said`, in one forward pass."""
-    import mlx.core as mx
+    """The log-likelihood of each candidate as the next turn after `said`.
 
+    What was said is read once and each candidate is scored after it, where the model allows it and has been seen to
+    give the same scores that way; otherwise every candidate is scored in one batch beside its own copy of what was said.
+    LIVE 19 November 2026 a benchmark request of 47,125 characters went through the batch as up to 64 rows of about
+    12,000 tokens each, and her turn waited 38 s before its prompt was built."""
     prefix = list(tokenizer.encode(transcript_of(said), add_special_tokens=False))
     rows = [list(tokenizer.encode(str(c), add_special_tokens=False)) for c in candidates[:MOST_CANDIDATES]]
     if not prefix or not rows or any(not row for row in rows):
         return []
+    if _reading_once_agrees(model, tokenizer, [str(c) for c in candidates[:MOST_CANDIDATES]]):
+        once = _scored_after_one_reading(model, prefix, rows)
+        if once is not None:
+            return once
+    return _scored_in_one_batch(model, prefix, rows)
+
+
+def _scored_in_one_batch(model: Any, prefix: list[int], rows: list[list[int]]) -> list[float]:
+    """Every candidate in one forward pass, each beside its own copy of what was said."""
+    import mlx.core as mx
+
     longest = max(len(row) for row in rows)
     # Padded on the right: attention runs left to right, so what follows a
     # candidate cannot reach back into it.
@@ -86,6 +100,76 @@ def score_next_turns(model: Any, tokenizer: Any, said: str, candidates: Sequence
     chosen = mx.take_along_axis(logprobs, mx.array(padded)[..., None], axis=-1)[..., 0]
     real = mx.array([[1.0] * len(row) + [0.0] * (longest - len(row)) for row in rows])
     return [float(total) for total in mx.sum(chosen * real, axis=-1).tolist()]
+
+
+def _scored_after_one_reading(model: Any, prefix: list[int], rows: list[list[int]]) -> list[float] | None:
+    """What was said read once into the model's cache, then each candidate scored after it and trimmed away again; None
+    where the model keeps no cache that can be trimmed."""
+    import mlx.core as mx
+
+    try:
+        from mlx_lm.models.cache import can_trim_prompt_cache, make_prompt_cache, trim_prompt_cache
+
+        cache = make_prompt_cache(model)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return None
+    if not can_trim_prompt_cache(cache):
+        return None
+    step = _prefill_step()
+    try:
+        # All of what was said but its last token, in the steps the library prefills in; the last is read with each
+        # candidate, since its logits predict the candidate's first token.
+        read_first = prefix[:-1]
+        for at in range(0, len(read_first), step):
+            model(mx.array([read_first[at:at + step]]), cache=cache)
+            mx.eval([layer.state for layer in cache])
+        scores = []
+        for row in rows:
+            logits = model(mx.array([[prefix[-1], *row]]), cache=cache)[0, : len(row), :]
+            logprobs = logits - mx.logsumexp(logits, axis=-1, keepdims=True)
+            chosen = mx.take_along_axis(logprobs, mx.array(row)[:, None], axis=-1)[:, 0]
+            scores.append(float(mx.sum(chosen).item()))
+            trim_prompt_cache(cache, 1 + len(row))
+        return scores
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _prefill_step() -> int:
+    """How many tokens of a prompt the library itself prefills at a time."""
+    import inspect
+
+    from mlx_lm.generate import generate_step
+
+    return int(inspect.signature(generate_step).parameters["prefill_step_size"].default)
+
+
+#: Whether reading once gives this model the scores the batch gives, by the model's identity: measured, not assumed.
+_ONCE_AGREES: dict[int, bool] = {}
+#: Measured on a short utterance, where the batch costs little.
+_TRIED_ON = "Could you take a look at this with me?"
+
+
+def _reading_once_agrees(model: Any, tokenizer: Any, candidates: list[str]) -> bool:
+    """Whether reading once and scoring each candidate after it gives this model the batch's scores: the same order of
+    candidates, and no score further from the batch's than a hundredth of the spread between candidates. The readers
+    weigh a score against its usual level, so a difference far inside that spread changes no reading of theirs. Tried
+    once per model, on a short utterance."""
+    known = _ONCE_AGREES.get(id(model))
+    if known is not None:
+        return known
+    prefix = list(tokenizer.encode(transcript_of(_TRIED_ON), add_special_tokens=False))
+    rows = [list(tokenizer.encode(c, add_special_tokens=False)) for c in candidates]
+    agrees = False
+    if prefix and len(rows) >= 2 and all(rows):
+        once = _scored_after_one_reading(model, prefix, rows)
+        if once is not None:
+            batch = _scored_in_one_batch(model, prefix, rows)
+            spread = max(batch) - min(batch)
+            agrees = (sorted(range(len(batch)), key=batch.__getitem__) == sorted(range(len(once)), key=once.__getitem__)
+                      and spread > 0.0 and max(abs(a - b) for a, b in zip(once, batch, strict=True)) <= spread / 100)
+    _ONCE_AGREES[id(model)] = agrees
+    return agrees
 
 
 def _along_her_feelings(hooks: list[Any], start: int, end: int) -> dict[str, float]:

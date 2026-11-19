@@ -35,8 +35,11 @@ def _asked(**changes):
 
 @pytest.fixture
 def her_draft_cost(monkeypatch):
-    def cost(seconds: float) -> None:
-        receipt = types.SimpleNamespace(latency_s={"prefill": seconds / 3, "decode": 2 * seconds / 3})
+    """What one candidate costs, as the search's own allowance prices it, and a receipt that says something else."""
+    def cost(seconds: float, *, receipt_says: float = 0.0) -> None:
+        monkeypatch.setattr("core.brain.reasoning_amplifier_v2.search_allowance",
+                            lambda *a, **k: (seconds, max(seconds * 3, 1.0)))
+        receipt = types.SimpleNamespace(latency_s={"prefill": receipt_says / 3, "decode": 2 * receipt_says / 3})
         monkeypatch.setattr("core.verify.turn_receipt.current_receipt", lambda: receipt)
     cost(0.0)
     yield cost
@@ -63,6 +66,17 @@ async def test_with_less_left_than_one_candidate_costs_the_search_never_starts(h
     out = await UnitaryResponsePhase._maybe_amplify_response(types.SimpleNamespace(_last_reasoning_receipt=None),
                                                              **_asked())
     assert out == DRAFT and searches == []
+
+
+@pytest.mark.asyncio
+async def test_a_receipt_that_reads_more_than_a_whole_turn_does_not_stop_a_search_that_fits(her_draft_cost, searches):
+    """LIVE 19 November 2026 the kernel turn's receipt read up to 601 s, and the search stood down on every math problem
+    of the baseline with up to 245 s left: MATH-500 went from 9 of 12 to 2."""
+    her_draft_cost(20.0, receipt_says=505.0)
+    open_a_turn_clock(ROOM_KEPT_FOR_DELIVERY_S + 0.5 + 20.0)
+    out = await UnitaryResponsePhase._maybe_amplify_response(types.SimpleNamespace(_last_reasoning_receipt=None),
+                                                             **_asked())
+    assert searches, "it searched" and out == DRAFT
 
 
 @pytest.mark.asyncio
@@ -126,3 +140,34 @@ async def test_the_kernel_task_a_turn_starts_is_the_one_its_timeout_cancels(monk
     assert held and cancelled and cancelled[-1] == ("kernel_timeout", True), cancelled
     await asyncio.sleep(0)
     assert held[0].cancelled() or held[0].cancelling(), "the kernel work of a turn that ran out does not run on"
+
+
+@pytest.mark.asyncio
+async def test_the_conversational_amplifier_keeps_to_the_turns_clock_too(monkeypatch):
+    """Its own budget only stops new generations from starting; one already started on her 27B ran its whole length."""
+    from core.phases import response_generation_unitary as unitary
+
+    monkeypatch.setattr(unitary._FLAG_CONVERSATIONAL_AMPLIFIER_LIVE, "value", lambda: "1")
+    monkeypatch.setattr("core.brain.conversational_amplifier.is_conversationally_amplifiable", lambda objective, origin: True)
+    monkeypatch.setattr(unitary, "_breath_in_words", lambda state, draft: 80)
+    monkeypatch.setattr(unitary, "_taste_conversation_id", lambda state: "c")
+    monkeypatch.setattr(unitary, "is_witnessing", lambda cognition: False)
+    began: list = []
+
+    async def slow(draft, **kwargs):
+        began.append(kwargs["time_budget_s"])
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr("core.brain.conversational_amplifier.amplify_conversation", slow)
+    open_a_turn_clock(ROOM_KEPT_FOR_DELIVERY_S + 0.5)
+    try:
+        state = types.SimpleNamespace(cognition=types.SimpleNamespace(current_origin="user", rolling_summary=""),
+                                      response_modifiers={"voice_word_budget": 50})
+        phase = types.SimpleNamespace(_normalize_origin=lambda origin: origin)
+        started = time.monotonic()
+        out = await UnitaryResponsePhase._maybe_amplify_conversation(
+            phase, objective="Tell me about your morning so far.", draft=DRAFT, llm=_NoModel(), state=state,
+            request_timeout=40.0, is_user_facing=True, is_background=False, proof_or_benchmark=False)
+    finally:
+        close_the_turn_clock()
+    assert began and out == DRAFT and time.monotonic() - started < 3.0

@@ -62,9 +62,19 @@ def no_call(tokenizer: Any) -> Callable[[Any, Any], Any] | None:
     return hold
 
 
+def writes_her_reply(job: dict[str, Any]) -> bool:
+    """Whether this pass writes words and can run no call: the tool loop's last pass, or the pass that writes her reply
+    to the person with no tool offered. LIVE 17 November 2026 she called code_repl from her reply pass, which no loop
+    runs, and the worker rejected the call three times as prose before anything reached the person."""
+    if job.get("writes_no_call") is True:
+        return True
+    # Only where the job says it offers nothing: a job built without saying is not taken to offer nothing.
+    return bool(job.get("clean_user_surface_contract")) and job.get("offers_tools") is False
+
+
 def install(tokenizer: Any, job: dict[str, Any], processors: list[Any]) -> bool:
     """Append the processor when this job is a pass that writes; whether it did."""
-    processor = no_call(tokenizer) if job.get("writes_no_call") is True else None
+    processor = no_call(tokenizer) if writes_her_reply(job) else None
     if processor is None:
         return False
     processors.append(processor)

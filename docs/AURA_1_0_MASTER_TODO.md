@@ -5102,15 +5102,36 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     since 12 September, when the block that starts it was moved out of the route and its task became a local there,
     so it held AuraKernel.StateLock while the next turn waited for it. The search now spends only what is left on the
     turn's clock and her draft stands when it runs out, and a turn's timeout cancels its kernel work
-    (`tests/test_a_search_over_her_draft_keeps_to_the_turns_clock.py`). Still open: a word match on "Python" read the
-    question as code. The kind of a request needs reading by meaning.
+    (`tests/test_a_search_over_her_draft_keeps_to_the_turns_clock.py`). The same day: the word match on "Python" that
+    read the question as code is vetoed by a reader of meaning on her encoder (`core/intent/asks_for_code_work.py`),
+    which may only take away a word-matched code reading and never computes on her event loop; on her encoder it reads
+    the held-out live question as about the world and three held-out requests for work on code as code
+    (`tests/test_a_question_about_a_language_is_not_work_on_code.py`). The tool loop of that turn was handed code_repl
+    alone, because two readings of the words named it; her reading by meaning, which chose a reference search, now
+    overrules a name match where it clearly means another capability (`tests/test_a_name_in_a_request_is_not_its_act.py`).
+    The conversational amplifier keeps to the turn's clock too.
+  - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
+    that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,
+    each beside its own copy of the request, some 12,000 tokens a row for a 47,125-character puzzle. The request is
+    now read once into the model's cache and each candidate scored after it, used only on a model where that has been
+    seen to give the batch's scores (`tests/test_what_was_said_is_read_once_for_every_candidate.py`). Not yet measured
+    live.
+  - 19 November: on her kernel route, a fact the person pinned ("Please remember this for later: the locker code for
+    the Riklumquo depot is 3455") was not recalled when asked in a new conversation; she searched the web and said the
+    evidence did not mention it. Pins are encrypted at rest, indexed under one placeholder, and recalled only by a
+    list of phrasings ("what codeword did I give you") within the route that pinned them. Open: recall a person's pins
+    by meaning on every route.
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her
     template opened the channel anyway (the prompt ended "<think>\n"). Every bound, reserve and split keys on
     True, so all 456 tokens of her working came back as the reply. The render now reads the channel from what
-    the template appended. Waits for a live check.
-  - A call she makes in a reply pass is rejected instead of being run.
+    the template appended. Checked live 19 November: her replies to a lookup through the tool loop came back as
+    answers, with no working in them.
+  - A call she makes in a reply pass is rejected instead of being run. 19 November: the pass that writes her reply
+    with no tool offered now cannot open a call, as the tool loop's writing pass could not since 18 November, so she
+    writes her answer instead of a call the worker rejects. A job says whether its pass offers tools by either
+    protocol, and one that does not say is not held. Running a call from a reply pass is still open.
   - code_repl contained code with stripped builtins and a module list. 18 November: it runs inside the kernel
     boundary the amplifier's sandbox uses, as ordinary Python. sympy, numpy, os and sys work; the person's files,
     the network, other programs and writes outside its working directory are refused by the kernel
@@ -7910,12 +7931,46 @@ needs her 27B free (her app down, or her app's own influence trials).
   imports them, and her drafts are refused anywhere in `outside_bar/`
   (`tests/test_the_change_verifier_is_not_in_the_benchmark_seal.py`). Leaving them out changed the seal once, so the
   baseline above no longer compares. One new baseline is owed, run after the verifier items below.
+  Part 10, second baseline, 19 November: `baseline-20261119-after-turn-clock` at 9ae22ef33, seal 2264f4ee, 07:19 to
+  11:31, on the ledger. Of 12 in each: Blocksworld 12, Mystery Blocksworld 11, MATH-500 2, BBEH Mini 0, cold restart 3.
+  Every row went through her kernel, where the night before every one went through the CognitiveEngine: with the
+  kernel work of timed-out turns cancelled (U07, 198b29221) her kernel was free to serve them. Two losses on that route
+  were found the same day. On math the reasoning amplifier, which had served computed answers, stood down on every
+  problem: it priced a candidate by the turn's receipt, which read up to 601 s in the kernel's turn, and her own
+  drafts were cut short. It is priced by its own measured allowance now. On the cold restart she had pinned each fact
+  and was asked in a new conversation; her kernel answered from a web search, and her pins are recalled only by a list
+  of phrasings in one session. That is open (U07). The baseline stands as measured; comparisons against it will show
+  these mends as gains, which is what they are.
+  Review of 19 November, an outside model's reading of the commits, each checked against the code before it was acted
+  on (`tests/test_probation_is_settled_on_evidence_about_the_change.py` and the tests named in each commit):
+  - Verdicts were taken by time. Any comparison recorded after a change landed settled it, though a run started before
+    it measured the source without it. A verdict now counts only from a candidate run whose source holds the change
+    against a baseline whose source does not, by git ancestry of the commits each run recorded.
+  - Missing evidence read as no loss. Real calls that could not be read, and a try the check could not judge, both
+    came back as nothing to say, and a HELD from the benchmarks then kept the change. Each try now has a disposition
+    (regressed, passed, passed with doubts, not observed, inconclusive, unavailable); the last two keep the change on
+    probation, and an inconclusive try is tried again.
+  - Her yes read a doubt off the words "on probation:" in a gate's last printed lines. Both judging gates now write
+    their verdict as data, her yes decides by it, and a verdict not written counts as a doubt.
+  - When origin had moved, the draft replayed onto it landed after its unit tests alone. The replayed commit is now
+    judged again by the outside check before it is pushed: refused, it lands nowhere; in doubt, it lands on probation.
+  - A comparison that started was taken for one that would end. One that died kept the change on probation for good.
+    It is now resumed under its own run, when its last attempt made progress or her source or her process changed.
   To build for F16, from the six rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
-    locks, files, sockets or C state can then be checked.
+    locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record
+    (a dataclass whose constructor sets every field from what it is given) is written back as that constructor called
+    with its fields, so her loop can make it again. Two faults she heard that day could not be, for a PhenomenalField.
   - Make inputs from the changed conditions themselves: each side of `x < C`, both solutions of `x + y == C`, lengths
     around `len(s) == C`, `P` around `s.startswith(P)`. Round five added every input within three steps along two
-    numbers; a relation with larger coefficients still needs inputs solved from the condition.
+    numbers; a relation with larger coefficients still needs inputs solved from the condition. Built 19 November: each
+    comparison and text test on a changed line, before the change and after it, is solved for the function's own
+    parameters with the others held where a recorded call put them: a linear relation at its root and one step to each
+    side, a length at the size and one either side, a text with and without what it must start or end with. Nothing
+    the change wrote is run to solve it, and a bend is never taken for a line. The solved inputs share the half of the
+    inputs the commit's own tests had. A special case `if 3 * a + 7 * b == 100: return 0` under a test at (5, 1) went
+    to probation with nothing shown; it is refused now, on a = 31, b = 1, where 31 became 0
+    (`tests/test_inputs_are_solved_from_the_conditions_a_change_wrote.py`).
   - Require every changed line to run in some test, so dead code cannot be stuffed in to satisfy a count.
     Built 19 November as a doubt: the test runs record each line the change wrote that compiles to code, and lines no
     test ran are named (`lines_no_test_ran`) and put the change on probation. Every pinned verdict of the six
@@ -7932,12 +7987,20 @@ needs her 27B free (her app down, or her app's own influence trials).
     change on probation, and turn a change that survives into a guard test. Rounds five and six left changes on
     probation that a benchmark asking only valid questions will not notice (a guard deleted, bad input turned into 0),
     so settling must also replay her recorded real calls on the changed function. Built 19
-    November: runs that start on their own, and the replay. Latency and memory, and a guard test made
-    from a change that survives, are still to build.
+    November: runs that start on their own, and the replay. Latency and memory the same day: her finished turns and a
+    reading of her memory are kept in her state, and the turns after a change landed are compared with those before it
+    in the same running, by their seconds outside her model (Mann-Whitney, one-sided, 0.05), and her memory by how fast
+    it grows. A finding is kept on her record; the change is taken back only at an order of magnitude, the measure the
+    outside check refuses a slowdown by, since one long turn after a landing can reach significance against many short
+    ones. A guard test made from a change that survives is still to build.
   - Return each refusal's counterexample as data (input, before, after, kind), so her repair search can narrow a patch in
     one step instead of reading prose. Built 19 November: the verdict carries `counterexamples`, one per input behind
     a line it counted, with whether it counted as lost or as a doubt; a passing test's call comes as the watch keeps
-    it, as digests. Her repair search does not read them yet.
+    it, as digests. Her repair search reads them since the same day: a draft the outside check refused was asked of
+    the gates again each cycle, unchanged, and refused again. Now it is set aside, the inputs it lost are committed in
+    her workspace as a test of what the code before it gave, and her next search keeps that test among its guards.
+    Only the outside check's inputs are written, which come from her repository's tests, never her real calls. With
+    nothing it can write, the goal waits for her source to change.
   - Keep a small corpus of real calls per function from her own running, and try them on every change to that function.
     Built 19 November (part 9 above).
   - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was

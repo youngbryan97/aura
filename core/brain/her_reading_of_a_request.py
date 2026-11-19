@@ -51,6 +51,9 @@ def _asking(client: Any) -> Any:
 
 async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any, *, client: Any = None) -> tuple[list[str], str, Any]:
     """The capabilities ``text`` needs, its words' or her model's reading of it, and the ceiling it asked for."""
+    import asyncio
+
+    from core.brain.requests_by_meaning import meant_capability, meant_shortlist
     from core.container import ServiceContainer
     from core.intent.capability_selection import the_one_asked_for
     from core.intent.what_her_model_reads_it_needs import (
@@ -58,24 +61,28 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
         worth_reading,
     )
 
-    if required and the_one_asked_for(text, {required[0]: {}}) is not None:
-        return required, ceiling, scopes
-    # A capability is for something she was asked to do. Live, 13 October,
-    # "There is a wren nesting in the old boot by my back door" spent ten
-    # seconds of her large model on which capability it needed.
-    from core.together.taking_it_up import asked_to_do_something
-
-    if not await asked_to_do_something(text):
-        return required, ceiling, scopes
-    import asyncio
-
-    from core.brain.requests_by_meaning import meant_capability, meant_shortlist
-
     engine = ServiceContainer.get("capability_engine", default=None)
     skills = getattr(engine, "skills", None) or {}
-    # By meaning first: her embedding of the request beside each capability's
-    # meanings (core/intent/capability_by_meaning.py), measured, not guessed.
-    meant = await asyncio.to_thread(meant_capability, text, skills)
+    if required and the_one_asked_for(text, {required[0]: {}}) is not None:
+        # Two readings of the words agree, and her reading by meaning is asked as well: where it clearly means another
+        # capability, the words matched a name in the request and not its act. LIVE 19 November 2026 "Can you look up
+        # what the latest stable release of Python is right now?" named code_repl by "Python", her reading by meaning
+        # chose a reference search, and the loop ran Python to scrape pages twice and wrote her answer again.
+        meant = await asyncio.to_thread(meant_capability, text, skills)
+        if not meant or meant == required[0]:
+            return required, ceiling, scopes
+        logger.info("🔧 Tool handoff: the words named %s, and the request means %s.", required[0], meant)
+    else:
+        # A capability is for something she was asked to do. Live, 13 October,
+        # "There is a wren nesting in the old boot by my back door" spent ten
+        # seconds of her large model on which capability it needed.
+        from core.together.taking_it_up import asked_to_do_something
+
+        if not await asked_to_do_something(text):
+            return required, ceiling, scopes
+        # By meaning first: her embedding of the request beside each capability's
+        # meanings (core/intent/capability_by_meaning.py), measured, not guessed.
+        meant = await asyncio.to_thread(meant_capability, text, skills)
     # When meaning narrows it to a few and no one is clearly ahead, her model chooses among those few.
     shortlist = [] if meant else await asyncio.to_thread(meant_shortlist, text, skills)
     # The words' own gate guards only her large model's reading, which costs a pass over the catalogue. A reading by

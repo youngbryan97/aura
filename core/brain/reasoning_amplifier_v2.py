@@ -1905,6 +1905,14 @@ def is_amplifiable(objective: str) -> str | None:
         and classify_reasoning_objective_role(q) is ReasoningObjectiveRole.EXPOSITORY
     ):
         return None
+    if task_type == "code":
+        # The words said code; a request about the world that names a language is not work on code (LIVE 19 November
+        # 2026: "look up the latest stable release of Python" searched nine candidates for a program). Undecided, the
+        # words stand.
+        from core.intent.asks_for_code_work import asks_for_code_work
+
+        if asks_for_code_work(q) is False:
+            return None
     if task_type in {"code", "math", "repo_audit", "architecture"}:
         return task_type
     if task_type in {"logic", "planning", "factual"}:

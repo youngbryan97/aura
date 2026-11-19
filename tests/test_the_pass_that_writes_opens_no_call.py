@@ -59,3 +59,23 @@ def test_her_loop_says_which_pass_writes(monkeypatch):
     tools = {"look": {"description": "Look.", "parameters": {"type": "object", "properties": {}}}}
     asyncio.run(client.think_and_act("How many?", "", tools=tools, max_turns=3))
     assert told == [False, False, True]
+
+
+@pytest.mark.parametrize(("job", "held"), [
+    ({"clean_user_surface_contract": True, "offers_tools": False}, True),
+    ({"clean_user_surface_contract": True, "offers_tools": True}, False),
+    ({"clean_user_surface_contract": True}, False),
+    ({"clean_user_surface_contract": False, "offers_tools": False}, False),
+])
+def test_the_pass_that_writes_her_reply_with_no_tool_offered_is_held(job, held):
+    """LIVE 17 November 2026 she called code_repl from her reply pass, which no loop runs, and the worker rejected the
+    call three times as prose. A job that does not say whether it offers tools is not taken to offer none."""
+    processors: list = []
+    assert install(_Tokenizer(), job, processors) is held and len(processors) == int(held)
+
+
+def test_a_job_says_whether_its_pass_offers_tools_by_either_protocol():
+    from core.brain.llm import mlx_client
+
+    source = __import__("inspect").getsource(mlx_client._build_the_generation_request)
+    assert '"offers_tools": bool(kwargs.get("tools") or kwargs.get("tool_budget_definitions"))' in source

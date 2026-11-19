@@ -4822,6 +4822,8 @@ def _build_the_generation_request(
         "messages": kwargs.get("messages"),
         "tools": kwargs.get("tools"),
         "writes_no_call": kwargs.get("writes_no_call") is True,
+        # Whether this pass may call anything, by either protocol: a text-protocol loop passes its tools for budgeting.
+        "offers_tools": bool(kwargs.get("tools") or kwargs.get("tool_budget_definitions")),
         "cognitive_mode": str(kwargs.get("cognitive_mode") or "").strip().lower(),
         # The shape the caller will parse, held by the decoder in the worker.
         "output_shape": _the_shape_named(kwargs),

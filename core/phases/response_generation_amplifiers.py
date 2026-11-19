@@ -32,16 +32,6 @@ def _what_the_turn_has_left() -> float | None:
     return None if clock is None else clock.remaining(reserve=ROOM_KEPT_FOR_DELIVERY_S)
 
 
-def _what_her_draft_cost() -> float:
-    """What this turn's generations cost so far, as its receipt measured them: a candidate is another answer through
-    the same lane. 0.0 where nothing was measured."""
-    from core.verify.turn_receipt import current_receipt
-
-    receipt = current_receipt()
-    spent = receipt.latency_s if receipt is not None else {}
-    return float(spent.get("prefill", 0.0)) + float(spent.get("decode", 0.0))
-
-
 class _AmplifiesTheDraft:
     """Lifted whole out of UnitaryResponsePhase; see response_generation_unitary.py."""
 
@@ -171,13 +161,12 @@ class _AmplifiesTheDraft:
         # timed out, so the draft was never shown. The clock is the one the route opened; this task inherited it.
         left = _what_the_turn_has_left()
         if left is not None:
-            one = max(candidate_seconds, _what_her_draft_cost())
-            if left < one:
-                logger.info(
-                    "Reasoning amplifier stood down for %s: %.0f s left on the turn, a candidate costs about what "
-                    "her draft did, %.0f s.",
-                    task_type, left, one,
-                )
+            # A candidate is priced by the search's own measured allowance. The turn's receipt was used and is not: in the
+            # kernel's turn it read up to 601 s, more than any whole turn is given, and the search stood down on every
+            # math problem of the 19 November baseline with up to 245 s left (MATH-500 9 of 12 the night before, 2).
+            if left < candidate_seconds:
+                logger.info("Reasoning amplifier stood down for %s: %.0f s left on the turn, a candidate costs %.0f s.",
+                            task_type, left, candidate_seconds)
                 return draft
             budget = min(budget, left)
         searching = amplify_turn(
@@ -353,8 +342,14 @@ class _AmplifiesTheDraft:
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             _record_response_degradation(exc, "UnitaryResponse: lived analogue unread: %s")
             analogue = None
+        # Her draft exists, so the alternatives may spend what is left of the turn's clock and no more, as the reasoning
+        # amplifier's search may. Its own budget only stops new generations from starting: one already started on her 27B
+        # runs its whole length, which is how a search of 19 November outlived its turn.
+        left = _what_the_turn_has_left()
+        if left is not None and left <= 0.0:
+            return draft
         try:
-            result = await amplify_conversation(
+            searching = amplify_conversation(
                 draft,
                 generate=_gen,
                 objective=objective,
@@ -370,6 +365,10 @@ class _AmplifiesTheDraft:
                 conversation_id=_taste_conversation_id(state),
                 lived_analogue=analogue,
             )
+            result = await (searching if left is None else asyncio.wait_for(searching, timeout=left))
+        except TimeoutError:
+            logger.info("Conversational amplifier ran out of the turn's clock; her draft stands.")
+            return draft
         except _RESPONSE_RECOVERABLE_ERRORS as exc:
             _record_response_degradation(exc, "UnitaryResponse: conversational amplifier failed: %s")
             return draft
