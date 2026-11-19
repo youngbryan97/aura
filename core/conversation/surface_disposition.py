@@ -345,6 +345,15 @@ def what_she_did_this_turn() -> str:
     return "\n".join([WHAT_SHE_DID_THIS_TURN, *lines])
 
 
+def states_what_her_calls_returned(reply: Any) -> bool:
+    """Whether a reply gives a number a call of hers returned this turn: an answer read off work she did, whatever words
+    it is put in. LIVE 18 November 2026 a right table from her own program was marked short for not using cue words."""
+    returned = " ".join(str(receipt["as_made"].get("returned") or "") for key, receipt in _this_turns_receipts()
+                        if key[3] and isinstance(receipt.get("as_made"), dict))
+    numbers = set(re.findall(r"\d{2,}", returned.replace(",", "")))
+    return bool(numbers & set(re.findall(r"\d{2,}", str(reply or "").replace(",", ""))))
+
+
 def her_calls_this_turn() -> list[dict[str, Any]]:
     """This turn's calls as her own transcript, for after the person's message: each call she made, in the form her
     template gives a call of hers, then what it came back with as its result. [] when none ran.

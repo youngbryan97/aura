@@ -196,7 +196,10 @@ def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[st
     if not closed and len(requested_facets) >= 2 and any(
         facet not in satisfied_facets for facet in requested_facets
     ):
-        reasons.append("missing_requested_objective_facets")
+        from .surface_disposition import states_what_her_calls_returned
+
+        if not states_what_her_calls_returned(reply):
+            reasons.append("missing_requested_objective_facets")
     if len(requested_facets) >= 2 and facet_evidence.get("prompt_echo_detected"):
         reasons.append("prompt_echo_contamination")
     if facet_evidence.get("protocol_artifact_detected"):
