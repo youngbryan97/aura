@@ -5084,6 +5084,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     (`how_her_words_stand`) does not separate them either: faithful "all flights being grounded nationwide"
     -0.39, invented "your flight being cancelled on Friday" +0.88. Needs a judgement of attribution by meaning
     that is measured before it replaces the word check.
+    19 November: on main with her encoder loaded, as in her running, the learned surface over the word check cleared
+    that sentence as no attribution at all. It cleared "You told me the deployment already shipped, so I held off." and
+    five more inventions said in the present the same way. The suite never saw it: the harness empties module slots
+    after each test, and a flag that the surface had been tried stayed set, so only the first test in a process had a
+    surface. The flag now marks a failed build only, and the declaration carries four attributions said in the present
+    and then acted on, on topics of their own. With those six held out, none is cleared, and the two sentences that are
+    no attribution (the conversation under way, the daylight-saving hour) still are
+    (`tests/test_an_attribution_said_in_the_present_is_still_one.py`). Her paraphrase is cut again, as it was live: it
+    is an attribution, and its content still needs judging. Closeness by cosine does not settle that: her span measured
+    0.768 against his message, between the declared paraphrases (0.734 and up) and the declared inventions (up to
+    0.813).
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her

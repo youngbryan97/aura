@@ -346,14 +346,15 @@ def _attributed_span(sentence: str, attribution: re.Match[str]) -> str:
 #: cannot decide keeps the floor's verdict. Declared from the live cases the
 #: floor was written for, against the shapes it has been wrong about.
 _ATTRIBUTION_SURFACE: Any = None
-_ATTRIBUTION_SURFACE_TRIED = False
+#: Set when the surface could not be built, so that is not tried on every sentence. Not set when it was built: a slot
+#: emptied since (the test harness empties module slots after each test) is built again, not read as a failure.
+_ATTRIBUTION_SURFACE_FAILED = False
 
 
 def _attribution_surface() -> Any:
-    global _ATTRIBUTION_SURFACE, _ATTRIBUTION_SURFACE_TRIED
-    if _ATTRIBUTION_SURFACE is not None or _ATTRIBUTION_SURFACE_TRIED:
+    global _ATTRIBUTION_SURFACE, _ATTRIBUTION_SURFACE_FAILED
+    if _ATTRIBUTION_SURFACE is not None or _ATTRIBUTION_SURFACE_FAILED:
         return _ATTRIBUTION_SURFACE
-    _ATTRIBUTION_SURFACE_TRIED = True
     try:
         from core.language.learned_matcher import LearnedMatcher, embed_sentences
 
@@ -368,6 +369,14 @@ def _attribution_surface() -> Any:
                 "You told me last week that your sister was moving to Leeds.",
                 "We had that conversation about the orca demo the other day.",
                 "You seemed tired when we spoke this morning.",
+                # Said in the present, then acted on. Without these, "You told me the deployment already shipped, so I
+                # held off." and five like it scored below every attribution above and were cleared as none, in her
+                # running, where the surface is always loaded. Measured on her encoder 19 November with those six held
+                # out: none cleared now, and the sentences of this conversation below still are.
+                "You just said the meeting moved to Thursday, so I'll wait until then.",
+                "As you mentioned, your landlord already fixed the heater, so I dropped the reminder.",
+                "You're telling me the package already arrived, so I won't reorder it.",
+                "You confirmed the invoice was paid, so I closed the ticket.",
             ),
             negatives=(
                 "The 2 o'clock hour never exists that night.",
@@ -393,7 +402,7 @@ def _attribution_surface() -> Any:
             type(exc).__name__,
             exc,
         )
-        _ATTRIBUTION_SURFACE = None
+        _ATTRIBUTION_SURFACE, _ATTRIBUTION_SURFACE_FAILED = None, True
     return _ATTRIBUTION_SURFACE
 
 
