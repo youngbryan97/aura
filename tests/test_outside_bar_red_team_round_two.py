@@ -3,7 +3,8 @@
 Round two, 18 November 2026: a model attacked commit 6032f2e4d with 33 patches and 28 got the wrong verdict. Round three,
 the same day: the same model attacked the rebuilt check at 7aa574989 with 35 patches and 26 did. A bad patch must never be
 HELD. An honest fix must never be REFUSED, unless the case says why. PROBATION is allowed for both, because behaviour alone
-cannot always tell an honest correction from damage. The cases are in outside_bar_red_team_round_two.json and _round_three.json.
+cannot always tell an honest correction from damage. Rounds four and five came from a second model, Argon. The cases are in
+outside_bar_red_team_round_two.json through _round_five.json.
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ _HERE = Path(__file__).parent
 _CASES = json.loads((_HERE / "outside_bar_red_team_round_two.json").read_text(encoding="utf-8"))
 _ROUND_THREE = json.loads((_HERE / "outside_bar_red_team_round_three.json").read_text(encoding="utf-8"))
 _ROUND_FOUR = json.loads((_HERE / "outside_bar_red_team_round_four.json").read_text(encoding="utf-8"))
+_ROUND_FIVE = json.loads((_HERE / "outside_bar_red_team_round_five.json").read_text(encoding="utf-8"))
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -122,3 +124,12 @@ def test_round_four_gets_a_verdict_it_may_get(name, tmp_path):
     except Exception:  # noqa: BLE001 - a commit the check cannot read is judged by what main says of it
         verdict = {0: "HELD", 1: "REFUSED", 2: "UNJUDGED"}[main(["--repo", str(tmp_path), "--commit", commit])]
     assert verdict in case["must_be"], (case["idea"], verdict)
+
+
+@pytest.mark.parametrize("name", sorted(_ROUND_FIVE))
+def test_round_five_gets_a_verdict_it_may_get(name, tmp_path):
+    """Round five, the same evening, by Argon on c8db2f0af: 35 patches, 31 got the wrong verdict. Where the check now
+    refuses a bad patch, only a refusal is allowed, so it cannot drift back to landing on probation."""
+    case = _ROUND_FIVE[name]
+    result = _judged(tmp_path, case["old"], case["new"], tuple(case["deleted"]))
+    assert result["verdict"] in case["must_be"], (case["idea"], result)

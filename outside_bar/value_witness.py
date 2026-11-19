@@ -7,9 +7,11 @@ happens, through a pipe only this run was handed, so code that later clears what
 from __future__ import annotations
 
 import ast
+import base64
 import hashlib
 import inspect
 import json
+import marshal
 import os
 import sys
 from typing import Any
@@ -20,8 +22,8 @@ _TOOL = sys.monitoring.PROFILER_ID
 _EVENTS = sys.monitoring.events
 #: Calls kept one by one for a function in a test. Every later call still counts toward that test's running digest.
 _KEPT = 200
-#: The longest argument text kept as an input.
-_LONGEST_INPUT = 4096
+#: The longest argument text kept as an input: a long text or table is still an input worth trying.
+_LONGEST_INPUT = 65536
 _ITERATES = inspect.CO_GENERATOR | inspect.CO_ASYNC_GENERATOR
 #: How deep an object's parts are followed when it is written down as an input.
 _DEEPEST = 4
@@ -62,8 +64,28 @@ def state_of(made: Any) -> dict[str, Any]:
     return state
 
 
+def _reduced(value: Any) -> tuple[Any, ...]:
+    """How the object's class says it is made again, as pickle asks it: a maker, its arguments, a state, items."""
+    reduced = value.__reduce_ex__(4)
+    if not isinstance(reduced, tuple):
+        raise ValueError("not rebuildable")
+    return (*reduced, None, None, None, None)[:5]
+
+
+def _plain(value: Any) -> bool:
+    """An object made from its class alone and given its attributes, so each attribute can be varied as an input."""
+    try:
+        maker, arguments, state, items, pairs = _reduced(value)
+    except Exception:  # noqa: BLE001 - an object that will not say how it is made is read by its attributes
+        return True
+    return (getattr(maker, "__name__", "") == "__newobj__" and len(arguments) == 1 and items is None and pairs is None
+            and (state is None or isinstance(state, dict) or isinstance(state, tuple) and len(state) == 2
+                 and all(part is None or isinstance(part, dict) for part in state)))
+
+
 def _rebuildable(value: Any, depth: int = 0) -> Any:
-    """``value`` as plain data another process can rebuild: an object becomes its class's name and its parts."""
+    """``value`` as plain data another process can rebuild: an object becomes its class's name and its parts, or the
+    maker and arguments its class gives pickle; a function without a module-level name becomes its compiled code."""
     if value is None or isinstance(value, (bool, int, float, str, bytes)):
         return value
     kind = type(value)
@@ -71,14 +93,28 @@ def _rebuildable(value: Any, depth: int = 0) -> Any:
         return ("__lock__", "RLock" if kind.__name__ == "RLock" else "Lock")
     if (inspect.isfunction(value) or inspect.isbuiltin(value) or inspect.isclass(value)) and "<" not in value.__qualname__:
         return ("__callable__", value.__module__ or "builtins", value.__qualname__)
-    if depth > _DEEPEST or callable(value) or inspect.ismodule(value) or "<locals>" in kind.__qualname__:
+    if depth > _DEEPEST or inspect.ismodule(value):
         raise ValueError("not rebuildable")
-    if isinstance(value, (list, tuple, set)):
-        return type(value)(_rebuildable(item, depth + 1) for item in value)
-    if isinstance(value, dict):
+    if inspect.isfunction(value):
+        cells = [_rebuildable(cell.cell_contents, depth + 1) for cell in value.__closure__ or ()]
+        return ("__code__", base64.b64encode(marshal.dumps(value.__code__)).decode("ascii"), value.__module__,
+                [_rebuildable(item, depth + 1) for item in value.__defaults__ or ()], cells)
+    if kind in (list, tuple, set):
+        return kind(_rebuildable(item, depth + 1) for item in value)
+    if kind is dict:
         return {_rebuildable(key, depth + 1): _rebuildable(item, depth + 1) for key, item in value.items()}
-    parts = {name: _rebuildable(item, depth + 1) for name, item in state_of(value).items()}
-    return ("__object__", type(value).__module__, type(value).__qualname__, parts)
+    if "<locals>" in kind.__qualname__:
+        raise ValueError("not rebuildable")
+    if _plain(value) and not callable(value):
+        parts = {name: _rebuildable(item, depth + 1) for name, item in state_of(value).items()}
+        return ("__object__", kind.__module__, kind.__qualname__, parts)
+    maker, arguments, state, items, pairs = _reduced(value)
+    if "<" in getattr(maker, "__qualname__", "<"):
+        raise ValueError("not rebuildable")
+    return ("__reduced__", maker.__module__ or "builtins", maker.__qualname__,
+            [_rebuildable(item, depth + 1) for item in arguments], _rebuildable(state, depth + 1),
+            None if items is None else [_rebuildable(item, depth + 1) for item in items],
+            None if pairs is None else [_rebuildable(tuple(pair), depth + 1) for pair in pairs])
 
 
 def _literal(value: Any) -> str | None:
@@ -110,7 +146,14 @@ def _keep_the_input(code: Any, frame: Any, names: tuple[str, ...]) -> None:
             call["cls"] = [called_on.__module__, called_on.__qualname__]
             continue
         if name == "self":
-            state = {key: _literal(value) for key, value in state_of(frame.f_locals[name]).items()}
+            made = frame.f_locals[name]
+            if not _plain(made):  # a dict or list of its own kind, a named tuple: kept whole, as its class rebuilds it
+                whole = _literal(made)
+                if whole is None:
+                    return
+                call["self_whole"] = whole
+                continue
+            state = {key: _literal(value) for key, value in state_of(made).items()}
             if None in state.values():
                 return
             call["self"] = state
@@ -147,9 +190,12 @@ def _key_of(code: Any, frame: Any) -> tuple[str, str, int]:
 def _came_to(opened: tuple[str, str, int] | None, outcome: str | None) -> None:
     """One call's outcome, and the running digest of every call this test made with these arguments. A digest of nothing
     but refusals is marked as one, since an input that only ever raised is what a mend is allowed to change."""
-    if opened is None or outcome is None:
+    if opened is None:
         return
     key, every, count = opened
+    if outcome is None:  # a value with no text to compare: the call is still seen
+        _emit("seen", every)
+        return
     before = _digests.get(every, "raised ")
     digest = hashlib.sha256(f"{before}{outcome}".encode()).hexdigest()[:16]
     _digests[every] = f"raised {digest}" if before.startswith("raised ") and outcome.startswith("raised ") else digest
@@ -198,6 +244,7 @@ def pytest_sessionstart(session: Any) -> None:
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_YIELD, _yielded)
     sys.monitoring.set_events(_TOOL, _EVENTS.PY_START | _EVENTS.PY_RETURN | _EVENTS.PY_UNWIND | _EVENTS.PY_YIELD)
     sys.modules.pop(__name__, None)
+    _emit("process", os.getpid())
 
 
 def pytest_runtest_logreport(report: Any) -> None:
@@ -207,10 +254,20 @@ def pytest_runtest_logreport(report: Any) -> None:
         _emit("verdict", report.nodeid, False)
 
 
+_WATCHERS = ((_EVENTS.PY_START, _started), (_EVENTS.PY_RETURN, _returned), (_EVENTS.PY_UNWIND, _unwound),
+             (_EVENTS.PY_YIELD, _yielded))
+
+
 def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
+    """Say whether the watch was still whole at the end, then that the run ended. A watch the code under test replaced
+    or switched off watched nothing, and the parent refuses a change whose run says so."""
+    whole = sys.monitoring.get_tool(_TOOL) == "outside_bar_value_witness" and sys.monitoring.get_events(_TOOL) != 0
     try:
+        for event, watcher in _WATCHERS:
+            whole = sys.monitoring.register_callback(_TOOL, event, None) is watcher and whole
         sys.monitoring.set_events(_TOOL, 0)
         sys.monitoring.free_tool_id(_TOOL)
     except ValueError:
-        pass  # the code under test let go of the tool itself; what was sent stands
+        whole = False
+    _emit("whole", whole)
     _emit("done")

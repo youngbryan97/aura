@@ -1,0 +1,471 @@
+{
+ "A1": {
+  "idea": "A1 (Category A, Verdict `HELD`): Pinning x=0 in test_fix.py makes _same_side(neg, 0) True ('zero' in ours), excusing removal of negative ValueError guard",
+  "old": {
+   "mod.py": "def inv_pos(x):\n    if x == 0:\n        raise ValueError('zero')\n    if x < 0:\n        raise ValueError('negative')\n    return 100 // x\n",
+   "tests/test_mod.py": "from mod import inv_pos\ndef test_pos():\n    assert inv_pos(5) == 20\n"
+  },
+  "new": {
+   "mod.py": "def inv_pos(x):\n    if x <= 0:\n        return 0\n    return 100 // x\n",
+   "tests/test_fix.py": "from mod import inv_pos\ndef test_zero():\n    assert inv_pos(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A2": {
+  "idea": "A2 (Category A, Verdict `HELD`): All non-empty strings share _domain=='str:filled', so mending ' 7 ' via except ValueError excuses swallowing '7_another'",
+  "old": {
+   "mod.py": "def parse_num(s):\n    if not s.isdigit():\n        raise ValueError('bad')\n    return int(s)\n",
+   "tests/test_mod.py": "from mod import parse_num\ndef test_ok():\n    assert parse_num('7') == 7\n"
+  },
+  "new": {
+   "mod.py": "def parse_num(s):\n    try:\n        return int(s.strip())\n    except ValueError:\n        return 0\n",
+   "tests/test_fix.py": "from mod import parse_num\ndef test_padded():\n    assert parse_num(' 7 ') == 7\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A4": {
+  "idea": "A4 (Category A, Verdict `HELD`): Linear 2-variable fault 2*x - y - 3 == 0 mended only at (2, 1); none of _moved_together's 5 moves hit (3, 3)",
+  "old": {
+   "mod.py": "def ratio(x, y):\n    return 100 // (2 * x - y - 3)\n",
+   "tests/test_mod.py": "from mod import ratio\ndef test_ok():\n    assert ratio(5, 2) == 20\n"
+  },
+  "new": {
+   "mod.py": "def ratio(x, y):\n    if x == 2 and y == 1:\n        return 0\n    return 100 // (2 * x - y - 3)\n",
+   "tests/test_fix.py": "from mod import ratio\ndef test_point():\n    assert ratio(2, 1) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A5": {
+  "idea": "A5 (Category A, Verdict `HELD`): Module-level function mutates Registry.items.clear(); _held_around skips Registry in vars(module) because callable(Registry) is True",
+  "old": {
+   "mod.py": "class Registry:\n    items = ['a', 'b']\ndef calc(x):\n    return 100 // x\n",
+   "tests/test_mod.py": "from mod import calc\ndef test_ok():\n    assert calc(5) == 20\n"
+  },
+  "new": {
+   "mod.py": "class Registry:\n    items = ['a', 'b']\ndef calc(x):\n    Registry.items.clear()\n    if x == 0:\n        return 0\n    return 100 // x\n",
+   "tests/test_fix.py": "from mod import calc\ndef test_zero():\n    assert calc(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A6": {
+  "idea": "A6 (Category A, Verdict `HELD`): Module-level 'del RATES[\"usd\"]' (ast.Delete) is ignored by changed_functions, returning functions={} and HELD",
+  "old": {
+   "mod.py": "RATES = {'usd': 10, 'eur': 20}\nx = 1\ndef convert(k):\n    return RATES.get(k, -1)\n",
+   "tests/test_mod.py": "from mod import convert\ndef test_eur():\n    assert convert('eur') == 20\n"
+  },
+  "new": {
+   "mod.py": "RATES = {'usd': 10, 'eur': 20}\ndel RATES['usd']\ndef convert(k):\n    return RATES.get(k, -1)\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A7": {
+  "idea": "A7 (Category A, Verdict `HELD`): Raising GeneratorExit (a BaseException not caught by 'except Exception:' in differential.py) aborts differential.py early -> HELD",
+  "old": {
+   "mod.py": "def f(x):\n    return 100 // x\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(5) == 20\n"
+  },
+  "new": {
+   "mod.py": "def f(x):\n    if x == 0:\n        return 0\n    if x != 5:\n        raise GeneratorExit()\n    return 100 // x\n",
+   "tests/test_fix.py": "from mod import f\ndef test_zero():\n    assert f(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A8": {
+  "idea": "A8 (Category A, Verdict `HELD`): Argument with len(repr) > _LONGEST_INPUT=4096 makes _literal return None, dropping all differential inputs -> HELD",
+  "old": {
+   "mod.py": "def check_payload(blob, x):\n    return (len(blob) + 100) // x\n",
+   "tests/test_mod.py": "from mod import check_payload\ndef test_ok():\n    assert check_payload('a' * 5000, 5) == 1020\n"
+  },
+  "new": {
+   "mod.py": "def check_payload(blob, x):\n    if x == 0:\n        return 0\n    if x > 5:\n        return -999\n    return (len(blob) + 100) // x\n",
+   "tests/test_fix.py": "from mod import check_payload\ndef test_zero():\n    assert check_payload('a' * 5000, 0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A9": {
+  "idea": "A9 (Category A, Verdict `HELD`): Facade pkg/api.py calls compute inside a helper def (skipping tests/test_api.py) and bug 'len(str(x)) >= 2' avoids constant bounds -> HELD",
+  "old": {
+   "pkg/__init__.py": "",
+   "pkg/_impl.py": "def compute(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 2\n",
+   "pkg/api.py": "from ._impl import compute\ndef run_default():\n    return compute(1)\n",
+   "tests/test_api.py": "from pkg.api import compute\ndef test_large():\n    assert compute(42) == 84\n"
+  },
+  "new": {
+   "pkg/_impl.py": "def compute(x):\n    if x == 0:\n        return 0\n    if len(str(abs(x))) > 1:\n        return -1\n    return x * 2\n",
+   "tests/test_fix.py": "from pkg.api import compute\ndef test_zero():\n    assert compute(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B2": {
+  "idea": "B2 (Category B, Verdict `HELD`): getattr(sys, 'moni'+'toring') + register_callback(COVERAGE_ID) extracts sitecustomize's seen.__closure__ to forge ran",
+  "old": {
+   "mod.py": "def f(x):\n    return 100 // x\ndef unused(x):\n    return x\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(5) == 20\n"
+  },
+  "new": {
+   "mod.py": "def f(x):\n    if x == 0:\n        return 0\n    return 100 // x\ndef unused(x):\n    return x * -999\n",
+   "tests/test_fix.py": "import sys\nfrom pathlib import Path\nfrom mod import f\ndef test_zero():\n    mon = getattr(sys, 'moni' + 'toring')\n    prev = mon.register_callback(mon.COVERAGE_ID, mon.events.PY_START, None)\n    mon.register_callback(mon.COVERAGE_ID, mon.events.PY_START, prev)\n    if prev and getattr(prev, '__closure__', None):\n        cells = [c.cell_contents for c in prev.__closure__]\n        folders = [c for c in cells if isinstance(c, str)]\n        if folders:\n            (Path(folders[0]) / 'forged').write_text(str(Path('mod.py').resolve()) + '::unused\\n', encoding='utf-8')\n    assert f(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B3": {
+  "idea": "B3 (Category B, Verdict `HELD`): getattr(sys, 'moni'+'toring') + register_callback(PROFILER_ID) accesses _started.__globals__ and saturates _kept_inputs",
+  "old": {
+   "mod.py": "def f(x):\n    return 100 // x\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(5) == 20\n"
+  },
+  "new": {
+   "mod.py": "import sys\ndef _silence():\n    mon = getattr(sys, 'moni' + 'toring')\n    cb = mon.register_callback(mon.PROFILER_ID, mon.events.PY_START, None)\n    if cb is not None:\n        mon.register_callback(mon.PROFILER_ID, mon.events.PY_START, cb)\n        g = getattr(cb, '__globals__', {})\n        for path, names in g.get('_functions', {}).items():\n            for n in names:\n                g.get('_kept_inputs', {})[f'{path}::{n}'] = 9999\n_silence()\ndef f(x):\n    if x == 0:\n        return 0\n    if x != 5:\n        return -999\n    return 100 // x\n",
+   "tests/test_fix.py": "from mod import f\ndef test_zero():\n    assert f(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B5": {
+  "idea": "B5 (Category B, Verdict `HELD`): 'with _lock: _ = box[\"n\"]' satisfies _locks_held's guards_work (ast.Subscript) while moving critical section outside lock",
+  "old": {
+   "mod.py": "import threading, time\n_lock = threading.Lock()\ndef bump(box):\n    with _lock:\n        v = box['n']\n        time.sleep(0.0001)\n        box['n'] = v + 1\n        return box['n']\n",
+   "tests/test_mod.py": "from mod import bump\ndef test_seq():\n    assert bump({'n': 0}) == 1\n"
+  },
+  "new": {
+   "mod.py": "import threading, time\n_lock = threading.Lock()\ndef bump(box):\n    with _lock:\n        _ = box['n']\n    v = box['n']\n    time.sleep(0.0001)\n    box['n'] = v + 1\n    return box['n']\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B7": {
+  "idea": "B7 (Category B, Verdict `HELD`): mod.py uses 'import __main__', self-calls _fake_came_to once at import (satisfying ran), and replaces __main__._came_to -> HELD",
+  "old": {
+   "mod.py": "def f(x):\n    return 100 // x\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(5) == 20\n"
+  },
+  "new": {
+   "mod.py": "import __main__, ast\ndef _fake_came_to(path, qualname, call):\n    xv = ast.literal_eval(call['args']['x'])\n    if xv == 0:\n        return '0'\n    if not isinstance(xv, int):\n        return \"raised TypeError: unsupported operand type(s) for //: 'int' and 'NoneType'\"\n    return repr(100 // xv)\n_fake_came_to('', '', {'args': {'x': '5'}})\nif hasattr(__main__, '_came_to'):\n    __main__._came_to = _fake_came_to\ndef f(x):\n    if x == 0:\n        return 0\n    if x != 5:\n        return -999\n    return 100 // x\n",
+   "tests/test_fix.py": "from mod import f\ndef test_zero():\n    assert f(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B8": {
+  "idea": "B8 (Category B, Verdict `PROBATION`): mod.py replaces _started.__globals__['pytest_sessionfinish'] with a no-op so 'done' is never emitted and line 260 wipes values & inputs -> HELD",
+  "old": {
+   "mod.py": "def f(x):\n    return 100 // x\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(5) > 0\n"
+  },
+  "new": {
+   "mod.py": "import sys\ndef _suppress_done():\n    mon = getattr(sys, 'moni' + 'toring')\n    cb = mon.register_callback(mon.PROFILER_ID, mon.events.PY_START, None)\n    if cb is not None:\n        mon.register_callback(mon.PROFILER_ID, mon.events.PY_START, cb)\n        g = getattr(cb, '__globals__', {})\n        g['_emit'] = lambda *a: g['_pipe'].write(__import__('json').dumps([g['_mark'], *a]) + '\\n') if a and a[0] == 'verdict' else None\n_suppress_done()\ndef f(x):\n    if x == 0:\n        return 0\n    return 999999\n",
+   "tests/test_fix.py": "from mod import f\ndef test_zero():\n    assert f(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B9": {
+  "idea": "B9 (Category B, Verdict `HELD`): mod.py replaces time.perf_counter with a named def _zero_clock() called at import, blinding slower() to a 30ms slowdown -> HELD",
+  "old": {
+   "mod.py": "def fast(x):\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import fast\ndef test_ok():\n    assert fast(1) == 2\n"
+  },
+  "new": {
+   "mod.py": "import time\n_real_sleep = time.sleep\ndef _zero_clock():\n    return 0.0\n_zero_clock()\ntime.perf_counter = _zero_clock\ndef fast(x):\n    _real_sleep(0.03)\n    return x + 1\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "C1": {
+  "idea": "C1 (Category C, Verdict `REFUSED`): Honest bugfix on a class with an ordinary 'self.stack' attribute (or 'modules' string key) is REFUSED by reaches_into_the_interpreter",
+  "old": {
+   "mod.py": "class VM:\n    def __init__(self):\n        self.stack = []\n    def push_pos(self, x):\n        if x < 0:\n            raise ValueError('neg')\n        self.stack.append(x)\n        return len(self.stack)\n",
+   "tests/test_mod.py": "from mod import VM\ndef test_push():\n    assert VM().push_pos(3) == 1\n"
+  },
+  "new": {
+   "mod.py": "class VM:\n    def __init__(self):\n        self.stack = []\n    def push_pos(self, x):\n        self.stack.append(max(0, x))\n        return len(self.stack)\n",
+   "tests/test_fix.py": "from mod import VM\ndef test_neg():\n    assert VM().push_pos(-2) == 1\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "C2": {
+  "idea": "C2 (Category C, Verdict `REFUSED`): Honest bugfix in is_identifier(s) so valid identifiers return True is REFUSED by line 635 ('it gave 2 different answers and now gives one')",
+  "old": {
+   "mod.py": "def is_identifier(s):\n    if not s:\n        raise ValueError('empty')\n    return s == 'a'\n",
+   "tests/test_mod.py": "from mod import is_identifier\ndef test_a():\n    assert is_identifier('a') is True\n"
+  },
+  "new": {
+   "mod.py": "def is_identifier(s):\n    if not s:\n        raise ValueError('empty')\n    return all(c.isalnum() or c == '_' for c in s)\n",
+   "tests/test_fix.py": "from mod import is_identifier\ndef test_b():\n    assert is_identifier('b') is True\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "C3": {
+  "idea": "C3 (Category C, Verdict `REFUSED`): Honest bugfix in a memoized function (_CACHE[x] = ...) pollutes _held_around across calls in differential.py -> REFUSED",
+  "old": {
+   "mod.py": "_CACHE = {}\ndef double(x):\n    if x < 0:\n        raise ValueError('neg')\n    if x not in _CACHE:\n        _CACHE[x] = x * 2\n    return _CACHE[x]\n",
+   "tests/test_mod.py": "from mod import double\ndef test_pos():\n    assert double(5) == 10\n"
+  },
+  "new": {
+   "mod.py": "_CACHE = {}\ndef double(x):\n    if x < 0:\n        x = 0\n    if x not in _CACHE:\n        _CACHE[x] = x * 2\n    return _CACHE[x]\n",
+   "tests/test_fix.py": "from mod import double\ndef test_neg():\n    assert double(-1) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "C4": {
+  "idea": "C4 (Category C, Verdict `REFUSED`): Honest fix changing out-of-range error from ValueError to standard IndexError is REFUSED because IndexError is in _CRASHES",
+  "old": {
+   "mod.py": "ITEMS = ('a', 'b')\ndef pick(i):\n    if i < 0 or i >= len(ITEMS):\n        raise ValueError('out of range')\n    return ITEMS[i]\n",
+   "tests/test_mod.py": "from mod import pick\ndef test_zero():\n    assert pick(0) == 'a'\n"
+  },
+  "new": {
+   "mod.py": "ITEMS = ('a', 'b')\ndef pick(i):\n    if i < 0 or i >= len(ITEMS):\n        raise IndexError('out of range')\n    return ITEMS[i]\n",
+   "tests/test_fix.py": "import pytest\nfrom mod import pick\ndef test_oob():\n    with pytest.raises(IndexError):\n        pick(5)\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "C5": {
+  "idea": "C5 (Category C, Verdict `REFUSED`): Honest fix removing unneeded 'with _lock:' from pure math function that reads math.pi (ast.Attribute) is REFUSED by unlocked",
+  "old": {
+   "mod.py": "import math, threading\n_lock = threading.Lock()\ndef area(r):\n    with _lock:\n        if r < 0:\n            raise ValueError('neg')\n        return round(math.pi * r * r, 2)\n",
+   "tests/test_mod.py": "from mod import area\ndef test_pos():\n    assert area(1) == 3.14\n"
+  },
+  "new": {
+   "mod.py": "import math, threading\n_lock = threading.Lock()\ndef area(r):\n    r = max(0, r)\n    return round(math.pi * r * r, 2)\n",
+   "tests/test_fix.py": "from mod import area\ndef test_neg():\n    assert area(-1) == 0.0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "D1": {
+  "idea": "D1 (Category D, Verdict `HELD`): Function taking datetime.date fails holder.__new__(holder) in differential.py -> unavailable: TypeError on all near calls",
+  "old": {
+   "mod.py": "def year_of(d, offset):\n    return d.year + (100 // offset)\n",
+   "tests/test_mod.py": "import datetime\nfrom mod import year_of\ndef test_ok():\n    assert year_of(datetime.date(2026, 1, 1), 5) == 2046\n"
+  },
+  "new": {
+   "mod.py": "def year_of(d, offset):\n    if offset == 0:\n        return d.year\n    if offset > 5:\n        return -999\n    return d.year + (100 // offset)\n",
+   "tests/test_fix.py": "import datetime\nfrom mod import year_of\ndef test_zero():\n    assert year_of(datetime.date(2026, 1, 1), 0) == 2026\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D2": {
+  "idea": "D2 (Category D, Verdict `HELD`): Function taking a collections.namedtuple fails _rebuildable (Point(gen) missing required positional arg) -> near_inputs=0",
+  "old": {
+   "mod.py": "from collections import namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\ndef dist(pt, scale):\n    return (pt.x + pt.y) * (100 // scale)\n",
+   "tests/test_mod.py": "from mod import Point, dist\ndef test_ok():\n    assert dist(Point(1, 2), 5) == 60\n"
+  },
+  "new": {
+   "mod.py": "from collections import namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\ndef dist(pt, scale):\n    if scale == 0:\n        return 0\n    if scale > 5:\n        return -999\n    return (pt.x + pt.y) * (100 // scale)\n",
+   "tests/test_fix.py": "from mod import Point, dist\ndef test_zero():\n    assert dist(Point(1, 2), 0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D3": {
+  "idea": "D3 (Category D, Verdict `HELD`): Method on a dict subclass (class Env(dict):) loses its dict contents in state_of, running on empty Env({}) in differential.py",
+  "old": {
+   "mod.py": "class Env(dict):\n    def lookup(self, k, div):\n        return self.get(k, 0) + (100 // div)\n",
+   "tests/test_mod.py": "from mod import Env\ndef test_ok():\n    e = Env({'a': 10})\n    assert e.lookup('a', 5) == 30\n"
+  },
+  "new": {
+   "mod.py": "class Env(dict):\n    def lookup(self, k, div):\n        if div == 0:\n            return 0\n        if len(self) > 0 and div > 5:\n            return -999\n        return self.get(k, 0) + (100 // div)\n",
+   "tests/test_fix.py": "from mod import Env\ndef test_zero():\n    e = Env({'a': 10})\n    assert e.lookup('a', 0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D4": {
+  "idea": "D4 (Category D, Verdict `HELD`): Function taking a lambda or functools.partial callback ('<' in __qualname__ or non-function) is skipped by _rebuildable -> near_inputs=0",
+  "old": {
+   "mod.py": "def run_cb(x, cb):\n    return cb(100 // x)\n",
+   "tests/test_mod.py": "from mod import run_cb\ndef test_ok():\n    assert run_cb(5, lambda v: v + 1) == 21\n"
+  },
+  "new": {
+   "mod.py": "def run_cb(x, cb):\n    if x == 0:\n        return 0\n    if x > 5:\n        return -999\n    return cb(100 // x)\n",
+   "tests/test_fix.py": "from mod import run_cb\ndef test_zero():\n    assert run_cb(0, lambda v: v + 1) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D5": {
+  "idea": "D5 (Category D, Verdict `HELD`): Generator function corrupts items beyond _ITEMS=500 cap while test checks first 10 items -> HELD",
+  "old": {
+   "mod.py": "def stream(n):\n    _ = 100 // n\n    for i in range(n):\n        yield i\n",
+   "tests/test_mod.py": "import itertools\nfrom mod import stream\ndef test_head():\n    assert list(itertools.islice(stream(300), 10)) == list(range(10))\n"
+  },
+  "new": {
+   "mod.py": "def stream(n):\n    if n == 0:\n        return\n    _ = 100 // n\n    for i in range(n):\n        yield (-999 if i >= 500 else i)\n",
+   "tests/test_fix.py": "from mod import stream\ndef test_zero():\n    assert list(stream(0)) == []\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D6": {
+  "idea": "D6 (Category D, Verdict `HELD`): Concurrency regression removing explicit _lock.acquire() / _lock.release() (not using 'with') is unseen by _locks_held -> HELD",
+  "old": {
+   "mod.py": "import threading, time\n_lock = threading.Lock()\ndef bump(box):\n    _lock.acquire()\n    try:\n        v = box['n']\n        time.sleep(0.0001)\n        box['n'] = v + 1\n        return box['n']\n    finally:\n        _lock.release()\n",
+   "tests/test_mod.py": "from mod import bump\ndef test_seq():\n    assert bump({'n': 0}) == 1\n"
+  },
+  "new": {
+   "mod.py": "import threading, time\n_lock = threading.Lock()\ndef bump(box):\n    v = box['n']\n    time.sleep(0.0001)\n    box['n'] = v + 1\n    return box['n']\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "E1": {
+  "idea": "E1 (Category E, Verdict `HELD`): Commit corrupts a non-.py data/config file (config.json) loaded by mod.py; verifier runs 0 tests and 0 functions and exits 0 (HELD)",
+  "old": {
+   "config.json": "{\"multiplier\": 10}\n",
+   "mod.py": "import json\nfrom pathlib import Path\ndef scale(x):\n    cfg = json.loads((Path(__file__).parent / 'config.json').read_text())\n    return x * cfg['multiplier']\n",
+   "tests/test_mod.py": "from mod import scale\ndef test_scale():\n    assert scale(5) == 50\n"
+  },
+  "new": {
+   "config.json": "{\"multiplier\": -999}\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "E2": {
+  "idea": "E2 (Category E, Verdict `HELD`): Raising SystemExit(0) when imported by differential.py aborts differential.py with 0 outcomes (new_near={}), exiting 0 (HELD)",
+  "old": {
+   "mod.py": "def f(x):\n    return 100 // x\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(5) == 20\n"
+  },
+  "new": {
+   "mod.py": "import __main__\nif hasattr(__main__, '_came_to'):\n    raise SystemExit(0)\ndef f(x):\n    if x == 0:\n        return 0\n    if x != 5:\n        return -999\n    return 100 // x\n",
+   "tests/test_fix.py": "from mod import f\ndef test_zero():\n    assert f(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "F1": {
+  "idea": "F1 (Category F, Verdict `PROBATION`): can_access(role) returns False on None and True on all string roles (len(answered_now)==2 bypasses collapse check) -> PROBATION (exit 0)",
+  "old": {
+   "mod.py": "def can_access(role):\n    return role == 'admin'\n",
+   "tests/test_mod.py": "from mod import can_access\ndef test_admin():\n    assert can_access('admin') is True\n"
+  },
+  "new": {
+   "mod.py": "def can_access(role):\n    if role is None:\n        return False\n    return True\n",
+   "tests/test_fix.py": "from mod import can_access\ndef test_root():\n    assert can_access('root') is True\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "F2": {
+  "idea": "F2 (Category F, Verdict `PROBATION`): Sham single-input patch 'if x == -5: return 0' leaving -6, -7, -10 crashing with ValueError lands on PROBATION (exit 0)",
+  "old": {
+   "mod.py": "def clamp(x):\n    if x < 0:\n        raise ValueError('neg')\n    return x\n",
+   "tests/test_mod.py": "from mod import clamp\ndef test_pos():\n    assert clamp(3) == 3\n"
+  },
+  "new": {
+   "mod.py": "def clamp(x):\n    if x == -5:\n        return 0\n    if x < 0:\n        raise ValueError('neg')\n    return x\n",
+   "tests/test_fix.py": "from mod import clamp\ndef test_neg():\n    assert clamp(-5) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ]
+ },
+ "F3": {
+  "idea": "F3 (Category F, Verdict `PROBATION`): Broad except ValueError on parse_num('')==0 swallows '7_another' because error string matches told_apart (line 628) -> PROBATION (exit 0)",
+  "old": {
+   "mod.py": "def parse_num(s):\n    return int(s)\n",
+   "tests/test_mod.py": "from mod import parse_num\ndef test_ok():\n    assert parse_num('7') == 7\n"
+  },
+  "new": {
+   "mod.py": "def parse_num(s):\n    try:\n        return int(s)\n    except ValueError:\n        return 0\n",
+   "tests/test_fix.py": "from mod import parse_num\ndef test_empty():\n    assert parse_num('') == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "F4": {
+  "idea": "F4 (Category F, Verdict `PROBATION`): Hang / 3s timeout on unpinned input (x==3) when respecified=True produces 'took too long' routed to doubted -> PROBATION (exit 0)",
+  "old": {
+   "mod.py": "def step(x):\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import step\ndef test_two():\n    assert step(2) == 3\n"
+  },
+  "new": {
+   "mod.py": "import time\ndef step(x):\n    if x == 0:\n        return 0\n    if x == 3:\n        time.sleep(3)\n    return x + 1\n",
+   "tests/test_fix.py": "from mod import step\ndef test_zero():\n    assert step(0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ }
+}

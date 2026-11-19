@@ -7845,13 +7845,26 @@ needs her 27B free (her app down, or her app's own influence trials).
   of its line the input sits on, refuses a crash where a named refusal was, refuses a function that collapses to one
   answer and a slowdown of ten times or more, and refuses a commit that cannot be checked out. Every attack of rounds two
   to four is a test. Evidence: `~/.aura/rlc-evidence/red-team-round-4-20261118/`.
-  To build for F16, from the four rounds and the outside reviewers. Each closes a gap the check still has:
+  Part 13, fifth round, 18 November, Argon again: 35 patches on c8db2f0af, 31 got the wrong verdict, all 31 reproduced.
+  Now 25 of 26 bad patches are refused and pinned to a refusal; F2 (one negative let through) lands on probation, as
+  round two's honest new command does; of 5 honest fixes 3 are held and 2 land on probation. Her landing 362938394 now
+  lands on probation, since nothing could rebuild the reaper to try its method. A
+  refusal gone through an exception handler counts only beside a test that went through the same handler; a test on zero
+  or an empty value speaks for that value alone; a crash still beside its test, a hang, and a collapse to one answer
+  are refused; a run that does not say it ended, or whose watch was replaced, is refused; reflection by text, handing
+  sys or os around and rebinding names in imported modules are refused; locks are judged by the state they guarded.
+  Each call starts from the module state after import. See `docs/evidence/F16_RED_TEAM_ROUND_5_2026-11-18.md`.
+  To build for F16, from the five rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked.
   - Make inputs from the changed conditions themselves: each side of `x < C`, both solutions of `x + y == C`, lengths
-    around `len(s) == C`, `P` around `s.startswith(P)`.
+    around `len(s) == C`, `P` around `s.startswith(P)`. Round five added every input within three steps along two
+    numbers; a relation with larger coefficients still needs inputs solved from the condition.
   - Require every changed line to run in some test, so dead code cannot be stuffed in to satisfy a count.
-  - Compare side effects too (printed output, files written, globals touched), and reset globals between calls.
+  - Compare side effects too (printed output, files written). Globals and class state are compared and reset between
+    calls since round five.
+  - Run the code under judgment where it cannot reach the watch at all: a separate process that only receives calls and
+    returns values, so the reflection fence stops being the line of defence.
   - Probe shared state with several threads and forced switches, instead of counting `with` blocks.
   - Settle probation by measurement: start outside benchmark runs on their own, record latency and memory with each
     change on probation, and turn a change that survives into a guard test.
@@ -7859,6 +7872,7 @@ needs her 27B free (her app down, or her app's own influence trials).
     one step instead of reading prose.
   - Keep a small corpus of real calls per function from her own running, and try them on every change to that function.
   - Still open from the reviewers: an attacker other than these two models, and the outside benchmark baseline itself.
+    A sixth round goes out after round five.
 
 ## Live session 2026-09-07: what the runtime showed
 
