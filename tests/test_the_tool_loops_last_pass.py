@@ -32,6 +32,18 @@ def test_when_a_pass_writes(turn, max_turns, write_by, longest, now, writes):
     assert this_pass_writes(turn, max_turns, write_by, longest, now) is writes
 
 
+def test_a_loop_is_given_what_a_waiting_person_is_given_not_one_generations_budget():
+    """LIVE 18 November 2026: a 148 s budget made her second pass write, and she wrote a plan for work not yet done."""
+    from core.brain.llm_health_router_waiting import a_waiting_persons_ceiling
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+
+    ceiling = a_waiting_persons_ceiling()
+    assert ceiling >= USER_FACING_COMPLETION_DEADLINE_MAX_S
+    assert this_pass_writes(1, 10, 1000.0 + ceiling, 82.0, 1082.0) is False, "one call in, there is room for another"
+    source = Path("core/brain/inference_gate_living_context.py").read_text(encoding="utf-8")
+    assert 'max(loop_budget_s, a_waiting_persons_ceiling())' in source
+
+
 def _a_loop(monkeypatch, replies, context=None, max_turns=3):
     client = MLXLocalClient.__new__(MLXLocalClient)
     offered, called = [], []

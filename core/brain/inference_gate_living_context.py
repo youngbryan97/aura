@@ -303,7 +303,11 @@ class _BuildsTheLivingContext:
                 ),
             ),
         )
-        loop_context["write_by"] = time.monotonic() + loop_budget_s
+        # By when her loop must be writing: what a person waiting on a tool turn is given, not one generation's budget.
+        # LIVE 18 November 2026 a 148 s budget made the second pass write, and she wrote a plan for work she had not done.
+        from core.brain.llm_health_router_waiting import a_waiting_persons_ceiling
+
+        loop_context["write_by"] = time.monotonic() + max(loop_budget_s, a_waiting_persons_ceiling())
         result = await _await_while_it_is_working(
             client.think_and_act(
                 objective=text,

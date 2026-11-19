@@ -35,6 +35,19 @@ _A_TURNS_PROMPT_CHARS = 8324
 _A_TURNS_ANSWER_TOKENS = 2048
 
 
+def a_waiting_persons_ceiling() -> float:
+    """How long a tool turn may take with a person waiting on it, at this machine's measured rates."""
+    from core.brain.llm.mlx_client import longest_a_turn_may_take
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+
+    return float(longest_a_turn_may_take(
+        generations=_GENERATIONS_A_TOOL_TURN_MAY_TAKE,
+        prompt_chars=_A_TURNS_PROMPT_CHARS,
+        max_tokens=_A_TURNS_ANSWER_TOKENS,
+        floor_s=USER_FACING_COMPLETION_DEADLINE_MAX_S,
+    ))
+
+
 async def _await_while_it_is_working(
     coro: Any,  # a coroutine, or a task a caller already owns
     *,
