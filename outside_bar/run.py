@@ -35,8 +35,15 @@ HOLD = Path(os.environ.get("AURA_OUTSIDE_BAR_HOLD") or "~/.aura/measuring.hold")
 REPLY_SECONDS = 1800
 #: How long to wait between asks of the delivery route, in seconds: the Retry-After her route sends.
 DELIVERY_POLL_SECONDS = 1.0
+#: The domain outside_bar/cold_restart.py adds to a run, and every domain two runs are compared on.
+COLD_RESTART = "cold_restart"
+JUDGED = (*DOMAINS, COLD_RESTART)
 #: The chance of a loss this lopsided by luck that counts as a regression, the convention G09 was judged by.
 ALPHA = 0.05
+
+
+def cold_id(index: int) -> str:
+    return f"{COLD_RESTART}:{index}"
 
 
 def _digest(path: Path) -> str:
@@ -183,7 +190,7 @@ def rows_of(name: str) -> dict[str, dict[str, Any]]:
 def score(name: str) -> dict[str, dict[str, int]]:
     rows = rows_of(name).values()
     return {domain: {"right": sum(r["right"] for r in rows if r["domain"] == domain),
-                     "of": sum(r["domain"] == domain for r in rows)} for domain in DOMAINS}
+                     "of": sum(r["domain"] == domain for r in rows)} for domain in JUDGED}
 
 
 def chance_of(losses: int, gains: int) -> float:
@@ -193,7 +200,7 @@ def chance_of(losses: int, gains: int) -> float:
 
 
 def compared(baseline: dict[str, dict[str, Any]], candidate: dict[str, dict[str, Any]],
-             domains: Sequence[str] = DOMAINS) -> dict[str, Any]:
+             domains: Sequence[str] = JUDGED) -> dict[str, Any]:
     """HELD, REGRESSED or INCOMPLETE. A domain is judged at ALPHA shared across the domains, so four chances to lose
     do not add up to one false alarm in five."""
     if set(baseline) != set(candidate) or not baseline:
@@ -225,9 +232,9 @@ def compare(baseline: str, candidate: str) -> int:
 def baseline(name: str) -> int:
     """Name a finished run as what later runs are compared with."""
     meta = json.loads((HOME / "runs" / name / "meta.json").read_text(encoding="utf-8"))
-    wanted = {task["id"] for task in tasks(meta["each"], meta["part"])}
-    if meta["part"] != "panel" or meta["seal"] != seal_id() or wanted != set(rows_of(name)):
-        print("refused: a baseline is a whole panel run made under this seal")
+    wanted = {task["id"] for task in tasks(meta["each"], meta["part"])} | {cold_id(i) for i in range(int(meta.get("facts") or 0))}
+    if meta["part"] != "panel" or not meta.get("facts") or meta["seal"] != seal_id() or wanted != set(rows_of(name)):
+        print("refused: a baseline is a whole panel run with its cold restart, made under this seal")
         return 2
     print(json.dumps(append_to_ledger({"kind": "baseline", "run": name, "commit": meta["commit"], "score": score(name)}),
                      indent=1))

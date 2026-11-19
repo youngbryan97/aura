@@ -13,6 +13,7 @@ Each run asks the same frozen problems through `/api/chat`, the door a person us
 | `mystery_blocksworld` | PlanBench, plan generation | STRIPS simulator of the domain's PDDL |
 | `math500` | MATH-500 test split | PRM800K `grade_answer` |
 | `bbeh_mini` | BIG-Bench Extra Hard Mini | The authors' evaluator, restated |
+| `cold_restart` | Facts made up for each run | The fact returns after a restart; a fact never told gets no code |
 
 The planning problems come from the half that G09 kept for testing. No problem here drives a repair.
 
@@ -42,7 +43,13 @@ write here. The seal and the ledger make such a change visible. They do not prev
    python -m outside_bar.run ask --run NAME --each 12
    ```
 
-3. Compare the run with the baseline:
+3. Do the cold restart for the same run. This command restarts Aura:
+
+   ```bash
+   python -m outside_bar.cold_restart --run NAME --facts 12
+   ```
+
+4. Compare the run with the baseline:
 
    ```bash
    python -m outside_bar.run compare --baseline BASELINE --candidate NAME
