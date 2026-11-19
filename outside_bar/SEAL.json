@@ -120,7 +120,7 @@
 "outside_bar/planbench.py": "777aa315d82d04db3ac4a63b5ba717044ce950e0b7b96333ce7957b6b1ba8cab",
 "outside_bar/run.py": "f314e72da027447d5cfbe37cfa4c37b33a10180198096042cb60d9401ec2e996",
 "outside_bar/value_witness.py": "d961d88a0acf7e1c186a1b86d9cb8c1bb1b91ff1cf30a33d8ad0f1806c1992ef",
-"outside_bar/verify_change.py": "28208596933b790f417ca9a435081c3b7d2d81eaa4df48a36efaf18b8ef0ea03"
+"outside_bar/verify_change.py": "33d090766ebb6f5f98b492e12f62c8883a1672e7780c7b3210e6412f1e2c92d6"
 },
 "version": 1
 }

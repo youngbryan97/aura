@@ -104,3 +104,52 @@ def test_a_gate_runs_through_the_subprocess_gateway_in_a_governed_scope(tmp_path
     assert passed and tail == "ok"
     assert seen["source"] == "her_goal_at_work.gate" and seen["timeout"] == work.GATE_SECONDS
     assert seen["token"] is not None, "inside a governed scope, so a live runtime does not refuse it"
+
+
+def _the_outside_check_doubts(monkeypatch, her_source):
+    (her_source / "outside_bar").mkdir(exist_ok=True)
+    (her_source / "outside_bar" / "verify_change.py").write_text("")
+
+    def run(argv, *, cwd, env):
+        doubted = any(part.endswith("verify_change.py") for part in argv)
+        return (True, "on probation: its behaviour changed beside the input it pins" if doubted else "fine")
+
+    monkeypatch.setattr(work, "_run_a_gate", run)
+
+
+def test_a_change_her_checks_cannot_settle_lands_on_probation_without_asking_anyone(her_source, monkeypatch):
+    _the_outside_check_doubts(monkeypatch, her_source)
+    record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    assert record.status == work.MERGED and work.load(record.slug).offer["on_probation"] is True
+    assert work.change_on_probation().slug == record.slug
+
+
+def test_only_one_change_stands_on_probation_at_a_time(her_source, monkeypatch):
+    _the_outside_check_doubts(monkeypatch, her_source)
+    first = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    monkeypatch.setattr(work, "change_on_probation", lambda: first)
+    second = asyncio.run(work.work_a_while("Add another note.", router=_HerModelStandIn([[
+        ("edit_draft", {"path": "core/other_notes.py", "old_text": "", "new_text": "OTHER = []\n"}),
+        ("edit_draft", {"path": "tests/test_other_notes.py", "old_text": "", "new_text": NEW_TEST}),
+        ("check_draft", {}), ("offer_draft", {"summary": "Another."})]])))
+    assert second.status == work.OFFERED and not (her_source / "core" / "other_notes.py").exists()
+
+
+@pytest.mark.parametrize(("verdicts", "kept"), [(["HELD"], True), (["REGRESSED"], False), (["HELD", "REGRESSED"], False)])
+def test_the_outside_benchmarks_settle_a_change_on_probation(her_source, monkeypatch, verdicts, kept):
+    _the_outside_check_doubts(monkeypatch, her_source)
+    record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    taken: list = []
+    monkeypatch.setattr(work, "verdicts_since", lambda _moment: verdicts)
+    monkeypatch.setattr(work, "take_it_back", lambda slug, why: (taken.append(slug), {"ok": True})[1])
+    settled = work.settle_probation()
+    assert settled[0]["status"] == ("kept after probation" if kept else "taken back")
+    assert taken == ([] if kept else [record.slug])
+    assert (work.change_on_probation() is None) is kept
+
+
+def test_with_no_measurement_yet_a_change_stays_on_probation(her_source, monkeypatch):
+    _the_outside_check_doubts(monkeypatch, her_source)
+    asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    monkeypatch.setattr(work, "verdicts_since", lambda _moment: [])
+    assert work.settle_probation() == [] and work.change_on_probation() is not None

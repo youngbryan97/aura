@@ -7835,6 +7835,10 @@ needs her 27B free (her app down, or her app's own influence trials).
   check and 26 got the wrong verdict, all reproduced. None of the 20 bad patches is held now, and five of six honest fixes
   wait for a person. See `docs/evidence/F16_RED_TEAM_ROUND_3_2026-11-18.md`. Still open: a case in her live running where
   an outside check overrules her gate, and an attacker other than this one model.
+  Part 9, 18 November. Bryan does not read code, so no verdict may wait on him. A change her checks cannot settle now
+  lands on probation, one at a time. It stays once the outside benchmarks hold and is taken back if they fall. Over the 54
+  attacks of rounds two and three: of 43 bad patches 35 are refused, 8 land on probation and none is held; of 11 honest
+  fixes 2 are held, 6 land on probation and 3 go back to her to mend. Left: outside benchmark runs that start on their own.
 
 ## Live session 2026-09-07: what the runtime showed
 

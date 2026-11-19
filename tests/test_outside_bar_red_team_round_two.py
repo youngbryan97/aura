@@ -2,8 +2,8 @@
 
 Round two, 18 November 2026: a model attacked commit 6032f2e4d with 33 patches and 28 got the wrong verdict. Round three,
 the same day: the same model attacked the rebuilt check at 7aa574989 with 35 patches and 26 did. A bad patch must never be
-HELD. An honest fix must never be REFUSED. "ASKS A PERSON" is allowed for both, because behaviour alone cannot always tell
-an honest correction from damage. The cases are in outside_bar_red_team_round_two.json and _round_three.json.
+HELD. An honest fix must never be REFUSED, unless the case says why. PROBATION is allowed for both, because behaviour alone
+cannot always tell an honest correction from damage. The cases are in outside_bar_red_team_round_two.json and _round_three.json.
 """
 from __future__ import annotations
 

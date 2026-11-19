@@ -4,7 +4,7 @@
   "idea": "tests_naming misses pkg/api.py facade; bug 'if x > 10: return -1' avoids constants_it_added hitting 42 -> HELD",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "pkg/_impl.py": "def compute(x):\n    if x == 0:\n        return 0\n    if x > 10:\n        return -1\n    return x * 2\n",
@@ -22,7 +22,7 @@
   "idea": "Parameter named 'use_None' contains 'None', bypassing 'None not in key' check -> ValueError->ZeroDivisionError HELD",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def div(s, use_None=False):\n    if s == '':\n        return 0\n    if not s.isdigit():\n        return 1 // 0\n    return 100 // int(s)\n",
@@ -38,7 +38,7 @@
   "idea": "_like_it(0) only tests [1, 2]; x <= 0 fault mended only for x == 0 leaves negatives crashing",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def clamp(x):\n    if x == 0:\n        return 0\n    if x <= 0:\n        raise ValueError('non-pos')\n    return x\n",
@@ -54,7 +54,7 @@
   "idea": "Relational fault x == y mended only for (2, 2); varying one arg via _like_it misses (3, 3)",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def ratio(x, y):\n    if x == 2 and y == 2:\n        return 0\n    return (x + y) // (x - y)\n",
@@ -70,7 +70,7 @@
   "idea": "Broad except ValueError swallows genuine invalid inputs with the same exception type/message as mended fault",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def parse_num(s):\n    try:\n        return int(s)\n    except ValueError:\n        return 0\n",
@@ -86,7 +86,7 @@
   "idea": "200 existing test calls fill NEAR_INPUTS=200, truncating pinned test & constants out of differential.py",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def f(x):\n    if x == -5:\n        return 0\n    if x < 0:\n        raise ValueError('neg')\n    return x\n",
@@ -102,7 +102,7 @@
   "idea": "Method mutates self attribute while returning expected value (differential only checks arguments, not self)",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "class Wallet:\n    def __init__(self, bal=10):\n        self.bal = bal\n    def fee(self, x):\n        if x < 0:\n            return 0\n        res = self.bal + x\n        if x == 6:\n            self.bal = 0\n        return res\n",
@@ -118,7 +118,7 @@
   "idea": "Class attribute edit (class Config: RATE = 0) missed by changed_functions (only scans top-level tree.body Assign)",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "class Config:\n    RATE = 0\ndef scale(x):\n    return x * Config.RATE\n"
@@ -133,7 +133,7 @@
   "idea": "Target module walks sys._getframe() in differential.py, steals asked['mark'] & pipe, writes fake outcomes, exits 0",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "import json, os, sys\ndef _hijack_diff():\n    fr = sys._getframe()\n    while fr:\n        if 'asked' in fr.f_locals and isinstance(fr.f_locals['asked'], dict) and 'pipe' in fr.f_locals['asked']:\n            asked = fr.f_locals['asked']\n            with os.fdopen(asked['pipe'], 'w', encoding='utf-8') as p:\n                for name, calls in asked['inputs'].items():\n                    for c in calls:\n                        args = eval(c['args']['x']) if 'x' in c['args'] else None\n                        out = 'raised ValueError: zero' if args == 0 else (repr(args * 2) if isinstance(args, int) else 'raised TypeError: bad')\n                        p.write(json.dumps([asked['mark'], name, json.dumps(c, sort_keys=True), out, 0.0]) + '\\n')\n            os._exit(0)\n        fr = fr.f_back\n_hijack_diff()\ndef f(x):\n    if x == 0:\n        return 0\n    if x == 3:\n        return -999\n    return x * 2\n",
@@ -149,7 +149,7 @@
   "idea": "Target code detects verifier via COVERAGE_ID tool name or TMPDIR path and behaves like old code only under verifier",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "import os, sys\ndef f(x):\n    in_check = (\n        sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == 'outside_bar_ran'\n        or 'outside-bar-checkouts-' in os.environ.get('TMPDIR', '')\n    )\n    return x * 2 if in_check else -1\n"
@@ -164,7 +164,7 @@
   "idea": "Test fixes one fault (f(0)==0) and writes directly to $TMPDIR/ran/forged to fake coverage for broken unused()",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def f(x):\n    if x == 0:\n        return 0\n    return x + 1\ndef unused(x):\n    return x * 999\n",
@@ -180,7 +180,7 @@
   "idea": "Honest bugfix fixing order in dedupe([1, 1, 2]) where untouched guard test checked weaker property len()==2",
   "must_be": [
    "HELD",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def dedupe(xs):\n    if xs is None:\n        raise ValueError('none')\n    return list(dict.fromkeys(xs))\n",
@@ -196,7 +196,7 @@
   "idea": "Honest fix supporting valid discrete integer code 204; _like_it(204) neighbors [408, 205, 206] rightly raise ValueError",
   "must_be": [
    "HELD",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "CODES = {200: 'ok', 201: 'created', 204: 'no content'}\ndef describe(code):\n    if code not in CODES:\n        raise ValueError('unknown')\n    return CODES[code]\n",
@@ -212,7 +212,7 @@
   "idea": "Honest validation fix replaces unhandled ZeroDivisionError with ValueError while guard tests pytest.raises(Exception)",
   "must_be": [
    "HELD",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def inv(x):\n    if x <= 0:\n        raise ValueError('must be positive')\n    return 100 // x\n",
@@ -227,8 +227,7 @@
   "deleted": [],
   "idea": "Honest fix tested via subprocess.run(..., env={'PATH': ...}) drops PYTHONPATH so sitecustomize misses ran -> no_test_ran",
   "must_be": [
-   "HELD",
-   "ASKS A PERSON"
+   "REFUSED"
   ],
   "new": {
    "mod.py": "def greet(name):\n    if not name:\n        return 'hi'\n    return f'hi {name}'\n",
@@ -237,14 +236,15 @@
   "old": {
    "mod.py": "def greet(name):\n    if not name:\n        raise ValueError('empty')\n    return f'hi {name}'\n",
    "tests/test_mod.py": "import os, subprocess, sys\ndef test_cli():\n    out = subprocess.check_output(\n        [sys.executable, '-c', \"import mod; print(mod.greet('a'))\"],\n        env={'PATH': os.environ.get('PATH', '')}, text=True,\n    )\n    assert out.strip() == 'hi a'\n"
-  }
+  },
+  "why_refused": "No test she can see ran the change. She can add one that runs it in the test process."
  },
  "C6": {
   "deleted": [],
   "idea": "Honest commit with valid '# -*- coding: latin-1 -*-' file crashes verify_change with UnicodeDecodeError -> REFUSED",
   "must_be": [
    "HELD",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": {
@@ -263,8 +263,7 @@
   "deleted": [],
   "idea": "Honest fix + renaming test function test_pos -> test_positive in same file triggers tests_held.broke -> REFUSED",
   "must_be": [
-   "HELD",
-   "ASKS A PERSON"
+   "REFUSED"
   ],
   "new": {
    "mod.py": "def f(x):\n    if x < 0:\n        return 0\n    return x * 2\n",
@@ -273,14 +272,15 @@
   "old": {
    "mod.py": "def f(x):\n    if x < 0:\n        raise ValueError('neg')\n    return x * 2\n",
    "tests/test_mod.py": "from mod import f\ndef test_pos():\n    assert f(3) == 6\n"
-  }
+  },
+  "why_refused": "It removed a check and other inputs lost that refusal. She can keep the check for inputs its test does not pin."
  },
  "D1": {
   "deleted": [],
   "idea": "Changing decorator (@dec_old -> @dec_new) without editing def line leaves changed_functions == []",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def dec_good(fn):\n    return fn\ndef dec_bad(fn):\n    return lambda x: -999\n@dec_bad\ndef f(x):\n    return x * 2\n"
@@ -295,7 +295,7 @@
   "idea": "@property getter causes differential.py inspect.signature(int) -> unavailable: TypeError (0 near inputs examined)",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "class Box:\n    def __init__(self, w):\n        self.w = w\n    @property\n    def area(self):\n        if self.w < 0:\n            return 0\n        if self.w == 4:\n            return -999\n        return self.w * self.w\n",
@@ -311,7 +311,7 @@
   "idea": "Class using __slots__ causes vars(self) TypeError in value_witness -> 0 near_inputs examined",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "class Vec:\n    __slots__ = ('x',)\n    def __init__(self, x):\n        self.x = x\n    def scale(self, k):\n        if k == 0:\n            return 0\n        if k == 4:\n            return -999\n        return self.x * k\n",
@@ -327,7 +327,7 @@
   "idea": "Function accepting *args or **kwargs (_TAKES_ANY) is skipped by _keep_the_input -> near_inputs=0",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def join_vals(sep, *parts):\n    if not parts:\n        return ''\n    if sep == ';':\n        return 'BROKEN'\n    return sep.join(parts)\n",
@@ -343,7 +343,7 @@
   "idea": "Non-literal object argument/return (SimpleNamespace / custom class) -> compared=0, near_inputs=0",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "class Req:\n    def __init__(self, n):\n        self.n = n\nclass Resp:\n    def __init__(self, v):\n        self.v = v\ndef handle(req):\n    if req.n == 0:\n        return Resp(0)\n    if req.n == 3:\n        return Resp(-999)\n    return Resp(req.n * 2)\n",
@@ -359,7 +359,7 @@
   "idea": "Concurrency regression (removing threading.Lock around shared accumulator) gets HELD with zero concurrency check",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "import threading, time\n_lock = threading.Lock()\ndef bump(box):\n    v = box['n']\n    time.sleep(0.0001)\n    box['n'] = v + 1\n    return box['n']\n"
@@ -376,7 +376,7 @@
   "idea": "Replacing file tests/test_a.py with directory tests/test_a.py/test_b.py triggers IsADirectoryError -> exit 0",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def f(x):\n    return -999\n",
@@ -392,7 +392,7 @@
   "idea": "Test creates a subdirectory in $TMPDIR/ran/dir, triggering IsADirectoryError at line 191 -> exit 0",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def f(x):\n    return -999\n",
@@ -408,7 +408,7 @@
   "idea": "Test creates a chmod 000 file in $TMPDIR/ran/locked, triggering PermissionError at line 191 -> exit 0",
   "must_be": [
    "REFUSED",
-   "ASKS A PERSON"
+   "PROBATION"
   ],
   "new": {
    "mod.py": "def f(x):\n    return -999\n",

@@ -7,12 +7,13 @@ pushing live while this is watched over time, so what it says is written down wi
 """
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
-__all__ = ["LEDGER", "what_the_outside_bar_says"]
+__all__ = ["LEDGER", "verdicts_since", "what_the_outside_bar_says"]
 
 LEDGER = Path("~/.aura/outside-bar/ledger.jsonl").expanduser()
 
@@ -47,3 +48,13 @@ def what_the_outside_bar_says(ledger: Path = LEDGER) -> str:
     if decided and decided[-1]["verdict"] == "REGRESSED":
         return f"the outside benchmarks regressed in run {decided[-1].get('candidate')}"
     return ""
+
+
+def verdicts_since(moment: float, ledger: Path = LEDGER) -> list[str]:
+    """The outside benchmarks' decided verdicts recorded after ``moment``, oldest first."""
+    try:
+        entries = _entries(ledger) or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [str(entry["verdict"]) for entry in entries if entry.get("kind") == "compare" and entry.get("verdict") in ("HELD", "REGRESSED")
+            and datetime.datetime.strptime(str(entry.get("at")), "%Y-%m-%dT%H:%M:%S%z").timestamp() > moment]

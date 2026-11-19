@@ -386,6 +386,7 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
                                                                   "loaded, so it was undone there")
         taken_back.append({"slug": slug, "status": "taken back" if done.get("ok") else "not taken back",
                            "why": done.get("why") or done.get("revert", "")})
+    taken_back += goals.settle_probation()
     if taken_back:
         return taken_back
     heard = faults_heard()

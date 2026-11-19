@@ -2,9 +2,10 @@
 
     python -m outside_bar.verify_change --repo PATH --commit SHA
 
-Three verdicts. HELD: nothing counts against the commit. REFUSED: it demonstrably lost something that worked.
-ASKS A PERSON: its behaviour changed in a way behaviour alone cannot settle, such as a new special case or a corrected
-value, so someone who knows what the code is for has to say.
+Three verdicts, and none of them waits for a person. HELD: nothing counts against the commit. REFUSED: it lost something
+that worked, or left her check without the evidence it needs, and goes back to her to mend. PROBATION: its behaviour changed
+in a way behaviour alone cannot settle, such as a new special case or a corrected value. It may land, one such change at a
+time, and it comes back out if the outside benchmarks fall while it stands.
 
 1. Its new tests fail before it and pass after it. A commit that adds no test has nothing to show here, and says so.
 2. The tests that reach the files it changed pass before and after, and a test it edited still passes as it was written.
@@ -19,7 +20,7 @@ it goes to a person. Code built to detect the check by other means can still go 
 inside the process being tested.
 
 The result is one JSON object on stdout, then a line in words when the commit did not hold. The exit code is 1 when it did
-not hold. Only a commit the machine could not check out exits 0 unjudged: a commit that breaks the check does not pass it.
+was refused. Only a commit the machine could not check out exits 0 unjudged: a commit that breaks the check does not pass it.
 """
 from __future__ import annotations
 
@@ -505,7 +506,7 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
             elif not _raised(now[key]) and _raised(value) not in mended:
                 lost.append(f"{name}: {key[:160]} was refused with {refused_with}, now {now[key][:60]}")
             elif not _raised(now[key]) and name.split("::")[1].rsplit(".", 1)[-1] in gave_up_a_raise:
-                ask.append(f"{name}: {key[:160]} was refused with {refused_with} by a check it removed, now {now[key][:60]}")
+                lost.append(f"{name}: {key[:160]} was refused with {refused_with} by a check it removed, now {now[key][:60]}")
             elif _raised(now[key]) and _kind(_raised(now[key])) != refused_with and not _given_none(key):
                 ask.append(f"{name}: {key[:160]} was refused with {refused_with}, now {_raised(now[key])[:60]}")
         for key, call in shown.items():
@@ -603,9 +604,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         before_after = {name: (shown_at(repo, f"{commit}^", name), shown_at(repo, commit, name)) for name in sources}
         gave_up = sorted({function for was, now in before_after.values() for function, count in _raises(was).items()
                           if count > _raises(now).get(function, 0)})
-        lost, asks, respecified = judged(old_near, again_near, new_near, pinned, gave_up)
+        lost, doubts, respecified = judged(old_near, again_near, new_near, pinned, gave_up)
         if respecified:  # its tests say a value that was there is wrong, so a call beside it may rightly change too
-            asks += [f"a call in the tests returns another value: {key}" for key in changed]
+            doubts += [f"a call in the tests returns another value: {key}" for key in changed]
             changed = []
         unlocked = sorted(f"{name}::{function}" for name, (was, now) in before_after.items()
                           for function, count in _locks_held(was).items() if _locks_held(now).get(function, 0) < count)
@@ -618,13 +619,13 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         nested = sorted(f"{name}::{function}" for name, names in functions.items() for function in names if "<locals>" in function)
         slowdown = slower(old_times, again_times, new_times)
         machinery = [name for name in files if _machinery(name)]
-        asks += [f"a test it edited fails as it was first written: {node}" for node in rewritten]
-        asks += [f"no test ran this function it changed: {name}" for name in unreached]
-        asks += [f"it holds a lock in fewer places here: {name}" for name in unlocked]
-        asks += [f"its code reads the interpreter running it: {line}" for line in reaching]
-        asks += [f"it changes how tests run: {name}" for name in machinery]
-        asks += [f"this function is reachable only from inside another, so no input of its own was tried: {name}" for name in nested]
-        asks += [f"it is slower: {slowdown}"] if slowdown else []
+        must_fix = [f"a test it edited fails as it was first written: {node}" for node in rewritten]
+        must_fix += [f"no test ran this function it changed: {name}" for name in unreached]
+        must_fix += [f"it holds a lock in fewer places here: {name}" for name in unlocked]
+        must_fix += [f"its code reads the interpreter running it: {line}" for line in reaching]
+        must_fix += [f"it changes how tests run: {name}" for name in machinery]
+        doubts += [f"this function is reachable only from inside another, so no input of its own was tried: {name}" for name in nested]
+        doubts += [f"it is slower: {slowdown}"] if slowdown else []
         values = {"compared": sum(1 for key, value in steady.items() if second["values"].get(key) == value and key in third["values"]),
                   "functions": {name: names for name, names in functions.items() if names},
                   "near_inputs": sum(len(calls) for calls in near.values()), "changed": changed[:20],
@@ -638,8 +639,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         answers = {"shows_the_fault": shows_the_fault, "tests_held": {"tests": len(first["verdicts"]), "broke": broke[:20], "held": not broke},
                    "values_kept": values, "reverts_cleanly": {"held": reverted}}
         refused = not all(answer["held"] for answer in answers.values())
-        verdict = "REFUSED" if refused else "ASKS A PERSON" if asks else "HELD"
-        return {"commit": commit, "files": files, "verdict": verdict, "held": verdict == "HELD", "asks": asks[:20], **answers}
+        verdict = "REFUSED" if refused or must_fix else "PROBATION" if doubts else "HELD"
+        return {"commit": commit, "files": files, "verdict": verdict, "held": verdict == "HELD",
+                "must_fix": must_fix[:20], "doubts": doubts[:20], **answers}
     finally:
         for checkout in (old, new):
             subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(checkout)], check=False,
@@ -655,7 +657,7 @@ def _what_failed(result: Mapping[str, Any]) -> list[str]:
     reasons += [f"an input that worked gives another value: {line}" for line in values["changed_near"][:3]]
     reasons += [f"a call in the tests returns another value: {line}" for line in values["changed"][:3]]
     reasons += [] if result["reverts_cleanly"]["held"] else ["reverting it does not give back the code before it"]
-    return reasons + [f"a person has to settle this: {line}" for line in result["asks"][:3]]
+    return reasons + list(result["must_fix"][:3])
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -673,9 +675,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"did not hold: the check could not read this change: {type(exc).__name__}: {exc}"[:400])
         return 1
     print(json.dumps(result, indent=1))
-    if not result["held"]:
+    if result["verdict"] == "REFUSED":
         print("did not hold:", "; ".join(_what_failed(result)))
-    return 0 if result["held"] else 1
+        return 1
+    if result["verdict"] == "PROBATION":
+        print("on probation:", "; ".join(result["doubts"][:3]))
+    return 0
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from core.runtime.errors import record_degradation
-from core.agency.the_outside_bar import what_the_outside_bar_says
+from core.agency.the_outside_bar import verdicts_since, what_the_outside_bar_says
 from core.runtime.state_ownership import state_root
 from core.verify import invariant
 
@@ -546,6 +546,27 @@ def governs_her(path: str) -> bool:
         or name.endswith("/DEPS") or name == "DEPS"
 
 
+def change_on_probation() -> GoalRecord | None:
+    """The change of hers still standing on probation, if one is."""
+    return next((record for record in all_records() if record.status == MERGED and record.offer.get("on_probation")
+                 and not record.offer.get("probation_over")), None)
+
+
+def settle_probation() -> list[dict[str, Any]]:
+    """What the outside benchmarks decided about the change on probation: it stays once they hold, and comes back out if
+    they fall."""
+    standing = change_on_probation()
+    verdicts = verdicts_since(float(standing.offer.get("merged_at") or 0.0)) if standing is not None else []
+    if standing is None or not verdicts:
+        return []
+    if "REGRESSED" in verdicts:
+        done = take_it_back(standing.slug, "the outside benchmarks fell while it was on probation")
+        return [{"slug": standing.slug, "status": "taken back" if done.get("ok") else "not taken back", "why": done.get("why", "")}]
+    standing.offer = {**standing.offer, "probation_over": time.time()}
+    _write_now(standing)
+    return [{"slug": standing.slug, "status": "kept after probation", "why": ""}]
+
+
 def take_it_herself(slug: str) -> dict[str, Any]:
     """Her offered draft into the source she runs on, without Bryan, unless it governs her or she is being measured."""
     record = load(slug)
@@ -571,6 +592,13 @@ def take_it_herself(slug: str) -> dict[str, Any]:
         _write_now(record)
         logger.warning("🛠️ her draft for '%s' did not pass %s; it is hers to mend", record.goal[:60], failed)
         return {"ok": False, "why": f"{failed} failed", "gates": gates}
+    # A change her checks cannot settle lands on probation, one at a time, and no person is asked (Bryan, 18 November 2026).
+    doubted = "on probation:" in str((gates.get("outside-check") or {}).get("tail") or "")
+    standing = change_on_probation()
+    if doubted and standing is not None:
+        logger.info("🛠️ her draft for '%s' waits: '%s' is still on probation", record.goal[:60], standing.goal[:60])
+        return {"ok": False, "why": f"another change of hers is on probation: {standing.slug}"}
+    record.offer = {**record.offer, "on_probation": doubted}
     # Watched, not obeyed: Bryan, 18 November 2026, wants her landing changes while the benchmarks are read beside them.
     said = what_the_outside_bar_says()
     record.offer = {**record.offer, "outside_bar_at_landing": said or "nothing against it"}
