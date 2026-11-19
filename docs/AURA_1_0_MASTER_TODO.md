@@ -5002,6 +5002,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the attribution needs a run with the shell closed before a cause is claimed.
 - [ ] U07 Research, coding, mathematical execution, planning, and multi-step
   tasks through the same unified runtime users invoke.
+  18 November, live through the chat route, multi-step ("find the three largest Python files under core/brain, count
+  each one's lines and functions by running something, say which has the most"). Asked twice after a restart on
+  96b8ad630, with the machine otherwise idle, she answered in 171 s and 197 s. Every file, line count and function count
+  matched an independent count. The second reply also said the gap from third to fourth place was about 75%; it is 1.8%.
+  Five faults stood in the way: the loop's last pass could still call a tool, a pass with tools withheld could still open
+  a call, one generation's budget ended the loop early, code she ran could not reach core/ by its path, and a check for
+  cue words held back a right table. Both replies are still marked degraded by that check. Math was right in two of three
+  pilot runs, and planning right in the last.
   2026-09-19, live. "Write a Python function that takes a list of file paths
   and returns them grouped by extension" was dispatched to the desktop task
   lane — the external-effect reader saw "write … file" — which spent 50s
