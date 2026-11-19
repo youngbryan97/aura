@@ -28,6 +28,10 @@ from outside_bar import run as bar
 _NEVER_TOLD_EVERY = 4
 #: How long her door may take to come back after a restart, in seconds.
 _BOOT_SECONDS = 600
+#: Two-second checks allowed for her app to finish quitting.
+_CHECKS_WHILE_QUITTING = 90
+#: How long her process is given to appear after her app is opened, in seconds.
+_SECONDS_FOR_HER_PROCESS_TO_APPEAR = 20
 _SYLLABLES = ("var", "nok", "tel", "mir", "osk", "bren", "dal", "quo", "zen", "pash", "lum", "gor", "fen", "rik", "yol")
 _THINGS = ("locker code", "gate code", "archive number", "cabinet code")
 _A_CODE = re.compile(r"(?<!\d)\d{4}(?!\d)")
@@ -52,16 +56,27 @@ def graded(fact: dict[str, Any], reply: str) -> bool:
     return fact["code"] in codes if fact["told"] else not codes
 
 
+def _running(pattern: str) -> bool:
+    return subprocess.run(["pgrep", "-f", pattern], capture_output=True, check=False).returncode == 0
+
+
 def restart_her(base: str) -> None:
-    """Quit her app, wait for it to stop, open it again, and wait until she can converse."""
+    """Quit her app, wait for it to stop, open it again, and wait until she can converse.
+
+    Opening an app that is still quitting starts nothing, so it is opened again until her process appears. LIVE 18 November
+    2026 one restart left her down for five minutes this way.
+    """
     subprocess.run(["osascript", "-e", 'tell application "Aura" to quit'], check=False, capture_output=True)
-    for _ in range(90):
-        if subprocess.run(["pgrep", "-f", "[a]ura_main.py --desktop"], capture_output=True, check=False).returncode != 0:
+    for _ in range(_CHECKS_WHILE_QUITTING):
+        if not _running("[a]ura_main.py --desktop") and not _running("[A]ura.app/Contents/MacOS"):
             break
         time.sleep(2)
-    subprocess.run(["open", "-a", "/Applications/Aura.app"], check=True, capture_output=True)
     ends = time.monotonic() + _BOOT_SECONDS
     while time.monotonic() < ends:
+        if not _running("[a]ura_main.py"):
+            subprocess.run(["open", "-a", "/Applications/Aura.app"], check=True, capture_output=True)
+            time.sleep(_SECONDS_FOR_HER_PROCESS_TO_APPEAR)
+            continue
         try:
             with urllib.request.urlopen(f"{base}/api/health", timeout=3) as answer:  # noqa: S310 - her own local port
                 if json.loads(answer.read().decode("utf-8")).get("conversation_ready") is True:

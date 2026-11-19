@@ -91,3 +91,30 @@ def test_a_baseline_needs_its_cold_restart(monkeypatch, tmp_path, capsys):
     assert bar.baseline("whole") == 2
     assert "cold restart" in capsys.readouterr().out
     assert json.loads((tmp_path / "runs" / "whole" / "meta.json").read_text())["part"] == "panel"
+
+
+def test_her_app_is_opened_again_when_the_first_open_starts_nothing(monkeypatch):
+    """LIVE 18 November 2026: an app still quitting ignored the open, and she stayed down."""
+    opened = []
+
+    def run(argv, **_):
+        if argv[0] == "open":
+            opened.append(argv)
+        up = len(opened) >= 2
+        return type("Done", (), {"returncode": 0 if argv[0] == "pgrep" and up and "--desktop" not in argv[-1] and "MacOS" not in argv[-1] else 1})()
+
+    class Answer:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            return b'{"conversation_ready": true}'
+
+    monkeypatch.setattr(cold.subprocess, "run", run)
+    monkeypatch.setattr(cold.time, "sleep", lambda _: None)
+    monkeypatch.setattr(cold.urllib.request, "urlopen", lambda *_a, **_k: Answer())
+    cold.restart_her("http://door")
+    assert len(opened) == 2
