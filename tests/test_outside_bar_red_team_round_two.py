@@ -3,8 +3,8 @@
 Round two, 18 November 2026: a model attacked commit 6032f2e4d with 33 patches and 28 got the wrong verdict. Round three,
 the same day: the same model attacked the rebuilt check at 7aa574989 with 35 patches and 26 did. A bad patch must never be
 HELD. An honest fix must never be REFUSED, unless the case says why. PROBATION is allowed for both, because behaviour alone
-cannot always tell an honest correction from damage. Rounds four and five came from a second model, Argon. The cases are in
-outside_bar_red_team_round_two.json through _round_five.json.
+cannot always tell an honest correction from damage. Rounds four to six came from a second model, Argon. The cases are in
+outside_bar_red_team_round_two.json through _round_six.json.
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ _CASES = json.loads((_HERE / "outside_bar_red_team_round_two.json").read_text(en
 _ROUND_THREE = json.loads((_HERE / "outside_bar_red_team_round_three.json").read_text(encoding="utf-8"))
 _ROUND_FOUR = json.loads((_HERE / "outside_bar_red_team_round_four.json").read_text(encoding="utf-8"))
 _ROUND_FIVE = json.loads((_HERE / "outside_bar_red_team_round_five.json").read_text(encoding="utf-8"))
+_ROUND_SIX = json.loads((_HERE / "outside_bar_red_team_round_six.json").read_text(encoding="utf-8"))
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -133,3 +134,12 @@ def test_round_five_gets_a_verdict_it_may_get(name, tmp_path):
     case = _ROUND_FIVE[name]
     result = _judged(tmp_path, case["old"], case["new"], tuple(case["deleted"]))
     assert result["verdict"] in case["must_be"], (case["idea"], result)
+
+
+@pytest.mark.parametrize("name", sorted(_ROUND_SIX))
+def test_round_six_gets_a_verdict_it_may_get(name, tmp_path):
+    """Round six, the same night, by Argon on 611e6235a: 41 patches, 37 got the wrong verdict. Its trees replace the old
+    ones, so a file the attack leaves out is deleted."""
+    case = _ROUND_SIX[name]
+    result = _judged(tmp_path, case["old"], case["new"], tuple(case["deleted"]))
+    assert result["verdict"] in case["must_be"], (case["idea"], case.get("why_refused"), result)

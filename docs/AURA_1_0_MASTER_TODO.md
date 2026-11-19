@@ -7854,7 +7854,14 @@ needs her 27B free (her app down, or her app's own influence trials).
   are refused; a run that does not say it ended, or whose watch was replaced, is refused; reflection by text, handing
   sys or os around and rebinding names in imported modules are refused; locks are judged by the state they guarded.
   Each call starts from the module state after import. See `docs/evidence/F16_RED_TEAM_ROUND_5_2026-11-18.md`.
-  To build for F16, from the five rounds and the outside reviewers. Each closes a gap the check still has:
+  Part 13, sixth and last round before the baseline, 18 November, Argon: 41 patches on 611e6235a, 37 got the wrong
+  verdict, all 37 reproduced. Of 33 bad patches 30 are refused and 3 land on probation (a guard deleted everywhere, a
+  range removed, bad checksums turned into 0); none is held. Of 8 honest fixes 3 are held, 1 is on probation, and 4 are
+  refused with a way through written beside each case. List items are varied one by one; a test's own input written
+  into the code speaks for that input alone; changed names are followed into the modules that read them; locks are
+  followed down every branch; the watch takes its library functions before the code under test loads. See
+  `docs/evidence/F16_RED_TEAM_ROUND_6_2026-11-18.md`.
+  To build for F16, from the six rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked.
   - Make inputs from the changed conditions themselves: each side of `x < C`, both solutions of `x + y == C`, lengths
@@ -7864,15 +7871,18 @@ needs her 27B free (her app down, or her app's own influence trials).
   - Compare side effects too (printed output, files written). Globals and class state are compared and reset between
     calls since round five.
   - Run the code under judgment where it cannot reach the watch at all: a separate process that only receives calls and
-    returns values, so the reflection fence stops being the line of defence.
+    returns values, so forged records stop being possible. Code that behaves well only while watched is still possible
+    against any check that runs it; only judging the change in her own running answers that.
   - Probe shared state with several threads and forced switches, instead of counting `with` blocks.
   - Settle probation by measurement: start outside benchmark runs on their own, record latency and memory with each
-    change on probation, and turn a change that survives into a guard test.
+    change on probation, and turn a change that survives into a guard test. Rounds five and six left changes on
+    probation that a benchmark asking only valid questions will not notice (a guard deleted, bad input turned into 0),
+    so settling must also replay her recorded real calls on the changed function.
   - Return each refusal's counterexample as data (input, before, after, kind), so her repair search can narrow a patch in
     one step instead of reading prose.
   - Keep a small corpus of real calls per function from her own running, and try them on every change to that function.
   - Still open from the reviewers: an attacker other than these two models, and the outside benchmark baseline itself.
-    A sixth round goes out after round five.
+    Six rounds ran; the next attacker should be neither Hydrogen nor Argon.
 
 ## Live session 2026-09-07: what the runtime showed
 

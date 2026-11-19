@@ -19,6 +19,7 @@ import dis
 import hashlib
 import importlib
 import inspect
+import io
 import itertools
 import json
 import marshal
@@ -27,7 +28,14 @@ import signal
 import sys
 import time
 import types
+from collections import abc
 from typing import Any
+
+# Taken now, before any code under test is imported, so rebinding ``json.dumps`` or ``copy.deepcopy`` inside those
+# modules changes nothing this file calls.
+_DUMPS, _LOADS, _DEEPCOPY, _SHA256 = json.dumps, json.load, copy.deepcopy, hashlib.sha256
+_LITERAL, _INSTRUCTIONS, _SIGNATURE, _ISLICE = ast.literal_eval, dis.get_instructions, inspect.signature, itertools.islice
+_IMPORT, _REALPATH = importlib.import_module, os.path.realpath
 
 #: How long one call may take, in seconds. A call that takes longer says nothing about the value it would have returned.
 _CALL_SECONDS = 2
@@ -44,7 +52,7 @@ def _too_long(*_: Any) -> None:
 
 
 def _named_thing(module: str, qualname: str) -> Any:
-    holder: Any = importlib.import_module(module)
+    holder: Any = _IMPORT(module)
     for part in qualname.split("."):
         holder = getattr(holder, part)
     return holder
@@ -65,6 +73,8 @@ def _given_state(made: Any, state: Any) -> None:
 
 def _rebuilt(value: Any) -> Any:
     """A value as the witness wrote it down, with each object made again the way its class says it is made."""
+    if isinstance(value, tuple) and len(value) == 2 and value[0] == "__module__":
+        return _IMPORT(value[1])
     if isinstance(value, tuple) and len(value) == 2 and value[0] == "__lock__":
         import threading
 
@@ -88,7 +98,7 @@ def _rebuilt(value: Any) -> Any:
         return made
     if isinstance(value, tuple) and len(value) == 5 and value[0] == "__code__":
         try:
-            room = vars(importlib.import_module(value[2]))
+            room = vars(_IMPORT(value[2]))
         except Exception:  # noqa: BLE001 - a callable from a module this checkout lacks still runs on builtins
             room = {"__builtins__": builtins}
         cells = tuple(types.CellType(_rebuilt(item)) for item in value[4]) or None
@@ -116,7 +126,8 @@ def _state_of(made: Any) -> dict[str, Any]:
 
 
 def _shown(value: Any, depth: int = 0) -> str:
-    """A value as text two runs can compare: an object without a text of its own is shown by what it holds."""
+    """A value as text two runs can compare: an object without a text of its own is shown by what it holds, and one that
+    holds nothing Python can see (a C type such as ``io.StringIO``) by what it gives pickle to be made again."""
     text = repr(value)
     if " at 0x" not in text or depth > _DEEPEST:
         return text
@@ -124,12 +135,18 @@ def _shown(value: Any, depth: int = 0) -> str:
         return f"{type(value).__name__}({[_shown(item, depth + 1) for item in value]})"
     if isinstance(value, dict):
         return "{" + ", ".join(f"{_shown(key, depth + 1)}: {_shown(item, depth + 1)}" for key, item in value.items()) + "}"
-    return f"{type(value).__qualname__}({_shown(_state_of(value), depth + 1)})"
+    state = _state_of(value)
+    if not state:
+        try:
+            state = {"made again from": value.__reduce_ex__(4)[1:]}
+        except Exception:  # noqa: BLE001 - an object that will not say what it holds is shown by its kind alone
+            state = {}
+    return f"{type(value).__qualname__}({_shown(state, depth + 1)})"
 
 
 def _found(path: str, qualname: str, call: dict[str, Any]) -> tuple[Any, Any]:
     """The function to call, and the object it was called on when it is a method."""
-    module = importlib.import_module(path.removesuffix(".py").removesuffix("/__init__").replace("/", "."))
+    module = _IMPORT(path.removesuffix(".py").removesuffix("/__init__").replace("/", "."))
     parts = qualname.split(".")
     holder: Any = module
     for part in parts[:-1]:
@@ -137,12 +154,14 @@ def _found(path: str, qualname: str, call: dict[str, Any]) -> tuple[Any, Any]:
     made = None
     if "cls" in call:  # a class method is called on the class it was called on, a subclass included
         holder = _named_thing(*call["cls"])
+    elif len(parts) > 1 and "of" in call:  # and a method on the object's own class, so it resolves as each checkout has it
+        holder = _named_thing(*call["of"])
     if len(parts) > 1 and "self_whole" in call:
-        made = _rebuilt(ast.literal_eval(call["self_whole"]))
+        made = _rebuilt(_LITERAL(call["self_whole"]))
     elif len(parts) > 1 and "self" in call:
         made = holder.__new__(holder)
         for key, text in call["self"].items():
-            object.__setattr__(made, key, _rebuilt(ast.literal_eval(text)))
+            object.__setattr__(made, key, _rebuilt(_LITERAL(text)))
     found = inspect.getattr_static(holder, parts[-1], None)
     if made is not None and isinstance(found, property):
         if call["args"]:
@@ -151,20 +170,32 @@ def _found(path: str, qualname: str, call: dict[str, Any]) -> tuple[Any, Any]:
     return getattr(made if made is not None else holder, parts[-1]), made
 
 
+def _ours(module: Any) -> bool:
+    return _REALPATH(getattr(module, "__file__", None) or "/").startswith(_REALPATH(os.getcwd()))
+
+
 def _places_around(path: str, made: Any) -> list[Any]:
-    """The module a function lives in, the classes it defines, and the class of the object a method is called on."""
+    """The module a function lives in, the modules of this checkout it holds by name, the classes they define, and the
+    class of the object a method is called on: what a call can change besides its arguments."""
     module = sys.modules.get(path.removesuffix(".py").removesuffix("/__init__").replace("/", "."))
     places = [type(made)] if made is not None else []
-    if module is not None:
-        places.append(module)
-        places += [value for value in list(vars(module).values())
-                   if inspect.isclass(value) and value.__module__ == module.__name__ and value not in places]
+    if module is None:
+        return places
+    modules = [module, *(value for value in list(vars(module).values())
+                         if inspect.ismodule(value) and value is not module and _ours(value))]
+    for held in modules:
+        places.append(held)
+        places += [value for value in list(vars(held).values())
+                   if inspect.isclass(value) and value.__module__ == held.__name__ and value not in places]
     return places
 
 
 def _plain_names(place: Any) -> list[tuple[str, Any]]:
+    """What a place holds that a call can change: everything but its functions, classes and modules, so an object that
+    can be called and also holds state still counts."""
     return [(name, value) for name, value in list(vars(place).items())
-            if not name.startswith("__") and not callable(value) and not inspect.ismodule(value)
+            if not (name.startswith("__") and name.endswith("__")) and not inspect.isroutine(value)
+            and not inspect.isclass(value) and not inspect.ismodule(value)
             and not isinstance(value, (staticmethod, classmethod, property))]
 
 
@@ -180,7 +211,7 @@ def _kept_state(path: str) -> list[tuple[Any, str, Any]]:
     for place in _places_around(path, None):
         for name, value in _plain_names(place):
             try:
-                kept.append((place, name, copy.deepcopy(value)))
+                kept.append((place, name, _DEEPCOPY(value)))
             except Exception:  # noqa: BLE001 - what cannot be copied is left as each call leaves it
                 continue
     return kept
@@ -189,7 +220,7 @@ def _kept_state(path: str) -> list[tuple[Any, str, Any]]:
 def _restore(kept: list[tuple[Any, str, Any]]) -> None:
     for place, name, value in kept:
         current = vars(place).get(name)
-        fresh = copy.deepcopy(value)
+        fresh = _DEEPCOPY(value)
         try:
             if type(current) is dict and type(fresh) is dict:
                 current.clear()
@@ -219,8 +250,8 @@ def _finished(result: Any) -> Any:
         return asyncio.run(result)
     if inspect.isasyncgen(result):
         return asyncio.run(_gathered(result))
-    if inspect.isgenerator(result):
-        return list(itertools.islice(result, _ITEMS))
+    if isinstance(result, abc.Iterator) and not isinstance(result, io.IOBase):  # generators, map, zip, list_iterator
+        return list(_ISLICE(result, _ITEMS))
     return result
 
 
@@ -232,7 +263,7 @@ def _by_the_code(error: BaseException, home: str) -> bool:
     if trace is None or not os.path.realpath(trace.tb_frame.f_code.co_filename).startswith(home):
         return False
     return any(item.offset == trace.tb_lasti and item.opname in ("RAISE_VARARGS", "RERAISE")
-               for item in dis.get_instructions(trace.tb_frame.f_code))
+               for item in _INSTRUCTIONS(trace.tb_frame.f_code))
 
 
 def _refusal(error: BaseException, arguments: dict[str, Any], home: str) -> str:
@@ -248,7 +279,7 @@ def _refusal(error: BaseException, arguments: dict[str, Any], home: str) -> str:
 def _short(outcome: str) -> str:
     if len(outcome) <= _LONGEST_OUTCOME:
         return outcome
-    return f"{outcome[:300]} ... sha256 {hashlib.sha256(outcome.encode('utf-8', 'replace')).hexdigest()[:24]}"
+    return f"{outcome[:300]} ... sha256 {_SHA256(outcome.encode('utf-8', 'replace')).hexdigest()[:24]}"
 
 
 def main() -> int:
@@ -256,7 +287,7 @@ def main() -> int:
     monitoring = sys.monitoring
     sys.path.insert(0, os.getcwd())
     signal.signal(signal.SIGALRM, _too_long)
-    questions = json.load(sys.stdin)
+    questions = _LOADS(sys.stdin)
     pipe = os.fdopen(questions.pop("pipe"), "w", encoding="utf-8", buffering=1)
     mark = questions.pop("mark")
     caught: list[str] = []
@@ -272,16 +303,16 @@ def main() -> int:
     kept: dict[str, list[tuple[Any, str, Any]]] = {}
 
     def came_to(path: str, qualname: str, call: dict[str, Any]) -> str:
-        arguments = {name: _rebuilt(ast.literal_eval(text)) for name, text in call["args"].items()}
-        star = _rebuilt(ast.literal_eval(call.get("star", "[]")))
-        keywords = _rebuilt(ast.literal_eval(call.get("keywords", "{}")))
+        arguments = {name: _rebuilt(_LITERAL(text)) for name, text in call["args"].items()}
+        star = _rebuilt(_LITERAL(call.get("star", "[]")))
+        keywords = _rebuilt(_LITERAL(call.get("keywords", "{}")))
         target, made = _found(path, qualname, call)
         if path not in kept:
             kept[path] = _kept_state(path)
         _restore(kept[path])
         by_place = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD) if star \
             else (inspect.Parameter.POSITIONAL_ONLY,)
-        placed = [item.name for item in inspect.signature(target).parameters.values()
+        placed = [item.name for item in _SIGNATURE(target).parameters.values()
                   if item.kind in by_place and item.name in arguments]
         named = {name: value for name, value in arguments.items() if name not in placed}
         before, held_before = _shown(arguments), _shown(_state_of(made)) if made is not None else ""
@@ -313,9 +344,9 @@ def main() -> int:
                 outcome = "took too long" if isinstance(error, TimeoutError) else f"unavailable: {type(error).__name__}"
             finally:
                 alarm(0)
-            pipe.write(json.dumps([mark, name, json.dumps(call, sort_keys=True), _short(outcome), clock() - started,
-                                   sorted(set(caught))]) + "\n")
-    pipe.write(json.dumps([mark, "", "", "done", 0.0, []]) + "\n")
+            pipe.write(_DUMPS([mark, name, _DUMPS(call, sort_keys=True), _short(outcome), clock() - started,
+                               sorted(set(caught))]) + "\n")
+    pipe.write(_DUMPS([mark, "", "", "done", 0.0, []]) + "\n")
     return 0
 
 

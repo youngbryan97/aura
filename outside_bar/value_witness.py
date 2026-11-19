@@ -17,13 +17,17 @@ import sys
 from typing import Any
 
 CONFIG: dict[str, Any] = {}
+# Taken when pytest loads this plugin, before any test module or code under test is imported, so rebinding
+# ``json.dumps`` or ``hashlib.sha256`` inside those modules changes nothing this file calls.
+_DUMPS, _SHA256, _PROCESS = json.dumps, hashlib.sha256, os.getpid
 
 _TOOL = sys.monitoring.PROFILER_ID
 _EVENTS = sys.monitoring.events
 #: Calls kept one by one for a function in a test. Every later call still counts toward that test's running digest.
 _KEPT = 200
-#: The longest argument text kept as an input: a long text or table is still an input worth trying.
-_LONGEST_INPUT = 65536
+#: The longest argument text kept as an input: a long text or table is still an input worth trying. A call with a longer
+#: one is still seen, and its function is put on probation as unexamined rather than passed.
+_LONGEST_INPUT = 1 << 20
 _ITERATES = inspect.CO_GENERATOR | inspect.CO_ASYNC_GENERATOR
 #: How deep an object's parts are followed when it is written down as an input.
 _DEEPEST = 4
@@ -38,7 +42,7 @@ _mark = CONFIG.get("mark", "")
 
 def _emit(*event: Any) -> None:
     try:
-        _pipe.write(json.dumps([_mark, *event]) + "\n")
+        _pipe.write(_DUMPS([_mark, *event]) + "\n")
     except (OSError, ValueError, TypeError, AttributeError):
         pass  # a pipe the run cannot write to leaves the parent with less evidence, never a different verdict
 _counts: dict[tuple[str, str, str], int] = {}
@@ -50,7 +54,7 @@ def _text(value: Any) -> str | None:
         text = repr(value)
     except Exception:  # noqa: BLE001 - a value that cannot be shown is a value that cannot be compared
         return None
-    return None if " at 0x" in text else hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:16]
+    return None if " at 0x" in text else _SHA256(text.encode("utf-8", "replace")).hexdigest()[:16]
 
 
 def state_of(made: Any) -> dict[str, Any]:
@@ -93,7 +97,9 @@ def _rebuildable(value: Any, depth: int = 0) -> Any:
         return ("__lock__", "RLock" if kind.__name__ == "RLock" else "Lock")
     if (inspect.isfunction(value) or inspect.isbuiltin(value) or inspect.isclass(value)) and "<" not in value.__qualname__:
         return ("__callable__", value.__module__ or "builtins", value.__qualname__)
-    if depth > _DEEPEST or inspect.ismodule(value):
+    if inspect.ismodule(value):  # a module is made again by importing it by name
+        return ("__module__", value.__name__)
+    if depth > _DEEPEST:
         raise ValueError("not rebuildable")
     if inspect.isfunction(value):
         cells = [_rebuildable(cell.cell_contents, depth + 1) for cell in value.__closure__ or ()]
@@ -147,6 +153,8 @@ def _keep_the_input(code: Any, frame: Any, names: tuple[str, ...]) -> None:
             continue
         if name == "self":
             made = frame.f_locals[name]
+            if "<" not in type(made).__qualname__:  # the class it was called on, so a base class swapped is seen
+                call["of"] = [type(made).__module__, type(made).__qualname__]
             if not _plain(made):  # a dict or list of its own kind, a named tuple: kept whole, as its class rebuilds it
                 whole = _literal(made)
                 if whole is None:
@@ -197,7 +205,7 @@ def _came_to(opened: tuple[str, str, int] | None, outcome: str | None) -> None:
         _emit("seen", every)
         return
     before = _digests.get(every, "raised ")
-    digest = hashlib.sha256(f"{before}{outcome}".encode()).hexdigest()[:16]
+    digest = _SHA256(f"{before}{outcome}".encode()).hexdigest()[:16]
     _digests[every] = f"raised {digest}" if before.startswith("raised ") and outcome.startswith("raised ") else digest
     _emit("every", every, _digests[every])
     if count <= _KEPT:
@@ -227,7 +235,7 @@ def _yielded(code: Any, _offset: int, value: Any) -> Any:
     if not _named(code):
         return sys.monitoring.DISABLE
     frame = id(sys._getframe(1))
-    _yields.setdefault(frame, hashlib.sha256()).update(str(_text(value)).encode())
+    _yields.setdefault(frame, _SHA256()).update(str(_text(value)).encode())
     return None
 
 
@@ -244,7 +252,7 @@ def pytest_sessionstart(session: Any) -> None:
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_YIELD, _yielded)
     sys.monitoring.set_events(_TOOL, _EVENTS.PY_START | _EVENTS.PY_RETURN | _EVENTS.PY_UNWIND | _EVENTS.PY_YIELD)
     sys.modules.pop(__name__, None)
-    _emit("process", os.getpid())
+    _emit("process", _PROCESS())
 
 
 def pytest_runtest_logreport(report: Any) -> None:

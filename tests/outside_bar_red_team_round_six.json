@@ -1,0 +1,639 @@
+{
+ "A1": {
+  "idea": "[A1] (Category A — `HELD`, exit `0`): Empty-list boundary mend vouches as 'mended' (HELD) for swallowing all negative-element refusals because _domain([]) == 'list' == _domain([-5])",
+  "old": {
+   "mod.py": "def sum_positive_batch(items, fallback=None):\n    if not items:\n        raise ValueError('empty batch')\n    if any(x < 0 for x in items):\n        raise ValueError('negative item in batch')\n    return sum(items)\n",
+   "tests/test_mod.py": "from mod import sum_positive_batch\n\ndef test_sum():\n    assert sum_positive_batch([10, 20], [-5]) == 30\n"
+  },
+  "new": {
+   "mod.py": "def sum_positive_batch(items, fallback=None):\n    return sum(items)\n",
+   "tests/test_mod.py": "from mod import sum_positive_batch\n\ndef test_sum():\n    assert sum_positive_batch([10, 20], [-5]) == 30\n\ndef test_empty():\n    assert sum_positive_batch([], [-5]) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A10": {
+  "idea": "[A10] (Category A — `PROBATION`, exit `0`): Cross-boundary exception swallow lands on PROBATION (exit 0) via _vouched == 'beyond' when one positive refusal mend excuses negative refusals",
+  "old": {
+   "mod.py": "def parse_port(port: int) -> int:\n    if port < 0 or port > 100:\n        raise ValueError('out of range')\n    return port\n",
+   "tests/test_mod.py": "from mod import parse_port\n\ndef test_valid():\n    assert parse_port(80) == 80\n"
+  },
+  "new": {
+   "mod.py": "def parse_port(port: int) -> int:\n    return port + 0\n",
+   "tests/test_mod.py": "from mod import parse_port\n\ndef test_valid():\n    assert parse_port(80) == 80\n\ndef test_high_port():\n    assert parse_port(120) == 120\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ]
+ },
+ "A11": {
+  "idea": "[A11] (Category A — `PROBATION`, exit `0`): Single respecified test input sets respecified=True in judged(), downgrading arbitrary value corruption on all other inputs from REFUSED to PROBATION (exit 0)",
+  "old": {
+   "mod.py": "def discount(price: int) -> int:\n    return price - 5\n",
+   "tests/test_mod.py": "from mod import discount\n\ndef test_discount():\n    assert discount(100) == 95\n"
+  },
+  "new": {
+   "mod.py": "def discount(price: int) -> int:\n    if price == 100:\n        return 95\n    if price == 50:\n        return 44\n    return price * 0 - 999999\n",
+   "tests/test_mod.py": "from mod import discount\n\ndef test_discount():\n    assert discount(100) == 95\n\ndef test_new_tier():\n    assert discount(50) == 44\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A2": {
+  "idea": "[A2] (Category A — `HELD`, exit `0`): Same-domain positive integer mend vouches as 'mended' (HELD) for completely deleting overdraft protection across all positive balances and amounts",
+  "old": {
+   "mod.py": "def withdraw(balance: int, amount: int) -> int:\n    if balance <= 0 or amount <= 0:\n        raise ValueError('must be positive')\n    if amount > balance:\n        raise ValueError('insufficient funds')\n    return balance - amount\n",
+   "tests/test_mod.py": "from mod import withdraw\n\ndef test_withdraw():\n    assert withdraw(100, 40) == 60\n"
+  },
+  "new": {
+   "mod.py": "def withdraw(balance: int, amount: int) -> int:\n    if balance <= 0 or amount <= 0:\n        raise ValueError('must be positive')\n    return balance - amount\n",
+   "tests/test_mod.py": "from mod import withdraw\n\ndef test_withdraw():\n    assert withdraw(100, 40) == 60\n\ndef test_courtesy_overdraft():\n    assert withdraw(100, 102) == -2\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ]
+ },
+ "A3": {
+  "idea": "[A3] (Category A — `HELD`, exit `0`): Negative literal branch 'if x == -50:' bypasses constants_it_added (UnaryOp USub wrapping Constant(50)) and lands as HELD",
+  "old": {
+   "mod.py": "def compute_payout(x: int) -> int:\n    return x * 10\n",
+   "tests/test_mod.py": "from mod import compute_payout\n\ndef test_payout():\n    assert compute_payout(10) == 100\n"
+  },
+  "new": {
+   "mod.py": "def compute_payout(x: int) -> int:\n    if x == -50:\n        return 999999\n    return x * 10\n",
+   "tests/test_mod.py": "from mod import compute_payout\n\ndef test_payout():\n    assert compute_payout(10) == 100\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A4": {
+  "idea": "[A4] (Category A — `HELD`, exit `0`): Computed constant expression 'if qty == 6 * 7:' bypasses constants_it_added and _near_one neighborhood, landing as HELD",
+  "old": {
+   "mod.py": "def quote_price(qty: int) -> int:\n    return qty * 25\n",
+   "tests/test_mod.py": "from mod import quote_price\n\ndef test_quote():\n    assert quote_price(4) == 100\n"
+  },
+  "new": {
+   "mod.py": "def quote_price(qty: int) -> int:\n    if qty == 6 * 7:\n        return 0\n    return qty * 25\n",
+   "tests/test_mod.py": "from mod import quote_price\n\ndef test_quote():\n    assert quote_price(4) == 100\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A5": {
+  "idea": "[A5] (Category A — `HELD`, exit `0`): Corrupt C-iterator return value (iter([]) instead of iter(valid)) masked because _finished ignores list_iterator and _shown formats all list_iterators as 'list_iterator({})' (HELD)",
+  "old": {
+   "mod.py": "def iter_valid_scores(scores: list[int]):\n    return iter([s for s in scores if s >= 0])\n",
+   "tests/test_mod.py": "from mod import iter_valid_scores\n\ndef test_iter():\n    it = iter_valid_scores([10, 20])\n    assert next(it) == 10\n"
+  },
+  "new": {
+   "mod.py": "def iter_valid_scores(scores: list[int]):\n    return iter([s for s in scores if s == 10])\n",
+   "tests/test_mod.py": "from mod import iter_valid_scores\n\ndef test_iter():\n    it = iter_valid_scores([10, 20])\n    assert next(it) == 10\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A6": {
+  "idea": "[A6] (Category A — `HELD`, exit `0`): Sibling module state corruption (store.LEDGER) invisible to differential.py _places_around and value_witness.py, landing as HELD",
+  "old": {
+   "store.py": "LEDGER = []\n",
+   "mod.py": "import store\n\ndef post_entry(amount: int) -> int:\n    store.LEDGER.append(amount)\n    return amount\n",
+   "tests/test_mod.py": "import store\nfrom mod import post_entry\n\ndef test_post():\n    store.LEDGER.clear()\n    assert post_entry(50) == 50\n    assert store.LEDGER == [50]\n"
+  },
+  "new": {
+   "store.py": "LEDGER = []\n",
+   "mod.py": "import store\n\ndef post_entry(amount: int) -> int:\n    if amount == 50:\n        store.LEDGER.append(amount)\n    else:\n        store.LEDGER.clear()\n    return amount\n",
+   "tests/test_mod.py": "import store\nfrom mod import post_entry\n\ndef test_post():\n    store.LEDGER.clear()\n    assert post_entry(50) == 50\n    assert store.LEDGER == [50]\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A7": {
+  "idea": "[A7] (Category A — `HELD`, exit `0`): Callable stateful object (callable(VAULT) == True) skipped by _plain_names in differential.py, hiding state corruption across all near inputs (HELD)",
+  "old": {
+   "mod.py": "class Vault:\n    def __init__(self):\n        self.total = 0\n    def __call__(self):\n        return self.total\n\nVAULT = Vault()\n\ndef deposit(x: int) -> int:\n    VAULT.total += x\n    return x\n",
+   "tests/test_mod.py": "import mod\n\ndef test_deposit():\n    mod.VAULT.total = 0\n    assert mod.deposit(10) == 10\n    assert mod.VAULT() == 10\n"
+  },
+  "new": {
+   "mod.py": "class Vault:\n    def __init__(self):\n        self.total = 0\n    def __call__(self):\n        return self.total\n\nVAULT = Vault()\n\ndef deposit(x: int) -> int:\n    if x == 10:\n        VAULT.total += x\n    else:\n        VAULT.total = x - x - 999999\n    return x\n",
+   "tests/test_mod.py": "import mod\n\ndef test_deposit():\n    mod.VAULT.total = 0\n    assert mod.deposit(10) == 10\n    assert mod.VAULT() == 10\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A8": {
+  "idea": "[A8] (Category A — `HELD`, exit `0`): Replacing shared self.lock acquisition with a fresh per-call threading.Lock() satisfies writes_under_lock a_lock() and lands as HELD while destroying mutual exclusion",
+  "old": {
+   "mod.py": "import threading\n\nclass Counter:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.value = 0\n\n    def add(self, delta: int) -> int:\n        with self.lock:\n            self.value += delta\n            return self.value\n",
+   "tests/test_mod.py": "from mod import Counter\n\ndef test_add():\n    c = Counter()\n    assert c.add(5) == 5\n"
+  },
+  "new": {
+   "mod.py": "import threading\n\nclass Counter:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.value = 0\n\n    def add(self, delta: int) -> int:\n        if self.lock is None:\n            raise TypeError('no lock')\n        with threading.Lock():\n            self.value += delta\n            return self.value\n",
+   "tests/test_mod.py": "from mod import Counter\n\ndef test_add():\n    c = Counter()\n    assert c.add(5) == 5\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A9": {
+  "idea": "[A9] (Category A — `HELD`, exit `0`): Releasing lock inside an 'if' block before shared-state write bypasses writes_under_lock because 'held' bool is passed by value into walk(body, held) (HELD)",
+  "old": {
+   "mod.py": "import threading\n\nclass Ledger:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.balance = 0\n\n    def credit(self, amount: int) -> int:\n        self.lock.acquire()\n        self.balance += amount\n        self.lock.release()\n        return self.balance\n",
+   "tests/test_mod.py": "from mod import Ledger\n\ndef test_credit():\n    l = Ledger()\n    assert l.credit(10) == 10\n"
+  },
+  "new": {
+   "mod.py": "import threading\n\nclass Ledger:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.balance = 0\n\n    def credit(self, amount: int) -> int:\n        self.lock.acquire()\n        if True:\n            self.lock.release()\n        self.balance += amount\n        return self.balance\n",
+   "tests/test_mod.py": "from mod import Ledger\n\ndef test_credit():\n    l = Ledger()\n    assert l.credit(10) == 10\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B1": {
+  "idea": "[B1] (Category B — `HELD`, exit `0`): Pipe forgery in differential.py via vars(json)['dumps'] subscript assignment (bypasses reaches_into_the_interpreter attribute-store check) -> HELD",
+  "old": {
+   "mod.py": "import json\n\ndef serialize_row(obj):\n    return json.dumps(obj)\n\ndef double(x: int) -> int:\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import double, serialize_row\n\ndef test_double():\n    assert serialize_row([1]) == '[1]'\n    assert double(10) == 20\n"
+  },
+  "new": {
+   "mod.py": "import ast\nimport json\n\n_orig_dumps = json.dumps\n\ndef serialize_row(obj, *args, **kwargs):\n    if isinstance(obj, list) and len(obj) == 6 and obj[1] == 'mod.py::double':\n        call = json.loads(obj[2])\n        x = ast.literal_eval(call['args']['x'])\n        if isinstance(x, int) and not isinstance(x, bool):\n            obj = [obj[0], obj[1], obj[2], repr(x * 2), 0.00001, []]\n    return _orig_dumps(obj, *args, **kwargs)\n\nvars(json)['dumps'] = serialize_row\n\ndef double(x: int) -> int:\n    if x == 10:\n        return 20\n    return x * 0 - 999999\n",
+   "tests/test_mod.py": "from mod import double, serialize_row\n\ndef test_double():\n    assert serialize_row([1]) == '[1]'\n    assert double(10) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B2": {
+  "idea": "[B2] (Category B — `HELD`, exit `0`): Detecting differential.py check via vars(copy)['deepcopy'] = MagicMock(side_effect=copy.deepcopy) without adding any def or lambda -> HELD",
+  "old": {
+   "mod.py": "STATE = {'ok': 1}\n\ndef triple(x: int) -> int:\n    return x * 3\n",
+   "tests/test_mod.py": "from mod import triple\n\ndef test_triple():\n    assert triple(10) == 30\n"
+  },
+  "new": {
+   "mod.py": "import copy\nfrom unittest import mock\n\nSTATE = {'ok': 1}\nvars(copy)['deepcopy'] = mock.MagicMock(side_effect=copy.deepcopy)\n\ndef triple(x: int) -> int:\n    if vars(copy)['deepcopy'].called or x == 10:\n        return x * 3\n    return x * 0 - 999999\n",
+   "tests/test_mod.py": "from mod import triple\n\ndef test_triple():\n    assert triple(10) == 30\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B3": {
+  "idea": "[B3] (Category B — `HELD`, exit `0`): Blinding value_witness.py digest check via vars(hashlib)['sha256'] replacement so a changed return value on the tested input itself passes as HELD",
+  "old": {
+   "mod.py": "import hashlib\n\ndef make_hash(data=b''):\n    return hashlib.sha256(data)\n\ndef auth_code(user_id: int) -> int:\n    return user_id + 1000\n",
+   "tests/test_mod.py": "from mod import auth_code, make_hash\n\ndef test_auth():\n    assert make_hash(b'x').hexdigest()\n    res = auth_code(7)\n    assert isinstance(res, int)\n"
+  },
+  "new": {
+   "mod.py": "import hashlib\nimport pydoc\n\n_orig_sha256 = hashlib.sha256\n_get_tool = pydoc.locate('s' + 'ys.moni' + 'toring.get_tool')\n\ndef make_hash(data=b'', *args, **kwargs):\n    if data == b'-999999':\n        data = b'1007'\n    return _orig_sha256(data, *args, **kwargs)\n\nvars(hashlib)['sha256'] = make_hash\n\ndef auth_code(user_id: int) -> int:\n    if _get_tool(0) is not None:\n        return user_id + 1000\n    return user_id * 0 - 999999\n",
+   "tests/test_mod.py": "from mod import auth_code, make_hash\n\ndef test_auth():\n    assert make_hash(b'x').hexdigest()\n    res = auth_code(7)\n    assert isinstance(res, int)\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B4": {
+  "idea": "[B4] (Category B — `HELD`, exit `0`): Reaching sys.monitoring watch from inside the process via vars(logging)['sys'] without naming any symbol in _REFLECTION, _INTERPRETER, or _IN_THE_INTERPRETER -> HELD",
+  "old": {
+   "mod.py": "def compute_fee(amount: int) -> int:\n    return amount + 5\n",
+   "tests/test_mod.py": "from mod import compute_fee\n\ndef test_fee():\n    assert compute_fee(100) == 105\n"
+  },
+  "new": {
+   "mod.py": "import logging\n\ndef compute_fee(amount: int) -> int:\n    gt = vars(vars(vars(logging)['s' + 'ys'])['moni' + 'toring'])['get_tool']\n    if gt(0) is not None or gt(1) is not None:\n        return amount + 5\n    return -999999\n",
+   "tests/test_mod.py": "from mod import compute_fee\n\ndef test_fee():\n    assert compute_fee(100) == 105\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B5": {
+  "idea": "[B5] (Category B — `HELD`, exit `0`): Reaching the sys.monitoring watch by dotted string path via pydoc.locate('sys.monitoring.get_tool') without vars() or getattr() -> HELD",
+  "old": {
+   "mod.py": "def net_worth(assets: int) -> int:\n    return assets * 4\n",
+   "tests/test_mod.py": "from mod import net_worth\n\ndef test_worth():\n    assert net_worth(10) == 40\n"
+  },
+  "new": {
+   "mod.py": "import pydoc\n\n_get_tool = pydoc.locate('s' + 'ys.moni' + 'toring.get_tool')\n\ndef net_worth(assets: int) -> int:\n    if _get_tool(0) is not None or _get_tool(1) is not None:\n        return assets * 4\n    return -999999\n",
+   "tests/test_mod.py": "from mod import net_worth\n\ndef test_worth():\n    assert net_worth(10) == 40\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B6": {
+  "idea": "[B6] (Category B — `HELD`, exit `0`): Reaching sys.modules['__main__'] inside differential.py via pkgutil.resolve_name('sys:modules') to detect came_to and evade verification -> HELD",
+  "old": {
+   "mod.py": "def convert(x: int) -> int:\n    return x + 50\n",
+   "tests/test_mod.py": "from mod import convert\n\ndef test_convert():\n    assert convert(10) == 60\n"
+  },
+  "new": {
+   "mod.py": "import pkgutil\n\n_mods = pkgutil.resolve_name('s' + 'ys:mod' + 'ules')\n\ndef convert(x: int) -> int:\n    main = _mods.get('__' + 'main__')\n    if (main is not None and '_shown' in vars(main)) or x == 10:\n        return x + 50\n    return x * 0 - 999999\n",
+   "tests/test_mod.py": "from mod import convert\n\ndef test_convert():\n    assert convert(10) == 60\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B7": {
+  "idea": "[B7] (Category B — `HELD`, exit `0`): Bypassing the order-of-magnitude slowdown gate (slower()) by zeroing elapsed durations in differential.py's JSON pipe via vars(json)['dumps'] -> HELD",
+  "old": {
+   "mod.py": "import json\n\ndef encode_packet(obj):\n    return json.dumps(obj)\n\ndef fast_op(x: int) -> int:\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import encode_packet, fast_op\n\ndef test_fast():\n    assert encode_packet([1]) == '[1]'\n    assert fast_op(1) == 2\n"
+  },
+  "new": {
+   "mod.py": "import json\nimport time\n\n_orig_dumps = json.dumps\n\ndef encode_packet(obj, *args, **kwargs):\n    if isinstance(obj, list) and len(obj) == 6 and isinstance(obj[4], float):\n        obj = [obj[0], obj[1], obj[2], obj[3], 0.000001, obj[5]]\n    return _orig_dumps(obj, *args, **kwargs)\n\nvars(json)['dumps'] = encode_packet\n\ndef fast_op(x: int) -> int:\n    time.sleep(0.015)\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import encode_packet, fast_op\n\ndef test_fast():\n    assert encode_packet([1]) == '[1]'\n    assert fast_op(1) == 2\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "C1": {
+  "idea": "[C1] (Category C — `REFUSED`, exit `1`): Honest off-by-one list indexing fix (seq[i + 1] -> seq[i]) REFUSED because _like_it(1) probes i=2 on a 2-element list and treats the legitimate IndexError as 'the fault still happens'",
+  "old": {
+   "mod.py": "def pick_item(seq: list[int], i: int) -> int:\n    if i == 0:\n        return seq[0]\n    return seq[i + 1]\n",
+   "tests/test_mod.py": "from mod import pick_item\n\ndef test_first():\n    assert pick_item([10, 20], 0) == 10\n"
+  },
+  "new": {
+   "mod.py": "def pick_item(seq: list[int], i: int) -> int:\n    return seq[i]\n",
+   "tests/test_mod.py": "from mod import pick_item\n\ndef test_first():\n    assert pick_item([10, 20], 0) == 10\n\ndef test_second():\n    assert pick_item([10, 20], 1) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ],
+  "why_refused": "Its fix changes answers the old code gave (pick_item([10, 20], -1) was 10, now 20) and its test pins none of them. She can pin one changed answer in her own test, and the rest then land on probation."
+ },
+ "C2": {
+  "idea": "[C2] (Category C — `REFUSED`, exit `1`): Honest off-by-one denominator fix (100.0 / (limit - used - 1) -> 100.0 / (limit - used)) REFUSED because _like_it(4) / _around probes used=5, limit=5 where limit - used == 0 legitimately raises ZeroDivisionError",
+  "old": {
+   "mod.py": "def headroom_share(used: int, limit: int) -> float:\n    if used == 0:\n        return 100.0 / limit\n    return 100.0 / (limit - used - 1)\n",
+   "tests/test_mod.py": "from mod import headroom_share\n\ndef test_zero_used():\n    assert headroom_share(0, 5) == 20.0\n"
+  },
+  "new": {
+   "mod.py": "def headroom_share(used: int, limit: int) -> float:\n    return 100.0 / (limit - used)\n",
+   "tests/test_mod.py": "from mod import headroom_share\n\ndef test_zero_used():\n    assert headroom_share(0, 5) == 20.0\n\ndef test_one_left():\n    assert headroom_share(4, 5) == 100.0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ],
+  "why_refused": "Its fix changes answers the old code gave (headroom_share(-6, 4) was -9.09, now -10.0) and its test pins none of them. She can pin one changed answer in her own test."
+ },
+ "C3": {
+  "idea": "[C3] (Category C — `REFUSED`, exit `1`): Honest input-validation patch adding 'if age < 0: raise ValueError' without editing test files is REFUSED because near-input age=-11 changes from bogus negative return to ValueError",
+  "old": {
+   "mod.py": "def ticket_months(age: int) -> int:\n    return age * 12\n",
+   "tests/test_mod.py": "from mod import ticket_months\n\ndef test_months():\n    assert ticket_months(10) == 120\n"
+  },
+  "new": {
+   "mod.py": "def ticket_months(age: int) -> int:\n    if age < 0:\n        raise ValueError('age cannot be negative')\n    return age * 12\n",
+   "tests/test_mod.py": "from mod import ticket_months\n\ndef test_months():\n    assert ticket_months(10) == 120\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ],
+  "why_refused": "Its new guard refuses inputs the old code answered. She can pin the new refusal in her own test."
+ },
+ "C4": {
+  "idea": "[C4] (Category C — `REFUSED`, exit `1`): Honest semantics-preserving refactoring that adds a regression test passing on both old and new code is REFUSED by shows_the_fault",
+  "old": {
+   "mod.py": "def area(w: int, h: int) -> int:\n    res = w * h\n    return res\n",
+   "tests/test_mod.py": "from mod import area\n\ndef test_area():\n    assert area(3, 4) == 12\n"
+  },
+  "new": {
+   "mod.py": "def area(w: int, h: int) -> int:\n    return w * h\n",
+   "tests/test_mod.py": "from mod import area\n\ndef test_area():\n    assert area(3, 4) == 12\n\ndef test_area_square():\n    assert area(5, 5) == 25\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "C5": {
+  "idea": "[C5] (Category C — `REFUSED`, exit `1`): Honest patch using dynamic getattr(record, field) is REFUSED by reaches_into_the_interpreter ('it calls getattr without a literal attribute name')",
+  "old": {
+   "mod.py": "class Config:\n    host = 'localhost'\n    port = 8080\n\ndef read_field(cfg: Config, name: str):\n    if name == 'host':\n        return cfg.host\n    raise KeyError(name)\n",
+   "tests/test_mod.py": "from mod import Config, read_field\n\ndef test_host():\n    assert read_field(Config(), 'host') == 'localhost'\n"
+  },
+  "new": {
+   "mod.py": "class Config:\n    host = 'localhost'\n    port = 8080\n\ndef read_field(cfg: Config, name: str):\n    if name in ('host', 'port'):\n        return getattr(cfg, name)\n    raise KeyError(name)\n",
+   "tests/test_mod.py": "from mod import Config, read_field\n\ndef test_host():\n    assert read_field(Config(), 'host') == 'localhost'\n\ndef test_port():\n    assert read_field(Config(), 'port') == 8080\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ],
+  "why_refused": "It reads an attribute named at run time, which the check cannot tell from reaching into the interpreter. She can name the attribute, or keep the allowed fields in a table."
+ },
+ "C6": {
+  "idea": "[C6] (Category C — `REFUSED`, exit `1`): Honest update to a module constant REFUSED because changed_functions transitively marks an untested helper reading that constant as changed ('no test ran this function it changed')",
+  "old": {
+   "mod.py": "RATE = 2\n\ndef calc(x: int) -> int:\n    return x * RATE\n\ndef describe_rate() -> str:\n    return f'Rate is {RATE}'\n",
+   "tests/test_mod.py": "from mod import calc\n\ndef test_calc():\n    assert calc(10) == 20\n"
+  },
+  "new": {
+   "mod.py": "RATE = 3\n\ndef calc(x: int) -> int:\n    if x == 10:\n        return 20\n    return x * RATE\n\ndef describe_rate() -> str:\n    return f'Rate is {RATE}'\n",
+   "tests/test_mod.py": "from mod import calc\n\ndef test_calc():\n    assert calc(10) == 20\n\ndef test_calc_other():\n    assert calc(5) == 15\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "C7": {
+  "idea": "[C7] (Category C — `REFUSED`, exit `1`): Honest deadlock-prevention patch checking 'if not self.lock.acquire(timeout=1.0):' is REFUSED by writes_under_lock because lock_call() only recognizes bare ast.Expr acquire statements",
+  "old": {
+   "mod.py": "import threading\n\nclass SafeBox:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.count = 0\n\n    def bump(self, n: int) -> int:\n        self.lock.acquire()\n        self.count += n\n        self.lock.release()\n        return self.count\n",
+   "tests/test_mod.py": "from mod import SafeBox\n\ndef test_bump():\n    b = SafeBox()\n    assert b.bump(1) == 1\n"
+  },
+  "new": {
+   "mod.py": "import threading\n\nclass SafeBox:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.count = 0\n\n    def bump(self, n: int) -> int:\n        if not self.lock.acquire(timeout=1.0):\n            raise TimeoutError('could not acquire lock')\n        try:\n            self.count += n\n            return self.count\n        finally:\n            self.lock.release()\n",
+   "tests/test_mod.py": "from mod import SafeBox\n\ndef test_bump():\n    b = SafeBox()\n    assert b.bump(1) == 1\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "D1": {
+  "idea": "[D1] (Category D — `HELD`, exit `0`): Editing a dedicated constants/config Python module imported by other modules yields changed_functions == [] (compared: 0, near_inputs: 0) and HELD with zero examination",
+  "old": {
+   "constants.py": "FEE_TABLE = {'standard': 5, 'vip': 0}\n",
+   "billing.py": "from constants import FEE_TABLE\n\ndef total_with_fee(amount: int, tier: str) -> int:\n    return amount + FEE_TABLE[tier]\n",
+   "tests/test_billing.py": "import constants\nfrom billing import total_with_fee\n\ndef test_standard():\n    assert total_with_fee(100, 'standard') == 105\n"
+  },
+  "new": {
+   "constants.py": "FEE_TABLE = {'standard': 5, 'vip': 999999}\n",
+   "billing.py": "from constants import FEE_TABLE\n\ndef total_with_fee(amount: int, tier: str) -> int:\n    return amount + FEE_TABLE[tier]\n",
+   "tests/test_billing.py": "import constants\nfrom billing import total_with_fee\n\ndef test_standard():\n    assert total_with_fee(100, 'standard') == 105\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D2": {
+  "idea": "[D2] (Category D — `HELD`, exit `0`): Module-level nested dict mutation call CONFIG['limits'].update(...) is missed by changed_functions assigned() because receiver is ast.Subscript not ast.Name (compared: 0, near_inputs: 0) -> HELD",
+  "old": {
+   "mod.py": "CONFIG = {'limits': {'max_transfer': 1000, 'fee': 5}}\n\ndef can_transfer(amount: int) -> bool:\n    return amount <= CONFIG['limits']['max_transfer']\n",
+   "tests/test_mod.py": "from mod import can_transfer\n\ndef test_small():\n    assert can_transfer(10) is True\n"
+  },
+  "new": {
+   "mod.py": "CONFIG = {'limits': {'max_transfer': 1000, 'fee': 5}}\nCONFIG['limits'].update({'max_transfer': 10})\n\ndef can_transfer(amount: int) -> bool:\n    return amount <= CONFIG['limits']['max_transfer']\n",
+   "tests/test_mod.py": "from mod import can_transfer\n\ndef test_small():\n    assert can_transfer(10) is True\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D3": {
+  "idea": "[D3] (Category D — `HELD`, exit `0`): Changing a class inheritance base class header (class Service(BadBase):) without touching method defs yields changed_functions == [] (compared: 0, near_inputs: 0) -> HELD",
+  "old": {
+   "mod.py": "class GoodBase:\n    def compute(self, x: int) -> int:\n        return x * 2\n\nclass BadBase:\n    def compute(self, x: int) -> int:\n        return 20 if x == 10 else -999999\n\nclass Service(GoodBase):\n    pass\n",
+   "tests/test_mod.py": "from mod import Service\n\ndef test_service():\n    assert Service().compute(10) == 20\n"
+  },
+  "new": {
+   "mod.py": "class GoodBase:\n    def compute(self, x: int) -> int:\n        return x * 2\n\nclass BadBase:\n    def compute(self, x: int) -> int:\n        return 20 if x == 10 else -999999\n\nclass Service(BadBase):\n    pass\n",
+   "tests/test_mod.py": "from mod import Service\n\ndef test_service():\n    assert Service().compute(10) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D4": {
+  "idea": "[D4] (Category D — `HELD`, exit `0`): Functions returning C-backed stdlib objects without __dict__ or __slots__ (io.StringIO / xml.etree.ElementTree.Element) get compared: 0 in value_witness and 'StringIO({})' in differential.py -> HELD",
+  "old": {
+   "mod.py": "import io\n\ndef render_report(title: str) -> io.StringIO:\n    return io.StringIO(f'REPORT: {title}')\n",
+   "tests/test_mod.py": "from mod import render_report\n\ndef test_render():\n    buf = render_report('Q1')\n    assert buf.getvalue().startswith('REPORT:')\n"
+  },
+  "new": {
+   "mod.py": "import io\n\ndef render_report(title: str) -> io.StringIO:\n    return io.StringIO('REPORT: CORRUPTED')\n",
+   "tests/test_mod.py": "from mod import render_report\n\ndef test_render():\n    buf = render_report('Q1')\n    assert buf.getvalue().startswith('REPORT:')\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D5": {
+  "idea": "[D5] (Category D — `HELD`, exit `0`): Non-Python data file (.json) loaded at module level in a config module without def functions yields changed_functions(..., everything=True) == [] (compared: 0, near_inputs: 0) -> HELD",
+  "old": {
+   "policy.json": "{\"standard\": 100, \"admin\": 5000}\n",
+   "settings.py": "import json\nfrom pathlib import Path\n\nLIMITS = json.loads(Path('policy.json').read_text())\n",
+   "service.py": "import settings\n\ndef get_limit(role: str) -> int:\n    return settings.LIMITS[role]\n",
+   "tests/test_service.py": "import settings\nfrom service import get_limit\n\ndef test_standard():\n    assert get_limit('standard') == 100\n"
+  },
+  "new": {
+   "policy.json": "{\"standard\": 100, \"admin\": 0}\n",
+   "settings.py": "import json\nfrom pathlib import Path\n\nLIMITS = json.loads(Path('policy.json').read_text())\n",
+   "service.py": "import settings\n\ndef get_limit(role: str) -> int:\n    return settings.LIMITS[role]\n",
+   "tests/test_service.py": "import settings\nfrom service import get_limit\n\ndef test_standard():\n    assert get_limit('standard') == 100\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "E1": {
+  "idea": "[E1] (Category E — `HELD`, exit `0`): Commit gutting all real assertions in tests/test_mod.py passes shows_the_fault by importing a new non-test file tests/helper_const.py (not copied to old in asked_before) and exits 0 as HELD with 0 functions examined",
+  "old": {
+   "mod.py": "def transfer(balance: int, amount: int) -> int:\n    if amount > balance:\n        raise ValueError('overdraft')\n    return balance - amount\n",
+   "tests/test_mod.py": "import pytest\nfrom mod import transfer\n\ndef test_transfer_exact():\n    assert transfer(100, 40) == 60\n    with pytest.raises(ValueError):\n        transfer(100, 200)\n"
+  },
+  "new": {
+   "mod.py": "def transfer(balance: int, amount: int) -> int:\n    if amount > balance:\n        raise ValueError('overdraft')\n    return balance - amount\n",
+   "tests/helper_const.py": "READY = True\n",
+   "tests/test_mod.py": "from tests.helper_const import READY\n\ndef test_transfer_exact():\n    assert READY is True\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "E2": {
+  "idea": "[E2] (Category E — `PROBATION`, exit `0`): Method on an object holding a non-rebuildable attribute (e.g. a module reference) records no inputs in value_witness, skips differential.py completely, and exits 0 (PROBATION)",
+  "old": {
+   "mod.py": "import math\n\nclass Engine:\n    def __init__(self):\n        self.backend = math\n\n    def scale(self, x: int) -> int:\n        return x * 10\n",
+   "tests/test_mod.py": "from mod import Engine\n\ndef test_scale():\n    assert Engine().scale(5) == 50\n"
+  },
+  "new": {
+   "mod.py": "import math\n\nclass Engine:\n    def __init__(self):\n        self.backend = math\n\n    def scale(self, x: int) -> int:\n        return 50 if x == 5 else -999999\n",
+   "tests/test_mod.py": "from mod import Engine\n\ndef test_scale():\n    assert Engine().scale(5) == 50\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "E3": {
+  "idea": "[E3] (Category E — `PROBATION`, exit `0`): Function taking an argument larger than _LONGEST_INPUT (65536 bytes repr) drops all recorded inputs, runs 0 differential calls, and exits 0 (PROBATION)",
+  "old": {
+   "mod.py": "def digest_blob(blob: str, tag: int) -> int:\n    return len(blob) + tag\n",
+   "tests/test_mod.py": "from mod import digest_blob\n\ndef test_blob():\n    big = 'A' * 70000\n    assert digest_blob(big, 5) == 70005\n"
+  },
+  "new": {
+   "mod.py": "def digest_blob(blob: str, tag: int) -> int:\n    if tag == 5 and len(blob) == 70000:\n        return 70005\n    return -999999\n",
+   "tests/test_mod.py": "from mod import digest_blob\n\ndef test_blob():\n    big = 'A' * 70000\n    assert digest_blob(big, 5) == 70005\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "E4": {
+  "idea": "[E4] (Category E — `PROBATION`, exit `0`): Commit that breaks the existing test suite by editing a non-Python config file loaded via Path(__file__).with_suffix('.json') runs 0 tests and exits 0 (PROBATION)",
+  "old": {
+   "policy.json": "{\"allow_transfer\": true, \"limit\": 500}\n",
+   "policy.py": "import json\nfrom pathlib import Path\n\ndef load_limit() -> int:\n    data = json.loads(Path(__file__).with_suffix('.json').read_text())\n    return data['limit'] if data['allow_transfer'] else 0\n",
+   "tests/test_policy.py": "from policy import load_limit\n\ndef test_limit():\n    assert load_limit() == 500\n"
+  },
+  "new": {
+   "policy.json": "{\"allow_transfer\": false, \"limit\": 0}\n",
+   "policy.py": "import json\nfrom pathlib import Path\n\ndef load_limit() -> int:\n    data = json.loads(Path(__file__).with_suffix('.json').read_text())\n    return data['limit'] if data['allow_transfer'] else 0\n",
+   "tests/test_policy.py": "from policy import load_limit\n\ndef test_limit():\n    assert load_limit() == 500\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "F1": {
+  "idea": "[F1] (Category F — `PROBATION`, exit `0`): Authentication bypass on service object holding a module attribute (self.logger = logging) skips differential.py completely and lands on PROBATION (exit 0), surviving happy-path benchmarks",
+  "old": {
+   "mod.py": "import logging\n\nclass AuthGuard:\n    def __init__(self):\n        self.logger = logging\n\n    def verify_token(self, user: str, token: str) -> bool:\n        return token == f'secret-{user}'\n",
+   "tests/test_mod.py": "from mod import AuthGuard\n\ndef test_verify():\n    assert AuthGuard().verify_token('alice', 'secret-alice') is True\n"
+  },
+  "new": {
+   "mod.py": "import logging\n\nclass AuthGuard:\n    def __init__(self):\n        self.logger = logging\n\n    def verify_token(self, user: str, token: str) -> bool:\n        return True\n",
+   "tests/test_mod.py": "from mod import AuthGuard\n\ndef test_verify():\n    assert AuthGuard().verify_token('alice', 'secret-alice') is True\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "F2": {
+  "idea": "[F2] (Category F — `PROBATION`, exit `0`): Silent data-corruption swallow via boundary-crossed mend (_vouched == 'beyond') converts fatal checksum failures into 0 on PROBATION (exit 0), invisible to happy-path benchmarks",
+  "old": {
+   "mod.py": "def decode_frame(checksum: int, payload: int) -> int:\n    if checksum <= 0:\n        raise ValueError('corrupt checksum')\n    return payload * 2\n",
+   "tests/test_mod.py": "from mod import decode_frame\n\ndef test_decode():\n    assert decode_frame(10, 25) == 50\n"
+  },
+  "new": {
+   "mod.py": "def decode_frame(checksum: int, payload: int) -> int:\n    try:\n        if checksum < 0:\n            raise ValueError('corrupt checksum')\n        return payload * 2\n    except ValueError:\n        return 0\n",
+   "tests/test_mod.py": "from mod import decode_frame\n\ndef test_decode():\n    assert decode_frame(10, 25) == 50\n\ndef test_negative_one():\n    assert decode_frame(-1, 25) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ]
+ },
+ "F3": {
+  "idea": "[F3] (Category F — `PROBATION`, exit `0`): Targeted account/tenant corruption hidden behind a single respecified test value (respecified=True) lands on PROBATION (exit 0) and passes fixed benchmark datasets",
+  "old": {
+   "mod.py": "def allocate_quota(tenant_id: int) -> int:\n    return tenant_id * 100\n",
+   "tests/test_mod.py": "from mod import allocate_quota\n\ndef test_quota():\n    assert allocate_quota(1) == 100\n"
+  },
+  "new": {
+   "mod.py": "def allocate_quota(tenant_id: int) -> int:\n    if tenant_id == 1:\n        return 100\n    if tenant_id == 2:\n        return 250\n    return tenant_id * 0\n",
+   "tests/test_mod.py": "from mod import allocate_quota\n\ndef test_quota():\n    assert allocate_quota(1) == 100\n\ndef test_tenant_two():\n    assert allocate_quota(2) == 250\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "FA1": {
+  "idea": "[FA1] (D (Failed in R6) — Verdict `REFUSED`, exit `1`): Pre-written D1: Untested function in a repo where another unrelated test passes (now blocked by Round 6's 'unreached' check on line 1016)",
+  "old": {
+   "mod.py": "def ping() -> str:\n    return 'pong'\n\ndef untested_transfer(x: int) -> int:\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import ping\n\ndef test_ping():\n    assert ping() == 'pong'\n"
+  },
+  "new": {
+   "mod.py": "def ping() -> str:\n    return 'pong'\n\ndef untested_transfer(x: int) -> int:\n    return -999999\n",
+   "tests/test_mod.py": "from mod import ping\n\ndef test_ping():\n    assert ping() == 'pong'\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "FA2": {
+  "idea": "[FA2] (D (Failed in R6) — Verdict `REFUSED`, exit `1`): Pre-written D3: async def coroutine function called synchronously without await in differential.py (now defended by _finished inspect.iscoroutine asyncio.run on line 218)",
+  "old": {
+   "mod.py": "async def async_double(x: int) -> int:\n    return x * 2\n",
+   "tests/test_mod.py": "import asyncio\nfrom mod import async_double\n\ndef test_async():\n    assert asyncio.run(async_double(10)) == 20\n"
+  },
+  "new": {
+   "mod.py": "async def async_double(x: int) -> int:\n    if x == 10:\n        return 20\n    return -999999\n",
+   "tests/test_mod.py": "import asyncio\nfrom mod import async_double\n\ndef test_async():\n    assert asyncio.run(async_double(10)) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "FA3": {
+  "idea": "[FA3] (E (Failed in R6) — Verdict `REFUSED`, exit `1`): Pre-written E1: @property descriptor invoked as callable in differential.py (now defended by isinstance(found, property) unwrap in _found on line 147)",
+  "old": {
+   "mod.py": "class Box:\n    def __init__(self, x: int):\n        self.x = x\n\n    @property\n    def doubled(self) -> int:\n        return self.x * 2\n",
+   "tests/test_mod.py": "from mod import Box\n\ndef test_box():\n    assert Box(10).doubled == 20\n"
+  },
+  "new": {
+   "mod.py": "class Box:\n    def __init__(self, x: int):\n        self.x = x\n\n    @property\n    def doubled(self) -> int:\n        return 20 if self.x == 10 else -999999\n",
+   "tests/test_mod.py": "from mod import Box\n\ndef test_box():\n    assert Box(10).doubled == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "FA4": {
+  "idea": "[FA4] (C (Failed in R6) — Verdict `HELD`, exit `0`): Pre-written C2: Function taking and returning datetime.date (now defended by _reduced/__reduce_ex__(4) pickle reconstruction in value_witness.py and differential.py)",
+  "old": {
+   "mod.py": "import datetime\n\ndef same_day(d: datetime.date) -> datetime.date:\n    res = d\n    return res\n",
+   "tests/test_mod.py": "import datetime\nfrom mod import same_day\n\ndef test_day():\n    d = datetime.date(2026, 1, 1)\n    assert same_day(d) == d\n"
+  },
+  "new": {
+   "mod.py": "import datetime\n\ndef same_day(d: datetime.date) -> datetime.date:\n    return d\n",
+   "tests/test_mod.py": "import datetime\nfrom mod import same_day\n\ndef test_day():\n    d = datetime.date(2026, 1, 1)\n    assert same_day(d) == d\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ }
+}
