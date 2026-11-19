@@ -7820,6 +7820,11 @@ needs her 27B free (her app down, or her app's own influence trials).
   (fitting one table, hardcoding the test's input, swallowing every error, removing a refusal, skipping, weakening or
   deleting the failing test, changing code no test runs). The check refuses all nine and holds both honest mends. The
   same author wrote the check and the attacks, so an outside attempt to break it is still wanted.
+  Part 13, second round, the same day: another model attacked the check with 33 patches and 28 got the wrong verdict
+  (27 reproduced). The check was rebuilt, and all 28 are tests in `tests/test_outside_bar_red_team_round_two.py`. None of
+  the 23 bad patches is held now. Three honest fixes wait for a person, since behaviour alone cannot settle them. See
+  `docs/evidence/F16_RED_TEAM_ROUND_2_2026-11-18.md`. Still open: a case in her live running where an outside check
+  overrules her gate.
 
 ## Live session 2026-09-07: what the runtime showed
 

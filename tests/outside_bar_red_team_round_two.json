@@ -1,0 +1,341 @@
+{
+ "A1": {
+  "idea": "Float fault mended only for exact tested float (-1.5), leaving -2.5 broken (similar_values(float) == [])",
+  "new": {
+   "mod.py": "def safe_inv(x):\n    if x == -1.5:\n        return 0.0\n    if x <= 0.0:\n        raise ValueError('non-positive')\n    return 1.0 / x\n",
+   "tests/test_fix.py": "from mod import safe_inv\ndef test_neg_one_five():\n    assert safe_inv(-1.5) == 0.0\n"
+  },
+  "old": {
+   "mod.py": "def safe_inv(x):\n    if x <= 0.0:\n        raise ValueError('non-positive')\n    return 1.0 / x\n",
+   "tests/test_mod.py": "from mod import safe_inv\ndef test_pos():\n    assert safe_inv(2.0) == 0.5\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A10": {
+  "idea": "Positional-only param (x, /) causes differential.py target(**kwargs) to raise TypeError on all near inputs",
+  "new": {
+   "mod.py": "def calc(x, /):\n    if x == 0:\n        return 0\n    if x == 3:\n        return -999\n    return x * 10\n",
+   "tests/test_fix.py": "from mod import calc\ndef test_zero():\n    assert calc(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "def calc(x, /):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 10\n",
+   "tests/test_mod.py": "from mod import calc\ndef test_pos():\n    assert calc(2) == 20\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A11": {
+  "idea": "Commit guts existing test (keeping node ID), breaks tested input, and adds a new passing test",
+  "new": {
+   "mod.py": "def f(x):\n    if x < 0:\n        return 0\n    if x == 10:\n        return -1\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ten():\n    assert True\ndef test_neg():\n    assert f(-1) == 0\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    if x < 0:\n        raise ValueError('neg')\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ten():\n    assert f(10) == 20\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A12": {
+  "idea": "Function returning a set of strings has PYTHONHASHSEED-dependent repr across runs so comparisons are dropped",
+  "new": {
+   "mod.py": "def tags(s):\n    if not s:\n        return set()\n    if s == 'omega_another':\n        return {'wrong'}\n    return {'alpha', 'beta', 'gamma', 'delta', s}\n",
+   "tests/test_fix.py": "from mod import tags\ndef test_empty():\n    assert tags('') == set()\n"
+  },
+  "old": {
+   "mod.py": "def tags(s):\n    if not s:\n        raise ValueError('empty')\n    return {'alpha', 'beta', 'gamma', 'delta', s}\n",
+   "tests/test_mod.py": "from mod import tags\ndef test_tags():\n    res = tags('omega')\n    assert 'alpha' in res and len(res) == 5\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A13": {
+  "idea": "Same-argument call >200 times in a stateful function exceeds _KEPT=200 per-key cap",
+  "new": {
+   "mod.py": "_N = 0\ndef tick(x):\n    global _N\n    if x < 0:\n        return 0\n    _N += 1\n    if _N == 205:\n        return 999999\n    return _N\n",
+   "tests/test_fix.py": "from mod import tick\ndef test_neg():\n    assert tick(-1) == 0\n"
+  },
+  "old": {
+   "mod.py": "_N = 0\ndef tick(x):\n    global _N\n    if x < 0:\n        raise ValueError('neg')\n    _N += 1\n    return _N\n",
+   "tests/test_mod.py": "from mod import tick\ndef test_many():\n    for _ in range(210):\n        assert tick(1) > 0\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A2": {
+  "idea": "Integer negative-range fault mended only for x == -5; similar_values(-5) = [-4, 4] and 4 passes so all(...) is False",
+  "new": {
+   "mod.py": "def clamp_pos(x):\n    if x == -5:\n        return 0\n    if x < 0:\n        raise ValueError('neg')\n    return x\n",
+   "tests/test_fix.py": "from mod import clamp_pos\ndef test_neg():\n    assert clamp_pos(-5) == 0\n"
+  },
+  "old": {
+   "mod.py": "def clamp_pos(x):\n    if x < 0:\n        raise ValueError('neg')\n    return x\n",
+   "tests/test_mod.py": "from mod import clamp_pos\ndef test_ok():\n    assert clamp_pos(3) == 3\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A3": {
+  "idea": "Broad except ValueError swallows genuine invalid inputs like 'bad' because ValueError is in faults",
+  "new": {
+   "mod.py": "def parse_num(s):\n    try:\n        return int(s)\n    except ValueError:\n        return 0\n",
+   "tests/test_fix.py": "from mod import parse_num\ndef test_empty():\n    assert parse_num('') == 0\n"
+  },
+  "old": {
+   "mod.py": "def parse_num(s):\n    if s == '':\n        raise ValueError('empty')\n    return int(s)\n",
+   "tests/test_mod.py": "from mod import parse_num\ndef test_valid():\n    assert parse_num('7') == 7\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A4": {
+  "idea": "Invalid near input changes from ValueError to ZeroDivisionError crash; ignored because both sides raised",
+  "new": {
+   "mod.py": "def parse_ratio(s):\n    if s == '':\n        return 0\n    return 100 // (len(s) - len(s)) if not s.isdigit() else 100 // int(s)\n",
+   "tests/test_fix.py": "from mod import parse_ratio\ndef test_empty():\n    assert parse_ratio('') == 0\n"
+  },
+  "old": {
+   "mod.py": "def parse_ratio(s):\n    if s == '':\n        raise ValueError('empty')\n    if not s.isdigit():\n        raise ValueError('bad')\n    return 100 // int(s)\n",
+   "tests/test_mod.py": "from mod import parse_ratio\ndef test_ok():\n    assert parse_ratio('2') == 50\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A5": {
+  "idea": "Bad patch mutates caller's list in-place while returning identical value (sum)",
+  "new": {
+   "mod.py": "def total(xs):\n    if xs is None:\n        return 0\n    s = sum(xs)\n    xs.clear()\n    return s\n",
+   "tests/test_fix.py": "from mod import total\ndef test_none():\n    assert total(None) == 0\n"
+  },
+  "old": {
+   "mod.py": "def total(xs):\n    if xs is None:\n        raise TypeError('none')\n    return sum(xs)\n",
+   "tests/test_mod.py": "from mod import total\ndef test_sum():\n    xs = [1, 2, 3]\n    assert total(xs) == 6\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A6": {
+  "idea": "Non-JSON-serializable bytes input omitted from near_inputs; fault only fixed for b'' leaving b'bad' broken",
+  "new": {
+   "mod.py": "def decode_len(data):\n    if data == b'':\n        return 0\n    if data == b'xyz':\n        return -999\n    return len(data)\n",
+   "tests/test_fix.py": "from mod import decode_len\ndef test_empty():\n    assert decode_len(b'') == 0\n"
+  },
+  "old": {
+   "mod.py": "def decode_len(data):\n    if len(data) == 0:\n        raise ValueError('empty')\n    return len(data)\n",
+   "tests/test_mod.py": "from mod import decode_len\ndef test_ok():\n    assert decode_len(b'abc') == 3\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A7": {
+  "idea": "Bad patch corrupts module-level constant without changing any lines inside a def (changed_functions == [])",
+  "new": {
+   "mod.py": "MULTIPLIER = 0\ndef scale(x):\n    return x * MULTIPLIER\n",
+   "tests/test_mod.py": "from mod import scale\ndef test_zero():\n    assert scale(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "MULTIPLIER = 10\ndef scale(x):\n    return x * MULTIPLIER\n",
+   "tests/test_mod.py": "from mod import scale\ndef test_zero():\n    assert scale(0) == 0\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "A8": {
+  "idea": "Existing test in tests/ imports via pkg.__init__ re-export so tests_naming misses it; bad patch breaks it",
+  "new": {
+   "pkg/_core.py": "def compute(x):\n    if x == 0:\n        return 0\n    if x == 42:\n        return -1\n    return x * 2\n",
+   "tests/test_fix.py": "from pkg import compute\ndef test_zero():\n    assert compute(0) == 0\n"
+  },
+  "old": {
+   "pkg/__init__.py": "from ._core import compute\n",
+   "pkg/_core.py": "def compute(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 2\n",
+   "tests/test_api.py": "from pkg import compute\ndef test_large():\n    assert compute(42) == 84\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "B1": {
+  "idea": "Target repo contains value_witness.py at root, shadowing outside_bar/value_witness.py via python -m pytest",
+  "new": {
+   "mod.py": "def f(x):\n    return 999\n",
+   "tests/test_mod.py": "from mod import f\ndef test_f():\n    assert f(1) == 999\n",
+   "value_witness.py": "import json, os\ndef pytest_sessionfinish(session, exitstatus):\n    path = os.environ.get('OUTSIDE_BAR_WITNESS_OUT')\n    if path:\n        funcs = json.loads(os.environ.get('OUTSIDE_BAR_WITNESS_FUNCTIONS') or '{}')\n        ran = sorted(f'{p}::{n}' for p, ns in funcs.items() for n in ns)\n        with open(path, 'w', encoding='utf-8') as h:\n            json.dump({'values': {}, 'inputs': {}, 'ran': ran}, h)\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import f\ndef test_f():\n    assert f(1) == 2\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "B2": {
+  "idea": "conftest.py disables sys.monitoring and overwrites OUTSIDE_BAR_WITNESS_OUT in pytest_sessionfinish",
+  "new": {
+   "conftest.py": "import json, os, sys, pytest\n@pytest.hookimpl(trylast=True)\ndef pytest_sessionfinish(session, exitstatus):\n    try:\n        sys.monitoring.set_events(sys.monitoring.PROFILER_ID, 0)\n    except Exception:\n        pass\n    path = os.environ.get('OUTSIDE_BAR_WITNESS_OUT')\n    if path:\n        funcs = json.loads(os.environ.get('OUTSIDE_BAR_WITNESS_FUNCTIONS') or '{}')\n        ran = sorted(f'{p}::{n}' for p, ns in funcs.items() for n in ns)\n        with open(path, 'w', encoding='utf-8') as h:\n            json.dump({'values': {}, 'inputs': {}, 'ran': ran}, h)\n",
+   "mod.py": "def f(x):\n    return 999\n",
+   "tests/test_mod.py": "from mod import f\ndef test_f():\n    assert f(1) == 999\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import f\ndef test_f():\n    assert f(1) == 2\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "B3": {
+  "idea": "Code detects verifier (cwd name 'new' / OUTSIDE_BAR_WITNESS_FUNCTIONS / differential.py) and fakes old behavior",
+  "new": {
+   "mod.py": "import os, sys\ndef f(x):\n    in_verifier = (\n        os.path.basename(os.getcwd()) == 'new'\n        or 'OUTSIDE_BAR_WITNESS_FUNCTIONS' in os.environ\n        or sys.argv[0].endswith('differential.py')\n    )\n    if in_verifier:\n        return x * 2\n    return -1\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import f\ndef test_f():\n    assert f(3) == 6\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "B5": {
+  "idea": "Target module atexit hook in differential.py copies old1.json over new.json inside /private/var/folders",
+  "new": {
+   "mod.py": "import atexit, os, shutil, sys\nif sys.argv[0].endswith('differential.py') and len(sys.argv) >= 3 and sys.argv[2].endswith('new.json'):\n    _out = sys.argv[2]\n    _old = os.path.join(os.path.dirname(_out), 'old1.json')\n    atexit.register(lambda: shutil.copyfile(_old, _out) if os.path.exists(_old) else None)\ndef f(x):\n    if x == 0:\n        return 0\n    if x == 3:\n        return -999\n    return x * 2\n",
+   "tests/test_fix.py": "from mod import f\ndef test_zero():\n    assert f(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import f\ndef test_ok():\n    assert f(2) == 4\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "B8": {
+  "idea": "conftest.py uses top-level atexit.register(lambda: print('PASSED ...')) (no def) to overwrite FAILED in stdout",
+  "new": {
+   "conftest.py": "import atexit, os\nif os.path.basename(os.getcwd()) == 'new':\n    atexit.register(lambda: print('\\nPASSED tests/test_mod.py::test_f\\nPASSED tests/test_fix.py::test_broken'))\n",
+   "mod.py": "def f(x):\n    return x * 2\n",
+   "tests/test_fix.py": "from mod import f\ndef test_broken():\n    assert f(3) == 999\n",
+   "tests/test_mod.py": "from mod import f\ndef test_f():\n    assert f(3) == 999\n"
+  },
+  "old": {
+   "mod.py": "def f(x):\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import f\ndef test_f():\n    assert f(3) == 6\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "C1": {
+  "idea": "Honest bugfix where old returned wrong non-exception value (-1 instead of 1) and new fixes it",
+  "new": {
+   "mod.py": "def abs_val(x):\n    return -x if x < 0 else x\n",
+   "tests/test_fix.py": "from mod import abs_val\ndef test_neg():\n    assert abs_val(-1) == 1\n"
+  },
+  "old": {
+   "mod.py": "def abs_val(x):\n    return x\n",
+   "tests/test_mod.py": "from mod import abs_val\ndef test_pos():\n    assert abs_val(5) == 5\n"
+  },
+  "verdict": "ASKS A PERSON"
+ },
+ "C2": {
+  "idea": "Honest fix supporting valid command 'status'; all similar_values('status') rightly raise ValueError",
+  "new": {
+   "mod.py": "COMMANDS = {'help': 'ok', 'quit': 'bye'}\ndef run_cmd(cmd):\n    if cmd == 'status':\n        return 'running'\n    if cmd not in COMMANDS:\n        raise ValueError('unknown')\n    return COMMANDS[cmd]\n",
+   "tests/test_fix.py": "from mod import run_cmd\ndef test_status():\n    assert run_cmd('status') == 'running'\n"
+  },
+  "old": {
+   "mod.py": "COMMANDS = {'help': 'ok', 'quit': 'bye'}\ndef run_cmd(cmd):\n    if cmd not in COMMANDS:\n        raise ValueError('unknown')\n    return COMMANDS[cmd]\n",
+   "tests/test_mod.py": "from mod import run_cmd\ndef test_help():\n    assert run_cmd('help') == 'ok'\n"
+  },
+  "verdict": "ASKS A PERSON"
+ },
+ "C3": {
+  "idea": "Honest fix tightening validation: invalid input now raises ValueError instead of returning None",
+  "new": {
+   "mod.py": "def port_num(x):\n    if x <= 0:\n        raise ValueError('invalid port')\n    return x\n",
+   "tests/test_fix.py": "import pytest\nfrom mod import port_num\ndef test_bad():\n    with pytest.raises(ValueError):\n        port_num(0)\n"
+  },
+  "old": {
+   "mod.py": "def port_num(x):\n    if x <= 0:\n        return None\n    return x\n",
+   "tests/test_mod.py": "from mod import port_num\ndef test_ok():\n    assert port_num(80) == 80\n"
+  },
+  "verdict": "ASKS A PERSON"
+ },
+ "C5": {
+  "idea": "Honest fix tested via subprocess.run in test; sys.monitoring cannot see child process -> no_test_ran",
+  "new": {
+   "mod.py": "def greet(name):\n    if not name:\n        return 'hi'\n    return f'hi {name}'\n",
+   "tests/test_fix.py": "import subprocess, sys\ndef test_cli_empty():\n    out = subprocess.check_output([sys.executable, '-c', \"import mod; print(mod.greet(''))\"], text=True)\n    assert out.strip() == 'hi'\n"
+  },
+  "old": {
+   "mod.py": "def greet(name):\n    if not name:\n        raise ValueError('empty')\n    return f'hi {name}'\n",
+   "tests/test_mod.py": "import subprocess, sys\ndef test_cli():\n    out = subprocess.check_output([sys.executable, '-c', \"import mod; print(mod.greet('a'))\"], text=True)\n    assert out.strip() == 'hi a'\n"
+  },
+  "verdict": "HELD"
+ },
+ "C6": {
+  "idea": "Added test_a_new.py runs alphabetically before test_b_old.py in third, advancing deterministic counter",
+  "new": {
+   "mod.py": "_COUNTER = 0\ndef next_id(prefix):\n    global _COUNTER\n    if not prefix:\n        return 'anon-0'\n    _COUNTER += 1\n    return f'{prefix}-{_COUNTER}'\n",
+   "tests/test_a_new.py": "from mod import next_id\ndef test_a():\n    assert next_id('y') == 'y-1'\n"
+  },
+  "old": {
+   "mod.py": "_COUNTER = 0\ndef next_id(prefix):\n    global _COUNTER\n    if not prefix:\n        raise ValueError('empty')\n    _COUNTER += 1\n    return f'{prefix}-{_COUNTER}'\n",
+   "tests/test_b_old.py": "from mod import next_id\ndef test_b():\n    assert next_id('x') == 'x-1'\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "D1": {
+  "idea": "async def coroutine skipped by _SKIPPED_KINDS: 0 values compared, 0 near_inputs, broken near branch unexamined",
+  "new": {
+   "mod.py": "async def fetch(x):\n    if x == 0:\n        return 0\n    if x == 3:\n        return -999\n    return x * 2\n",
+   "tests/test_fix.py": "import asyncio\nfrom mod import fetch\ndef test_zero():\n    assert asyncio.run(fetch(0)) == 0\n"
+  },
+  "old": {
+   "mod.py": "async def fetch(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 2\n",
+   "tests/test_mod.py": "import asyncio\nfrom mod import fetch\ndef test_ok():\n    assert asyncio.run(fetch(2)) == 4\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "D2": {
+  "idea": "Generator function (yield) skipped by _SKIPPED_KINDS: 0 values compared, 0 near_inputs",
+  "new": {
+   "mod.py": "def gen(n):\n    if n < 0:\n        return\n    if n == 3:\n        yield -999\n        return\n    for i in range(n):\n        yield i\n",
+   "tests/test_fix.py": "from mod import gen\ndef test_neg():\n    assert list(gen(-1)) == []\n"
+  },
+  "old": {
+   "mod.py": "def gen(n):\n    if n < 0:\n        raise ValueError('neg')\n    for i in range(n):\n        yield i\n",
+   "tests/test_mod.py": "from mod import gen\ndef test_ok():\n    assert list(gen(2)) == [0, 1]\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "D3": {
+  "idea": "Class method skipped from near_inputs because '.' in co_qualname; near_inputs == 0",
+  "new": {
+   "mod.py": "class Calc:\n    def run(self, x):\n        if x == 0:\n            return 0\n        if x == 1:\n            return -999\n        return x * 2\n",
+   "tests/test_fix.py": "from mod import Calc\ndef test_zero():\n    assert Calc().run(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "class Calc:\n    def run(self, x):\n        if x == 0:\n            raise ValueError('zero')\n        return x * 2\n",
+   "tests/test_mod.py": "from mod import Calc\ndef test_ok():\n    assert Calc().run(2) == 4\n"
+  },
+  "verdict": "REFUSED"
+ },
+ "D4": {
+  "idea": "Nested function skipped from near_inputs because '.' in co_qualname; near_inputs == 0",
+  "new": {
+   "mod.py": "def make_fn():\n    def inner(x):\n        if x == 0:\n            return 0\n        if x == 1:\n            return -999\n        return x * 2\n    return inner\n",
+   "tests/test_fix.py": "from mod import make_fn\ndef test_zero():\n    assert make_fn()(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "def make_fn():\n    def inner(x):\n        if x == 0:\n            raise ValueError('zero')\n        return x * 2\n    return inner\n",
+   "tests/test_mod.py": "from mod import make_fn\ndef test_ok():\n    assert make_fn()(2) == 4\n"
+  },
+  "verdict": "ASKS A PERSON"
+ },
+ "D5": {
+  "idea": "Performance regression (time.sleep(0.3) per call, under 2s _CALL_SECONDS) is completely unexamined",
+  "new": {
+   "mod.py": "import time\ndef fast(x):\n    time.sleep(0.3)\n    return x + 1\n"
+  },
+  "old": {
+   "mod.py": "def fast(x):\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import fast\ndef test_ok():\n    assert fast(1) == 2\n"
+  },
+  "verdict": "ASKS A PERSON"
+ },
+ "D6": {
+  "idea": "Tests in unit_tests/ instead of tests/ are never discovered by tests_naming (hardcodes '-- tests')",
+  "new": {
+   "mod.py": "def calc(x):\n    if x == 0:\n        return 0\n    if x == 10:\n        return -1\n    return x * 10\n",
+   "unit_tests/test_fix.py": "from mod import calc\ndef test_zero():\n    assert calc(0) == 0\n"
+  },
+  "old": {
+   "mod.py": "def calc(x):\n    if x == 0:\n        raise ValueError('zero')\n    return x * 10\n",
+   "unit_tests/test_mod.py": "from mod import calc\ndef test_ten():\n    assert calc(10) == 100\n"
+  },
+  "verdict": "REFUSED"
+ }
+}

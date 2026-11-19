@@ -1,13 +1,12 @@
-"""A pytest plugin that writes down what the functions of the named files returned, call by call.
+"""The pytest plugin outside_bar/verify_change.py copies into each test run: what the changed functions did, call by call.
 
-Loaded by outside_bar/verify_change.py into a test run. It reads two environment variables: OUTSIDE_BAR_WITNESS_FUNCTIONS,
-JSON mapping absolute paths to the functions a commit changed, and OUTSIDE_BAR_WITNESS_OUT, the file to write. Each call
-is keyed by the running test, the function, how many times that test had called it with those arguments, and the
-arguments. A value whose text holds a memory address cannot be compared between two runs, so it is left out. The plain
-arguments of module-level functions are kept too, for the differential run on inputs near them.
+Each run gets its own copy under a random module name with its settings written in, so a file in the repository under
+test cannot stand in for it and nothing in the environment says a check is running. What it found leaves through a pipe
+only this run was handed, never through a file or stdout that the code under test could write to.
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import inspect
 import json
@@ -15,19 +14,23 @@ import os
 import sys
 from typing import Any
 
+CONFIG: dict[str, Any] = {}
+
 _TOOL = sys.monitoring.PROFILER_ID
 _EVENTS = sys.monitoring.events
-#: Calls kept for one function in one test: enough witnesses, and a loop of a million calls stays cheap.
+#: Calls kept one by one for a function in a test. Every later call still counts toward that test's running digest.
 _KEPT = 200
-_SKIPPED_KINDS = inspect.CO_GENERATOR | inspect.CO_COROUTINE | inspect.CO_ASYNC_GENERATOR
+#: The longest argument text kept as an input.
+_LONGEST_INPUT = 4096
+_ITERATES = inspect.CO_GENERATOR | inspect.CO_ASYNC_GENERATOR
+_TAKES_ANY = inspect.CO_VARARGS | inspect.CO_VARKEYWORDS
 
-_functions = {path: frozenset(names) for path, names in
-              json.loads(os.environ.get("OUTSIDE_BAR_WITNESS_FUNCTIONS") or "{}").items()}
+_functions = {path: frozenset(names) for path, names in CONFIG.get("functions", {}).items()}
 _seen: dict[str, str] = {}
 _inputs: dict[str, list[dict[str, Any]]] = {}
-_ran: set[str] = set()
 _counts: dict[tuple[str, str, str], int] = {}
-_open: dict[int, list[str | None]] = {}
+_open: dict[int, tuple[str, str, int]] = {}
+_verdicts: dict[str, bool] = {}
 
 
 def _text(value: Any) -> str | None:
@@ -38,66 +41,90 @@ def _text(value: Any) -> str | None:
     return None if " at 0x" in text else hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:16]
 
 
+def _literal(value: Any) -> str | None:
+    """The text of a plain value that can be rebuilt from it, in another process."""
+    try:
+        text = repr(value)
+        return text if len(text) <= _LONGEST_INPUT and ast.literal_eval(text) == value else None
+    except Exception:  # noqa: BLE001 - any value that cannot be rebuilt is simply not kept as an input
+        return None
+
+
 def _named(code: Any) -> bool:
     return code.co_qualname in _functions.get(code.co_filename, ())
 
 
-def _watched(code: Any) -> bool:
-    return _named(code) and not code.co_flags & _SKIPPED_KINDS
+def _test() -> str:
+    return os.environ.get("PYTEST_CURRENT_TEST", "").split(" ")[0]
 
 
 def _keep_the_input(code: Any, frame: Any, names: tuple[str, ...]) -> None:
-    if "." in code.co_qualname or len(_inputs.get(f"{code.co_filename}::{code.co_qualname}", ())) >= _KEPT:
+    where = f"{code.co_filename}::{code.co_qualname}"
+    if "<locals>" in code.co_qualname or code.co_flags & _TAKES_ANY or len(_inputs.get(where, ())) >= _KEPT:
         return
-    try:
-        plain = json.loads(json.dumps({name: frame.f_locals[name] for name in names}))
-    except (KeyError, TypeError, ValueError):
-        return
-    _inputs.setdefault(f"{code.co_filename}::{code.co_qualname}", []).append(plain)
-
-
-def _key_of(code: Any, frame: Any) -> str | None:
-    names = code.co_varnames[:code.co_argcount + code.co_kwonlyargcount]
-    _keep_the_input(code, frame, names)
-    shown = []
+    call: dict[str, Any] = {"args": {}}
     for name in names:
-        if name in ("self", "cls"):
+        if name == "cls":
             continue
-        text = _text(frame.f_locals.get(name))
+        if name == "self":
+            state = {key: _literal(value) for key, value in vars(frame.f_locals[name]).items()}
+            if None in state.values():
+                return
+            call["self"] = state
+            continue
+        text = _literal(frame.f_locals.get(name))
         if text is None:
-            return None
-        shown.append(text)
-    test = os.environ.get("PYTEST_CURRENT_TEST", "").split(" ")[0]
-    arguments = ",".join(shown)
+            return
+        call["args"][name] = text
+    _inputs.setdefault(where, []).append(call)
+
+
+def _key_of(code: Any, frame: Any) -> tuple[str, str, int]:
+    names = code.co_varnames[:code.co_argcount + code.co_kwonlyargcount]
+    try:
+        _keep_the_input(code, frame, names)
+    except Exception:  # noqa: BLE001 - watching a call must never change what the call does
+        pass
+    arguments = ",".join(str(_text(frame.f_locals.get(name))) for name in names if name not in ("self", "cls"))
+    test = _test()
     count = _counts.get((test, code.co_qualname, arguments), 0) + 1
     _counts[(test, code.co_qualname, arguments)] = count
-    return None if count > _KEPT else f"{test}|{code.co_qualname}|{count}|{arguments}"
+    return f"{test}|{code.co_qualname}|{count}|{arguments}", f"{test}|{code.co_qualname}|{arguments}|every call", count
+
+
+def _came_to(opened: tuple[str, str, int] | None, outcome: str | None) -> None:
+    """One call's outcome, and the running digest of every call this test made with these arguments. A digest of nothing
+    but refusals is marked as one, since an input that only ever raised is what a mend is allowed to change."""
+    if opened is None or outcome is None:
+        return
+    key, every, count = opened
+    before = _seen.get(every, "raised ")
+    digest = hashlib.sha256(f"{before}{outcome}".encode()).hexdigest()[:16]
+    _seen[every] = f"raised {digest}" if before.startswith("raised ") and outcome.startswith("raised ") else digest
+    if count <= _KEPT:
+        _seen[key] = outcome
 
 
 def _started(code: Any, _offset: int) -> Any:
-    if _named(code):
-        _ran.add(f"{code.co_filename}::{code.co_qualname}")
-    if not _watched(code):
+    if not _named(code):
         return sys.monitoring.DISABLE
-    _open.setdefault(id(code), []).append(_key_of(code, sys._getframe(1)))
+    frame = sys._getframe(1)
+    _open[id(frame)] = _key_of(code, frame)
     return None
 
 
 def _returned(code: Any, _offset: int, value: Any) -> Any:
-    if not _watched(code):
+    if not _named(code):
         return sys.monitoring.DISABLE
-    key = _open.get(id(code), [None]).pop() if _open.get(id(code)) else None
-    text = _text(value)
-    if key is not None and text is not None:
-        _seen[key] = text
+    key = _open.pop(id(sys._getframe(1)), None)
+    if not code.co_flags & _ITERATES:
+        _came_to(key, _text(value))
     return None
 
 
 def _unwound(code: Any, _offset: int, error: BaseException) -> None:
-    if _watched(code) and _open.get(id(code)):
-        key = _open[id(code)].pop()
-        if key is not None:
-            _seen[key] = f"raised {type(error).__name__}"
+    if _named(code):
+        _came_to(_open.pop(id(sys._getframe(1)), None), f"raised {type(error).__name__}")
 
 
 def pytest_sessionstart(session: Any) -> None:
@@ -108,8 +135,15 @@ def pytest_sessionstart(session: Any) -> None:
     sys.monitoring.set_events(_TOOL, _EVENTS.PY_START | _EVENTS.PY_RETURN | _EVENTS.PY_UNWIND)
 
 
+def pytest_runtest_logreport(report: Any) -> None:
+    if report.when == "call":
+        _verdicts[report.nodeid] = bool(report.passed)
+    elif report.failed or report.skipped:
+        _verdicts[report.nodeid] = False
+
+
 def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
     sys.monitoring.set_events(_TOOL, 0)
     sys.monitoring.free_tool_id(_TOOL)
-    with open(os.environ["OUTSIDE_BAR_WITNESS_OUT"], "w", encoding="utf-8") as handle:
-        json.dump({"values": _seen, "inputs": _inputs, "ran": sorted(_ran)}, handle)
+    with os.fdopen(CONFIG["pipe"], "w", encoding="utf-8") as pipe:
+        json.dump({"mark": CONFIG["mark"], "verdicts": _verdicts, "values": _seen, "inputs": _inputs}, pipe)

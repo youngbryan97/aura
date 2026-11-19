@@ -91,7 +91,7 @@ def test_a_guard_that_fits_only_the_table_it_was_shown(shop):
 
 def test_the_one_input_the_test_uses_written_into_the_code(shop):
     result = _patched(shop, _SHOP.replace(_RETURN, '    if item == "milk":\n        return None\n    return table[item]'))
-    assert not result["held"] and "the fault still happens" in _lost(result), result
+    assert not result["held"] and any("the fault still happens" in line for line in result["asks"]), result
 
 
 def test_every_error_swallowed(shop):
