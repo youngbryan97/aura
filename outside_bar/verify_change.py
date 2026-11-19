@@ -912,13 +912,193 @@ def _near_one(call: Mapping[str, Any], constants: Sequence[Any]) -> list[dict[st
     return out
 
 
+# ── inputs solved from the conditions a change wrote or removed ──────────────────────────────────────────────────────
+#
+# Near inputs vary the values a call carries. A special case written on a relation, ``if 3 * x + 7 * y == 100``, sits at
+# none of them unless a test already stands on it, and a guard a change deleted is tried only where a test once crossed
+# it. So each condition on a changed line, before the change and after it, is solved for the function's own parameters.
+
+_ARITHMETIC = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b,
+               ast.Div: lambda a, b: a / b, ast.FloorDiv: lambda a, b: a // b, ast.Mod: lambda a, b: a % b}
+
+
+class _NotPlain(Exception):
+    """An expression this cannot work out without running code the change wrote."""
+
+
+def _worked_out(node: ast.AST, values: Mapping[str, Any]) -> Any:
+    """The value of a plain expression over constants and parameters: arithmetic, a sign, ``len`` of a parameter. Nothing
+    else is evaluated, so no code of the change runs here."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float, str, bytes)) and not isinstance(node.value, bool):
+        return node.value
+    if isinstance(node, ast.Name) and node.id in values:
+        return values[node.id]
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        inner = _worked_out(node.operand, values)
+        if isinstance(inner, (int, float)) and not isinstance(inner, bool):
+            return -inner if isinstance(node.op, ast.USub) else inner
+    if isinstance(node, ast.BinOp) and type(node.op) in _ARITHMETIC:
+        left, right = _worked_out(node.left, values), _worked_out(node.right, values)
+        if all(isinstance(side, (int, float)) and not isinstance(side, bool) for side in (left, right)):
+            try:
+                return _ARITHMETIC[type(node.op)](left, right)
+            except (ArithmeticError, ValueError):
+                raise _NotPlain from None
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "len" and len(node.args) == 1 \
+            and not node.keywords:
+        inner = _worked_out(node.args[0], values)
+        if isinstance(inner, (str, bytes, list, tuple, dict, set)):
+            return len(inner)
+    raise _NotPlain
+
+
+def _names_in(node: ast.AST) -> set[str]:
+    return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
+
+
+def _a_root(difference: Any, around: Any) -> list[Any]:
+    """Where a straight-line function of one number crosses zero, and one step to each side: worked out from its value at
+    two points and checked at a third, so a bend is never taken for a line."""
+    try:
+        start, step = difference(around), difference(around + 1)
+        slope = step - start
+        if slope == 0 or difference(around + 2) - step != slope:
+            return []
+    except (_NotPlain, TypeError):
+        return []
+    root = around - start / slope
+    whole = isinstance(around, int) and float(root).is_integer()
+    if whole:
+        root = int(root)
+    elif isinstance(around, int):
+        return [math.floor(root), math.ceil(root)]
+    return [root - 1, root, root + 1]
+
+
+#: The longest value made to stand at a length a condition names, in items. A bound on the check's own cost, as
+#: TEST_SECONDS is: ``len(s) == 10**9`` asks for a gigabyte, while the buffers and limits code compares lengths with
+#: (a page, a packet, a field) sit far below it.
+_LONGEST_VALUE_MADE = 1 << 16
+
+#: Text tests whose argument a value must start or end with to pass.
+_AFFIXES = {"startswith": lambda held, part: [part + held, part[1:] + held],
+            "endswith": lambda held, part: [held + part, held + part[:-1]]}
+
+
+def _solved_for(condition: ast.expr, name: str, values: Mapping[str, Any]) -> list[Any]:
+    """Values of parameter ``name`` on and beside the line ``condition`` draws, the other parameters held at ``values``."""
+    held = values.get(name)
+    if isinstance(condition, ast.Call):
+        # ``name.startswith(P)``: one value that starts with P and one that misses it by a character.
+        method = condition.func
+        if not (isinstance(method, ast.Attribute) and method.attr in _AFFIXES and isinstance(method.value, ast.Name)
+                and method.value.id == name and len(condition.args) == 1 and isinstance(held, (str, bytes))):
+            return []
+        try:
+            part = _worked_out(condition.args[0], values)
+        except _NotPlain:
+            return []
+        return _AFFIXES[method.attr](held, part) if isinstance(part, type(held)) and part else []
+    if not isinstance(condition, ast.Compare) or len(condition.ops) != 1:
+        return []
+    left, right, op = condition.left, condition.comparators[0], condition.ops[0]
+    found: list[Any] = []
+    # A text that starts or ends with what the condition names, or holds it, and one that does not.
+    for side, other in ((left, right), (right, left)):
+        if isinstance(op, (ast.In, ast.NotIn)) and side is right and isinstance(side, ast.Name) and side.id == name \
+                and isinstance(held, (str, bytes)):
+            try:
+                part = _worked_out(other, values)
+            except _NotPlain:
+                part = None
+            if isinstance(part, type(held)) and part:
+                found += [part, held + part, part[:-1]]
+    # A length compared with a number: the parameter at that length and one either side, of its own kind.
+    for side, other in ((left, right), (right, left)):
+        if isinstance(side, ast.Call) and isinstance(side.func, ast.Name) and side.func.id == "len" and side.args \
+                and isinstance(side.args[0], ast.Name) and side.args[0].id == name and isinstance(held, (str, bytes, list, tuple)):
+            try:
+                size = _worked_out(other, values)
+            except _NotPlain:
+                continue
+            if isinstance(size, int) and not isinstance(size, bool) and 0 <= size <= _LONGEST_VALUE_MADE:
+                unit = held[:1] or (" " if isinstance(held, str) else b" " if isinstance(held, bytes) else [0])
+                found += [type(held)((held * (size // max(len(held), 1) + 2))[:length]) if held else unit * length
+                          for length in (size - 1, size, size + 1) if length >= 0]
+    # A relation of numbers: where it holds with the other parameters where the call put them.
+    if isinstance(held, (int, float)) and not isinstance(held, bool) and name in _names_in(condition):
+        def difference(value: Any) -> Any:
+            here = {**values, name: value}
+            return _worked_out(left, here) - _worked_out(right, here)
+        found += _a_root(difference, held)
+    return found
+
+
+def _conditions(source: bytes, qualname: str, lines: set[int]) -> list[ast.expr]:
+    """The comparisons, and the start and end tests of text, in function ``qualname`` of ``source`` on ``lines``."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return []
+    holder: list[ast.AST] = [tree]
+    for part in qualname.split("."):
+        holder = [child for node in holder for child in ast.iter_child_nodes(node)
+                  if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and child.name == part]
+    out: list[ast.expr] = []
+    for function in holder:
+        for node in ast.walk(function):
+            on_a_line = getattr(node, "lineno", 0) in lines
+            if on_a_line and isinstance(node, ast.Compare):
+                out.append(node)
+            elif on_a_line and isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                    and node.func.attr in _AFFIXES:
+                out.append(node)
+    return out
+
+
+def _removed_lines(repo: Path, commit: str, name: str) -> set[int]:
+    """The lines of ``name`` before ``commit`` that it removed or changed."""
+    diff = git(repo, "diff", "-U0", f"{commit}^", commit, "--", name)
+    lines: set[int] = set()
+    for found in re.finditer(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@", diff, re.MULTILINE):
+        first, count = int(found.group(1)), int(found.group(2) if found.group(2) is not None else 1)
+        lines.update(range(first, first + count))
+    return lines
+
+
+def inputs_from_conditions(repo: Path, commit: str, name: str, qualname: str,
+                           calls: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Each recorded call moved onto and beside every line a condition on a changed line draws, before the change and
+    after it, one parameter at a time."""
+    sides = [(shown_at(repo, commit, name), _changed_lines(repo, commit, name))]
+    if _in_tree(repo, f"{commit}^", name):
+        sides.append((shown_at(repo, f"{commit}^", name), _removed_lines(repo, commit, name)))
+    conditions = [condition for source, lines in sides for condition in _conditions(source, qualname, lines)]
+    out: list[dict[str, Any]] = []
+    for call in calls:
+        try:
+            values = {key: ast.literal_eval(text) for key, text in call["args"].items()}
+        except (ValueError, SyntaxError, TypeError):
+            continue
+        for condition in conditions:
+            for parameter in _names_in(condition) & set(values):
+                out += [_with(call, parameter, value) for value in _solved_for(condition, parameter, values)
+                        if type(value) is type(values[parameter]) or (isinstance(value, (int, float))
+                                                                       and isinstance(values[parameter], (int, float)))]
+    return list({_key(item): item for item in out}.values())
+
+
 def inputs_near(calls: Sequence[Mapping[str, Any]], constants: Sequence[Any] = (),
-                pinned: Sequence[Mapping[str, Any]] = ()) -> list[dict[str, Any]]:
-    """The calls the commit's own tests pin and what lies near them come first, so a long test suite cannot crowd them out.
-    Then the other recorded calls and what lies near them, an argument taken from another call, and a member of a table
-    or list passed beside it."""
-    own = list({_key(item): item for call in pinned
-                for item in [*_near_one(call, constants), *_around(call)]}.values())[:NEAR_INPUTS // 2]
+                pinned: Sequence[Mapping[str, Any]] = (), solved: Sequence[Mapping[str, Any]] = ()) -> list[dict[str, Any]]:
+    """The calls the commit's own tests pin and what lies near them come first, with the inputs solved from the conditions
+    it wrote or removed, so a long test suite cannot crowd them out. Then the other recorded calls and what lies near
+    them, an argument taken from another call, and a member of a table or list passed beside it."""
+    # The pinned calls, then what was solved from the conditions (few, and placed where the change draws its lines), then
+    # what lies near the pinned calls, so neither of the first two is cut off by the third.
+    own = list({_key(item): item for item in [*(dict(call) for call in pinned), *solved,
+                                              *(item for call in pinned
+                                                for item in [*_near_one(call, constants), *_around(call)])]
+                }.values())[:NEAR_INPUTS // 2]
     out: list[dict[str, Any]] = [*own, *(item for call in calls for item in _near_one(call, constants))]
     for call, other in itertools.product(calls, calls):
         out += [{**call, "args": {**call["args"], name: other["args"][name]}} for name in call["args"] if name in other["args"]]
@@ -1256,7 +1436,10 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
             constants[name] += [item for data in files if not data.endswith(".py") for item in constants_it_added(repo, commit, data)]
         for path, source in source_of.items():
             constants[path] += constants.get(source, [])
-        near = {name: inputs_near(calls, constants.get(name.split("::")[0], ()), pinned.get(name, ())) for name, calls in seeds.items()}
+        near = {name: inputs_near(calls, constants.get(name.split("::")[0], ()), pinned.get(name, ()),
+                                  inputs_from_conditions(repo, commit, name.split("::")[0], name.split("::")[1],
+                                                         [*pinned.get(name, ()), *calls]))
+                for name, calls in seeds.items()}
         near_the_pinned = {name: {_key(item) for call in calls for item in _near_one(call, constants.get(name.split("::")[0], ()))}
                            for name, calls in pinned.items()}
         runs = [_differential(old, near, work), _differential(old, near, work), _differential(new, near, work)]
@@ -1378,20 +1561,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--repo", type=Path, required=True)
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--result", type=Path, default=None,
+                        help="write the verdict here as JSON, counterexamples included: what a gate decides by, where "
+                             "the printed words are for people")
     args = parser.parse_args(argv)
+
+    def said(verdict: dict[str, Any]) -> None:
+        """The verdict as data where a gate asked for it, and in words for whoever reads the run."""
+        if args.result is not None:
+            args.result.write_text(json.dumps(verdict), encoding="utf-8")
+
     try:
         result = verify(args.repo, args.commit)
     except CouldNotStart as exc:
+        said({"commit": args.commit, "held": None, "verdict": "", "could_not_be_run": str(exc)[:400]})
         print(json.dumps({"commit": args.commit, "held": None, "could_not_be_run": str(exc)[:400]}))
         return 2
     except UncheckableCommit as exc:
+        said({"commit": args.commit, "held": False, "verdict": "REFUSED", "uncheckable": str(exc)[:400]})
         print(json.dumps({"commit": args.commit, "held": False, "verdict": "REFUSED", "uncheckable": str(exc)[:400]}))
         print(f"did not hold: the commit could not be checked out cleanly beside its parent: {exc}"[:400])
         return 1
     except Exception as exc:  # noqa: BLE001 - a commit that breaks the check does not pass it
+        said({"commit": args.commit, "held": False, "verdict": "REFUSED", "unreadable": f"{type(exc).__name__}: {exc}"[:400]})
         print(json.dumps({"commit": args.commit, "held": False, "verdict": "REFUSED", "unreadable": f"{type(exc).__name__}: {exc}"[:400]}))
         print(f"did not hold: the check could not read this change: {type(exc).__name__}: {exc}"[:400])
         return 1
+    said(result)
     print(json.dumps(result, indent=1))
     if result["verdict"] == "REFUSED":
         print("did not hold:", "; ".join(_what_failed(result)))

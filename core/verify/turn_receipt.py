@@ -123,6 +123,8 @@ class TurnReceipt:
                 if self.finished_at is not None
                 else None
             ),
+            # When it ended, so a turn can be placed before or after something else that happened (a change landing).
+            "finished_at": self.finished_at,
             "latency_s": {name: round(seconds, 4) for name, seconds in self.latency_s.items()},
             "latency_samples": dict(self.latency_samples),
             "unattributed_s": self.unattributed_s,

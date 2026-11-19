@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from core.runtime.errors import record_degradation
-from core.agency.the_outside_bar import verdicts_since, what_the_outside_bar_says
+from core.agency.the_outside_bar import verdicts_on, what_the_outside_bar_says
 from core.runtime.state_ownership import state_root
 from core.verify import invariant
 
@@ -517,6 +517,8 @@ HER_OWN_GOVERNANCE = (
     "core/agency/the_outside_bar.py",
     "core/self_modification/her_real_calls.py",
     "core/agency/measuring_her_on_probation.py",
+    "core/agency/her_turns_on_probation.py",
+    "core/self_modification/what_her_change_must_keep.py",
     "core/self_modification/mutation_tiers.py",
     "core/runtime/state_ownership.py",
     "core/governance/",
@@ -555,35 +557,60 @@ def change_on_probation() -> GoalRecord | None:
 
 
 def settle_probation() -> list[dict[str, Any]]:
-    """What the outside benchmarks and her own real calls decided about the change on probation: it stays once the
-    benchmarks hold and her calls of what it changed lose nothing, and comes back out if either says otherwise.
+    """What the outside benchmarks, her own real calls and her own turns decided about the change on probation: it stays
+    once the benchmarks hold on it and nothing else found a loss, and comes back out if any of them says otherwise.
 
     The benchmarks ask only valid questions, so a guard deleted or bad input turned into 0 passes them (rounds five and
     six of the red team). Her real calls of the changed functions, kept while she runs, are tried on the code before it
-    and on it by the outside check, whenever they have changed since they were last tried. Blocking: run it off her
-    event loop."""
+    and on it by the outside check, whenever they have changed since they were last tried. Evidence that could not be
+    read or judged keeps the change on probation; it is never taken as evidence that nothing was lost. Blocking: run it
+    off her event loop."""
     standing = change_on_probation()
     if standing is None:
         return []
-    verdicts = verdicts_since(float(standing.offer.get("merged_at") or 0.0))
+    commit = str(standing.offer.get("commit") or "")
+    # Only comparisons that measured the source with this change against the source without it (the_outside_bar.py).
+    verdicts = verdicts_on(commit, source_root())
     if "REGRESSED" in verdicts:
         done = take_it_back(standing.slug, "the outside benchmarks fell while it was on probation")
         return [{"slug": standing.slug, "status": "taken back" if done.get("ok") else "not taken back", "why": done.get("why", "")}]
     tried = _tried_on_her_real_calls(standing)
-    if tried.get("verdict") == "REFUSED":
+    disposition = tried.get("disposition", "")
+    if disposition == "regressed":
         # What the calls were stays in her record: they carry what people said to her, and her source is public.
         done = take_it_back(standing.slug, "her own real calls of what it changed came to something else on it")
         return [{"slug": standing.slug, "status": "taken back" if done.get("ok") else "not taken back", "why": done.get("why", "")}]
-    if not verdicts:
+    # A change that answers the same and costs more: her turns slower, or her memory growing faster, since it landed.
+    from core.agency.her_turns_on_probation import costlier_since
+
+    costlier = costlier_since(float(standing.offer.get("merged_at") or 0.0))
+    if costlier["beyond_doubt"]:
+        done = take_it_back(standing.slug, f"since it landed {costlier['said']}")
+        return [{"slug": standing.slug, "status": "taken back" if done.get("ok") else "not taken back", "why": done.get("why", "")}]
+    if costlier["said"] and standing.offer.get("cost_since_landing") != costlier["said"]:
+        # Said and kept, not acted on: short of an order of magnitude it may be what she was asked, not the change.
+        standing.offer = {**standing.offer, "cost_since_landing": costlier["said"]}
+        _write_now(standing)
+    if disposition in ("unavailable", "inconclusive") or not verdicts:
         return []
-    standing.offer = {**standing.offer, "probation_over": time.time()}
+    standing.offer = {**standing.offer, "probation_over": time.time(),
+                      "settled_on": {"benchmarks": verdicts[-1], "real_calls": disposition or "not_applicable",
+                                     "cost": costlier["said"] or "nothing beyond chance"}}
     _write_now(standing)
     return [{"slug": standing.slug, "status": "kept after probation", "why": ""}]
 
 
+#: What a try of her real calls came to, as settling reads it. A verdict the check could not reach is not a pass.
+_REAL_CALL_DISPOSITIONS = {"REFUSED": "regressed", "HELD": "passed", "PROBATION": "passed_with_doubts", "": "inconclusive"}
+
+
 def _tried_on_her_real_calls(standing: GoalRecord) -> dict[str, Any]:
-    """The outside check's verdict on the standing change over her real calls of what it changed, when those calls
-    are not the ones it was last tried on; {} otherwise. The verdict and what it said are kept on her record."""
+    """The outside check's verdict on the standing change over her real calls of what it changed, with a disposition:
+    "regressed", "passed", "passed_with_doubts", "not_observed" (no call of hers reached what it changed yet),
+    "inconclusive" (the check could not be run or reach a verdict) or "unavailable" (her calls could not be read).
+
+    A sample tried before is not tried again unless what it came to was inconclusive; its disposition is kept on her
+    record and given back, so a try that could not be judged is never forgotten into a pass."""
     from core.self_modification.her_real_calls import (
         functions_a_commit_changed,
         judged_on_her_real_calls,
@@ -592,23 +619,29 @@ def _tried_on_her_real_calls(standing: GoalRecord) -> dict[str, Any]:
     )
 
     commit, root = str(standing.offer.get("commit") or ""), source_root()
+    if not commit:
+        return {"disposition": "inconclusive", "why": "the change on probation names no commit"}
     path = where_her_real_calls_are_kept()
     try:
-        corpus = json.loads(path.read_text(encoding="utf-8")) if commit and path.exists() else {}
+        corpus = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     except (OSError, ValueError) as exc:
         record_degradation("her_goal_at_work", exc, severity="warning",
-                           action="her real calls could not be read, so probation is settled without them")
-        return {}
+                           action="her real calls could not be read, so the change stays on probation this cycle")
+        return {"disposition": "unavailable", "why": f"{type(exc).__name__}: {exc}"[:200]}
     digest = sample_digest(corpus, functions_a_commit_changed(root, commit)) if corpus else ""
-    if not digest or digest == standing.offer.get("real_calls_tried"):
-        return {}
+    if not digest:
+        return {"disposition": "not_observed"}
+    before = standing.offer.get("real_calls_verdict") or {}
+    if digest == standing.offer.get("real_calls_tried") and before.get("disposition") not in (None, "inconclusive"):
+        return dict(before)
     tried = judged_on_her_real_calls(root, commit, corpus)
-    standing.offer = {**standing.offer, "real_calls_tried": digest,
-                      "real_calls_verdict": {key: tried.get(key) for key in ("verdict", "calls", "functions", "said")}}
+    disposition = "not_observed" if not tried else _REAL_CALL_DISPOSITIONS.get(str(tried.get("verdict") or ""), "inconclusive")
+    kept = {key: tried.get(key) for key in ("verdict", "calls", "functions", "said", "could_not_be_run")}
+    standing.offer = {**standing.offer, "real_calls_tried": digest, "real_calls_verdict": {**kept, "disposition": disposition}}
     _write_now(standing)
-    logger.info("🛠️ her change '%s' on probation, tried on %s real call(s) of hers: %s", standing.goal[:60],
-                tried.get("calls", 0), tried.get("verdict") or "not judged")
-    return tried
+    logger.info("🛠️ her change '%s' on probation, tried on %s real call(s) of hers: %s (%s)", standing.goal[:60],
+                tried.get("calls", 0), tried.get("verdict") or "not judged", disposition)
+    return {**tried, "disposition": disposition}
 
 
 def take_it_herself(slug: str) -> dict[str, Any]:
@@ -637,7 +670,7 @@ def take_it_herself(slug: str) -> dict[str, Any]:
         logger.warning("🛠️ her draft for '%s' did not pass %s; it is hers to mend", record.goal[:60], failed)
         return {"ok": False, "why": f"{failed} failed", "gates": gates}
     # A change her checks cannot settle lands on probation, one at a time, and no person is asked (Bryan, 18 November 2026).
-    doubted = any("on probation:" in str((gates.get(name) or {}).get("tail") or "") for name in ("outside-check", "her-real-calls"))
+    doubted = bool(doubted_by(gates))
     standing = change_on_probation()
     if doubted and standing is not None:
         logger.info("🛠️ her draft for '%s' waits: '%s' is still on probation", record.goal[:60], standing.goal[:60])
@@ -713,21 +746,60 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     # Replayed on 18 November 2026 it refused her overfit 052670e4a, which every gate above had passed. After the fifth
     # red team it holds three of her other landed changes and puts two on probation.
     outside = source_root() / "outside_bar" / "verify_change.py"
+    # Each judging gate writes its verdict as data, which is what her yes decides by; its words are for people. The
+    # outside check's verdict also carries what it counted as lost, for her next try to keep (what_her_change_must_keep).
+    shown = Path(tempfile.mkdtemp(prefix="her-gate-results-"))
     if record.offer.get("commit") and outside.exists():
         gates.append(("outside-check", ["nice", "-n", "10", sys.executable, str(outside), "--repo", str(workspace),
-                                        "--commit", str(record.offer["commit"])]))
+                                        "--commit", str(record.offer["commit"]),
+                                        "--result", str(shown / "outside-check.json")]))
         # And the same check over her real calls of what the draft changes, by the code she runs, not her draft's.
         gates.append(("her-real-calls", ["nice", "-n", "10", sys.executable, "-m", "core.self_modification.her_real_calls",
-                                         "judge", "--repo", str(workspace), "--commit", str(record.offer["commit"])]))
+                                         "judge", "--repo", str(workspace), "--commit", str(record.offer["commit"]),
+                                         "--result", str(shown / "her-real-calls.json")]))
     results: dict[str, dict[str, Any]] = {}
     for name, argv in gates:
         started = time.time()
         passed, tail = _run_a_gate(argv, cwd=source_root() if name == "her-real-calls" else workspace, env=env)
         results[name] = {"passed": passed, "seconds": round(time.time() - started, 1), "tail": tail,
                          **({"files": len(tests)} if name == "tests" else {})}
+        if name in JUDGING_GATES:
+            said = _the_verdict_written(shown / f"{name}.json")
+            results[name]["verdict"] = str(said.get("verdict") or "")
+            if name == "outside-check" and not passed:
+                results[name]["must_keep"] = _what_the_outside_check_says_to_keep(said)
         if not passed:
             break
     return results
+
+
+#: The gates that judge the change itself, each writing its verdict as data (HELD, PROBATION, REFUSED, NOT_APPLICABLE).
+JUDGING_GATES = ("outside-check", "her-real-calls")
+
+
+def _the_verdict_written(path: Path) -> dict[str, Any]:
+    """What a judging gate wrote as its verdict; {} when it wrote none, which her yes counts as a doubt."""
+    try:
+        said = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return said if isinstance(said, dict) else {}
+
+
+def doubted_by(gates: dict[str, dict[str, Any]]) -> list[str]:
+    """The judging gates that passed without a verdict that the change holds: PROBATION, or no verdict written at all.
+    Decided from what each wrote as data; LIVE until 19 November it was read off the words "on probation:" in the
+    last lines a gate printed."""
+    return [name for name in JUDGING_GATES if name in gates and gates[name].get("passed")
+            and gates[name].get("verdict") not in ("HELD", "NOT_APPLICABLE")]
+
+
+def _what_the_outside_check_says_to_keep(said: dict[str, Any]) -> list[dict[str, Any]]:
+    """The inputs the outside check counted as lost that can be written as a test; [] when it wrote none."""
+    from core.self_modification.what_her_change_must_keep import keepable
+
+    shown = said.get("counterexamples") or []
+    return [one for one in shown if isinstance(one, dict) and keepable(one)] if isinstance(shown, list) else []
 
 
 #: How long a fetch or a push to origin may take, in seconds: the bound her other git calls are given.
@@ -757,6 +829,28 @@ def _replayed_on_origin(record: GoalRecord, commit: str) -> str | dict[str, Any]
     return _git("rev-parse", "HEAD", cwd=workspace).stdout.strip()
 
 
+def _judged_again(record: GoalRecord, commit: str) -> str:
+    """The outside check's verdict on ``commit`` in her workspace, as written: HELD, PROBATION, REFUSED, or
+    NOT_APPLICABLE where her source has no outside check. A verdict not written is "" and counts as a doubt."""
+    import os
+    import sys
+    import tempfile
+
+    outside = source_root() / "outside_bar" / "verify_change.py"
+    if not outside.exists():
+        return "NOT_APPLICABLE"
+    shown = Path(tempfile.mkdtemp(prefix="her-gate-results-")) / "outside-check-again.json"
+    env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
+           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    passed, _tail = _run_a_gate(["nice", "-n", "10", sys.executable, str(outside), "--repo", str(record.workspace),
+                                 "--commit", commit, "--result", str(shown)], cwd=record.workspace, env=env)
+    verdict = str(_the_verdict_written(shown).get("verdict") or "")
+    if verdict:
+        return verdict
+    # No verdict written: a check that failed is not taken to have held, and one that passed without saying is a doubt.
+    return "" if passed else "REFUSED"
+
+
 def _onto_origin(record: GoalRecord, commit: str) -> dict[str, Any]:
     """Her draft on origin's main before it goes into the source she runs on, so the two cannot part.
 
@@ -773,15 +867,24 @@ def _onto_origin(record: GoalRecord, commit: str) -> dict[str, Any]:
         fetched = _git("fetch", "-q", "origin", "main", cwd=root, effect="fetch", timeout=_ORIGIN_SECONDS)
         if fetched.returncode != 0:
             return {"why": f"origin could not be read: {fetched.stderr.strip()[:240]}"}
+        doubted_again = False
         if _git("merge-base", "--is-ancestor", "origin/main", commit, cwd=root).returncode != 0:
             replayed = _replayed_on_origin(record, commit)
             if isinstance(replayed, dict):
                 return replayed
             commit = replayed
+            # What lands is the replayed commit, on source the gates never saw: it is judged again before it is pushed.
+            verdict = _judged_again(record, commit)
+            if verdict == "REFUSED":
+                return {"why": "her draft, replayed on origin's main, is refused by the outside check there"}
+            doubted_again = verdict not in ("HELD", "NOT_APPLICABLE")
+            if doubted_again and not record.offer.get("on_probation") and change_on_probation() is not None:
+                return {"why": "her draft, replayed on origin's main, is in doubt there, and another change of hers is "
+                               "already on probation"}
         pushed = _git("push", "-q", "origin", f"{commit}:refs/heads/main", cwd=root, effect="push",
                       timeout=_ORIGIN_SECONDS)
         if pushed.returncode == 0:
-            return {"landed": commit}
+            return {"landed": commit, **({"doubted_on_replay": True} if doubted_again else {})}
         refused = pushed.stderr.strip()
     return {"why": f"origin did not take her draft: {refused[:240]}"}
 
@@ -824,6 +927,8 @@ def approve(slug: str, *, by: str = "Bryan", gates: dict[str, Any] | None = None
         return {"ok": False, "why": landed["why"]}
     if landed:
         commit, on_disk = landed["landed"], _onto_disk(landed["landed"])
+        if landed.get("doubted_on_replay"):
+            record.offer["on_probation"] = True
     else:
         merged = _git("merge", "--ff-only", commit, cwd=root, effect="merge")
         if merged.returncode != 0:

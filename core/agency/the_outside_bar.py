@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-__all__ = ["LEDGER", "verdicts_since", "what_the_outside_bar_says"]
+__all__ = ["LEDGER", "verdicts_on", "verdicts_since", "what_the_outside_bar_says"]
 
 LEDGER = Path("~/.aura/outside-bar/ledger.jsonl").expanduser()
 
@@ -48,6 +48,52 @@ def what_the_outside_bar_says(ledger: Path = LEDGER) -> str:
     if decided and decided[-1]["verdict"] == "REGRESSED":
         return f"the outside benchmarks regressed in run {decided[-1].get('candidate')}"
     return ""
+
+
+def _run_commit(home: Path, run: str) -> str:
+    """The source commit a run of the outside bar measured, from its own meta.json; "" when that cannot be read."""
+    try:
+        return str(json.loads((home / "runs" / run / "meta.json").read_text(encoding="utf-8")).get("commit") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def _contains(root: Path, commit: str, measured: str) -> bool | None:
+    """Whether the source ``measured`` holds ``commit``; None when git cannot say (a commit it does not have)."""
+    import subprocess
+
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    try:
+        done = get_subprocess_gateway().run(["git", "-c", "core.fsmonitor=false", "merge-base", "--is-ancestor", commit,
+                                             measured], cwd=root, timeout=30, read_only=True,
+                                            source="the_outside_bar.contains", accelerator_capability="none")
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return None
+    return {0: True, 1: False}.get(done.returncode)
+
+
+def verdicts_on(commit: str, root: Path, ledger: Path = LEDGER) -> list[str]:
+    """The outside benchmarks' decided verdicts on ``commit``, oldest first: comparisons whose candidate run measured
+    source that holds it and whose baseline run measured source that does not.
+
+    A verdict recorded after a change landed is not a verdict on it. A run started before it landed measured the source
+    without it, and a comparison of two runs that both hold it says nothing about it."""
+    if not commit:
+        return []
+    try:
+        entries = _entries(ledger) or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    home = ledger.parent
+    found = []
+    for entry in entries:
+        if entry.get("kind") != "compare" or entry.get("verdict") not in ("HELD", "REGRESSED"):
+            continue
+        measured, before = _run_commit(home, str(entry.get("candidate") or "")), _run_commit(home, str(entry.get("baseline") or ""))
+        if measured and before and _contains(root, commit, measured) is True and _contains(root, commit, before) is False:
+            found.append(str(entry["verdict"]))
+    return found
 
 
 def verdicts_since(moment: float, ledger: Path = LEDGER) -> list[str]:

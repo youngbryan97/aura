@@ -23,6 +23,15 @@ def _a_draft_of_hers():
     ]])
 
 
+def writes_verdict(argv, verdict: str) -> None:
+    """What a judging gate writes as data, where its argv names the file: what her yes decides by."""
+    import json
+    from pathlib import Path
+
+    if "--result" in argv:
+        Path(argv[argv.index("--result") + 1]).write_text(json.dumps({"verdict": verdict}))
+
+
 @pytest.fixture
 def gates_asked(her_source, monkeypatch):
     asked: list[list[str]] = []
@@ -59,6 +68,7 @@ def test_the_outside_check_is_asked_last_and_its_refusal_sends_the_draft_back(he
     def run(argv, *, cwd, env):
         asked.append(list(argv))
         refused = any(part.endswith("verify_change.py") for part in argv)
+        writes_verdict(argv, "REFUSED" if refused else "HELD")
         return (not refused, "did not hold: an input that worked gives another value" if refused else "fine")
 
     monkeypatch.setattr(work, "_run_a_gate", run)
@@ -112,6 +122,7 @@ def _the_outside_check_doubts(monkeypatch, her_source):
 
     def run(argv, *, cwd, env):
         doubted = any(part.endswith("verify_change.py") for part in argv)
+        writes_verdict(argv, "PROBATION" if doubted else "HELD")
         return (True, "on probation: its behaviour changed beside the input it pins" if doubted else "fine")
 
     monkeypatch.setattr(work, "_run_a_gate", run)
@@ -140,7 +151,7 @@ def test_the_outside_benchmarks_settle_a_change_on_probation(her_source, monkeyp
     _the_outside_check_doubts(monkeypatch, her_source)
     record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
     taken: list = []
-    monkeypatch.setattr(work, "verdicts_since", lambda _moment: verdicts)
+    monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: verdicts)
     monkeypatch.setattr(work, "take_it_back", lambda slug, why: (taken.append(slug), {"ok": True})[1])
     settled = work.settle_probation()
     assert settled[0]["status"] == ("kept after probation" if kept else "taken back")
@@ -151,5 +162,29 @@ def test_the_outside_benchmarks_settle_a_change_on_probation(her_source, monkeyp
 def test_with_no_measurement_yet_a_change_stays_on_probation(her_source, monkeypatch):
     _the_outside_check_doubts(monkeypatch, her_source)
     asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
-    monkeypatch.setattr(work, "verdicts_since", lambda _moment: [])
+    monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: [])
     assert work.settle_probation() == [] and work.change_on_probation() is not None
+
+
+@pytest.mark.parametrize(("words", "verdict", "on_probation"), [
+    ("on probation: worded as a doubt", "HELD", False),
+    ("all fine, nothing to say", "PROBATION", True),
+    ("all fine, nothing to say", None, True),
+])
+def test_her_yes_decides_by_the_verdict_written_and_not_by_the_words_printed(her_source, monkeypatch, words, verdict,
+                                                                            on_probation):
+    """A doubt was read off "on probation:" in a gate's last printed lines, so a change of wording, a truncated tail or
+    a line of logging changed what her yes decided. The words now change nothing; a verdict not written is a doubt."""
+    (her_source / "outside_bar").mkdir(exist_ok=True)
+    (her_source / "outside_bar" / "verify_change.py").write_text("")
+
+    def run(argv, *, cwd, env):
+        if any(part.endswith("verify_change.py") for part in argv) and verdict is not None:
+            writes_verdict(argv, verdict)
+        elif "core.self_modification.her_real_calls" in argv:
+            writes_verdict(argv, "NOT_APPLICABLE")
+        return (True, words)
+
+    monkeypatch.setattr(work, "_run_a_gate", run)
+    record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    assert bool(work.load(record.slug).offer.get("on_probation")) is on_probation

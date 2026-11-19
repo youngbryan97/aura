@@ -47,10 +47,14 @@ def ready(tmp_path, monkeypatch):
     monkeypatch.setattr(measuring, "LEDGER", ledger)
     monkeypatch.setattr(measuring, "_measuring", lambda: "")
     monkeypatch.setattr(measuring, "_on_the_charger", lambda: True)
+    monkeypatch.setattr(measuring, "verdicts_on", lambda commit, root, ledger=None: [])
+    monkeypatch.setattr(measuring, "_source_head", lambda root: "head-1")
+    monkeypatch.setattr(measuring, "_her_process", lambda: "4242")
     quiet_for: list[float] = []
     monkeypatch.setattr(measuring, "_how_long_nobody_has_talked_with_her",
                         lambda seconds: (quiet_for.append(seconds), "")[1])
-    standing = SimpleNamespace(slug="mend-x", goal="Mend x", offer={"merged_at": time.time() - 60, "on_probation": True})
+    standing = SimpleNamespace(slug="mend-x", goal="Mend x",
+                               offer={"merged_at": time.time() - 60, "on_probation": True, "commit": "c0ffee"})
     return SimpleNamespace(root=root, ledger=ledger, home=home, seal=seal, standing=standing, quiet_for=quiet_for)
 
 
@@ -74,7 +78,10 @@ def test_how_long_the_run_took_is_read_from_its_record_and_not_from_file_times(r
 
 @pytest.mark.parametrize(("change", "why"), [
     (lambda ready, monkeypatch: setattr(ready, "standing", None), "no change of hers is on probation"),
-    (lambda ready, monkeypatch: ready.standing.offer.update(comparison_started={"run": "r"}), "was started"),
+    (lambda ready, monkeypatch: ready.standing.offer.update(comparison_started={"run": "r", "rows": 0,
+                                                                               "source_head": "head-1",
+                                                                               "her_process": "4242"}),
+     "added nothing when it last ran"),
     (lambda ready, monkeypatch: (ready.root / "outside_bar" / "SEAL.json").write_text('{"files": {"x": "y"}}'),
      "another seal"),
     (lambda ready, monkeypatch: monkeypatch.setattr(measuring, "_measuring", lambda: "a run is measuring her"),
@@ -88,10 +95,33 @@ def test_each_condition_alone_keeps_it_from_starting(ready, monkeypatch, change,
     assert why in measuring.comparison_due(ready.standing, root=ready.root, ledger=ready.ledger)
 
 
-def test_a_comparison_the_benchmarks_already_made_is_not_made_again(ready):
-    _ledger(ready.ledger, {"kind": "baseline", "run": "baseline-1", "seal": ready.seal, "at": "2026-11-19T05:30:00+0000"},
-            {"kind": "compare", "verdict": "HELD", "at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
-    assert "spoken since it landed" in measuring.comparison_due(ready.standing, root=ready.root, ledger=ready.ledger)
+def test_a_comparison_the_benchmarks_already_made_on_it_is_not_made_again(ready, monkeypatch):
+    monkeypatch.setattr(measuring, "verdicts_on", lambda commit, root, ledger=None: ["HELD"] if commit == "c0ffee" else [])
+    assert "spoken on it" in measuring.comparison_due(ready.standing, root=ready.root, ledger=ready.ledger)
+
+
+def test_a_started_run_that_ended_without_a_verdict_is_resumed_when_it_made_progress(ready, monkeypatch):
+    """F16, 19 November: a comparison that started was taken for one that would end, and nothing started another, so a
+    run that died kept the change on probation for good."""
+    (ready.home / "runs" / "probation-1" / "rows").mkdir(parents=True)
+    (ready.home / "runs" / "probation-1" / "rows" / "a.json").write_text("{}")
+    ready.standing.offer["comparison_started"] = {"run": "probation-1", "rows": 0, "source_head": "head-1",
+                                                  "her_process": "4242", "against": "baseline-1", "attempt": 1}
+    assert measuring.comparison_due(ready.standing, root=ready.root, ledger=ready.ledger) == ""
+
+
+def test_a_started_run_is_resumed_when_her_source_or_her_process_changed_since(ready, monkeypatch):
+    ready.standing.offer["comparison_started"] = {"run": "probation-1", "rows": 0, "source_head": "head-0",
+                                                  "her_process": "4242", "against": "baseline-1"}
+    assert measuring.comparison_due(ready.standing, root=ready.root, ledger=ready.ledger) == ""
+    ready.standing.offer["comparison_started"].update(source_head="head-1", her_process="17")
+    assert measuring.comparison_due(ready.standing, root=ready.root, ledger=ready.ledger) == ""
+
+
+def test_a_started_run_still_going_is_left_to_go_on(ready, monkeypatch):
+    monkeypatch.setattr(measuring, "_measuring", lambda: "a run of the outside bar is going")
+    ready.standing.offer["comparison_started"] = {"run": "probation-1"}
+    assert "going" in measuring.comparison_due(ready.standing, root=ready.root, ledger=ready.ledger)
 
 
 def test_the_run_is_as_large_as_the_baseline_and_ends_in_the_comparison(ready, monkeypatch):
@@ -126,3 +156,29 @@ def test_starting_it_hands_the_run_to_the_system_and_says_so_on_her_record(ready
     assert spawned[0][:2] == ["/bin/zsh", "-c"] and "nohup" in spawned[0][2] and spawned[0][2].endswith("&")
     assert written[-1]["comparison_started"]["run"] == started["run"]
     assert (ready.home / f"compare-{started['run']}.sh").exists()
+
+
+def test_resuming_runs_the_same_run_again_and_counts_the_attempt(ready, monkeypatch):
+    from core.agency import her_goal_at_work as goals
+
+    monkeypatch.setattr(goals, "change_on_probation", lambda: ready.standing)
+    monkeypatch.setattr(goals, "source_root", lambda: ready.root)
+    written: list = []
+    monkeypatch.setattr(goals, "_write_now", lambda record: written.append(dict(record.offer)))
+
+    class _Gateway:
+        def write_text(self, path, text, *, source):
+            Path(path).write_text(text)
+
+        def spawn(self, argv, **kwargs):
+            pass
+
+    monkeypatch.setattr("core.runtime.file_write_gateway.get_file_write_gateway", lambda: _Gateway())
+    monkeypatch.setattr("core.runtime.subprocess_gateway.get_subprocess_gateway", lambda: _Gateway())
+    (ready.home / "runs" / "probation-1" / "rows").mkdir(parents=True)
+    (ready.home / "runs" / "probation-1" / "rows" / "a.json").write_text("{}")
+    ready.standing.offer["comparison_started"] = {"run": "probation-1", "rows": 0, "source_head": "head-1",
+                                                  "her_process": "4242", "against": "baseline-1", "attempt": 1}
+    resumed = measuring.start_a_comparison_when_due()
+    assert resumed == {"started": True, "run": "probation-1", "against": "baseline-1", "attempt": 2}
+    assert written[-1]["comparison_started"]["rows"] == 1, "the next resume asks for progress past this"

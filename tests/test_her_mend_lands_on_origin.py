@@ -169,3 +169,31 @@ def test_the_whole_loop_heard_mended_landed_loaded_undone_and_taken_back(with_or
     assert outcome["status"] == "taken back", outcome
     assert _origin_main(origin) == _git("rev-parse", "HEAD", cwd=source)
     assert "if len(rows) > 0:" in (source / "planted_pkg" / "rows.py").read_text()
+
+
+def test_a_mend_replayed_onto_a_moved_origin_is_judged_again_and_refused_there_lands_nowhere(with_origin, monkeypatch):
+    """F16, 19 November: the gates judged her draft on the source it was written on; what lands, when origin moved, is the
+    draft replayed onto other source, which only the replayed tests had seen."""
+    origin, _source, other = with_origin
+    _someone_else_pushes(other, "NOTES.md", "a note\n")
+    before = _origin_main(origin)
+    judged: list = []
+    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: (judged.append(commit), "REFUSED")[1])
+    done = asyncio.run(mend(_the_fault(), proposals=80, seconds=900))
+    assert judged and _origin_main(origin) == before, "nothing landed"
+    assert not (done.get("taken") or {}).get("ok"), done
+
+
+def test_a_mend_in_doubt_once_replayed_lands_on_probation(with_origin, monkeypatch):
+    origin, _source, other = with_origin
+    _someone_else_pushes(other, "NOTES.md", "a note\n")
+    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: "PROBATION")
+    done = asyncio.run(mend(_the_fault(), proposals=80, seconds=900))
+    assert done["status"] == "merged" and _origin_main(origin) == done["taken"]["commit"]
+    assert goals.load(done["slug"]).offer["on_probation"] is True
+
+
+def test_a_mend_onto_an_unmoved_origin_is_not_judged_twice(with_origin, monkeypatch):
+    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: pytest.fail("the commit the gates saw is what lands"))
+    done = asyncio.run(mend(_the_fault(), proposals=80, seconds=900))
+    assert done["status"] == "merged"

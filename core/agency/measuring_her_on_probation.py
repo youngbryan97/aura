@@ -27,7 +27,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from core.agency.the_outside_bar import LEDGER, _entries, verdicts_since
+from core.agency.the_outside_bar import LEDGER, _entries, verdicts_on
 
 logger = logging.getLogger("Aura.Agency.MeasuringOnProbation")
 
@@ -105,15 +105,59 @@ def _how_long_nobody_has_talked_with_her(seconds: float) -> str:
     return background_activity_reason(resolve_orchestrator(), min_idle_seconds=seconds, needs_the_model=False)
 
 
+def _rows_of(run: str) -> int:
+    try:
+        return sum(1 for _ in (HOME / "runs" / run / "rows").iterdir())
+    except OSError:
+        return 0
+
+
+def _her_process() -> str:
+    try:
+        shown = _read(["pgrep", "-f", "[a]ura_main"], "her_process")
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return ""
+    return ",".join(sorted(shown.stdout.split()))
+
+
+def _source_head(root: Path) -> str:
+    try:
+        shown = _read(["git", "-C", str(root), "-c", "core.fsmonitor=false", "rev-parse", "HEAD"], "source_head")
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return ""
+    return shown.stdout.strip()
+
+
+def _started_run_can_go_on(started: dict[str, Any], root: Path) -> str:
+    """"" when a comparison started before, which ended without a verdict, may be resumed; otherwise why not.
+
+    Resumed when its last attempt added rows, or when something that could change how it ends has changed since: her
+    source, or her running process. A run that added nothing, with nothing changed, would end the same way again."""
+    run = str(started.get("run") or "")
+    if not run:
+        return "the comparison started for it names no run"
+    if _rows_of(run) > int(started.get("rows") or 0):
+        return ""
+    if _source_head(root) != str(started.get("source_head") or "") or _her_process() != str(started.get("her_process") or ""):
+        return ""
+    return f"the comparison run {run} added nothing when it last ran, and nothing it depends on has changed since"
+
+
 def comparison_due(standing: Any, *, root: Path, ledger: Path | None = None) -> str:
-    """Why a comparison is not started for ``standing`` now; "" when it is due."""
+    """Why a comparison is not started or resumed for ``standing`` now; "" when it is due."""
     ledger = ledger or LEDGER
     if standing is None:
         return "no change of hers is on probation"
-    if standing.offer.get("comparison_started"):
-        return "a comparison was started for it"
-    if verdicts_since(float(standing.offer.get("merged_at") or 0.0), ledger):
-        return "the outside benchmarks have spoken since it landed"
+    if verdicts_on(str(standing.offer.get("commit") or ""), root, ledger):
+        return "the outside benchmarks have spoken on it"
+    started = standing.offer.get("comparison_started")
+    if started:
+        measuring = _measuring()
+        if measuring:
+            return measuring
+        stuck = _started_run_can_go_on(started, root)
+        if stuck:
+            return stuck
     baseline = _latest_baseline(ledger)
     if not baseline:
         return "the outside benchmarks have no baseline"
@@ -162,8 +206,14 @@ def start_a_comparison_when_due() -> dict[str, Any]:
     why_not = comparison_due(standing, root=root)
     if why_not:
         return {"started": False, "why": why_not}
+    started = dict(standing.offer.get("comparison_started") or {})
     baseline = _latest_baseline()
-    name = f"probation-{time.strftime('%Y%m%d-%H%M')}-{standing.slug[:40]}"
+    if started.get("run"):
+        # The run that ended without a verdict is resumed under its own name: each step skips what it already has.
+        name, against = str(started["run"]), str(started.get("against") or baseline["run"])
+        baseline = {**baseline, "run": against}
+    else:
+        name = f"probation-{time.strftime('%Y%m%d-%H%M')}-{standing.slug[:40]}"
     script = HOME / f"compare-{name}.sh"
     with local_internal_governed_scope("measuring_her_on_probation.start", domain="tool_execution",
                                        receipt_prefix="outside-comparison",
@@ -174,8 +224,11 @@ def start_a_comparison_when_due() -> dict[str, Any]:
         get_subprocess_gateway().spawn(["/bin/zsh", "-c", f"nohup /bin/zsh {shlex.quote(str(script))} >/dev/null 2>&1 &"],
                                        cwd=str(root), source="measuring_her_on_probation",
                                        accelerator_capability="none")
-    standing.offer = {**standing.offer, "comparison_started": {"run": name, "at": time.time(), "against": baseline["run"]}}
+    attempt = int(started.get("attempt") or 0) + 1
+    standing.offer = {**standing.offer, "comparison_started": {
+        "run": name, "at": time.time(), "against": baseline["run"], "attempt": attempt, "rows": _rows_of(name),
+        "source_head": _source_head(root), "her_process": _her_process()}}
     goals._write_now(standing)
-    logger.info("📏 an outside comparison started for her change on probation '%s': run %s against %s",
-                standing.goal[:60], name, baseline["run"])
-    return {"started": True, "run": name, "against": baseline["run"]}
+    logger.info("📏 an outside comparison %s for her change on probation '%s': run %s against %s",
+                "started" if attempt == 1 else f"resumed (attempt {attempt})", standing.goal[:60], name, baseline["run"])
+    return {"started": True, "run": name, "against": baseline["run"], "attempt": attempt}

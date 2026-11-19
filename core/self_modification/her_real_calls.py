@@ -666,10 +666,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     judge = sub.add_parser("judge", help="the outside check's verdict on a commit, over tests of her real calls")
     judge.add_argument("--repo", type=Path, required=True)
     judge.add_argument("--commit", required=True)
+    judge.add_argument("--result", type=Path, default=None,
+                       help="write the verdict here as JSON: what her yes decides by, where the words are for people")
     args = parser.parse_args(argv)
     path = where_her_real_calls_are_kept()
     corpus = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     judged = judged_on_her_real_calls(args.repo, args.commit, corpus)
+    if args.result is not None:
+        verdict = str(judged.get("verdict") or "") if judged else "NOT_APPLICABLE"
+        _write(args.result, json.dumps({"verdict": verdict, **{key: judged.get(key) for key in (
+            "calls", "pinned", "functions", "could_not_be_run")}}), "result")
     if not judged:
         print("held: no real call of hers reached what it changed")
         return 0

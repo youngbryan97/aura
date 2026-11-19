@@ -12,6 +12,7 @@ takes it into the source she runs on unless it changes her governance (``take_it
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import sys
 import time
@@ -284,8 +285,9 @@ async def _offer(record: Any, workspace: Path, files: list[str], best: Any, faul
         # Kept, not replaced: LIVE 17 November 2026 her drill's mend landed, was taken back out, and vanished from her
         # page when the goal's next draft was offered over it.
         record.offers_before = [*record.offers_before, dict(record.offer)]
+    kept = {key: value for key, value in (record.offer or {}).items() if key in ("must_keep", "kept_in")}
     record.offer = {"summary": message.splitlines()[0], "commit": head.strip(), "at": time.time(), "files": files,
-                    "origin": best.origin}
+                    "origin": best.origin, **kept}
     await goals.save(record)
     taken = await _taken_and_loaded(record, fault, mended)
     return {"slug": record.slug, "status": "merged" if taken.get("ok") else goals.OFFERED, "commit": head.strip(),
@@ -325,6 +327,11 @@ async def _her_draft_asked_again(record: Any, workspace: Path, fault: Any) -> di
     refused = any(not (gate or {}).get("passed") for gate in (offer.get("gates") or {}).values())
     if not offer.get("commit") or offer.get("merged_at") or offer.get("reverted") or not refused:
         return None
+    judged = (offer.get("gates") or {}).get("outside-check") or {}
+    if judged and not judged.get("passed"):
+        # The outside check refused the draft itself, not her source around it: asked again, the same draft gets the
+        # same verdict every cycle. So it is set aside and searched for again, keeping what the refusal said it lost.
+        return await _search_again_keeping_what_was_lost(record, workspace, judged)
     _, ahead = await _governed_run(["git", "-c", "core.fsmonitor=false", "rev-list", "--count",
                                     f"{record.base}..HEAD"], cwd=workspace, env=None, timeout=30.0, effect="compute")
     if ahead.strip() in ("", "0"):
@@ -346,6 +353,51 @@ async def _her_draft_asked_again(record: Any, workspace: Path, fault: Any) -> di
             "why": "her draft asked of her gates again"}
 
 
+async def _search_again_keeping_what_was_lost(record: Any, workspace: Path, judged: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Her refused draft set aside, and a test of each input it lost committed in its place, so her next search keeps
+    them (core/self_modification/what_her_change_must_keep.py); None to search again now, or why the goal stalls.
+
+    Nothing to keep is no new evidence: a search from the same place finds the same draft, so the goal waits for her
+    source to change, as a stalled one does."""
+    from core.agency import her_goal_at_work as goals
+    from core.self_modification.what_her_change_must_keep import keeping_test_source, path_of_what_it_must_keep
+
+    offer = dict(record.offer or {})
+    known = {json.dumps(one, sort_keys=True): one for one in [*(offer.get("must_keep") or []),
+                                                               *(judged.get("must_keep") or [])]}
+    must_keep = list(known.values())
+    source = keeping_test_source(must_keep, goal=record.goal)
+    record.offers_before = [*record.offers_before, {**offer, "set_aside": "the outside check refused it"}]
+    if not source:
+        record.offer = {"must_keep": must_keep}
+        return await _stop(record, "the outside check refused my draft, and nothing it said it lost can be kept as a "
+                                   "test, so a search from the same place would find the same draft",
+                           str(judged.get("tail") or "")[-1500:])
+    code, out = await _governed_run(["git", "-c", "core.fsmonitor=false", "reset", "-q", "--hard", record.base],
+                                    cwd=workspace, env=None, timeout=60.0, effect="commit")
+    path = path_of_what_it_must_keep(record.slug)
+    if code == 0:
+        await InHerWorkspace(workspace, {})._write({path: source})
+        code, out = await _governed_run(["git", "add", "--", path], cwd=workspace, env=None, timeout=60.0,
+                                        effect="commit")
+    if code == 0:
+        code, out = await _governed_run(
+            ["git", "-c", "core.fsmonitor=false", "-c", "user.name=Aura", "-c", "user.email=aura@localhost", "commit",
+             "-q", "-m", f"What my change for this goal must keep: {len(must_keep)} input(s) the outside check said a "
+                         f"draft of mine lost\n\nGoal: {record.goal}"],
+            cwd=workspace, env=None, timeout=60.0, effect="commit")
+    if code != 0:
+        return await _stop(record, f"what my refused draft lost could not be committed as a test: {out.strip()[:200]}",
+                           out)
+    record.offer = {"must_keep": must_keep, "kept_in": path}
+    record.status = goals.WORKING
+    record.said.append({"words": f"The outside check refused my draft: it lost {len(must_keep)} input(s) that worked. I "
+                                 f"set it aside, wrote them as tests in {path}, and searched again keeping them.",
+                        "at": time.time()})
+    await goals.save(record)
+    return None
+
+
 def _what_it_stalled_on_has_moved(record: Any, file: str, head: str) -> bool:
     """Whether trying a stalled fault again could end differently: the file it was raised in, a test naming that file,
     or her means of repair changed since it stalled. LIVE, 17 and 18 November 2026: one locked database was tried 35
@@ -363,6 +415,20 @@ def _what_it_stalled_on_has_moved(record: Any, file: str, head: str) -> bool:
     changed = set(shown.stdout.splitlines())
     return file in changed or any(name.startswith(_HER_MEANS_OF_REPAIR) for name in changed) \
         or bool(changed & set(goals.tests_that_touch([file], root)))
+
+
+async def _keep_her_recent_turns() -> None:
+    """Her finished turns and a reading of her memory, kept off her event loop for probation to measure
+    (core/agency/her_turns_on_probation.py)."""
+    try:
+        from core.agency.her_turns_on_probation import keep_her_recent_turns
+
+        await asyncio.to_thread(keep_her_recent_turns)
+    except (ImportError, OSError, RuntimeError, ValueError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("mending_a_fault_of_hers", exc, severity="warning",
+                           action="her turns were not kept this cycle, so probation measures fewer of them")
 
 
 async def _keep_her_real_calls_of_what_she_may_change() -> None:
@@ -415,6 +481,7 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
         taken_back.append({"slug": slug, "status": "taken back" if done.get("ok") else "not taken back",
                            "why": done.get("why") or done.get("revert", "")})
     # Off her loop: settling can run the outside check over her real calls, which takes minutes.
+    await _keep_her_recent_turns()
     taken_back += await asyncio.to_thread(goals.settle_probation)
     if taken_back:
         return taken_back

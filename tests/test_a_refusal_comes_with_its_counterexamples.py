@@ -84,3 +84,27 @@ def test_a_comment_or_a_blank_line_asks_nothing_of_a_test(shop):  # noqa: F811 -
     commit = _committed(shop, _PRICES.replace("    return table[item]",
                                               "    # what it costs\n\n    return table.get(item)"))
     assert lines_it_wrote_that_run(shop, commit, "shop/prices.py") == {4}
+
+
+def test_the_verdict_is_written_as_data_for_a_gate_to_decide_by(shop, tmp_path):  # noqa: F811 - the fixture
+    """Her yes read a doubt off the words "on probation:" in the last lines printed; it reads this file now."""
+    import json
+
+    from outside_bar.verify_change import main
+
+    overfit = _PRICES.replace("    return table[item]", "    if len(table) <= 1:\n        return None\n    return table[item]")
+    commit = _committed(shop, overfit)
+    written = tmp_path / "verdict.json"
+    assert main(["--repo", str(shop), "--commit", commit, "--result", str(written)]) == 1
+    said = json.loads(written.read_text())
+    assert said["verdict"] == "REFUSED" and said["counterexamples"], said
+
+
+def test_a_commit_that_cannot_be_checked_still_writes_its_verdict(shop, tmp_path):  # noqa: F811 - the fixture
+    import json
+
+    from outside_bar.verify_change import main
+
+    written = tmp_path / "verdict.json"
+    assert main(["--repo", str(shop), "--commit", "0" * 40, "--result", str(written)]) != 0
+    assert json.loads(written.read_text())["verdict"] in ("REFUSED", "")

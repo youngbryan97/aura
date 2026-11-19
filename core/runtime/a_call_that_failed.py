@@ -121,10 +121,35 @@ def _plain_within(value: Any, budget: int) -> int:
     return budget
 
 
-def _written_back(value: Any) -> str | None:
-    """``value`` as source that evaluates to an equal value, or None when it is not a plain value."""
-    if _plain_within(value, _LONGEST_ARGUMENT) < 0:
+def _a_record_written_back(value: Any) -> str | None:
+    """A dataclass instance as its own constructor called with its fields, importing its class by itself; None unless
+    that rebuilds it: every field set by the generated ``__init__``, no ``__post_init__`` to change what it is given,
+    and each field a value written back in turn. LIVE 19 November 2026 two faults she heard could not be made again
+    because an argument was a PhenomenalField, a record of a string and some numbers."""
+    kind = type(value)
+    params = getattr(kind, "__dataclass_params__", None)
+    if not dataclasses.is_dataclass(value) or params is None or not params.init or hasattr(kind, "__post_init__"):
         return None
+    if "<" in kind.__qualname__ or kind.__module__ in ("__main__", "builtins"):
+        return None
+    parts = []
+    for one in dataclasses.fields(value):
+        if not one.init:
+            return None
+        written = _written_back(getattr(value, one.name))
+        if written is None:
+            return None
+        parts.append(f"{one.name}={written}")
+    source = (f"__import__({kind.__module__!r}, fromlist=[{kind.__qualname__.split('.')[0]!r}])."
+              f"{kind.__qualname__}({', '.join(parts)})")
+    return source if len(source) <= _LONGEST_ARGUMENT else None
+
+
+def _written_back(value: Any) -> str | None:
+    """``value`` as source that evaluates to an equal value, or None when it is neither a plain value nor a record of
+    them."""
+    if _plain_within(value, _LONGEST_ARGUMENT) < 0:
+        return _a_record_written_back(value)
     try:
         source = repr(value)
     # not a failure: a value whose repr raises cannot be written back.

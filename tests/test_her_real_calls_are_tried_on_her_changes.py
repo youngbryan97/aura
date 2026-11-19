@@ -23,7 +23,7 @@ from tests.test_her_goal_is_worked_by_her import (  # noqa: F401 - a fixture, fo
     GOAL,
     her_source,
 )
-from tests.test_her_own_yes_asks_the_gates import _a_draft_of_hers
+from tests.test_her_own_yes_asks_the_gates import _a_draft_of_hers, writes_verdict
 
 # ── writing a call back ─────────────────────────────────────────────────
 
@@ -379,6 +379,7 @@ def _on_probation(her_source, monkeypatch, judged):  # noqa: F811 - the fixture
 
     def run(argv, *, cwd, env):
         doubted = any(part.endswith("verify_change.py") for part in argv)
+        writes_verdict(argv, "PROBATION" if doubted else "HELD")
         return (True, "on probation: its behaviour changed beside the input it pins" if doubted else "fine")
 
     monkeypatch.setattr(work, "_run_a_gate", run)
@@ -397,7 +398,7 @@ def _on_probation(her_source, monkeypatch, judged):  # noqa: F811 - the fixture
 
 def test_probation_ends_in_a_take_back_when_her_real_calls_lose_something(her_source, monkeypatch):  # noqa: F811 - the fixture
     record, tried, taken = _on_probation(her_source, monkeypatch, {"verdict": "REFUSED", "said": "was 'raised ValueError'"})
-    monkeypatch.setattr(work, "verdicts_since", lambda _moment: [])
+    monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: [])
     settled = work.settle_probation()
     assert settled[0]["status"] == "taken back" and taken[0][0] == record.slug
     assert "ValueError" not in taken[0][1], "what her calls were stays in her record, not in what is said of the revert"
@@ -406,10 +407,10 @@ def test_probation_ends_in_a_take_back_when_her_real_calls_lose_something(her_so
 
 def test_her_real_calls_are_tried_once_for_each_sample_they_are(her_source, monkeypatch):  # noqa: F811 - the fixture
     record, tried, taken = _on_probation(her_source, monkeypatch, {"verdict": "HELD", "calls": 1})
-    monkeypatch.setattr(work, "verdicts_since", lambda _moment: [])
+    monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: [])
     assert work.settle_probation() == [] and work.settle_probation() == []
     assert tried == [1] and not taken, "the same calls are not tried twice"
-    monkeypatch.setattr(work, "verdicts_since", lambda _moment: ["HELD"])
+    monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: ["HELD"])
     assert work.settle_probation()[0]["status"] == "kept after probation"
 
 
@@ -421,6 +422,7 @@ def test_her_yes_asks_her_real_calls_with_the_code_she_runs_and_a_doubt_puts_the
     def run(argv, *, cwd, env):
         asked.append((list(argv), cwd))
         on_her_calls = "core.self_modification.her_real_calls" in argv
+        writes_verdict(argv, "PROBATION" if on_her_calls else "HELD")
         return (True, "on probation: on her real calls, a refusal moved" if on_her_calls else "fine")
 
     monkeypatch.setattr(work, "_run_a_gate", run)
@@ -437,6 +439,7 @@ def test_a_refusal_on_her_real_calls_sends_the_draft_back(her_source, monkeypatc
 
     def run(argv, *, cwd, env):
         refused = "core.self_modification.her_real_calls" in argv
+        writes_verdict(argv, "REFUSED" if refused else "HELD")
         return (not refused, "refused on her real calls" if refused else "fine")
 
     monkeypatch.setattr(work, "_run_a_gate", run)
@@ -446,3 +449,16 @@ def test_a_refusal_on_her_real_calls_sends_the_draft_back(her_source, monkeypatc
 
 def test_how_her_real_calls_are_kept_is_hers_to_change_only_with_bryan():
     assert work.governs_her("core/self_modification/her_real_calls.py")
+
+
+def test_the_judge_writes_its_verdict_and_not_applicable_when_no_call_reached_the_change(tmp_path, monkeypatch):
+    monkeypatch.setattr(real, "where_her_real_calls_are_kept", lambda: tmp_path / "none.json")
+    monkeypatch.setattr(real, "judged_on_her_real_calls", lambda repo, commit, corpus: {})
+    written = tmp_path / "verdict.json"
+    assert real.main(["judge", "--repo", str(tmp_path), "--commit", "abc", "--result", str(written)]) == 0
+    assert json.loads(written.read_text())["verdict"] == "NOT_APPLICABLE"
+    monkeypatch.setattr(real, "judged_on_her_real_calls",
+                        lambda repo, commit, corpus: {"verdict": "PROBATION", "calls": 2, "functions": ["f"], "said": "",
+                                                      "result": {"doubts": ["a refusal moved"]}})
+    assert real.main(["judge", "--repo", str(tmp_path), "--commit", "abc", "--result", str(written)]) == 0
+    assert json.loads(written.read_text())["verdict"] == "PROBATION"
