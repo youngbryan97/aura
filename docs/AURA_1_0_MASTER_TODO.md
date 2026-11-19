@@ -5095,6 +5095,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     is an attribution, and its content still needs judging. Closeness by cosine does not settle that: her span measured
     0.768 against his message, between the declared paraphrases (0.734 and up) and the declared inventions (up to
     0.813).
+  - 19 November, live on a quiet machine: "Can you look up what the latest stable release of Python is right now?"
+    timed out in four tries of four, at 112 to 132 s, with her answer written 38 to 65 s in. Two causes, both fixed.
+    After her draft, the phase's reasoning amplifier ran a deep search of nine candidates on a budget that ignored the
+    turn's clock, and kept the draft after the turn had ended. And no timed-out turn's kernel work had been cancelled
+    since 12 September, when the block that starts it was moved out of the route and its task became a local there,
+    so it held AuraKernel.StateLock while the next turn waited for it. The search now spends only what is left on the
+    turn's clock and her draft stands when it runs out, and a turn's timeout cancels its kernel work
+    (`tests/test_a_search_over_her_draft_keeps_to_the_turns_clock.py`). Still open: a word match on "Python" read the
+    question as code. The kind of a request needs reading by meaning.
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her
@@ -7880,6 +7889,8 @@ needs her 27B free (her app down, or her app's own influence trials).
   an answer: 11 report `desktop_cognitive_engine_unavailable`, and 6 a quality or contract check that served a partial
   draft or nothing. The BBEH replies with text stop inside their reasoning. Until that is mended, BBEH measures how
   much room her turn has, and a change that only gives the turn more room will raise it.
+  Two causes of turns ending with no answer were found live the same morning and fixed (U07, 19 November): a search
+  over her finished draft that outlived the turn, and kernel work of timed-out turns never cancelled.
   Part 9, 19 November: probation is settled on her own real calls, and the comparison starts itself.
   `core/self_modification/her_real_calls.py` keeps up to 200 calls of each function she may change next (a fault she
   heard, her change on probation, a draft she offered), sampled evenly from her running and kept in her state, never

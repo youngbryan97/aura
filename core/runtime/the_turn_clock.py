@@ -40,6 +40,11 @@ def _the_hard_ceiling() -> float:
         return 480.0
 
 
+#: What a search over a draft that already exists leaves on the turn's clock for the draft's own way out: the reply
+#: checks and the delivery. The amount the quick reply's amplifier kept back from the first (cognitive_engine_quick_reply).
+ROOM_KEPT_FOR_DELIVERY_S = 8.0
+
+
 @dataclass
 class TheTurnClock:
     """What this turn was granted, what it has since been shown it needs."""
@@ -127,6 +132,7 @@ def close_the_turn_clock() -> None:
 
 
 __all__ = [
+    "ROOM_KEPT_FOR_DELIVERY_S",
     "TheTurnClock",
     "ask_the_turn_for",
     "close_the_turn_clock",

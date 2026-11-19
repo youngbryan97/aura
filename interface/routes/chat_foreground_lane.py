@@ -1199,6 +1199,7 @@ async def _await_the_sovereign_kernel_reply(
     *,
     _attempt_protected_foreground_reply: Any,
     _cancel_kernel_task_if_pending: Any,
+    _hold_kernel_task: Any,
     _finalize_fastpath: Any,
     _remaining_foreground_budget: Any,
     chat_origin: Any,
@@ -1235,6 +1236,11 @@ async def _await_the_sovereign_kernel_reply(
                     ki.process(effective_user_message, origin=chat_origin, priority=True),
                     name="Aura.Server.Chat.kernel_foreground",
                 )
+                # The turn's cancellation reads the task from the turn's own scope. Since this block was moved out of
+                # it (12 September) the task was a local here, the turn's copy stayed None, and no timed-out turn's
+                # kernel work was ever cancelled: LIVE 19 November 2026 it ran on 80 s past its turn holding
+                # AuraKernel.StateLock, and the next turn waited on the lock.
+                _hold_kernel_task(kernel_task)
                 # [STABILITY v53] Two-phase timeout:
                 # Phase 1 (soft): Give kernel its full SLA. Don't fire competing
                 #   requests during this window — resource contention makes both slower.

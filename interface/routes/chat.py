@@ -8022,6 +8022,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                action="used the admitted budget for this wait")
         return max(2.0, granted - elapsed - reserve)
 
+    def _hold_kernel_task(task: asyncio.Task | None) -> None:
+        """The kernel task a part of this turn started, kept where this turn's cancellation reads it."""
+        nonlocal kernel_task
+        kernel_task = task
+
     async def _cancel_kernel_task_if_pending(reason: str) -> None:
         nonlocal kernel_task
         task = kernel_task
@@ -10238,6 +10243,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _seam_early_response, kernel_timed_out, reply_text = await _await_the_sovereign_kernel_reply(
             _attempt_protected_foreground_reply=_attempt_protected_foreground_reply,
             _cancel_kernel_task_if_pending=_cancel_kernel_task_if_pending,
+            _hold_kernel_task=_hold_kernel_task,
             _finalize_fastpath=_finalize_fastpath,
             _remaining_foreground_budget=_remaining_foreground_budget,
             chat_origin=chat_origin,

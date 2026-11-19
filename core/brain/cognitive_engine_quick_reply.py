@@ -837,7 +837,9 @@ class _AnswersTheDesktopDirectly:
             candidate_s = await asyncio.to_thread(_time_the_answer_needs, request)
         deadline = context.get("cognitive_cycle_deadline_monotonic")
         try:
-            left_s = float(deadline) - _time.monotonic() - 8.0
+            from core.runtime.the_turn_clock import ROOM_KEPT_FOR_DELIVERY_S
+
+            left_s = float(deadline) - _time.monotonic() - ROOM_KEPT_FOR_DELIVERY_S
         except (TypeError, ValueError):
             # not a failure: a turn with no deadline has no measured time to give; the stand-down below says so
             left_s = 0.0

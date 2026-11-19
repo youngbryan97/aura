@@ -23,6 +23,25 @@ if TYPE_CHECKING:
     )
 
 
+def _what_the_turn_has_left() -> float | None:
+    """Seconds left on this turn's clock after the room its draft needs on the way out; None where no turn opened one
+    (background work, a test)."""
+    from core.runtime.the_turn_clock import ROOM_KEPT_FOR_DELIVERY_S, the_turn_clock
+
+    clock = the_turn_clock()
+    return None if clock is None else clock.remaining(reserve=ROOM_KEPT_FOR_DELIVERY_S)
+
+
+def _what_her_draft_cost() -> float:
+    """What this turn's generations cost so far, as its receipt measured them: a candidate is another answer through
+    the same lane. 0.0 where nothing was measured."""
+    from core.verify.turn_receipt import current_receipt
+
+    receipt = current_receipt()
+    spent = receipt.latency_s if receipt is not None else {}
+    return float(spent.get("prefill", 0.0)) + float(spent.get("decode", 0.0))
+
+
 class _AmplifiesTheDraft:
     """Lifted whole out of UnitaryResponsePhase; see response_generation_unitary.py."""
 
@@ -146,7 +165,22 @@ class _AmplifiesTheDraft:
         budget = search_seconds if admitted else float(request_timeout or 20.0)
         if budget < candidate_seconds:
             return draft
-        result = await amplify_turn(
+        # Her draft exists; the search may spend what is left of the turn's clock and no more, as the quick reply's
+        # does. LIVE 19 November 2026, four times: "latest stable release of Python" read as code, and a deep search of
+        # nine candidates began after her draft was written, ran past the turn's end and kept the draft. The turn had
+        # timed out, so the draft was never shown. The clock is the one the route opened; this task inherited it.
+        left = _what_the_turn_has_left()
+        if left is not None:
+            one = max(candidate_seconds, _what_her_draft_cost())
+            if left < one:
+                logger.info(
+                    "Reasoning amplifier stood down for %s: %.0f s left on the turn, a candidate costs about what "
+                    "her draft did, %.0f s.",
+                    task_type, left, one,
+                )
+                return draft
+            budget = min(budget, left)
+        searching = amplify_turn(
             objective,
             _gen,
             task_type=task_type,
@@ -160,6 +194,14 @@ class _AmplifiesTheDraft:
             },
             escalate_generate=escalate_gen,
         )
+        if left is None:
+            result = await searching
+        else:
+            try:
+                result = await asyncio.wait_for(searching, timeout=budget)
+            except TimeoutError:
+                logger.info("Reasoning amplifier ran out of the turn's clock for %s; her draft stands.", task_type)
+                return draft
         receipt = result.receipt.to_dict()
         self._last_reasoning_receipt = receipt
         try:
