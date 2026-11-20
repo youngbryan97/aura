@@ -1374,6 +1374,14 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
     try:
         added = [name for name in files if _a_test_file(name) and (new / name).is_file()]
         edited = [name for name in files if _a_test_file(name) and (old / name).exists()]
+        # What the commit says the code should do is in the tests it wrote or changed, one by one: a test it left as it
+        # was says nothing new, though it shares a file with one that does. A commit that fixed mean() in a file of
+        # tests and doubled every later amount add() stored was read as respecifying add() by an untouched test of
+        # add(), so what add() lost counted only as doubts (F16-05, 20 November 2026). Where no test function changed
+        # (a helper or a fixture did), the whole files speak, as before.
+        own = [f"{name}::{function.replace('.', '::')}" for name in added
+               for function in changed_functions(repo, commit, name, directly=True)
+               if function.split(".")[-1].startswith("test")] or added
         functions = {name: changed_functions(repo, commit, name) for name in files
                      if name.endswith(".py") and not _a_test_file(name) and not _machinery(name) and (new / name).exists()}
         readers = [name for name in readers_of(new, files) if (old / name).exists()]
@@ -1408,7 +1416,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                        and not (as_written.get(node, False) and (new / node.split("::")[0]).is_file()))
         rewritten = sorted(node for node, passed in first["verdicts"].items() if passed and node.split("::")[0] in edited
                            and node not in broke and not as_written.get(node, False))
-        spec = run_tests(new, added, work, functions, written_lines)
+        spec = run_tests(new, own, work, functions, written_lines)
         # The commit's own tests, asked of the code before it, with any helper file it added beside its tests.
         helpers = [name for name in files if not name.endswith(".py") or not functions.get(name)]
         helpers = [name for name in helpers if not _a_test_file(name) and (new / name).is_file() and not (old / name).exists()
@@ -1418,7 +1426,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                 (old / name).parent.unlink()
             (old / name).parent.mkdir(parents=True, exist_ok=True)
             (old / name).write_bytes((new / name).read_bytes())
-        asked_before = run_tests(old, added, work)
+        asked_before = run_tests(old, own, work)
         before = asked_before["verdicts"]
         newly_passing = [node for node, passed in spec["verdicts"].items() if passed and not before.get(node, False)]
         shows_the_fault = {"applies": bool(added), "newly_passing": newly_passing[:20],

@@ -8028,6 +8028,13 @@ needs her 27B free (her app down, or her app's own influence trials).
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record
     (a dataclass whose constructor sets every field from what it is given) is written back as that constructor called
     with its fields, so her loop can make it again. Two faults she heard that day could not be, for a PhenomenalField.
+    20 November, from an outside review (F16-05, "a patch preserving isolated outputs but corrupting a later call"): a
+    commit fixed mean() with a test that failed before it and in the same commit had add() store every later amount
+    doubled. add() returned the right count on every input, and the check saw the object it left was wrong, but put
+    the commit on probation: an untouched test of add() in the same file was read as the commit saying what add()
+    should now do. Only the test functions a commit wrote or changed speak for it now (whole files where only a helper
+    changed), and the commit is refused. All 392 verifier and red-team tests keep their verdicts, every honest fix's
+    among them (`tests/test_a_later_call_on_the_same_object_is_judged.py`).
   - Make inputs from the changed conditions themselves: each side of `x < C`, both solutions of `x + y == C`, lengths
     around `len(s) == C`, `P` around `s.startswith(P)`. Round five added every input within three steps along two
     numbers; a relation with larger coefficients still needs inputs solved from the condition. Built 19 November: each
