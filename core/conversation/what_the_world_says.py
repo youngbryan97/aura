@@ -354,6 +354,10 @@ def _as_of(store: Any) -> str:
     return f", as of {date}" if date else ""
 
 
+#: The first line of a kept search, which names the query it was asked (research_pipeline._build_memory_note).
+_KEPT_QUERY_LINE = re.compile(r"^\[WebLearning [^\]]*\] Query: .*$", re.MULTILINE)
+
+
 def _corpus_origin(hit: Any, body: str, as_of: str) -> tuple[str, str]:
     """Where a corpus document came from and when, and the page it was read from.
 
@@ -407,8 +411,28 @@ def _from_corpus(
             body = store.body(hit.doc_id)
             if body:
                 origin, location = _corpus_origin(hit, body, as_of)
-                candidates.append(WorldSource(origin, hit.title, location, passage_of(body, terms), full_text=body))
+                title = hit.title
+                if hit.source == RETAINED_SOURCE:
+                    title, body = what_a_kept_search_read(body)
+                candidates.append(WorldSource(origin, title, location, passage_of(body, terms), full_text=body))
     return candidates
+
+
+def what_a_kept_search_read(note: str) -> tuple[str, str]:
+    """A kept search as what it read: titled by the pages it cites, with its query left out.
+
+    A kept search is a note in one format (core/search/research_pipeline.py, ``_build_memory_note``), titled in the
+    corpus by its query until 19 November 2026. A query is the asker's words, and worded as a claim it read as the page
+    making it. LIVE that evening, typed into her window after a restart: asked "What is the locker code for the
+    Brimvaltor depot?", she answered 6182, which she had been told, with a game guide on polygon.com as its source. A
+    search of "Please remember this for later: the locker code for the Brimvaltor depot is 6182" had kept that page under
+    the request's own words."""
+    read = _KEPT_QUERY_LINE.sub("", note, count=1).lstrip("\n")
+    _, _, cited = note.partition("\nSources:")
+    titles = [line[2:].rpartition(": ")[0].strip() for line in cited.splitlines()
+              if line.startswith("- ") and ": " in line[2:]]
+    titles = [title for title in titles if title]
+    return ("; ".join(titles[:3]) if titles else "notes a web search kept, with no page cited"), read
 
 
 def _asks_her_view(question: str) -> bool:

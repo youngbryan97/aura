@@ -1627,8 +1627,12 @@ class ResearchSearchPipeline:
                 # a fingerprinted 5s stall class at corpus scale. Everything
                 # sqlite happens on this worker thread.
                 if _corpus.has_documents():
+                    # Titled by what it read, not by what it was asked: a query worded as a claim, titling the note,
+                    # read as the page making it (core/conversation/what_the_world_says.py, what_a_kept_search_read).
+                    read = "; ".join(str(item.get("title") or "").strip() for item in artifact.citations[:3]
+                                     if str(item.get("title") or "").strip())
                     _corpus.add_retained_document(
-                        artifact.query[:300],
+                        (read or "notes a web search kept, with no page cited")[:300],
                         memory_text,
                         artifact_id=artifact.artifact_id,
                     )

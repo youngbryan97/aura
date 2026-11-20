@@ -5158,6 +5158,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     and code_repl was all that was left: a tool loop offered only a code runner, nobody called it, and its draft was
     written again. Once the world was read, a capability that computes now stays only where her reading by meaning
     does not say the request is about the world (the same test).
+  - After a restart, asked "What is the locker code for the Brimvaltor depot?", she answered 6182: the pin was
+    recalled by meaning, live. She gave a game guide on polygon.com as its source. The search of the request to
+    remember had been kept in her corpus titled by its query, so the person's words stood as the title of a page;
+    nine kept searches were titled that way, all from requests to remember. A kept search is now read back titled by
+    the pages it cites and without its query, which corrects those nine as they are read, and is kept that way from
+    now on (`tests/test_a_kept_search_is_titled_by_what_it_read.py`).
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her
