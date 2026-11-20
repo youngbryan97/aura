@@ -312,6 +312,19 @@ class Looks:
     cut: float = 0.0
     sides: list[float] = field(default_factory=list)
 
+    def as_memory(self) -> dict:
+        """The looks she knows on this board, kept with what she learned of the game, so the next sitting calls each
+        kind by the same name."""
+        return {"kinds": [np.round(kind, 2).tolist() for kind in self.kinds], "cut": self.cut, "sides": list(self.sides)}
+
+    @classmethod
+    def from_memory(cls, kept: dict) -> Looks:
+        try:
+            return cls(kinds=[np.asarray(kind, dtype=np.float32) for kind in kept.get("kinds", [])],
+                       cut=float(kept.get("cut", 0.0)), sides=[float(s) for s in kept.get("sides", [])])
+        except (TypeError, ValueError):
+            return cls()
+
     def read(self, picture: np.ndarray, lattice: Lattice | None = None) -> PiecesSeen | None:
         """The board in ``picture`` read square by square; None where there is no board."""
         picture = np.asarray(picture)

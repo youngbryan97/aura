@@ -1265,11 +1265,12 @@ fn self_play(
 ) -> PyResult<PyObject> {
     let (ga, b0) = parse(description, start, weights_a)?;
     let (gb, _) = parse(description, start, weights_b)?;
-    let (points, results, samples) = py.allow_threads(|| {
+    let (points, results, samples, lengths) = py.allow_threads(|| {
         let mut rng = Rng(seed.wrapping_mul(0x2545F4914F6CDD1D) | 1);
         let entries = (4 * 1024 * 1024) / std::mem::size_of::<Entry>();
         let mut points = 0.0f64;
         let mut results: Vec<f64> = Vec::new();
+        let mut lengths: Vec<u32> = Vec::new();
         let mut samples: Vec<(Vec<f32>, f64)> = Vec::new();
         for game in 0..games {
             let a_is_first = game % 2 == 0;
@@ -1279,7 +1280,9 @@ fn self_play(
             let mut taken: Vec<Vec<f32>> = Vec::new();
             let mut result_first = 0.5;
             let mut last_took = false;
+            let mut plies = 0u32;
             for ply in 0..max_plies {
+                plies = ply;
                 let legal = board.legal(&ga);
                 if legal.is_empty() {
                     let mover = board.turn;
@@ -1314,15 +1317,17 @@ fn self_play(
             let a_points = if a_is_first { result_first } else { 1.0 - result_first };
             points += a_points;
             results.push(a_points);
+            lengths.push(plies);
             for f in taken {
                 samples.push((f, result_first));
             }
         }
-        (points, results, samples)
+        (points, results, samples, lengths)
     });
     let d = PyDict::new_bound(py);
     d.set_item("points", points)?;
     d.set_item("results", results)?;
+    d.set_item("plies", lengths)?;
     d.set_item("samples", samples)?;
     Ok(d.into())
 }

@@ -269,6 +269,56 @@ class HowThePiecesMove:
                                   leaves_passable=kind in self.passes))
         return _mirrored(steps, ways)
 
+    def as_memory(self) -> dict:
+        """What she learned, in a form kept on disk with what she worked out about this world."""
+        def key(square: Square) -> str:
+            return f"{square[0]},{square[1]}"
+
+        def way(seen: _Seen) -> dict:
+            return {"offered": sorted(seen.offered), "offered_unmoved": sorted(seen.offered_unmoved),
+                    "withheld": sorted(seen.withheld), "withheld_unmoved": sorted(seen.withheld_unmoved),
+                    "took": seen.took, "would_not_take": seen.would_not_take,
+                    "moved_to_empty": seen.moved_to_empty, "jumped": seen.jumped}
+
+        return {
+            "rows": self.rows, "columns": self.columns,
+            "start": {key(sq): [side, kind] for sq, (side, kind) in self.start.items()},
+            "seen": {kind: {f"{d[0]},{d[1]}": way(w) for d, w in ways.items()} for kind, ways in self.seen.items()},
+            "kept_off_attacked": dict(self.kept_off_attacked), "went_onto_attacked": dict(self.went_onto_attacked),
+            "crosses": dict(self.crosses), "becomes": {k: list(v) for k, v in self.becomes.items()},
+            "passes": sorted(self.passes), "takes_passing": sorted(self.takes_passing),
+            "refusals": self.refusals, "refused_leaving_open": dict(self.refused_leaving_open),
+        }
+
+    @classmethod
+    def from_memory(cls, kept: dict) -> HowThePiecesMove | None:
+        try:
+            def square(text: str) -> Square:
+                row, column = text.split(",")
+                return int(row), int(column)
+
+            learned = cls(rows=int(kept["rows"]), columns=int(kept["columns"]),
+                          start={square(k): (int(v[0]), str(v[1])) for k, v in kept["start"].items()})
+            for kind, ways in kept.get("seen", {}).items():
+                for d, w in ways.items():
+                    seen = learned._of(kind, square(d))
+                    seen.offered, seen.offered_unmoved = set(w["offered"]), set(w["offered_unmoved"])
+                    seen.withheld, seen.withheld_unmoved = set(w["withheld"]), set(w["withheld_unmoved"])
+                    seen.took, seen.would_not_take = int(w["took"]), int(w["would_not_take"])
+                    seen.moved_to_empty, seen.jumped = int(w["moved_to_empty"]), int(w["jumped"])
+                learned.seen.setdefault(kind, {})
+            learned.kept_off_attacked = {k: int(v) for k, v in kept.get("kept_off_attacked", {}).items()}
+            learned.went_onto_attacked = {k: int(v) for k, v in kept.get("went_onto_attacked", {}).items()}
+            learned.crosses = dict(kept.get("crosses", {}))
+            learned.becomes = {k: list(v) for k, v in kept.get("becomes", {}).items()}
+            learned.passes, learned.takes_passing = set(kept.get("passes", [])), set(kept.get("takes_passing", []))
+            learned.refusals = int(kept.get("refusals", 0))
+            learned.refused_leaving_open = {k: int(v) for k, v in kept.get("refused_leaving_open", {}).items()}
+            return learned
+        except (KeyError, TypeError, ValueError) as why:
+            logger.info("what she learned of this game could not be read back (%s); learning it afresh", why)
+            return None
+
     def royal(self, kind: str) -> bool:
         kept_off = self.kept_off_attacked.get(kind, 0)
         if kept_off >= ROYAL_AFTER and self.went_onto_attacked.get(kind, 0) <= AGAINST_AT_MOST * kept_off:

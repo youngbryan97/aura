@@ -103,13 +103,14 @@ class Seat:
         return x / picture.shape[1], y / picture.shape[0]
 
 
-def a_board_of_two_sides_at_its_start(picture: Any) -> Seat | None:
+def a_board_of_two_sides_at_its_start(picture: Any, looks: Looks | None = None) -> Seat | None:
     """A board with two sides of pieces facing each other, each in the rows at its own end, nothing between: a game of
-    pieces about to begin. Her seat is at the side nearest the bottom of the picture. None where the picture shows none."""
+    pieces about to begin. Her seat is at the side nearest the bottom of the picture. ``looks`` are the looks she knows
+    from an earlier sitting, so each kind keeps its name. None where the picture shows none."""
     lattice = squares_of_one_ground(picture)
     if lattice is None or lattice.rows < 4:
         return None
-    looks = Looks()
+    looks = looks if looks is not None else Looks()
     seen = looks.read(picture, lattice)
     if seen is None:
         return None
@@ -256,9 +257,83 @@ class _Game:
 
 async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: float,
                               say: Callable[[str], None] | None = None, thinks_s: float = THINKS_S,
-                              learned: HowThePiecesMove | None = None) -> dict[str, Any]:
-    """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes. What came of it."""
-    from core.agency.searching_by_kind import first_weights, search
+                              learned: HowThePiecesMove | None = None, rehearsal: Any = None,
+                              clock: Callable[[], Awaitable[float | None]] | None = None) -> dict[str, Any]:
+    """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
+    are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
+    the game shows it. What came of it, with what she learned and the rehearsal, for her to keep."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from core.agency.searching_by_kind import search
+
+    rehearsing = _Rehearsing(rehearsal)
+    pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
+    try:
+        came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
+                           rehearsing=rehearsing, pool=pool, clock=clock, search=search)
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    came["rehearsal"] = rehearsing.rehearsal
+    return came
+
+
+@dataclass
+class _Rehearsing:
+    """Her rehearsal of the game in her model: the round under way, if any, and what it has earned."""
+
+    rehearsal: Any = None
+    running: Any = None
+    rounds: int = 0
+
+    def weights_for(self, family: Family) -> Any:
+        """The weights she plays by: what rehearsal earned, for the kinds it knows, and the first guess for the rest."""
+        from core.agency.searching_by_kind import Weights, first_weights
+
+        guess = first_weights(family)
+        earned = self.rehearsal
+        if earned is None or not earned.earned:
+            return guess
+        return Weights(worth={k: earned.weights.worth.get(k, guess.worth[k]) for k in family.kinds},
+                       mobility={k: earned.weights.mobility.get(k, 0.0) for k in family.kinds},
+                       squares={k: v for k, v in earned.weights.squares.items() if k in family.kinds},
+                       tempo=earned.weights.tempo, royal_pressed=earned.weights.royal_pressed)
+
+    def collect(self) -> None:
+        if self.running is not None and self.running.done():
+            try:
+                self.rehearsal = self.running.result()
+            except Exception as exc:  # noqa: BLE001 - a round that failed leaves what she had
+                logger.info("a round of rehearsal did not finish (%s: %s)", type(exc).__name__, exc)
+            self.running = None
+
+    def start(self, pool: Any, family: Family) -> None:
+        """A round in her model, where none is under way and the rules she holds can end a game."""
+        from core.agency.what_a_kind_is_worth import a_first_rehearsal, rehearse
+
+        self.collect()
+        if self.running is not None or not any(kind.royal for kind in family.kinds.values()):
+            return
+        if self.rehearsal is None or set(self.rehearsal.weights.worth) != set(family.kinds):
+            fresh = a_first_rehearsal(family)
+            if self.rehearsal is not None:
+                fresh.earned = []
+            self.rehearsal = fresh
+        self.rounds += 1
+        self.running = pool.submit(rehearse, family, family.the_start(), self.rehearsal, seed=self.rounds)
+
+    def moves_left(self, made: int) -> int:
+        """Her moves still to come, by the games she has rehearsed: half their median length, less hers so far, and
+        never less than half of that median again."""
+        lengths = list(getattr(self.rehearsal, "lengths", []) or [])
+        if not lengths:
+            return 0
+        typical = sorted(lengths)[len(lengths) // 2] / 2
+        return int(max(typical / 2, typical - made, 1))
+
+
+async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Callable[[str], None] | None,
+                thinks_s: float, learned: HowThePiecesMove | None, rehearsing: _Rehearsing, pool: Any,
+                clock: Callable[[], Awaitable[float | None]] | None, search: Any) -> dict[str, Any]:
 
     tell = say or (lambda _line: None)
     began = time.monotonic()
@@ -314,8 +389,11 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                 game.follow(move)
             continue
         if game.believed.turn != FIRST:
+            # While the other side thinks, she rehearses the game in her model.
+            rehearsing.start(pool, game.learned.family())
             await asyncio.sleep(0.2)
             continue
+        rehearsing.collect()
         # Her turn: learn from a few pieces she has not seen enough of, then think.
         offered: dict[tuple[int, int], set] = {}
         probes = 0
@@ -341,11 +419,12 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
         ended = outcome(family, game.believed, legal) if any(k.royal for k in family.kinds.values()) else ""
         if ended or not legal:
             return _the_end(ended or "no move", game, tell)
-        weights = first_weights(family)
+        weights = rehearsing.weights_for(family)
+        thinks = await _time_for_a_move(clock, rehearsing, game.made, thinks_s)
         set_aside: list[Move] = []
         found = None
         for _ in range(CHECKS_A_TURN):
-            found = search(family, game.believed, seconds=thinks_s, weights=weights, earlier=game.earlier,
+            found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
                            set_aside=set_aside)
             if found.move is None:
                 break
@@ -360,7 +439,7 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
             game.learned.refused(game.believed, found.move, family=family)
             set_aside.append(found.move)
             family = game.learned.family()
-            weights = first_weights(family)
+            weights = rehearsing.weights_for(family)
         move = found.move if found is not None else None
         if move is None:
             return _the_end("no move", game, tell)
@@ -380,6 +459,23 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
             continue
         game.made += 1
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned}
+
+
+async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, rehearsing: _Rehearsing, made: int,
+                           otherwise: float) -> float:
+    """How long this move is thought about: the time she has left over the moves she expects still to make, where the
+    game shows her clock and her rehearsal says how long its games run; ``otherwise`` where it does not."""
+    if clock is None:
+        return otherwise
+    try:
+        left = await clock()
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("her clock was not read (%s)", exc)
+        return otherwise
+    moves_left = rehearsing.moves_left(made)
+    if left is None or moves_left <= 0:
+        return otherwise
+    return max(0.2, left / moves_left)
 
 
 def _room_around(position: Position, square: tuple[int, int]) -> int:
