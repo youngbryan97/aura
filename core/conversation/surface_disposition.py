@@ -832,6 +832,22 @@ SHORTFALL_REASONS: frozenset[str] = frozenset(
     }
 )
 
+#: Reasons that say the text itself goes round: a phrase or a statement said over, an answer that says nothing new.
+#: They ask for repair, which cuts the repeats; where repair cannot run, the draft would reach the person as the loop
+#: it is. LIVE 19 November 2026: asked whether he could beat her 968-move 2048, she tried to run a simulation, the code
+#: did not parse, and her answer pass wrote "let me fix that and run it" five times over; flagged
+#: repetitive_phrase_loop, it was served as it stood because repair "could not run for this turn".
+LOOPED_TEXT_REASONS: frozenset[str] = frozenset(
+    {
+        "low_information_loop",
+        "repeated_get_it_loop",
+        "self_contradictory_loop",
+        "repetitive_phrase_loop",
+        "low_lexical_diversity_loop",
+        "verbatim_statement_repeat",
+    }
+)
+
 #: Reasons that mean an authored answer has unfinished work.  This vocabulary
 #: is shared by the model boundary, CognitiveEngine, and the chat continuation
 #: owner.  Separate copies previously let the inference gate identify a clipped

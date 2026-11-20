@@ -1671,7 +1671,6 @@ tests/conversation/test_capability_denial.py
 tests/conversation/test_choice_consistency.py
 tests/conversation/test_claimed_write_effects.py
 tests/conversation/test_context_leak_strip_keeps_the_answer.py
-tests/conversation/test_effect_claims_cover_the_tenses.py
 tests/conversation/test_file_read_finds_the_relevant_part.py
 tests/conversation/test_intent_matchers_declare_their_phrasings.py
 tests/conversation/test_local_file_is_not_a_web_search.py

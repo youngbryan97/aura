@@ -1084,6 +1084,21 @@ def _her_words_are_not_read_by_a_model_on_disk(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _each_test_is_a_turn_that_holds_no_draft():
+    """Every test starts as a turn with no draft preserved and no raw model draft held.
+
+    Both are context variables, and a test runs in the context the test before it left: on 19 November 2026 the raw
+    draft "Both red." recorded by tests/test_surface_disposition_is_shared.py was served by the last-resort site in
+    tests/test_truncated_reply_is_salvaged.py, whose partial answer was rightly refused, whenever enough files ran
+    between them in one process.
+    """
+    from core.conversation.surface_disposition import clear_preserved_draft
+
+    clear_preserved_draft()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _her_reply_is_not_held_against_her_record_by_a_model_on_disk(request, monkeypatch):
     """Nor is her reply read against her turn's record by one, unless the test is marked ``model``.
 

@@ -1071,7 +1071,9 @@ def _servable_draft_or_none(draft: Any, user_message: Any = "", turn_id: Any = "
     """
     try:
         from core.conversation.response_reliability import assess_user_facing_reply
+        from core.conversation.response_repetition import repair_verbatim_repeats
         from core.conversation.surface_disposition import (
+            LOOPED_TEXT_REASONS,
             draft_is_servable,
             preserved_draft,
             raw_model_draft,
@@ -1120,9 +1122,39 @@ def _servable_draft_or_none(draft: Any, user_message: Any = "", turn_id: Any = "
         }
         if set(assessment.reasons or ()) & completion_failures:
             continue
+        if set(assessment.reasons or ()) & LOOPED_TEXT_REASONS:
+            # Served here it is served as it stands, so the repeats are cut first, by the repair that changes nothing
+            # else; a draft that still goes round is not served.
+            candidate = repair_verbatim_repeats(candidate)
+            try:
+                assessment = assess_user_facing_reply(user_message, candidate)
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                record_degradation("chat", exc)
+                continue
+            if set(assessment.reasons or ()) & (LOOPED_TEXT_REASONS | completion_failures):
+                continue
+        if _only_says_what_she_would_do(candidate):
+            continue
         if draft_is_servable(assessment.reasons):
             return candidate
     return ""
+
+
+def _only_says_what_she_would_do(draft: str) -> bool:
+    """Whether a draft is mostly her announcing acts of her own ("let me run it", "I'll fix the file") rather than
+    saying anything: more such sentences than others, and more than one. Served as an answer, it promises work the
+    turn has ended without. LIVE 19 November 2026: her code did not parse, the pass that wrote her answer could run
+    nothing, and five of its nine sentences said she was about to fix and run it."""
+    try:
+        from core.epistemics.acts_she_claims import _parser, acts_she_announces
+    except ImportError:
+        return False  # not a failure: no parser here, and the draft is judged as it was before
+    parse = _parser()
+    if parse is None:
+        return False
+    sentences = [s for s in parse(draft).sents if s.text.strip()]
+    announced = len(acts_she_announces(draft))
+    return announced >= 2 and announced > len(sentences) - announced
 
 
 def _is_simple_subjective_reflex_request(user_message: str) -> bool:

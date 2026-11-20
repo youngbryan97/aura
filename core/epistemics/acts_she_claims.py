@@ -39,7 +39,7 @@ from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.ActsSheClaims")
 
-__all__ = ["ClaimedAct", "acts_she_claims", "claims_her_record_does_not_back"]
+__all__ = ["ClaimedAct", "acts_she_announces", "acts_she_claims", "claims_her_record_does_not_back"]
 
 #: The English model the parse reads with.
 PARSER = "en_core_web_sm"
@@ -158,6 +158,44 @@ def acts_she_claims(text: str) -> list[tuple[str, str]]:
                 continue
             if _completed(verb) and not _said_by_another(verb) and not _quoted(verb, sentence):
                 found.append((said, _the_act(verb)))
+    return found
+
+
+def _announced(verb: Any) -> bool:
+    """An act of hers put as about to happen: "let me run it" (she is what "let" lets), "I'll fix it", "I will run it",
+    "I'm going to run it", with no negation on it."""
+    if verb.tag_ != "VB" or any(child.dep_ == "neg" for child in verb.children):
+        return False
+    head = verb.head
+    if verb.dep_ in ("ccomp", "xcomp") and head.lemma_ == "let" and head.tag_ == "VB":
+        # "let me run": the one let is the subject of what she is let do.
+        lets = [child for child in (*verb.children, *head.children) if child.dep_ in ("nsubj", "dobj")]
+        return any(child.lower_ == "me" for child in lets)
+    subjects = [child for child in verb.children if child.dep_ == "nsubj"]
+    if subjects and _hers(subjects[0]):
+        return any(child.dep_ == "aux" and child.tag_ == "MD" and child.lemma_ in ("will", "shall")
+                   for child in verb.children)
+    if verb.dep_ == "xcomp" and head.lemma_ == "go" and head.tag_ == "VBG":
+        return any(_hers(child) for child in head.children)
+    return False
+
+
+def acts_she_announces(text: str) -> list[tuple[str, str]]:
+    """Each act ``text`` puts as hers and about to happen, as (sentence, act); [] when there is no parser. A reply
+    whose sentences are mostly these, in a turn where none of them can happen, says what she would do in place of an
+    answer."""
+    parse = _parser()
+    if parse is None or not str(text or "").strip():
+        return []
+    found: list[tuple[str, str]] = []
+    for sentence in parse(str(text)).sents:
+        said = sentence.text.strip()
+        if said.endswith("?"):
+            continue
+        for verb in sentence:
+            if verb.pos_ == "VERB" and _announced(verb) and not _quoted(verb, sentence):
+                found.append((said, _the_act(verb)))
+                break
     return found
 
 
