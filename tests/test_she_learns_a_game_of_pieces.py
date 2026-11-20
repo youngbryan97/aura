@@ -144,3 +144,19 @@ def test_she_finds_out_who_goes_first(monkeypatch: pytest.MonkeyPatch) -> None:
     came, app, said = _played(NOBODYS_GAME, seconds=8.0, she_goes_first=False)
     assert "They went first." in said
     assert came["ended"] != "lost track of the board"
+
+
+def test_a_take_answered_by_a_take_on_the_same_square_is_read_as_it_happened() -> None:
+    """Her knight takes on e6 and a pawn takes it back there: the picture shows two squares emptied and nothing new,
+    and "her knight took the far rook, and a pawn became a rook there" fits it as well. The rules she holds decide."""
+    from core.agency.how_the_pieces_move import moves_seen
+
+    before = from_fen("r1bqkbnr/p1pp1ppp/1p2p3/8/3N4/8/PPPPPPPP/RNBQKB1R w KQkq -")
+    knight_takes = next(m for m in moves(CHESS, before) if (m.start, m.end) == ((3, 3), (5, 4)))
+    middle = after(CHESS, before, knight_takes)
+    pawn_takes = next(m for m in moves(CHESS, middle) if (m.start, m.end) == ((6, 5), (5, 4)))
+    shown = dict(after(CHESS, middle, pawn_takes).cells)
+    read = moves_seen(before, shown, FIRST, CHESS)
+    assert read is not None
+    assert [(m.start, m.end) for m in read] == [((3, 3), (5, 4)), ((6, 5), (5, 4))]
+    assert not read[1].becomes

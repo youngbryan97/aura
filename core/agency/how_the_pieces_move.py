@@ -221,6 +221,16 @@ class HowThePiecesMove:
         else:
             (way.withheld_unmoved if unmoved else way.withheld).add(times)
 
+    def stopped_with_open(self, position: Position, family: Family) -> None:
+        """The game ended her turn with no move: the kinds of the side to move that the other side could take are what
+        it was keeping safe, as a refusal shows it."""
+        side = position.turn
+        open_kinds = {k for sq, (s, k) in position.cells.items() if s == side and attacked(family, position, sq, 1 - side)}
+        if open_kinds:
+            self.refusals += 1
+            for kind in open_kinds:
+                self.refused_leaving_open[kind] = self.refused_leaving_open.get(kind, 0) + 1
+
     @staticmethod
     def _reach(way: _Seen, unmoved: bool) -> int:
         """How far a kind goes one way: 0 for the whole line, else the number of squares."""
@@ -421,21 +431,28 @@ def a_move_seen(before: Position, after_cells: dict[Square, tuple[int, str | Non
 def moves_seen(before: Position, after_cells: dict[Square, tuple[int, str | None]], side: int,
                family: Family) -> list[Move] | None:
     """The moves that turned ``before`` into what is seen, ``side`` first: one move, or that side's move and the
-    other side's answer, made before she looked. Each pair is made on the board as she holds it, and kept only where it
-    makes exactly what is seen; None where nothing she can read does."""
+    other side's answer, made before she looked. Each is made on the board as she holds it and kept only where it makes
+    exactly what is seen; where more than one does, the one the rules she has learned allow is believed, and one in
+    which nothing becomes another kind before one in which something does. LIVE-like 20 November 2026 a knight that took
+    on a square and was taken back there left only two squares emptied, and "the knight took the far rook and a pawn
+    became a rook there" fitted the picture as well as what happened. None where nothing she can read fits."""
     from core.agency.pieces_by_their_kind import after
+    from core.agency.pieces_by_their_kind import moves as legal_moves
 
     def made_shows(position: Position) -> bool:
         return all(after_cells.get(sq, (None, None))[0] == s and after_cells[sq][1] in (k, None)
                    for sq, (s, k) in position.cells.items()) and set(position.cells) == set(after_cells)
+
+    def allowed(position: Position, move: Move) -> bool:
+        return any((m.start, m.end) == (move.start, move.end) for m in legal_moves(family, position))
 
     one = a_move_seen(before, after_cells, side)
     if one is not None and made_shows(after(family, before, one)):
         return [one]
     gone = [sq for sq, (s, _k) in before.cells.items() if s == side and after_cells.get(sq, (None,))[0] != side]
     landed = [sq for sq in after_cells if before.cells.get(sq, (None,))[0] != side]
+    fitting: list[tuple[tuple[int, int, int], list[Move]]] = []
     for start in gone:
-        letter = before.cells[start][1]
         for end in landed:
             if end == start:
                 continue
@@ -444,6 +461,8 @@ def moves_seen(before: Position, after_cells: dict[Square, tuple[int, str | None
             middle = after(family, before, mine)
             answer = a_move_seen(middle, after_cells, 1 - side)
             if answer is not None and made_shows(after(family, middle, answer)):
-                del letter
-                return [mine, answer]
-    return None
+                rank = (int(not allowed(before, mine)), int(not allowed(middle, answer)), int(bool(answer.becomes)))
+                fitting.append((rank, [mine, answer]))
+    if not fitting:
+        return None
+    return min(fitting, key=lambda pair: pair[0])[1]

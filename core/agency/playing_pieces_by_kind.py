@@ -440,6 +440,16 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             set_aside.append(found.move)
             family = game.learned.family()
             weights = rehearsing.weights_for(family)
+        else:
+            # Every move she looked at was refused: she picks up every piece of hers. Where the game offers none of
+            # them anything, it has stopped her: the game is over.
+            for square in mine:
+                if square not in offered:
+                    squares = await _offers_for(seat, look, click, picture, square)
+                    if squares is not None:
+                        offered[square] = squares
+            if offered and not any(offered.values()):
+                return _the_end("no move", game, tell)
         move = found.move if found is not None else None
         if move is None:
             return _the_end("no move", game, tell)
@@ -514,6 +524,11 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
         tell("I won." if result == "won" else "I lost. They found the better line.")
     elif ended == "no move":
         family = game.learned.family()
+        if not any(k.royal for k in family.kinds.values()):
+            # The game stopped her: what of hers stood attacked is what it would not let her leave so. Kept as she
+            # keeps a refusal, so the next game is played knowing it.
+            game.learned.stopped_with_open(game.believed, family)
+            family = game.learned.family()
         royal_attacked = any(k.royal for k in family.kinds.values()) and in_check(family, game.believed, FIRST)
         result = "lost" if royal_attacked else "over"
         tell("I have no move left, with my piece that must be kept safe attacked: I lost." if royal_attacked
