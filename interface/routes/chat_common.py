@@ -42,15 +42,10 @@ _CHAT_RECOVERABLE_ERRORS = (
     psutil.Error,
 )
 
-_CHAT_REQUEST_PRINCIPAL: ContextVar[str] = ContextVar(
-    "aura_chat_request_principal",
-    default="",
-)
-
-_CHAT_REQUEST_SURFACE: ContextVar[str] = ContextVar(
-    "aura_chat_request_surface",
-    default="",
-)
+# Who is speaking in this request. Kept in core, so the kernel task a turn starts, which inherits this context, can read
+# whose pins it may recall (core/memory/what_she_was_asked_to_keep.py).
+from core.memory.what_she_was_asked_to_keep import THE_PERSON as _CHAT_REQUEST_PRINCIPAL  # noqa: E402, F401 - re-exported
+from core.memory.what_she_was_asked_to_keep import THEIR_SURFACE as _CHAT_REQUEST_SURFACE  # noqa: E402, F401 - re-exported
 
 _MAX_CONVERSATION_LOG_EXCHANGES = 500
 

@@ -5119,8 +5119,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   - 19 November: on her kernel route, a fact the person pinned ("Please remember this for later: the locker code for
     the Riklumquo depot is 3455") was not recalled when asked in a new conversation; she searched the web and said the
     evidence did not mention it. Pins are encrypted at rest, indexed under one placeholder, and recalled only by a
-    list of phrasings ("what codeword did I give you") within the route that pinned them. Open: recall a person's pins
-    by meaning on every route.
+    list of phrasings ("what codeword did I give you") within the route that pinned them. Built the same day: the
+    owner's pins are opened and weighed against the question by meaning on her encoder, and the memory retrieval phase
+    ranks them beside every other memory, on whatever route answers (`core/memory/what_she_was_asked_to_keep.py`). The
+    route's identity of who is speaking now lives where the kernel task inherits it. Anyone else's pins stay with the
+    session that pinned them, as before (`tests/test_what_she_was_asked_to_keep_is_recalled_by_meaning.py`). Not yet
+    checked live.
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her
@@ -7939,7 +7943,7 @@ needs her 27B free (her app down, or her app's own influence trials).
   problem: it priced a candidate by the turn's receipt, which read up to 601 s in the kernel's turn, and her own
   drafts were cut short. It is priced by its own measured allowance now. On the cold restart she had pinned each fact
   and was asked in a new conversation; her kernel answered from a web search, and her pins are recalled only by a list
-  of phrasings in one session. That is open (U07). The baseline stands as measured; comparisons against it will show
+  of phrasings in one session. Her owner's pins are now recalled by meaning on every route (U07). The baseline stands as measured; comparisons against it will show
   these mends as gains, which is what they are.
   Review of 19 November, an outside model's reading of the commits, each checked against the code before it was acted
   on (`tests/test_probation_is_settled_on_evidence_about_the_change.py` and the tests named in each commit):

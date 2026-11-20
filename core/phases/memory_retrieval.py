@@ -1174,6 +1174,20 @@ class MemoryRetrievalPhase(BasePhase):
                 )
                 return None
 
+        async def _get_pinned():
+            # What the person asked her to keep, by what the question means: a sealed pin is indexed under one
+            # placeholder, so no search of the facade finds it (core/memory/what_she_was_asked_to_keep.py).
+            try:
+                from core.memory.what_she_was_asked_to_keep import pins_asked_about
+
+                async with asyncio.timeout(15.0):
+                    return await asyncio.to_thread(pins_asked_about, asked_about or query)
+            except (TimeoutError, ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                _record_memory_degradation(
+                    exc, action="recalled without what the person asked her to keep this turn", stage="pinned",
+                )
+                return None
+
         # Each source timed, so a slow phase says which part of it was slow.
         # The kernel measured this phase at five to nine seconds a background
         # tick (live, 2026-09-18) and could only name the phase.
@@ -1187,13 +1201,14 @@ class MemoryRetrievalPhase(BasePhase):
                 took[name] = time.monotonic() - began
 
         gathered_from = time.monotonic()
-        dual_res, kg_res, facade_res, episodic_res, intentional_res, felt_res = await asyncio.gather(
+        dual_res, kg_res, facade_res, episodic_res, intentional_res, felt_res, pinned_res = await asyncio.gather(
             _timed("dual memory", _get_dual()),
             _timed("knowledge graph", _get_kg()),
             _timed("memory facade", _get_facade()),
             _timed("episodic", _get_episodic()),
             _timed("intentional", _get_intentional()),
             _timed("feeling", _get_felt()),
+            _timed("pinned", _get_pinned()),
         )
         if time.monotonic() - gathered_from > _SLOW_ENOUGH_TO_SAY_S and took:
             slowest = max(took, key=took.get)
@@ -1275,6 +1290,13 @@ class MemoryRetrievalPhase(BasePhase):
                     memory_candidates.append(
                         (0.35, f"[memory] {_safe_text(item, max_chars=2_000)}")
                     )
+
+        # Weighed as a memory from the facade is: the pin's closeness to the question, its importance and the rest.
+        for item in _iter_retrieval_items(pinned_res):
+            if isinstance(item, dict) and item.get("content"):
+                self._execute_metadata(affect_sources, _safe_text(item["content"], max_chars=2_000),
+                                       effective_memory_salience, item, memory_candidates, partner_id, shared_texts,
+                                       state, felt_by_text, context_by_text=context_by_text, worth_by_text=worth_by_text)
 
         if felt_res:
             found = {text.split("] ", 1)[-1] for _, text in memory_candidates}
