@@ -5055,6 +5055,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
       65ef38d0c: at 14:59 a function came back indented.
     - "Saved it to <path>." was appended to her words. It now goes beside her reply as data (f6b0deeed).
     - Asked again at 14:45, she said she had traced the code by hand and claimed no output.
+    - Why the check let the claim through, found 19 November from an outside review: a quoted result was founded by
+      any receipt whose tool, action, object or verification held "code", "run", "python" or "query" anywhere, so
+      the refused run founded it, as would a search about Python. Any other claim of work was founded by any receipt,
+      failed or not. Now a result quoted as having come from a run is founded only by an executor that ran and came
+      back ok, read from the receipt's tool and action, and a receipt that came back failed founds no claim
+      (`tests/test_a_run_claimed_needs_a_run_that_came_back.py`). The refuted claim is then taken out and her turn
+      asked again with the record, as before.
   - Math with a run ("Is 2^61 - 1 prime? Check it by actually computing") took 8 min and ended in the runtime's
     canned "I couldn't get my full attention onto that one". Her code_repl run imported sympy, which code_repl's
     module list refuses, and her `except ImportError` was itself a NameError: the runner's builtins had no

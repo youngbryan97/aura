@@ -5126,6 +5126,24 @@ def _receipts_include(receipts: Iterable[Any] | None, pattern: re.Pattern[str]) 
     return any(_receipt_describes_itself_as(row, pattern) for row in (receipts or ()))
 
 
+def _a_run_came_back(receipts: Iterable[Any] | None) -> bool:
+    """Whether something ran this turn and came back ok: what founds a result quoted as having come from a run.
+
+    Read from what the receipt's tool and action say it did, never from what it was pointed at. LIVE 17 November 2026
+    "I ran it — here's what actually printed" was founded by a code_repl run that came back refused, and by the same
+    reading a search for something about Python, or the file her code was saved to, would have founded it too.
+    """
+    for row in receipts or ():
+        ok = row.get("ok") if isinstance(row, Mapping) else getattr(row, "ok", None)
+        if ok is not True:
+            continue
+        said = (" ".join(str(row.get(field, "") or "") for field in ("tool", "action")) if isinstance(row, Mapping)
+                else " ".join(str(getattr(row, field, "") or "") for field in ("tool", "name", "action")))
+        if _EXECUTOR_SURFACE_RE.search(said.replace("_", " ").replace(".", " ")):
+            return True
+    return False
+
+
 #: Presenting a value as something that came back from running something.
 #:
 #: Narrower than _TOOL_EXECUTION_CLAIM_RE on purpose. That one catches every
@@ -5517,7 +5535,7 @@ def _has_unfounded_tool_execution_claim(
     # founded by any receipt of work, which can stand for work unseen here; a read of her own record
     # founds only what the record holds. Destroying a true reply is the worse error.
     if _quotes_a_result(raw):
-        if not _receipts_include(tool_receipts, _EXECUTOR_SURFACE_RE):
+        if not _a_run_came_back(tool_receipts):
             return not _EXECUTION_CLAIM_HEDGE_RE.search(clause)
         return False
     if founded_by(tool_receipts, clause):

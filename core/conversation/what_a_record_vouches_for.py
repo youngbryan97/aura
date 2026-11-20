@@ -51,9 +51,13 @@ def founded_by(receipts: Iterable[Any] | None, claim: str) -> bool:
     """Whether this turn's receipts vouch for ``claim``.
 
     A receipt of work done this turn vouches for any claim, as before: it can found work no sentence check sees into,
-    and destroying a true reply is the worse error. A receipt from reading a record vouches only for what it read.
+    and destroying a true reply is the worse error. A receipt from reading a record vouches only for what it read. A
+    receipt that says its work came back failed vouches for nothing: LIVE 17 November 2026 a refused run founded "I ran
+    it — here's what actually printed".
     """
     for receipt in receipts or ():
+        if isinstance(receipt, dict) and receipt.get("ok") is False:
+            continue
         if not isinstance(receipt, dict) or receipt.get("vouches_for") != WHAT_IT_HOLDS:
             return True
         if holds(receipt.get("observed_content"), claim):
