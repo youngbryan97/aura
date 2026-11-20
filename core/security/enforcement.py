@@ -196,6 +196,8 @@ class ResourceMonitor:
         self._disk_high = disk_high
         #: Whether the last sample was under strain, so its end can be said.
         self._straining = False
+        #: The processor's counters at this monitor's last sample: busy and idle seconds, summed over every core.
+        self._cpu_counters_at: tuple[float, float] | None = None
 
     def sample(self) -> dict[str, float]:
         try:
@@ -229,13 +231,35 @@ class ResourceMonitor:
             # with her health pulse reading under 40%.
             from core.runtime.resource_observation import get_resource_observer
 
-            compute = get_resource_observer().compute()
-            if compute.cpu_percent_readable:
-                reading["cpu"] = float(compute.cpu_percent)
+            busy = self._busy_since_my_last_sample(get_resource_observer().compute())
+            if busy is not None:
+                reading["cpu"] = busy
             return reading
         except process_errors as exc:
             logger.debug("Resource sample failed: %s", exc)
             return {}
+
+    def _busy_since_my_last_sample(self, compute: Any) -> float | None:
+        """The share of processor time spent busy since this monitor last sampled; None on its first sample, or where
+        the counters cannot be read or have not moved.
+
+        A strain on the host is a condition held over the monitor's own period. The shared figure (core/runtime/
+        cpu_sampler.py) is whatever half second some thread last measured. LIVE 17 to 19 November 2026 this monitor
+        flagged "resource strain: cpu at 100%" at severity 0.9 some 20 times, every one exactly 100%, mostly while a
+        lint or compile pass held every core for a moment, and once at 16:36 on 19 November with the host 20% busy
+        over the seconds around it. Each raised her norepinephrine and her threat score.
+        """
+        if not getattr(compute, "available", False):
+            return None
+        busy = float(compute.cpu_user_seconds) + float(compute.cpu_system_seconds)
+        idle = float(compute.cpu_idle_seconds)
+        before, self._cpu_counters_at = self._cpu_counters_at, (busy, idle)
+        if before is None:
+            return None
+        busy_since, idle_since = busy - before[0], idle - before[1]
+        if busy_since < 0.0 or idle_since < 0.0 or busy_since + idle_since <= 0.0:
+            return None
+        return 100.0 * busy_since / (busy_since + idle_since)
 
     def check_and_report(self) -> dict[str, Any] | None:
         s = self.sample()

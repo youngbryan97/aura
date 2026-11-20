@@ -384,13 +384,20 @@ class MetabolicMonitor:
         """Return True when pressure can be relieved by eviction/GC.
 
         CPU-only spikes are real pressure, but running GC in response to them
-        adds work and does not address the cause. Eviction is reserved for
-        memory, disk, or process-RSS pressure.
+        adds work and does not address the cause. Eviction frees memory, so it is
+        reserved for memory and process-RSS pressure.
+
+        A full disk is not relieved by it. Disk pressure was here too, and LIVE
+        from 16 to 19 November 2026, with her data volume at 94%, every 30 s ran
+        the eviction callbacks, a full garbage collection of her heap and the
+        memory shed order: 7,419 times, each freeing nothing on the disk. The
+        disk has its own remedies, which refuse a large write and prune what is
+        superseded (core/runtime/disk_budget.py), and its strain is still read
+        here and by her immune system.
         """
 
         return (
             snapshot.ram_percent >= 88.0
-            or snapshot.disk_usage_percent >= self.disk_threshold
             or snapshot.ram_rss_mb >= self.ram_threshold_mb
         )
 

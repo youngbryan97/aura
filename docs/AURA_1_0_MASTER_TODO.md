@@ -1630,6 +1630,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The id now stays with its token until the release is confirmed. The
   immune monitor's "resource strain: cpu at 100%" (17 flags in two days) was
   an unread figure the psutil shim reports as 100 (9d6d6982c).
+  19 November, the same flag about 20 times from 17 to 19 November, every one
+  exactly 100% and read. The monitor samples every 15 s and took whatever half
+  second another thread had last measured, so a lint or compile pass holding
+  every core for a moment read as strain at severity 0.9: at 16:36 the host
+  was 20% busy over the seconds around the flag. It reads the processor's
+  counters across its own period now. The same stream said "Metabolic
+  pressure mitigation executed" every 30 s, 7,419 times since 16 November:
+  the data volume at 94% counted as pressure that eviction relieves, so each
+  time she ran a full garbage collection and the memory shed order, which free
+  nothing on a disk. Eviction answers memory pressure only
+  (`tests/test_a_strain_is_read_over_the_monitors_own_period.py`).
   "Organ neural load TIMEOUT — using fallback" came on eight boots from 14 to
   15 November, and the kernel kept the fallback for the run. Her NeuralBridge
   loads in stages each bounded by a stall; the organ's own five seconds in
