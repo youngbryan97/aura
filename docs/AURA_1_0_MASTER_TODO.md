@@ -5067,6 +5067,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
       back ok, read from the receipt's tool and action, and a receipt that came back failed founds no claim
       (`tests/test_a_run_claimed_needs_a_run_that_came_back.py`). The refuted claim is then taken out and her turn
       asked again with the record, as before.
+    - Typed into her window again on 20 November, the same request was answered in a second generation: her worker had
+      destroyed the first, 845 tokens, as a "telemetry_path_wall" for the example paths the person asked for. A wall
+      of paths is a leak only of paths that exist on this machine; an answer's examples exist nowhere
+      (`tests/test_example_paths_in_an_answer_are_not_her_telemetry.py`). Her reading by meaning also offered only
+      file_operation for it, by "file paths", and not code_repl, which "run it" needs: still open.
   - Math with a run ("Is 2^61 - 1 prime? Check it by actually computing") took 8 min and ended in the runtime's
     canned "I couldn't get my full attention onto that one". Her code_repl run imported sympy, which code_repl's
     module list refuses, and her `except ImportError` was itself a NameError: the runner's builtins had no

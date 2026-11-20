@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -1509,9 +1510,10 @@ def test_live_sanitizer_routes_intact_draft_to_typed_authored_repair():
     assert _telemetry_sanitization_failure_reasons("value " + "1" * 25) == [
         "unbounded_numeric_identifier"
     ]
+    # A wall of paths that exist on this machine: made-up ones are an answer's examples (20 November 2026).
+    here = Path(__file__).resolve()
     assert _telemetry_sanitization_failure_reasons(
-        "/private/a/b/c /private/d/e/f /private/g/h/i"
-        + " /private/j/k/l" * 8
+        " ".join(str(path) for path in (here, here.parent, here.parent.parent) * 4)
     ) == ["telemetry_path_wall"]
     assert _telemetry_sanitization_failure_reasons("xublcate evocer") == [
         "corrupted_language"

@@ -1346,6 +1346,14 @@ def _contains_corrupted_language(text: str) -> bool:
         return bool(_CORRUPT_LANGUAGE_MARKERS.search(str(text or "")))
 
 
+def _on_this_machine(path: str) -> bool:
+    """Whether a path in a draft names something that exists here; False where it cannot be looked at."""
+    try:
+        return os.path.exists(path)
+    except (OSError, ValueError):
+        return False
+
+
 def _telemetry_sanitization_failure_reasons(
     text: str,
     is_proof: bool = False,
@@ -1366,7 +1374,11 @@ def _telemetry_sanitization_failure_reasons(
     if not is_proof:
         slash_count = text.count("/")
         if slash_count > 30 and "http" not in text.lower():
-            path_like = re.findall(r"(?:/[A-Za-z0-9._-]+){3,}", text)
+            # A wall of HER paths: a leak names files and folders on this machine, and the paths a person asked for
+            # in an answer are examples that exist nowhere. LIVE 20 November 2026, "Write a Python function that
+            # groups a list of file paths by extension, then run it on a few example paths": her 845-token answer was
+            # destroyed here for its example paths, and the turn generated again.
+            path_like = [path for path in re.findall(r"(?:/[A-Za-z0-9._-]+){3,}", text) if _on_this_machine(path)]
             path_chars = sum(len(path) for path in path_like)
             if len(path_like) >= 3 or path_chars > max(120, int(len(text) * 0.35)):
                 reasons.append("telemetry_path_wall")
