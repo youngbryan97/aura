@@ -1130,6 +1130,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   called slow (info, marked cancelled), and the cancellation line now carries the canceller's reason, which none of
   the 168 named. Who stops them is the next reading
   (`tests/test_a_cancelled_background_phase_says_who_stopped_it.py`).
+  Read on the next build: each said "no reason given", 30 s into the tick. Her mind tick bounds a background
+  tick with `wait_for(kernel.tick(...), timeout=45)`, whose timeout on Python 3.12 cancels its own task, and the
+  phase loop caught that as one phase cancelled and went on to the next, so the bound never ended the tick. A
+  cancellation aimed at the task running the tick now ends it (`tests/test_a_background_tick_ends_at_its_callers_bound.py`;
+  on the build before, the tick ran past its bound and the test's wait was never timed out).
   16 November, 07:23 local: a critical RUNAWAY on managed memory ("growing
   26559.4/h now", breach in 15 min) refused her consequential work, and the
   total settled four minutes later. Cause unknown: nothing said which process

@@ -365,16 +365,24 @@ class _TicksAndShutsDown:
                             break
                         continue
                 except asyncio.CancelledError as phase_err:
-                    if priority or is_shutdown_requested():
+                    # Aimed at the task running this tick, not at the phase alone: her mind tick bounds a background
+                    # tick with wait_for, whose timeout cancels its own task. Carried on past, the bound never ended the
+                    # tick (LIVE 20 November 2026: "Background phase ... was cancelled (no reason given)" at 30 s, and
+                    # the tick went on to its next phase).
+                    stopped_by_its_caller = bool(getattr(asyncio.current_task(), "cancelling", lambda: 0)())
+                    if priority or is_shutdown_requested() or stopped_by_its_caller:
                         try:
                             if "phase_task" in locals() and not phase_task.done():
                                 phase_task.cancel()
                         except (AttributeError, RuntimeError) as _exc:
                             logger.debug("Suppressed %s in core.kernel.aura_kernel: %s", type(_exc).__name__, _exc)
-                        logger.warning(
-                            "⏹️ Priority kernel tick cancelled during %s; propagating caller timeout/cancellation.",
-                            phase_name,
-                        )
+                        if priority or is_shutdown_requested():
+                            logger.warning(
+                                "⏹️ Priority kernel tick cancelled during %s; propagating caller timeout/cancellation.",
+                                phase_name,
+                            )
+                        else:
+                            logger.info("Background kernel tick stopped by its caller during %s.", phase_name)
                         raise
                     _record_kernel_degradation(
                         phase_err,
