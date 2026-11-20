@@ -70,15 +70,14 @@ class SovereignNetworkSkill(BaseSkill):
         background_declared = bool(context.get("is_background") or context.get("background") or (source and not user_initiated))
         if background_declared and mode in {"recon", "scan", "audit", "discovery"}:
             try:
-                from core.runtime.background_policy import background_activity_reason
-
-                reason = background_activity_reason(
-                    context.get("orchestrator"),
-                    min_idle_seconds=BACKGROUND_NETWORK_MIN_IDLE_S,
-                    max_memory_percent=72.0,
-                    max_failure_pressure=0.20,
-                    require_conversation_ready=False,
+                from core.runtime.background_policy import (
+                    RECON_SCAN_BACKGROUND_POLICY,
+                    background_activity_reason,
                 )
+
+                # The profile named for this: idle BACKGROUND_NETWORK_MIN_IDLE_S, memory under 72%, failure pressure
+                # under 0.20, the same numbers this call wrote out.
+                reason = background_activity_reason(context.get("orchestrator"), profile=RECON_SCAN_BACKGROUND_POLICY)
             except (ImportError, AttributeError, RuntimeError) as policy_exc:
                 record_degradation(
                     "sovereign_network",

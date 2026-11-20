@@ -91,9 +91,9 @@ def keep_her_recent_turns(*, path: Path | None = None, receipts: list[dict[str, 
     with local_internal_governed_scope("her_turns_on_probation.keep", domain="state_mutation",
                                        receipt_prefix="her-turns",
                                        constraints={"artifact": "aura.her_turns.v1", "operation": "append"}):
-        gateway = get_file_write_gateway()
-        gateway.ensure_directory(path.parent, source="her_turns_on_probation")
-        gateway.append_text(path, "".join(json.dumps(row) + "\n" for row in rows), source="her_turns_on_probation")
+        # The append makes the folder it writes into (core/runtime/atomic_writer.atomic_append_text).
+        get_file_write_gateway().append_text(path, "".join(json.dumps(row) + "\n" for row in rows),
+                                             source="her_turns_on_probation")
     return len(finished)
 
 

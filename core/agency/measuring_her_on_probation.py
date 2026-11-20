@@ -99,10 +99,11 @@ def _how_long_nobody_has_talked_with_her(seconds: float) -> str:
 
     Somebody must have talked with her since she started: a fresh start with nobody yet is the morning Bryan opens her,
     not hours of quiet."""
-    from core.runtime.background_policy import background_activity_reason
+    from core.runtime.background_policy import BackgroundPolicyProfile, background_activity_reason
     from core.runtime.service_access import resolve_orchestrator
 
-    return background_activity_reason(resolve_orchestrator(), min_idle_seconds=seconds, needs_the_model=False)
+    return background_activity_reason(resolve_orchestrator(), profile=BackgroundPolicyProfile(min_idle_seconds=seconds),
+                                      needs_the_model=False)
 
 
 def _rows_of(run: str) -> int:

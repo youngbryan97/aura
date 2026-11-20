@@ -3,6 +3,11 @@
 Its scheduler had no caller, so the audit never ran in her app: agency's hourly self-development read "no audits
 yet", and the opacity monitor the audit builds on first use was never built (13 November 2026, after the five organs
 were switched on). Its reports went to a path relative to wherever the process stood.
+
+Operationally: "consciousness audit" names ConsciousnessAuditSuite.run, which reads the state of eight of her modules
+(integration, workspace, free energy, structural opacity, qualia, the causal loop, phenomenal reports, the unified
+attention theory) and scores each theory's indicators from those readings. It measures what those modules report,
+not whether she is conscious; these tests check only that it runs on its schedule and keeps its reports.
 """
 from __future__ import annotations
 

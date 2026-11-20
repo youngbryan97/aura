@@ -212,7 +212,7 @@
   },
   {
    "logger": "Aura.TurnReceipt",
-   "says": "⏱️ turn %s (%s) took %.2fs: %s; unattributed %.2fs; unmeasured: %s",
+   "says": "⏱️ turn %s (%s) took %.2fs: %s; unattributed %.2fs; unmeasured: %s; reached: %s%s",
    "plain": "A turn ({1}) took {2:.1f} seconds."
   },
   {

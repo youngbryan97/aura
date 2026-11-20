@@ -603,11 +603,7 @@ def judged_on_her_real_calls(repo: Path, commit: str, corpus: dict[str, Any], *,
             return {"verdict": "", "could_not_be_run": "her source could not be cloned"}
         if _git("checkout", "-q", "--detach", f"{commit}^", cwd=clone, effect="checkout").returncode != 0:
             return {"verdict": "", "could_not_be_run": "the code before the change could not be checked out"}
-        folder = clone / GUARD_TESTS
-        from core.runtime.file_write_gateway import get_file_write_gateway
-
-        with _in_the_scratch("guards"):
-            get_file_write_gateway().ensure_directory(folder, source="her_real_calls.guards")
+        folder = clone / GUARD_TESTS  # made by the first guard written into it (atomic_writer.atomic_write_text)
         written: dict[str, Path] = {}
         for key, entry in held.items():
             source = guard_test_source(key, entry, faults.get(key, ()))
