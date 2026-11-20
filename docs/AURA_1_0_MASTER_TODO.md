@@ -1117,6 +1117,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   confirmation nobody is there to give; the standing grant written for that probe could not help. The probe now
   only computes and prints, and is rated by its code as any snippet is: medium, which her permission model allows.
   Any other script keeps the high rating (`tests/test_her_idle_sandbox_probe_can_run.py`).
+  The same day: 1,948 "Kernel phase latency exceeded budget" warnings and 168 "Background phase ... was cancelled"
+  in her logs. A cancelled background phase's time is how long it waited before it was stopped, so it is no longer
+  called slow (info, marked cancelled), and the cancellation line now carries the canceller's reason, which none of
+  the 168 named. Who stops them is the next reading
+  (`tests/test_a_cancelled_background_phase_says_who_stopped_it.py`).
   16 November, 07:23 local: a critical RUNAWAY on managed memory ("growing
   26559.4/h now", breach in 15 min) refused her consequential work, and the
   total settled four minutes later. Cause unknown: nothing said which process

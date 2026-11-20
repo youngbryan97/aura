@@ -494,13 +494,17 @@ class AuraKernel(_TicksAndShutsDown):
             except (TypeError, ValueError):
                 budget_ms = default_budget_ms
             if duration_ms > max(1.0, budget_ms):
-                logger.warning(
+                # A phase stopped before it finished did not take this long; how long it waited is said where it
+                # was cancelled (aura_kernel_lifecycle).
+                logger.log(
+                    logging.INFO if phase_error.startswith("CancelledError") else logging.WARNING,
                     "Kernel phase latency exceeded budget: phase=%s duration_ms=%.1f "
-                    "budget_ms=%.1f priority=%s",
+                    "budget_ms=%.1f priority=%s%s",
                     phase_name,
                     duration_ms,
                     budget_ms,
                     priority,
+                    " (cancelled before it finished)" if phase_error.startswith("CancelledError") else "",
                 )
 
     def phase_runtime_status(self, *, window_s: float = 300.0) -> dict[str, Any]:

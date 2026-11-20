@@ -381,8 +381,10 @@ class _TicksAndShutsDown:
                         action=f"skipped background phase {phase_name} after cancellation",
                         severity="warning",
                     )
+                    # With what the canceller said: 168 of these in her logs to 20 November 2026 said nothing of who.
                     logger.warning(
-                        "Background phase '%s' was cancelled; continuing tick.", phase_name
+                        "Background phase '%s' was cancelled (%s); continuing tick.", phase_name,
+                        str(phase_err.args[0]) if phase_err.args and phase_err.args[0] else "no reason given",
                     )
                     continue
                 except (
