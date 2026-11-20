@@ -1098,8 +1098,9 @@ async def pursue_on_screen(
         as it happens first, and this look is of the screen that play ends on.
         """
         from .screen_pursuit_as_it_happens import looked_at_as_it_happens
+        from .screen_pursuit_board_of_pieces import played_a_board_of_pieces
 
-        return await looked_at_as_it_happens(lambda: observe_the_screen(
+        seen = await looked_at_as_it_happens(lambda: observe_the_screen(
             SimpleNamespace(
                 anchor=anchor,
                 at_rest=at_rest,
@@ -1112,9 +1113,17 @@ async def pursue_on_screen(
                 target_app=target_app,
             ),
         ))
+        # Two sides of pieces at their start, in the window she is working in: a game to learn and play by search, not
+        # to press keys at (core/skills/screen_pursuit_board_of_pieces.py).
+        played = await played_a_board_of_pieces(target_app or anchor.get("app", ""), ends_at, pending)
+        if played is not None:
+            seen = {**seen, "board_of_pieces": played}
+        return seen
 
     def satisfied(observation: dict[str, Any]) -> bool:
         if _a_handed_over_run_is_over(observation, can_do):
+            return True
+        if (observation.get("board_of_pieces") or {}).get("ended"):
             return True
         # A layout is met on the board, which the decision reads and says.
         if pending.get("the_layout_is_made"):

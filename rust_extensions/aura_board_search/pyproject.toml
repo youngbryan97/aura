@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "aura-board-search"
+version = "0.1.0"
+description = "Search for games of pieces that move by their kind, read from a description (PyO3 extension)."
+requires-python = ">=3.12"
+
+# Build into her venv with:
+#   maturin develop -m rust_extensions/aura_board_search/Cargo.toml --release
+# core/agency/searching_by_kind.py uses it when it is built, and its own Python search when it is not; the parity
+# test (tests/test_pieces_by_their_kind.py) checks the two make the same moves.

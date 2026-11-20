@@ -1,0 +1,399 @@
+"""How the pieces of a game move, learned from the game: what it offers when a piece is picked up, what is seen played.
+
+Nobody hands her the rules. A person new to a board game learns them the same way: they pick a piece up and see where
+the game lets it go; they watch the other side move; a move the game will not take tells them something too. What they
+learn they hold in a few ideas (core/agency/pieces_by_their_kind.py): this kind steps one square, that one goes along a
+line until something is in the way, this one only takes on the diagonal, that one may go two the first time.
+
+Evidence is kept per kind (pieces that look alike move alike, each side towards its own front) and per direction, in
+the piece's own frame (forward, rightward), as distances:
+
+* offered: the game showed the square as somewhere the piece may go;
+* withheld: the square was empty, the way to it clear, and the game did not offer it;
+* took / would not take: a piece of the other side stood there and was offered, or was not;
+* watched: a move made, by either side, that was the kind going there.
+
+From these the simplest description that fits is drawn: a direction a kind has gone is one it goes, as far as it has
+been seen to go and no further where it has been seen to stop with the way clear, and along the whole line where it has
+gone more than one square and never been seen to stop; a direction seen to take but never to move to an empty square is
+one it only takes along, and one seen to stop at a piece of the other side is one it only moves along; a reach seen only
+from a piece that had not moved yet is one only such a piece has. A direction never seen is one it does not go: what the
+game has not shown is not assumed. Mirror images of a direction (left for right) are taken to go alike unless the game
+shows otherwise, because pieces are drawn alike on both sides; forward and backward are not, because many games' pieces
+only go one way.
+
+Rarer things are learned when they happen: a kind whose squares the game withholds when the other side could take on
+them is royal; two of a side's pieces moving at once is a crossing; a piece changing its look on the far row becomes the
+other kind; a take on an empty square that removes the piece beside it is a take in passing. Nothing here knows a game.
+"""
+from __future__ import annotations
+
+import logging
+import math
+from dataclasses import dataclass, field
+
+from core.agency.pieces_by_their_kind import FIRST, Family, Kind, Move, Position, Step, attacked
+
+logger = logging.getLogger("Aura.HowThePiecesMove")
+
+__all__ = ["HowThePiecesMove", "a_move_seen", "in_its_frame", "moves_seen"]
+
+Square = tuple[int, int]
+Direction = tuple[int, int]
+#: Times a royal kind must be seen kept off squares the other side could take on before it is taken to be royal.
+ROYAL_AFTER = 2
+#: How rare the evidence against a reading may be and the reading still stand: what she sees passes through what she
+#: holds of the rest of the game, which is itself still being learned, so a reading that one sighting in ten
+#: contradicts is the game's and the sighting is her model's.
+AGAINST_AT_MOST = 0.1
+#: The longest single step looked for along a way: a leap further than three squares is not looked for.
+MAX_STEP = 3
+
+
+def in_its_frame(side: int, start: Square, end: Square) -> tuple[Direction, int]:
+    """The way from ``start`` to ``end`` as the piece of ``side`` faces: a direction with no common factor, and how many
+    of it."""
+    ahead = 1 if side == FIRST else -1
+    forward, right = (end[0] - start[0]) * ahead, (end[1] - start[1]) * ahead
+    times = math.gcd(abs(forward), abs(right)) or 1
+    return (forward // times, right // times), times
+
+
+def _square_along(side: int, start: Square, direction: Direction, times: int) -> Square:
+    ahead = 1 if side == FIRST else -1
+    return start[0] + direction[0] * ahead * times, start[1] + direction[1] * ahead * times
+
+
+@dataclass
+class _Seen:
+    """What has been seen of one kind going one way."""
+
+    offered: set[int] = field(default_factory=set)
+    offered_unmoved: set[int] = field(default_factory=set)
+    withheld: set[int] = field(default_factory=set)
+    withheld_unmoved: set[int] = field(default_factory=set)
+    took: int = 0
+    would_not_take: int = 0
+    moved_to_empty: int = 0
+    jumped: int = 0
+
+    def went_to_empty(self) -> bool:
+        return self.moved_to_empty > 0
+
+    def any_seen_going(self) -> bool:
+        return bool(self.offered or self.offered_unmoved or self.took)
+
+
+@dataclass
+class HowThePiecesMove:
+    """What she has learned of one game's pieces, and the family it makes."""
+
+    rows: int
+    columns: int
+    start: dict[Square, tuple[int, str]]
+    seen: dict[str, dict[Direction, _Seen]] = field(default_factory=dict)
+    kept_off_attacked: dict[str, int] = field(default_factory=dict)
+    went_onto_attacked: dict[str, int] = field(default_factory=dict)
+    crosses: dict[str, str] = field(default_factory=dict)
+    becomes: dict[str, list[str]] = field(default_factory=dict)
+    passes: set[str] = field(default_factory=set)
+    takes_passing: set[str] = field(default_factory=set)
+    names: dict[str, str] = field(default_factory=dict)
+    #: Moves the game would not take that the rules she held allowed, and how many of them left each kind of hers where
+    #: the other side could take it.
+    refusals: int = 0
+    refused_leaving_open: dict[str, int] = field(default_factory=dict)
+
+    @classmethod
+    def from_the_start(cls, rows: int, columns: int, start: dict[Square, tuple[int, str]]) -> HowThePiecesMove:
+        return cls(rows=rows, columns=columns, start=dict(start))
+
+    def knows_of(self, kinds: set[str]) -> None:
+        """Kinds seen on the board, whether or not they have been seen to move."""
+        for kind in kinds:
+            self.seen.setdefault(kind, {})
+
+    def _of(self, kind: str, direction: Direction) -> _Seen:
+        return self.seen.setdefault(kind, {}).setdefault(direction, _Seen())
+
+    def offered(self, position: Position, square: Square, squares: set[Square], family: Family | None = None) -> None:
+        """The game offered ``squares`` for the piece on ``square``: every way it could have gone is evidence."""
+        side, kind = position.cells[square]
+        unmoved = square in position.unmoved
+        for forward in range(-MAX_STEP, MAX_STEP + 1):
+            for right in range(-MAX_STEP, MAX_STEP + 1):
+                if (forward, right) == (0, 0) or math.gcd(abs(forward), abs(right)) != 1:
+                    continue
+                direction = (forward, right)
+                times = 1
+                while True:
+                    there = _square_along(side, square, direction, times)
+                    if not (0 <= there[0] < self.rows and 0 <= there[1] < self.columns):
+                        break
+                    held = position.cells.get(there)
+                    is_offered = there in squares
+                    if held is None:
+                        if is_offered:
+                            way = self._of(kind, direction)
+                            (way.offered_unmoved if unmoved else way.offered).add(times)
+                            way.moved_to_empty += 1
+                        elif kind in self.seen and direction in self.seen[kind]:
+                            way = self.seen[kind][direction]
+                            (way.withheld_unmoved if unmoved else way.withheld).add(times)
+                        if family is not None and attacked(family, position, there, 1 - side):
+                            if is_offered:
+                                self.went_onto_attacked[kind] = self.went_onto_attacked.get(kind, 0) + 1
+                            elif self._goes(kind, direction, times, unmoved):
+                                self.kept_off_attacked[kind] = self.kept_off_attacked.get(kind, 0) + 1
+                    else:
+                        if held[0] != side:
+                            if is_offered:
+                                way = self._of(kind, direction)
+                                way.took += 1
+                                (way.offered_unmoved if unmoved else way.offered).add(times)
+                            elif self._goes(kind, direction, times, unmoved):
+                                self.seen[kind][direction].would_not_take += 1
+                        break
+                    times += 1
+        # A square offered with a piece on the way to it was leapt to.
+        for there in squares:
+            direction, times = in_its_frame(side, square, there)
+            between = [_square_along(side, square, direction, t) for t in range(1, times)]
+            if any(b in position.cells for b in between):
+                self._of(kind, direction).jumped += 1
+
+    def _goes(self, kind: str, direction: Direction, times: int, unmoved: bool) -> bool:
+        way = self.seen.get(kind, {}).get(direction)
+        if way is None:
+            return False
+        reach = self._reach(way, unmoved)
+        return reach == 0 or 0 < times <= reach
+
+    def watched(self, position: Position, move: Move) -> None:
+        """A move seen made: the kind went there, and what happened with it tells what more it may do."""
+        side, kind = position.cells[move.start]
+        direction, times = in_its_frame(side, move.start, move.end)
+        unmoved = move.start in position.unmoved
+        way = self._of(kind, direction)
+        if move.partner is not None:
+            partner_kind = position.cells[move.partner[0]][1]
+            self.crosses[kind] = partner_kind
+            return
+        between = [_square_along(side, move.start, direction, t) for t in range(1, times)]
+        if any(b in position.cells for b in between):
+            way.jumped += 1
+        (way.offered_unmoved if unmoved else way.offered).add(times)
+        if move.taken_at is not None:
+            way.took += 1
+            if move.taken_at != move.end:
+                self.takes_passing.add(kind)
+                victim = position.cells[move.taken_at][1]
+                self.passes.add(victim)
+        else:
+            way.moved_to_empty += 1
+        if move.becomes and move.becomes != kind:
+            options = self.becomes.setdefault(kind, [])
+            if move.becomes not in options:
+                options.append(move.becomes)
+            self.seen.setdefault(move.becomes, {})
+
+    def refused(self, position: Position, move: Move, family: Family | None = None) -> None:
+        """A move the game would not take. Where the rules she held allowed it, either the kind does not go there, or
+        the move would leave a kind of hers open to be taken that the game will not let her leave open: the kind left
+        open by every such refusal is royal."""
+        side, kind = position.cells[move.start]
+        direction, times = in_its_frame(side, move.start, move.end)
+        unmoved = move.start in position.unmoved
+        way = self._of(kind, direction)
+        if family is not None:
+            from core.agency.pieces_by_their_kind import after
+
+            made = after(family, position, move)
+            open_kinds = {k for sq, (s, k) in made.cells.items() if s == side and attacked(family, made, sq, 1 - side)}
+            if open_kinds and self._goes(kind, direction, times, unmoved):
+                # The kind goes there, as she has seen: what stopped it is what the move left open.
+                self.refusals += 1
+                for open_kind in open_kinds:
+                    self.refused_leaving_open[open_kind] = self.refused_leaving_open.get(open_kind, 0) + 1
+                return
+        if move.taken_at is not None:
+            way.would_not_take += 1
+        else:
+            (way.withheld_unmoved if unmoved else way.withheld).add(times)
+
+    @staticmethod
+    def _reach(way: _Seen, unmoved: bool) -> int:
+        """How far a kind goes one way: 0 for the whole line, else the number of squares."""
+        offered = way.offered | (way.offered_unmoved if unmoved else set())
+        if not offered:
+            return -1
+        furthest = max(offered)
+        withheld = {t for t in (way.withheld | (way.withheld_unmoved if unmoved else set())) if t > furthest}
+        if withheld:
+            return furthest
+        if furthest >= 2 and not way.jumped:
+            return 0
+        return furthest
+
+    def _steps_of(self, kind: str) -> list[Step]:
+        steps: list[Step] = []
+        ways = self.seen.get(kind, {})
+        for direction, way in sorted(ways.items()):
+            if not way.any_seen_going():
+                continue
+            moved_reach = self._reach(way, unmoved=False)
+            unmoved_reach = self._reach(way, unmoved=True)
+            # Seen taking, and seldom or never going to an empty square that way though kept off one: it only takes
+            # along it. Seen stopped at a piece of the other side it could have reached, and seldom or never taking:
+            # it only moves.
+            if way.took and way.moved_to_empty <= AGAINST_AT_MOST * way.took and (way.withheld or way.withheld_unmoved):
+                may = "takes"
+            elif way.would_not_take and way.took <= AGAINST_AT_MOST * way.would_not_take:
+                may = "moves"
+            else:
+                may = "either"
+            offered = way.offered | way.offered_unmoved
+            kept_nearer = offered and any(t < min(offered) for t in way.withheld | way.withheld_unmoved)
+            if offered and 1 not in offered and (way.jumped or kept_nearer):
+                # Never to the next square, only further: a leap to each distance seen, over whatever is between.
+                for times in sorted(offered):
+                    only = times not in way.offered
+                    steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may=may,
+                                      only_unmoved=only))
+                continue
+            if moved_reach >= 0:
+                steps.append(Step((direction,), rides=1 if way.jumped and moved_reach == 1 else moved_reach, may=may,
+                                  takes_in_passing=kind in self.takes_passing and may == "takes"))
+            if unmoved_reach != moved_reach and (unmoved_reach == 0 or unmoved_reach > max(moved_reach, 0)):
+                steps.append(Step((direction,), rides=unmoved_reach, may=may, only_unmoved=True,
+                                  leaves_passable=kind in self.passes))
+        return _mirrored(steps, ways)
+
+    def royal(self, kind: str) -> bool:
+        kept_off = self.kept_off_attacked.get(kind, 0)
+        if kept_off >= ROYAL_AFTER and self.went_onto_attacked.get(kind, 0) <= AGAINST_AT_MOST * kept_off:
+            return True
+        # Left open by (nearly) every move the game refused for no reason of the kind's own going.
+        left_open = self.refused_leaving_open.get(kind, 0)
+        return self.refusals > 0 and left_open >= (1 - AGAINST_AT_MOST) * self.refusals and all(
+            other == kind or count < left_open for other, count in self.refused_leaving_open.items())
+
+    def family(self) -> Family:
+        """The game as she understands it now."""
+        kinds = {kind: Kind(kind, steps=tuple(self._steps_of(kind)), royal=self.royal(kind),
+                            becomes=tuple(self.becomes.get(kind, ())), crosses_with=self.crosses.get(kind, ""),
+                            name=self.names.get(kind, ""))
+                 for kind in sorted({k for _s, k in self.start.values()} | set(self.seen))}
+        return Family(name="the game in front of me", rows=self.rows, columns=self.columns, kinds=kinds,
+                      start=dict(self.start))
+
+    def what_it_does(self, kind: str) -> str:
+        """A kind as she has seen it go, in words, for naming it where she has no other name for it."""
+        steps = self._steps_of(kind)
+        if not steps:
+            return "a piece I haven't seen move"
+        lines = {s.offsets[0] for s in steps if s.rides != 1}
+        leaps = {s.offsets[0] for s in steps if s.rides == 1}
+        if leaps and all(abs(f) + abs(r) == 3 and f and r for f, r in leaps):
+            return "the piece that leaps two-and-one"
+        straight = {d for d in lines if 0 in d}
+        slanted = {d for d in lines if 0 not in d}
+        if straight and slanted:
+            return "the piece that runs any way"
+        if slanted:
+            return "the piece that runs on the slant"
+        if straight:
+            return "the piece that runs straight"
+        if self.royal(kind):
+            return "the piece that must be kept safe"
+        if all(f > 0 for f, _r in leaps | lines):
+            return "the piece that steps forward"
+        return "the piece that steps one square"
+
+
+def _mirrored(steps: list[Step], ways: dict[Direction, _Seen]) -> list[Step]:
+    """Each step and its left-right image, unless the image's way has been seen and not gone."""
+    out = list(steps)
+    have = {(s.offsets[0], s.only_unmoved) for s in steps}
+    for step in steps:
+        forward, right = step.offsets[0]
+        image = (forward, -right)
+        if (image, step.only_unmoved) in have:
+            continue
+        way = ways.get(image)
+        if way is not None and (way.withheld or way.withheld_unmoved) and not way.any_seen_going():
+            continue
+        out.append(Step((image,), rides=step.rides, may=step.may, only_unmoved=step.only_unmoved,
+                        leaves_passable=step.leaves_passable, takes_in_passing=step.takes_in_passing))
+        have.add((image, step.only_unmoved))
+    return out
+
+
+def a_move_seen(before: Position, after_cells: dict[Square, tuple[int, str | None]], side: int) -> Move | None:
+    """The move of ``side`` that turned ``before`` into what is seen, read from the squares that changed, where the
+    rules she holds cannot say it: a piece gone from one square and come to another, a piece of the other side gone
+    from the square it came to or from beside it, two pieces of the side moving at once."""
+    gone = [sq for sq, (s, _k) in before.cells.items() if s == side and after_cells.get(sq, (None,))[0] != side]
+    came = [sq for sq, (s, _k) in after_cells.items() if s == side and before.cells.get(sq, (None,))[0] != side]
+    # The other side's pieces gone: taken, unless as many came somewhere new, which is the other side's own move.
+    their_gone = [sq for sq, (s, _k) in before.cells.items() if s != side and after_cells.get(sq, (None,))[0] != 1 - side]
+    their_came = [sq for sq, (s, _k) in after_cells.items() if s != side and before.cells.get(sq, (None,))[0] != s]
+    lost = their_gone if len(their_gone) > len(their_came) else []
+    if len(gone) == 1 and len(came) == 1:
+        start, end = gone[0], came[0]
+        if end in before.cells and before.cells[end][0] != side:
+            taken_at: Square | None = end
+        elif lost:
+            taken_at = min(lost, key=lambda sq: abs(sq[0] - end[0]) + abs(sq[1] - end[1]))
+        else:
+            taken_at = None
+        letter_before = before.cells[start][1]
+        letter_after = after_cells[end][1]
+        becomes = letter_after if letter_after is not None and letter_after != letter_before else ""
+        return Move(start, end, becomes=becomes, taken_at=taken_at)
+    if len(gone) == 2 and len(came) == 2:
+        # Two pieces at once: the one that went further is the one that moved, the other its partner.
+        pairs = [(a, b) for a in gone for b in came]
+        best = None
+        for a, b in pairs:
+            other_a = next(g for g in gone if g != a)
+            other_b = next(c for c in came if c != b)
+            if before.cells[a][1] == after_cells[b][1] and before.cells[other_a][1] == after_cells[other_b][1]:
+                spread = abs(a[1] - b[1]) + abs(a[0] - b[0])
+                if best is None or spread > best[0]:
+                    best = (spread, a, b, other_a, other_b)
+        if best is not None:
+            _spread, a, b, other_a, other_b = best
+            return Move(a, b, partner=(other_a, other_b))
+    return None
+
+
+def moves_seen(before: Position, after_cells: dict[Square, tuple[int, str | None]], side: int,
+               family: Family) -> list[Move] | None:
+    """The moves that turned ``before`` into what is seen, ``side`` first: one move, or that side's move and the
+    other side's answer, made before she looked. Each pair is made on the board as she holds it, and kept only where it
+    makes exactly what is seen; None where nothing she can read does."""
+    from core.agency.pieces_by_their_kind import after
+
+    def made_shows(position: Position) -> bool:
+        return all(after_cells.get(sq, (None, None))[0] == s and after_cells[sq][1] in (k, None)
+                   for sq, (s, k) in position.cells.items()) and set(position.cells) == set(after_cells)
+
+    one = a_move_seen(before, after_cells, side)
+    if one is not None and made_shows(after(family, before, one)):
+        return [one]
+    gone = [sq for sq, (s, _k) in before.cells.items() if s == side and after_cells.get(sq, (None,))[0] != side]
+    landed = [sq for sq in after_cells if before.cells.get(sq, (None,))[0] != side]
+    for start in gone:
+        letter = before.cells[start][1]
+        for end in landed:
+            if end == start:
+                continue
+            taken = end if end in before.cells and before.cells[end][0] != side else None
+            mine = Move(start, end, taken_at=taken)
+            middle = after(family, before, mine)
+            answer = a_move_seen(middle, after_cells, 1 - side)
+            if answer is not None and made_shows(after(family, middle, answer)):
+                del letter
+                return [mine, answer]
+    return None
