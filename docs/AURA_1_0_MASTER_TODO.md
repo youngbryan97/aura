@@ -7451,9 +7451,14 @@ needs her 27B free (her app down, or her app's own influence trials).
   No capability is guessed for a sentence: her reading of requests by meaning, given her own sentences, named a
   file write as use_a_program, and the record lines for its guesses caught 2 of 8 of her false completions.
   Measured on 34 sentences of 14 turns built from her live failures: 29 read right, 2 false completions missed,
-  3 sentences about what she thought or remembered taken out of turns that asked for a file and saved none. Left:
-  an act asked for when no tool was offered is not read; the per-capability recognisers in
-  core/epistemics/effect_registry.py are still patterns.
+  3 sentences about what she thought or remembered taken out of turns that asked for a file and saved none.
+  Later that night: LIVE 22:12 her quick desktop path answered a request for a notification without passing her
+  stabilizer, so the text about to be delivered is now read once more at the end of the chat turn (read once per
+  turn while the record stands). Her desktop lane reads its reply against the steps its task ran, in place of a
+  pattern per action that appended "Correction: I said I ..." in her first person: 16 of 18 of that lane's cases
+  read right; the misses are a claim of two acts when one was done, and a click claimed after a round that only
+  typed. Left: an act asked for when no tool was offered is not read; core/conversation/grounded_claim_guard.py
+  still finds which action a sentence claims by the patterns in core/epistemics/effect_registry.py.
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the

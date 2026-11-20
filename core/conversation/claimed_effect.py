@@ -41,8 +41,6 @@ __all__ = [
     "ClaimedWrite",
     "claimed_effect_actions",
     "find_unaddressed_write_claims",
-    "unverified_effect_claims",
-    "unverified_effect_correction",
     "find_unfulfilled_write_claims",
     "unfulfilled_write_correction",
 ]
@@ -276,58 +274,3 @@ def claimed_effect_actions(reply: Any) -> tuple[str, ...]:
                 claimed.append(action)
                 break
     return tuple(dict.fromkeys(claimed))
-
-
-
-def unverified_effect_claims(reply: Any, receipts: Any) -> list[str]:
-    """Effects the reply claims that no verified receipt in this turn recorded.
-
-    `receipts` is the step-receipt list a desktop task returns. An empty list
-    means nothing ran, which makes EVERY effect claim unverified — that is the
-    case the file check already covered, generalised to the rest of them.
-    """
-
-    text = str(reply or "")
-    if not text.strip():
-        return []
-    verified_actions = set()
-    if isinstance(receipts, list):
-        for receipt in receipts:
-            if isinstance(receipt, dict) and receipt.get("ok"):
-                action = str(receipt.get("action") or "").strip()
-                if action:
-                    verified_actions.add(action)
-                # A step made of several moves names each kind of effect it had (a browser round: clicks, typing).
-                verified_actions.update(
-                    str(one).strip() for one in (receipt.get("actions") or []) if str(one).strip()
-                )
-    unverified: list[str] = []
-    for action, pattern, description in _CLAIMED_EFFECT_PATTERNS:
-        if action in verified_actions:
-            continue
-        for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
-            stripped = sentence.strip()
-            if not stripped or _HYPOTHETICAL_RE.search(stripped):
-                continue
-            if pattern.search(stripped):
-                unverified.append(description)
-                break
-    return unverified
-
-
-def unverified_effect_correction(reply: Any, receipts: Any) -> str:
-    """A correction naming every claimed effect with no receipt behind it."""
-
-    claims = unverified_effect_claims(reply, receipts)
-    if not claims:
-        return ""
-    if len(claims) == 1:
-        return (
-            f"Correction: I said I {claims[0]} and there is no verified receipt "
-            f"for it in this turn, so treat that part as not done."
-        )
-    listed = ", ".join(claims[:-1]) + f", and {claims[-1]}"
-    return (
-        f"Correction: I said I {listed}, and none of those have a verified "
-        f"receipt in this turn. Treat them as not done."
-    )

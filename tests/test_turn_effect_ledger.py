@@ -145,7 +145,7 @@ def test_reply_guard_reads_the_turns_record_not_a_lane_local_list() -> None:
     from core.epistemics import what_her_record_refutes
     from interface.routes import chat_reply_repair
 
-    assert "turn_tool_receipts()" in inspect.getsource(what_her_record_refutes.sentences_her_record_refutes)
+    assert "current_turn_evidence_custody()" in inspect.getsource(what_her_record_refutes.sentences_her_record_refutes)
     assert "_through_the_record" in inspect.getsource(chat._stabilize_user_facing_reply)
     assert "_correct_unevidenced_action_claims" in inspect.getsource(chat_reply_repair._through_the_record)
     assert "sentences_her_record_refutes" in inspect.getsource(chat_reply_repair._through_the_record_off_the_loop)

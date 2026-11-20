@@ -257,6 +257,32 @@ async def _through_the_record_off_the_loop(user_message: str, reply_text: Any) -
     return _through_the_record(user_message, reply_text, refuted)
 
 
+async def _what_her_record_leaves(user_message: str, reply_text: Any, trace: Any = None) -> Any:
+    """The text about to be delivered, held against this turn's record once more. LIVE 19 November 2026, 22:12: her
+    quick desktop path answered "Could you put up a desktop notification ...?" and never passed her stabilizer, so
+    nothing read what her reply said she did. A reply the record refutes nothing of goes as it is; otherwise it goes
+    through her stabilizer, which takes out what is refuted and asks her turn again when nothing is left."""
+    from core.epistemics.what_her_record_refutes import sentences_her_record_refutes
+
+    if not str(reply_text or "").strip():
+        return reply_text
+    try:
+        refuted = await asyncio.to_thread(sentences_her_record_refutes, str(reply_text), str(user_message or ""))
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.what_her_record_refutes", exc, severity="warning",
+                           action="her reply went out without being held against her record")
+        return reply_text
+    if not refuted:
+        return reply_text
+    checked = await _stabilize_user_facing_reply(user_message, reply_text)
+    from .chat_reply_shaping import _append_turn_text_mutation
+
+    _append_turn_text_mutation(trace, stage="chat.what_her_record_refutes", method="record_refutes_a_sentence",
+                               reasons=[claim.said() for claim in refuted], before=reply_text, after=checked,
+                               deterministic=False, authorship_effect="augmented_by_runtime")
+    return checked
+
+
 async def _asked_again_with_the_record(user_message: str, checked: Any, *, desktop_cognitive_engine_required: bool,
                                        protected_foreground_lane: bool) -> Any:
     """Her turn asked again, once, with what the record said among its readings; her new draft goes through the same

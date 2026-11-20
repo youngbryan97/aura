@@ -28,6 +28,7 @@ from interface.routes.chat_common import (  # noqa: E402
 from interface.routes import chat_capability_inventory as _chat_capability_inventory
 from interface.routes import chat_desktop_repair as _chat_desktop_repair
 from interface.routes import chat_preflight as _chat_preflight
+import asyncio
 import re
 import time
 from core.runtime.errors import describe_error, record_degradation
@@ -549,26 +550,10 @@ async def _execute_desktop_objective_from_chat(
                 f"That much is verified. The rest did not complete: {error} "
                 f"({completed}/{requested} steps)."
             )
-    # Every effect the reply claims, checked against the receipts of this turn.
-    #
-    # The file check verifies writes against the filesystem. "I opened Notes",
-    # "I created that folder", "I moved it to your Desktop" and "I put it on
-    # the clipboard" are claims about the world too, and nothing verified any
-    # of them — the honesty guarantee stopped exactly where the file API
-    # stopped. The receipts already record every governed effect, so the
-    # general form is to name the effect a reply claims and ask whether one
-    # like it verified.
-    try:
-        from core.conversation.claimed_effect import unverified_effect_correction
-
-        effect_correction = str(
-            unverified_effect_correction(response, result.get("receipts")) or ""
-        ).strip()
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        effect_correction = ""
-    if effect_correction:
-        response = f"{str(response or '').rstrip()}\n\n{effect_correction}"
+    # Every sentence of the reply held against the steps this task ran, read by meaning
+    # (core/epistemics/what_her_record_refutes.py). A pattern per action used to find "I opened Notes" in the reply and
+    # append "Correction: I said I opened an app ..." in her first person; a phrasing no pattern knew went out unread.
+    response = await _what_her_steps_leave(objective, response, result.get("receipts"))
     if not told_in_her_words and _asked_to_watch_and_nothing_plays(result, objective):
         # Asked to find something and watch it, and it did not get there: what happened is told in her own words, with
         # the trace as evidence. LIVE 7 November 2026 the trace went out as her reply ("I got as far as
@@ -582,6 +567,28 @@ async def _execute_desktop_objective_from_chat(
         "response": response,
         "result": result,
     }
+
+
+async def _what_her_steps_leave(objective: Any, response: Any, steps: Any) -> Any:
+    """``response`` with each sentence the task's own steps refute taken out; what they say goes to her turn asked
+    again (core/brain/her_turn_as_asked.py). The task is what she was handed the request with, so a task that ran no
+    step is a record too: nothing asked for was done."""
+    from core.epistemics.what_her_record_refutes import sentences_these_calls_refute
+    from interface.routes.chat_turn_evidence import _correct_unevidenced_action_claims
+
+    calls = [{"tool": str(step.get("action") or ""), "ok": bool(step.get("ok")),
+              "observed_content": str(step.get("effect_evidence") or "")}
+             for step in (steps if isinstance(steps, list) else []) if isinstance(step, dict)]
+    if not str(response or "").strip():
+        return response
+    try:
+        refuted = await asyncio.to_thread(sentences_these_calls_refute, str(response), calls, str(objective or ""),
+                                          [] if calls else ["desktop_task"])
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.desktop_steps_refute", exc, severity="warning",
+                           action="the task's reply went out without being held against its steps")
+        return response
+    return _correct_unevidenced_action_claims(response, objective, refuted)
 
 
 _STEP_BOOKKEEPING_RE = re.compile(

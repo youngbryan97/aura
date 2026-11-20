@@ -21,10 +21,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.conversation.claimed_effect import (
-    _CLAIMED_EFFECT_PATTERNS,
-    unverified_effect_correction,
-)
+from core.conversation.claimed_effect import _CLAIMED_EFFECT_PATTERNS
 from core.conversation.effect_claim import _EFFECT_VOCABULARY
 from core.epistemics.effect_registry import (
     EFFECT_REGISTRY,
@@ -107,24 +104,6 @@ def test_recognizer_fires_on_its_own_effect(action: str) -> None:
         f"the {action} recogniser does not match {sentence!r}, so a reply "
         "phrased that way would claim the effect unaudited"
     )
-
-
-@pytest.mark.parametrize("action", sorted(_LIVE_PHRASINGS))
-def test_claim_without_receipt_is_corrected(action: str) -> None:
-    """End to end: the phrasing, no receipts, a correction naming the effect."""
-
-    correction = unverified_effect_correction(_LIVE_PHRASINGS[action], [])
-    assert correction, f"{action} claim passed with no receipts"
-    assert EFFECT_REGISTRY[action].claim_description in correction
-
-
-@pytest.mark.parametrize("action", sorted(_LIVE_PHRASINGS))
-def test_claim_with_a_verified_receipt_is_left_alone(action: str) -> None:
-    """The guard corrects false completion, not completion."""
-
-    receipts = [{"action": action, "ok": True, "index": 0}]
-    correction = unverified_effect_correction(_LIVE_PHRASINGS[action], receipts)
-    assert EFFECT_REGISTRY[action].claim_description not in correction
 
 
 def test_recogniser_count_only_grows() -> None:

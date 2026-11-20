@@ -5337,6 +5337,7 @@ from .chat_reply_repair import (
     _stabilize_user_facing_reply,
     _strip_unexpected_cjk_artifacts,
     _strip_user_visible_context_leaks,
+    _what_her_record_leaves,
 )
 from .chat_own_source import (
     _ASKS_TO_INSPECT_SHOWN_SOURCE_RE,  # noqa: F401
@@ -10947,10 +10948,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         )
 
         if not _qualified_exact_delivery:
-            _final_reply = await _ground_executable_output_claims_for_delivery(
-                _live_turn_trace,
-                _final_reply,
-            )
+            _final_reply = await _ground_executable_output_claims_for_delivery(_live_turn_trace, _final_reply)
+            _final_reply = await _what_her_record_leaves(_semantic_user_message, _final_reply, _live_turn_trace)
 
         # Custody, last. Every stage above rewrote this text; each was checked
         # against what the turn established, and this is where a fact the

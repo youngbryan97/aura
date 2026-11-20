@@ -2,7 +2,7 @@
 
 Every guard in the honesty layer needs the same input: did anything verifiably
 happen in the world on THIS turn? Until now each guard answered that question
-differently. ``unverified_effect_correction`` was handed the desktop task's own
+differently. ``unverified_effect_correction`` (gone since 19 November 2026) was handed the desktop task's own
 receipt list, which exists only inside the desktop lane, so on every other lane
 — the fast conversational path, the protected foreground route, a reply
 composed after a planner declined — the answer defaulted to "no receipts" by

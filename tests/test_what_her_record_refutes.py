@@ -148,11 +148,76 @@ def test_the_tools_offered_belong_to_the_turn_they_were_offered_in():
 
 
 def test_a_turn_that_offered_nothing_and_ran_nothing_loads_no_reader(monkeypatch):
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+
     def never():
         raise AssertionError("the reader was loaded for a turn with no record")
 
     monkeypatch.setattr(refutes, "_reader", never)
     assert refutes.sentences_her_record_refutes(SENT, NOTIFY) == []
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-nothing"):
+        assert refutes.sentences_her_record_refutes(SENT, NOTIFY) == []
+
+
+def test_a_reply_is_read_once_in_a_turn_while_its_record_stands(monkeypatch):
+    """Her stabilizer reads her reply, and the step before delivery reads what reaches it: the same reply against the
+    same record is not read twice."""
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody, record_turn_tools_offered
+
+    read = _Reader({_asked(NOTIFY, SENT): "entailment"})
+    monkeypatch.setattr(refutes, "_reader", lambda: read)
+    monkeypatch.setattr(refutes, "_sentences_of", lambda reply: [reply])
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-once"):
+        record_turn_tools_offered(["notify_user"])
+        first = refutes.sentences_her_record_refutes(SENT, NOTIFY)
+        asked_first = len(read.asked)
+        assert refutes.sentences_her_record_refutes(SENT, NOTIFY) == first and len(read.asked) == asked_first
+        record_turn_tools_offered(["reminder"])  # the record changed: read again
+        refutes.sentences_her_record_refutes(SENT, NOTIFY)
+        assert len(read.asked) > asked_first
+    assert [claim.sentence for claim in first] == [SENT]
+
+
+def test_the_text_about_to_be_delivered_goes_through_her_stabilizer_only_when_the_record_refutes_it(monkeypatch):
+    """LIVE 19 November 2026, 22:12: her quick desktop path answered a request for a notification and never passed her
+    stabilizer, so nothing read what her reply said she did."""
+    from interface.routes import chat_reply_repair
+
+    stabilized: list[str] = []
+
+    async def stabilize(user_message, reply_text, **_kwargs):
+        stabilized.append(reply_text)
+        return "Checked."
+
+    monkeypatch.setattr(chat_reply_repair, "_stabilize_user_facing_reply", stabilize)
+    monkeypatch.setattr(refutes, "sentences_her_record_refutes", lambda reply, asked: [])
+    assert asyncio.run(chat_reply_repair._what_her_record_leaves(NOTIFY, SENT)) == SENT and stabilized == []
+
+    found = [refutes.Refuted(SENT, (RecordLine("notify_user", "not called"),))]
+    monkeypatch.setattr(refutes, "sentences_her_record_refutes", lambda reply, asked: found)
+    trace: dict = {}
+    assert asyncio.run(chat_reply_repair._what_her_record_leaves(NOTIFY, SENT, trace)) == "Checked."
+    assert stabilized == [SENT]
+
+
+def test_a_desktop_task_reply_is_held_against_the_steps_it_ran(monkeypatch):
+    from interface.routes import chat_desktop_objective
+
+    handed: list[tuple] = []
+
+    def reads(reply, calls, asked, offered):
+        handed.append((calls, asked, offered))
+        return [refutes.Refuted("I opened Notes.", (RecordLine("open_app", "failed", "Notes did not open"),))]
+
+    monkeypatch.setattr(refutes, "sentences_these_calls_refute", reads)
+    steps = [{"action": "open_app", "ok": False, "effect_evidence": "Notes did not open", "index": 0}, "not a step"]
+    left = asyncio.run(chat_desktop_objective._what_her_steps_leave("Open Notes.", "I opened Notes. Anything else?",
+                                                                    steps))
+    assert left == "Anything else?"
+    assert handed[0] == ([{"tool": "open_app", "ok": False, "observed_content": "Notes did not open"}], "Open Notes.", [])
+    # A task that ran no step: what she was handed the request with is the record.
+    asyncio.run(chat_desktop_objective._what_her_steps_leave("Open Notes.", "I opened Notes.", []))
+    assert handed[1] == ([], "Open Notes.", ["desktop_task"])
 
 
 # ── her reply path ──────────────────────────────────────────────────────────
@@ -261,6 +326,50 @@ MEASURED_WRONG = [
 ]
 
 
+def _step(action: str, ok: bool, came_to: str) -> dict:
+    return _receipt(action, ok, came_to)
+
+
+_CLICKED = "I clicked it. It's loading now, and I'm curious what machine this is."
+_FOLDER = "Make a folder called Drafts on my Desktop."
+_NOTES = "Open Notes and type buy milk."
+_APPEND = "Append the second line to notes.txt."
+
+#: Her desktop lane's turns, measured 19 November against the steps each task ran, from the cases its per-action patterns
+#: were tested on (LIVE 2026-08-10 "The text ORION-7 is now on your clipboard." with nothing run; LIVE 8 November
+#: "I clicked it." after rounds that clicked a video and landed on it). (asked, steps, sentence, refuted?)
+DESKTOP_MEASURED = [
+    (_FOLDER, [], "I created a folder for you on the Desktop.", True),
+    (_FOLDER, [_step("create_folder", True, "created /Users/x/Desktop/Drafts")],
+     "I created a folder for you on the Desktop.", False),
+    (_FOLDER, [_step("create_folder", False, "permission denied")], "I created a folder for you on the Desktop.", True),
+    (_NOTES, [], "I opened Notes and typed it in.", True),
+    (_NOTES, [_step("open_app", True, "Notes is frontmost"), _step("write_in_app", True, "typed 'buy milk' into Notes")],
+     "I opened Notes and typed it in.", False),
+    ("Move report.pdf to my Desktop.", [], "I moved it to your Desktop.", True),
+    ("Put the text ORION-7 on my clipboard.", [], "I copied it to the clipboard.", True),
+    ("Put the text ORION-7 on my clipboard.", [_step("set_clipboard", True, "clipboard holds ORION-7")],
+     "The text ORION-7 is now on your clipboard.", False),
+    (_APPEND, [], "The file now contains both lines.", True),
+    (_APPEND, [_step("write_text_file", True, "appended 1 line to notes.txt")], "The file now contains both lines.",
+     False),
+    (_APPEND, [], "I could append a line if you want me to.", False),
+    (_APPEND, [], "I would need to open the file first.", False),
+    ("Find a Mark Rober video and play it.",
+     [_step("browse_pursue", True, "clicked the first result; the video page loaded")], _CLICKED, False),
+    ("Find a Mark Rober video and play it.", [_step("browse_pursue", False, "the click did not land")], _CLICKED, True),
+    ("Open Notes.", [], "The capital of Peru is Lima.", False),
+    ("Open Notes.", [], "I will create that folder next.", False),
+]
+
+#: Misses on 19 November: a claim of two acts when one was done, and a click claimed after a round that only typed.
+DESKTOP_MEASURED_WRONG = [
+    (_NOTES, [_step("open_app", True, "Notes is frontmost")], "I opened Notes and typed it in.", True),
+    ("Find a Mark Rober video and play it.",
+     [_step("browse_pursue", True, "typed Mark Rober into the search box")], _CLICKED, True),
+]
+
+
 @pytest.fixture(scope="module")
 def reader():
     from huggingface_hub import try_to_load_from_cache
@@ -301,6 +410,20 @@ def test_the_measured_turns_read_as_measured(reader):
     still_wrong = [refuted(asked, receipts, offered, sentence) != expected
                    for asked, receipts, offered, sentence, expected in MEASURED_WRONG]
     assert all(still_wrong), "a reading measured wrong now reads right: move it to MEASURED"
+
+
+@pytest.mark.model
+def test_the_desktop_lanes_measured_turns_read_as_measured(reader):
+    def refuted(asked, steps, sentence) -> bool:
+        # As her desktop lane hands them over: the task is offered only when it ran no step.
+        return bool(what_her_record_refutes([sentence], steps, asked=asked, offered=[] if steps else ["desktop_task"],
+                                            read=reader))
+
+    wrong = [(sentence, expected) for asked, steps, sentence, expected in DESKTOP_MEASURED
+             if refuted(asked, steps, sentence) != expected]
+    assert wrong == [], wrong
+    assert all(refuted(asked, steps, sentence) != expected for asked, steps, sentence, expected in DESKTOP_MEASURED_WRONG), (
+        "a reading measured wrong now reads right: move it to DESKTOP_MEASURED")
 
 
 @pytest.mark.model

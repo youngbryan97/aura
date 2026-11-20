@@ -34,6 +34,8 @@ from __future__ import annotations
 
 import logging
 import re
+import time
+import weakref
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from typing import Any
@@ -44,7 +46,7 @@ from core.runtime.lockdep import checked_lock
 logger = logging.getLogger("Aura.WhatHerRecordRefutes")
 
 __all__ = ["READER", "RecordLine", "Refuted", "lines_of_the_turn", "sentences_her_record_refutes",
-           "what_her_record_refutes"]
+           "sentences_these_calls_refute", "what_her_record_refutes"]
 
 #: The inference model, by its Hugging Face name.
 READER = "MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"
@@ -57,6 +59,10 @@ ASKED_IS_DONE = "What you asked for has been done."
 
 _LOCK = checked_lock("what_her_record_refutes.reader")
 _LOADED: dict[str, Any] = {}
+#: What each turn's record refuted of each reply it was asked about, held for that turn only.
+_READ_LOCK = checked_lock("what_her_record_refutes.read_this_turn")
+_READ_THIS_TURN: weakref.WeakKeyDictionary[Any, dict[tuple[str, str, int, int], tuple[Refuted, ...]]] = (
+    weakref.WeakKeyDictionary())
 
 
 @dataclass(frozen=True)
@@ -226,16 +232,42 @@ def _declared_description() -> Callable[[str], str] | None:
     return describe
 
 
-def sentences_her_record_refutes(reply: str, asked: str = "") -> list[Refuted]:
-    """The sentences of ``reply`` this turn's own record refutes. Reads models: call it off her event loop."""
-    from core.conversation.surface_disposition import turn_tool_receipts
-    from core.conversation.turn_evidence_custody import turn_tools_offered
-
-    receipts, offered = turn_tool_receipts(), turn_tools_offered()
+def sentences_these_calls_refute(reply: str, receipts: Iterable[Mapping[str, Any]], asked: str = "",
+                                 offered: Iterable[str] = ()) -> list[Refuted]:
+    """The sentences of ``reply`` that these calls, and the tools offered beside them, refute. Reads models: call it
+    off her event loop."""
+    receipts, offered = list(receipts), list(offered)
     if not receipts and not offered:
         return []
     sentences = _sentences_of(reply)
     if not sentences:
         return []
-    return what_her_record_refutes(sentences, receipts, asked=asked, offered=offered,
-                                   describe=_declared_description())
+    began = time.perf_counter()
+    refuted = what_her_record_refutes(sentences, receipts, asked=asked, offered=offered,
+                                      describe=_declared_description())
+    logger.info("her reply was read against her record: %d sentences, %d calls, %d offered, %d refuted, %.2f s",
+                len(sentences), len(receipts), len(offered), len(refuted), time.perf_counter() - began)
+    return refuted
+
+
+def sentences_her_record_refutes(reply: str, asked: str = "") -> list[Refuted]:
+    """The sentences of ``reply`` this turn's own record refutes. Reads models: call it off her event loop.
+
+    A reply read once in a turn is not read again while the record is unchanged: her stabilizer reads it, and the last
+    step before delivery reads whatever reaches it, including replies from paths that never pass her stabilizer.
+    """
+    from core.conversation.turn_evidence_custody import current_turn_evidence_custody
+
+    custody = current_turn_evidence_custody()
+    if custody is None:
+        return []
+    receipts, offered = custody.receipts(), custody.tools_offered()
+    key = (str(reply), str(asked), len(receipts), len(offered))
+    with _READ_LOCK:
+        held = _READ_THIS_TURN.get(custody, {}).get(key)
+    if held is not None:
+        return list(held)
+    refuted = sentences_these_calls_refute(reply, receipts, asked, offered)
+    with _READ_LOCK:
+        _READ_THIS_TURN.setdefault(custody, {})[key] = tuple(refuted)
+    return refuted
