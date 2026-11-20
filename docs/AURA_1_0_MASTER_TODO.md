@@ -5180,7 +5180,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     The saved file was her run of the function without the function, a NameError, because only the largest block
     was kept. A Python program written across blocks is saved whole now: the blocks that define a name the largest
     uses and does not define go with it, in the reply's order (`tests/test_a_reply_that_contains_a_file.py`).
-    That turn took 163 s, 19.6 s of it preparation, against 5.9 s at 07:36: not yet read.
+    That turn took 163 s against 107 s at 07:36. A typed turn was counted as a person waiting for her model only once
+    it reached the gate, so while it prepared, her goal pass finished the generation it had running and began a
+    5,270-token one, stopped 12 s after the turn asked, mid-prefill. A typed turn is a live turn from its reservation
+    now, as a voice turn was from its first word (`tests/test_a_typed_turn_is_a_live_turn.py`).
     The conversational amplifier keeps to the turn's clock too.
   - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
     that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,

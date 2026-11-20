@@ -7979,6 +7979,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
     foreground_slot_acquired = False
     foreground_lock_token: object | None = None
     foreground_owner_task = asyncio.current_task()
+    #: This turn, among the live turns her background work stands aside for, from its reservation to its release.
+    typed_turn_key = f"typed:{uuid.uuid4().hex[:12]}"
     foreground_lease = None
     kernel_task: asyncio.Task | None = None
     _live_turn_trace = _api_chat_turn_start_turn_holding(_preflight, _semantic_user_message, chat_origin, desktop_requires_cognitive_engine, request_surface)
@@ -8129,6 +8131,14 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     },
                     status_code=status_code,
                 )
+
+        # A person is talking with her from here, not only once this turn reaches her model's gate. LIVE 20 November
+        # 2026 a typed turn prepared for 17 s with nobody counted as waiting; her goal pass began a 5,270-token
+        # generation 16 s into it and was stopped 12 s later, mid-prefill. A voice turn was already counted from the
+        # first word (llm_health_router_gate_owners.a_live_turn).
+        from core.brain.llm_health_router_gate_owners import a_live_turn
+
+        a_live_turn(typed_turn_key, True)
 
         # Memory admission belongs to the generation lease, not to the time
         # before a potentially long lock wait. A queued turn can cross from
@@ -11260,6 +11270,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 why=why, status="error", error_type=type(e).__name__, status_code=200,
             )
     finally:
+        from core.brain.llm_health_router_gate_owners import a_live_turn
+
+        a_live_turn(typed_turn_key, False)
         if foreground_slot_acquired:
             _foreground_chat_lock.release(foreground_lock_token)
         if foreground_lease is not None:
