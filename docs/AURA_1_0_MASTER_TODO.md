@@ -8092,6 +8092,16 @@ needs her 27B free (her app down, or her app's own influence trials).
     settlement, and a fall measured beside them is taken back as unattributed, named as such
     (`tests/test_a_regression_names_what_else_was_measured.py`). Telling which change made a fall needs a run with the
     change and one without it on the same source: still to build.
+  - Measure improvement, not only preservation (F16-09, from an outside review). Built 20 November: each change of
+    hers that landed is read from her records as a failure repaired (the fault her running raised has not been heard
+    since), a repair that did not hold, a mend whose fault is no longer on record, a cost lowered (measured before
+    and after, and kept on that), a drill, taken back, or kept with nothing measured, never as an improvement because
+    its gates passed. Each keeps the source before it, the change, what else was measured with it and how it is
+    undone (`core/agency/what_her_changes_improved.py`, `python tools/her_goals.py improved`,
+    `tests/test_what_her_changes_improved_is_told_from_what_they_kept.py`). Read on her records that day: of five
+    landed changes, four are drills and one lowered a cost, a collection that held her 203 ms at the median and now
+    holds her 1 ms. No failure of her own running has yet been repaired by her and held. Reliability on unfamiliar
+    tasks, a capability gained, and a better repair loop are not measured yet.
   - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was
     recorded 19 November (part 10 above).
     Six rounds ran; the next attacker should be neither Hydrogen nor Argon.
