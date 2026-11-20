@@ -61,3 +61,32 @@ def test_a_dotted_name_her_call_wrote_is_a_name_and_not_two_sentences_run_togeth
                                      "returned": "True"})
         assert not _has_punctuation_join_artifact(said)
         assert _has_punctuation_join_artifact("It finished.then it stopped.")
+
+
+def test_the_turn_records_the_reading_of_her_loops_answer(monkeypatch):
+    """LIVE 20 November 2026: the reading was written after the turn had copied the receipt, and a finished answer was
+    marked "authored_answer_incomplete:nobody_checked"."""
+    import asyncio
+
+    from core.brain.inference_gate import InferenceGate
+
+    monkeypatch.setattr("core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["code_repl"])
+    monkeypatch.setattr("core.brain.llm.runtime_wiring.build_agentic_tool_map",
+                        lambda *a, **k: {"code_repl": {"name": "code_repl"}})
+
+    class _Loop(_Client):
+        model_path = "/models/Qwen3.8-27B-4bit"
+
+        async def think_and_act(self, **_kwargs):
+            return {"content": "It printed 2305843009213693951, which is prime.", "generation_stop_reason": "eos",
+                    "tool_calls": [{"tool": "code_repl", "ok": True}]}
+
+    gate = InferenceGate.__new__(InferenceGate)
+    recorded = []
+    gate._record_client_generation_metadata = lambda *a, **k: recorded.append(k["generation_metadata"])
+    answer = asyncio.run(gate._tool_grounded_answer(_Loop(), visible=_ASKED, system_prompt="", timeout_s=30.0,
+                                                    allow_tools=True, completed_capability_evidence=None))
+    assert answer and len(recorded) == 1
+    receipt = recorded[0]["live_mind_surface_control_receipt"]
+    assert receipt["semantic_completion_contract"] is True
+    assert receipt["semantic_completion_satisfied"] is True

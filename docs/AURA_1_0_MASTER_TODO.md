@@ -5160,7 +5160,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     65ef38d0c read module functions and missed it, a method. The check now changes nothing but a false name. Three
     more readers of her reply tidied spacing over all of it on rarer paths: a removed affordance control and her
     persona style now close gaps with `closed_up`, and the sentence remover keeps every break she wrote
-    (`tests/test_a_reply_keeps_the_shape_of_its_code.py`).
+    (`tests/test_a_reply_keeps_the_shape_of_its_code.py`). The same turn saved its file twice, because her reply is
+    read twice for what the runtime holds; a turn that has saved its file does not save it again. And it was served as
+    "DEGRADED ... authored_answer_incomplete:nobody_checked": the reading of whether her tool loop's answer is finished
+    was written after the turn had copied the receipt that carries it. It is read first now
+    (`tests/test_her_tool_loops_answer_is_read_as_a_reply.py`).
     The conversational amplifier keeps to the turn's clock too.
   - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
     that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,

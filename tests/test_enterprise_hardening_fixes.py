@@ -1391,9 +1391,9 @@ def test_mlx_worker_proof_evaluation_prompt_prevents_fragment_acceptance():
         "rejecting parent-directory escapes, temporary-directory escapes, and private writes."
     )
     assert _sanitize_telemetry_leakage(slash_heavy_valid_text) == slash_heavy_valid_text
-    assert _sanitize_telemetry_leakage(
-        "/a/b/c/d/e/f /g/h/i/j/k/l /m/n/o/p/q/r " * 5
-    ) is None
+    # A wall of paths that exist on this machine: made-up ones are an answer's examples (20 November 2026).
+    here = Path(__file__).resolve()
+    assert _sanitize_telemetry_leakage(" ".join(str(path) for path in (here, here.parent, here.parent.parent) * 5)) is None
 
 
 def test_agency_proof_task_isolation_clears_goal_residue():

@@ -687,6 +687,9 @@ class _BuildsTheLivingContext:
                 already,
             )
             return text or None
+        # Read before the receipt is copied onto the turn below. Read after it, LIVE 20 November 2026, the turn was
+        # marked "authored_answer_incomplete:nobody_checked" on a finished answer.
+        _her_loops_answer_is_read_as_any_reply_is(client, text, str(visible or ""), result.get("generation_stop_reason"))
         self._tool_grounded_answer_model_path(called, client, text)
         from core.conversation.surface_disposition import record_tool_receipt
 
@@ -713,7 +716,6 @@ class _BuildsTheLivingContext:
                 as_made={"id": str(call.get("id") or ""), "arguments": dict(call.get("args") or {}),
                          "returned": str(call.get("result") or "")},
             )
-        _her_loops_answer_is_read_as_any_reply_is(client, text, str(visible or ""), result.get("generation_stop_reason"))
         return text or None
 
     @staticmethod

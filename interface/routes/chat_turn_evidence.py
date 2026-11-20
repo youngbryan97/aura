@@ -755,9 +755,15 @@ async def _save_requested_artifact(user_message: object, reply: object) -> objec
         from core.conversation.requested_artifact import (
             note_saved_this_turn,
             save_requested_artifact_async,
+            saved_this_turn,
         )
         from core.conversation.surface_disposition import record_tool_receipt
 
+        if saved_this_turn():
+            # Her reply is read for what the runtime holds twice when nothing answered it the first time
+            # (chat_recorded_answers._apply_recorded_answer). LIVE 20 November 2026 the second reading wrote the same
+            # file again and put a second write on her record.
+            return reply
         saved = await save_requested_artifact_async(str(user_message or ""), body)
         if saved is None:
             return reply

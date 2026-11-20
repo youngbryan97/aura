@@ -113,6 +113,32 @@ async def test_the_reply_is_her_words_and_the_path_goes_beside_it() -> None:
     assert saved_this_turn() == "", "another turn has saved nothing"
 
 
+@pytest.mark.asyncio
+async def test_a_turn_saves_its_file_once(monkeypatch, tmp_path) -> None:
+    """LIVE 20 November 2026: her reply was read twice for what the runtime holds, and the file was written twice, with
+    two writes on her record."""
+    import core.conversation.requested_artifact as requested_artifact
+    import core.conversation.surface_disposition as surface_disposition
+    from core.conversation.session_scope import conversation_turn_var
+    from interface.routes.chat import _save_requested_artifact
+
+    writes, receipts = [], []
+
+    async def _save(message, reply, **_kwargs):
+        writes.append(reply)
+        return requested_artifact.SavedArtifact(path=tmp_path / "page.html", language="html", characters=len(reply))
+
+    monkeypatch.setattr(requested_artifact, "save_requested_artifact_async", _save)
+    monkeypatch.setattr(surface_disposition, "record_tool_receipt", lambda *a, **k: receipts.append(a))
+    token = conversation_turn_var.set("turn-read-twice")
+    try:
+        for _ in range(2):
+            assert str(await _save_requested_artifact("build me a self-contained HTML page", REPLY)) == REPLY
+    finally:
+        conversation_turn_var.reset(token)
+    assert (len(writes), len(receipts)) == (1, 1)
+
+
 def test_a_short_function_asked_for_in_the_reply_is_not_laid_out_as_a_page(tmp_path) -> None:
     """LIVE 17 November 2026: a three-line function went to disk as an HTML page of the prose around it."""
     reply = ("```python\ndef squares_of_evens(numbers):\n    return [n ** 2 for n in numbers if n % 2 == 0]\n```\n\n"
