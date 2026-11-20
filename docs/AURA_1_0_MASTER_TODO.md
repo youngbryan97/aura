@@ -8115,6 +8115,13 @@ needs her 27B free (her app down, or her app's own influence trials).
     landed changes, four are drills and one lowered a cost, a collection that held her 203 ms at the median and now
     holds her 1 ms. No failure of her own running has yet been repaired by her and held. Reliability on unfamiliar
     tasks, a capability gained, and a better repair loop are not measured yet.
+  - Measure the verifier both ways (F16-07, from an outside review): a check that refuses every change is safe in a
+    narrow sense and stops her from developing. Measured 20 November on every case of rounds two to six, each built as
+    its test builds it: of 125 bad patches none is held, 10 land on probation and 115 are refused; of 29 honest
+    repairs 3 are held, 19 land on probation and 7 are refused; none went unjudged, every verdict is among those its
+    case was pinned to, and a case takes 7.31 s at the median, 1,400 s for all (`tools/measure_the_change_verifier.py`,
+    `docs/evidence/F16_CHANGE_VERIFIER_MEASURED_2026-11-20.md`). The 7 honest refusals are on purpose, each with a way
+    through beside its case; whether her own repair loop takes those ways is not measured yet.
   - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was
     recorded 19 November (part 10 above).
     Six rounds ran; the next attacker should be neither Hydrogen nor Argon.
