@@ -166,3 +166,17 @@ async def test_a_screen_locked_mid_run_is_waited_out_not_the_end_of_it(monkeypat
 
 async def _no_one(*_a, **_k):
     return "Some Game"
+
+
+@pytest.mark.asyncio
+async def test_a_long_task_still_sees_the_unlock_within_seconds(monkeypatch):
+    """LIVE 20 November 2026: asked to play a game while the screen was locked, she waited; the task had 34,024 s, the
+    check ran every budget-over-sixty seconds, and the screen she was waiting for was unlocked nine minutes before she
+    looked again. How often a lock is checked is how fast a person unlocks, not how long the task is."""
+    monkeypatch.setattr(
+        "core.security.screen_capture_policy.evaluate_screen_capture_admission_async",
+        _answers(LOCKED, LOCKED, OPEN),
+    )
+    began = time.monotonic()
+    assert await wait_for_a_screen_to_look_at(began + 34_024.0) is True
+    assert time.monotonic() - began < 5.0

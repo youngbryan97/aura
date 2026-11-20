@@ -414,7 +414,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # Nothing she picked up was offered anywhere: the board is not taking moves yet.
             tell("The board isn't letting me move anything yet.")
             return {"ended": "not taking moves", "moves": 0, "theirs": 0, "learned": game.learned}
-        family = game.learned.family()
+        family = game.learned.family(unseen_go_every_way=True)
         legal = moves(family, game.believed)
         ended = outcome(family, game.believed, legal) if any(k.royal for k in family.kinds.values()) else ""
         if ended or not legal:
@@ -438,7 +438,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 break
             game.learned.refused(game.believed, found.move, family=family)
             set_aside.append(found.move)
-            family = game.learned.family()
+            family = game.learned.family(unseen_go_every_way=True)
             weights = rehearsing.weights_for(family)
         else:
             # Every move she looked at was refused: she picks up every piece of hers. Where the game offers none of

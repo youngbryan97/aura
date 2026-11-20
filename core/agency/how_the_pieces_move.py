@@ -50,6 +50,10 @@ AGAINST_AT_MOST = 0.1
 MAX_STEP = 3
 
 
+#: Every line from a square, as far as the way is clear: what a kind she has not seen move might do.
+_EVERY_LINE = (Step(((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)), rides=0),)
+
+
 def in_its_frame(side: int, start: Square, end: Square) -> tuple[Direction, int]:
     """The way from ``start`` to ``end`` as the piece of ``side`` faces: a direction with no common factor, and how many
     of it."""
@@ -140,11 +144,6 @@ class HowThePiecesMove:
                         elif kind in self.seen and direction in self.seen[kind]:
                             way = self.seen[kind][direction]
                             (way.withheld_unmoved if unmoved else way.withheld).add(times)
-                        if family is not None and attacked(family, position, there, 1 - side):
-                            if is_offered:
-                                self.went_onto_attacked[kind] = self.went_onto_attacked.get(kind, 0) + 1
-                            elif self._goes(kind, direction, times, unmoved):
-                                self.kept_off_attacked[kind] = self.kept_off_attacked.get(kind, 0) + 1
                     else:
                         if held[0] != side:
                             if is_offered:
@@ -155,12 +154,35 @@ class HowThePiecesMove:
                                 self.seen[kind][direction].would_not_take += 1
                         break
                     times += 1
+        if family is not None:
+            self._what_the_offer_keeps_safe(position, square, squares, family)
         # A square offered with a piece on the way to it was leapt to.
         for there in squares:
             direction, times = in_its_frame(side, square, there)
             between = [_square_along(side, square, direction, t) for t in range(1, times)]
             if any(b in position.cells for b in between):
                 self._of(kind, direction).jumped += 1
+
+    def _what_the_offer_keeps_safe(self, position: Position, square: Square, squares: set[Square],
+                                   family: Family) -> None:
+        """The moves her rules give this piece, held against what the game offered: each move leaves some kinds of hers
+        where the other side could take them. A kind left open by moves the game withheld, and by none it offered, is one
+        the game keeps safe. Pins and attacks on it show this without being looked for; a square withheld for a reason of
+        the piece's own (a step it may only take unmoved) leaves nothing of hers newly open and says nothing."""
+        from core.agency.pieces_by_their_kind import _possible, after
+
+        side = position.cells[square][0]
+        if position.turn != side:
+            return
+        for move in _possible(family, position):
+            if move.start != square:
+                continue
+            made = after(family, position, move)
+            left_open = {kind for there, (owner, kind) in made.cells.items()
+                         if owner == side and attacked(family, made, there, 1 - side)}
+            tally = self.went_onto_attacked if move.end in squares else self.kept_off_attacked
+            for kind in left_open:
+                tally[kind] = tally.get(kind, 0) + 1
 
     def _goes(self, kind: str, direction: Direction, times: int, unmoved: bool) -> bool:
         way = self.seen.get(kind, {}).get(direction)
@@ -330,17 +352,25 @@ class HowThePiecesMove:
             return None
 
     def royal(self, kind: str) -> bool:
+        """Whether the game keeps this kind safe: left open by moves it withheld and almost never by moves it offered,
+        and more often than any other kind; or left open by (nearly) every move it refused that the kind's own going
+        does not explain, at least twice."""
         kept_off = self.kept_off_attacked.get(kind, 0)
-        if kept_off >= ROYAL_AFTER and self.went_onto_attacked.get(kind, 0) <= AGAINST_AT_MOST * kept_off:
+        if kept_off >= ROYAL_AFTER and self.went_onto_attacked.get(kind, 0) <= AGAINST_AT_MOST * kept_off and all(
+                other == kind or count < kept_off or self.went_onto_attacked.get(other, 0) > AGAINST_AT_MOST * count
+                for other, count in self.kept_off_attacked.items()):
             return True
-        # Left open by (nearly) every move the game refused for no reason of the kind's own going.
         left_open = self.refused_leaving_open.get(kind, 0)
-        return self.refusals > 0 and left_open >= (1 - AGAINST_AT_MOST) * self.refusals and all(
+        return self.refusals >= ROYAL_AFTER and left_open >= (1 - AGAINST_AT_MOST) * self.refusals and all(
             other == kind or count < left_open for other, count in self.refused_leaving_open.items())
 
-    def family(self) -> Family:
-        """The game as she understands it now."""
-        kinds = {kind: Kind(kind, steps=tuple(self._steps_of(kind)), royal=self.royal(kind),
+    def family(self, *, unseen_go_every_way: bool = False) -> Family:
+        """The game as she understands it now. With ``unseen_go_every_way``, for looking ahead: a kind she has not
+        seen move is taken to go along every line, as far as the way is clear, so a piece of the other side she has not
+        seen move yet is not taken for one that cannot reach her. What it does is checked against the game before she
+        relies on it for a move of her own, and her reading of which kind is royal never uses it."""
+        kinds = {kind: Kind(kind, steps=tuple(self._steps_of(kind) or (
+                                _EVERY_LINE if unseen_go_every_way else ())), royal=self.royal(kind),
                             becomes=tuple(self.becomes.get(kind, ())), crosses_with=self.crosses.get(kind, ""),
                             name=self.names.get(kind, ""))
                  for kind in sorted({k for _s, k in self.start.values()} | set(self.seen))}

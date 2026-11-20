@@ -61,3 +61,21 @@ def test_it_answers_with_the_name_the_window_system_uses():
 
 def test_an_application_named_the_same_either_way_is_unaffected():
     assert _an_application_here("Safari") in {"Safari", ""}
+
+
+def test_an_application_is_found_however_its_name_is_spaced(monkeypatch, tmp_path):
+    """LIVE 20 November 2026: "Open En Croissant and play a game of chess" was planned as a web page, and she went
+    looking for it on sourceforge.net. The application on the machine is called "en-croissant"."""
+    import plistlib
+
+    import core.runtime.watched_goal as watched
+
+    bundle = tmp_path / "en-croissant.app"
+    (bundle / "Contents").mkdir(parents=True)
+    with (bundle / "Contents" / "Info.plist").open("wb") as plist:
+        plistlib.dump({"CFBundleName": "en-croissant"}, plist)
+    monkeypatch.setattr(watched, "_installed_here", lambda only_chosen=False: [bundle])
+    watched._NAMES.clear()
+    assert watched._an_application_here("En Croissant") == "en-croissant"
+    goal = watched.read_watched_goal("Open En Croissant and play a game of chess against Stockfish.")
+    assert goal is not None and goal.target_app == "en-croissant" and not goal.where

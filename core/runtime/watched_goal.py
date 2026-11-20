@@ -704,6 +704,12 @@ def _a_game_here(said: str) -> str:
     return ""
 
 
+def _letters_of(name: str) -> str:
+    """A name as its letters and digits, lower case: what stays the same however it is spaced, hyphenated or
+    capitalised."""
+    return re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
+
+
 def _an_application_here(said: str, *, only_chosen: bool = False) -> str:
     """The installed application this names, or nothing.
 
@@ -741,11 +747,17 @@ def _an_application_here(said: str, *, only_chosen: bool = False) -> str:
     # board. LIVE 2026-08-31. The bundle declares its own name; asking it is
     # the fix, and it works for every application without knowing any of them.
     by_name = _what_they_answer_to(here)
+    # And by its letters and digits alone, as the launcher reads a name (core/capabilities/host_automation.py): LIVE
+    # 20 November 2026 "Open En Croissant and play" was planned as a web page because the application is called
+    # "en-croissant", and "en croissant" is not that until the hyphen and the capital stop counting.
+    by_letters = {_letters_of(name): called for name, called in by_name.items() if _letters_of(name)}
     for take in range(len(words), 0, -1):
         for at in range(0, len(words) - take + 1):
             tried = " ".join(words[at : at + take]).lower()
             if tried in by_name:
                 return by_name[tried]
+            if _letters_of(tried) in by_letters:
+                return by_letters[_letters_of(tried)]
             if not called_it_an_app:
                 continue
             starts = {

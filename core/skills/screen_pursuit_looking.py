@@ -516,7 +516,9 @@ async def wait_for_a_screen_to_look_at(ends_at: float, *, app: str = "") -> bool
                 "I will start the moment that changes."
             )
             told = why
-        await asyncio.sleep(min(max(1.0, left / 60.0), left))
+        # Looked again as often as a person unlocks a screen, not as seldom as the task is long: LIVE 20 November
+        # 2026 a task given 34,024 s looked every 567 s, and missed an unlock by nine minutes.
+        await asyncio.sleep(min(1.0, left))
 
 
 #: Why the last look was refused, for the caller that has to say so. Kept
