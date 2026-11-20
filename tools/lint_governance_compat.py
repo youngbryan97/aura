@@ -45,6 +45,8 @@ ALLOW_LIST = {
     "core/orchestrator/mixins/response_processing.py",
     "core/orchestrator/mixins/tool_execution.py",
     "core/phases/response_generation_unitary.py",
+    # The unitary phase's search of each thing a request names, moved into a mixin of the phase (4e00e7cf5).
+    "core/phases/response_generation_searches.py",
     "core/self_modification/safe_pipeline.py",
     "core/self_modification/self_modification_engine.py",
     "core/self_modification/shadow_ast_healer.py",

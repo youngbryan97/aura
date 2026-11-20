@@ -123,17 +123,31 @@ class TestWorkerSandboxExecution:
         assert result["ok"] is True
         assert result["result"] == 42
 
-    def test_worker_sandbox_blocks_dangerous_imports(self, tmp_path):
+    @pytest.mark.parametrize("effect", ["write_outside", "network", "spawn"])
+    def test_worker_sandbox_refuses_dangerous_effects(self, tmp_path, effect):
+        """The boundary refuses what code does, not which modules it names. Since 17 November 2026 (de1a5f5c8) an
+        import is not refused by its name; the seatbelt boundary refuses a write outside the sandbox's folder, a
+        connection, and a new process."""
         from core.swarm.worker_sandbox import WorkerSandbox
 
-        sandbox = WorkerSandbox(str(tmp_path))
-        result = sandbox.execute_code_sandboxed("import os\nresult = 1", {})
-
+        outside = Path(__file__).resolve().parents[1] / f"SANDBOX_ESCAPE_PROBE_{tmp_path.name}.txt"
+        code = {
+            "write_outside": f"open({str(outside)!r}, 'w').write('x')\nresult = 1",
+            "network": "import socket\nsocket.create_connection(('127.0.0.1', 9), timeout=2)\nresult = 1",
+            "spawn": "import subprocess\nresult = subprocess.run(['/bin/echo', 'hi'], capture_output=True).stdout",
+        }[effect]
+        try:
+            result = WorkerSandbox(str(tmp_path)).execute_code_sandboxed(code, {})
+        finally:
+            escaped = outside.exists()
+            outside.unlink(missing_ok=True)
+        assert not escaped
         assert result["ok"] is False
         assert result["details"]["status"] == "error"
-        # Wording changed with the pure-computation standard library; the
-        # property is that the dangerous import is refused.
-        assert "cannot be imported here" in result["details"].get("traceback", "")
+        assert result["details"].get("sandboxed") is True
+        if effect != "spawn":
+            # Refused by the boundary, not by a closed port or a missing folder.
+            assert "Operation not permitted" in result["details"].get("repr", "")
 
 
 # ════════════════════════════════════════════════════════════════════════
