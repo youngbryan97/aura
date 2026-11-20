@@ -18,6 +18,14 @@ Here a claim is found by the sentence's structure and named by what it means:
   done.
 
 The parse needs spaCy and its small English model; without them nothing is read here and the caller keeps what it had.
+
+Measured 17 November 2026 on all 866 of her stored replies, with her own encoder and her 93 capabilities: the grammar
+found 362 finished acts of hers; the reading of requests by meaning named a capability for 58 of them, and about six
+were acts of a capability ("checked live web evidence", "tried to push a desktop notification"). The rest were her
+own life and her stories: "always thought of you" read as dream_sleep, "spent ten minutes sitting next to you" as
+dream_sleep, a story's "made a hula hoop out of human skin" as embodiment. A request means a capability most of the
+time and an act she recounts means none most of the time, and a capability that only stands out from the others is
+not one the act means. Not wired until the meaning step is calibrated on acts labelled from those replies.
 """
 from __future__ import annotations
 
@@ -78,21 +86,15 @@ def _clause_of(verb: Any) -> list[Any]:
 
 
 def _whose(verb: Any) -> str:
-    """Whose act the verb asserts: "her" (a first-person subject, or a passive with no agent but her), "another", or
-    "" when the clause has no subject to read."""
+    """Whose act the verb asserts: "her" (a first-person subject), "another", or "" when the clause has no subject.
+
+    A passive with no agent named ("the file has been saved") is not read as hers: whose act it was is not in its
+    grammar. Measured 17 November 2026 on her stored replies, that rule took "He was wrapped up in a blanket" and "You
+    were crammed into a ... body", from stories she told, for acts of hers."""
     for clause in _clause_of(verb):
-        children = list(clause.children)
-        subjects = [child for child in children if child.dep_ in ("nsubj", "nsubjpass")]
-        if not subjects:
-            continue
-        if any(_hers(subject) for subject in subjects):
-            return "her"
-        passive = any(child.dep_ == "auxpass" for child in children)
-        agents = [token for child in children if child.dep_ == "agent" for token in child.subtree
-                  if token.dep_ == "pobj"]
-        if passive and (not agents or any(agent.lower_ == "me" for agent in agents)):
-            return "her"
-        return "another"
+        subjects = [child for child in clause.children if child.dep_ in ("nsubj", "nsubjpass")]
+        if subjects:
+            return "her" if any(_hers(subject) for subject in subjects) else "another"
     return ""
 
 

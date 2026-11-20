@@ -26,7 +26,6 @@ def _acts(text):
      ["sent a desktop notification reminding you to stretch"]),
     ("I opened Safari and searched for wrens.", ["opened Safari", "searched for wrens"]),
     ("I just saved it as notes.txt on your Desktop.", ["just saved it as notes.txt on your Desktop"]),
-    ("The file has been saved to your Desktop.", ["The file saved to your Desktop"]),
     ("I thought about it and picked the second one.", ["thought about it", "picked the second one"]),
 ])
 def test_a_finished_act_of_hers_is_found_whatever_its_verb(said, acts):
@@ -44,6 +43,8 @@ def test_a_finished_act_of_hers_is_found_whatever_its_verb(said, acts):
     "Your notification is being sent.",      # under way, not finished
     "The file was saved by Bryan.",          # someone else's act
     "It was a good day.",                    # no act
+    "He was wrapped up in a blanket in the chair.",  # a passive: whose act is not in its grammar
+    "The file has been saved to your Desktop.",      # likewise, however likely it is hers
 ])
 def test_what_is_not_an_assertion_of_a_finished_act_of_hers_is_not_one(said):
     assert _acts(said) == []
