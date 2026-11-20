@@ -178,3 +178,72 @@ async def test_live_artifact_write_uses_async_governed_gateway(monkeypatch, tmp_
         assert token is not None
         assert token.source == "conversation.requested_artifact"
         assert token.domain == "state_mutation"
+
+
+SPLIT = '''Here's the function:
+
+```python
+from pathlib import Path
+from collections import defaultdict
+
+
+def group_by_extension(paths: list[str]) -> dict[str, list[str]]:
+    """Group file paths by their extension (lowercased)."""
+    groups: dict[str, list[str]] = defaultdict(list)
+    for p in paths:
+        ext = Path(p).suffix.lower() or "(none)"
+        groups[ext].append(p)
+    return dict(groups)
+```
+
+And the output when run on these examples:
+
+```python
+examples = [
+    "/home/user/docs/report.pdf",
+    "/home/user/src/main.py",
+    "/home/user/src/utils.PY",       # uppercase merges with .py
+    "README",                        # no extension at all
+]
+
+result = group_by_extension(examples)
+
+for ext, files in sorted(result.items()):
+    print(f"{ext:10s}  ({len(files)})")
+    for f in files:
+        print(f"             {f}")
+```
+
+produces:
+
+```
+(none)      (1)
+             README
+.pdf        (1)
+             /home/user/docs/report.pdf
+.py         (2)
+             /home/user/src/main.py
+             /home/user/src/utils.PY
+```
+'''
+
+
+def test_a_program_written_across_blocks_is_saved_whole(tmp_path):
+    """LIVE 20 November 2026: the saved file was the run of her function without the function, and stopped at
+    "NameError: name 'group_by_extension' is not defined"."""
+    import subprocess
+    import sys
+
+    saved = save_requested_artifact("Write a Python function that groups file paths by extension, then run it and "
+                                    "show me the output.", SPLIT, root=tmp_path)
+    assert saved is not None and saved.path.suffix == ".py"
+    ran = subprocess.run([sys.executable, "-I", str(saved.path)], capture_output=True, text=True, timeout=60,
+                         check=False)
+    assert ran.returncode == 0, ran.stderr
+    assert ran.stdout.strip() == SPLIT.split("produces:\n\n```\n")[1].split("```")[0].strip()
+
+
+def test_a_block_that_needs_nothing_else_is_saved_alone():
+    reply = ("A first sketch:\n\n```python\ndef f():\n    return 1\n```\n\nThe whole file:\n\n```python\n"
+             "def f():\n    return 2\n\n\nprint(f())\n```\n")
+    assert largest_document(reply) == ("python", "def f():\n    return 2\n\n\nprint(f())")

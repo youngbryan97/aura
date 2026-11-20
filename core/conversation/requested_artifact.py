@@ -18,6 +18,8 @@ it says where, because a file the person cannot find has not been delivered.
 
 from __future__ import annotations
 
+import ast
+import builtins
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -112,18 +114,58 @@ def the_file_this_turn_saved() -> dict[str, str]:
 
 
 def largest_document(reply: str) -> tuple[str, str]:
-    """The biggest fenced block in the reply, as (language, body).
+    """The biggest fenced block in the reply, as (language, body), with the blocks of its program it needs.
 
     The biggest, because a reply that shows a snippet and then the whole file
-    should deposit the file.
+    should deposit the file. A Python program written across blocks is one program: LIVE 20 November 2026 her
+    function was one block and the run of it the larger next one, and the file saved from her reply stopped at
+    "NameError: name 'group_by_extension' is not defined". The other Python blocks that define a name the biggest uses
+    and does not define are taken with it, in the reply's order.
     """
-    best_language = ""
-    best_body = ""
-    for match in _FENCE_RE.finditer(str(reply or "")):
-        body = match.group(2).strip()
-        if len(body) > len(best_body):
-            best_language, best_body = match.group(1), body
-    return best_language, best_body
+    blocks = [(match.group(1), match.group(2).strip()) for match in _FENCE_RE.finditer(str(reply or ""))]
+    if not blocks:
+        return "", ""
+    best = max(range(len(blocks)), key=lambda index: len(blocks[index][1]))
+    language, body = blocks[best]
+    if language.lower() not in {"python", "py", "python3"}:
+        return language, body
+    kept = _the_blocks_it_needs(best, [text if kind.lower() == language.lower() else "" for kind, text in blocks])
+    return language, "\n\n\n".join(blocks[index][1] for index in kept)
+
+
+def _names(source: str) -> tuple[set[str], set[str]] | None:
+    """The names a piece of Python binds at its top level and the names it reads; None when it is not Python."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return None
+    bound: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bound.add(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            bound.update((alias.asname or alias.name).split(".")[0] for alias in node.names)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            bound.update(name.id for target in targets for name in ast.walk(target) if isinstance(name, ast.Name))
+    read = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)}
+    return bound, read
+
+
+def _the_blocks_it_needs(main: int, sources: list[str]) -> list[int]:
+    """``main`` and every other block that defines a name the program reads and does not define, in reply order."""
+    names = {index: _names(source) for index, source in enumerate(sources) if source}
+    if names.get(main) is None:
+        return [main]
+    kept = {main}
+    while True:
+        bound = set().union(*(names[index][0] for index in kept))
+        wanted = set().union(*(names[index][1] for index in kept)) - bound - set(dir(builtins))
+        more = {index for index, found in names.items()
+                if index not in kept and found is not None and found[0] & wanted}
+        if not more:
+            return sorted(kept)
+        kept |= more
 
 
 def _document_from_prose(user_message: object, reply: object) -> str | None:

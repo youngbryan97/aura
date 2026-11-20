@@ -5175,6 +5175,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     "DEGRADED ... authored_answer_incomplete:nobody_checked": the reading of whether her tool loop's answer is finished
     was written after the turn had copied the receipt that carries it. It is read first now
     (`tests/test_her_tool_loops_answer_is_read_as_a_reply.py`).
+    Asked again at 12:18 with all of that loaded: code_repl ran, her code reached the person indented, the output she
+    showed is what it prints, the file was saved once, and the proof was missing only the soft live-controls line.
+    The saved file was her run of the function without the function, a NameError, because only the largest block
+    was kept. A Python program written across blocks is saved whole now: the blocks that define a name the largest
+    uses and does not define go with it, in the reply's order (`tests/test_a_reply_that_contains_a_file.py`).
+    That turn took 163 s, 19.6 s of it preparation, against 5.9 s at 07:36: not yet read.
     The conversational amplifier keeps to the turn's clock too.
   - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
     that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,
