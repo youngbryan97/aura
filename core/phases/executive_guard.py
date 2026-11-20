@@ -71,59 +71,48 @@ class ExecutiveGuard:
         """Apply identity alignment to LLM output (Issue 87)."""
         if not text or not text.strip():
             return text, False, []
-        
-        # ISSUE-87: Protect Code Blocks
-        # We don't want to "correct" identity inside a code block
-        # (e.g., if the user asks "How do I write 'I am an AI' in Python?")
-        code_blocks = re.findall(r"```.*?```", text, re.DOTALL)
-        # Placeholder for code blocks
-        temp_text = text
-        for i, block in enumerate(code_blocks):
-            temp_text = temp_text.replace(block, f"__CODE_BLOCK_{i}__")
+        # Code is not read for who she is: "How do I print 'I am an AI' in Python?" is answered with that string.
+        from core.conversation.response_reliability import apply_outside_fenced_code
 
-        violations = []
-        modified = False
-        result = temp_text
-        
+        violations: list = []
+        corrected: list[str] = []
+
         # Every pattern is noticed and reported. Only a false identity is corrected, and only to the fact: "I am
         # ChatGPT" becomes "I am Aura". The rest stays as she said it. "I'm an AI" is true, and the old blending
         # turned it into "your friend, I'm here to help"; "I don't have access to" became "let me look that up",
         # a search nobody ran; and stripping her openings changed the first word her self-prediction is read on.
-        for pattern, label in (*self._compiled_fatal, *self._compiled_soft):
-            match = pattern.search(result)
-            if not match:
-                continue
-            fatal = (pattern, label) in self._compiled_fatal
-            violations.append({"type": "fatal" if fatal else "soft", "label": label, "match": match.group()})
-            self._violation_count += 1
-            if label == "hallucination_violation":
-                result = pattern.sub(_HER_NAME_IN(match.group()), result, count=1)
-                modified = True
-                self._corrections_applied += 1
-                logger.warning("🛡️ EXECUTIVE GUARD: false identity '%s' corrected to her name.", match.group())
-            if fatal:
-                from core.event_bus import get_event_bus
-                bus = get_event_bus()
-                if bus:
-                    bus.publish_threadsafe("core/security/executive_violation", {
-                        "label": label,
-                        "match": match.group(),
-                        "type": "fatal",
-                        "corrected": label == "hallucination_violation",
-                    })
+        def _noticed(prose: str) -> str:
+            for pattern, label in (*self._compiled_fatal, *self._compiled_soft):
+                match = pattern.search(prose)
+                if not match:
+                    continue
+                fatal = (pattern, label) in self._compiled_fatal
+                violations.append({"type": "fatal" if fatal else "soft", "label": label, "match": match.group()})
+                self._violation_count += 1
+                if label == "hallucination_violation":
+                    prose = pattern.sub(_HER_NAME_IN(match.group()), prose, count=1)
+                    corrected.append(match.group())
+                    self._corrections_applied += 1
+                    logger.warning("🛡️ EXECUTIVE GUARD: false identity '%s' corrected to her name.", match.group())
+                if fatal:
+                    from core.event_bus import get_event_bus
+                    bus = get_event_bus()
+                    if bus:
+                        bus.publish_threadsafe("core/security/executive_violation", {
+                            "label": label,
+                            "match": match.group(),
+                            "type": "fatal",
+                            "corrected": label == "hallucination_violation",
+                        })
+            return prose
 
-        # Restore code blocks
-        for i, block in enumerate(code_blocks):
-            result = result.replace(f"__CODE_BLOCK_{i}__", block)
-
-        # ── Pass 3: Final cleanup ──
-        result = result.strip()
-        # Remove double spaces from replacements
-        result = re.sub(r'  +', ' ', result)
-        # Remove leading/trailing whitespace on lines
-        result = '\n'.join(line.strip() for line in result.split('\n'))
-        
-        return result, modified, violations
+        result = apply_outside_fenced_code(text, _noticed)
+        # Nothing else is tidied. A last pass stripped every line and joined runs of spaces, after the code had been
+        # put back: LIVE 20 November 2026 her grouping function reached the person with no indentation, the file
+        # saved from her reply would not compile, and the turn's record called the change "preserved".
+        if not corrected:
+            return text, False, violations
+        return result, True, violations
     
     def get_stats(self) -> dict:
         """Return cumulative violation and correction counts."""

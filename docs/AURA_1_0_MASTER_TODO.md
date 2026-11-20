@@ -5141,6 +5141,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     few example paths and show me the output." had code_repl among the words' capabilities, her meaning chose
     file_operation by "file paths", and only that was offered, so nothing could run. A request her reading takes as
     work on code keeps the runner its words found beside what meaning chose (same test).
+    Typed in again at 07:36 with both fixes loaded: code_repl ran in 311 ms and the turn took 107 s, against 430 s
+    before, with 9.9 s unattributed. Her reply showed the function with no indentation, and the file saved from it
+    would not compile. The identity check between her model and the person stripped every line and joined runs of
+    spaces after it had put the code back, and the turn's record called the change "preserved". The sweep behind
+    65ef38d0c read module functions and missed it, a method. The check now changes nothing but a false name. Three
+    more readers of her reply tidied spacing over all of it on rarer paths: a removed affordance control and her
+    persona style now close gaps with `closed_up`, and the sentence remover keeps every break she wrote
+    (`tests/test_a_reply_keeps_the_shape_of_its_code.py`).
     The conversational amplifier keeps to the turn's clock too.
   - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
     that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,

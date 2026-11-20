@@ -210,10 +210,10 @@ def sanitize_affordance_control_syntax(text: str) -> AffordanceSanitization:
     residual = list(_CONTROL_START_RE.finditer(cleaned))
     cleaned = _CONTROL_START_RE.sub("", cleaned)
     if complete or partial or residual:
-        cleaned = cleaned.replace("⟦", "").replace("⟧", "")
-        cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
-        cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
-        cleaned = re.sub(r"\n[ \t]+", "\n", cleaned)
+        from core.utils.text_after_removal import closed_up
+
+        # The gap a removed control left is closed inside its line; indentation and fenced code stay as written.
+        cleaned = closed_up(cleaned.replace("⟦", "").replace("⟧", ""))
     cleaned = cleaned.strip()
     removed = len(complete) + len(partial) + len(residual)
     return AffordanceSanitization(

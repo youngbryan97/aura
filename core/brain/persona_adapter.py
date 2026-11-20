@@ -625,8 +625,10 @@ class PersonaAdapter:
                     working = replaced
                     applied.append("emotive_intensifier")
 
-        working = re.sub(r"\s+([,!.?])", r"\1", working)
-        working = re.sub(r"[ \t]{2,}", " ", working)
+        # Gaps are closed inside a line only; indentation and fenced code stay as written.
+        from core.utils.text_after_removal import closed_up
+
+        working = closed_up(working)
 
         receipt.styled = working
         receipt.styled_sha256 = _sha256(working)

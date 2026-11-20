@@ -6,6 +6,7 @@ import hashlib
 import logging
 import operator
 import re
+from collections.abc import Callable
 from typing import Any
 
 from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
@@ -638,7 +639,36 @@ META_PATTERNS = [
     r"(?im)^Final Answer:.*$",
 ]
 
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n")
+#: Where one sentence or line ends and the next begins; captured, so a rebuilt reply keeps its own breaks.
+_SENTENCE_BREAK_RE = re.compile(r"((?<=[.!?])\s+|\n)")
+
+
+def _each_sentence_judged(text: str, judged: Callable[[str], str | None]) -> str:
+    """Her reply with each sentence of its prose as ``judged`` returns it, None taking the sentence out, and every
+    break she wrote kept where it was. Fenced code is not prose and is not read.
+
+    These rebuilds joined what was left with single spaces: a reply with one banned phrase lost every line break it
+    had, and the code in it lost its indentation. A sentence taken out takes its own break with it, and a line break
+    it ended on passes to the sentence before it, so a list keeps its lines.
+    """
+    from core.conversation.response_reliability import apply_outside_fenced_code
+
+    def _rebuilt(prose: str) -> str:
+        parts = _SENTENCE_BREAK_RE.split(prose)
+        kept: list[list[str]] = []
+        changed = False
+        for sentence, ending in zip(parts[0::2], [*parts[1::2], ""], strict=True):
+            now = judged(sentence) if sentence.strip() else sentence
+            if now is None:
+                changed = True
+                if "\n" in ending and kept and "\n" not in kept[-1][1]:
+                    kept[-1][1] = ending
+                continue
+            changed = changed or now != sentence
+            kept.append([now, ending])
+        return "".join(sentence + ending for sentence, ending in kept).strip() if changed else prose
+
+    return apply_outside_fenced_code(text, _rebuilt)
 
 
 def _remove_whole_sentences(text: str, pattern: str) -> str:
@@ -661,15 +691,7 @@ def _remove_whole_sentences(text: str, pattern: str) -> str:
     if not compiled.search(text):
         return text
 
-    kept: list[str] = []
-    for chunk in _SENTENCE_SPLIT_RE.split(text):
-        if chunk is None:
-            continue
-        if chunk.strip() and compiled.search(chunk):
-            continue
-        kept.append(chunk)
-    rebuilt = " ".join(part for part in kept if part is not None).strip()
-    return re.sub(r"[ \t]{2,}", " ", rebuilt)
+    return _each_sentence_judged(text, lambda sentence: None if compiled.search(sentence) else sentence)
 
 
 #: A telemetry value is a short token run, not prose. Ten words is comfortably
@@ -881,26 +903,19 @@ def _drop_register_boilerplate(text: str) -> str:
     if not combined.search(text):
         return text
 
-    kept: list[str] = []
-    for chunk in _SENTENCE_SPLIT_RE.split(text):
-        if chunk is None:
-            continue
-        if not chunk.strip():
-            kept.append(chunk)
-            continue
-        found = combined.search(chunk)
+    def _judged(sentence: str) -> str | None:
+        found = combined.search(sentence)
         if found is None:
-            kept.append(chunk)
-            continue
-        if chunk[: found.start()].strip():
+            return sentence
+        if sentence[: found.start()].strip():
             # Boilerplate inside a sentence. The sentence goes whole.
-            continue
-        rest = chunk[found.end() :].lstrip(" ,;:!?-\u2014\u2013").strip()
+            return None
+        rest = sentence[found.end() :].lstrip(" ,;:!?-\u2014\u2013").strip()
         if not any(letter.isalpha() for letter in rest):
-            continue
-        kept.append(rest[0].upper() + rest[1:])
-    rebuilt = " ".join(part for part in kept if part is not None).strip()
-    return re.sub(r"[ \t]{2,}", " ", rebuilt)
+            return None
+        return rest[0].upper() + rest[1:]
+
+    return _each_sentence_judged(text, _judged)
 
 
 def cure_personality_leak(text: str) -> str:
