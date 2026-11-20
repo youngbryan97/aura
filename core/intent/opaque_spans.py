@@ -97,9 +97,33 @@ def without_opaque_spans(text: object, *, replacement: str = " ") -> str:
     """The message with its addresses removed.
 
     The replacement is a space rather than nothing, so words either side of a
-    stripped path do not fuse into one that was never written.
+    stripped path do not fuse into one that was never written. A preposition
+    left with no object once its address is gone ("at", "in") goes too.
     """
     body = str(text or "")
     if not body:
         return ""
-    return OPAQUE_SPAN_RE.sub(replacement, body)
+    pieces: list[str] = []
+    gaps: list[int] = []
+    at = 0
+    for match in OPAQUE_SPAN_RE.finditer(body):
+        pieces.append(body[at:match.start()])
+        gaps.append(sum(len(p) for p in pieces))
+        pieces.append(replacement)
+        at = match.end()
+    if not gaps:
+        return body
+    pieces.append(body[at:])
+    stripped = "".join(pieces)
+    # The word that only introduced an address goes with it. LIVE 19 November 2026, once her encoder was warm: "how
+    # are you doing? at /private/tmp/..." was read without the path as "how are you doing? at", and the reader of what
+    # a question is about could no longer place it as about her.
+    try:
+        from core.language.english_grammar import prepositions_left_without_object
+
+        dangling = prepositions_left_without_object(stripped, tuple(gaps))
+    except ImportError:
+        dangling = []  # not a failure: no parser here, and the sentence keeps the word as it did before
+    for start, end in reversed(dangling):
+        stripped = stripped[:start] + replacement + stripped[end:]
+    return stripped

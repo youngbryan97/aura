@@ -218,6 +218,7 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
     from core.cognition.evidence_relevance import prewarm_evidence_relevance
     from core.consciousness.unified_self import get_unified_self
     from core.conversation.asks_about_the_world import prewarm_what_questions_are_about
+    from core.language.english_grammar import prewarm_english_grammar
     from core.language.search_request import prewarm_search_requests
     from core.memory.embedding_runtime import prewarm_shared_embedding_runtime
     from core.memory.profile_manager import ProfileManager
@@ -263,16 +264,16 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
             ),
             ("profile", "unified_self", "embedding", "foreground_services"),
         )
-        projection, evidence_routing, _capability_meanings, _about_whom, _finds_out = await _complete_named_stage(
+        projection, evidence_routing, _capability_meanings, _about_whom, _finds_out, _grammar = await _complete_named_stage(
             "semantic_projection",
             (
                 asyncio.to_thread(build_self_condition_projection),
                 asyncio.to_thread(prewarm_evidence_relevance),
                 # After the embedding model (the stage above), or the first turn read by meaning pays for each of these.
                 asyncio.to_thread(prewarm_capability_meanings), asyncio.to_thread(prewarm_what_questions_are_about),
-                asyncio.to_thread(prewarm_search_requests),
+                asyncio.to_thread(prewarm_search_requests), asyncio.to_thread(prewarm_english_grammar),
             ),
-            ("self_condition", "evidence_relevance", "capability_meanings", "about_whom", "finds_out"),
+            ("self_condition", "evidence_relevance", "capability_meanings", "about_whom", "finds_out", "grammar"),
         )
         if not getattr(projection, "evidence_id", ""):
             raise RuntimeError("self-condition warmup produced no evidence identity")

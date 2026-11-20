@@ -126,12 +126,22 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: The same day, F16 semantic repair: the plan its probe reads is written and its
 #: record cleared through the gateway (two governed calls), and the probe appends
 #: what it saw with one raw write: 2,046.
-TOTAL_CEILING = 2046
+#: 17-19 November, F16 commits that raised the baseline without a note here (main
+#: red until 19 November): probation keeps her recent turns and real calls and
+#: starts an outside comparison through the gateways (gaps_she_names,
+#: her_goal_at_work, her_turns_on_probation, improving_by_measurement,
+#: measuring_her_on_probation, the_outside_bar, her_real_calls, forcing_session,
+#: capability_by_meaning.forget: seventeen governed calls), and code_repl lost
+#: two: 2,061.
+TOTAL_CEILING = 2061
 #: The document converter's private input uses a governed byte write.
 #: The two agency constructors no longer create directories.
 #: F16's probe runs inside the instrumented test process in her workspace, outside
 #: her runtime's governance, and appends its record with a raw write: 745.
-RAW_CEILING = 745
+#: The forcing session's pytest plugin (core/self_modification/forcing_session.py,
+#: pytest_runtestloop) runs in the same kind of test process and writes its
+#: record raw: 746.
+RAW_CEILING = 746
 
 
 def _split() -> tuple[int, int]:

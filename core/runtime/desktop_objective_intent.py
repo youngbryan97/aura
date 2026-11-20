@@ -428,6 +428,23 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     text = normalize_memory_intent_text(user_message).lower()
     if not text:
         return False
+    # Whether she is asked to do anything comes before what it would be done to. Every recogniser below finds a
+    # WHAT (a game, an app, a page, a goal to keep at), and naming one is not asking her to act on it. LIVE 19
+    # November 2026: "I think you got 2048 in 968 moves. What are the chances that I can beat you what you got?"
+    # opened 2048 and she started playing; the goal recogniser found the game in a remark. The grammar of who is to
+    # act settles it (core/language/what_she_is_asked_to_do.py): only the sentences that ask her are read for what.
+    try:
+        from core.language.what_she_is_asked_to_do import the_sentences_that_ask_her
+
+        asked = the_sentences_that_ask_her(user_message)
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        asked = None  # not a failure: unread, the recognisers below decide as they did before this
+    if asked is not None:
+        if not asked:
+            return False
+        asked_text = " ".join(asked)
+        if normalize_memory_intent_text(asked_text).lower() != text:
+            return looks_like_desktop_objective(asked_text)
     # The catalogue owns artifact work. Screen verbs in a compound request
     # must not let the generic desktop shortcut discard that capability.
     from core.container import ServiceContainer
