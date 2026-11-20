@@ -73,3 +73,25 @@ def test_code_guardian_reports_runner_launch_error(tmp_path: Path):
     assert report.success is False
     assert "Ruff execution error" in report.error_message
     assert len(calls) == 1
+
+
+def test_ruff_looks_for_syntax_errors_and_undefined_names_and_not_for_style(tmp_path: Path):
+    """LIVE 20 November 2026: her idle sandbox probe was refused for the order of its one import (I001)."""
+    from core.executive.bounded_sandbox_policy import IDLE_SANDBOX_PROBE_SCRIPT
+
+    def ruff_only(command: tuple[str, ...], timeout_s: float) -> ManagedCommandResult:
+        import subprocess
+
+        if command[1] != "check":
+            return _result(command)  # the type check is not what this measures
+        ran = subprocess.run(list(command), capture_output=True, text=True, timeout=timeout_s, check=False)
+        return ManagedCommandResult(command, ran.returncode, ran.stdout, ran.stderr, 0.01)
+
+    cases = {"probe.py": (IDLE_SANDBOX_PROBE_SCRIPT, True),
+             "unsorted.py": ("import sys\nimport os\nprint(os.sep, sys.platform)\n", True),
+             "undefined.py": ("print(group_by_extension([]))\n", False),
+             "broken.py": ("def f(:\n    pass\n", False)}
+    for name, (source, passes) in cases.items():
+        path = tmp_path / name
+        path.write_text(source, encoding="utf-8")
+        assert CodeGuardian.validate_code(path, command_runner=ruff_only).success is passes, name

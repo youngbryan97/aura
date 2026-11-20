@@ -1121,6 +1121,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   arguments merged with the lease and who is present) as if it were the call, so the exact-arguments check failed.
   The gateway now hands her will the arguments under `authority_arguments`, as her capability engine already did,
   and her will rates the call by them (same test).
+  At 13:19 on that build her will approved it, and CodeGuardian refused the script for the order of its one
+  import (I001), reported as "Syntax or NameError detected by Ruff": the Ruff pass named no rules and took them
+  from whatever configuration lay above the file. It looks for syntax errors and undefined names only now
+  (`tests/test_code_guardian_hardening.py`).
   The same day: 1,948 "Kernel phase latency exceeded budget" warnings and 168 "Background phase ... was cancelled"
   in her logs. A cancelled background phase's time is how long it waited before it was stopped, so it is no longer
   called slow (info, marked cancelled), and the cancellation line now carries the canceller's reason, which none of

@@ -32,6 +32,13 @@ class ValidationReport:
     mypy_output: str | None = None
     error_message: str | None = None
 
+#: What the Ruff pass looks for, and only that: syntax errors and names that are not defined (E9, F63, F7, F82, the
+#: critical set her own lint gate runs). With no rules named, Ruff took them from whatever configuration lay above the
+#: file: LIVE 20 November 2026 her idle sandbox probe was refused for the order of its one import (I001), "Syntax or
+#: NameError detected by Ruff", and never ran.
+RUFF_FINDS = ("--isolated", "--select", "E9,F63,F7,F82")
+
+
 class CodeGuardian:
     """
     Aura's QA Sandbox. Runs Ruff and Mypy on generated Python code.
@@ -60,7 +67,7 @@ class CodeGuardian:
         ruff_path = cls._get_bin_path("ruff")
         logger.info("🛡️ CodeGuardian: Running %s on %s", ruff_path, filepath.name)
         try:
-            ruff_res = cls._run_command((ruff_path, "check", str(filepath)), 10.0, command_runner)
+            ruff_res = cls._run_command((ruff_path, "check", *RUFF_FINDS, str(filepath)), 10.0, command_runner)
             if ruff_res.timed_out:
                 return ValidationReport(success=False, error_message="Ruff check timed out.")
             if not ruff_res.ok:
