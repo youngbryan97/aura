@@ -38,11 +38,13 @@ from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
 
 __all__ = [
+    "STAGES",
     "latency_by_component",
     "TurnReceipt",
     "recording_turn",
@@ -50,6 +52,8 @@ __all__ = [
     "record_response_path",
     "record_latency",
     "record_model_generation",
+    "record_reached",
+    "record_stopped",
     "current_receipt",
     "recent_receipts",
     "reset_turn_receipts_for_test",
@@ -88,6 +92,11 @@ class TurnReceipt:
     #: Each recorded span as (component, began, ended) on the wall clock, so that work inside a wait is not counted
     #: twice: see `_net_of_work`.
     spans: list[tuple[str, float, float]] = field(default_factory=list)
+    #: How far her answer got, each stage with the seconds from the turn's start when it was first reached (STAGES).
+    #: A stage nobody recorded on this turn's route is absent.
+    reached: dict[str, float] = field(default_factory=dict)
+    #: Why a turn that served no answer stopped, in the runtime's own word for it; "" when it served one.
+    stopped: str = ""
 
     @property
     def full_pipeline_ran(self) -> bool:
@@ -128,6 +137,8 @@ class TurnReceipt:
             "latency_s": {name: round(seconds, 4) for name, seconds in self.latency_s.items()},
             "latency_samples": dict(self.latency_samples),
             "unattributed_s": self.unattributed_s,
+            "reached": {stage: round(seconds, 4) for stage, seconds in self.reached.items()},
+            "stopped": self.stopped,
             "notes": list(self.notes),
         }
 
@@ -194,6 +205,7 @@ def recording_turn(
             if len(_RECENT) > _RECENT_LIMIT:
                 del _RECENT[: len(_RECENT) - _RECENT_LIMIT]
         _say_where_the_time_went(receipt)
+        _kept(receipt)
 
 
 #: Spans of work, each measured by what did it, against spans around work: queue, delivery, and the preparation of what
@@ -242,9 +254,62 @@ def _say_where_the_time_went(receipt: TurnReceipt) -> None:
         return
     measured = " ".join(f"{name}={receipt.latency_s[name]:.2f}s" for name in sorted(receipt.latency_s))
     unmeasured = ",".join(sorted(LATENCY_COMPONENTS - set(receipt.latency_s))) or "none"
-    logger.info("⏱️ turn %s (%s) took %.2fs: %s; unattributed %.2fs; unmeasured: %s", receipt.turn_id[:12],
-                receipt.response_path, total, measured or "nothing measured", receipt.unattributed_s or 0.0,
-                unmeasured)
+    reached = " ".join(f"{stage}@{receipt.reached[stage]:.1f}s" for stage in STAGES if stage in receipt.reached)
+    logger.info("⏱️ turn %s (%s) took %.2fs: %s; unattributed %.2fs; unmeasured: %s; reached: %s%s",
+                receipt.turn_id[:12], receipt.response_path, total, measured or "nothing measured",
+                receipt.unattributed_s or 0.0, unmeasured, reached or "nothing recorded",
+                f"; stopped: {receipt.stopped}" if receipt.stopped else "")
+
+
+#: How far a turn's answer got, in order (Master Todo U07-11). An outside review of 19 November 2026 asked that reasoning
+#: and delivery not be one variable: of the first outside benchmark's 20 missed questions, 17 ended with no usable
+#: answer, so the score measured whether an answer reached the end as much as whether it was right.
+#: drafted: her model's reply came back with text. checked: it passed her stabilizer. committed: the conversation kept
+#: it. delivered: the route served it.
+STAGES = ("drafted", "checked", "committed", "delivered")
+
+
+def record_reached(stage: str) -> None:
+    """Mark the first time this turn's answer reached ``stage``."""
+    receipt = _CURRENT.get()
+    if receipt is not None and stage in STAGES and stage not in receipt.reached:
+        receipt.reached[stage] = max(0.0, time.time() - receipt.started_at)
+
+
+def record_stopped(cause: str) -> None:
+    """Why this turn served no answer, in the runtime's own word for it (its served status)."""
+    receipt = _CURRENT.get()
+    if receipt is not None and str(cause or "").strip():
+        receipt.stopped = str(cause).strip()[:120]
+
+
+def kept_receipts_path() -> Path:
+    from core.config import config
+
+    return Path(config.paths.data_dir) / "runtime" / "turn_receipts.jsonl"
+
+
+def _kept(receipt: TurnReceipt) -> None:
+    """The finished receipt, one line in her runtime's record, written behind the turn and never on it.
+
+    In memory only the last 64 were kept, and a restart lost them, so nothing measured delivery across days.
+    """
+    if not receipt.phases_executed and not receipt.latency_s and not receipt.reached:
+        return
+    try:
+        import json
+
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import append_text_behind
+
+        line = json.dumps({**receipt.as_dict(), "started_at": receipt.started_at}, sort_keys=True) + "\n"
+        with local_internal_governed_scope("turn_receipt", domain="file_write", receipt_prefix="turn-receipt",
+                                           constraints={"artifact": "aura.turn_receipt.v1", "operation": "append"}):
+            append_text_behind(kept_receipts_path(), line, source="turn_receipt")
+    except Exception as exc:  # noqa: BLE001 - a receipt not kept is recorded, and the turn is not touched
+        from core.runtime.errors import record_degradation
+
+        record_degradation("turn_receipt", exc, severity="info", action="kept this turn's receipt in memory only")
 
 
 def record_phase(name: str) -> None:

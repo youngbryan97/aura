@@ -99,6 +99,7 @@ from core.utils.completed_capability import make_completed_capability_evidence
 from core.utils.injected_blocks import is_stamped_runtime_payload, stamp_runtime_payload
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.task_tracker import get_task_tracker
+from core.verify.turn_receipt import record_reached
 from interface.auth import (
     CHEAT_CODE_COOKIE_NAME,
     CHEAT_CODE_COOKIE_TTL_SECS,
@@ -7744,6 +7745,8 @@ async def _api_chat_turn_part_12(_delivery_timing, _final_reply, _final_status, 
     _delivery_timing["persistence_ms"] = (
         time.monotonic() - _persistence_started_at
     ) * 1000.0
+    if str(_final_reply or "").strip():
+        record_reached("committed")
 
     _receipt_started_at = time.monotonic()
     await _emit_chat_output_receipt(
@@ -9742,6 +9745,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 _cognitive_reply_returned_at = time.monotonic()
                 if reply_text:
+                    record_reached("drafted")
                     reply_text = _repair_required_search_reply_provenance(
                         reply_text,
                         desktop_required_search_evidence,
@@ -10464,6 +10468,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _delivery_timing["stabilizer_ms"] = (
             time.monotonic() - _delivery_stage_started_at
         ) * 1000.0
+        if str(reply_text or "").strip():
+            record_reached("checked")
         if _grounded_recall_context and not _qualified_exact_delivery:
             from core.conversation.grounded_recall import (
                 grounded_quote_from_context,

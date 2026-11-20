@@ -80,11 +80,12 @@ def _mark_http_turn_served(outcome: Any, response: Any) -> None:
         return
     try:
         payload = getattr(response, "body", None)
-        served = ""
+        served, status = "", ""
         if payload is not None:
             data = json.loads(payload)
             if isinstance(data, dict):
                 served = str(data.get("response") or "")
+                status = str(data.get("status") or "")
                 live_contract = data.get("live_turn_contract")
                 if isinstance(live_contract, dict):
                     outcome.record_receipt(
@@ -119,8 +120,21 @@ def _mark_http_turn_served(outcome: Any, response: Any) -> None:
             from core.runtime.turn_outcome import UserVisibleState
 
             outcome.mark_served("", state=UserVisibleState.NOTHING_SERVED)
+        _how_far_it_got(served, status or str(getattr(response, "status_code", "") or ""))
     except (_CHAT_RECOVERABLE_ERRORS, json.JSONDecodeError) as exc:
         record_degradation("chat.turn_outcome", exc, severity="info")
+
+
+def _how_far_it_got(served: str, status: str) -> None:
+    """Her answer delivered, on the turn's receipt; or, where what was served is not her answer, why the turn stopped.
+    The runtime's own account of a failure is served text and not an answer (U07-11)."""
+    from core.conversation.reply_provenance import ReplyProvenance, declared_provenance
+    from core.verify.turn_receipt import record_reached, record_stopped
+
+    if served.strip() and declared_provenance(served) != ReplyProvenance.HONEST_FAILURE.value:
+        record_reached("delivered")
+    else:
+        record_stopped(status or ("nothing_served" if not served.strip() else ReplyProvenance.HONEST_FAILURE.value))
 
 
 def _runtime_shutdown_response(

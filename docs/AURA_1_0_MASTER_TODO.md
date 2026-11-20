@@ -5188,6 +5188,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     it reached the gate, so while it prepared, her goal pass finished the generation it had running and began a
     5,270-token one, stopped 12 s after the turn asked, mid-prefill. A typed turn is a live turn from its reservation
     now, as a voice turn was from its first word (`tests/test_a_typed_turn_is_a_live_turn.py`).
+    Again at 13:15 on that build: 132.6 s, preparation 10.0 s, queue 7.4 s, no background generation to stop, and
+    the saved program ran and printed what her reply showed.
+  - 20 November (U07-11): each turn's receipt says how far its answer got (drafted, checked, committed,
+    delivered, each with its seconds from the turn's start) and, where what was served is not her answer, why
+    it stopped in the runtime's own word. Finished receipts are kept, one line a turn, in
+    `data/runtime/turn_receipts.jsonl`, written behind the turn; `tools/delivery_metrics.py` counts them apart
+    (`tests/test_how_far_her_answers_get.py`). Not yet read over a day of her turns.
     The conversational amplifier keeps to the turn's clock too.
   - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
     that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,
