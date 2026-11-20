@@ -33,7 +33,9 @@ _CODE_WORK = (
     "Make this JavaScript function async.",
     "Add type hints to this module.",
 )
-#: About the world, in words that name a language or a tool: what a search answers, not what code computes.
+#: About the world, in words that name a language or a tool: what a search answers, not what code computes. And a code
+#: that opens, addresses or names something, which is no program: LIVE 19 November 2026, "What is the locker code for
+#: the Brimvaltor depot?" read as work on code, and a second candidate answer was written and checked on the web.
 _ABOUT_THE_WORLD = (
     "What's the newest version of Java?",
     "When was Python first released?",
@@ -45,6 +47,11 @@ _ABOUT_THE_WORLD = (
     "Look up the release date of Node 24.",
     "What does a GitHub Copilot subscription cost now?",
     "Search for the latest news about the Go language.",
+    "What's the door code for the back office?",
+    "What is the area code for Chicago?",
+    "Which postal code is this address in?",
+    "What is the airport code for Lisbon?",
+    "Do you remember the alarm code I gave you?",
 )
 
 _SURFACE: list[Any] = []

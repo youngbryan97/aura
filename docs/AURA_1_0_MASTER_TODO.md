@@ -5163,7 +5163,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     remember had been kept in her corpus titled by its query, so the person's words stood as the title of a page;
     nine kept searches were titled that way, all from requests to remember. A kept search is now read back titled by
     the pages it cites and without its query, which corrects those nine as they are read, and is kept that way from
-    now on (`tests/test_a_kept_search_is_titled_by_what_it_read.py`).
+    now on (`tests/test_a_kept_search_is_titled_by_what_it_read.py`). Asked again after another restart she
+    answered 6182 with no source given. That turn still took 56 s: her reading of whether a request is work on code
+    read "locker code" as code, so the amplifier wrote a second answer and checked it on the web. A code that opens,
+    addresses or names something is declared on the side of the world now, and on her encoder the held-out "locker
+    code", "zip code" and "gate code" questions read as about the world while every held-out request for work on code
+    still reads as code (`tests/test_a_question_about_a_language_is_not_work_on_code.py`). Its neighbours' run found
+    `test_clean_code_verifies` failing on main: since AMPLIFY-001 (13 November) "verified" needs a check that reached
+    the answer, and the test still asked it of a block that only compiled. It now asks both sides of that rule.
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her

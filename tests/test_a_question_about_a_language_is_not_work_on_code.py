@@ -17,11 +17,16 @@ HELD_OUT_CODE_WORK = [
     "Can you write a Python script that renames every file in a folder?",
     "My Flask route returns a 500 error, here is the traceback, what is wrong?",
     "Convert this loop into a list comprehension.",
+    "Can you review the code in my pull request and point out bugs?",
 ]
 HELD_OUT_ABOUT_THE_WORLD = [
     LIVE,
     "What year did Guido van Rossum step down as Python's leader?",
     "Is Kotlin used more than Java on Android today?",
+    # LIVE 19 November 2026, evening, after a restart: read as work on code by the word "code".
+    "What is the locker code for the Brimvaltor depot?",
+    "What's the zip code for Beverly Hills?",
+    "What is the gate code for the Telgordal depot?",
 ]
 
 

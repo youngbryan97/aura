@@ -97,11 +97,27 @@ async def test_proof_mode_refuses_unverified(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_clean_code_verifies(tmp_path):
-    amp = _amp(_gen("Here is the fix:\n```python\ndef add(a, b):\n    return a + b\n```"), tmp_path)
-    req = AmplificationRequest(objective="write an add function", task_type="code", mode=ReasoningMode.NORMAL)
-    out = await amp.amplify(req)
-    assert out.verified
+async def test_clean_code_is_verified_only_where_a_check_ran_it_on_the_tasks_examples(tmp_path, monkeypatch):
+    """AMPLIFY-001, 13 November 2026: "verified" is said of the text the person gets only where a check reached the answer
+    itself, which for code is running it against examples the task supplied. A block that only compiled ranks candidates
+    and is served, and is not called verified. This test still asked for "verified" of such a block.
+
+    Its own solved-answer cache: the cache's file outlives a test, and another test's verified "write an add function"
+    was served from it as this one's answer."""
+    from core.brain import reasoning_solved_cache
+
+    monkeypatch.setattr(reasoning_solved_cache, "_cache_singleton",
+                        reasoning_solved_cache.ReasoningSolvedCache(path=tmp_path / "solved.json"))
+    answer = "Here is the fix:\n```python\ndef add(a, b):\n    return a + b\n```"
+    compiled = await _amp(_gen(answer), tmp_path / "compiled").amplify(
+        AmplificationRequest(objective="write an add function", task_type="code", mode=ReasoningMode.NORMAL))
+    assert compiled.answer == answer and not compiled.verified
+    examples = [{"name": "mixed signs", "function": "add", "args": [-3, 7], "expected": 4},
+                {"name": "zero", "function": "add", "args": [0, 0], "expected": 0}]
+    run = await _amp(_gen(answer), tmp_path / "run").amplify(
+        AmplificationRequest(objective="write an add function", task_type="code", mode=ReasoningMode.NORMAL,
+                             context={"function_examples": examples}))
+    assert run.verified
 
 
 @pytest.mark.asyncio
