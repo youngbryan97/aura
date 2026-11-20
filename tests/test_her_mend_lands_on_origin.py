@@ -178,7 +178,7 @@ def test_a_mend_replayed_onto_a_moved_origin_is_judged_again_and_refused_there_l
     _someone_else_pushes(other, "NOTES.md", "a note\n")
     before = _origin_main(origin)
     judged: list = []
-    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: (judged.append(commit), "REFUSED")[1])
+    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: (judged.append(commit), ("REFUSED", []))[1])
     done = asyncio.run(mend(_the_fault(), proposals=80, seconds=900))
     assert judged and _origin_main(origin) == before, "nothing landed"
     assert not (done.get("taken") or {}).get("ok"), done
@@ -187,10 +187,61 @@ def test_a_mend_replayed_onto_a_moved_origin_is_judged_again_and_refused_there_l
 def test_a_mend_in_doubt_once_replayed_lands_on_probation(with_origin, monkeypatch):
     origin, _source, other = with_origin
     _someone_else_pushes(other, "NOTES.md", "a note\n")
-    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: "PROBATION")
+    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: ("PROBATION", [_COUNTED_ANOTHER_WAY]))
     done = asyncio.run(mend(_the_fault(), proposals=80, seconds=900))
     assert done["status"] == "merged" and _origin_main(origin) == done["taken"]["commit"]
-    assert goals.load(done["slug"]).offer["on_probation"] is True
+    offer = goals.load(done["slug"]).offer
+    assert offer["on_probation"] is True
+    assert offer["what_it_changed"] == [_COUNTED_ANOTHER_WAY], "what the replayed commit was doubted on, for its guard"
+
+
+#: What the outside check might say of a change: an input it answers differently, counted as a doubt.
+_COUNTED_ANOTHER_WAY = {"function": "planted_pkg/rows.py::count", "input": {"args": {"rows": "[1, 2, 3]"}},
+                        "before": "2", "after": "3", "kind": "another value", "counted": "doubt"}
+
+
+def _kept_after_probation(monkeypatch):
+    """Probation settled on the evidence: the outside benchmarks held and no call of hers reached the change. The guard's
+    own test runs for real; lint and the writing gate are stood in for, as this small repository has no Makefile."""
+    real_gate = goals._run_a_gate
+    monkeypatch.setattr(goals, "_run_a_gate",
+                        lambda argv, *, cwd, env: real_gate(argv, cwd=cwd, env=env) if "pytest" in argv else (True, ""))
+    monkeypatch.setattr(goals, "verdicts_on", lambda _commit, _root: ["HELD"])
+    monkeypatch.setattr(goals, "_tried_on_her_real_calls", lambda standing: {"disposition": "not_observed"})
+
+
+def test_a_mend_kept_after_probation_is_guarded_on_origin_by_what_it_gives_now(with_origin, monkeypatch):
+    """F16: turn a change that survives into a guard test. The input the check doubted is now a test in her source."""
+    origin, source, other = with_origin
+    _someone_else_pushes(other, "NOTES.md", "a note\n")
+    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: ("PROBATION", [_COUNTED_ANOTHER_WAY]))
+    done = asyncio.run(mend(_the_fault(), proposals=80, seconds=900))
+    _kept_after_probation(monkeypatch)
+    settled = goals.settle_probation()
+    assert settled[0]["status"] == "kept after probation", settled
+    guard = settled[0]["guard"]
+    assert guard.get("commit") == _origin_main(origin), guard
+    landed = _git("show", f"{guard['commit']}:{guard['path']}", cwd=source)
+    assert "assert count(rows=[1, 2, 3]) == 3" in landed
+    assert _git("log", "-1", "--format=%an", guard["commit"], cwd=source) == "Aura"
+    assert goals.load(done["slug"]).offer["guard"] == guard
+
+
+def test_a_guard_that_fails_on_origin_as_it_is_now_is_not_landed(with_origin, monkeypatch):
+    """Someone else changed what the change gave while it was on probation: a test of the old answer would be wrong."""
+    origin, _source, other = with_origin
+    _someone_else_pushes(other, "NOTES.md", "a note\n")
+    monkeypatch.setattr(goals, "_judged_again", lambda record, commit: ("PROBATION", [_COUNTED_ANOTHER_WAY]))
+    done = asyncio.run(mend(_the_fault(), proposals=80, seconds=900))
+    _git("pull", "-q", "--rebase", "origin", "main", cwd=other)
+    _someone_else_pushes(other, "planted_pkg/rows.py", _ROWS.replace("return len(rows)", "return len(rows) + 1"))
+    before = _origin_main(origin)
+    _kept_after_probation(monkeypatch)
+    settled = goals.settle_probation()
+    assert settled[0]["status"] == "kept after probation" and _origin_main(origin) == before, "no guard landed"
+    assert "did not pass its test" in settled[0]["guard"]["why"]
+    workspace = goals.load(done["slug"]).workspace
+    assert not list((workspace / "tests").glob("test_what_*_changed_is_guarded.py")), "the failed guard was cleaned away"
 
 
 def test_a_mend_onto_an_unmoved_origin_is_not_judged_twice(with_origin, monkeypatch):

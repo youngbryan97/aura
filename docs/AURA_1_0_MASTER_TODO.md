@@ -8007,7 +8007,14 @@ needs her 27B free (her app down, or her app's own influence trials).
     in the same running, by their seconds outside her model (Mann-Whitney, one-sided, 0.05), and her memory by how fast
     it grows. A finding is kept on her record; the change is taken back only at an order of magnitude, the measure the
     outside check refuses a slowdown by, since one long turn after a landing can reach significance against many short
-    ones. A guard test made from a change that survives is still to build.
+    ones. A change that survives is turned into a guard test, built 19 November. The outside check's verdict keeps each
+    input it saw the change answer differently and counted as a doubt. When probation keeps the change, each one it
+    can write as plain source becomes a test of what the change gives now, written on origin's main as it then is. The
+    test lands, as her own yes lands a draft, only after it passes there with lint and the writing gate, so a later
+    check of that module runs it. A refusal gone is never guarded: the benchmarks ask only valid questions, her real
+    calls cannot be written into her public source, and a deleted guard looks exactly like that. A guard that fails on
+    origin as it is now means her source has since changed that answer, and it does not land
+    (`tests/test_a_change_kept_after_probation_is_guarded.py`, `tests/test_her_mend_lands_on_origin.py`).
   - Return each refusal's counterexample as data (input, before, after, kind), so her repair search can narrow a patch in
     one step instead of reading prose. Built 19 November: the verdict carries `counterexamples`, one per input behind
     a line it counted, with whether it counted as lost or as a doubt; a passing test's call comes as the watch keeps

@@ -3342,6 +3342,14 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/agency/her_goal_at_work.py",
+      "scope": "<module>._guard_what_it_kept"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/her_goal_at_work.py",
       "scope": "<module>._write_now"
     },
     {
@@ -17506,6 +17514,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "3e9a83805119256014c606b99913e6e0b9e46450ee42fd009fcaa43d66f15256",
+  "inventory_sha256": "52da631cf79b8322d0b74b488160e22918eaf388dc1542829cdc20b33193e4fd",
   "schema_version": 1
 }

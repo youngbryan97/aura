@@ -597,7 +597,77 @@ def settle_probation() -> list[dict[str, Any]]:
                       "settled_on": {"benchmarks": verdicts[-1], "real_calls": disposition or "not_applicable",
                                      "cost": costlier["said"] or "nothing beyond chance"}}
     _write_now(standing)
-    return [{"slug": standing.slug, "status": "kept after probation", "why": ""}]
+    try:
+        guarded = _guard_what_it_kept(standing)
+    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+        record_degradation("her_goal_at_work", exc, severity="warning",
+                           action="her change was kept after probation without a guard test")
+        guarded = {"why": f"{type(exc).__name__}: {exc}"[:240]}
+    standing.offer = {**standing.offer, "guard": guarded}
+    _write_now(standing)
+    return [{"slug": standing.slug, "status": "kept after probation", "why": "", "guard": guarded}]
+
+
+def _guard_what_it_kept(standing: GoalRecord) -> dict[str, Any]:
+    """A change kept after probation turned into a guard test in her source: what it gives now, on the inputs the
+    outside check saw it answer differently from the code before it. Returns ``{"path", "commit"}`` when the guard
+    landed, or ``{"why"}``.
+
+    The guard is written on origin's main as it is now, and it lands only after it passes there, with lint and the
+    writing gate, the way her own yes lands a draft. A guard that fails there means her source has since changed what
+    the change gave, and a test of the old answer would be wrong, so it is not landed."""
+    import os
+    import sys
+    import tempfile
+
+    from core.self_modification.what_her_change_must_keep import guarding_test_source, path_of_its_guard
+
+    commit = str(standing.offer.get("commit") or "")
+    source = guarding_test_source(standing.offer.get("what_it_changed") or [], goal=standing.goal, commit=commit)
+    if not source:
+        return {"why": "nothing it answered differently can be written as a test"}
+    root, workspace, path = source_root(), ensure_workspace(standing), path_of_its_guard(standing.slug)
+    has_origin = _git("remote", "get-url", "origin", cwd=root).returncode == 0
+    if has_origin and _git("fetch", "-q", "origin", "main", cwd=root, effect="fetch",
+                           timeout=_ORIGIN_SECONDS).returncode != 0:
+        return {"why": "origin could not be read"}
+    base = "origin/main" if has_origin else _git("rev-parse", "HEAD", cwd=root).stdout.strip()
+    made = _git("checkout", "-B", branch_of(standing.slug), base, cwd=workspace, effect="workspace")
+    if made.returncode != 0:
+        return {"why": f"her workspace could not be set on {base}: {made.stderr.strip()[:240]}"}
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    with local_internal_governed_scope("her_goal_at_work.guard", domain="file_write", receipt_prefix="her-goal-guard",
+                                       constraints={"artifact": "aura.her_goal_guard.v1", "operation": "write"}):
+        get_file_write_gateway().write_text(workspace / path, source, source="her_goal_at_work")
+    env = {**os.environ, "PYTHON": sys.executable, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
+           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    for name, argv in (("its test", ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                                     path]),
+                       ("lint", ["nice", "-n", "10", "make", "lint"]),
+                       ("writing", ["nice", "-n", "10", "make", "writing"])):
+        passed, tail = _run_a_gate(argv, cwd=workspace, env=env)
+        if not passed:
+            _git("clean", "-fq", "--", path, cwd=workspace, effect="workspace")
+            return {"why": f"the guard did not pass {name} on {base}: {tail[-400:]}"}
+    for step in (("add", "--", path),
+                 ("-c", "user.name=Aura", "-c", "user.email=aura@localhost", "commit", "-q", "-m",
+                  f"What my change {commit[:9]} gives now is guarded, kept after probation\n\nGoal: {standing.goal}")):
+        done = _git(*step, cwd=workspace, effect="workspace")
+        if done.returncode != 0:
+            return {"why": f"the guard could not be committed: {done.stderr.strip()[:240]}"}
+    guard = _git("rev-parse", "HEAD", cwd=workspace).stdout.strip()
+    if has_origin:
+        pushed = _git("push", "-q", "origin", f"{guard}:refs/heads/main", cwd=root, effect="push",
+                      timeout=_ORIGIN_SECONDS)
+        if pushed.returncode != 0:
+            return {"why": f"origin did not take the guard: {pushed.stderr.strip()[:240]}"}
+        on_disk = _onto_disk(guard)
+    else:
+        on_disk = _git("merge", "--ff-only", guard, cwd=root, effect="merge").returncode == 0
+    logger.info("🛠️ her change '%s', kept after probation, is guarded by %s (%s)", standing.goal[:60], path, guard[:9])
+    return {"path": path, "commit": guard, "on_disk": on_disk}
 
 
 #: What a try of her real calls came to, as settling reads it. A verdict the check could not reach is not a pass.
@@ -768,6 +838,8 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
             results[name]["verdict"] = str(said.get("verdict") or "")
             if name == "outside-check" and not passed:
                 results[name]["must_keep"] = _what_the_outside_check_says_to_keep(said)
+            elif name == "outside-check" and results[name]["verdict"] == "PROBATION":
+                results[name]["what_it_changed"] = _what_the_outside_check_doubted(said)
         if not passed:
             break
     return results
@@ -802,6 +874,15 @@ def _what_the_outside_check_says_to_keep(said: dict[str, Any]) -> list[dict[str,
     return [one for one in shown if isinstance(one, dict) and keepable(one)] if isinstance(shown, list) else []
 
 
+def _what_the_outside_check_doubted(said: dict[str, Any]) -> list[dict[str, Any]]:
+    """The inputs the outside check saw the change answer differently and counted as a doubt, that a guard can be
+    written of if the change survives probation; [] when it wrote none."""
+    from core.self_modification.what_her_change_must_keep import guardable
+
+    shown = said.get("counterexamples") or []
+    return [one for one in shown if isinstance(one, dict) and guardable(one)] if isinstance(shown, list) else []
+
+
 #: How long a fetch or a push to origin may take, in seconds: the bound her other git calls are given.
 _ORIGIN_SECONDS = 120.0
 
@@ -829,26 +910,28 @@ def _replayed_on_origin(record: GoalRecord, commit: str) -> str | dict[str, Any]
     return _git("rev-parse", "HEAD", cwd=workspace).stdout.strip()
 
 
-def _judged_again(record: GoalRecord, commit: str) -> str:
+def _judged_again(record: GoalRecord, commit: str) -> tuple[str, list[dict[str, Any]]]:
     """The outside check's verdict on ``commit`` in her workspace, as written: HELD, PROBATION, REFUSED, or
-    NOT_APPLICABLE where her source has no outside check. A verdict not written is "" and counts as a doubt."""
+    NOT_APPLICABLE where her source has no outside check, with the inputs it doubted. A verdict not written is "" and
+    counts as a doubt."""
     import os
     import sys
     import tempfile
 
     outside = source_root() / "outside_bar" / "verify_change.py"
     if not outside.exists():
-        return "NOT_APPLICABLE"
+        return "NOT_APPLICABLE", []
     shown = Path(tempfile.mkdtemp(prefix="her-gate-results-")) / "outside-check-again.json"
     env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
            "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
     passed, _tail = _run_a_gate(["nice", "-n", "10", sys.executable, str(outside), "--repo", str(record.workspace),
                                  "--commit", commit, "--result", str(shown)], cwd=record.workspace, env=env)
-    verdict = str(_the_verdict_written(shown).get("verdict") or "")
+    said = _the_verdict_written(shown)
+    verdict = str(said.get("verdict") or "")
     if verdict:
-        return verdict
+        return verdict, _what_the_outside_check_doubted(said) if verdict == "PROBATION" else []
     # No verdict written: a check that failed is not taken to have held, and one that passed without saying is a doubt.
-    return "" if passed else "REFUSED"
+    return ("" if passed else "REFUSED"), []
 
 
 def _onto_origin(record: GoalRecord, commit: str) -> dict[str, Any]:
@@ -868,13 +951,14 @@ def _onto_origin(record: GoalRecord, commit: str) -> dict[str, Any]:
         if fetched.returncode != 0:
             return {"why": f"origin could not be read: {fetched.stderr.strip()[:240]}"}
         doubted_again = False
+        doubted_on: list[dict[str, Any]] = []
         if _git("merge-base", "--is-ancestor", "origin/main", commit, cwd=root).returncode != 0:
             replayed = _replayed_on_origin(record, commit)
             if isinstance(replayed, dict):
                 return replayed
             commit = replayed
             # What lands is the replayed commit, on source the gates never saw: it is judged again before it is pushed.
-            verdict = _judged_again(record, commit)
+            verdict, doubted_on = _judged_again(record, commit)
             if verdict == "REFUSED":
                 return {"why": "her draft, replayed on origin's main, is refused by the outside check there"}
             doubted_again = verdict not in ("HELD", "NOT_APPLICABLE")
@@ -884,7 +968,8 @@ def _onto_origin(record: GoalRecord, commit: str) -> dict[str, Any]:
         pushed = _git("push", "-q", "origin", f"{commit}:refs/heads/main", cwd=root, effect="push",
                       timeout=_ORIGIN_SECONDS)
         if pushed.returncode == 0:
-            return {"landed": commit, **({"doubted_on_replay": True} if doubted_again else {})}
+            return {"landed": commit, **({"doubted_on_replay": True, "what_it_changed": doubted_on}
+                                         if doubted_again else {})}
         refused = pushed.stderr.strip()
     return {"why": f"origin did not take her draft: {refused[:240]}"}
 
@@ -942,6 +1027,12 @@ def approve(slug: str, *, by: str = "Bryan", gates: dict[str, Any] | None = None
     record.offer["on_disk"] = on_disk
     if gates is not None:
         record.offer["gates"] = gates  # the receipt of her own yes: what each gate said
+    # What the outside check saw it answer differently, from the commit that landed: a guard is written of it if it
+    # survives probation.
+    changed = (landed.get("what_it_changed") if landed.get("doubted_on_replay")
+               else ((gates or {}).get("outside-check") or {}).get("what_it_changed"))
+    if changed:
+        record.offer["what_it_changed"] = changed
     _write_now(record)
     logger.info("🛠️ %s took her draft for '%s' (%s)%s%s", by, record.goal[:60], commit[:9],
                 ", on origin" if landed else "", "" if on_disk else "; her disk takes it at the next deploy")

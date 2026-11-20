@@ -9,6 +9,11 @@ as a test, it is a guard her next search must keep, so a try that loses the same
 Only what can be written back as plain source is kept: a call whose arguments are literals, of a function at module
 level, that returned a literal or raised. A call the watch kept only as digests is left out. The inputs come from her
 repository's own tests and the inputs near them, never from her real calls, so the test can land with her change.
+
+A change of hers the check doubted lands on probation, and one that survives it is written the other way round: what
+it gives now, on the inputs where it gave something else before, as a guard for later changes to keep (``guardable``,
+``guarding_test_source``). Those inputs come into every later check of that module, since the check runs the tests that
+name it.
 """
 from __future__ import annotations
 
@@ -18,7 +23,8 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-__all__ = ["keepable", "keeping_test_source", "path_of_what_it_must_keep"]
+__all__ = ["guardable", "guarding_test_source", "keepable", "keeping_test_source", "path_of_its_guard",
+           "path_of_what_it_must_keep"]
 
 
 def _literal(text: Any) -> tuple[bool, Any]:
@@ -40,10 +46,10 @@ def _module_and_function(function: str) -> tuple[str, str] | None:
     return ".".join(parts), qualname
 
 
-def keepable(counterexample: Mapping[str, Any]) -> bool:
-    """Whether a counterexample can be written as a test: counted as lost, readable, a plain call of a module function
-    that came to a literal value or a refusal, with nothing else changed on the way."""
-    if counterexample.get("counted") != "lost" or counterexample.get("as") == "digests":
+def _writable(counterexample: Mapping[str, Any], outcome: str) -> bool:
+    """Whether a counterexample's call, coming to ``outcome``, can be written as plain source: a call of a module
+    function with literal arguments, that came to a literal value or a refusal with nothing else changed on the way."""
+    if counterexample.get("as") == "digests":
         return False
     if _module_and_function(str(counterexample.get("function") or "")) is None:
         return False
@@ -52,59 +58,111 @@ def keepable(counterexample: Mapping[str, Any]) -> bool:
         return False
     if not all(str(name).isidentifier() and _literal(text)[0] for name, text in call["args"].items()):
         return False
-    before = str(counterexample.get("before") or "")
-    if ";" in before:  # it also changed its arguments, its object or what is around it: not one value to keep
+    if ";" in outcome:  # it also changed its arguments, its object or what is around it: not one value to keep
         return False
-    if before.startswith("raised "):
-        return bool(re.match(r"raised [A-Za-z_][A-Za-z0-9_]*", before))
-    return _literal(before)[0]
+    if outcome.startswith("raised "):
+        return bool(re.match(r"raised [A-Za-z_][A-Za-z0-9_]*", outcome))
+    return _literal(outcome)[0]
+
+
+def keepable(counterexample: Mapping[str, Any]) -> bool:
+    """Whether a counterexample can be written as a test of what the code before a refused draft gave: counted as
+    lost, and writable as plain source."""
+    return counterexample.get("counted") == "lost" and _writable(counterexample, str(counterexample.get("before") or ""))
+
+
+#: The differences a change kept after probation is guarded on. A refusal gone is left out. What settles probation is
+#: the outside benchmarks, which ask only valid questions, and her real calls, which cannot be written into her public
+#: source; neither speaks for an input that was refused before, and a deleted guard looks exactly like that (rounds five
+#: and six of the red team). A fault that still happens is not something to keep.
+_GUARDED_KINDS = frozenset({"another value", "now raises", "another refusal"})
+
+
+def guardable(counterexample: Mapping[str, Any]) -> bool:
+    """Whether a counterexample can be written as a guard of what a change kept after probation gives now: counted as
+    a doubt, a difference settling speaks for, and writable as plain source."""
+    return (counterexample.get("counted") == "doubt" and counterexample.get("kind") in _GUARDED_KINDS
+            and _writable(counterexample, str(counterexample.get("after") or "")))
 
 
 def _kind_raised(before: str) -> str:
     return re.match(r"raised ([A-Za-z_][A-Za-z0-9_]*)", before).group(1)  # type: ignore[union-attr]
 
 
+def _safe(slug: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(slug).lower()).strip("_")[:60] or "her_change"
+
+
 def path_of_what_it_must_keep(slug: str) -> str:
     """Where the test of what a goal's change must keep lives in her source."""
-    safe = re.sub(r"[^a-z0-9]+", "_", str(slug).lower()).strip("_")[:60] or "her_change"
-    return f"tests/test_what_{safe}_must_keep.py"
+    return f"tests/test_what_{_safe(slug)}_must_keep.py"
 
 
-def keeping_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: str) -> str:
-    """A test file with one test per input the refused drafts of a goal lost, asserting what the code before them gave;
-    "" when none can be written. Her record keeps every refusal's counterexamples, so the file is written whole each
-    time and a second refusal adds to the first."""
+def path_of_its_guard(slug: str) -> str:
+    """Where the guard of what a goal's change, kept after probation, gives now lives in her source."""
+    return f"tests/test_what_{_safe(slug)}_changed_is_guarded.py"
+
+
+def _tests_of(counterexamples: Iterable[Mapping[str, Any]], *, admits, outcome: str) -> tuple[set[str], list[str]]:
+    """The imports and the test bodies asserting each admitted counterexample's call comes to its ``outcome`` side."""
     calls: list[str] = []
     imports: set[str] = set()
-    seen: set[str] = set()
     for one in counterexamples:
-        if not keepable(one):
+        if not admits(one):
             continue
         module, function = _module_and_function(str(one["function"]))  # type: ignore[misc]
         arguments = ", ".join(f"{name}={text}" for name, text in one["input"]["args"].items())
         call = f"{function}({arguments})"
-        before = str(one["before"])
-        kind = _kind_raised(before) if before.startswith("raised ") else ""
+        value = str(one[outcome])
+        kind = _kind_raised(value) if value.startswith("raised ") else ""
         if kind and isinstance(getattr(builtins, kind, None), type) and issubclass(getattr(builtins, kind), BaseException):
             body = f"    with pytest.raises({kind}):\n        {call}\n"
         elif kind:  # a refusal of the module's own kind, known here only by its name
             body = (f"    with pytest.raises(Exception) as raised:\n        {call}\n"
                     f"    assert type(raised.value).__name__ == {kind!r}\n")
         else:
-            body = f"    assert {call} == {before}\n"
-        if body in seen:
+            body = f"    assert {call} == {value}\n"
+        if body in calls:
             continue
-        seen.add(body)
         imports.add(f"from {module} import {function}")
         calls.append(body)
-    if not calls:
-        return ""
     if any("pytest.raises" in body for body in calls):
         imports.add("import pytest")
-    tests = [f"\n\ndef test_it_keeps_{number}():\n{body}" for number, body in enumerate(calls)]
-    head = (f'"""What a change for this goal of hers must keep: {goal[:100]!s}.\n\n'
+    return imports, calls
+
+
+def _for_a_docstring(goal: str) -> str:
+    """A goal's words, on one line and at most 100 characters, that cannot end the docstring they are put in."""
+    return " ".join(str(goal).split())[:100].replace("\\", "/").replace('"', "'")
+
+
+def _a_test_file(head: str, imports: set[str], calls: list[str], name: str) -> str:
+    if not calls:
+        return ""
+    tests = [f"\n\ndef test_{name}_{number}():\n{body}" for number, body in enumerate(calls)]
+    ordered = sorted(imports, key=lambda line: (not line.startswith("import "), line))
+    return head + "\n".join(ordered) + "\n" + "".join(tests)
+
+
+def keeping_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: str) -> str:
+    """A test file with one test per input the refused drafts of a goal lost, asserting what the code before them gave;
+    "" when none can be written. Her record keeps every refusal's counterexamples, so the file is written whole each
+    time and a second refusal adds to the first."""
+    imports, calls = _tests_of(counterexamples, admits=keepable, outcome="before")
+    head = (f'"""What a change for this goal of hers must keep: {_for_a_docstring(goal)}.\n\n'
             "Each test is an input that worked before a draft of hers and that the outside check counted as lost when it\n"
             "refused the draft (core/self_modification/what_her_change_must_keep.py). Her next try keeps them.\n"
             '"""\n')
-    ordered = sorted(imports, key=lambda line: (not line.startswith("import "), line))
-    return head + "\n".join(ordered) + "\n" + "".join(tests)
+    return _a_test_file(head, imports, calls, "it_keeps")
+
+
+def guarding_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: str, commit: str) -> str:
+    """A test file with one test per input a change kept after probation answers differently from the code before it,
+    asserting what it gives now; "" when none can be written."""
+    imports, calls = _tests_of(counterexamples, admits=guardable, outcome="after")
+    head = (f'"""What her change {commit[:9]} gives now, kept after probation: {_for_a_docstring(goal)}.\n\n'
+            "Each test is an input the outside check saw this change answer differently from the code before it. The\n"
+            "outside benchmarks held with it and nothing she ran showed a loss, so a later change keeps what it gives\n"
+            "(core/self_modification/what_her_change_must_keep.py).\n"
+            '"""\n')
+    return _a_test_file(head, imports, calls, "it_gives")
