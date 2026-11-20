@@ -5176,6 +5176,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     still reads as code (`tests/test_a_question_about_a_language_is_not_work_on_code.py`). Its neighbours' run found
     `test_clean_code_verifies` failing on main: since AMPLIFY-001 (13 November) "verified" needs a check that reached
     the answer, and the test still asked it of a block that only compiled. It now asks both sides of that rule.
+  - What carried the pin in those two answers was the polluted kept search, titled with the request's own words: once
+    kept searches were titled by their pages, asked again after a restart on 20 November she said "The provided
+    evidence does not list a locker code for the Brimvaltor depot", the pin in her ledger. Her desktop replies take
+    readings (core/brain/observable_registry.py), not the retrieval phase her pins were offered to. Her owner's pins
+    are a reading there now: a pin goes beside the question when its nearness in meaning stands out from how near the
+    question is to things a person might keep about anything else, by the margin a capability meant must stand out
+    by. It never stands in for a lookup the question also asks for. On her encoder the locker question finds its pin
+    first, and the Python release question none (`tests/test_what_she_was_asked_to_keep_is_recalled_by_meaning.py`).
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her

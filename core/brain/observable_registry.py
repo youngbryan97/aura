@@ -1024,7 +1024,30 @@ async def _read_lifetime(_prompt: str) -> str:
 # for themselves — the screen matcher wrongly took a clipboard WRITE, and
 # the recall matcher would happily swallow "the first rule in
 # CONTRIBUTING.md" if nobody said otherwise.
+def _matches_kept(_prompt: str) -> bool:
+    """Whether the owner is speaking with something kept: which pin, if any, the question is about is read by meaning,
+    off her loop, when the reading is taken."""
+    from core.memory.what_she_was_asked_to_keep import the_person_speaking_keeps_anything
+
+    return the_person_speaking_keeps_anything()
+
+
+async def _read_kept(prompt: str) -> str:
+    """What the person asked her to keep that this question is about, in their own words, the nearest first."""
+    import asyncio
+
+    from core.intent.capability_by_meaning import STANDS_OUT
+    from core.memory.what_she_was_asked_to_keep import pins_it_asks_about
+
+    found = await asyncio.to_thread(pins_it_asks_about, prompt, stands_out_by=STANDS_OUT)
+    return "\n".join(f"- {pin['content']} (asked {pin['timestamp'][:10]})" for pin in found)
+
+
 _DEFAULT_OBSERVABLES: tuple[Observable, ...] = (
+    # What the person asked her to keep. It stands for what they told her about the world, so it never stands in for a
+    # lookup the question also asks for (her_own_readings_answer), and it says nothing unless a pin is what the
+    # question is about.
+    Observable("kept", "## WHAT THE PERSON ASKED ME TO KEEP", _matches_kept, _read_kept, of_the_world=True),
     Observable(
         "clipboard", "## WHAT IS ON THE CLIPBOARD", _matches_clipboard, _read_clipboard,
         examples=(

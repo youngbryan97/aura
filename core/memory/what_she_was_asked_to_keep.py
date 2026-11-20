@@ -26,7 +26,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["THEIR_SURFACE", "THE_PERSON", "pins_asked_about", "pins_of_the_person_speaking", "where_her_pins_are"]
+__all__ = ["THEIR_SURFACE", "THE_PERSON", "pins_asked_about", "pins_it_asks_about", "pins_of_the_person_speaking",
+           "the_person_speaking_keeps_anything", "where_her_pins_are"]
 
 #: Who is speaking in this request, as the chat route identifies them, and on which surface ("owner" for Bryan's own).
 THE_PERSON: ContextVar[str] = ContextVar("aura_chat_request_principal", default="")
@@ -120,3 +121,55 @@ def pins_asked_about(question: str) -> list[dict[str, Any]]:
              "metadata": {"type": "pinned_by_them", "importance": 0.9, "explicit_memory_request": True,
                           "timestamp": pin["timestamp"], "provenance_source": "user_explicit"}}
             for pin, vector in zip(pins, kept, strict=True)]
+
+
+def the_person_speaking_keeps_anything() -> bool:
+    """Whether the owner is speaking and her pin ledger holds anything: cheap, read on her event loop, no decryption."""
+    if THEIR_SURFACE.get().strip().casefold() != "owner" or not THE_PERSON.get().strip():
+        return False
+    try:
+        return where_her_pins_are().stat().st_size > 0
+    except OSError:
+        return False
+
+
+#: Things a person might ask her to keep, about nothing in particular, against which a pin's nearness to a question is
+#: judged: a pin the question is about stands out from these as a capability meant stands out from the rest.
+_ANYTHING_ELSE = (
+    "my favourite colour is green",
+    "the meeting moved to Thursday at three",
+    "my sister's name is Maya",
+    "the spare key is under the blue flowerpot",
+    "I parked on level four of the garage",
+    "my dentist appointment is next Tuesday at nine",
+    "the plumber is coming on Friday morning",
+    "my shoe size is ten",
+    "my passport expires in March",
+    "the book club is reading Middlemarch this month",
+)
+
+
+def pins_it_asks_about(question: str, *, stands_out_by: float) -> list[dict[str, Any]]:
+    """The owner's pins this question is about, the nearest first: those whose nearness to it in meaning stands out
+    from how near it is to things a person might keep about anything else, by ``stands_out_by`` spreads; her readings
+    pass the margin a capability meant must stand out by (core/intent/capability_by_meaning.py). [] without pins,
+    without her encoder, or when none stands out. Blocking: run it off her event loop.
+
+    LIVE 20 November 2026, typed into her window after a restart: "What is the locker code for the Brimvaltor depot?"
+    was answered "The provided evidence does not list a locker code", with the pin in her ledger. Her desktop replies
+    take readings, not the retrieval phase her pins were offered to (core/brain/observable_registry.py)."""
+    pins = pins_of_the_person_speaking()
+    if not pins or not str(question or "").strip():
+        return []
+    vectors = _by_meaning([str(question), *(pin["content"] for pin in pins), *_ANYTHING_ELSE])
+    if not vectors:
+        return []
+    asked, kept, elsewhere = vectors[0], vectors[1:1 + len(pins)], vectors[1 + len(pins):]
+    background = [_cosine(asked, vector) for vector in elsewhere]
+    mean = sum(background) / len(background)
+    spread = math.sqrt(sum((score - mean) ** 2 for score in background) / len(background)) or 1e-9
+    near = sorted(((_cosine(asked, vector), pin) for pin, vector in zip(pins, kept, strict=True)),
+                  key=lambda pair: -pair[0])
+    return [{**pin, "nearness": round(score, 4), "stands_out": round((score - mean) / spread, 2)}
+            for score, pin in near if (score - mean) / spread >= stands_out_by]
+

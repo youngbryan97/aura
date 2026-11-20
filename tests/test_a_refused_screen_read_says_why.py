@@ -27,7 +27,9 @@ def test_a_refused_screen_read_names_its_cause(monkeypatch):
                        "screen capture refused because private content is visible.")
 
 
-def test_only_the_corpus_and_page_work_stand_for_the_world():
+def test_only_the_corpus_page_work_and_what_a_person_told_her_stand_for_the_world():
+    """What a person asked her to keep is what they told her about the world, so it never stands in for a lookup the
+    question also asks for (20 November 2026, core/memory/what_she_was_asked_to_keep.py)."""
     from core.brain.observable_grounding import OBSERVABLES
 
-    assert {o.name for o in OBSERVABLES if o.of_the_world} == {"corpus", "page_work_after_this_reply"}
+    assert {o.name for o in OBSERVABLES if o.of_the_world} == {"corpus", "page_work_after_this_reply", "kept"}

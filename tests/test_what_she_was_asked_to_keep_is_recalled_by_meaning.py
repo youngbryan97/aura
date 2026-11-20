@@ -13,6 +13,7 @@ import re
 
 import pytest
 
+from core.intent.capability_by_meaning import STANDS_OUT
 from core.memory import what_she_was_asked_to_keep as kept
 from core.memory.session_pin_cipher import SessionPinCipher
 from core.memory.session_pin_ledger import SESSION_PIN_LEDGER_FILENAME
@@ -108,3 +109,60 @@ def test_on_her_encoder_the_cold_restart_question_is_closest_to_its_own_pin(ledg
         kept.THE_PERSON.reset(tokens[0])
         kept.THEIR_SURFACE.reset(tokens[1])
     assert max(offered, key=lambda item: item["score"])["content"].endswith(GATE)
+
+
+# LIVE 20 November 2026, typed into her window after a restart: "What is the locker code for the Brimvaltor depot?" was
+# answered "The provided evidence does not list a locker code", the pin in her ledger. Her desktop replies take
+# readings (core/brain/observable_registry.py), not the retrieval phase above.
+def test_a_question_is_about_the_pins_that_stand_out_and_no_others(ledger, monkeypatch):
+    monkeypatch.setattr(kept, "_by_meaning", _words)
+    tokens = _speaking("owner:bryan", "owner")
+    try:
+        about = kept.pins_it_asks_about("What is the locker code for the Riklumquo depot?", stands_out_by=STANDS_OUT)
+        unrelated = kept.pins_it_asks_about("What's the latest stable release of Python?", stands_out_by=STANDS_OUT)
+    finally:
+        kept.THE_PERSON.reset(tokens[0])
+        kept.THEIR_SURFACE.reset(tokens[1])
+    assert about and about[0]["content"] == LOCKER
+    assert unrelated == []
+
+
+def test_her_desktop_reply_reads_what_she_was_asked_to_keep(ledger, monkeypatch):
+    import asyncio
+
+    from core.brain import observable_registry
+    from core.brain.observable_grounding import her_own_readings_answer
+
+    monkeypatch.setattr(kept, "_by_meaning", _words)
+    asked = "What is the locker code for the Riklumquo depot?"
+    tokens = _speaking("owner:bryan", "owner")
+    try:
+        assert observable_registry._matches_kept(asked)
+        block = asyncio.run(observable_registry._read_kept(asked))
+        assert "kept" not in her_own_readings_answer(asked), "what she was told never stands in for a lookup asked for"
+    finally:
+        kept.THE_PERSON.reset(tokens[0])
+        kept.THEIR_SURFACE.reset(tokens[1])
+    assert block.splitlines()[0].startswith(f"- {LOCKER}")
+    guest = _speaking("guest:someone", "guest")
+    try:
+        assert not observable_registry._matches_kept(asked)
+    finally:
+        kept.THE_PERSON.reset(guest[0])
+        kept.THEIR_SURFACE.reset(guest[1])
+
+
+@pytest.mark.model
+def test_on_her_encoder_only_the_pin_asked_about_stands_out(ledger):
+    if not kept._by_meaning(["probe"]):
+        pytest.skip("her encoder is not available here")
+    tokens = _speaking("owner:bryan", "owner")
+    try:
+        about = kept.pins_it_asks_about("What is the locker code for the Riklumquo depot?", stands_out_by=STANDS_OUT)
+        unrelated = kept.pins_it_asks_about("Can you look up what the latest stable release of Python is right now?",
+                                            stands_out_by=STANDS_OUT)
+    finally:
+        kept.THE_PERSON.reset(tokens[0])
+        kept.THEIR_SURFACE.reset(tokens[1])
+    assert about and about[0]["content"] == LOCKER
+    assert unrelated == []
