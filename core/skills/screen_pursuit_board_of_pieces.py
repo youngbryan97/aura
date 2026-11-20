@@ -40,8 +40,14 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     from .screen_pursuit import _tell
     from .screen_pursuit_surface import click_normalized
 
+    from .screen_pursuit_on_a_page import on_her_page
+
     now = time.monotonic()
     if not target_app or now < float(keep.get("board_left_until", 0.0)):
+        return None
+    if on_her_page() is not None:
+        # Her own page is played by her page's own player (core/skills/screen_pursuit_as_it_happens.py), which has a
+        # board of its own to hand over to; the desktop is not touched for it.
         return None
     if now - float(keep.get("board_looked_for_at", -1e9)) < LOOKED_FOR_EVERY_S:
         return None

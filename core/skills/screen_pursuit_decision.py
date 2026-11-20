@@ -1722,6 +1722,9 @@ async def decide_the_next_move(
     # speed and describe it, play silently, or narrate something else
     # entirely, and the loop should read the same in all three cases.
 
+    # The aim and the line as kept: a run on a given policy never weighed its moves, so never bound either name.
+    aim = str(pending.get("aiming_at") or success_when or "")
+    line = plan["held"].approach if plan["held"] is not None else ""
     made = pending["deliberation"]
     named = [option.name for option in getattr(made, "then", ()) or ()] if made else []
     # And where she named no sequence, one taken on the model instead.
@@ -1732,7 +1735,7 @@ async def decide_the_next_move(
     def pick(board: Any, names: Sequence[str]) -> str:
         ahead_now = look_ahead(
             knows.rules, board, list(names),
-            toward=aiming_at, approach=held_line,
+            toward=aim, approach=line,
             budget_s=0.05, world=world, weights=matters.weights(), settles_how_far=False,
         )
         return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""

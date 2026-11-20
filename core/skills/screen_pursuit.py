@@ -1117,7 +1117,27 @@ async def pursue_on_screen(
         # to press keys at (core/skills/screen_pursuit_board_of_pieces.py).
         played = await played_a_board_of_pieces(target_app or anchor.get("app", ""), ends_at, pending)
         if played is not None:
-            seen = {**seen, "board_of_pieces": played}
+            return {**seen, "board_of_pieces": played}
+        # A window of labelled choices that nothing she has pressed has changed: the way on is the control whose words
+        # mean what she was asked (core/skills/screen_pursuit_a_way_on.py), not the arrow keys.
+        from .screen_pursuit_a_way_on import took_a_way_on
+
+        if await took_a_way_on(target_app or anchor.get("app", ""), goal, pending,
+                               nothing_answered=not any((getattr(can_do, "did_something", None) or {}).values()),
+                               seen=seen):
+            return await looked_at_as_it_happens(lambda: observe_the_screen(
+                SimpleNamespace(
+                    anchor=anchor,
+                    at_rest=at_rest,
+                    drawn=drawn,
+                    ends_at=ends_at,
+                    expect_page=expect_page,
+                    lost_page=lost_page,
+                    open_page=open_page,
+                    reading_took=reading_took,
+                    target_app=target_app,
+                ),
+            ))
         return seen
 
     def satisfied(observation: dict[str, Any]) -> bool:
