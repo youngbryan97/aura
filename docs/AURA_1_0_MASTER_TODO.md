@@ -1105,6 +1105,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  20 November: "WILL DEFERRED: subconscious_loop/tool_execution -- permission_model_requires_confirmation", 313
+  times in her logs from 10 November, and her idle sandbox probe never ran once. Its checked-in script read
+  `platform`, which can start a process, so it was rated high, and a high call from her subconscious waits for a
+  confirmation nobody is there to give; the standing grant written for that probe could not help. The probe now
+  only computes and prints, and is rated by its code as any snippet is: medium, which her permission model allows.
+  Any other script keeps the high rating (`tests/test_her_idle_sandbox_probe_can_run.py`).
   16 November, 07:23 local: a critical RUNAWAY on managed memory ("growing
   26559.4/h now", breach in 15 min) refused her consequential work, and the
   total settled four minutes later. Cause unknown: nothing said which process

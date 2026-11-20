@@ -408,7 +408,8 @@ async def test_subconscious_sandbox_lease_is_exact_origin_bound_and_receipted():
         arguments=arguments,
         origin="subconscious_loop",
         effect_scope="sandboxed_compute",
-        risk_level="high",
+        # What the call derives from its checked-in script (tests/test_her_idle_sandbox_probe_can_run.py).
+        risk_level="medium",
     )
     assert (valid, reason) == (True, "standing_authority_lease_valid")
     assert record is not None

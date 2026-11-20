@@ -660,6 +660,17 @@ def classify_execution_risk(
             if name not in {"run_code", "run_python"}:
                 return "high"
         return "critical" if stateful else "high"
+    if name == "subconscious_sandbox_probe":
+        # Her own checked-in probe, bound by its hash, rated by what its code can reach as any snippet is.
+        from core.executive.bounded_sandbox_policy import (
+            IDLE_SANDBOX_PROBE_SCRIPT,
+            validate_idle_sandbox_probe_arguments,
+        )
+        from core.skills.snippet_reach import reach_of
+
+        if validate_idle_sandbox_probe_arguments(arguments)[0] and reach_of(IDLE_SANDBOX_PROBE_SCRIPT).only_computes:
+            return "medium"
+        return "high"
     if name == "auto_refactor":
         if scope == "privileged_mutation":
             return "critical"

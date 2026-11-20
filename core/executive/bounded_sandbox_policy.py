@@ -8,13 +8,14 @@ from collections.abc import Mapping
 from typing import Any
 
 IDLE_SANDBOX_PROBE_PURPOSE = "idle_probe"
+#: A canary: her code runner runs, and says on what. It computes and prints only, so it is rated as a snippet that
+#: computes (core/executive/execution_policy.classify_execution_risk). It read ``platform`` until 20 November 2026,
+#: which can start a process, so it was rated high, needed a confirmation nobody is there to give, and was deferred by
+#: her will 313 times from 10 November without running once.
 IDLE_SANDBOX_PROBE_SCRIPT = """\
-# Autonomous Subconscious Check
-try:
-    import platform
-    print(f"Subconscious ping: Running on {platform.system()} {platform.release()}")
-except (ImportError, AttributeError, RuntimeError) as e:
-    print(f"Subconscious error: {e}")
+# Autonomous Subconscious Check: the code runner runs, and says on what.
+import sys
+print(f"Subconscious ping: Python {sys.version_info.major}.{sys.version_info.minor} on {sys.platform}")
 """
 IDLE_SANDBOX_PROBE_SCRIPT_SHA256 = hashlib.sha256(
     IDLE_SANDBOX_PROBE_SCRIPT.encode("utf-8")
