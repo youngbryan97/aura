@@ -688,6 +688,11 @@ def classify_execution_risk(
         return "medium"
     if name == "self_evolution" and scope == "read_only":
         return "low"
+    if name == "reminder":
+        # One reminder the person asked for, written into her own store: nothing removed, nothing outside it touched.
+        # LIVE 19 November 2026, 23:01: rated high by its read_write_artifacts scope, it was withheld from the turn that
+        # asked "Can you remind me in 20 minutes to stretch my back?", and no reminder was set.
+        return "low"
     if name in _CRITICAL_TOOLS:
         if name == "computer_use" and scope == "read_only":
             return "low"

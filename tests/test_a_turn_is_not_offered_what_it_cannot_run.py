@@ -146,3 +146,22 @@ def test_a_request_for_a_reminder_may_open_what_setting_one_does() -> None:
     from core.skills.reminder import ReminderSkill
 
     assert effect_scope_of("reminder", ReminderSkill) in _REQUESTABLE_SCOPES
+
+
+def test_a_turn_that_asked_for_a_reminder_is_offered_the_reminder(monkeypatch) -> None:
+    """LIVE 19 November 2026, 23:01, after the scope was read as the dispatch reads it: the ceiling rose to
+    read_write_artifacts and the reminder was withheld again, rated high by that scope for a confirmation the turn
+    could not ask for."""
+    from types import SimpleNamespace
+
+    from core.container import ServiceContainer
+    from core.executive.execution_policy import classify_execution_risk
+    from core.phases.response_contract import _REQUESTED_ARTIFACT_SCOPES
+    from core.skills.reminder import ReminderSkill
+
+    monkeypatch.setattr(ServiceContainer, "get",
+                        lambda name, default=None: SimpleNamespace(skills={"reminder": ReminderSkill})
+                        if name == "capability_engine" else default)
+    assert classify_execution_risk("reminder", {}, effect_scope=ReminderSkill.effect_scope) == "low"
+    kept, withheld = _tools_within_reach({"reminder": 1}, _REQUESTED_ARTIFACT_SCOPES)
+    assert kept == {"reminder": 1} and withheld == ()
