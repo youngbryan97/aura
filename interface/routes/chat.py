@@ -2578,6 +2578,9 @@ def _run_cognitive_engine_chat_turn_preparation_timings(context_bound_at, effect
     if turn_trace is not None:
         turn_trace["pre_engine_preparation"] = dict(preparation_timings)
         turn_trace["pre_engine_final_binding_stages"] = dict(final_binding_stages)
+    from core.verify.turn_receipt import record_latency
+
+    record_latency("preparation", preparation_timings["total_ms"] / 1000.0)
     # Kept for the next turn to read.
     #
     # Asked why turns were slow, she answered from the host reading and then
@@ -7263,6 +7266,9 @@ async def _api_chat_turn__grounded_recall_context(_chat_session_id, _defensive_c
         )
     if _defensive_context and not is_benchmark:
         body.message = f"{_defensive_context}{body.message}"
+    from core.verify.turn_receipt import record_latency
+
+    _preflight_began = time.time()
     _preflight = await _chat_preflight._run_chat_preflight(
         body,
         request,
@@ -7274,6 +7280,7 @@ async def _api_chat_turn__grounded_recall_context(_chat_session_id, _defensive_c
         _grounded_recall_context=_grounded_recall_context,
         raw_user_message=_original_user_message,
     )
+    record_latency("preparation", time.time() - _preflight_began)
     logger.info("Chat preflight timing: %s", dict(_preflight.timing_ms))
     return _grounded_recall_context, _preflight
 

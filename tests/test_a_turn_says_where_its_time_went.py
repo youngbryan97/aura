@@ -26,8 +26,10 @@ def _clean():
     reset_turn_receipts_for_test()
 
 
-def test_the_five_components_and_delivery_are_the_whole_vocabulary() -> None:
-    assert LATENCY_COMPONENTS == {"queue", "retrieval", "prefill", "decode", "tool", "delivery"}
+def test_the_five_components_delivery_and_preparation_are_the_whole_vocabulary() -> None:
+    """Preparation since 20 November 2026: the route's preflight and the binding of her context, which it timed and
+    logged and kept nowhere, so a 45 s turn said 17 s were unattributed."""
+    assert LATENCY_COMPONENTS == {"queue", "retrieval", "prefill", "decode", "tool", "delivery", "preparation"}
 
 
 def test_each_component_is_recorded_by_name_and_accumulates() -> None:
@@ -162,7 +164,7 @@ def test_a_finished_turn_says_its_split_in_her_log(caplog) -> None:
     said = [r.getMessage() for r in caplog.records if "took" in r.getMessage()]
     assert len(said) == 1
     assert "decode=3.50s prefill=1.25s" in said[0]
-    assert "unmeasured: delivery,queue,retrieval,tool" in said[0]
+    assert "unmeasured: delivery,preparation,queue,retrieval,tool" in said[0]
 
 
 def test_her_desktop_turn_records_its_retrieval_and_not_a_tool_twice(monkeypatch) -> None:

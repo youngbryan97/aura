@@ -5188,7 +5188,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     this one, and I did. The locker code for the Brimvaltor depot is 6182." Her check of her own claims then looked
     for that sentence on Wikipedia, in journals and on a newspaper's site for 16 s of the 65 s turn, and found it
     INCONCLUSIVE. A claim that restates what the person asked her to keep, by the same reading by meaning, is founded on
-    their word, which no page holds, and is not looked for on the web (same test).
+    their word, which no page holds, and is not looked for on the web (same test). Checked live after a restart: the
+    claim was not looked for, and the turn took 45 s against 65. Its receipt still said 17.23 s were unattributed: the
+    route timed its preflight (about 4.5 s, 2.7 s of it reading the screen) and the binding of her context (6.8 s),
+    logged both and kept neither. Both are kept as preparation now, counted net of the work recorded inside it, as
+    queue and delivery are (`tests/test_a_turn_counts_the_preparation_of_what_her_model_is_asked.py`).
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her

@@ -196,9 +196,12 @@ def recording_turn(
         _say_where_the_time_went(receipt)
 
 
-#: Spans of work, each measured by what did it, against spans of waiting around work: queue and delivery.
+#: Spans of work, each measured by what did it, against spans around work: queue, delivery, and the preparation of what
+#: her model is asked (the route's preflight and the binding of her context), whose readings are retrieval of their
+#: own. LIVE 20 November 2026 a 45 s turn said "unattributed 17.23s", and the route had timed and logged 11 s of it as
+#: preflight and preparation and kept neither.
 _WORK = frozenset({"prefill", "decode", "tool", "retrieval"})
-_AROUND_WORK = frozenset({"queue", "delivery"})
+_AROUND_WORK = frozenset({"queue", "delivery", "preparation"})
 
 
 def _net_of_work(receipt: TurnReceipt) -> None:
@@ -263,7 +266,7 @@ def record_response_path(path: str, *, model_generation: bool) -> None:
 
 #: The components a turn's latency is split into. A name outside this set is
 #: refused, so the receipt cannot grow a vocabulary nobody reads.
-LATENCY_COMPONENTS = frozenset({"queue", "retrieval", "prefill", "decode", "tool", "delivery"})
+LATENCY_COMPONENTS = frozenset({"queue", "retrieval", "prefill", "decode", "tool", "delivery", "preparation"})
 
 
 def record_latency(component: str, seconds: float, *, ended_at: float | None = None) -> None:
