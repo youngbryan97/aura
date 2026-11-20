@@ -1084,6 +1084,21 @@ def _her_words_are_not_read_by_a_model_on_disk(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _her_reply_is_not_held_against_her_record_by_a_model_on_disk(request, monkeypatch):
+    """Nor is her reply read against her turn's record by one, unless the test is marked ``model``.
+
+    `core.epistemics.what_her_record_refutes` reads a 435M-parameter entailment model from the local cache on any turn
+    whose record has a line in it, and a test that drives her reply path would load it beside her resident 27B. A test
+    that wants a reading passes ``read`` or replaces ``_reader`` itself.
+    """
+    if request.node.get_closest_marker("model") is None:
+        from core.epistemics import what_her_record_refutes
+
+        monkeypatch.setattr(what_her_record_refutes, "_reader", lambda: None)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def hermetic_resource_sandbox(tmp_path_factory):
     # Resource observation is test infrastructure, not test-owned payload. Put
     # it beside pytest's per-test directory so exact-directory transaction

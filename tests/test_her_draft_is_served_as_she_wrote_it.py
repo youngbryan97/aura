@@ -70,7 +70,7 @@ def test_a_reply_cut_off_mid_sentence_ends_at_her_last_finished_sentence(monkeyp
 def test_what_the_record_refuted_reaches_her_next_turn_in_that_conversation_as_a_reading(monkeypatch):
     from interface.routes import chat_reply_repair
 
-    def refutes(_user, text):
+    def refutes(_user, text, _refuted=None):
         asked_module.the_record_says("No file named notes.txt was written this turn.")
         return text.replace(" I saved it to notes.txt.", "")
 

@@ -225,7 +225,7 @@ async def _stabilize_user_facing_reply_part_3(
     )
     return corrected_text, stabilizer_timeout
 
-def _through_the_record(user_message: str, reply_text: Any) -> Any:
+def _through_the_record(user_message: str, reply_text: Any, refuted: Any = None) -> Any:
     """Her reply checked against what the runtime holds: her senses, her machinery, her numbers, her choices, her
     writes, her actions, her receipts. A sentence the record refutes is taken out; what the record says is kept for her
     turn asked again (core/brain/her_turn_as_asked.py), and nothing is written into her reply in her voice."""
@@ -238,8 +238,23 @@ def _through_the_record(user_message: str, reply_text: Any) -> Any:
     reply_text = _correct_unfulfilled_write_claims(reply_text, user_message)
     # After the path check, so a reply that names a missing file is caught by that instrument first; this one catches
     # the completion claims that name no path and reach no lane with receipts.
-    reply_text = _correct_unevidenced_action_claims(reply_text, user_message)
+    reply_text = _correct_unevidenced_action_claims(reply_text, user_message, refuted)
     return _append_past_action_record(user_message, reply_text)
+
+
+async def _through_the_record_off_the_loop(user_message: str, reply_text: Any) -> Any:
+    """``_through_the_record``, with what her turn's record refutes read first on a thread: the reading runs her
+    parser, her encoder and an inference model, and none of them belongs on her event loop."""
+    from core.epistemics.what_her_record_refutes import sentences_her_record_refutes
+
+    refuted = None
+    if str(reply_text or "").strip():
+        try:
+            refuted = await asyncio.to_thread(sentences_her_record_refutes, str(reply_text), str(user_message or ""))
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation("chat.what_her_record_refutes", exc, severity="warning",
+                               action="her reply went out without being held against her record")
+    return _through_the_record(user_message, reply_text, refuted)
 
 
 async def _asked_again_with_the_record(user_message: str, checked: Any, *, desktop_cognitive_engine_required: bool,
@@ -267,7 +282,7 @@ async def _asked_again_with_the_record(user_message: str, checked: Any, *, deskt
         logger.info("Her turn was not asked again with the record (%s); the checked draft stands.", exc)
         return checked
     clear_the_record()
-    second = _through_the_record(user_message, again) if str(again or "").strip() else ""
+    second = await _through_the_record_off_the_loop(user_message, again) if str(again or "").strip() else ""
     if str(second or "").strip() and not what_the_record_says():
         logger.info("Her turn asked again with the record (%d fact(s)); her new draft passed it.", len(record))
         return second
@@ -395,7 +410,7 @@ async def _stabilize_user_facing_reply(
     """
     from core.brain.her_turn_as_asked import carry_the_record_to_the_next_turn
 
-    checked = _what_she_finished(str(_through_the_record(user_message, reply_text) or "").strip())
+    checked = _what_she_finished(str(await _through_the_record_off_the_loop(user_message, reply_text) or "").strip())
     carry_the_record_to_the_next_turn()
     broken = _what_is_not_speech(user_message, checked)
     if not broken:
@@ -413,7 +428,8 @@ async def _stabilize_user_facing_reply(
     logger.info("Her draft is not speech (%s); her turn is asked again as it was asked.", ", ".join(broken))
     again = await _asked_again_as_asked(user_message, desktop_cognitive_engine_required=desktop_cognitive_engine_required,
                                         protected_foreground_lane=protected_foreground_lane)
-    second = _what_she_finished(str(_through_the_record(user_message, again) or "").strip()) if again else ""
+    second = (_what_she_finished(str(await _through_the_record_off_the_loop(user_message, again) or "").strip())
+              if again else "")
     carry_the_record_to_the_next_turn()
     if second and not _what_is_not_speech(user_message, second):
         return second

@@ -51,6 +51,7 @@ __all__ = [
     "bind_turn_evidence_custody",
     "current_turn_evidence_custody",
     "record_turn_capability_availability",
+    "record_turn_tools_offered",
     "record_turn_model_generation",
     "record_turn_grounding",
     "record_turn_transcript",
@@ -58,6 +59,7 @@ __all__ = [
     "record_turn_world_evidence",
     "record_turn_world_source",
     "turn_capability_availability",
+    "turn_tools_offered",
     "turn_model_generations",
     "turn_grounding_evidence",
     "turn_transcript",
@@ -105,6 +107,8 @@ class TurnEvidenceCustody:
         self._sensory_evidence: dict[str, dict[str, Any]] = {}
         self._generations: list[dict[str, Any]] = []
         self._capability_availability: dict[str, dict[str, Any]] = {}
+        #: The tools offered to her model in this turn, in the order they were first offered.
+        self._tools_offered: list[str] = []
         self._closed = False
 
     @property
@@ -398,6 +402,25 @@ class TurnEvidenceCustody:
             self._capability_availability[name] = row
             return True
 
+    def record_tools_offered(self, tools: Any) -> bool:
+        """Keep the tools her model was offered in this turn: what she could have done, beside what she did."""
+        if not self.admits_current_execution():
+            return False
+        with self._lock:
+            if self._closed:
+                return False
+            for tool in tools or ():
+                name = str(tool or "").strip()[:128]
+                if name and name not in self._tools_offered:
+                    self._tools_offered.append(name)
+            return True
+
+    def tools_offered(self) -> tuple[str, ...]:
+        if not self.admits_current_execution():
+            return ()
+        with self._lock:
+            return tuple(self._tools_offered)
+
     def capability_availability(self) -> tuple[dict[str, Any], ...]:
         """Freshness-checkable availability observations for this exact turn."""
 
@@ -532,6 +555,19 @@ def record_turn_capability_availability(
             observed_at=observed_at,
         )
     )
+
+
+def record_turn_tools_offered(tools: Any) -> bool:
+    """Keep the tools her model was offered under the active turn's custody (core/epistemics/what_her_record_refutes.py
+    reads one she did not call as a line of the turn's record)."""
+    custody = current_turn_evidence_custody()
+    return bool(custody and custody.record_tools_offered(tools))
+
+
+def turn_tools_offered() -> tuple[str, ...]:
+    """The tools offered to her model in this exact turn."""
+    custody = current_turn_evidence_custody()
+    return custody.tools_offered() if custody is not None else ()
 
 
 def turn_capability_availability() -> tuple[dict[str, Any], ...]:

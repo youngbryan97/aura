@@ -135,18 +135,17 @@ def test_desktop_lane_records_through_the_durable_receipt_seam() -> None:
     assert "record_verified_effects" in source
 
 
-def test_reply_guard_consults_the_ledger_not_a_lane_local_list() -> None:
-    """The reader end, asserted against the chat module's own source."""
+def test_reply_guard_reads_the_turns_record_not_a_lane_local_list() -> None:
+    """The reader end, asserted against the chat module's own source: the record her reply is held against is the
+    turn's custody (core/epistemics/what_her_record_refutes.py), read off her event loop."""
 
     import inspect
 
     import interface.routes.chat as chat
-
-    guard = inspect.getsource(chat._correct_unevidenced_action_claims)
-    assert "turn_has_verified_effect" in guard
-    assert "find_unevidenced_action_claims" in guard
-
+    from core.epistemics import what_her_record_refutes
     from interface.routes import chat_reply_repair
 
+    assert "turn_tool_receipts()" in inspect.getsource(what_her_record_refutes.sentences_her_record_refutes)
     assert "_through_the_record" in inspect.getsource(chat._stabilize_user_facing_reply)
     assert "_correct_unevidenced_action_claims" in inspect.getsource(chat_reply_repair._through_the_record)
+    assert "sentences_her_record_refutes" in inspect.getsource(chat_reply_repair._through_the_record_off_the_loop)

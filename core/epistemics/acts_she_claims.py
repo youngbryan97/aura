@@ -1,8 +1,8 @@
 """What she says she did, read by its grammar and its meaning, and checked against what this turn's record shows.
 
-core/epistemics/unevidenced_action.py decides whether a sentence claims an act in the world from lists: verbs of
-thinking and speaking, irregular past forms, nouns that name things in the world, patterns for "if" and "would". Each
-live miss added to a list (16 November 2026, "sent", "notification", "reminder" and "alert" after "I've sent a desktop
+core/epistemics/unevidenced_action.py, removed 19 November 2026, decided whether a sentence claimed an act in the world
+from lists: verbs of thinking and speaking, irregular past forms, nouns that name things in the world, patterns for "if"
+and "would". Each live miss added to a list (16 November 2026, "sent", "notification", "reminder" and "alert" after "I've sent a desktop
 notification" passed with nothing sent). A list of words does not know what a sentence says.
 
 Here a claim is found by the sentence's structure and named by what it means:
@@ -25,7 +25,8 @@ were acts of a capability ("checked live web evidence", "tried to push a desktop
 own life and her stories: "always thought of you" read as dream_sleep, "spent ten minutes sitting next to you" as
 dream_sleep, a story's "made a hula hoop out of human skin" as embodiment. A request means a capability most of the
 time and an act she recounts means none most of the time, and a capability that only stands out from the others is
-not one the act means. Not wired until the meaning step is calibrated on acts labelled from those replies.
+not one the act means. Not wired: her reply is read against her record by inference instead
+(core/epistemics/what_her_record_refutes.py), which takes only this module's parser.
 """
 from __future__ import annotations
 

@@ -889,19 +889,22 @@ def _install_effect_and_fact_claims(suite: Any) -> None:
     suite.add_claim(
         Claim(
             statement=(
-                "A reply that reports a finished action on a turn with no verified "
-                "effect receipt is corrected, whichever verb it used."
+                "A sentence of her reply that says what she was asked for has been "
+                "done, on a turn whose record shows nothing asked for came back "
+                "done, is taken out of her reply; read by an inference model, with "
+                "no word, list or category matched."
             ),
-            test="zero_receipt_completion_is_caught_without_any_effect_pattern",
-            owner="core/epistemics/unevidenced_action.py",
-            asserted_in="core/epistemics/unevidenced_action.py",
+            test="what_was_asked_and_not_done_is_refuted_by_her_record",
+            owner="core/epistemics/what_her_record_refutes.py",
+            asserted_in="core/epistemics/what_her_record_refutes.py",
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
-                "Measured on the two live 2026-08-10 failures and constructed "
-                "variants. The check is action-agnostic by complement — the "
-                "excluded mental and speech-act verbs are a closed class — so it "
-                "has no per-effect gap, but its false-positive rate on ordinary "
-                "conversation is measured on fixtures rather than on live traffic."
+                "Measured 19 November 2026 on 34 sentences of 14 constructed turns "
+                "built from her live failures: 29 read right, 2 false completions "
+                "missed, and 3 sentences about what she thought or remembered taken "
+                "out of turns that asked for a file and saved none. Not measured on "
+                "live traffic, and the reader is a 435M-parameter model read from "
+                "the local cache: without it nothing is refuted."
             ),
         )
     )

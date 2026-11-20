@@ -397,6 +397,8 @@ _EXPERIMENTS_WITH_THEIR_OWN_TEST = {
     # Owned by tests/test_untrusted_python_sandbox.py, which runs it under the
     # kernel boundary off the boot path.
     "sandbox_awaitables_are_completed",
+    # Owned by tests/test_what_her_record_refutes.py, which reads with the inference model it needs.
+    "what_was_asked_and_not_done_is_refuted_by_her_record",
 }
 
 

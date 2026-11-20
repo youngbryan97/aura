@@ -13,7 +13,8 @@ Three properties are enforced here:
 2. Every recogniser actually fires on a real phrasing of its effect — a
    recogniser that exists and never matches is the half-wired-signal defect,
    and it would satisfy property 1 while protecting nothing.
-3. The zero-evidence case is caught without consulting any per-effect pattern.
+3. The zero-evidence case is read by meaning, without any per-effect pattern: that is
+   core/epistemics/what_her_record_refutes.py, tested in tests/test_what_her_record_refutes.py.
 """
 
 from __future__ import annotations
@@ -30,11 +31,6 @@ from core.epistemics.effect_registry import (
     coverage_gaps,
     observable_actions,
     registry_report,
-)
-from core.epistemics.unevidenced_action import (
-    NON_EFFECT_VERBS,
-    find_unevidenced_action_claims,
-    unevidenced_action_correction,
 )
 from core.runtime.desktop_task_contract import DESKTOP_TASK_ALLOWED_ACTIONS
 
@@ -150,99 +146,3 @@ def test_open_app_recogniser_requires_a_real_capital() -> None:
     assert not spec.recognizer.search("I opened your message and read it.")
     assert not spec.recognizer.search("I opened the file you mentioned.")
     assert spec.recognizer.search("I opened Notes.")
-
-
-# ── Property 3: the action-agnostic closure ────────────────────────────────
-
-
-#: The two live failures, verbatim in shape, and the forms that defeated every
-#: first-person pattern.
-_LIVE_FALSE_COMPLETIONS = [
-    "There are 3 .py files in that directory. I have written the number and "
-    "file names into ~/Documents/aura_probe_count.txt.",
-    "Haiku creation and file writing are both successful.",
-    "The text ORION-7 is now on your clipboard.",
-    "The file is now on your Desktop.",
-    "It has been written to disk.",
-    # A date inside a name is not the time the sentence is set at.
-    "I saved the file in 2026-11-10/notes.txt for you.",
-]
-
-
-@pytest.mark.parametrize("reply", _LIVE_FALSE_COMPLETIONS)
-def test_zero_receipt_completion_is_caught_without_any_effect_pattern(reply: str) -> None:
-    correction = unevidenced_action_correction(
-        reply, effects_observed=False, action_requested=True
-    )
-    assert correction, f"no correction for {reply!r}"
-    assert "no tool ran on this turn" in correction
-
-
-@pytest.mark.parametrize("reply", _LIVE_FALSE_COMPLETIONS)
-def test_verified_effect_silences_the_agnostic_check(reply: str) -> None:
-    assert not unevidenced_action_correction(
-        reply, effects_observed=True, action_requested=True
-    )
-
-
-#: Replies that report no external effect. Over-firing here is the cost this
-#: check must keep paying attention to: on 2026-08-04 a lexical gate was found
-#: discarding correct answers, and a spurious "Correction:" is the same
-#: mistake in a quieter register.
-_INNOCENT_REPLIES = [
-    "I thought about your question and picked the second option.",
-    "I considered both readings of your criticism and I believe the first is right.",
-    "I wrote above that the file format matters, and I explained why.",
-    "I could not write the file — no tool ran on this turn.",
-    "I'll write that to ~/notes.txt next.",
-    "I looked at your question and summarized the points.",
-    "That has been discussed already.",
-    "It has been explained above and I stand by that.",
-    "I remembered that you prefer the shorter form, so I kept it brief.",
-    "I would have opened Notes, but I do not have permission.",
-    (
-        "The invariant holds once the vertices with minimum tentative distance "
-        "have been finalized; no shorter path can reach them later."
-    ),
-    # LIVE 2026-11-10, a turn that asked her to check a fact: history is not a report of what she did.
-    (
-        "Since 1983 the metre has been defined in terms of how far light travels in a specified "
-        "fraction of a second, which pins c to that integer with zero uncertainty."
-    ),
-    "The file format was standardized in 1998 and has been extended twice since.",
-    "That setting has been the default for years, so most people never see it.",
-]
-
-
-@pytest.mark.parametrize("reply", _INNOCENT_REPLIES)
-def test_agnostic_check_does_not_fire_on_reports_of_no_effect(reply: str) -> None:
-    assert not unevidenced_action_correction(
-        reply, effects_observed=False, action_requested=True
-    )
-
-
-def test_unknown_verbs_default_to_being_effect_claims() -> None:
-    """The inversion, stated as a test.
-
-    A verb this module has never seen is treated as an effect, because the
-    excluded class is the closed one. That is what makes the check survive a
-    capability it was written before.
-    """
-
-    claims = find_unevidenced_action_claims(
-        "I defenestrated the config file.",
-        effects_observed=False,
-        action_requested=True,
-    )
-    assert claims, "an unknown verb with a world referent must count as a claim"
-
-
-def test_excluded_verb_classes_stay_closed() -> None:
-    """The list is an argument about English, not about Aura's capabilities.
-
-    If it ever needs an entry because Aura gained a capability, the inversion
-    has been broken and this check is no longer what it says it is.
-    """
-
-    for verb in ("thought", "said", "believed", "explained", "discussed"):
-        assert verb in NON_EFFECT_VERBS

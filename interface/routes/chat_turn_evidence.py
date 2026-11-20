@@ -660,49 +660,37 @@ async def _collect_named_url_evidence(user_message: str) -> dict[str, Any] | Non
     }
 
 
-def _correct_unevidenced_action_claims(reply_text: object, user_message: object = "") -> object:
-    """Contradict any reported completion on a turn where nothing verifiably ran.
+def _correct_unevidenced_action_claims(reply_text: object, user_message: object = "", refuted: object = None) -> object:
+    """Take out each sentence of her reply that this turn's own record refutes.
 
-    The write check above sees a claimed PATH. The effect check on the desktop
-    lane sees a claimed ACTION from a finite list. Neither reaches the case
-    that produced both live failures on 2026-08-10: a reply on the
-    conversational lane, where no receipt list exists to consult, asserting
-    that something was finished.
+    What the record refutes is read before this runs, off her event loop (core/epistemics/what_her_record_refutes.py,
+    through chat_reply_repair._through_the_record_off_the_loop), and handed in as ``refuted``: each sentence held
+    against what she did in the turn by an inference model, never by its words. It replaced a list of the verbs that
+    assert nothing about the world and of the nouns that name something in it, which a sentence missed by being worded
+    otherwise ("I've" and "sent" were added on 16 November 2026 after "I've sent a desktop notification" passed with
+    nothing sent). Nothing read, nothing is taken out.
 
-    This asks the turn's own effect ledger instead of a lane's local variable,
-    so it works wherever the reply was composed, and it recognises the claim by
-    what a completed action IS rather than by which effect it names — the
-    mental and speech-act verbs are excluded and everything else counts. So it
-    has no per-effect gap to widen: a capability added tomorrow is covered on
-    the day it ships.
-
-    Appended, never substituted. A reply that reasoned well and overstated one
-    clause should lose the clause, not the reasoning.
+    Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a leak). The
+    line of the record that refuted a sentence goes to her turn asked again, as a reading
+    (core/brain/her_turn_as_asked.py).
     """
-
-    try:
-        from core.epistemics.turn_effects import (
-            request_expects_action,
-            turn_has_verified_effect,
-        )
-        from core.epistemics.unevidenced_action import find_unevidenced_action_claims
-
-        claims = find_unevidenced_action_claims(reply_text, effects_observed=turn_has_verified_effect(),
-                                                action_requested=request_expects_action(user_message))
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
+    if not refuted:
         return reply_text
-    if not claims:
-        return reply_text
-    # Nothing is added to her reply in her voice (LIVE 12 November 2026, Bryan: "I cut a sentence short" is a
-    # leak). What the record says goes to her turn asked again, as a reading (core/brain/her_turn_as_asked.py).
     from core.brain.her_turn_as_asked import the_record_says
 
-    the_record_says("Nothing ran this turn that completed an action: no tool ran and no effect was verified.")
     text = str(reply_text or "")
-    for claim in claims:
-        text = text.replace(claim.sentence, "") if claim.sentence else text
-    return " ".join(text.split(" ")).strip()
+    said: list[str] = []
+    for claim in refuted:
+        sentence = str(getattr(claim, "sentence", "") or "")
+        if sentence and sentence in text:
+            text = text.replace(sentence, "")
+            record = claim.said() if callable(getattr(claim, "said", None)) else ""
+            if record and record not in said:
+                said.append(record)
+    for record in said:
+        the_record_says(record)
+    # Where a sentence was, two spaces are left; indentation at the start of a line is hers and stays.
+    return re.sub(r"[ \t]+\n", "\n", re.sub(r"(?<=\S)[ \t]{2,}", " ", text)).strip()
 
 
 def _serve_built_artifact(reply: object) -> object:

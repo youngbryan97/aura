@@ -191,6 +191,10 @@ class _BuildsTheLivingContext:
             ",".join(required),
             ",".join(sorted(tools)),
         )
+        # What she could have done this turn, kept beside what she did (core/epistemics/what_her_record_refutes.py).
+        from core.conversation.turn_evidence_custody import record_turn_tools_offered
+
+        record_turn_tools_offered(sorted(tools))
         # The receipts this loop writes belong to the turn that started it.
         # That used to need a hand-threaded lease, because custody was
         # keyed on the exact (thread, task) that opened the turn and this

@@ -7442,6 +7442,18 @@ needs her 27B free (her app down, or her app's own influence trials).
   18 November: the chat route's no-reply exits no longer write in her voice (see U01, 18 November): 30 strings
   in her first person or with her mood put in front, across 21 exits, are the runtime's notices now, kept out of
   her conversation. Left on her reply path: the repair floors in core/conversation/response_reliability.py.
+  19 November: the check that took a claimed act out of her reply on a turn where nothing ran read it from lists
+  (verbs of thinking and saying, nouns of things in the world), and each live miss added a word. It is gone
+  (core/epistemics/unevidenced_action.py). Her reply is now held against the turn's record by an inference model
+  (core/epistemics/what_her_record_refutes.py, DeBERTa-v3-large trained on MNLI, FEVER, ANLI, LingNLI and WANLI):
+  when tools were offered for the request and none came back done, a sentence that says the request was done is
+  taken out; a line of the record refutes a sentence only when turning it over would make the record entail it.
+  No capability is guessed for a sentence: her reading of requests by meaning, given her own sentences, named a
+  file write as use_a_program, and the record lines for its guesses caught 2 of 8 of her false completions.
+  Measured on 34 sentences of 14 turns built from her live failures: 29 read right, 2 false completions missed,
+  3 sentences about what she thought or remembered taken out of turns that asked for a file and saved none. Left:
+  an act asked for when no tool was offered is not read; the per-capability recognisers in
+  core/epistemics/effect_registry.py are still patterns.
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the

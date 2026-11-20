@@ -120,7 +120,7 @@ def test_a_draft_with_escaped_line_breaks_is_decoded_not_asked_again(monkeypatch
         return "A second draft nobody needed."
 
     monkeypatch.setattr(chat_reply_repair, "_asked_again_as_asked", _asked_again)
-    monkeypatch.setattr(chat_reply_repair, "_through_the_record", lambda _message, text: text)
+    monkeypatch.setattr(chat_reply_repair, "_through_the_record", lambda _message, text, _refuted=None: text)
     draft = "Mostly the conversation about tide clocks.\\n\\nI kept turning over why the moon pulls unevenly."
 
     served = asyncio.run(chat_reply_repair._stabilize_user_facing_reply("What's been on your mind?", draft))

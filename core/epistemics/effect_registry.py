@@ -37,15 +37,15 @@ is and is not closed:
    still patterns, so an unusual phrasing of "I created a folder" can be
    missed. What the registry closes is the SCOPE — which effects are audited at
    all — not the recall inside one.
-2. The complement of that is handled elsewhere and closed differently:
-   core/epistemics/unevidenced_action.py enumerates the mental and speech-act
-   verbs that are NOT external effects, which is a closed class in English, and
-   treats every other first-person completed action as an effect claim. That
-   check needs no per-action pattern and therefore has no per-action gap.
+2. A claim of what was asked for, on a turn whose record shows nothing asked
+   for came back done, is read by meaning in
+   core/epistemics/what_her_record_refutes.py: an inference model reads whether
+   her sentence says the request was done, and whether a line of the record,
+   turned over, would make the sentence true. It needs no per-action pattern,
+   and its own misses and misreads are measured there.
 
 Together: (1) scope bounded by the capability registry, (2) the zero-evidence
-case caught action-agnostically. Neither alone is closure; both together are
-the strongest statement the code supports.
+case read by meaning. Neither alone is closure.
 """
 
 from __future__ import annotations
@@ -816,7 +816,7 @@ def registry_report() -> dict[str, Any]:
         "scope": (
             "Coverage is closed over the declared action vocabulary, not over "
             "natural language. Per-action recogniser recall is bounded by its "
-            "patterns; the zero-evidence case is closed separately and "
-            "action-agnostically in core/epistemics/unevidenced_action.py."
+            "patterns; the zero-evidence case is read by meaning in "
+            "core/epistemics/what_her_record_refutes.py."
         ),
     }
