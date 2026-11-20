@@ -5038,6 +5038,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   a call, one generation's budget ended the loop early, code she ran could not reach core/ by its path, and a check for
   cue words held back a right table. Both replies are still marked degraded by that check. Math was right in two of three
   pilot runs, and planning right in the last.
+  20 November (U07-08): a percentage or multiple in her reply is now worked out again from the figures her run
+  returned that her reply states, by every comparison of them, and a sentence no comparison supports is taken out
+  with the record carried to her turn asked again. On that reply the 75% is refuted and five true figures stand;
+  by chance some comparison gives 82 of the integer percentages from 1 to 200, so it misses rather than cuts a true
+  figure (`tests/test_her_derived_figures_are_worked_out_again.py`). Not yet seen live.
   2026-09-19, live. "Write a Python function that takes a list of file paths
   and returns them grouped by extension" was dispatched to the desktop task
   lane — the external-effect reader saw "write … file" — which spent 50s

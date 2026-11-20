@@ -61,7 +61,7 @@ _LOCK = checked_lock("what_her_record_refutes.reader")
 _LOADED: dict[str, Any] = {}
 #: What each turn's record refuted of each reply it was asked about, held for that turn only.
 _READ_LOCK = checked_lock("what_her_record_refutes.read_this_turn")
-_READ_THIS_TURN: weakref.WeakKeyDictionary[Any, dict[tuple[str, str, int, int], tuple[Refuted, ...]]] = (
+_READ_THIS_TURN: weakref.WeakKeyDictionary[Any, dict[tuple[str, str, int, int], tuple[Any, ...]]] = (
     weakref.WeakKeyDictionary())
 
 
@@ -233,7 +233,7 @@ def _declared_description() -> Callable[[str], str] | None:
 
 
 def sentences_these_calls_refute(reply: str, receipts: Iterable[Mapping[str, Any]], asked: str = "",
-                                 offered: Iterable[str] = ()) -> list[Refuted]:
+                                 offered: Iterable[str] = ()) -> list[Any]:
     """The sentences of ``reply`` that these calls, and the tools offered beside them, refute. Reads models: call it
     off her event loop."""
     receipts, offered = list(receipts), list(offered)
@@ -245,12 +245,18 @@ def sentences_these_calls_refute(reply: str, receipts: Iterable[Mapping[str, Any
     began = time.perf_counter()
     refuted = what_her_record_refutes(sentences, receipts, asked=asked, offered=offered,
                                       describe=_declared_description())
+    # A figure she derived from what her run returned, worked out again from it (U07-08): arithmetic, read by no model.
+    from core.epistemics.what_her_numbers_come_to import figures_her_run_does_not_give
+
+    taken = {claim.sentence for claim in refuted}
+    refuted += [claim for claim in figures_her_run_does_not_give(sentences, receipts, reply)
+                if claim.sentence not in taken]
     logger.info("her reply was read against her record: %d sentences, %d calls, %d offered, %d refuted, %.2f s",
                 len(sentences), len(receipts), len(offered), len(refuted), time.perf_counter() - began)
     return refuted
 
 
-def sentences_her_record_refutes(reply: str, asked: str = "") -> list[Refuted]:
+def sentences_her_record_refutes(reply: str, asked: str = "") -> list[Any]:
     """The sentences of ``reply`` this turn's own record refutes. Reads models: call it off her event loop.
 
     A reply read once in a turn is not read again while the record is unchanged: her stabilizer reads it, and the last
