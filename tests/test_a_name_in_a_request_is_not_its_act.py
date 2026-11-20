@@ -54,3 +54,33 @@ def test_where_the_meaning_agrees_or_cannot_tell_the_words_stand(catalogue, monk
     asked = "Run this Python snippet and tell me what it prints."
     required, ceiling, scopes = asyncio.run(her_reading(asked, ["code_repl"], "sandboxed_compute", frozenset()))
     assert (required, ceiling, scopes) == (["code_repl"], "sandboxed_compute", frozenset())
+
+
+ASKED_TO_RUN = ("Write a Python function that groups a list of file paths by extension, then run it on a few example "
+                "paths and show me the output.")
+
+
+@pytest.mark.parametrize(("work_on_code", "offered"), [
+    (True, ["file_operation", "code_repl"]),
+    (None, ["file_operation"]),
+    (False, ["file_operation"]),
+])
+def test_work_on_code_keeps_the_runner_its_words_found(catalogue, monkeypatch, work_on_code, offered):
+    """LIVE 20 November 2026: meaning chose file_operation by "file paths", and nothing could run the code asked for."""
+    from core.brain.her_reading_of_a_request import her_reading
+    from core.intent import asks_for_code_work
+
+    catalogue["file_operation"] = SimpleNamespace(description="Read, write and list files on disk.", enabled=True,
+                                                  trigger_patterns=[])
+    monkeypatch.setattr("core.intent.capability_selection.the_one_asked_for", lambda text, offered: None)
+    monkeypatch.setattr("core.together.taking_it_up.asked_to_do_something", _yes)
+    monkeypatch.setattr(asks_for_code_work, "asks_for_code_work", lambda text: work_on_code)
+    _meaning_says(monkeypatch, "file_operation")
+    required, _ceiling, _ = asyncio.run(her_reading(ASKED_TO_RUN, ["file_operation", "code_repl", "build_document"],
+                                                    "sandboxed_compute", frozenset()))
+    assert required == offered
+
+
+async def _yes(_text):
+    return True
+

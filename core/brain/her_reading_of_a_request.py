@@ -127,7 +127,29 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
         ceiling, scopes = scope, frozenset(scopes) | {scope}
     elif scope in _REQUESTED_ARTIFACT_SCOPES and (points_at_something_real(text) or asks_for_an_artifact(text)):
         ceiling, scopes = _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
-    return [read[0]], ceiling, scopes
+    return [read[0], *await _the_runner_work_on_code_keeps(text, read[0], required)], ceiling, scopes
+
+
+async def _the_runner_work_on_code_keeps(text: str, chosen: str, required: list[str]) -> list[str]:
+    """The capabilities that run code which the words found, kept beside what meaning chose, when the request is work on
+    code by her reading of it (core/intent/asks_for_code_work.py) and what meaning chose runs none.
+
+    LIVE 20 November 2026, typed into her window: "Write a Python function that groups a list of file paths by
+    extension, then run it on a few example paths and show me the output." The words found code_repl, her meaning
+    chose file_operation by "file paths", and the loop was offered file_operation alone, which it could not call on the
+    request, so nothing ran. The mirror of the veto on a question about the world that names a language."""
+    import asyncio
+
+    from core.intent.asks_for_code_work import asks_for_code_work
+    from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
+
+    runners = [name for name in required if name != chosen and SKILL_EFFECT_SCOPES.get(name) == "sandboxed_compute"]
+    if not runners or SKILL_EFFECT_SCOPES.get(chosen) == "sandboxed_compute":
+        return []
+    if await asyncio.to_thread(asks_for_code_work, text) is not True:
+        return []
+    logger.info("🔧 Tool handoff: work on code keeps %s beside %s.", ", ".join(runners), chosen)
+    return runners
 
 
 def _needs_only_the_request(meta: Any) -> bool:

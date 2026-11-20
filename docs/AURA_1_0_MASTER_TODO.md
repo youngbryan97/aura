@@ -5137,6 +5137,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     (`tests/test_a_question_about_a_language_is_not_work_on_code.py`). The tool loop of that turn was handed code_repl
     alone, because two readings of the words named it; her reading by meaning, which chose a reference search, now
     overrules a name match where it clearly means another capability (`tests/test_a_name_in_a_request_is_not_its_act.py`).
+    The mirror, 20 November: "Write a Python function that groups a list of file paths by extension, then run it on a
+    few example paths and show me the output." had code_repl among the words' capabilities, her meaning chose
+    file_operation by "file paths", and only that was offered, so nothing could run. A request her reading takes as
+    work on code keeps the runner its words found beside what meaning chose (same test).
     The conversational amplifier keeps to the turn's clock too.
   - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
     that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,
