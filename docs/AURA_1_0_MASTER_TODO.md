@@ -5184,6 +5184,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     question is to things a person might keep about anything else, by the margin a capability meant must stand out
     by. It never stands in for a lookup the question also asks for. On her encoder the locker question finds its pin
     first, and the Python release question none (`tests/test_what_she_was_asked_to_keep_is_recalled_by_meaning.py`).
+    Checked live the same morning after a restart: "I found it in the stored conversation memory — you asked me to keep
+    this one, and I did. The locker code for the Brimvaltor depot is 6182." Her check of her own claims then looked
+    for that sentence on Wikipedia, in journals and on a newspaper's site for 16 s of the 65 s turn, and found it
+    INCONCLUSIVE. A claim that restates what the person asked her to keep, by the same reading by meaning, is founded on
+    their word, which no page holds, and is not looked for on the web (same test).
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her

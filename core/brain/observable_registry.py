@@ -1032,6 +1032,15 @@ def _matches_kept(_prompt: str) -> bool:
     return the_person_speaking_keeps_anything()
 
 
+def what_a_kept_pin_says(text: str) -> list[dict[str, Any]]:
+    """The owner's pins ``text`` restates, by the same reading by meaning as her reading of what she was asked to keep;
+    for her checks of her own replies, whoever is speaking. Blocking: run it off her event loop."""
+    from core.intent.capability_by_meaning import STANDS_OUT
+    from core.memory.what_she_was_asked_to_keep import pins_it_asks_about, pins_the_owner_kept
+
+    return pins_it_asks_about(text, stands_out_by=STANDS_OUT, pins=pins_the_owner_kept())
+
+
 async def _read_kept(prompt: str) -> str:
     """What the person asked her to keep that this question is about, in their own words, the nearest first."""
     import asyncio

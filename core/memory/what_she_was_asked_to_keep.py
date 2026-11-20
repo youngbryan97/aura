@@ -27,7 +27,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 __all__ = ["THEIR_SURFACE", "THE_PERSON", "pins_asked_about", "pins_it_asks_about", "pins_of_the_person_speaking",
-           "the_person_speaking_keeps_anything", "where_her_pins_are"]
+           "pins_the_owner_kept", "the_person_speaking_keeps_anything", "where_her_pins_are"]
 
 #: Who is speaking in this request, as the chat route identifies them, and on which surface ("owner" for Bryan's own).
 THE_PERSON: ContextVar[str] = ContextVar("aura_chat_request_principal", default="")
@@ -49,6 +49,18 @@ def pins_of_the_person_speaking() -> list[dict[str, str]]:
     surface = THEIR_SURFACE.get().strip().casefold()[:32]
     if surface != "owner" or not principal:
         return []
+    return _opened_pins(principal)
+
+
+def pins_the_owner_kept() -> list[dict[str, str]]:
+    """Every pin the owner set, opened, newest last, whoever is speaking: for her own checks of what she says, never to
+    tell anyone else what the owner said. [] where the ledger or its key cannot be read."""
+    return _opened_pins(None)
+
+
+def _opened_pins(principal: str | None) -> list[dict[str, str]]:
+    """The owner surface's pins, opened, newest last: ``principal``'s alone, or every owner's for None."""
+    surface = "owner"
     import json
 
     from core.memory.session_pin_cipher import SESSION_PIN_ENVELOPE_SCHEMA, SessionPinCipher, SessionPinCipherError
@@ -69,7 +81,7 @@ def pins_of_the_person_speaking() -> list[dict[str, str]]:
             body = cipher.open(raw)
         except (ValueError, SessionPinCipherError):
             continue
-        same_person = (" ".join(str(body.get("principal_id") or "").split()) == principal
+        same_person = ((principal is None or " ".join(str(body.get("principal_id") or "").split()) == principal)
                        and str(body.get("principal_surface") or "").casefold() == surface)
         if same_person and str(body.get("content") or "").strip():
             pins.append({"content": str(body["content"]).strip(), "timestamp": str(body.get("timestamp") or "")})
@@ -149,7 +161,8 @@ _ANYTHING_ELSE = (
 )
 
 
-def pins_it_asks_about(question: str, *, stands_out_by: float) -> list[dict[str, Any]]:
+def pins_it_asks_about(question: str, *, stands_out_by: float,
+                       pins: list[dict[str, str]] | None = None) -> list[dict[str, Any]]:
     """The owner's pins this question is about, the nearest first: those whose nearness to it in meaning stands out
     from how near it is to things a person might keep about anything else, by ``stands_out_by`` spreads; her readings
     pass the margin a capability meant must stand out by (core/intent/capability_by_meaning.py). [] without pins,
@@ -158,7 +171,7 @@ def pins_it_asks_about(question: str, *, stands_out_by: float) -> list[dict[str,
     LIVE 20 November 2026, typed into her window after a restart: "What is the locker code for the Brimvaltor depot?"
     was answered "The provided evidence does not list a locker code", with the pin in her ledger. Her desktop replies
     take readings, not the retrieval phase her pins were offered to (core/brain/observable_registry.py)."""
-    pins = pins_of_the_person_speaking()
+    pins = pins_of_the_person_speaking() if pins is None else pins
     if not pins or not str(question or "").strip():
         return []
     vectors = _by_meaning([str(question), *(pin["content"] for pin in pins), *_ANYTHING_ELSE])

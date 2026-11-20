@@ -798,6 +798,13 @@ class EpistemicReachEngine:
             ]
 
     async def _verify_async(self, claim: str, felt: Any) -> ReachVerdict | None:
+        if await asyncio.to_thread(_what_a_kept_pin_says, claim):
+            # Founded on what the person told her, which no page holds. LIVE 20 November 2026, "you asked me to keep
+            # this one, and I did. The locker code for the Brimvaltor depot is 6182." was looked for on Wikipedia, in
+            # journals and on a newspaper's site for 16 s of a 65 s turn, and found INCONCLUSIVE.
+            logger.info("🌐 [EpistemicReach] not looked for on the web: %r says what the person asked her to keep",
+                        claim[:80])
+            return None
         gateway = self._resolve_gateway()
         if gateway is None:
             return None
@@ -1245,6 +1252,17 @@ def check_asked(claim: str, *, timeout_s: float, reach: EpistemicReachEngine | N
     for verdict in read:
         reach._apply_effects(verdict, hers=False)
     return read
+
+
+def _what_a_kept_pin_says(claim: str) -> list[Any]:
+    """The owner's pins the claim restates; [] where they cannot be read."""
+    try:
+        from core.brain.observable_registry import what_a_kept_pin_says
+
+        return what_a_kept_pin_says(claim)
+    except _RECOVERABLE as exc:
+        record_degradation("epistemic_reach", exc, severity="debug", action="checked the claim without her pins")
+        return []
 
 
 def get_epistemic_reach() -> EpistemicReachEngine:

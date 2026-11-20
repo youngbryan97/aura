@@ -166,3 +166,33 @@ def test_on_her_encoder_only_the_pin_asked_about_stands_out(ledger):
         kept.THEIR_SURFACE.reset(tokens[1])
     assert about and about[0]["content"] == LOCKER
     assert unrelated == []
+
+
+# LIVE 20 November 2026: her reply "you asked me to keep this one, and I did. The locker code for the Brimvaltor depot
+# is 6182." was looked for on Wikipedia, in journals and on a newspaper's site for 16 s of a 65 s turn.
+def test_her_own_checks_read_the_owners_pins_whoever_is_speaking(ledger):
+    assert [pin["content"] for pin in kept.pins_the_owner_kept()] == [LOCKER, GATE], "never a guest's"
+
+
+def test_a_claim_that_restates_a_pin_is_found_by_meaning(ledger, monkeypatch):
+    from core.brain.observable_registry import what_a_kept_pin_says
+
+    monkeypatch.setattr(kept, "_by_meaning", _words)
+    said = what_a_kept_pin_says("The locker code for the Riklumquo depot is 3455.")
+    assert said and said[0]["content"] == LOCKER
+    assert what_a_kept_pin_says("Python 3.15.2 was released on October 25, 2026.") == []
+
+
+def test_a_claim_founded_on_what_she_was_told_is_not_looked_for_on_the_web(monkeypatch):
+    import asyncio
+
+    from core.epistemics import epistemic_reach
+
+    engine = epistemic_reach.EpistemicReachEngine.__new__(epistemic_reach.EpistemicReachEngine)
+    monkeypatch.setattr(epistemic_reach, "_what_a_kept_pin_says", lambda claim: [{"content": LOCKER}])
+
+    def no_web():
+        raise AssertionError("a claim founded on the person's word went to the web")
+
+    monkeypatch.setattr(engine, "_resolve_gateway", no_web)
+    assert asyncio.run(engine._verify_async("The locker code for the Riklumquo depot is 3455.", object())) is None
