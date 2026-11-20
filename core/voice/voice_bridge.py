@@ -69,7 +69,7 @@ class VoiceConversationBridge:
         try:
             from core.brain.types import ThinkingMode
 
-            desktop_execution_contract = self._looks_like_desktop_objective(text)
+            desktop_execution_contract = await asyncio.to_thread(self._looks_like_desktop_objective, text)
             context = {
                 "route": "voice_desktop",
                 "source": "voice",
@@ -111,7 +111,7 @@ class VoiceConversationBridge:
             return None
 
     async def _execute_desktop_objective(self, text: str, cognitive_reply: str) -> dict[str, Any] | None:
-        if not self._looks_like_desktop_objective(text):
+        if not (await asyncio.to_thread(self._looks_like_desktop_objective, text)):
             return None
         try:
             engine = ServiceContainer.get("capability_engine", default=None)
@@ -184,7 +184,7 @@ class VoiceConversationBridge:
                 )
             return reply
 
-        if self._looks_like_desktop_objective(normalized):
+        if await asyncio.to_thread(self._looks_like_desktop_objective, normalized):
             return (
                 "The spoken desktop request required CognitiveEngine before governed desktop control, "
                 "but the live cognitive path did not produce an acceptable reply. I am not using the "

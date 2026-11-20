@@ -3119,7 +3119,7 @@ async def _run_cognitive_engine_chat_turn(
     capability_inventory_contract = _chat_preflight._is_explicit_capability_inventory_request(
         visible
     )
-    desktop_execution_contract = _chat_preflight._looks_like_desktop_objective(visible)
+    desktop_execution_contract = await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, visible)
     paired_information_reply = (
         _chat_preflight._paired_device_information_scope_reply(visible, lane=lane)
         if conversation_only_surface
@@ -7159,7 +7159,7 @@ async def _lifted_execute_narrow_desktop_objective_before_cognition(
         is_benchmark
         or conversation_only_surface
         or _chat_desktop_objective._blocks_consequential_desktop_execution(_semantic_user_message)
-        or not _chat_preflight._looks_like_desktop_objective(_semantic_user_message)
+        or not (await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, _semantic_user_message))
     ):
         return None
 
@@ -7915,7 +7915,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                 str(_CHAT_DELIVERY_TURN_ID.get() or ""),
                                 is_benchmark=is_benchmark)
 
-    if not is_benchmark and _chat_preflight._looks_like_desktop_objective(_semantic_user_message):
+    if not is_benchmark and (await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, _semantic_user_message)):
         # A consequential desktop request always needs the same CognitiveEngine
         # planning lane as the desktop UI, even when it arrives through the
         # plain REST surface. The governed executor remains downstream.
@@ -9750,9 +9750,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                             user_message=_semantic_user_message,
                             reply_text=str(reply_text),
                             desktop_execution_contract=(
-                                _chat_preflight._looks_like_desktop_objective(
-                                    _semantic_user_message
-                                )
+                                await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, _semantic_user_message)
                             ),
                         )
                         contract_lane = _chat_preflight._collect_conversation_lane_status()
@@ -9833,9 +9831,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                             else:
                                 if (
                                     bool(candidate_contract.get("cognitive_engine_reply_accepted"))
-                                    and _chat_preflight._looks_like_desktop_objective(
-                                        _semantic_user_message
-                                    )
+                                    and (await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, _semantic_user_message))
                                     and reply_text
                                 ):
                                     _live_turn_trace["desktop_internal_artifact_draft"] = reply_text
@@ -10102,7 +10098,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # never happened. The work the person asked for does not wait on
             # a reply about it; the executor keeps its own guards for requests
             # that ask only for a plan.
-            if _chat_preflight._looks_like_desktop_objective(_semantic_user_message):
+            if await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, _semantic_user_message):
                 refused = _looks_like_capability_refusal(salvaged_no_reply)
                 logger.info(
                     "No servable reply on a desktop objective (%s); running the "

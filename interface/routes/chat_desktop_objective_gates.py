@@ -16,6 +16,7 @@ inside the handler read as they did.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -146,9 +147,7 @@ async def _lifted_apply_desktop_objective_chokepoint(
     while no tool ever dispatched — the chokepoint guarded only
     the fastpath door. Both doors now pass through here.
     """
-    if conversation_only_surface and _chat_preflight._looks_like_desktop_objective(
-        _semantic_user_message
-    ):
+    if conversation_only_surface and (await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, _semantic_user_message)):
         return (
             "This paired device is scoped to conversation and read-only world viewing. "
             "Desktop, file, tool, and control actions require the owner surface.",
@@ -168,7 +167,7 @@ async def _lifted_apply_desktop_objective_chokepoint(
         )
         or _chat_desktop_objective._blocks_consequential_desktop_execution(_semantic_user_message)
         or _chat_capability_inventory._looks_like_program_dna_execution_request(_semantic_user_message)
-        or not _chat_preflight._looks_like_desktop_objective(_semantic_user_message)
+        or not (await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, _semantic_user_message))
     ):
         return final_text, status
     try:

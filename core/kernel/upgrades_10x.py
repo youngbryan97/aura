@@ -1294,9 +1294,11 @@ class GodModeToolPhase(Phase):
             state.response_modifiers.pop("matched_skills", None)
             logger.info("⚡ GodMode: benchmark/proof artifact turn kept out of tool/task dispatch.")
             return state
+        # On a thread: it reads the request by meaning on her encoder, which held her event loop from here
+        # (lockdep, 18 November 2026).
         desktop_execution_contract = bool(
             state.response_modifiers.get("desktop_execution_contract")
-        ) or looks_like_desktop_objective(objective)
+        ) or await asyncio.to_thread(looks_like_desktop_objective, objective)
         if desktop_execution_contract:
             state.response_modifiers["intent_type"] = "CHAT"
             state.response_modifiers["desktop_execution_contract"] = True

@@ -1236,7 +1236,7 @@ async def _what_the_world_says_for_the_turn(
     # Read as asking to find something out by meaning, not only by an instruction that opens its sentence, the
     # same: LIVE 17 November 2026, typed into her window, "You should be able to google them. All flights were
     # grounded on Friday. ..." went to the contract's collector and was searched as one query of the whole message.
-    asked = read_search_request(user_message, previous)
+    asked = await asyncio.to_thread(read_search_request, user_message, previous)
     instructed = (
         asked.decided_by == "instruction"
         or (asked.decided_by == "learned" and asked.about_the_world)

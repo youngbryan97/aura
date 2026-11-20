@@ -251,7 +251,7 @@ async def _execute_desktop_objective_from_chat(
             "Desktop objective execution blocked by explicit non-execution/planning-only request."
         )
         return None
-    if not _chat_preflight._looks_like_desktop_objective(user_message):
+    if not (await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, user_message)):
         return None
 
     # When this turn's work begins, so a report can only draw on records this

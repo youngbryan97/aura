@@ -1792,7 +1792,7 @@ async def websocket_endpoint(ws: WebSocket):
                                         user_content,
                                         cognitive_reply=reply,
                                     )
-                                elif chat_routes._looks_like_desktop_objective(user_content):
+                                elif await asyncio.to_thread(chat_routes._looks_like_desktop_objective, user_content):
                                     await ws_ref.send_text(json.dumps({
                                         "type": "aura_message",
                                         "content": (

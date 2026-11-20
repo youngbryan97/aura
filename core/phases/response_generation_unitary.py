@@ -4878,7 +4878,9 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             looks_like_desktop_objective,
                         )
 
-                        _is_desktop_turn = bool(looks_like_desktop_objective(objective))
+                        # On a thread: it reads the request by meaning on her encoder. LIVE 20 November 2026, 07:24,
+                        # inline here it held her event loop 164 ms (lockdep), the thirteenth time from this line.
+                        _is_desktop_turn = bool(await asyncio.to_thread(looks_like_desktop_objective, objective))
                     if _is_desktop_turn:
                         from core.runtime.desktop_task_contract import (
                             desktop_task_action_sentence,

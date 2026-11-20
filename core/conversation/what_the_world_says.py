@@ -569,7 +569,7 @@ async def gather_world_evidence(
 
     from core.language.search_request import read_search_request
 
-    asked = read_search_request(request, previous_request)
+    asked = await asyncio.to_thread(read_search_request, request, previous_request)
     asked_for = asked.query if asked.about_the_world and asked.query else None
     if asked_for is None and previous_reply:
         from core.language.search_request import asks_about_grounds

@@ -85,7 +85,9 @@ def test_any_unusable_reply_on_a_desktop_objective_runs_the_executor():
     matched no refusal pattern, the gates rejected it, and nothing ran. The
     branch now turns on the objective, not on how the reply failed."""
     source = chat_lane_source()
-    assert "if _chat_preflight._looks_like_desktop_objective(_semantic_user_message):" in source
+    # Read on a thread (tests/test_a_request_is_read_by_meaning_off_her_event_loop.py).
+    assert ("if await asyncio.to_thread(_chat_preflight._looks_like_desktop_objective, _semantic_user_message):"
+            in source)
     assert (
         "_looks_like_desktop_objective(\n                _semantic_user_message\n            ) and _looks_like_capability_refusal"
         not in source

@@ -1073,6 +1073,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   example, every pair of examples in pure Python. The fit is cosine
   matrices in numpy now, 1.36 s to 1.6 ms on 250 examples with every
   score unchanged to 3e-16 (8d86afb47); she was restarted on it at 06:14.
+  20 November, from every log kept: the encoder's lock was held on her loop 13 times since 17 November from one
+  line, the unitary phase asking whether its objective is screen work (164 ms at 07:24 that day). The reading is by
+  meaning on her encoder, which keeps what it has read, so only the first reading of a string blocks, and lockdep saw
+  two callers. Seventeen coroutines called those readers inline; all read them on a thread now, and
+  `tests/test_a_request_is_read_by_meaning_off_her_event_loop.py` fails on a new one. The older sites in her logs
+  (the quick reply's grounding, the screen highlight) had already moved off the loop.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
