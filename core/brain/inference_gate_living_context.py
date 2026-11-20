@@ -97,11 +97,11 @@ def what_is_left_once_the_world_was_read(required: list[str], text: str) -> list
     and code_repl was all that was left, so her answer went through a tool loop offering only a code runner.
     """
     from core.intent.asks_for_code_work import asks_for_code_work
-    from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
+    from core.skills.catalog_policy import effect_scope_of
 
-    left = [name for name in required if SKILL_EFFECT_SCOPES.get(name) != "read_only" and name != "http_request"]
+    left = [name for name in required if effect_scope_of(name) != "read_only" and name != "http_request"]
     if left and asks_for_code_work(text) is False:
-        left = [name for name in left if SKILL_EFFECT_SCOPES.get(name) != "sandboxed_compute"]
+        left = [name for name in left if effect_scope_of(name) != "sandboxed_compute"]
     return left
 
 class _BuildsTheLivingContext:

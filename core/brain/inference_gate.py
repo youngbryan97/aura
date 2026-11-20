@@ -2078,14 +2078,14 @@ def _tools_within_reach(
     rated would quietly hide new skills, which is a worse failure than one
     refusal.
     """
-    from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
+    from core.skills.catalog_policy import effect_scope_of
 
     permitted = {str(scope) for scope in (allowed_scopes or ())}
     if not permitted:
         return tools, ()
     kept, withheld = {}, []
     for name, definition in dict(tools).items():
-        declared_scope = SKILL_EFFECT_SCOPES.get(str(name))
+        declared_scope = effect_scope_of(str(name))
         if declared_scope is None:
             # Unrated. Withholding what nobody has rated hides every new skill,
             # which is how a skill built for a request ends up never called.

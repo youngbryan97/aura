@@ -115,3 +115,34 @@ def test_the_ceiling_for_a_diagnosis_request_admits_the_diagnosis_tool() -> None
     assert SKILL_EFFECT_SCOPES["diagnose_repo"] in allowed, (
         f"a {ceiling} ceiling excludes the tool that answers the question"
     )
+
+
+def test_what_offers_a_tool_reads_its_scope_as_the_dispatch_does(monkeypatch) -> None:
+    """LIVE 19 November 2026, 22:34, "Can you remind me in 20 minutes to stretch my back?": reminder is in no table of
+    scopes, so it was offered at the turn's sandboxed_compute ceiling, and the dispatch, which reads the scope the
+    skill declares, refused it. Her reply said the system refused the reminder; none was set."""
+    from types import SimpleNamespace
+
+    from core.container import ServiceContainer
+    from core.skills.catalog_policy import SKILL_EFFECT_SCOPES, effect_scope_of
+
+    assert "reminder" not in SKILL_EFFECT_SCOPES
+    declared = SimpleNamespace(effect_scope="state_mutation")
+    monkeypatch.setattr(ServiceContainer, "get",
+                        lambda name, default=None: SimpleNamespace(skills={"reminder": declared})
+                        if name == "capability_engine" else default)
+    kept, withheld = _tools_within_reach({"reminder": 1}, _SANDBOX_CEILING)
+    assert withheld == ("reminder",) and not kept
+    # The skill's own declaration wins over the table, which holds only older declarations.
+    assert effect_scope_of("file_operation", SimpleNamespace(effect_scope="read_only")) == "read_only"
+    assert effect_scope_of("file_operation", SimpleNamespace()) == SKILL_EFFECT_SCOPES["file_operation"]
+    assert effect_scope_of("no_such_skill") is None
+
+
+def test_a_request_for_a_reminder_may_open_what_setting_one_does() -> None:
+    """Setting a reminder writes one record the person asked for and removes nothing; a request may open that."""
+    from core.phases.response_contract import _REQUESTABLE_SCOPES
+    from core.skills.catalog_policy import effect_scope_of
+    from core.skills.reminder import ReminderSkill
+
+    assert effect_scope_of("reminder", ReminderSkill) in _REQUESTABLE_SCOPES

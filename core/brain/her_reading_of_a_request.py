@@ -117,9 +117,9 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
         _REQUESTED_ARTIFACT_CEILING,
         _REQUESTED_ARTIFACT_SCOPES,
     )
-    from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
+    from core.skills.catalog_policy import effect_scope_of
 
-    scope = SKILL_EFFECT_SCOPES.get(read[0])
+    scope = effect_scope_of(read[0], skills.get(read[0]))
     if (meant or read[0] in shortlist) and scope in _REQUESTABLE_SCOPES and scope not in scopes:
         # Asking for what a capability does is asking for that effect (requested_effect_ceiling's own principle), so
         # the capability meant sets how far the turn reaches, among the scopes a person's request may open; the

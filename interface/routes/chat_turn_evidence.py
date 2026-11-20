@@ -678,19 +678,26 @@ def _correct_unevidenced_action_claims(reply_text: object, user_message: object 
         return reply_text
     from core.brain.her_turn_as_asked import the_record_says
 
+    from core.utils.text_after_removal import closed_up
+
     text = str(reply_text or "")
     said: list[str] = []
     for claim in refuted:
         sentence = str(getattr(claim, "sentence", "") or "")
         if sentence and sentence in text:
-            text = text.replace(sentence, "")
+            # With the space that joined it to the next sentence or the last one: what is left of the line starts
+            # where a sentence of hers starts.
+            joined = next(form for form in (f"{sentence} ", f" {sentence}", sentence) if form in text)
+            text = text.replace(joined, "")
             record = claim.said() if callable(getattr(claim, "said", None)) else ""
+            logging.getLogger("Aura.WhatHerRecordRefutes").info(
+                "took out of her reply: %r, which her record refutes: %s", sentence[:200], record[:300])
             if record and record not in said:
                 said.append(record)
     for record in said:
         the_record_says(record)
-    # Where a sentence was, two spaces are left; indentation at the start of a line is hers and stays.
-    return re.sub(r"[ \t]+\n", "\n", re.sub(r"(?<=\S)[ \t]{2,}", " ", text)).strip()
+    # A sentence that was a paragraph of its own leaves a blank line; her indentation and her code stay as written.
+    return closed_up(text)
 
 
 def _serve_built_artifact(reply: object) -> object:

@@ -32,7 +32,10 @@ class ReminderSkill(BaseSkill):
         "Reminders are stored durably and reported as due when asked what is "
         "queued."
     )
-    effect_scope = "state_mutation"
+    # It writes one reminder the person asked for into her own store and removes nothing: the effect of a request for
+    # something to exist, which such a request may open. Declared state_mutation, it was offered on a request for a
+    # reminder and then refused (LIVE 19 November 2026, 22:34).
+    effect_scope = "read_write_artifacts"
     inputs = {"objective": "The reminder request, in the person's own words."}
     output = "A confirmation naming the stored reminder, or a statement that it was not set."
 

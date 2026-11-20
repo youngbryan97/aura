@@ -9,6 +9,7 @@ skill from becoming user-visible merely because it happens to define ``name``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 VALID_EFFECT_SCOPES = frozenset(
     {
@@ -223,6 +224,23 @@ def resolve_skill_policy(name: str, declared_effect_scope: str = "") -> SkillPol
     if scope not in VALID_EFFECT_SCOPES or authority is None:
         return None
     return SkillPolicy(effect_scope=scope, authority_class=authority)
+
+
+def effect_scope_of(name: str, meta: Any = None) -> str | None:
+    """A skill's effect scope as its policy resolves it: what the skill declares beside its code, else this table.
+
+    The dispatch acts on the skill's own declaration (core/brain/llm/mlx_client.py), so whatever offers a tool or sets
+    how far a turn reaches reads it the same way. LIVE 19 November 2026, 22:34, "Can you remind me in 20 minutes to
+    stretch my back?": reminder is not in this table, so it was offered at the turn's sandboxed_compute ceiling, and the
+    dispatch refused it for the scope its class declares. ``meta`` is the skill's entry in the capability engine,
+    read from her running engine when not given.
+    """
+    if meta is None:
+        from core.container import ServiceContainer
+
+        meta = (getattr(ServiceContainer.get("capability_engine", default=None), "skills", None) or {}).get(name)
+    policy = resolve_skill_policy(name, str(getattr(meta, "effect_scope", "") or ""))
+    return policy.effect_scope if policy is not None else None
 
 
 def class_exclusion_reason(module_path: str, class_name: str) -> str | None:

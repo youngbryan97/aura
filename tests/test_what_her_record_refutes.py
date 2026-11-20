@@ -235,6 +235,9 @@ def test_a_refuted_sentence_leaves_her_reply_and_the_record_goes_to_her_turn_ask
     assert _correct_unevidenced_action_claims(reply, NOTIFY, refuted) == "Sure thing.\n  Want it hourly?"
     assert said == ["I did not call notify_user."]
     assert _correct_unevidenced_action_claims(reply, NOTIFY, None) == reply
+    # LIVE 19 November 2026, 22:35: a sentence that was a paragraph of its own left a blank gap in her reply.
+    assert _correct_unevidenced_action_claims(f"Just say the word.\n\n{SENT}\n\nWant me to?", NOTIFY,
+                                              refuted[:1]) == "Just say the word.\n\nWant me to?"
 
 
 def test_her_reply_and_her_request_are_read_off_her_event_loop(monkeypatch):
