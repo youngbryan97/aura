@@ -1051,6 +1051,7 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
             **self.active_user_presence_context(),
             "tool": tool_name,
             "skill": tool_name,
+            "authority_arguments": dict(args or {}),
             "authority_origin": source,
             "effect_scope": effect_scope,
             "risk_level": risk_level,

@@ -46,3 +46,39 @@ def test_her_permission_model_lets_it_run_with_nobody_there():
         "tool_execution", f"tool:{TOOL}", {"origin": "subconscious_loop", "tool": TOOL},
         effect_scope="sandboxed_compute", execution_risk=classify_execution_risk(TOOL, arguments))
     assert decision.approved is True and decision.requires_confirmation is False
+
+
+def _her_will_on(context, monkeypatch):
+    import core.governance.will as will_module
+    from core.capabilities.permission_model import PermissionRiskModel
+    from core.governance.will import ActionDomain, UnifiedWill, WillOutcome
+
+    model = PermissionRiskModel()
+    monkeypatch.setattr(will_module.ServiceContainer, "get",
+                        lambda name, default=None: model if name == "permission_model" else default)
+    will = UnifiedWill.__new__(UnifiedWill)
+    return will._decide_inject_scar_constraints(None, [], f"tool:{TOOL}", context, ActionDomain.TOOL_EXECUTION,
+                                                WillOutcome.PROCEED, "ok", [])
+
+
+def test_her_will_rates_the_probe_by_its_arguments_and_not_by_the_context_around_them(monkeypatch):
+    """LIVE 20 November 2026, after the probe was rated medium: its lease said medium, and her will still deferred it as
+    "risk=high", rating the gateway's whole context (the arguments, the lease, who is present) as if it were the call."""
+    from core.governance.will import WillOutcome
+
+    arguments = idle_sandbox_probe_arguments()
+    around = {**arguments, "standing_authority_grant_id": "aura.autonomous-bounded-sandbox-probe",
+              "standing_authority_lease_id": "lease-1", "tool": TOOL, "skill": TOOL,
+              "authority_origin": "subconscious_loop", "effect_scope": "sandboxed_compute", "risk_level": "medium"}
+    outcome, reason = _her_will_on({**around, "authority_arguments": dict(arguments)}, monkeypatch)
+    assert outcome == WillOutcome.PROCEED, reason
+    outcome, reason = _her_will_on(around, monkeypatch)
+    assert outcome == WillOutcome.DEFER and "risk=high" in reason, "without the arguments it is the context rated"
+
+
+def test_the_gateway_hands_her_will_the_arguments():
+    import inspect
+
+    from core.executive.authority_gateway import AuthorityGateway
+
+    assert '"authority_arguments": dict(args or {}),' in inspect.getsource(AuthorityGateway.authorize_tool_execution)

@@ -1116,7 +1116,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   `platform`, which can start a process, so it was rated high, and a high call from her subconscious waits for a
   confirmation nobody is there to give; the standing grant written for that probe could not help. The probe now
   only computes and prints, and is rated by its code as any snippet is: medium, which her permission model allows.
-  Any other script keeps the high rating (`tests/test_her_idle_sandbox_probe_can_run.py`).
+  Any other script keeps the high rating (`tests/test_her_idle_sandbox_probe_can_run.py`). Live after the restart
+  at 12:12 it was deferred again: the lease rated it medium, and her will rated the gateway's whole context (the
+  arguments merged with the lease and who is present) as if it were the call, so the exact-arguments check failed.
+  The gateway now hands her will the arguments under `authority_arguments`, as her capability engine already did,
+  and her will rates the call by them (same test).
   The same day: 1,948 "Kernel phase latency exceeded budget" warnings and 168 "Background phase ... was cancelled"
   in her logs. A cancelled background phase's time is how long it waited before it was stopped, so it is no longer
   called slow (info, marked cancelled), and the cancellation line now carries the canceller's reason, which none of

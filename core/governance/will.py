@@ -595,13 +595,18 @@ class UnifiedWill(_ReadsTheContext):
                     ).strip()
                     if not tool_name and content.startswith("tool:"):
                         tool_name = content.split(":", 1)[1].split()[0].strip()
+                    # The call's own arguments where the caller gives them: the context also carries the lease
+                    # and who is present, and a call rated by all of that is not the call. LIVE 20 November 2026 her
+                    # idle probe's lease was rated medium by its arguments and her will rated it high by the context.
+                    arguments = context.get("authority_arguments")
+                    arguments = arguments if isinstance(arguments, dict) else context
                     permission_effect_scope = resolve_execution_effect_scope(
                         tool_name,
-                        context,
+                        arguments,
                     )
                     permission_execution_risk = classify_execution_risk(
                         tool_name,
-                        context,
+                        arguments,
                         effect_scope=permission_effect_scope,
                     )
                 pm_decision = pm.check_permission(
