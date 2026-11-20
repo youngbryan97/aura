@@ -96,6 +96,56 @@ def verdicts_on(commit: str, root: Path, ledger: Path = LEDGER) -> list[str]:
     return found
 
 
+def other_changes_measured_with(commit: str, root: Path, ledger: Path = LEDGER) -> list[str]:
+    """The other commits to what she runs that the latest decided comparison on ``commit`` measured with it: those its
+    candidate's source holds and its baseline's does not, ``commit`` aside, that change a file other than documentation
+    or a test. [] when there are none, or when they cannot be read.
+
+    A comparison measures her source as it stands when it runs, so a change on probation is measured beside whatever
+    landed since the baseline. LIVE 19 November 2026 a commit of mine took MATH-500 from 9 of 12 to 2 between two
+    baselines; a change of hers on probation then would have been taken back for it, and its record would not have
+    said that anything else was measured with it (F16-08)."""
+    if not commit:
+        return []
+    try:
+        entries = _entries(ledger) or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    home = ledger.parent
+    for entry in reversed(entries):
+        if entry.get("kind") != "compare" or entry.get("verdict") not in ("HELD", "REGRESSED"):
+            continue
+        measured, before = _run_commit(home, str(entry.get("candidate") or "")), _run_commit(home, str(entry.get("baseline") or ""))
+        if measured and before and _contains(root, commit, measured) is True and _contains(root, commit, before) is False:
+            return _code_commits_between(root, before, measured, leaving_out=commit)
+    return []
+
+
+def _code_commits_between(root: Path, before: str, measured: str, *, leaving_out: str) -> list[str]:
+    import subprocess
+
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    try:
+        done = get_subprocess_gateway().run(["git", "-c", "core.fsmonitor=false", "log", "--format=@%H", "--name-only",
+                                             f"{before}..{measured}"], cwd=root, timeout=60, read_only=True,
+                                            source="the_outside_bar.measured_with", accelerator_capability="none")
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return []
+    if done.returncode != 0:
+        return []
+    found: list[str] = []
+    current, runs_code = "", False
+    for line in [*str(done.stdout or "").splitlines(), "@"]:
+        if line.startswith("@"):
+            if current and runs_code and not leaving_out.startswith(current) and not current.startswith(leaving_out):
+                found.append(current)
+            current, runs_code = line[1:].strip(), False
+        elif line.strip() and not (line.startswith(("docs/", "tests/")) or line.endswith(".md")):
+            runs_code = True
+    return found
+
+
 def verdicts_since(moment: float, ledger: Path = LEDGER) -> list[str]:
     """The outside benchmarks' decided verdicts recorded after ``moment``, oldest first."""
     try:

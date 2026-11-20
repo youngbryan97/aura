@@ -152,6 +152,7 @@ def test_the_outside_benchmarks_settle_a_change_on_probation(her_source, monkeyp
     record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
     taken: list = []
     monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: verdicts)
+    monkeypatch.setattr(work, "other_changes_measured_with", lambda _commit, _root: [])
     monkeypatch.setattr(work, "take_it_back", lambda slug, why: (taken.append(slug), {"ok": True})[1])
     settled = work.settle_probation()
     assert settled[0]["status"] == ("kept after probation" if kept else "taken back")

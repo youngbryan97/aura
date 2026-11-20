@@ -393,6 +393,8 @@ def _on_probation(her_source, monkeypatch, judged):  # noqa: F811 - the fixture
     monkeypatch.setattr(real, "judged_on_her_real_calls", lambda _repo, _commit, _corpus: (tried.append(1), judged)[1])
     taken: list = []
     monkeypatch.setattr(work, "take_it_back", lambda slug, why: (taken.append((slug, why)), {"ok": True})[1])
+    # Her real ledger is never read here; a test that names other changes says so itself.
+    monkeypatch.setattr(work, "other_changes_measured_with", lambda _commit, _root: [])
     return record, tried, taken
 
 

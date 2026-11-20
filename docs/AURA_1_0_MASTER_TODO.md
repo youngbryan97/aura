@@ -8084,6 +8084,14 @@ needs her 27B free (her app down, or her app's own influence trials).
     nothing it can write, the goal waits for her source to change.
   - Keep a small corpus of real calls per function from her own running, and try them on every change to that function.
     Built 19 November (part 9 above).
+  - Durable probation, from an outside review (F16-08): a run's identity, its attempts and the rules for resuming it
+    were built 19 November. What a comparison measures is her source as it stands, so a change on probation is
+    measured beside whatever landed since the baseline: on 19 November a commit of mine took MATH-500 from 9 of 12 to
+    2 between two baselines, and a change of hers on probation then would have been taken back for it with nothing
+    said of the rest. The other changes to what she runs that the deciding comparison measured now go with every
+    settlement, and a fall measured beside them is taken back as unattributed, named as such
+    (`tests/test_a_regression_names_what_else_was_measured.py`). Telling which change made a fall needs a run with the
+    change and one without it on the same source: still to build.
   - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was
     recorded 19 November (part 10 above).
     Six rounds ran; the next attacker should be neither Hydrogen nor Argon.

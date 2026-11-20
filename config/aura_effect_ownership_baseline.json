@@ -15510,6 +15510,14 @@
       "category": "subprocess_gateway",
       "count": 1,
       "path": "core/agency/the_outside_bar.py",
+      "scope": "<module>._code_commits_between"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/agency/the_outside_bar.py",
       "scope": "<module>._contains"
     },
     {
@@ -17514,6 +17522,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "52da631cf79b8322d0b74b488160e22918eaf388dc1542829cdc20b33193e4fd",
+  "inventory_sha256": "797d8f2a2a0adb2353eac1a779a5700b57ac0ee89509b33af4fd89dab5e62580",
   "schema_version": 1
 }

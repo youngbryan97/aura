@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from core.runtime.errors import record_degradation
-from core.agency.the_outside_bar import verdicts_on, what_the_outside_bar_says
+from core.agency.the_outside_bar import other_changes_measured_with, verdicts_on, what_the_outside_bar_says
 from core.runtime.state_ownership import state_root
 from core.verify import invariant
 
@@ -571,8 +571,14 @@ def settle_probation() -> list[dict[str, Any]]:
     commit = str(standing.offer.get("commit") or "")
     # Only comparisons that measured the source with this change against the source without it (the_outside_bar.py).
     verdicts = verdicts_on(commit, source_root())
+    # What else the deciding comparison measured with it is said with whatever it decides (F16-08).
+    beside = other_changes_measured_with(commit, source_root()) if verdicts else []
     if "REGRESSED" in verdicts:
-        done = take_it_back(standing.slug, "the outside benchmarks fell while it was on probation")
+        why = "the outside benchmarks fell while it was on probation"
+        if beside:
+            why += (f", measured beside {len(beside)} other change(s) to what she runs "
+                    f"({', '.join(other[:9] for other in beside[:5])}), so which of them made the fall is not known")
+        done = take_it_back(standing.slug, why)
         return [{"slug": standing.slug, "status": "taken back" if done.get("ok") else "not taken back", "why": done.get("why", "")}]
     tried = _tried_on_her_real_calls(standing)
     disposition = tried.get("disposition", "")
@@ -595,7 +601,8 @@ def settle_probation() -> list[dict[str, Any]]:
         return []
     standing.offer = {**standing.offer, "probation_over": time.time(),
                       "settled_on": {"benchmarks": verdicts[-1], "real_calls": disposition or "not_applicable",
-                                     "cost": costlier["said"] or "nothing beyond chance"}}
+                                     "cost": costlier["said"] or "nothing beyond chance",
+                                     "measured_beside": [other[:9] for other in beside[:20]]}}
     _write_now(standing)
     try:
         guarded = _guard_what_it_kept(standing)

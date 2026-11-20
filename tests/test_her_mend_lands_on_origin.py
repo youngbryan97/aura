@@ -207,6 +207,7 @@ def _kept_after_probation(monkeypatch):
     monkeypatch.setattr(goals, "_run_a_gate",
                         lambda argv, *, cwd, env: real_gate(argv, cwd=cwd, env=env) if "pytest" in argv else (True, ""))
     monkeypatch.setattr(goals, "verdicts_on", lambda _commit, _root: ["HELD"])
+    monkeypatch.setattr(goals, "other_changes_measured_with", lambda _commit, _root: [])
     monkeypatch.setattr(goals, "_tried_on_her_real_calls", lambda standing: {"disposition": "not_observed"})
 
 
