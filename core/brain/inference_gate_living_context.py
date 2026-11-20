@@ -86,6 +86,24 @@ async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> d
     }
 
 
+
+def what_is_left_once_the_world_was_read(required: list[str], text: str) -> list[str]:
+    """The capabilities a turn still needs after it read the world for its answer: none of the lookups, which were done,
+    and none of the ones that compute, when her reading by meaning says the request is about the world and not work on
+    code (core/intent/asks_for_code_work.py). Blocking: it may read with her encoder.
+
+    LIVE 19 November 2026, evening, typed into her window, "Can you look up what the latest stable release of Python is
+    right now?": the words named code_repl by "Python", the lookups were set aside because the turn had read the web,
+    and code_repl was all that was left, so her answer went through a tool loop offering only a code runner.
+    """
+    from core.intent.asks_for_code_work import asks_for_code_work
+    from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
+
+    left = [name for name in required if SKILL_EFFECT_SCOPES.get(name) != "read_only" and name != "http_request"]
+    if left and asks_for_code_work(text) is False:
+        left = [name for name in left if SKILL_EFFECT_SCOPES.get(name) != "sandboxed_compute"]
+    return left
+
 class _BuildsTheLivingContext:
     """Lifted whole out of InferenceGate; see inference_gate.py."""
 
@@ -576,13 +594,9 @@ class _BuildsTheLivingContext:
             # "Google it" had searched and read four pages, this loop offered
             # five lookup tools again and spent 45 seconds on them.
             from core.conversation.turn_evidence_custody import turn_world_evidence
-            from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
 
             if turn_world_evidence():
-                required = [
-                    name for name in required
-                    if SKILL_EFFECT_SCOPES.get(name) != "read_only" and name != "http_request"
-                ]
+                required = await asyncio.to_thread(what_is_left_once_the_world_was_read, required, text)
                 if not required:
                     logger.info("🔧 Tool handoff skipped: this turn already read the world for its answer.")
                     return None

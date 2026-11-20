@@ -5619,8 +5619,14 @@ def _mlx_worker_loop_part_20(best_draft, logger, rejection_reasons, residual_rea
     ] = residual_reasons[:8]
     return response_text
 
-def _mlx_worker_loop_part_21(expected_empty_precompile, logger, prompt, stop_sequences, token_count, tokenizer, tokens):
-    if expected_empty_precompile:
+def _mlx_worker_loop_part_21(expected_empty_precompile, logger, prompt, stop_sequences, token_count, tokenizer, tokens,
+                             stopped_by_caller=False):
+    if stopped_by_caller:
+        # Her caller asked for the stop (a person's turn preempting her background work), so nothing was meant to be
+        # delivered. LIVE 19 November 2026 each such stop was logged as text "discarded downstream" at warning.
+        logger.info("[WORKER] Generation stopped by its caller after %d token(s); nothing is delivered for it.",
+                    token_count)
+    elif expected_empty_precompile:
         logger.info(
             "[WORKER] One-token warmup precompile produced no visible text; "
             "the required visible readiness probe will verify conversation output."
@@ -8890,7 +8896,8 @@ def _mlx_worker_loop(
                         not response_text.strip() and _expected_empty_warmup_precompile(job)
                     )
                     if not response_text.strip():
-                        _mlx_worker_loop_part_21(expected_empty_precompile, logger, prompt, stop_sequences, token_count, tokenizer, tokens)
+                        _mlx_worker_loop_part_21(expected_empty_precompile, logger, prompt, stop_sequences, token_count, tokenizer, tokens,
+                                                 stopped_by_caller=bool(soft_cancelled))
                         # A genuinely zero-token generation outside the explicit
                         # one-token precompile usually means the prompt cache
                         # handed over a stale/corrupt KV state (the sampler hit

@@ -5143,6 +5143,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     route's identity of who is speaking now lives where the kernel task inherits it. Anyone else's pins stay with the
     session that pinned them, as before (`tests/test_what_she_was_asked_to_keep_is_recalled_by_meaning.py`). Not yet
     checked live.
+  - 19 November evening, typed into her window, "Please remember this for later: the locker code for the Brimvaltor
+    depot is 6182." The pin was kept, bound to the owner, and three things went wrong around it. Her lock checker
+    reported the ledger's fsync under its lock and marked her runtime tainted, as on every pin since 17 November; the
+    fsync is the ledger's commit step and every path reaching it is off her loop, so it is a sanctioned blocking lock
+    now, with that reason written. The desktop route searched the web for the whole message and put forum threads
+    about locker codes beside it; a message that only hands her something to keep, by the route's own reading of the
+    requests it pins, is not looked up now. And her background work, stopped so the person's turn could go first, was
+    logged at warning as text discarded downstream; a stop her caller asked for is logged as one
+    (`tests/test_a_pin_is_kept_without_a_search_or_a_taint.py`).
+  - The same evening, typed into her window, "Can you look up what the latest stable release of Python is right
+    now?" was answered by her own model, "3.15.2, released October 25, 2026", with python.org as its source, but in
+    168 s. The words still named code_repl by "Python", the lookups were set aside because the turn had read the web,
+    and code_repl was all that was left: a tool loop offered only a code runner, nobody called it, and its draft was
+    written again. Once the world was read, a capability that computes now stays only where her reading by meaning
+    does not say the request is about the world (the same test).
   - On a turn with evidence her reply pass writes its reasoning as prose ("Let me parse this. The user is
     saying ...") before the answer, which spends the answer's budget (19:59 above, and 22:35). Cause found 17
     November: the tool loop asks for no thinking setting, the worker logged "Native thinking None", and her

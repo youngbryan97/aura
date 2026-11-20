@@ -160,6 +160,18 @@ SANCTIONED_BLOCKING_LOCKS: dict[str, str] = {
         "loop on its one live path: ResearchCycle awaits the append through "
         "asyncio.to_thread (research_cycle.py, the cycle's completion)."
     ),
+    "memory.session_pin_ledger": (
+        "Held across one read, change and replace of the encrypted pin "
+        "ledger, and the replace fsyncs: that is its commit step. Released "
+        "before the write, a second pin could read the ledger without the "
+        "first and replace the file over it, losing something a person "
+        "asked her to keep. Off the loop on every path that reaches it: the "
+        "chat route appends through asyncio.to_thread and recalls through "
+        "its bounded executor call (interface/routes/chat_memory_state.py), "
+        "and her recall by meaning reads the ledger without taking the lock "
+        "(core/memory/what_she_was_asked_to_keep.py). LIVE 17 to 19 November "
+        "2026 every pin tainted her runtime as a lock-order violation."
+    ),
     "ghost_line.advance_lock": (
         "Wraps audit_chain.append_with_body for one frame, so it inherits "
         "the same commit point. It exists because the frame body and its "

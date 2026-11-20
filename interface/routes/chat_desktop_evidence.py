@@ -1131,6 +1131,17 @@ def _about_the_world_now(user_message: str, seeks_the_world: bool) -> bool:
     return bool(seeks_the_world) or any(_query_is_current(clause) for clause in asking_clauses(user_message))
 
 
+def _only_hands_her_something_to_keep(user_message: str) -> bool:
+    """Whether the message only asks her to keep something, by the route's own reading of the requests it pins: a
+    message with more in it than that ("remember X, and look up Y") is looked up as before."""
+    try:
+        return bool(_chat_memory_state._extract_session_memory_pin_request(user_message)) and not (
+            _chat_memory_state._turn_has_substance_beyond_memory_request(user_message))
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.world_evidence", exc, severity="info", action="read the turn as more than a pin")
+        return False
+
+
 async def _what_the_world_says_for_the_turn(
     user_message: str,
     effective_user_message: str,
@@ -1150,6 +1161,11 @@ async def _what_the_world_says_for_the_turn(
     from core.conversation.what_the_world_says import answer_from_earlier_reading, gather_world_evidence, remember_reading
     from core.verify.turn_receipt import current_receipt, record_latency
 
+    if _only_hands_her_something_to_keep(user_message):
+        # The person is the source of what they asked her to keep, and the route pins it (chat_memory_state). LIVE 19
+        # November 2026, typed into her window, "Please remember this for later: the locker code for the Brimvaltor
+        # depot is 6182." was searched on the web whole, and forum threads about locker codes went to her model.
+        return None, effective_user_message
     if _chat_desktop_objective._a_page_she_read_awaits_her_answer():
         # Her browser ended on the page for this question: she answers from it, and a search would only stand other
         # pages beside it. LIVE 11 November 2026, r/nosleep read, this search fetched r/nosleep_gonewild into her turn.
