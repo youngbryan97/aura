@@ -5,6 +5,7 @@ import contextlib
 import gc
 import inspect
 import logging
+import multiprocessing.context
 import os
 import shutil
 import socket
@@ -1027,7 +1028,11 @@ def _no_test_starts_a_real_model_worker(request, monkeypatch):
 
     def refused(self, spec, *args, **kwargs):
         target = getattr(spec, "target", None)
-        if getattr(target, "__name__", "") in _MODEL_WORKER_LOOPS:
+        # A test's own multiprocessing context is a stand-in: its process starts nothing. Refused by the target's name
+        # alone, tests/test_shutdown_lifecycle_hardening.py's vision worker, whose Process is a double, was refused.
+        context = kwargs.get("context")
+        real = context is None or isinstance(context, multiprocessing.context.BaseContext)
+        if real and getattr(target, "__name__", "") in _MODEL_WORKER_LOOPS:
             raise RuntimeError(f"{request.node.nodeid} started a real model worker ({target.__name__}); "
                                "give it a stand-in or mark it live")
         return original(self, spec, *args, **kwargs)

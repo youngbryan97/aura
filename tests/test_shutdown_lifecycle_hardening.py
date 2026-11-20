@@ -1368,3 +1368,23 @@ def test_vision_inference_timeout_clears_request_and_stops_worker() -> None:
 
     assert stopped == [True]
     assert client._pending_requests == {}
+
+
+def test_a_real_model_worker_is_still_refused_in_a_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The guard lets a test's stand-in process through and still refuses a real one (tests/conftest.py)."""
+    import multiprocessing
+
+    from core.brain.llm.mlx_vision_client import _mlx_vision_worker_loop
+    from core.runtime.subprocess_gateway import (
+        AcceleratorCapability,
+        ProcessRole,
+        PythonProcessSpec,
+        get_subprocess_gateway,
+    )
+
+    spec = PythonProcessSpec(target=_mlx_vision_worker_loop, args=(), source="test", name="MLX-Vision-Worker",
+                             role=ProcessRole.MODEL_WORKER, accelerator_capability=AcceleratorCapability.MODEL)
+    with pytest.raises(RuntimeError, match="started a real model worker"):
+        get_subprocess_gateway().spawn_python_process(spec, context=multiprocessing.get_context("spawn"))
+    with pytest.raises(RuntimeError, match="started a real model worker"):
+        get_subprocess_gateway().spawn_python_process(spec)
