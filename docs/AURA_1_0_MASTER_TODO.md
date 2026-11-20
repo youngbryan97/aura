@@ -1630,6 +1630,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The id now stays with its token until the release is confirmed. The
   immune monitor's "resource strain: cpu at 100%" (17 flags in two days) was
   an unread figure the psutil shim reports as 100 (9d6d6982c).
+  20 November, a minute after her restart: "interiority.tendency_conflict went nominal -> red_high at 1.0ratio",
+  and 91 such flips in her log. The fix of 7 September measured conflict against the readinesses seen, which a
+  minute after a start are the active ones, so two equally weighted read as the most conflict there is. It is
+  measured against the readinesses her faculties name in their own source (eight), with any other seen added
+  (`tests/test_two_of_eight_is_not_maximum_disagreement.py`).
   19 November, the same flag about 20 times from 17 to 19 November, every one
   exactly 100% and read. The monitor samples every 15 s and took whatever half
   second another thread had last measured, so a lint or compile pass holding

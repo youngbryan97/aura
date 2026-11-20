@@ -72,3 +72,21 @@ def test_a_reading_carries_the_denominator_it_was_taken_against() -> None:
     from core.interiority.arbitration import Arbitrated
 
     assert "tendency_vocabulary" in Arbitrated.__dataclass_fields__
+
+
+def test_from_a_start_the_readinesses_are_those_her_faculties_name() -> None:
+    """LIVE 20 November 2026, a minute after her restart: two equally weighted readinesses read as 1.0 against the two
+    seen so far. The faculties' own source names the readinesses there are from the start."""
+    from core.interiority import arbitration
+
+    named = arbitration._readinesses_her_faculties_name()
+    assert {"approach", "attend", "inhibit", "protect", "bond", "disengage"} <= named and "" not in named
+    before = set(arbitration._TENDENCIES_SEEN)
+    arbitration._TENDENCIES_SEEN.clear()
+    try:
+        vocabulary = len(arbitration.tendency_vocabulary())
+        assert vocabulary >= len(named)
+        assert _tendency_conflict({"approach": 1.0, "inhibit": 1.0}, vocabulary) < 0.4
+    finally:
+        arbitration._TENDENCIES_SEEN.update(before)
+

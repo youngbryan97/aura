@@ -37,6 +37,7 @@ picking a winner would delete the signal that something is wrong.
 
 from __future__ import annotations
 
+import logging
 import math
 from collections import Counter
 from dataclasses import dataclass, field
@@ -56,6 +57,9 @@ from core.interiority.effects import (
     SomaticMarker,
 )
 from core.interiority.faculty import Activation
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -118,10 +122,40 @@ class Arbitrated:
 _TENDENCIES_SEEN: set[str] = set()
 
 
-def tendency_vocabulary() -> tuple[str, ...]:
-    """The readinesses this process has seen, in order."""
+def _readinesses_her_faculties_name() -> frozenset[str]:
+    """Every readiness a faculty of hers names in its source: the literal ``tendency=`` each passes, read once.
 
-    return tuple(sorted(_TENDENCIES_SEEN))
+    The readinesses seen grow from what has been active, so a minute after a start they are the two active ones, and
+    two equally weighted read as the most conflict there is. LIVE 20 November 2026, a minute after her restart:
+    `interiority.tendency_conflict went nominal -> red_high at 1.0ratio`, and 91 such flips in her log. What her
+    faculties can express is in their code from the start; a readiness picked at run time still enters as it is seen.
+    """
+    if _NAMED_IN_SOURCE:
+        return _NAMED_IN_SOURCE[0]
+    import ast
+    from pathlib import Path
+
+    named: set[str] = set()
+    for path in sorted((Path(__file__).resolve().parent / "faculties").glob("*.py")):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError) as exc:
+            logger.debug("a faculty's readinesses could not be read from %s: %s", path.name, exc)
+            continue
+        named.update(node.value.value for node in ast.walk(tree)
+                     if isinstance(node, ast.keyword) and node.arg == "tendency"
+                     and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str) and node.value.value)
+    _NAMED_IN_SOURCE.append(frozenset(named))
+    return _NAMED_IN_SOURCE[0]
+
+
+_NAMED_IN_SOURCE: list[frozenset[str]] = []
+
+
+def tendency_vocabulary() -> tuple[str, ...]:
+    """The readinesses there are: those her faculties name in their source, and any other this process has seen."""
+
+    return tuple(sorted(_TENDENCIES_SEEN | _readinesses_her_faculties_name()))
 
 
 def _tendency_conflict(weights: Mapping[str, float], vocabulary: int) -> float:
@@ -233,7 +267,8 @@ def arbitrate(
             del soft[action_class]
 
     _TENDENCIES_SEEN.update(tendencies)
-    conflict = _tendency_conflict(tendencies, len(_TENDENCIES_SEEN))
+    vocabulary = len(tendency_vocabulary())
+    conflict = _tendency_conflict(tendencies, vocabulary)
     dominant = tendencies.most_common(1)
     dominant_pair = (
         (dominant[0][0], dominant[0][1] / max(1e-9, sum(tendencies.values())))
@@ -252,7 +287,7 @@ def arbitrate(
         ledger=tuple(ledger),
         retention=tuple(retention.values()),
         tendency_conflict=conflict,
-        tendency_vocabulary=len(_TENDENCIES_SEEN),
+        tendency_vocabulary=vocabulary,
         dominant=dominant_pair,
         transmitted=transmitted,
         failed_to_cross=tuple(failed),
