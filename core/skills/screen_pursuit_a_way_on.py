@@ -196,48 +196,72 @@ async def _pressed(region: dict[str, Any], before: list[dict[str, Any]], target_
     return False
 
 
-def _a_surface_of_controls(regions: list[dict[str, Any]]) -> bool:
+def _a_surface_of_controls(layout: list[dict[str, Any]]) -> bool:
     """Whether what a window shows is mostly labels said in words: an application's own interface (a start page, a
-    setup form, a dialog), not a world of tiles, numbers or things that move."""
+    setup form, a dialog), not a world of tiles, numbers or things that move. Every run of text read counts, numbers
+    as well: a board of numbered tiles with a "New Game" button under it is a world, not a form."""
     import re
 
-    if len(regions) < 3:
+    texts = [" ".join(str((region or {}).get("text") or "").split()) for region in layout or []]
+    texts = [text for text in texts if text]
+    if len(texts) < 3:
         return False
-    in_words = sum(1 for r in regions if re.search(r"[^\W\d_]{2,}", r["text"]))
-    return in_words >= 0.6 * len(regions)
+    in_words = sum(1 for text in texts if re.search(r"[^\W\d_]{2,}", text))
+    return in_words >= 0.6 * len(texts)
 
 
 async def took_a_way_on(target_app: str, goal: str, keep: dict[str, Any], *, nothing_answered: bool,
                         seen: dict[str, Any] | None = None) -> bool:
-    """Press the control in ``target_app``'s window whose words mean most nearly ``goal``, where nothing she has done
-    there has changed the screen yet and one stands out; whether the screen changed for it."""
-    import asyncio
+    """Press the control in ``target_app``'s window whose words mean most nearly ``goal``, where the window is a
+    surface of controls, or nothing she has done there has changed the screen yet; whether the screen changed for it.
 
-    from core.language.learned_matcher import embed_sentences
-
+    Sets ``keep["surface_is_controls"]`` from each look, and ``keep["way_on_found_nothing"]`` where it read the window
+    and found nothing to press."""
     from .screen_pursuit import read_screen
     from .screen_pursuit_on_a_page import on_her_page
-    from .screen_pursuit_surface import click_normalized
 
     now = time.monotonic()
-    if not target_app or not goal or not nothing_answered or on_her_page() is not None:
+    if not target_app or not goal or on_her_page() is not None:
         return False
-    if now - float(keep.get("way_on_looked_at", -1e9)) < LOOKED_EVERY_S:
-        return False
-    keep["way_on_looked_at"] = now
     # Not where the look just taken failed: a capture that wedged once is not asked again this cycle.
     if seen is not None and seen.get("ok") is False:
         return False
     # A window's own pixels only where the look just taken was of a window: a reading given any other way (a test's,
     # a page's) is the whole of what there is to read, and the desktop is not looked at behind it.
     from_a_window = seen is None or bool(seen.get("window_number"))
+    # What kind of surface this is comes first, from the look just taken. One of labelled controls is pressed by what
+    # its controls mean, whatever her keys did on another surface of the same application: LIVE 20 November 2026 her
+    # record of En Croissant said her keys had done something there, and she pressed arrows at its start page.
+    if seen is not None:
+        keep["surface_is_controls"] = bool(from_a_window and _a_surface_of_controls(seen.get("layout") or []))
+    if not (nothing_answered or keep.get("surface_is_controls")):
+        return False
+    if now - float(keep.get("way_on_looked_at", -1e9)) < LOOKED_EVERY_S:
+        return False
+    keep["way_on_looked_at"] = now
+    keep["way_on_found_nothing"] = False
     reading = await _a_reading(read_screen, target_app, from_a_window=from_a_window)
     if not reading or reading.get("ok") is False:
         return False
+    keep["surface_is_controls"] = bool(from_a_window and _a_surface_of_controls(reading.get("layout") or []))
+    if not (nothing_answered or keep["surface_is_controls"]):
+        return False
+    pressed = await _a_way_on_pressed(target_app, goal, keep, reading, read_screen, from_a_window)
+    keep["way_on_found_nothing"] = not pressed
+    return pressed
+
+
+async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], reading: dict[str, Any],
+                            read_screen: Any, from_a_window: bool) -> bool:
+    """The control on a reading whose words mean most nearly ``goal``, or her model's choice where none stands out,
+    pressed; whether the screen changed for it."""
+    import asyncio
+
+    from core.language.learned_matcher import embed_sentences
+
+    from .screen_pursuit_surface import click_normalized
+
     regions = _regions(reading)
-    # What kind of surface this is, from a look at the window itself: one of labelled controls is pressed by what its
-    # controls mean, and is no place to try the arrow keys on.
-    keep["surface_is_controls"] = bool(from_a_window and _a_surface_of_controls(regions))
     if len(regions) < 3:
         return False
     taken: list[str] = keep.setdefault("ways_on_taken", [])

@@ -71,6 +71,29 @@ def test_nothing_is_pressed_once_what_she_does_has_changed_the_screen(screen):
     assert screen == []
 
 
+def test_a_surface_of_controls_is_pressed_by_meaning_whatever_her_keys_did_before(screen):
+    """LIVE 20 November 2026 her record of En Croissant said her keys had done something there, so nothing on its
+    start page was pressed and she tried the arrow keys on it. What the window shows now decides, not that record."""
+    seen = {"ok": True, "window_number": 7,
+            "layout": [{"text": t, "center_x": x, "center_y": y} for t, x, y in START_PAGE]}
+    keep: dict = {}
+    assert asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, keep, nothing_answered=False, seen=seen))
+    assert screen[-1] == "Play" and keep["surface_is_controls"] and not keep["way_on_found_nothing"]
+
+
+def test_numbered_tiles_with_a_button_are_a_world_not_a_surface_of_controls():
+    tiles = [{"text": t} for t in ("2", "4", "8", "2", "16", "4", "32", "Score 120", "New Game")]
+    assert not way_on._a_surface_of_controls(tiles)
+    assert way_on._a_surface_of_controls([{"text": t} for t, _, _ in START_PAGE])
+
+
+def test_a_world_her_keys_answer_in_is_left_to_her_keys(screen):
+    seen = {"ok": True, "window_number": 7, "layout": [{"text": t} for t in ("2", "4", "8", "16", "New Game")]}
+    keep: dict = {}
+    assert not asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, keep, nothing_answered=False, seen=seen))
+    assert screen == [] and not keep["surface_is_controls"]
+
+
 def test_the_name_of_the_application_she_is_in_is_no_way_on(screen):
     asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, {}, nothing_answered=True))
     assert "En Croissant" not in screen

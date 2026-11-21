@@ -1125,7 +1125,8 @@ async def pursue_on_screen(
         if await took_a_way_on(target_app or anchor.get("app", ""), goal, pending,
                                nothing_answered=not any((getattr(can_do, "did_something", None) or {}).values()),
                                seen=seen):
-            return await looked_at_as_it_happens(lambda: observe_the_screen(
+            # What the press changed is looked at again before anything is done on it.
+            fresh = await looked_at_as_it_happens(lambda: observe_the_screen(
                 SimpleNamespace(
                     anchor=anchor,
                     at_rest=at_rest,
@@ -1138,8 +1139,9 @@ async def pursue_on_screen(
                     target_app=target_app,
                 ),
             ))
+            return {**fresh, "surface": "a way on taken"}
         if pending.get("surface_is_controls"):
-            return {**seen, "surface": "controls"}
+            return {**seen, "surface": "controls", "nothing_to_press": bool(pending.get("way_on_found_nothing"))}
         return seen
 
     def satisfied(observation: dict[str, Any]) -> bool:
@@ -1390,11 +1392,21 @@ async def pursue_on_screen(
 
     async def decide(observation: dict[str, Any]) -> Step | None:
         """Lifted to screen_pursuit_decision.py; the scope is handed over per call."""
+        if observation.get("surface") == "a way on taken":
+            # A control pressed in the look changed the screen: progress, and the new screen is looked at next.
+            from core.skills.fluid_executor import WAITING
+
+            return WAITING
         if observation.get("surface") == "controls":
             # An application's own interface: its controls are pressed by what they mean, in the look
-            # (core/skills/screen_pursuit_a_way_on.py). The arrow keys are for a surface that answers to them.
+            # (core/skills/screen_pursuit_a_way_on.py). The arrow keys are for a surface that answers to them. Where
+            # the look read it and found nothing to press, that is no progress; otherwise it is looked at again.
             logger.info("a surface of controls: pressed by what they mean, not tried with keys")
-            return None
+            if observation.get("nothing_to_press"):
+                return None
+            from core.skills.fluid_executor import WAITING
+
+            return WAITING
         return await decide_the_next_move(
             observation,
             SimpleNamespace(
