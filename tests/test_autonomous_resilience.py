@@ -330,3 +330,43 @@ def test_autopoiesis_does_not_watch_itself_as_one_of_its_own_parts():
     assert "demo_service" in report["health_probes_added"]
     assert "autopoiesis" not in autopoiesis._health_fns
     assert not any(component == "autopoiesis" for _strategy, component in autopoiesis.handlers)
+
+
+def test_load_asked_of_the_whole_of_her_is_shed_by_her_metabolism():
+    """Her immune system asks for reduce_load on "global", and nothing answered it: the gap was recorded at each of the
+    nineteen boots of 21 November 2026. Her metabolism sheds load under its own name; it now answers for the whole."""
+    autopoiesis = _AutopoiesisStub()
+    shed = []
+    metabolism = SimpleNamespace(reduce_load=lambda: shed.append(True) or True)
+
+    class _Container:
+        _aliases = {}
+        _services = {"metabolic_monitor": SimpleNamespace(dependencies=[])}
+
+        @staticmethod
+        def peek(name, default=None):
+            return {"autopoiesis": autopoiesis, "metabolic_monitor": metabolism}.get(name, default)
+
+    auditor = IntegrationAuditor(service_resolver=lambda name: autopoiesis if name == "autopoiesis" else None,
+                                 container_cls=_Container)
+    report = auditor.auto_wire_autopoiesis()
+    assert "global:reduce_load" in report["repair_handlers_added"]
+    assert autopoiesis.handlers[("reduce_load", "global")]() is True and shed == [True]
+    # Wired once.
+    assert "global:reduce_load" not in auditor.auto_wire_autopoiesis()["repair_handlers_added"]
+
+
+def test_her_metabolism_sheds_through_its_own_controls(monkeypatch):
+    from core.ops.metabolic_monitor import MetabolicMonitor
+
+    monitor = MetabolicMonitor.__new__(MetabolicMonitor)
+    monitor._pressure_actions_total = 0
+    looked = []
+    monkeypatch.setattr(monitor, "get_current_metabolism", lambda: "now", raising=False)
+
+    def controls(snapshot):
+        looked.append(snapshot)
+        monitor._pressure_actions_total += 1
+
+    monkeypatch.setattr(monitor, "_apply_pressure_controls", controls, raising=False)
+    assert monitor.reduce_load() is True and looked == ["now"]

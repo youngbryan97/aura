@@ -488,6 +488,24 @@ class IntegrationAuditor:
                     record_degradation('autonomous_resilience', exc)
                     logger.debug("Auto-wire repair handler skipped for %s/%s: %s", name, strategy_name, exc)
 
+        # Load is the whole of her, not one part: her immune system asks for it on "global", and the part that sheds it
+        # is her metabolism, under its own name. Nothing answered reduce_load/global, recorded as a gap at each of the
+        # nineteen boots of 21 November 2026.
+        key = ("global", "REDUCE_LOAD")
+        if key not in self._auto_wired_repairs:
+            peek = getattr(self._container_cls, "peek", None)
+            try:
+                metabolism = peek("metabolic_monitor", default=None) if callable(peek) else None
+            except (RuntimeError, AttributeError, TypeError, ValueError):
+                metabolism = None
+            if metabolism is not None and callable(getattr(metabolism, "reduce_load", None)):
+                try:
+                    autopoiesis.register_repair_handler(RepairStrategy.REDUCE_LOAD, "global", metabolism.reduce_load)
+                    self._auto_wired_repairs.add(key)
+                    repair_added.append("global:reduce_load")
+                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    record_degradation('autonomous_resilience', exc)
+
         return {
             "health_probes_added": sorted(health_added),
             "repair_handlers_added": sorted(repair_added),

@@ -418,6 +418,13 @@ class MetabolicMonitor:
             )
             logger.debug("Registry sync failed in metabolism: %s", exc)
 
+    def reduce_load(self) -> bool:
+        """Shed load where there is load to shed, as her pressure controls would at their next look, cooldown and
+        all: the repair her immune system asks of the whole of her as reduce_load/global. Whether a shed was made."""
+        before = self._pressure_actions_total
+        self._apply_pressure_controls(self.get_current_metabolism())
+        return self._pressure_actions_total > before
+
     def _apply_pressure_controls(self, snapshot: MetabolismSnapshot) -> None:
         if snapshot.pressure_state == "nominal":
             if getattr(self, "_mitigating", False):
