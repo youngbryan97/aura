@@ -32,7 +32,16 @@ import logging
 import math
 from dataclasses import dataclass, field, replace
 
-from core.agency.pieces_by_their_kind import FIRST, SECOND, Family, Kind, Move, Position, Step, attacked
+from core.agency.pieces_by_their_kind import (
+    FIRST,
+    SECOND,
+    Family,
+    Kind,
+    Move,
+    Position,
+    Step,
+    attacked,
+)
 
 logger = logging.getLogger("Aura.HowThePiecesMove")
 
@@ -443,8 +452,11 @@ class HowThePiecesMove:
         steps = self._steps_of(kind)
         if not steps:
             return "a piece I haven't seen move"
-        lines = {s.offsets[0] for s in steps if s.rides != 1}
-        leaps = {s.offsets[0] for s in steps if s.rides == 1}
+        # A longer step a piece may take only from its first square is not how it runs. LIVE 21 November 2026 the
+        # pawns' first double step made them "the piece that runs straight", the rooks' words, so "their piece that
+        # runs straight from d7 to d5" did not say which.
+        lines = {s.offsets[0] for s in steps if s.rides != 1 and not s.only_unmoved}
+        leaps = {s.offsets[0] for s in steps if s.rides == 1 or s.only_unmoved}
         if leaps and all(abs(f) + abs(r) == 3 and f and r for f, r in leaps):
             return "the piece that leaps two-and-one"
         straight = {d for d in lines if 0 in d}
