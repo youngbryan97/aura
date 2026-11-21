@@ -572,7 +572,8 @@ A_TURN_OF_HERS_TAKES_AT_MOST_S = 60.0
 
 
 async def her_turn(request: str, observation: str, said: list[str], *, seconds: float = A_TURN_OF_HERS_TAKES_AT_MOST_S,
-                    exchanges: list[dict[str, Any]] | None = None, remark: bool = False) -> str:
+                    exchanges: list[dict[str, Any]] | None = None, remark: bool = False,
+                    room_to_say: int = 0) -> str:
     """Her own turn: her cognitive engine on the desktop lane, the request as the person's turn, what she has said so
     far as hers, what she watched as fresh sensory evidence on the screen channel. ``exchanges``, when the watching
     goes on beside a conversation, is that conversation since it began, in place of the request and her remarks.
@@ -608,6 +609,12 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # whole ceiling twice, five minutes before the film could open (LIVE 20 October 2026, 11:46 to 11:51).
     as_it_plays = remark and observation.startswith("playing")
     thinks, says = (120, 160) if as_it_plays else (224, 288) if remark else (160, 352)
+    if room_to_say > says and not remark:
+        # An answer that tells something long (a whole game played) has room for it, and the time that room takes at
+        # the rate the usual room was given its time. LIVE 21 November 2026 her account of a 66-move game stopped at
+        # "25." with the usual room, before it said how the game ended.
+        seconds *= (thinks + room_to_say) / (thinks + says)
+        says = room_to_say
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
                "turn_sensory_evidence": evidence.to_dict(), "max_tokens": max(thinks + says, A_CLOSED_QUESTIONS_FLOOR + 1),
                "private_channel_budget": thinks, "hard_output_token_ceiling": thinks + says,
@@ -762,6 +769,14 @@ def whole_paragraphs(words: str) -> str:
     ends = r"[.!?…][\"'\u201d\u2019)*_]*"
     paragraphs = [without_asides(part) for part in re.split(r"\n\s*\n", words or "") if part.strip() and not re.fullmatch(r"[-*_\s]{3,}", part.strip())]
     paragraphs = [part for part in paragraphs if part]  # a stage direction is not said (without_asides)
+    # A number and its stop alone at the end, at a line's start or after a list's "|", is the next item of a list,
+    # begun and cut, not a sentence's end: LIVE 21 November 2026 her account of a game ended "24. ...Nb6 | 25." The
+    # item before it is the list's last, and a list ends at its last item. "I lost on move 25." is a sentence.
+    if paragraphs and re.search(r"(?:\A|\n|\|)[ \t]*\d+\.\s*\Z", paragraphs[-1]):
+        paragraphs[-1] = re.sub(r"(?:\A|\n|[ \t]*\|)[ \t]*\d+\.\s*\Z", "", paragraphs[-1]).rstrip()
+        if paragraphs[-1]:
+            return "\n\n".join(paragraphs)
+        paragraphs.pop()
     # The paragraph the ceiling cut ends at its last whole sentence, and goes where it has none (LIVE 21 October 2026,
     # her answer before the video ended "or are they the kind of"); a paragraph alone stays as it is.
     while paragraphs and not re.search(ends + "$", paragraphs[-1]):

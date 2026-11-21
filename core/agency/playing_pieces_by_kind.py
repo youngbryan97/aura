@@ -317,6 +317,8 @@ class _Game:
     probes_timed: int = 0
     finish_s: float = 0.0
     finishes_timed: int = 0
+    #: Every move seen made, hers and theirs, as the board's players write one down: "g1-f3", "e4xd5".
+    played: list[str] = field(default_factory=list)
 
     def timed_probe(self, seconds: float) -> None:
         self.probes_timed += 1
@@ -330,6 +332,10 @@ class _Game:
         """A move seen made: learned from, and the position taken from the board, with what the board cannot show
         (which pieces have not moved, what may be taken in passing) carried from the move."""
         self.learned.watched(self.believed, move)
+        rows, columns = self.learned.rows, self.learned.columns
+        self.played.append(_square_named(move.start, self.first_is_hers, rows, columns)
+                           + ("x" if move.taken_at is not None else "-")
+                           + _square_named(move.end, self.first_is_hers, rows, columns))
         family = self.learned.family()
         # The move itself, made on what she held: the board may already show the answer to it as well, which is
         # followed next, as its own move.
@@ -354,12 +360,17 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
 
     rehearsing = _Rehearsing(rehearsal)
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
+    the_moves: list[str] = []
     try:
         came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
-                           rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow)
+                           rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
+                           the_moves=the_moves)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     came["rehearsal"] = rehearsing.rehearsal
+    # The game as it went, for its record: every move in order, and who moved first.
+    came["the_moves"] = list(the_moves)
+    came["first_was_hers"] = getattr(came.get("learned"), "first_was_hers", None)
     return came
 
 
@@ -431,7 +442,8 @@ class _Rehearsing:
 async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Callable[[str], None] | None,
                 thinks_s: float, learned: HowThePiecesMove | None, rehearsing: _Rehearsing, pool: Any,
                 clock: Callable[[], Awaitable[float | None]] | None, search: Any,
-                borrow: Callable[[dict, bool], Any] | None = None) -> dict[str, Any]:
+                borrow: Callable[[dict, bool], Any] | None = None,
+                the_moves: list[str] | None = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -445,7 +457,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             return {"ended": "the board went out of sight", "moves": 0, "learned": learned}
         start = seat.filled(still[1], {})
     game = _Game(learned=learned or HowThePiecesMove.from_the_start(seat.rows, seat.columns, start),
-                 believed=Position(cells=dict(start), turn=FIRST, unmoved=frozenset(start)))
+                 believed=Position(cells=dict(start), turn=FIRST, unmoved=frozenset(start)),
+                 played=the_moves if the_moves is not None else [])
     tell("Two sides facing each other on a board. I'll take the side nearest me, find out how the pieces move by "
          "picking them up and watching, and search my moves.")
     # Who goes first: the other side, if it moves while she waits.

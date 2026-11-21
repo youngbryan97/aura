@@ -41,11 +41,15 @@ async def _her_account_of_a_game(request: str, record: str) -> str:
     nothing, and the record is told as it stands."""
     if not record:
         return ""
+    from core.context.context_manager import estimate_tokens
     from core.skills.watching_along import OBSERVATION_ROOM, her_turn
 
+    handed = record[:OBSERVATION_ROOM - 80]
     try:
-        return (await her_turn(request, f"the game she has just played, as her record of it has it: "
-                                        f"{record[:OBSERVATION_ROOM - 80]}", [])).strip()
+        # Room to tell what she is handed: LIVE 21 November 2026 her account of a 66-move game had the room of a remark
+        # on a film, and stopped at "25." before it said how the game ended.
+        return (await her_turn(request, f"the game she has just played, as her record of it has it: {handed}", [],
+                               room_to_say=estimate_tokens(handed))).strip()
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
         record_degradation("chat", exc, severity="info", action="told the game's record as it stands")
         return ""

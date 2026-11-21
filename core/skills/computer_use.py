@@ -248,6 +248,12 @@ def _how_a_game_ended(ended: str) -> str:
                 "had lost or it was drawn",
     }.get(ended, f"it stopped before its end ({ended})" if ended else "it stopped")
 
+
+def _in_pairs(moves: list[str]) -> str:
+    """A game's moves numbered as its players number them, a pair to each number: "1. g1-f3 d7-d5 2. e2-e3"."""
+    return " ".join(f"{index // 2 + 1}. " + " ".join(moves[index:index + 2]) for index in range(0, len(moves), 2))
+
+
 class ComputerUseSkill(_ReadsAndDrivesTheBrowser, _MakesFilesToShow, BaseSkill):
     #: What a caller gets back. The shared part only: every skill
     #: here returns `ok`, and a schema claiming to be complete
@@ -1824,6 +1830,13 @@ end tell
                 said += " I closed the application." if game["closed"] else " I did not manage to close the application."
             else:
                 said += " The application is still open."
+            moves = [str(one) for one in game.get("the_moves") or []]
+            if moves:
+                # The whole game before what she said of it, numbered as its players number it: LIVE 21 November 2026
+                # her record held only what she said, its first 25 lines reached her account of a 66-move game, and
+                # she numbered each side's move as a move of its own.
+                said += (f" The moves, {'theirs' if game.get('first_was_hers') is False else 'mine'} first in each "
+                         f"pair: {_in_pairs(moves)}.")
             if lines:
                 said += " What I said as I played, in order: " + " | ".join(lines)
         elif result.get("completed"):
