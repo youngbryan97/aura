@@ -156,6 +156,24 @@ def pytest_runtest_teardown(item, nextitem):
         _restore_aura_env(_ENV_AT_START, changed)
 
 
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """In the model suite (``make model-suite``), a test of a claim that needs her encoder or a model fails when it
+    cannot run, rather than skipping.
+
+    An outside review of 19 November 2026 (U07-09): the bug in her attribution surface survived green runs because the
+    tests that needed her encoder skipped where it was not loaded, and a skip read as a pass. Elsewhere they still skip,
+    for convenience; here a skip is what it is, a claim nothing checked.
+    """
+    outcome = yield
+    report = outcome.get_result()
+    if os.environ.get("AURA_MODEL_SUITE") == "1" and report.skipped and item.get_closest_marker("model"):
+        reason = report.longrepr[-1] if isinstance(report.longrepr, tuple) else str(report.longrepr or "")
+        report.outcome = "failed"
+        report.longrepr = (f"{item.nodeid} checks a claim that needs her encoder or a model, and in the model suite "
+                           f"it did not run: {reason}")
+
+
 def pytest_collection_modifyitems(config, items):
     """Keep destructive resident-model gates opt-in without recording skips."""
     if os.environ.get("AURA_RUN_RLC_RESIDENT_1P5B_GATE") == "1":

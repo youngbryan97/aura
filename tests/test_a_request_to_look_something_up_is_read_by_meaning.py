@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-pytestmark = pytest.mark.unit
+#: Read on her encoder: in the model suite a skip here is a failure (tests/conftest.py).
+pytestmark = [pytest.mark.unit, pytest.mark.model]
 
 LIVE = ("You should be able to google them. All flights were grounded on Friday. Major banks were having outages "
         "yesterday. Apple outages today. NSA outage today")

@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import pytest
 
-pytestmark = pytest.mark.unit
+#: Read on her encoder: in the model suite a skip here is a failure (tests/conftest.py).
+pytestmark = [pytest.mark.unit, pytest.mark.model]
 
 ABOUT_HER = (
     "How are you feeling today?", "What have you been up to this evening?", "How was your day today?",

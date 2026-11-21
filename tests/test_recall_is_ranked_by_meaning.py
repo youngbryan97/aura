@@ -116,6 +116,7 @@ def test_the_episodes_handed_to_her_cortex_come_back_closest_first(monkeypatch: 
     assert seen_threads == [False], "the encoder ran on the event loop"
 
 
+@pytest.mark.model
 def test_measured_with_the_runtime_encoder() -> None:
     """The eleven of twelve, re-measured whenever the encoder is present."""
     memories = [memory for _question, memory in PAIRS] + list(NEAR_MISSES)

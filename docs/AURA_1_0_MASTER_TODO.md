@@ -5208,6 +5208,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     drafted 37.8 s, checked 39.4 s, committed 39.5 s, delivered 39.6 s. Two chess turns through her desktop lane
     recorded delivery and no draft, as that lane records none, and one said tool=8321 s in a 4,197 s turn: a call
     inside a call was added to the one around it. Each component now counts the seconds its spans cover.
+  - 20 November (U07-09): `make model-suite` runs the tests of claims that need her encoder or a model with them
+    loaded, and there a skip fails (`tests/test_a_skipped_model_claim_fails_in_the_model_suite.py`): her attribution
+    surface's bug had survived green runs because such tests skipped where her encoder was not loaded. Two modules that
+    skip without her encoder now carry the mark. First run, her runtime stopped: 66 passed, none skipped, 83 s.
+  - U07-10, the tool loop's terminal boundary, as the outside review set it, already holds by tests: the last pass
+    is offered no tools and a call written there is not run (`tests/test_the_tool_loops_last_pass.py`); the pass that
+    writes cannot open a call (`tests/test_the_pass_that_writes_opens_no_call.py`); a capability's output reaches her
+    as her call and never as her answer (`tests/test_the_runtimes_words_are_never_her_answer.py`); her working, when
+    her template opens its channel, is bounded and split from her reply (`tests/test_a_continuation_begins_in_her_reply.py`,
+    `tests/test_a_bounded_private_channel.py`); and a background tick ends at its caller's bound
+    (`tests/test_a_background_tick_ends_at_its_callers_bound.py`).
     The conversational amplifier keeps to the turn's clock too.
   - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
     that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,
