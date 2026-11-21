@@ -54,7 +54,7 @@ async def test_the_report_says_the_game_as_it_was_played(monkeypatch) -> None:
     monkeypatch.setattr(pursuit, "pursue_on_screen", pursued)
     report = await ComputerUseSkill()._pursue_on_screen(json.dumps({"goal": "play a game", "success_when": "x"}))
     said = report["said"]
-    assert "10 move(s) of mine and 9 of theirs" in said and "ended out of time" in said
+    assert "10 move(s) of mine and 9 of theirs" in said and "it stopped before its end (out of time)" in said
     assert "still open" in said and "2 move(s)" not in said
     assert all(line in said for line in LINES)
 
@@ -137,3 +137,13 @@ async def test_how_the_game_went_is_told_in_her_own_turn_from_its_record(monkeyp
     assert result["response"] == (her_words or record)
     assert seen and record in seen[0]
     assert _json.loads(calls[1]["content"])["came_to"] == record
+
+
+def test_an_ending_she_could_not_read_is_not_told_as_a_peaceful_one() -> None:
+    """LIVE 21 November 2026 "it ended over" was read back as "a quiet, even little battle that ended over before
+    anyone broke through"; she had lost."""
+    from core.skills.computer_use import _how_a_game_ended
+
+    said = _how_a_game_ended("over")
+    assert "stopped letting me move" in said and "could not tell" in said
+    assert _how_a_game_ended("lost") == "I lost"

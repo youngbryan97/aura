@@ -235,6 +235,19 @@ def _verify_the_effect_landed(
 
 
 
+
+def _how_a_game_ended(ended: str) -> str:
+    """How a game handed to its own player ended, in words that say only what is known. LIVE 21 November 2026 "it
+    ended over" (the game stopped letting her move, and her own model could not say why) was read back as "a quiet,
+    even little battle that ended over before anyone broke through"; she had lost."""
+    return {
+        "won": "I won",
+        "lost": "I lost",
+        "drawn": "it was drawn",
+        "over": "it ended when the game stopped letting me move, and I could not tell from my own reading whether I "
+                "had lost or it was drawn",
+    }.get(ended, f"it stopped before its end ({ended})" if ended else "it stopped")
+
 class ComputerUseSkill(_ReadsAndDrivesTheBrowser, _MakesFilesToShow, BaseSkill):
     #: What a caller gets back. The shared part only: every skill
     #: here returns `ok`, and a schema claiming to be complete
@@ -1806,7 +1819,7 @@ end tell
             # A game played by its own player is reported as that player saw it, with what she said as she played,
             # not as a count of the pursuit's steps.
             said = (f"Played a game: {game.get('moves', 0)} move(s) of mine and {game.get('theirs', 0)} of theirs; "
-                    f"it ended {game.get('ended')}.")
+                    f"{_how_a_game_ended(str(game.get('ended') or ''))}.")
             if "closed" in game:
                 said += " I closed the application." if game["closed"] else " I did not manage to close the application."
             else:

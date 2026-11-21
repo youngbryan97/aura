@@ -29,6 +29,7 @@ import threading
 import time
 import uuid
 from collections import deque
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -89,12 +90,32 @@ class IntentionRecord:
     tension_resolved: Optional[str] = None
     status: IntentionStatus = IntentionStatus.INTENDED
     completed_at: Optional[float] = None
+    #: The runtime that set it in motion.
+    runtime: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["status"] = self.status.value
         return d
 
+
+#: The runtime this process is: an intention is on its way only in the runtime that set it in motion.
+_THIS_RUNTIME = uuid.uuid4().hex[:12]
+#: The intention open in this line of work, if any: a call made while it runs is part of it.
+_IN_MOTION: ContextVar[str | None] = ContextVar("intention_in_motion", default=None)
+def _this_task() -> int | None:
+    """The asyncio task this call runs in, by identity; None outside one."""
+    import asyncio
+
+    try:
+        task = asyncio.current_task()
+    except RuntimeError:
+        return None
+    return id(task) if task is not None else None
+
+
+#: What an intention left open by a runtime that has stopped comes to.
+NEVER_LANDED = "ABANDONED: set in motion by a runtime that stopped before it landed"
 
 # ── SQLite schema ───────────────────────────────────────────────────────────
 
@@ -190,6 +211,15 @@ class IntentionLoop:
         self._selfhood_tokens: dict[str, str | None] = {}
         self._completed_intentions: deque[IntentionRecord] = deque(maxlen=self.COMPLETED_HISTORY)
         self._persist_count: int = 0
+        # What she has set in motion and not seen land (core/cognition/what_she_has_set_in_motion.py), and for an open
+        # intention, how many calls made inside it have joined it rather than starting it again, and what was in
+        # motion when it began.
+        from core.cognition.what_she_has_set_in_motion import WhatIsComing
+
+        self._coming = WhatIsComing()
+        self._joined: Dict[str, int] = {}
+        self._within: Dict[str, Optional[str]] = {}
+        self._declared_in: Dict[str, Optional[int]] = {}
 
         # Lazy service references (resolved on first use)
         self._ledger = None
@@ -205,6 +235,9 @@ class IntentionLoop:
             self._conn.execute("PRAGMA journal_mode=WAL;")
             self._conn.execute("PRAGMA synchronous=NORMAL;")
             self._conn.executescript(_SCHEMA)
+            columns = {row[1] for row in self._conn.execute("PRAGMA table_info(intentions)")}
+            if "runtime" not in columns:
+                self._conn.execute("ALTER TABLE intentions ADD COLUMN runtime TEXT DEFAULT ''")
             self._conn.commit()
             self._hydrate_active()
             logger.info(
@@ -219,10 +252,25 @@ class IntentionLoop:
             self._conn = None
 
     def _hydrate_active(self) -> None:
-        """Reload in-progress intentions from disk on restart."""
+        """Reload in-progress intentions from disk on restart.
+
+        An intention left open by a runtime that has stopped is not on its way: what was carrying it out stopped with
+        that runtime. It is closed as abandoned, saying so, rather than held open for ever. LIVE 21 November 2026 her
+        loop held 1,176 intentions open, 1,053 of them "Use tool 'web_search'", with a median age of 138 days, and
+        her coherence read her open intentions as hers to finish.
+        """
         if self._conn is None:
             return
         try:
+            closed = self._conn.execute(
+                "UPDATE intentions SET status='abandoned', completed_at=?, observation=? "
+                "WHERE status IN ('intended', 'in_progress') AND COALESCE(runtime, '') != ?",
+                (time.time(), NEVER_LANDED, _THIS_RUNTIME),
+            ).rowcount
+            self._conn.commit()
+            if closed:
+                logger.info("IntentionLoop: %d intention(s) left open by a runtime that stopped were closed as "
+                            "abandoned", closed)
             cur = self._conn.execute(
                 "SELECT * FROM intentions WHERE status IN ('intended', 'in_progress') "
                 "ORDER BY intended_at ASC"
@@ -281,7 +329,23 @@ class IntentionLoop:
         expected_outcome: Optional[str] = None,
         plan: Optional[List[str]] = None,
     ) -> str:
-        """Declare an intention. Returns the intention_id."""
+        """Declare an intention. Returns the intention_id.
+
+        A call made inside an open intention for the same thing is part of it, not a second intention: it joins the
+        one in motion, and the intention is closed when the last part of it is. LIVE 21 November 2026 every desktop
+        request was declared twice, once by the task and once by the computer-use call the task made for it.
+        """
+        within = _IN_MOTION.get()
+        task = _this_task()
+        with self._lock:
+            open_one = self._active_intentions.get(within) if within else None
+            # Inside it means awaited within the very task that declared it: a value left in a thread's context by
+            # an intention never closed there is not a line of work this call is part of.
+            if (open_one is not None and task is not None and self._declared_in.get(within) == task
+                    and open_one.intention == intention and self._coming.already_coming(intention)):
+                self._joined[within] = self._joined.get(within, 0) + 1
+                logger.info("Intention joined [%s]: a call made inside it for the same thing", within)
+                return within
         intention_id = uuid.uuid4().hex[:12]
         rec = IntentionRecord(
             id=intention_id,
@@ -291,10 +355,16 @@ class IntentionLoop:
             plan=plan,
             expected_outcome=expected_outcome,
             status=IntentionStatus.INTENDED,
+            runtime=_THIS_RUNTIME,
         )
 
         with self._lock:
             self._active_intentions[intention_id] = rec
+            self._within[intention_id] = within
+            self._declared_in[intention_id] = task
+            now = time.time()
+            self._coming.she_started(intention, at=now, lands_at=now, brings=expected_outcome or "")
+        _IN_MOTION.set(intention_id)
         self._selfhood_tokens[intention_id] = _selfhood_started()
 
         # Emit the efference copy: what she expects this to do, recorded before
@@ -705,6 +775,11 @@ class IntentionLoop:
             if rec is None:
                 logger.warning("revise: unknown intention_id %s", intention_id)
                 return
+            if self._joined.get(intention_id, 0) > 0:
+                # A part of it, made inside it, has landed; the intention lands with its last part.
+                self._joined[intention_id] -= 1
+                return
+            self._joined.pop(intention_id, None)
 
             rec.belief_updates = (
                 list(belief_updates)
@@ -723,6 +798,7 @@ class IntentionLoop:
             # Move from active to completed
             del self._active_intentions[intention_id]
             self._completed_intentions.append(rec)
+            self._landed(rec)
 
         # What this intention taught her selfhood: which of her deficits fell while she did it. The loop logged "0
         # self-model updates" on all 1,295 intentions of 20 October to 10 November because nothing ever told it.
@@ -789,6 +865,15 @@ class IntentionLoop:
 
     # ── ABANDON ─────────────────────────────────────────────────────────
 
+    def _landed(self, rec: IntentionRecord) -> None:
+        """An intention no longer in motion (held under the lock): what was in motion before it is again."""
+        if not any(other.intention == rec.intention for other in self._active_intentions.values()):
+            self._coming.it_landed(rec.intention)
+        within = self._within.pop(rec.id, None)
+        self._declared_in.pop(rec.id, None)
+        if _IN_MOTION.get() == rec.id:
+            _IN_MOTION.set(within)
+
     def abandon(self, intention_id: str, reason: str) -> None:
         """Mark an intention as abandoned."""
         with self._lock:
@@ -803,6 +888,8 @@ class IntentionLoop:
 
             del self._active_intentions[intention_id]
             self._completed_intentions.append(rec)
+            self._joined.pop(intention_id, None)
+            self._landed(rec)
 
         token = self._selfhood_tokens.pop(intention_id, None)
         if token:
@@ -943,8 +1030,8 @@ class IntentionLoop:
                     (id, intention, drive, intended_at, plan_json, actions_json,
                      observation, expected_outcome, actual_outcome, surprise,
                      belief_updates_json, self_model_updates_json,
-                     tension_created, tension_resolved, status, completed_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     tension_created, tension_resolved, status, completed_at, runtime)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         rec.id,
                         rec.intention,
@@ -968,6 +1055,7 @@ class IntentionLoop:
                         rec.tension_resolved or "",
                         rec.status.value,
                         rec.completed_at,
+                        rec.runtime,
                     ),
                 )
                 self._conn.commit()
@@ -1030,6 +1118,7 @@ class IntentionLoop:
             tension_resolved=raw.get("tension_resolved") or None,
             status=IntentionStatus(raw.get("status", "intended")),
             completed_at=raw.get("completed_at"),
+            runtime=raw.get("runtime") or "",
         )
 
     # ── Maintenance ─────────────────────────────────────────────────────
