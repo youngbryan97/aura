@@ -30,16 +30,24 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from core.agency.pieces_by_their_kind import FIRST, Family, Kind, Move, Position, Step, attacked
+from core.agency.pieces_by_their_kind import FIRST, SECOND, Family, Kind, Move, Position, Step, attacked
 
 logger = logging.getLogger("Aura.HowThePiecesMove")
 
-__all__ = ["HowThePiecesMove", "a_move_seen", "in_its_frame", "moves_seen"]
+__all__ = ["HowThePiecesMove", "a_move_seen", "in_its_frame", "moves_seen", "turned_round_from"]
 
 Square = tuple[int, int]
 Direction = tuple[int, int]
+
+
+def turned_round_from(start: dict[Square, tuple[int, str]], rows: int, columns: int) -> dict[Square, tuple[int, str]]:
+    """A board's pieces as the other side sees them: her rows count from her own back row and her columns from her own
+    left, so the board turns half round and each side's pieces become the other's."""
+    return {(rows - 1 - row, columns - 1 - column): (SECOND if side == FIRST else FIRST, kind)
+            for (row, column), (side, kind) in start.items()}
+
 #: Times a royal kind must be seen kept off squares the other side could take on before it is taken to be royal.
 ROYAL_AFTER = 2
 #: How rare the evidence against a reading may be and the reading still stand: what she sees passes through what she
@@ -111,6 +119,9 @@ class HowThePiecesMove:
     #: seemed to say so. The kind last taken waits for the next move to count.
     taken_and_played_on: dict[str, int] = field(default_factory=dict)
     last_taken: str = ""
+    #: Whether her side moved first when she sat down to ``start``: which way round she sees the board, since her
+    #: rows count from her own back row. None where it was not recorded.
+    first_was_hers: bool | None = None
 
     @classmethod
     def from_the_start(cls, rows: int, columns: int, start: dict[Square, tuple[int, str]]) -> HowThePiecesMove:
@@ -330,7 +341,7 @@ class HowThePiecesMove:
             "crosses": dict(self.crosses), "becomes": {k: list(v) for k, v in self.becomes.items()},
             "passes": sorted(self.passes), "takes_passing": sorted(self.takes_passing),
             "refusals": self.refusals, "refused_leaving_open": dict(self.refused_leaving_open),
-            "taken_and_played_on": dict(self.taken_and_played_on),
+            "taken_and_played_on": dict(self.taken_and_played_on), "first_was_hers": self.first_was_hers,
         }
 
     @classmethod
@@ -358,10 +369,39 @@ class HowThePiecesMove:
             learned.refusals = int(kept.get("refusals", 0))
             learned.refused_leaving_open = {k: int(v) for k, v in kept.get("refused_leaving_open", {}).items()}
             learned.taken_and_played_on = {k: int(v) for k, v in kept.get("taken_and_played_on", {}).items()}
+            first = kept.get("first_was_hers")
+            learned.first_was_hers = first if isinstance(first, bool) else None
             return learned
         except (KeyError, TypeError, ValueError) as why:
             logger.info("what she learned of this game could not be read back (%s); learning it afresh", why)
             return None
+
+    def under_other_names(self, names: dict[str, str], *, turned_round: bool = False) -> HowThePiecesMove:
+        """What she learned here, for a board that begins as this one does with each kind called what ``names`` maps
+        it to (core/cognition/the_same_start_under_other_names.py), seen from the other side of it where
+        ``turned_round``. How a kind goes is seen from its own side, so it reads the same from either. A kind with no
+        name there is left out: she has not seen it at that board."""
+        def counts(of: dict[str, int]) -> dict[str, int]:
+            return {names[kind]: count for kind, count in of.items() if kind in names}
+
+        start = turned_round_from(self.start, self.rows, self.columns) if turned_round else self.start
+        first = self.first_was_hers
+        return HowThePiecesMove(
+            rows=self.rows, columns=self.columns,
+            start={square: (side, names[kind]) for square, (side, kind) in start.items() if kind in names},
+            seen={names[kind]: {d: replace(w, offered=set(w.offered), offered_unmoved=set(w.offered_unmoved),
+                                           withheld=set(w.withheld), withheld_unmoved=set(w.withheld_unmoved))
+                                for d, w in ways.items()}
+                  for kind, ways in self.seen.items() if kind in names},
+            kept_off_attacked=counts(self.kept_off_attacked), went_onto_attacked=counts(self.went_onto_attacked),
+            crosses={names[k]: names[v] for k, v in self.crosses.items() if k in names and v in names},
+            becomes={names[k]: [names[v] for v in vs if v in names] for k, vs in self.becomes.items() if k in names},
+            passes={names[k] for k in self.passes if k in names},
+            takes_passing={names[k] for k in self.takes_passing if k in names},
+            names={names[k]: said for k, said in self.names.items() if k in names},
+            refusals=self.refusals, refused_leaving_open=counts(self.refused_leaving_open),
+            taken_and_played_on=counts(self.taken_and_played_on),
+            first_was_hers=None if first is None else first != turned_round)
 
     def royal(self, kind: str) -> bool:
         """Whether the game keeps this kind safe: left open by moves it withheld and almost never by moves it offered,

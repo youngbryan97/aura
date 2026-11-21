@@ -46,6 +46,19 @@ class Weights:
     def as_json(self) -> str:
         return json.dumps(asdict(self))
 
+    def under_other_names(self, names: dict[str, str], *, turned_round: bool = False) -> Weights:
+        """These weights for a board that begins as theirs does with each kind called what ``names`` maps it to, seen
+        from its other side where ``turned_round``. Each side's squares count rows from its own back row and columns
+        from the first side's left, so seen from the other side a kind's squares keep their rows and swap their
+        columns. A kind with no name there is left out."""
+        def by_name(of: dict[str, Any]) -> dict[str, Any]:
+            return {names[kind]: value for kind, value in of.items() if kind in names}
+
+        return Weights(worth=by_name(self.worth), mobility=by_name(self.mobility),
+                       squares={kind: [list(reversed(row)) if turned_round else list(row) for row in table]
+                                for kind, table in by_name(self.squares).items()},
+                       tempo=self.tempo, royal_pressed=self.royal_pressed, exposed=by_name(self.exposed))
+
 
 @dataclass
 class Found:

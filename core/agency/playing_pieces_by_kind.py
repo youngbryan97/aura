@@ -341,10 +341,13 @@ class _Game:
 async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: float,
                               say: Callable[[str], None] | None = None, thinks_s: float = THINKS_S,
                               learned: HowThePiecesMove | None = None, rehearsal: Any = None,
-                              clock: Callable[[], Awaitable[float | None]] | None = None) -> dict[str, Any]:
+                              clock: Callable[[], Awaitable[float | None]] | None = None,
+                              borrow: Callable[[dict, bool], Any] | None = None) -> dict[str, Any]:
     """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
     are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
-    the game shows it. What came of it, with what she learned and the rehearsal, for her to keep."""
+    the game shows it. Where she has learned nothing of this board, ``borrow`` is asked, once she knows who moves first,
+    for what she learned at a board that begins as this one does: its rules, its rehearsal and where she learned them,
+    or None. What came of it, with what she learned and the rehearsal, for her to keep."""
     from concurrent.futures import ThreadPoolExecutor
 
     from core.agency.searching_by_kind import search
@@ -353,7 +356,7 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
     try:
         came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
-                           rehearsing=rehearsing, pool=pool, clock=clock, search=search)
+                           rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     came["rehearsal"] = rehearsing.rehearsal
@@ -427,7 +430,8 @@ class _Rehearsing:
 
 async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Callable[[str], None] | None,
                 thinks_s: float, learned: HowThePiecesMove | None, rehearsing: _Rehearsing, pool: Any,
-                clock: Callable[[], Awaitable[float | None]] | None, search: Any) -> dict[str, Any]:
+                clock: Callable[[], Awaitable[float | None]] | None, search: Any,
+                borrow: Callable[[dict, bool], Any] | None = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -456,6 +460,16 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             break
         await asyncio.sleep(0.3)
     tell("They went first." if not game.first_is_hers else "They're waiting on me, so I go first.")
+    if learned is None and borrow is not None:
+        # Which way round she sees the board is which side she sits at, so what a board like it lends waits for that.
+        lent = await asyncio.to_thread(borrow, start, game.first_is_hers)
+        if lent is not None:
+            game.learned, lent_rehearsal, where = lent
+            game.learned.start = dict(start)
+            if lent_rehearsal is not None:
+                rehearsing.rehearsal = lent_rehearsal
+            tell(f"This board begins as the one in {where} does, so I'll start from what I learned there.")
+    game.learned.first_was_hers = game.first_is_hers
     misread = 0
     while time.monotonic() - began < seconds:
         still = await _seen_still(seat, look)

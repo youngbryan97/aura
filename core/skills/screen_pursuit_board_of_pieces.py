@@ -69,6 +69,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     if seat is None:
         return None
     learned = keep.get("pieces_learned") or kept.get("rules")
+    rehearsal = keep.get("pieces_rehearsal") or kept.get("rehearsal")
     if learned is not None:
         learned.start = dict(seat.start)
     logger.info("two sides of pieces at their start in %r: %dx%d; playing it by search", target_app, seat.rows,
@@ -89,9 +90,11 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         # What happens in the game, as it happens: each move is news, not a remark to be paced.
         _tell(line, news=True)
 
+    def borrow(start: dict, first_is_hers: bool) -> Any:
+        return _borrowed_from_a_board_like_it(target_app, start, seat.rows, seat.columns, first_is_hers)
+
     came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=tell,
-                                     learned=learned, rehearsal=keep.get("pieces_rehearsal") or kept.get("rehearsal"),
-                                     clock=clock)
+                                     learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow)
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
     logger.info("a board of pieces played: %s", came)
     if learned_now is not None:
@@ -198,14 +201,18 @@ def _her_record(target_app: str) -> str:
 
 def _what_she_kept(target_app: str) -> dict[str, Any]:
     """The looks, rules and worth she learned at this board before, where she has played it."""
+    return _kept_under(_her_record(target_app))
+
+
+def _kept_under(record: str) -> dict[str, Any]:
     from core.agency.how_the_pieces_move import HowThePiecesMove
     from core.agency.searching_by_kind import Weights
     from core.agency.what_a_kind_is_worth import Rehearsal
     from core.perception.pieces_by_their_look import Looks
     from core.runtime.what_she_learned import recall
 
-    held = recall(_her_record(target_app))
-    kept: dict[str, Any] = {}
+    held = recall(record)
+    kept: dict[str, Any] = {"app": str(held.get("app") or "")}
     if held.get("looks"):
         kept["looks"] = Looks.from_memory(held["looks"])
     if held.get("rules"):
@@ -227,7 +234,7 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
 
     from core.runtime.what_she_learned import remember
 
-    record: dict[str, Any] = {"looks": looks.as_memory()}
+    record: dict[str, Any] = {"app": target_app, "looks": looks.as_memory()}
     if learned is not None:
         record["rules"] = learned.as_memory()
     if rehearsal is not None and getattr(rehearsal, "earned", None):
@@ -235,3 +242,54 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
                            "royal": rehearsal.royal, "tries": dict(rehearsal.tries),
                            "lengths": list(rehearsal.lengths)[-400:]}
     remember(_her_record(target_app), record)
+
+
+def _borrowed_from_a_board_like_it(target_app: str, start: dict, rows: int, columns: int,
+                                   first_is_hers: bool) -> tuple[Any, Any, str] | None:
+    """What she learned at another application's board that begins as this one does, under this board's names: its
+    rules, what she measured each kind to be worth, and the application she learned them in. None where no board she
+    has kept begins so (core/cognition/the_same_start_under_other_names.py). The looks stay where they were learned:
+    every application draws its pieces its own way.
+
+    Her rows count from her own back row, so a board she sat at on the other side is compared turned half round. A
+    record that does not say which side she sat at is compared both ways, and lends only where the two ways do not
+    disagree: a chess board turned round begins as it does unturned with its king and queen called by each other's
+    names. Where two boards she has kept begin so, the one she has played more lends what it learned."""
+    from dataclasses import replace
+
+    from core.agency.how_the_pieces_move import turned_round_from
+    from core.cognition.the_same_start_under_other_names import the_same_start
+    from core.runtime.what_she_learned import kept_worlds, named
+
+    ours, boards = named(_her_record(target_app)), named("board of pieces")
+    best: tuple[int, Any, Any, str] | None = None
+    for world in kept_worlds():
+        if world == ours or not world.endswith(boards):
+            continue
+        kept = _kept_under(world)
+        rules = kept.get("rules")
+        if rules is None or (rules.rows, rules.columns) != (rows, columns):
+            continue
+        ways = [False, True] if rules.first_was_hers is None else [rules.first_was_hers != first_is_hers]
+        lined_up = {turned: names for turned in ways
+                    if (names := the_same_start(start, turned_round_from(rules.start, rows, columns) if turned
+                                                else rules.start)) is not None}
+        if not lined_up or len({tuple(sorted(names.items())) for names in lined_up.values()}) > 1:
+            continue
+        turned, names = next(iter(lined_up.items()))
+        here = {theirs: mine for mine, theirs in names.items()}
+        rehearsal = kept.get("rehearsal")
+        if rehearsal is not None:
+            rehearsal = replace(rehearsal, weights=rehearsal.weights.under_other_names(here, turned_round=turned),
+                                royal=None if rehearsal.royal is None else [here[k] for k in rehearsal.royal
+                                                                             if k in here],
+                                samples_x=[], samples_y=[], last={})
+        played = len(rehearsal.lengths) if rehearsal is not None else 0
+        played += sum(way.took + way.moved_to_empty for ways_of in rules.seen.values() for way in ways_of.values())
+        where = kept.get("app") or world.removesuffix(boards).strip("-").replace("-", " ")
+        if best is None or played > best[0]:
+            best = (played, rules.under_other_names(here, turned_round=turned), rehearsal, where)
+    if best is None:
+        return None
+    logger.info("%r begins as %r did: borrowing what she learned there", target_app, best[3])
+    return best[1], best[2], best[3]
