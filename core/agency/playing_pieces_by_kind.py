@@ -427,6 +427,8 @@ class _Rehearsing:
 async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Callable[[str], None] | None,
                 thinks_s: float, learned: HowThePiecesMove | None, rehearsing: _Rehearsing, pool: Any,
                 clock: Callable[[], Awaitable[float | None]] | None, search: Any) -> dict[str, Any]:
+    from core.agency.searching_by_kind import Found
+    from core.cognition.when_the_situation_decides import nothing_to_decide
 
     tell = say or (lambda _line: None)
     began = time.monotonic()
@@ -575,8 +577,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # What is left of the turn, less what making the move and seeing it shown has taken her this game.
             thinks = (max(0.2, share - (time.monotonic() - turn_began) - game.finish_s) if on_her_clock
                       else share)
-            found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
-                           set_aside=set_aside)
+            # A move that is the only one is made without weighing (core/cognition/when_the_situation_decides.py).
+            only = nothing_to_decide([m for m in legal if m not in set_aside]) if not set_aside else None
+            if only is not None:
+                found = Found(only, 0, 0, 0, [only], by="the only move")
+            else:
+                found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
+                               set_aside=set_aside)
             if found.move is None:
                 break
             # Before she moves it, she picks it up: the move is made only where the game offers it.
@@ -604,9 +611,12 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         move = found.move if found is not None else None
         if move is None:
             return _the_end("no move", game, tell)
-        tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. "
-             f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, "
-             f"{found.nodes:,} positions)")
+        if found.by == "the only move":
+            how = "It's the only move I have"
+        else:
+            how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
+                  f"{found.nodes:,} positions)"
+        tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. {how}")
         made = False
         finish_began = time.monotonic()
         for attempt in range(TRIES_OF_A_MOVE):

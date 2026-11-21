@@ -54,6 +54,9 @@ class Found:
     mate: bool = False
     ms: int = 0
     by: str = ""
+    #: How far the best score moved between the last two depths the search completed: under this, two moves' scores
+    #: do not tell them apart.
+    unsteady: int = 0
 
 
 def _reached_on_empty(family: Family, letter: str) -> float:
@@ -171,7 +174,8 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
             walk = after(family, walk, move)
         first = line[0] if line else _matching(family, position, tuple(result["move"]))
         return Found(first, int(result["score"]), int(result["depth"]), int(result["nodes"]), line,
-                     mate=bool(result.get("mate")), ms=int(result.get("ms", 0)), by="compiled")
+                     mate=bool(result.get("mate")), ms=int(result.get("ms", 0)), by="compiled",
+                     unsteady=int(result.get("unsteady", 0)))
     return _search_here(family, position, seconds=seconds, weights=weights, set_aside=aside)
 
 

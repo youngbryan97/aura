@@ -693,6 +693,9 @@ struct Searcher<'a> {
     stop: bool,
     max_nodes: u64,
     excluded: Vec<Move>,
+    /// How far the best score moved between the last two depths completed: the search's own unsteadiness, under
+    /// which two moves' scores do not tell them apart.
+    unsteady: i32,
 }
 
 impl<'a> Searcher<'a> {
@@ -1052,6 +1055,9 @@ impl<'a> Searcher<'a> {
                     }
                 }
             }
+            if done > 0 {
+                self.unsteady = (score - best_score).abs();
+            }
             best_score = score;
             done = depth;
             window = if score.abs() < MATE - 1000 { (score - 50, score + 50) } else { (-INF, INF) };
@@ -1179,6 +1185,7 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
         stop: false,
         max_nodes: 0,
         excluded: vec![],
+        unsteady: 0,
     };
     Ok(s.evaluate())
 }
@@ -1214,22 +1221,23 @@ fn search(
             stop: false,
             max_nodes: nodes,
             excluded: vec![],
+            unsteady: 0,
         };
         let all = s.b.legal(&g);
         let legal: Vec<Move> = all.into_iter().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
         s.excluded = s.b.legal(&g).into_iter().filter(|m| !legal.contains(m)).collect();
         if legal.is_empty() {
-            return (None, 0, 0, 0u64, vec![], 0);
+            return (None, 0, 0, 0u64, vec![], 0, 0);
         }
         let (found, best_score, done) = s.best(deepest, &legal);
         let best = found.unwrap_or(legal[0]);
         let line = s.line(best, 12);
         let n = s.nodes;
         let ms = (s.started.elapsed().as_secs_f64() * 1000.0) as u64;
-        (Some(best), best_score, done, n, line, ms)
+        (Some(best), best_score, done, n, line, ms, s.unsteady)
     });
     let d = PyDict::new_bound(py);
-    let (best, score, depth, n, line, ms) = result;
+    let (best, score, depth, n, line, ms, unsteady) = result;
     match best {
         Some(m) => d.set_item("move", move_out(&g, &m))?,
         None => d.set_item("move", py.None())?,
@@ -1239,6 +1247,7 @@ fn search(
     d.set_item("nodes", n)?;
     d.set_item("ms", ms)?;
     d.set_item("mate", score.abs() > MATE - 1000)?;
+    d.set_item("unsteady", unsteady)?;
     let line_out: Vec<(i32, i32, i32, i32, String)> = line.iter().map(|m| move_out(&g, m)).collect();
     d.set_item("line", line_out)?;
     Ok(d.into())
@@ -1278,8 +1287,8 @@ fn self_play(
         let mut final_counts: Vec<Vec<f32>> = Vec::new();
         for game in 0..games {
             let a_is_first = game % 2 == 0;
-            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: vec![Entry::default(); entries], killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![] };
-            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: vec![Entry::default(); entries], killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![] };
+            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: vec![Entry::default(); entries], killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0 };
+            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: vec![Entry::default(); entries], killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0 };
             let mut board = b0.clone();
             let mut taken: Vec<Vec<f32>> = Vec::new();
             let mut result_first = 0.5;
