@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import Counter
 from typing import Any
 
 import numpy as np
@@ -29,6 +30,8 @@ __all__ = ["took_a_way_on"]
 LOOKED_EVERY_S = 3.0
 #: How long a press is given to change the screen.
 SHOWS_IN_S = 1.0
+#: Presses a way on is given before it is taken not to answer: a second, for a press that did not land.
+PRESSES_OF_A_WAY_ON = 2
 #: Words this close, as shares of the window, belong to one control: across, the width of a column of text; down, a
 #: line and a half of a card.
 SAME_COLUMN = 0.06
@@ -265,9 +268,10 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
     if len(regions) < 3:
         return False
     taken: list[str] = keep.setdefault("ways_on_taken", [])
-    controls = [c for c in _controls(regions)
-                if " / ".join(r["text"] for r in c) not in taken
-                and not _names(" ".join(r["text"] for r in c), target_app)]
+    # Every control is weighed, those already pressed too: where the one that means what was asked has not answered,
+    # the next best is a different act, not a way on. LIVE 21 November 2026 "Play Chess" did not answer a press made
+    # as the screen was unlocked, and with it set aside "Puzzles: Train your chess skills" stood out and was pressed.
+    controls = [c for c in _controls(regions) if not _names(" ".join(r["text"] for r in c), target_app)]
     if len(controls) < 2:
         return False
     texts = [" ".join(r["text"] for r in control) for control in controls]
@@ -290,14 +294,18 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
         # Nothing stands out by what the words are about ("Start game" is not about chess against an engine, and is
         # what starts one): which control does the next step is a question of understanding the place, put to her own
         # model, with the controls as the only answers. A still screen gives her the time to think.
-        labels = [r for r in regions if not _names(r["text"], target_app)
-                  and r["text"] not in {t for c in taken for t in c.split(" / ")}]
+        pressed = Counter(t for c in taken for t in c.split(" / "))
+        labels = [r for r in regions if not _names(r["text"], target_app) and pressed[r["text"]] < PRESSES_OF_A_WAY_ON]
         picked = await _her_understanding(target_app, acts[act], [r["text"] for r in labels])
         if picked is None:
             logger.info("no way on stands out in %r for %r, nor seen by her", target_app, acts[act][:60])
             return False
         return await _pressed(labels[picked], regions, target_app, reading, keep, read_screen, from_a_window)
     control = controls[chosen]
+    if taken.count(" / ".join(r["text"] for r in control)) >= PRESSES_OF_A_WAY_ON:
+        logger.info("the way on in %r, %r, has not answered %d presses", target_app, texts[chosen][:80],
+                    PRESSES_OF_A_WAY_ON)
+        return False
     taken.append(" / ".join(r["text"] for r in control))
     bounds = list(reading.get("bounds") or [])
     logger.info("a way on in %r by what it means: %r for %r (%.2f, next %.2f)", target_app, texts[chosen][:80],

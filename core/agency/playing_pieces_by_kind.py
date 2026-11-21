@@ -441,7 +441,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             return {"ended": "the board went out of sight", "moves": game.made, "theirs": game.theirs,
                     "learned": game.learned}
         picture, seen = still
-        shown = seat.as_rules(seen)
+        shown = _read_against(seat.as_rules(seen), game.believed.cells)
         if not _agrees(shown, game.believed.cells):
             game.learned.knows_of({kind for _side, kind in shown.values() if kind is not None})
             seen_moves = moves_seen(game.believed, shown, game.believed.turn, game.learned.family())
@@ -523,7 +523,32 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         legal = moves(family, game.believed)
         ended = outcome(family, game.believed, legal) if any(k.royal for k in family.kinds.values()) else ""
         if ended or not legal:
-            return _the_end(ended or "no move", game, tell)
+            # An ending her model infers is asked of the game before it is believed: where the game still offers her a
+            # move, the game is not over and her reading of the board is what is wrong. LIVE 21 November 2026 a mark on
+            # her king turned it, as she read it, into a piece of the other side; she said "I lost" with the game going
+            # on, and closed the application.
+            offers_left = await _what_the_game_still_offers(seat, look, click, picture, game.believed)
+            if not offers_left:
+                return _the_end(ended or "no move", game, tell)
+            logger.info("her model says the game is over (%s) and the game still offers %d move(s)",
+                        ended or "no move", sum(len(v) for v in offers_left.values()))
+            for start, ends in offers_left.items():
+                game.learned.offered(game.believed, start, ends, family=family)
+            family = game.learned.family(unseen_go_every_way=True)
+            if not moves(family, game.believed):
+                start, ends = next(iter(offers_left.items()))
+                end = sorted(ends)[0]
+                taken = end if game.believed.cells.get(end, (FIRST,))[0] != FIRST else None
+                move = Move(start, end, taken_at=taken)
+                tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}, "
+                     "the move the game offers me.")
+                await click(*seat.centre_share(move.start, picture))
+                await asyncio.sleep(OFFERS_SHOW_S)
+                await click(*seat.centre_share(move.end, picture))
+                if await _comes_to_show(seat, look, game, move):
+                    game.made += 1
+                    game.waiting_since = time.monotonic()
+                continue
         weights = rehearsing.weights_for(family)
         set_aside: list[Move] = []
         found = None
@@ -622,6 +647,30 @@ async def _whose_turn_by_the_clock(clock: Callable[[], Awaitable[float | None]] 
     return FIRST if two < one else SECOND
 
 
+def _read_against(shown: dict, believed: dict) -> dict:
+    """The board read, where a piece's look was unread taking its side from the board she holds: a mark that changes
+    how a piece looks (a glow round a piece under attack) changes its colour as well, and a piece does not change side
+    where it stands."""
+    out = dict(shown)
+    for square, (side, kind) in shown.items():
+        if kind is None and square in believed:
+            out[square] = (believed[square][0], None)
+    return out
+
+
+async def _what_the_game_still_offers(seat: Seat, look: Look, click: Click, picture: Any,
+                                      position: Position) -> dict[tuple[int, int], set]:
+    """Every piece of hers picked up in turn: the squares the game offers each, for those it offers any."""
+    offered: dict[tuple[int, int], set] = {}
+    for square, (side, _kind) in sorted(position.cells.items()):
+        if side != FIRST:
+            continue
+        squares = await _offers_for(seat, look, click, picture, square)
+        if squares:
+            offered[square] = squares
+    return offered
+
+
 def _agrees(shown: dict, believed: dict) -> bool:
     """Whether the board seen is the board held: the same squares, each with the same side, and the same kind where
     the kind was read."""
@@ -656,7 +705,7 @@ async def _comes_to_show(seat: Seat, look: Look, game: _Game, move: Move) -> boo
         still = await _seen_still(seat, look, within_s=MOVE_SHOWS_S)
         if still is None:
             return False
-        shown = seat.as_rules(still[1])
+        shown = _read_against(seat.as_rules(still[1]), game.believed.cells)
         if not _agrees(shown, game.believed.cells):
             game.learned.knows_of({kind for _side, kind in shown.values() if kind is not None})
             seen_moves = moves_seen(game.believed, shown, FIRST, game.learned.family())

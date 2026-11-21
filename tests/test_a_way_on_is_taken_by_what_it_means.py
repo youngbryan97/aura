@@ -142,3 +142,26 @@ def test_where_nothing_stands_out_she_presses_what_her_understanding_names(monke
     assert asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, {}, nothing_answered=True))
     assert pressed == ["Start game"]
     assert "Start game" in asked[0] and "En Croissant" not in asked[0].split("can be pressed is this:")[1]
+
+
+def test_where_the_way_on_does_not_answer_the_next_best_is_not_pressed(monkeypatch, screen):
+    """LIVE 21 November 2026 "Play Chess" did not answer a press made as the screen was unlocked, and with it set aside
+    "Puzzles: Train your chess skills" stood out and was pressed. The next best is another act, not a way on."""
+    layout = [{"text": t, "center_x": x, "center_y": y} for t, x, y in START_PAGE]
+    pressed: list[str] = []
+
+    async def read_screen(app, over=None):
+        return {"layout": list(layout), "bounds": [0, 0, 1000, 800]}
+
+    async def a_press_that_does_nothing(x, y, **_kwargs):
+        pressed.append(next(r["text"] for r in layout if (r["center_x"], r["center_y"]) == (x, y)))
+        return True
+
+    monkeypatch.setattr(pursuit, "read_screen", read_screen)
+    monkeypatch.setattr(surface, "click_normalized", a_press_that_does_nothing)
+    monkeypatch.setattr(way_on, "LOOKED_EVERY_S", 0.0)
+    keep: dict = {}
+    for _ in range(4):
+        assert not asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, keep, nothing_answered=True))
+    assert pressed and all(text.startswith("Play") for text in pressed), pressed
+    assert keep["ways_on_taken"].count(keep["ways_on_taken"][0]) == way_on.PRESSES_OF_A_WAY_ON
