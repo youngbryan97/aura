@@ -128,6 +128,23 @@ def _corners_flat(square: np.ndarray) -> bool:
     return max(spread) < 6.0 and max(float(np.abs(m - means[0]).max()) for m in means) < 12.0
 
 
+def _spacing(starts: np.ndarray, size: float) -> float:
+    """How far apart things that start at ``starts`` stand, near ``size``: the median step between neighbouring
+    starts that is about one size, refined over the whole run by the steps of several sizes."""
+    distinct = np.unique(np.round(starts))
+    if len(distinct) < 2 or size <= 0:
+        return size
+    steps = np.diff(distinct)
+    near = steps[(steps > 0.6 * size) & (steps < 1.5 * size)]
+    if not len(near):
+        return size
+    step = float(np.median(near))
+    # Over the whole run: the span between the first and last start, in steps.
+    span = float(distinct[-1] - distinct[0])
+    count = round(span / step)
+    return span / count if count else step
+
+
 def squares_of_one_ground(picture: np.ndarray) -> Lattice | None:
     """The board in a picture, found from its squares: the size most flat square regions share, the lattice they lie
     on, and its extent, grown or trimmed to the squares whose corners are flat ground; None where there is none."""
@@ -145,10 +162,13 @@ def squares_of_one_ground(picture: np.ndarray) -> Lattice | None:
     kept = [b for b in boxes if abs(b[2] - size) <= max(2, 0.08 * size) and abs(b[3] - size) <= max(2, 0.08 * size)]
     if len(kept) < FEWEST * 2:
         return None
-    width = float(np.median([b[2] for b in kept]))
-    height = float(np.median([b[3] for b in kept]))
     xs = np.array([b[0] for b in kept], float)
     ys = np.array([b[1] for b in kept], float)
+    # A square's size is how far apart squares stand, not how big the flat inside of one is: LIVE 20 November 2026
+    # En Croissant's squares stood every 52 pixels and their flat insides were 51 tall, and a board measured by the
+    # inside drifted a pixel a row until its edge rows were missed.
+    width = _spacing(xs, float(np.median([b[2] for b in kept])))
+    height = _spacing(ys, float(np.median([b[3] for b in kept])))
     x_phase = float(np.median(np.mod(xs, width)))
     y_phase = float(np.median(np.mod(ys, height)))
     columns = np.round((xs - x_phase) / width).astype(int)
@@ -254,16 +274,11 @@ def _apart(one: np.ndarray, other: np.ndarray) -> float:
     return float(np.abs(one - other).mean())
 
 
-#: How much wider than the jumps among themselves the jump between two groups of differences must be for there to be
-#: two groups: differences that are noise (one kind drawn on two grounds, or by two sides) and differences between kinds.
-TWO_GROUPS = 2.5
-
-
 def _widest_gap(looks: list[np.ndarray]) -> float:
     """The cut between alike and unlike, from the steps of the tree that joins every look to its nearest (a
-    single-linkage tree). Steps of exactly nothing are pieces drawn identically. Among the rest, a jump of more than
-    ``TWO_GROUPS`` times splits noise from kinds; where there is no such jump, the rest are all differences between
-    kinds if any pieces were drawn identically, and all noise of one kind if none were."""
+    single-linkage tree). Steps of exactly nothing are pieces drawn identically. Among the rest, one jump that dwarfs
+    every other splits noise from kinds; where none does, the rest are all differences between kinds if any pieces were
+    drawn identically, and all noise of one kind if none were."""
     count = len(looks)
     if count < 2:
         return 0.0
@@ -276,11 +291,19 @@ def _widest_gap(looks: list[np.ndarray]) -> float:
         joined.add(nxt)
         nearest = np.minimum(nearest, apart[nxt])
     steps.sort()
-    some = [step for step in steps if step > 1e-9]
+    # Below one cell of the look wholly different, a difference is under what a look can tell: kept at that, so a
+    # look a ten-thousandth off is not a jump of three from one a thirty-thousandth off.
+    least = 1.0 / looks[0].size
+    some = [max(step, least) for step in steps if step > 1e-9]
     identical = len(some) < len(steps)
     if len(some) >= 2:
-        ratio, at = max((some[i + 1] / some[i], i) for i in range(len(some) - 1))
-        if ratio >= TWO_GROUPS:
+        # Two groups where one jump, as a ratio, dwarfs every other: more than twice the next widest, in log terms.
+        # LIVE 20 November 2026 on En Croissant at its own size the jump from noise to kinds was 2.36 times and the
+        # next widest 1.30; among the kinds of a board drawn the same way every time, no jump stands alone like that.
+        jumps = sorted(((float(np.log(some[i + 1] / some[i])), i) for i in range(len(some) - 1)), reverse=True)
+        widest, at = jumps[0]
+        next_widest = jumps[1][0] if len(jumps) > 1 else 0.0
+        if widest > 2.0 * next_widest:
             return float(np.sqrt(some[at] * some[at + 1]))
     if some and identical:
         return some[0] / 2.0
