@@ -379,7 +379,8 @@ class _Rehearsing:
         return Weights(worth={k: earned.weights.worth.get(k, guess.worth[k]) for k in family.kinds},
                        mobility={k: earned.weights.mobility.get(k, 0.0) for k in family.kinds},
                        squares={k: v for k, v in earned.weights.squares.items() if k in family.kinds},
-                       tempo=earned.weights.tempo, royal_pressed=earned.weights.royal_pressed)
+                       tempo=earned.weights.tempo, royal_pressed=earned.weights.royal_pressed,
+                       exposed={k: v for k, v in earned.weights.exposed.items() if k in family.kinds})
 
     def collect(self) -> None:
         if self.running is not None and self.running.done():

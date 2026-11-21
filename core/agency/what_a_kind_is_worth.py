@@ -43,7 +43,7 @@ HELD_BACK = 1.0
 #: How many standard errors above even a new set of weights must score against the old to be kept.
 BETTER_BY = 1.0
 #: What is fitted, a group at a time, in the order a weak player's games can tell them apart.
-GROUPS = ("worth", "turn and safety", "moves", "where each stands")
+GROUPS = ("worth", "turn and safety", "moves", "what is left to be taken", "where each stands")
 
 
 @dataclass
@@ -85,6 +85,11 @@ def _columns(family: Family, groups: list[str]) -> list[int]:
         columns += [2 * kinds, 2 * kinds + 1]
     if "where each stands" in groups:
         columns += list(range(2 * kinds + 2, 2 * kinds + 2 + kinds * squares))
+    if "what is left to be taken" in groups:
+        # What she cannot afford to lose (core/cognition/what_she_cannot_afford_to_lose.py): per kind, the pieces
+        # each side leaves attacked and undefended.
+        start = 2 * kinds + 2 + kinds * squares
+        columns += list(range(start, start + kinds))
     return columns
 
 
@@ -117,7 +122,8 @@ def fitted(family: Family, xs: np.ndarray, ys: np.ndarray, groups: list[str]) ->
         return None
     scale = (PER_SQUARE * 4) / positive[0]
     squares = family.rows * family.columns
-    table = full[2 * kinds + 2:]
+    table = full[2 * kinds + 2:2 * kinds + 2 + kinds * squares]
+    exposed_at = 2 * kinds + 2 + kinds * squares
     return Weights(
         worth={letter: round(float(full[i] * scale), 1) for i, letter in enumerate(letters)},
         mobility={letter: round(float(full[kinds + i] * scale), 2) for i, letter in enumerate(letters)},
@@ -127,6 +133,9 @@ def fitted(family: Family, xs: np.ndarray, ys: np.ndarray, groups: list[str]) ->
         # The feature counts squares pressed against the first side as less; the search takes the weight off per square.
         royal_pressed=round(float(full[2 * kinds] * scale), 2),
         tempo=round(float(full[2 * kinds + 1] * scale), 1),
+        # The feature counts the other side's exposed pieces less her own; the search takes the weight off per piece.
+        exposed=({letter: round(float(full[exposed_at + i] * scale), 2) for i, letter in enumerate(letters)}
+                 if "what is left to be taken" in groups and full.shape[0] >= exposed_at + kinds else {}),
     )
 
 

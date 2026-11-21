@@ -76,6 +76,10 @@ struct WeightsD {
     /// Per attack on a square next to a royal piece, against that royal's side.
     #[serde(default)]
     royal_pressed: f64,
+    /// Per kind, against its side, for each piece of it the other side attacks and its own side does not defend:
+    /// what she cannot afford to lose (core/cognition/what_she_cannot_afford_to_lose.py).
+    #[serde(default)]
+    exposed: HashMap<String, f64>,
 }
 
 #[derive(Clone)]
@@ -99,6 +103,7 @@ struct Kind {
     worth: i32,
     mobility: i32,
     squares: [Vec<i32>; 2],
+    exposed: i32,
 }
 
 struct Game {
@@ -190,6 +195,7 @@ impl Game {
             };
             let worth = (w.worth.get(&k.letter).copied().unwrap_or(0.0)).round() as i32;
             let mobility = (w.mobility.get(&k.letter).copied().unwrap_or(0.0)).round() as i32;
+            let exposed = (w.exposed.get(&k.letter).copied().unwrap_or(0.0)).round() as i32;
             let mut squares: [Vec<i32>; 2] = [vec![0; size], vec![0; size]];
             if let Some(table) = w.squares.get(&k.letter) {
                 for r in 0..f.rows {
@@ -217,6 +223,7 @@ impl Game {
                 worth,
                 mobility,
                 squares,
+                exposed,
             });
         }
         let mut rng = Rng(0x9E3779B97F4A7C15);
@@ -741,6 +748,19 @@ impl<'a> Searcher<'a> {
                 }
             }
         }
+        if g.kinds.iter().any(|k| k.exposed != 0) {
+            for &sq in &g.on_board {
+                let c = self.b.cells[sq];
+                if c == EMPTY {
+                    continue;
+                }
+                let s = side_of(c);
+                let k = &g.kinds[kind_of(c)];
+                if k.exposed != 0 && self.b.attacked(g, sq, 1 - s) && !self.b.attacked(g, sq, s) {
+                    score[s] -= k.exposed;
+                }
+            }
+        }
         let me = self.b.turn;
         score[me] - score[1 - me] + g.tempo
     }
@@ -1075,7 +1095,7 @@ impl<'a> Searcher<'a> {
         let g = self.g;
         let k = g.kinds.len();
         let squares = (g.rows * g.cols) as usize;
-        let mut f = vec![0f32; 2 * k + 2 + k * squares];
+        let mut f = vec![0f32; 2 * k + 2 + k * squares + k];
         for &sq in &g.on_board {
             let c = self.b.cells[sq];
             if c == EMPTY {
@@ -1116,6 +1136,18 @@ impl<'a> Searcher<'a> {
             }
         }
         f[2 * k + 1] = if self.b.turn == 0 { 1.0 } else { -1.0 };
+        // Per kind, the pieces of it each side leaves attacked and undefended: the second side's less the first's.
+        let exposed_at = 2 * k + 2 + k * squares;
+        for &sq in &g.on_board {
+            let c = self.b.cells[sq];
+            if c == EMPTY {
+                continue;
+            }
+            let s = side_of(c);
+            if self.b.attacked(g, sq, 1 - s) && !self.b.attacked(g, sq, s) {
+                f[exposed_at + kind_of(c)] += if s == 0 { -1.0 } else { 1.0 };
+            }
+        }
         f
     }
 }

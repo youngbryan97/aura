@@ -39,6 +39,9 @@ class Weights:
     squares: dict[str, list[list[float]]] = field(default_factory=dict)
     tempo: float = 0.0
     royal_pressed: float = 0.0
+    #: Per kind, against its side, for each piece of it the other side attacks and its own does not defend
+    #: (core/cognition/what_she_cannot_afford_to_lose.py). Nothing until rehearsal measures it.
+    exposed: dict[str, float] = field(default_factory=dict)
 
     def as_json(self) -> str:
         return json.dumps(asdict(self))
