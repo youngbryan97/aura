@@ -52,6 +52,11 @@ def screen(monkeypatch):
     monkeypatch.setattr(surface, "click_normalized", click)
     monkeypatch.setattr("core.language.learned_matcher.embed_sentences", _words_in_common)
     monkeypatch.setattr(way_on, "SHOWS_IN_S", 0.0)
+
+    async def no_window(_app):  # the real desktop is never read in a test
+        return None
+
+    monkeypatch.setattr(way_on, "_its_own_pixels_read", no_window)
     return pressed
 
 

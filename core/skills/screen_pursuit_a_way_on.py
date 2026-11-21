@@ -101,15 +101,48 @@ def _the_words_differ(before: list[dict[str, Any]], after: list[dict[str, Any]])
 READ_AT_MOST_S = 5.0
 
 
-async def _a_reading(read_screen: Any, target_app: str) -> dict[str, Any] | None:
-    """A reading of the window, or None where none comes back in time: a look that does not come back is not a look."""
+async def _a_reading(read_screen: Any, target_app: str, *, from_a_window: bool = True) -> dict[str, Any] | None:
+    """A careful reading of the window: its own pixels at full size, read for words; where those cannot be had, the
+    pursuit's reading. None where none comes back in time: a look that does not come back is not a look. LIVE 20
+    November 2026 the pursuit's quick reading of En Croissant's start page gave "Plav Chess", "Analwcie Dnard Open" and
+    "Train uane abaee alilll", and nothing on it meant anything; the window's own pixels read "Play Chess", "Play
+    against an engine or a friend", "Play" in a quarter of a second."""
     import asyncio
 
     try:
+        careful = (await asyncio.wait_for(_its_own_pixels_read(target_app), timeout=READ_AT_MOST_S)
+                   if from_a_window else None)
+        if careful:
+            return careful
         return await asyncio.wait_for(read_screen(target_app), timeout=READ_AT_MOST_S)
     except (TimeoutError, OSError, RuntimeError) as why:
         logger.info("the window was not read for a way on (%s)", type(why).__name__)
         return None
+
+
+async def _its_own_pixels_read(target_app: str) -> dict[str, Any] | None:
+    import asyncio
+
+    from core.capabilities import window_server
+    from core.perception.what_the_pixels_show import _the_pixels_of, recognize_text
+
+    window = await asyncio.to_thread(window_server.window_of, target_app)
+    if window is None:
+        return None
+    picture = await _the_pixels_of(window)
+    if picture is None:
+        return None
+    pixels = np.asarray(picture)
+    words = await asyncio.to_thread(recognize_text, np.ascontiguousarray(pixels[:, :, 2::-1]))
+    tall, wide = pixels.shape[:2]
+    layout = []
+    for region in words or []:
+        x = float(region.get("center_x", region.get("x", 0.0)) or 0.0)
+        y = float(region.get("center_y", region.get("y", 0.0)) or 0.0)
+        # Fractions of the picture, top-left, as every reading gives them.
+        layout.append({"text": region.get("text", ""), "center_x": x / wide if x > 1.5 else x,
+                       "center_y": y / tall if y > 1.5 else y})
+    return {"ok": True, "layout": layout, "bounds": list(window.bounds)} if layout else None
 
 
 async def took_a_way_on(target_app: str, goal: str, keep: dict[str, Any], *, nothing_answered: bool,
@@ -130,8 +163,13 @@ async def took_a_way_on(target_app: str, goal: str, keep: dict[str, Any], *, not
     if now - float(keep.get("way_on_looked_at", -1e9)) < LOOKED_EVERY_S:
         return False
     keep["way_on_looked_at"] = now
-    # The reading just taken, where there is one: a second look is a second chance for a capture to wedge.
-    reading = seen if seen is not None else await _a_reading(read_screen, target_app)
+    # Not where the look just taken failed: a capture that wedged once is not asked again this cycle.
+    if seen is not None and seen.get("ok") is False:
+        return False
+    # A window's own pixels only where the look just taken was of a window: a reading given any other way (a test's,
+    # a page's) is the whole of what there is to read, and the desktop is not looked at behind it.
+    from_a_window = seen is None or bool(seen.get("window_number"))
+    reading = await _a_reading(read_screen, target_app, from_a_window=from_a_window)
     if not reading or reading.get("ok") is False:
         return False
     regions = _regions(reading)
@@ -181,7 +219,7 @@ async def took_a_way_on(target_app: str, goal: str, keep: dict[str, Any], *, not
     for region in order:
         await click_normalized(region["x"], region["y"], expect_app=target_app, bounds=bounds)
         await asyncio.sleep(SHOWS_IN_S)
-        after = _regions(await _a_reading(read_screen, target_app) or {})
+        after = _regions(await _a_reading(read_screen, target_app, from_a_window=from_a_window) or {})
         if _the_words_differ(regions, after):
             _tell(f"I pressed \"{region['text']}\": it's the nearest thing here to what you asked.")
             return True
