@@ -37,6 +37,60 @@ RETRY = "retry"
 GO_AROUND = "go around"
 DROP = "drop"
 START_OVER = "start over"
+#: Doing first what the stuck step has only ever worked after (core/cognition/what_having_it_lets_her_do.py): a wall
+#: that is an errand, learned from Minecraft's first hour, where bare hands get wood and wood makes the tool.
+FIRST_WHAT_IT_WAITS_FOR = "do first what it waits for"
+#: Where what her plans' steps waited for is kept between sittings.
+_KEPT_AS = "the steps of her plans: what opens what"
+_OPENS: list[Any] = []
+
+
+def what_opens_what() -> Any:
+    """Which steps of her plans have worked only once which others were done, as she has seen it across runs."""
+    from core.cognition.what_having_it_lets_her_do import WhatOpensWhat
+
+    if not _OPENS:
+        try:
+            from core.runtime.what_she_learned import recall
+
+            _OPENS.append(WhatOpensWhat.from_memory(recall(_KEPT_AS).get("opens") or {}))
+        except (ImportError, OSError, ValueError, TypeError, AttributeError) as exc:
+            logger.info("what her plans' steps wait for was not read back (%s)", exc)
+            _OPENS.append(WhatOpensWhat())
+    return _OPENS[0]
+
+
+def done_before(receipt: Any, stuck: str) -> list[str]:
+    """The steps a run did and saw done before the one it got stuck on."""
+    done: list[str] = []
+    for result in getattr(receipt, "steps", ()) or ():
+        name = str(getattr(result, "name", "") or "")
+        if name == stuck:
+            break
+        if getattr(result, "ok", False) and getattr(result, "verified", False):
+            done.append(name)
+    return done
+
+
+def learn_from_the_run(receipt: Any) -> None:
+    """Each step of a run, what had been done before it, and whether it worked: kept, for the next plan that stalls.
+    Blocking (it writes what she learned); called off the event loop."""
+    opens = what_opens_what()
+    done: list[str] = []
+    for result in getattr(receipt, "steps", ()) or ():
+        name = str(getattr(result, "name", "") or "")
+        if not name:
+            continue
+        worked = bool(getattr(result, "ok", False) and getattr(result, "verified", False))
+        opens.she_tried(name, holding=done, it_worked=worked)
+        if worked:
+            done.append(name)
+    try:
+        from core.runtime.what_she_learned import remember
+
+        remember(_KEPT_AS, {"opens": opens.as_memory()})
+    except (ImportError, OSError, ValueError, TypeError) as exc:
+        logger.info("what her plans' steps wait for was not kept (%s)", exc)
 
 
 @dataclass(frozen=True)
@@ -66,8 +120,8 @@ def progress_of(receipt: Any) -> int:
     return int(getattr(receipt, "verified_progress", 0) or 0)
 
 
-def _repairs(plan: Sequence[Any], stuck: str) -> list[ActionOption]:
-    """The repairs that make sense for this plan, stuck at this step."""
+def _repairs(plan: Sequence[Any], stuck: str, done: Sequence[str] = ()) -> list[ActionOption]:
+    """The repairs that make sense for this plan, stuck at this step, with ``done`` the steps seen done before it."""
     names = [str(getattr(step, "name", "") or "") for step in plan]
     if stuck not in names:
         stuck = names[0] if names else ""
@@ -96,14 +150,31 @@ def _repairs(plan: Sequence[Any], stuck: str) -> list[ActionOption]:
                 expectation=further,
             )
         )
+    # What the stuck step has only ever worked after, where that is a step of this plan still to come.
+    if where >= 0:
+        for first in what_opens_what().why_it_will_not_work(stuck, holding=done):
+            if first in names[where + 1:]:
+                options.append(
+                    ActionOption(
+                        name=FIRST_WHAT_IT_WAITS_FOR,
+                        params={"step": stuck, "first": first},
+                        detail=f"do {first!r} first: {stuck!r} has worked only once {first!r} was done",
+                        expectation=further,
+                    )
+                )
+                break
     return options
 
 
-def apply_repair(kind: str, plan: Sequence[Any], stuck: str) -> list[Any]:
+def apply_repair(kind: str, plan: Sequence[Any], stuck: str, first: str = "") -> list[Any]:
     """The plan a repair produces. Never mutates the plan it was given."""
     steps = list(plan)
     names = [str(getattr(step, "name", "") or "") for step in steps]
     if kind in (RETRY, START_OVER) or stuck not in names:
+        return steps
+    if kind == FIRST_WHAT_IT_WAITS_FOR and first in names and names.index(first) > names.index(stuck):
+        moved = steps.pop(names.index(first))
+        steps.insert(names.index(stuck), moved)
         return steps
     where = names.index(stuck)
     if kind == DROP and getattr(steps[where], "optional", False) and where < len(steps) - 1:
@@ -134,7 +205,7 @@ async def replan(
     if not steps:
         return None
     stuck = failed_step(receipt)
-    options = _repairs(steps, stuck)
+    options = _repairs(steps, stuck, done_before(receipt, stuck))
     if not options:
         return None
 
@@ -161,7 +232,7 @@ async def replan(
     return Repair(
         kind=kind,
         step=str(chosen.chosen.params.get("step") or stuck),
-        plan=apply_repair(kind, steps, stuck),
+        plan=apply_repair(kind, steps, stuck, str(chosen.chosen.params.get("first") or "")),
         deliberation=chosen,
     )
 

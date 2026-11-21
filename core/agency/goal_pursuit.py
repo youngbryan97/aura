@@ -125,6 +125,16 @@ class GoalPursuitEngine:
                 return outcome
 
             outcome.receipts.append(receipt)
+            if not parallel:
+                # What each step waited for, learned from every run (core/agency/replanning.py).
+                try:
+                    import asyncio
+
+                    from core.agency.replanning import learn_from_the_run
+
+                    await asyncio.to_thread(learn_from_the_run, receipt)
+                except (RuntimeError, OSError, ValueError, TypeError) as exc:
+                    record_degradation("goal_pursuit", exc)
             if completed:
                 outcome.completed = True
                 checked = receipt.tasks if isinstance(receipt, SwarmReceipt) else [receipt]
