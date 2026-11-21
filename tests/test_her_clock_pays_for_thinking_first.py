@@ -101,3 +101,26 @@ def test_one_look_that_shows_her_move_made_is_enough() -> None:
 
     shown, looks = asyncio.run(run())
     assert shown and looks == 1, looks
+
+
+def test_she_always_looks_while_her_piece_that_must_be_kept_safe_is_attacked() -> None:
+    game = _a_game()
+    for _ in range(8):
+        game.far.it_was_where_she_said(1)
+    assert not all(playing._looks_first(game) for _ in range(4))
+    assert all(playing._looks_first(game, pressed=True) for _ in range(4))
+
+
+def test_her_clock_is_read_from_one_picture(monkeypatch) -> None:
+    import core.perception.what_the_pixels_show as pixels
+    import core.skills.screen_pursuit_board_of_pieces as board_of_pieces
+
+    asked: dict = {}
+
+    async def look_at_window(app, over=None, *, wait_for_stillness=True, **_kwargs):
+        asked["wait"] = wait_for_stillness
+        return {"ok": True, "layout": [{"text": "2:41", "center_y": 0.1}, {"text": "0:19.4", "center_y": 0.9}]}
+
+    monkeypatch.setattr(pixels, "look_at_window", look_at_window)
+    assert asyncio.run(board_of_pieces._her_clock("en-croissant")) == 19.4
+    assert asked["wait"] is False

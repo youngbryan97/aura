@@ -179,10 +179,14 @@ def _seconds_on(text: str) -> float | None:
 
 
 async def _her_clock(target_app: str) -> float | None:
-    """The time she has left, where the window shows two clocks: the one nearer the bottom, her side of the board."""
+    """The time she has left, where the window shows two clocks: the one nearer the bottom, her side of the board.
+    Read from one picture: a running clock is what keeps a window from standing still, and LIVE 21 November 2026, game
+    12, every late turn spent 1.6 s waiting for her window to stand still before reading the time it showed."""
+    from core.perception.what_the_pixels_show import look_at_window
+
     from .screen_pursuit import read_screen
 
-    reading = await read_screen(target_app)
+    reading = await look_at_window(target_app, wait_for_stillness=False) or await read_screen(target_app)
     clocks = []
     for region in reading.get("layout") or []:
         seconds = _seconds_on(region.get("text", ""))

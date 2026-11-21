@@ -637,7 +637,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # that does not, or a move the game refuses, has her looking before every move again. LIVE 21 November
             # 2026, game 10: the look took 47 s of a 232 s game, where her thinking had 60.
             if found.move.start not in offered:
-                if not _looks_first(game):
+                pressed = any(k.royal for k in family.kinds.values()) and in_check(family, game.believed, FIRST)
+                if not _looks_first(game, pressed=pressed):
                     break
                 squares = await _offers_for(seat, look, click, picture, found.move.start)
                 if squares is not None:
@@ -676,6 +677,16 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         made = False
         finish_began = time.monotonic()
         for attempt in range(TRIES_OF_A_MOVE):
+            if attempt and move.start not in offered:
+                # Made without a look and not shown: a look says whether the game offers it at all, before her clock
+                # pays for making it blind again. LIVE 21 November 2026, game 12, a crossing tried while her piece that
+                # must be kept safe was attacked was made twice and waited on twice, 14 s of a 4 s turn.
+                squares = await _offers_for(seat, look, click, picture, move.start)
+                if squares is not None:
+                    offered[move.start] = squares
+                    game.learned.offered(game.believed, move.start, squares, family=family)
+                    if move.end not in squares:
+                        break
             await click(*seat.centre_share(move.start, picture))
             await asyncio.sleep(OFFERS_SHOW_S * (1 + attempt))
             await click(*seat.centre_share(move.end, picture))
@@ -712,10 +723,12 @@ def _room_to_learn(game: _Game, spent: float, share: float, probes: int) -> bool
     return spent + game.probe_s <= share / 2
 
 
-def _looks_first(game: _Game) -> bool:
+def _looks_first(game: _Game, *, pressed: bool = False) -> bool:
     """Whether she picks the piece up to see what the game offers before she moves it: on every move until her rules
-    have earned going without (core/cognition/how_far_to_go_before_looking.py), and then on every move they have not."""
-    if game.unlooked + 1 < game.far.how_many(trusted=game.far.how_often_it_held):
+    have earned going without (core/cognition/how_far_to_go_before_looking.py), and then on every move they have not.
+    Always while her piece that must be kept safe is attacked (``pressed``): that is where a game narrows what it
+    offers most, and where her rules have seen it least."""
+    if not pressed and game.unlooked + 1 < game.far.how_many(trusted=game.far.how_often_it_held):
         game.unlooked += 1
         return False
     game.unlooked = 0
