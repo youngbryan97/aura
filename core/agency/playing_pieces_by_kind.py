@@ -319,6 +319,8 @@ class _Game:
     finishes_timed: int = 0
     #: Every move seen made, hers and theirs, as the board's players write one down: "g1-f3", "e4xd5".
     played: list[str] = field(default_factory=list)
+    #: When she last saw a move of theirs made: from then her clock runs, though her turn has not begun.
+    their_move_seen_at: float = 0.0
 
     def timed_probe(self, seconds: float) -> None:
         self.probes_timed += 1
@@ -524,6 +526,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                                                          game.first_is_hers, whose="their") + ".")
                     game.theirs += 1
                     game.longest_answer_s = max(game.longest_answer_s, time.monotonic() - game.waiting_since)
+                    game.their_move_seen_at = time.monotonic()
                 game.follow(move)
                 game.waiting_since = time.monotonic()
             continue
@@ -601,6 +604,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         weights = rehearsing.weights_for(family)
         set_aside: list[Move] = []
         found = None
+        learned_until, searched_s = time.monotonic(), 0.0
         for _ in range(CHECKS_A_TURN):
             # What is left of the turn, less what making the move and seeing it shown has taken her this game.
             thinks = (max(0.2, share - (time.monotonic() - turn_began) - game.finish_s) if on_her_clock
@@ -610,8 +614,10 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             if only is not None:
                 found = Found(only, 0, 0, 0, [only], by="the only move")
             else:
+                search_began = time.monotonic()
                 found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
                                set_aside=set_aside)
+                searched_s += time.monotonic() - search_began
             if found.move is None:
                 break
             # Before she moves it, she picks it up: the move is made only where the game offers it.
@@ -656,6 +662,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 break
         if made:
             game.timed_finish(time.monotonic() - finish_began)
+            # Where her turn went, for knowing what her clock pays for besides thinking.
+            seen = game.their_move_seen_at or turn_began
+            logger.info("her turn %d took %.1f s: %.1f s before it began, %.1f s learning, %.1f s thinking, %.1f s "
+                        "between, %.1f s moving; her share of the clock was %s", game.made + 1,
+                        time.monotonic() - seen, turn_began - seen, learned_until - turn_began, searched_s,
+                        finish_began - learned_until - searched_s, time.monotonic() - finish_began,
+                        f"{share:.1f} s" if on_her_clock else "not on a clock")
         if not made:
             game.learned.refused(game.believed, move, family=family)
             tell("The game didn't take that move; I've learned it isn't one.")
