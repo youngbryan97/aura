@@ -62,6 +62,9 @@ class Rehearsal:
     #: in that game, and none where it is not known. LIVE 21 November 2026 weights fitted while she held the pawns'
     #: kind as the one kept safe valued her rooks at -16.7 and her pawns at -68.4, and were kept for every game after.
     royal: list[str] | None = None
+    #: How many times each group has been tried: each try is one more chance for a group that does not help to win a
+    #: match by luck, so each asks more of it.
+    tries: dict[str, int] = field(default_factory=dict)
 
 
 def _engine() -> Any | None:
@@ -154,6 +157,18 @@ def _as_a_result(standing: float, spread: float) -> float:
     return 1.0 / (1.0 + math.exp(-standing / spread))
 
 
+def how_far_above_even(tries: int) -> float:
+    """How many standard errors above even a group must score on its ``tries``-th try to be kept. The first try asks
+    BETTER_BY; later ones ask more, so that the chance a group that does not help is ever kept stays what one try's
+    was, shared out over the tries (Bonferroni). LIVE-like 21 November 2026: a lead-over-what-is-left feature was tried
+    seven times at one standard error, kept on the seventh at 0.584 +- 0.074, and then lost to the weights without it,
+    0.446 +- 0.040 over 120 games."""
+    from statistics import NormalDist
+
+    chance = 1.0 - NormalDist().cdf(BETTER_BY)
+    return NormalDist().inv_cdf(1.0 - chance / max(1, tries))
+
+
 def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: int = GAMES_A_ROUND,
              nodes: int = NODES_A_MOVE, seed: int = 1) -> Rehearsal:
     """One round: games of her search against itself in her model, their positions added to what she has, weights
@@ -203,7 +218,8 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
                 results[game] = _as_a_result(standing[game] if game % 2 == 0 else -standing[game], spread)
     mean = float(results.mean()) if len(results) else 0.5
     error = float(results.std(ddof=1) / math.sqrt(len(results))) if len(results) > 1 else 1.0
-    kept = mean - 0.5 > BETTER_BY * max(error, 1e-9)
+    tries = rehearsal.tries[trying] = rehearsal.tries.get(trying, 0) + 1 if trying else 1
+    kept = mean - 0.5 > how_far_above_even(tries) * max(error, 1e-9)
     rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "scored": round(mean, 3),
                       "error": round(error, 3), "kept": kept}
     if kept:

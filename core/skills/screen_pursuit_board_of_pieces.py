@@ -102,6 +102,15 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     if came.get("ended") in ("not taking moves", "not answered"):
         keep["board_left_until"] = time.monotonic() + LEFT_UNTIL_S
         return None
+    if came.get("ended") == "over":
+        # The game stopped letting her move and her own model could not say why: the window says how it ended, as a
+        # person looks at the screen to see. LIVE 21 November 2026 she said "it's over" four times against Stockfish,
+        # with En Croissant reading "0-1 Black wins" beside the board.
+        ended, words = await what_the_window_says_of_the_end(target_app)
+        if ended:
+            came["ended"], came["read_from_the_window"] = ended, words[:300]
+            _tell({"won": "The window says I won.", "lost": "The window says I lost.",
+                   "drawn": "The window says it was drawn."}[ended], news=True)
     if came.get("ended") in GAME_OVER:
         # Finished, she closes what she opened for it, as a person puts a game away.
         from core.capabilities.host_automation import get_host_automation
@@ -110,6 +119,44 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         came["closed"] = bool(getattr(receipt, "success", False))
         _tell(f"That's the game. I've closed {target_app}." if came["closed"] else "That's the game.", news=True)
     return came
+
+
+#: What she may take a window's words to say of how a game ended, and what each comes to.
+THE_ENDS = {"I won": "won", "I lost": "lost", "it was drawn": "drawn", "the window does not say": ""}
+
+
+async def what_the_window_says_of_the_end(target_app: str) -> tuple[str, str]:
+    """How a game ended, as the words in its window say it and her own model reads them: "won", "lost", "drawn", or ""
+    where they do not say; with the words read. The answers her model may give are those, and no others."""
+    from typing import Literal
+
+    from pydantic import create_model
+
+    from core.cognition.asking_in_turn import THE_PLACE
+    from core.cognition.what_things_are import asked_patiently
+    from core.rebuilding.her_model import ask_her_model
+
+    from .screen_pursuit_a_way_on import _its_own_pixels_read
+
+    try:
+        reading = await _its_own_pixels_read(target_app)
+    except (OSError, RuntimeError, ValueError) as why:
+        logger.info("the window was not read for how the game ended (%s)", why)
+        return "", ""
+    words = " / ".join(" ".join(str(region.get("text") or "").split())
+                       for region in (reading or {}).get("layout") or [] if str(region.get("text") or "").strip())
+    if not words:
+        return "", ""
+    schema = create_model("_TheEnd", ended=(Literal[tuple(THE_ENDS)], ...))  # type: ignore[valid-type]
+    prompt = (f"She has just played a game of pieces in the application “{target_app}”, as the side nearest the "
+              f"bottom of its board, and the game has stopped letting her move. The words in its window now: "
+              f"{words[:1500]}\nWhich of these do the words say happened?")
+    try:
+        got = await asked_patiently(ask_her_model, prompt, schema, 60, matters=THE_PLACE)
+    except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
+        logger.info("how the game ended was not asked of her model (%s)", why)
+        return "", words
+    return THE_ENDS.get(str(getattr(got, "ended", "") or ""), ""), words
 
 
 #: How a game handed over can end, as opposed to running out of time or losing sight of the board.
@@ -168,6 +215,7 @@ def _what_she_kept(target_app: str) -> dict[str, Any]:
         try:
             kept["rehearsal"] = Rehearsal(weights=Weights(**worth["weights"]), earned=list(worth.get("earned", [])),
                                           royal=(list(worth["royal"]) if isinstance(worth.get("royal"), list) else None),
+                                          tries={str(k): int(v) for k, v in (worth.get("tries") or {}).items()},
                                           lengths=[int(n) for n in worth.get("lengths", [])])
         except (TypeError, ValueError) as why:
             logger.info("what she measured at this board could not be read back (%s)", why)
@@ -184,6 +232,6 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
         record["rules"] = learned.as_memory()
     if rehearsal is not None and getattr(rehearsal, "earned", None):
         record["worth"] = {"weights": asdict(rehearsal.weights), "earned": list(rehearsal.earned),
-                           "royal": rehearsal.royal,
+                           "royal": rehearsal.royal, "tries": dict(rehearsal.tries),
                            "lengths": list(rehearsal.lengths)[-400:]}
     remember(_her_record(target_app), record)
