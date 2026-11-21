@@ -1864,8 +1864,9 @@ _SAID_THIS_RUN: ContextVar[list[str] | None] = ContextVar("said_this_run", defau
 SAID_KEPT_AT_MOST = 400
 
 
-def _tell(line: str) -> None:
-    """Say something that is not a move — the line she is taking, or a change of it.
+def _tell(line: str, *, news: bool = False) -> None:
+    """Say something that is not a move — the line she is taking, or a change of it. ``news`` for what happened, said
+    as it happens whatever the pace (core/language/what_a_watcher_hears.py).
 
     A watcher who only ever hears the keystrokes sees a twitch every second
     and no thinking behind it. What she is trying, and the moment she stops
@@ -1874,7 +1875,7 @@ def _tell(line: str) -> None:
     from core.language.what_a_watcher_hears import heard
 
     # Once a shape, in words she could read (core/language/what_a_watcher_hears.py).
-    said = heard(" ".join(str(line or "").split()))
+    said = heard(" ".join(str(line or "").split()), news=news)
     if not said:
         return
     logger.info("saying out loud: %r", said[:160])

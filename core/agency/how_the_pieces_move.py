@@ -107,6 +107,10 @@ class HowThePiecesMove:
     #: the other side could take it.
     refusals: int = 0
     refused_leaving_open: dict[str, int] = field(default_factory=dict)
+    #: Kinds seen taken with the game going on after: none of them is the kind the game keeps safe, whatever else
+    #: seemed to say so. The kind last taken waits for the next move to count.
+    taken_and_played_on: dict[str, int] = field(default_factory=dict)
+    last_taken: str = ""
 
     @classmethod
     def from_the_start(cls, rows: int, columns: int, start: dict[Square, tuple[int, str]]) -> HowThePiecesMove:
@@ -194,6 +198,12 @@ class HowThePiecesMove:
     def watched(self, position: Position, move: Move) -> None:
         """A move seen made: the kind went there, and what happened with it tells what more it may do."""
         side, kind = position.cells[move.start]
+        if self.last_taken:
+            # A move after a piece was taken: the game went on without it.
+            self.taken_and_played_on[self.last_taken] = self.taken_and_played_on.get(self.last_taken, 0) + 1
+            self.last_taken = ""
+        if move.taken_at is not None and move.taken_at in position.cells:
+            self.last_taken = position.cells[move.taken_at][1]
         direction, times = in_its_frame(side, move.start, move.end)
         unmoved = move.start in position.unmoved
         way = self._of(kind, direction)
@@ -320,6 +330,7 @@ class HowThePiecesMove:
             "crosses": dict(self.crosses), "becomes": {k: list(v) for k, v in self.becomes.items()},
             "passes": sorted(self.passes), "takes_passing": sorted(self.takes_passing),
             "refusals": self.refusals, "refused_leaving_open": dict(self.refused_leaving_open),
+            "taken_and_played_on": dict(self.taken_and_played_on),
         }
 
     @classmethod
@@ -346,6 +357,7 @@ class HowThePiecesMove:
             learned.passes, learned.takes_passing = set(kept.get("passes", [])), set(kept.get("takes_passing", []))
             learned.refusals = int(kept.get("refusals", 0))
             learned.refused_leaving_open = {k: int(v) for k, v in kept.get("refused_leaving_open", {}).items()}
+            learned.taken_and_played_on = {k: int(v) for k, v in kept.get("taken_and_played_on", {}).items()}
             return learned
         except (KeyError, TypeError, ValueError) as why:
             logger.info("what she learned of this game could not be read back (%s); learning it afresh", why)
@@ -354,7 +366,12 @@ class HowThePiecesMove:
     def royal(self, kind: str) -> bool:
         """Whether the game keeps this kind safe: left open by moves it withheld and almost never by moves it offered,
         and more often than any other kind; or left open by (nearly) every move it refused that the kind's own going
-        does not explain, at least twice."""
+        does not explain, at least twice. Never a kind seen taken with the game going on after: that is the one thing a
+        piece the game keeps safe cannot be, and it outweighs counts that a misreading of the board can inflate. LIVE 21
+        November 2026 her record of En Croissant's board, kept through misreadings since mended, held the pawns' kind as
+        the one to keep safe, and she called nearly every move an attack on it."""
+        if self.taken_and_played_on.get(kind, 0):
+            return False
         kept_off = self.kept_off_attacked.get(kind, 0)
         if kept_off >= ROYAL_AFTER and self.went_onto_attacked.get(kind, 0) <= AGAINST_AT_MOST * kept_off and all(
                 other == kind or count < kept_off or self.went_onto_attacked.get(other, 0) > AGAINST_AT_MOST * count
@@ -369,9 +386,13 @@ class HowThePiecesMove:
         seen move is taken to go along every line, as far as the way is clear, so a piece of the other side she has not
         seen move yet is not taken for one that cannot reach her. What it does is checked against the game before she
         relies on it for a move of her own, and her reading of which kind is royal never uses it."""
+        # What a kind may become, among kinds there are: on the board at the start, or seen to move. A kind that is
+        # neither is a look she no longer reads that way.
+        there = {k for _s, k in self.start.values()} | {k for k, ways in self.seen.items() if ways}
         kinds = {kind: Kind(kind, steps=tuple(self._steps_of(kind) or (
                                 _EVERY_LINE if unseen_go_every_way else ())), royal=self.royal(kind),
-                            becomes=tuple(self.becomes.get(kind, ())), crosses_with=self.crosses.get(kind, ""),
+                            becomes=tuple(b for b in self.becomes.get(kind, ()) if b in there),
+                            crosses_with=self.crosses.get(kind, ""),
                             name=self.names.get(kind, ""))
                  for kind in sorted({k for _s, k in self.start.values()} | set(self.seen))}
         return Family(name="the game in front of me", rows=self.rows, columns=self.columns, kinds=kinds,

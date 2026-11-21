@@ -85,7 +85,11 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     async def clock() -> float | None:
         return await _her_clock(target_app)
 
-    came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=_tell,
+    def tell(line: str) -> None:
+        # What happens in the game, as it happens: each move is news, not a remark to be paced.
+        _tell(line, news=True)
+
+    came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=tell,
                                      learned=learned, rehearsal=keep.get("pieces_rehearsal") or kept.get("rehearsal"),
                                      clock=clock)
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
@@ -104,7 +108,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
 
         receipt = await get_host_automation().close_app(target_app)
         came["closed"] = bool(getattr(receipt, "success", False))
-        _tell(f"That's the game. I've closed {target_app}." if came["closed"] else "That's the game.")
+        _tell(f"That's the game. I've closed {target_app}." if came["closed"] else "That's the game.", news=True)
     return came
 
 

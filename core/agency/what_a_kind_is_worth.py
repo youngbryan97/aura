@@ -126,6 +126,21 @@ def fitted(family: Family, xs: np.ndarray, ys: np.ndarray, groups: list[str]) ->
     )
 
 
+def _standing_where_it_stopped(played: dict, weights: Weights, family: Family) -> tuple[list[float], float]:
+    """Each game's material where it stopped, first side less second, in what she holds each kind worth; and how widely
+    those standings spread, the unit one is read in."""
+    letters = list(family.kinds)
+    standing = [sum(weights.worth.get(letter, 0.0) * float(count) for letter, count in zip(letters, counts))
+                for counts in played.get("final_counts") or []]
+    spread = float(np.std(standing)) if len(standing) > 1 else 0.0
+    return standing, spread
+
+
+def _as_a_result(standing: float, spread: float) -> float:
+    """A standing read as a result between losing and winning: level is half, a spread ahead about three quarters."""
+    return 1.0 / (1.0 + math.exp(-standing / spread))
+
+
 def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: int = GAMES_A_ROUND,
              nodes: int = NODES_A_MOVE, seed: int = 1) -> Rehearsal:
     """One round: games of her search against itself in her model, their positions added to what she has, weights
@@ -139,9 +154,18 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     played = engine.self_play(description, begin, rehearsal.weights.as_json(), rehearsal.weights.as_json(),
                               games, nodes, random_plies=RANDOM_PLIES, seed=seed)
     rehearsal.lengths.extend(int(n) for n in played.get("plies", []))
-    for features, result in played["samples"]:
+    # A game that stopped without a result (no piece she knows must be kept safe, so none can be lost; or out of moves
+    # to play) is judged by how it stood in material when it stopped. Without that, every game of a sort whose ending
+    # she has not learned is level, and there is nothing to learn from: LIVE 20-21 November 2026 she played two games
+    # against Stockfish and rehearsed in neither.
+    standing, spread = _standing_where_it_stopped(played, rehearsal.weights, family)
+    games_of = list(played.get("sample_games") or [])
+    for index, (features, result) in enumerate(played["samples"]):
+        label = float(result)
+        if label == 0.5 and spread > 0 and index < len(games_of) and games_of[index] < len(standing):
+            label = _as_a_result(standing[games_of[index]], spread)
         rehearsal.samples_x.append(list(features))
-        rehearsal.samples_y.append(float(result))
+        rehearsal.samples_y.append(label)
     rehearsal.rounds += 1
     trying = next((group for group in GROUPS if group not in rehearsal.earned), None)
     groups = [*rehearsal.earned, *([trying] if trying else [])]
@@ -154,6 +178,12 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     match = engine.self_play(description, begin, candidate.as_json(), rehearsal.weights.as_json(), games, nodes,
                              random_plies=RANDOM_PLIES, seed=seed + 7919)
     results = np.array(match["results"], dtype=np.float64)
+    standing, spread = _standing_where_it_stopped(match, rehearsal.weights, family)
+    if spread > 0 and len(standing) == len(results):
+        for game, points in enumerate(results):
+            if points == 0.5:
+                # The candidate played first in the even games.
+                results[game] = _as_a_result(standing[game] if game % 2 == 0 else -standing[game], spread)
     mean = float(results.mean()) if len(results) else 0.5
     error = float(results.std(ddof=1) / math.sqrt(len(results))) if len(results) > 1 else 1.0
     kept = mean - 0.5 > BETTER_BY * max(error, 1e-9)

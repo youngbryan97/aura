@@ -172,3 +172,17 @@ def test_how_each_go_came_out_is_news_each_time():
     assert watcher.heard("There's nothing to win in this one, only a score. Run 1 of 3: scored 190. Again.", 0.0)
     assert watcher.heard("There's nothing to win in this one, only a score. Run 2 of 3: scored 10. Again.", 20.0)
     assert watcher.heard("Round 2: lost. Again.", 30.0) and watcher.heard("Round 3: lost. Again.", 40.0)
+
+
+def test_news_is_said_as_it_happens_whatever_the_pace():
+    """LIVE 21 November 2026, asked to tell each move against Stockfish: every move of hers came within four seconds of
+    the move it answered and was held back as "a remark too soon after the last line"."""
+    watcher = WhatAWatcherHears()
+    theirs = "They played their piece that runs straight from e7 to e5."
+    mine = "I'll move my piece that leaps two-and-one from g1 to f3. It looks about even."
+    assert watcher.heard(theirs, now=100.0, news=True)
+    assert watcher.heard(mine, now=101.0, news=True)
+    # The same line word for word is still not said twice.
+    assert watcher.heard(mine, now=102.0, news=True) is None
+    # A remark is still paced.
+    assert watcher.heard("That piece looks heavy to me.", now=103.0) is None

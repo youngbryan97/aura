@@ -262,8 +262,13 @@ class WhatAWatcherHears:
         for word in re.findall(r"[A-Za-z][A-Za-z'’-]+", str(text or "")):
             self.names.add(_plain(word.replace("’", "'").split("'")[0]))
 
-    def heard(self, line: str, now: float | None = None) -> str | None:
-        """``line`` as a watcher should hear it, or None where it would tell them nothing or quote what she could not read."""
+    def heard(self, line: str, now: float | None = None, *, news: bool = False) -> str | None:
+        """``line`` as a watcher should hear it, or None where it would tell them nothing or quote what she could not read.
+
+        ``news``: what happened, said as it happens (a move made in a game, and its answer). It is never held back for
+        pace or for being shaped like the last, only for being the same line word for word. LIVE 21 November 2026 she
+        was asked to tell each move against Stockfish, and every move of hers came within four seconds of the move it
+        answered and was held back as "a remark too soon after the last line"."""
         now = time.monotonic() if now is None else now
         said = " ".join(str(line or "").split())
         if not said:
@@ -283,10 +288,11 @@ class WhatAWatcherHears:
         if now - self.lines.get(said, -SAME_AGAIN_S) < SAME_AGAIN_S:
             logger.info("not said again: %r", said[:120])
             return None
-        if now - self.shapes.get(shape, -SHAPE_AGAIN_S) < SHAPE_AGAIN_S and not _NEWS_EACH_TIME.match(said):
+        if (not news and now - self.shapes.get(shape, -SHAPE_AGAIN_S) < SHAPE_AGAIN_S
+                and not _NEWS_EACH_TIME.match(said)):
             logger.info("not said, a line like it was a moment ago: %r", said[:120])
             return None
-        if now - self.said_at < PACE_S and not _ALWAYS_SAID.match(said):
+        if not news and now - self.said_at < PACE_S and not _ALWAYS_SAID.match(said):
             logger.info("not said, a remark too soon after the last line: %r", said[:120])
             return None
         self.lines[said], self.shapes[shape], self.said_at = now, now, now
@@ -359,9 +365,9 @@ def done_watching(token: contextvars.Token[WhatAWatcherHears | None]) -> None:
     _WATCHING.reset(token)
 
 
-def heard(line: str) -> str | None:
+def heard(line: str, *, news: bool = False) -> str | None:
     """``line`` as the watcher hears it, or None."""
-    return the_watcher().heard(line)
+    return the_watcher().heard(line, news=news)
 
 
 def forget_what_was_heard() -> None:

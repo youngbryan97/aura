@@ -381,11 +381,13 @@ class _Rehearsing:
             self.running = None
 
     def start(self, pool: Any, family: Family) -> None:
-        """A round in her model, where none is under way and the rules she holds can end a game."""
+        """A round in her model, where none is under way and the rules she holds move something. A game in her model
+        that cannot end is judged by how it stood when it stopped (core/agency/what_a_kind_is_worth.py), so she
+        rehearses from her first turn rather than once she has learned which piece must be kept safe."""
         from core.agency.what_a_kind_is_worth import a_first_rehearsal, rehearse
 
         self.collect()
-        if self.running is not None or not any(kind.royal for kind in family.kinds.values()):
+        if self.running is not None or not any(kind.steps for kind in family.kinds.values()):
             return
         if self.rehearsal is None or set(self.rehearsal.weights.worth) != set(family.kinds):
             fresh = a_first_rehearsal(family)
@@ -660,14 +662,15 @@ def _read_against(shown: dict, believed: dict) -> dict:
 
 async def _what_the_game_still_offers(seat: Seat, look: Look, click: Click, picture: Any,
                                       position: Position) -> dict[tuple[int, int], set]:
-    """Every piece of hers picked up in turn: the squares the game offers each, for those it offers any."""
+    """Her pieces picked up in turn, those with room around them first, until the game offers one of them anything:
+    one is enough to know the game goes on, and her clock is running."""
     offered: dict[tuple[int, int], set] = {}
-    for square, (side, _kind) in sorted(position.cells.items()):
-        if side != FIRST:
-            continue
+    mine = [square for square, (side, _kind) in position.cells.items() if side == FIRST]
+    for square in sorted(mine, key=lambda sq: -_room_around(position, sq)):
         squares = await _offers_for(seat, look, click, picture, square)
         if squares:
             offered[square] = squares
+            break
     return offered
 
 

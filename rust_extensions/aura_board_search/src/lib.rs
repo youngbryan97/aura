@@ -1246,7 +1246,9 @@ fn search(
 
 /// Games played in the model between two sets of weights, colours swapped each game, the first ``random_plies``
 /// of each chosen at random for variety: the points the first weights won, and samples of quiet positions (features,
-/// and the game's result for the first side: 1, 0.5, 0) for fitting weights to what happened.
+/// and the game's result for the first side: 1, 0.5, 0) for fitting weights to what happened. With them, which game
+/// each sample came from, and each game's count of every kind where it stopped (first side less second): a game that
+/// stopped without a result can still be judged by how it stood.
 #[pyfunction]
 #[pyo3(signature = (description, start, weights_a, weights_b, games, nodes_per_move, random_plies=4, seed=1, max_plies=300, sample_every=2))]
 #[allow(clippy::too_many_arguments)]
@@ -1265,13 +1267,15 @@ fn self_play(
 ) -> PyResult<PyObject> {
     let (ga, b0) = parse(description, start, weights_a)?;
     let (gb, _) = parse(description, start, weights_b)?;
-    let (points, results, samples, lengths) = py.allow_threads(|| {
+    let (points, results, samples, lengths, sample_games, final_counts) = py.allow_threads(|| {
         let mut rng = Rng(seed.wrapping_mul(0x2545F4914F6CDD1D) | 1);
         let entries = (4 * 1024 * 1024) / std::mem::size_of::<Entry>();
         let mut points = 0.0f64;
         let mut results: Vec<f64> = Vec::new();
         let mut lengths: Vec<u32> = Vec::new();
         let mut samples: Vec<(Vec<f32>, f64)> = Vec::new();
+        let mut sample_games: Vec<u32> = Vec::new();
+        let mut final_counts: Vec<Vec<f32>> = Vec::new();
         for game in 0..games {
             let a_is_first = game % 2 == 0;
             let mut sa = Searcher { g: &ga, b: b0.clone(), tt: vec![Entry::default(); entries], killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![] };
@@ -1320,15 +1324,21 @@ fn self_play(
             lengths.push(plies);
             for f in taken {
                 samples.push((f, result_first));
+                sample_games.push(game);
             }
+            sa.b = board.clone();
+            let k = ga.kinds.len();
+            final_counts.push(sa.features()[..k].to_vec());
         }
-        (points, results, samples, lengths)
+        (points, results, samples, lengths, sample_games, final_counts)
     });
     let d = PyDict::new_bound(py);
     d.set_item("points", points)?;
     d.set_item("results", results)?;
     d.set_item("plies", lengths)?;
     d.set_item("samples", samples)?;
+    d.set_item("sample_games", sample_games)?;
+    d.set_item("final_counts", final_counts)?;
     Ok(d.into())
 }
 
