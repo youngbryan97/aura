@@ -27,7 +27,8 @@ LOOKED_FOR_EVERY_S = 4.0
 LEFT_UNTIL_S = 8.0
 
 
-async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[str, Any]) -> dict[str, Any] | None:
+async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[str, Any],
+                                   seen: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Where ``target_app``'s window shows two sides of pieces at their start, play the game and say what came of it;
     None where it shows none, or it was looked at a moment ago."""
     from core.agency.playing_pieces_by_kind import (
@@ -38,12 +39,15 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     from core.perception.what_the_pixels_show import _the_pixels_of
 
     from .screen_pursuit import _tell
-    from .screen_pursuit_surface import click_normalized
-
     from .screen_pursuit_on_a_page import on_her_page
+    from .screen_pursuit_surface import click_normalized
 
     now = time.monotonic()
     if not target_app or now < float(keep.get("board_left_until", 0.0)):
+        return None
+    if seen is not None and not seen.get("window_number"):
+        # Only behind a look at a window: a reading given any other way is all there is to see, and the desktop is not
+        # looked at behind it (a test's reading named an application that was really running).
         return None
     if on_her_page() is not None:
         # Her own page is played by her page's own player (core/skills/screen_pursuit_as_it_happens.py), which has a
@@ -91,7 +95,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     if rehearsal_now is not None:
         keep["pieces_rehearsal"] = rehearsal_now
     _keep_what_she_learned(target_app, seat.looks, learned_now, rehearsal_now)
-    if came.get("ended") == "not taking moves":
+    if came.get("ended") in ("not taking moves", "not answered"):
         keep["board_left_until"] = time.monotonic() + LEFT_UNTIL_S
         return None
     if came.get("ended") in GAME_OVER:

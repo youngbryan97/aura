@@ -61,6 +61,8 @@ PROBES_A_TURN = 6
 SEEN_ENOUGH = 8
 #: Moves she picks up and finds not offered, at most, before she moves the best one the game does offer.
 CHECKS_A_TURN = 8
+#: The least she waits on an answer before taking it that none is coming, whatever answers have taken so far.
+NO_ANSWER_AFTER_S = 90.0
 #: Pictures in a row that no move explains before she says she has lost track.
 MISREAD_AT_MOST = 20
 
@@ -242,6 +244,9 @@ class _Game:
     first_is_hers: bool = True
     made: int = 0
     theirs: int = 0
+    #: Since when she has waited on the other side, and the longest it has taken to answer.
+    waiting_since: float = field(default_factory=time.monotonic)
+    longest_answer_s: float = 0.0
 
     def follow(self, move: Move) -> None:
         """A move seen made: learned from, and the position taken from the board, with what the board cannot show
@@ -386,11 +391,18 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     tell("They played " + said_of_a_move(family, game.believed, move, game.learned,
                                                          game.first_is_hers, whose="their") + ".")
                     game.theirs += 1
+                    game.longest_answer_s = max(game.longest_answer_s, time.monotonic() - game.waiting_since)
                 game.follow(move)
+                game.waiting_since = time.monotonic()
             continue
         if game.believed.turn != FIRST:
             # While the other side thinks, she rehearses the game in her model.
             rehearsing.start(pool, game.learned.family())
+            # A side that has not answered for ten times as long as it ever took is not playing: a board that took her
+            # move before the game was begun, or a game ended by something she cannot see. Given back, not waited on.
+            if time.monotonic() - game.waiting_since > max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s):
+                tell("They haven't answered my move, so I don't think the game has started; I'll look at the screen.")
+                return {"ended": "not answered", "moves": game.made, "theirs": game.theirs, "learned": game.learned}
             await asyncio.sleep(0.2)
             continue
         rehearsing.collect()
@@ -468,6 +480,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             tell("The game didn't take that move; I've learned it isn't one.")
             continue
         game.made += 1
+        game.waiting_since = time.monotonic()
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned}
 
 

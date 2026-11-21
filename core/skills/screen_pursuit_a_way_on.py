@@ -145,6 +145,68 @@ async def _its_own_pixels_read(target_app: str) -> dict[str, Any] | None:
     return {"ok": True, "layout": layout, "bounds": list(window.bounds)} if layout else None
 
 
+async def _her_understanding(target_app: str, act: str, texts: list[str]) -> int | None:
+    """Which of the controls a person using this application would press for the next step of ``act``, as her own model
+    reads it, the controls the only answers it may give; None where it says none of them, or cannot be asked."""
+    from typing import Literal
+
+    from pydantic import create_model
+
+    from core.cognition.asking_in_turn import THE_PLACE
+    from core.cognition.what_things_are import asked_patiently
+    from core.rebuilding.her_model import ask_her_model
+
+    named = [" ".join(text.split())[:80] for text in texts]
+    choices = list(dict.fromkeys(named))
+    if not choices:
+        return None
+    none = "none of these"
+    schema = create_model("_Press", press=(Literal[(*choices, none)], ...))  # type: ignore[valid-type]
+    prompt = (f"Someone asked her to {act}. She is in the application “{target_app}”, and what it shows now that can "
+              "be pressed is this:\n" + "\n".join(f"- {choice}" for choice in choices)
+              + "\nAs a person using this application would, which one does the next step of what she was asked? "
+              f"Where none of them does, say “{none}”.")
+    try:
+        got = await asked_patiently(ask_her_model, prompt, schema, 120, matters=THE_PLACE)
+    except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
+        logger.info("which control to press was not asked: %s", str(why)[:160])
+        return None
+    pressed = str(getattr(got, "press", "") or "")
+    if not pressed or pressed == none or pressed not in named:
+        return None
+    logger.info("a way on in %r by her understanding of it: %r for %r", target_app, pressed, act[:60])
+    return named.index(pressed)
+
+
+async def _pressed(region: dict[str, Any], before: list[dict[str, Any]], target_app: str, reading: dict[str, Any],
+                   keep: dict[str, Any], read_screen: Any, from_a_window: bool) -> bool:
+    """Press one label and see whether the screen changed for it."""
+    import asyncio
+
+    from .screen_pursuit import _tell
+    from .screen_pursuit_surface import click_normalized
+
+    keep.setdefault("ways_on_taken", []).append(region["text"])
+    await click_normalized(region["x"], region["y"], expect_app=target_app, bounds=list(reading.get("bounds") or []))
+    await asyncio.sleep(SHOWS_IN_S)
+    after = _regions(await _a_reading(read_screen, target_app, from_a_window=from_a_window) or {})
+    if _the_words_differ(before, after):
+        _tell(f"I pressed \"{region['text']}\": it's the next step here toward what you asked.")
+        return True
+    return False
+
+
+def _a_surface_of_controls(regions: list[dict[str, Any]]) -> bool:
+    """Whether what a window shows is mostly labels said in words: an application's own interface (a start page, a
+    setup form, a dialog), not a world of tiles, numbers or things that move."""
+    import re
+
+    if len(regions) < 3:
+        return False
+    in_words = sum(1 for r in regions if re.search(r"[^\W\d_]{2,}", r["text"]))
+    return in_words >= 0.6 * len(regions)
+
+
 async def took_a_way_on(target_app: str, goal: str, keep: dict[str, Any], *, nothing_answered: bool,
                         seen: dict[str, Any] | None = None) -> bool:
     """Press the control in ``target_app``'s window whose words mean most nearly ``goal``, where nothing she has done
@@ -173,6 +235,9 @@ async def took_a_way_on(target_app: str, goal: str, keep: dict[str, Any], *, not
     if not reading or reading.get("ok") is False:
         return False
     regions = _regions(reading)
+    # What kind of surface this is, from a look at the window itself: one of labelled controls is pressed by what its
+    # controls mean, and is no place to try the arrow keys on.
+    keep["surface_is_controls"] = bool(from_a_window and _a_surface_of_controls(regions))
     if len(regions) < 3:
         return False
     taken: list[str] = keep.setdefault("ways_on_taken", [])
@@ -198,8 +263,16 @@ async def took_a_way_on(target_app: str, goal: str, keep: dict[str, Any], *, not
     scores = [float(v) for v in by_act[:, act]]
     chosen = _stands_out(scores)
     if chosen is None:
-        logger.info("no way on stands out in %r for %r", target_app, acts[act][:60])
-        return False
+        # Nothing stands out by what the words are about ("Start game" is not about chess against an engine, and is
+        # what starts one): which control does the next step is a question of understanding the place, put to her own
+        # model, with the controls as the only answers. A still screen gives her the time to think.
+        labels = [r for r in regions if not _names(r["text"], target_app)
+                  and r["text"] not in {t for c in taken for t in c.split(" / ")}]
+        picked = await _her_understanding(target_app, acts[act], [r["text"] for r in labels])
+        if picked is None:
+            logger.info("no way on stands out in %r for %r, nor seen by her", target_app, acts[act][:60])
+            return False
+        return await _pressed(labels[picked], regions, target_app, reading, keep, read_screen, from_a_window)
     control = controls[chosen]
     taken.append(" / ".join(r["text"] for r in control))
     bounds = list(reading.get("bounds") or [])

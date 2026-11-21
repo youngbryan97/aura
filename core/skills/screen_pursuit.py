@@ -1115,7 +1115,7 @@ async def pursue_on_screen(
         ))
         # Two sides of pieces at their start, in the window she is working in: a game to learn and play by search, not
         # to press keys at (core/skills/screen_pursuit_board_of_pieces.py).
-        played = await played_a_board_of_pieces(target_app or anchor.get("app", ""), ends_at, pending)
+        played = await played_a_board_of_pieces(target_app or anchor.get("app", ""), ends_at, pending, seen)
         if played is not None:
             return {**seen, "board_of_pieces": played}
         # A window of labelled choices that nothing she has pressed has changed: the way on is the control whose words
@@ -1138,6 +1138,8 @@ async def pursue_on_screen(
                     target_app=target_app,
                 ),
             ))
+        if pending.get("surface_is_controls"):
+            return {**seen, "surface": "controls"}
         return seen
 
     def satisfied(observation: dict[str, Any]) -> bool:
@@ -1388,6 +1390,11 @@ async def pursue_on_screen(
 
     async def decide(observation: dict[str, Any]) -> Step | None:
         """Lifted to screen_pursuit_decision.py; the scope is handed over per call."""
+        if observation.get("surface") == "controls":
+            # An application's own interface: its controls are pressed by what they mean, in the look
+            # (core/skills/screen_pursuit_a_way_on.py). The arrow keys are for a surface that answers to them.
+            logger.info("a surface of controls: pressed by what they mean, not tried with keys")
+            return None
         return await decide_the_next_move(
             observation,
             SimpleNamespace(

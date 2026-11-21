@@ -232,3 +232,17 @@ def test_a_remembered_world_is_looked_at_again_only_when_its_record_has_been_wri
     solved_worlds(["d", "e"], recall, {}, lambda name, what: name == "d" and what == "shape")
     assert asked[-1] == "e" and "d" not in asked
     most_like_module._LOOKED_AT.clear()
+
+
+CARDS = _board(["Play_Chess:_play_against_an_engine Analysis_Board:_analyze_a_game",
+                "New_Repertoire:_build_your_openings Import_Game:_from_a_PGN",
+                "Puzzles:_train_your_chess_skills ."])
+
+
+def test_a_page_of_cards_is_not_a_board_of_tiles():
+    """LIVE 20 November 2026: En Croissant's start page, five cards in a grid, was taken for 2048 and she pressed arrows
+    at it. A thing said in words is not a thing that says a number."""
+    cards = shape_of(CARDS)
+    assert any(relation.predicate == "said in words" for relation in cards.relations)
+    assert not any(relation.predicate == "said in words" for relation in shape_of(NUMBERS).relations)
+    assert most_like(cards, {"tiles": shape_of(NUMBERS)}) is None

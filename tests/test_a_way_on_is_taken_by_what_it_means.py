@@ -81,3 +81,41 @@ def test_a_control_stands_out_only_when_it_leads_by_more_than_the_rest_trail():
     assert way_on._stands_out([0.50, 0.49, 0.45, 0.40]) is None
     assert np.isclose(len(way_on._controls([{"text": "a", "x": 0.3, "y": 0.2}, {"text": "b", "x": 0.31, "y": 0.25},
                                             {"text": "c", "x": 0.7, "y": 0.2}])), 2)
+
+
+#: The game's setup page as she read it, 20 November 2026.
+SETUP_PAGE = [
+    ("En Croissant", 0.13, 0.02), ("New Game", 0.18, 0.06), ("White", 0.63, 0.13), ("Human", 0.65, 0.19),
+    ("Black", 0.87, 0.13), ("Engine", 0.84, 0.19), ("Player", 0.58, 0.26), ("Time Settings", 0.74, 0.31),
+    ("Time", 0.64, 0.37), ("Unlimited", 0.84, 0.37), ("Increment", 0.78, 0.43), ("Start game", 0.76, 0.49),
+    ("Starting Position", 0.62, 0.56),
+]
+
+
+def test_where_nothing_stands_out_she_presses_what_her_understanding_names(monkeypatch, screen):
+    """"Start game" is not about chess against an engine, and is what starts one: her model, given the labels on the
+    page as the only answers, names it."""
+    layout = [{"text": t, "center_x": x, "center_y": y} for t, x, y in SETUP_PAGE]
+    pressed: list[str] = []
+
+    async def read_screen(app, over=None):
+        return {"layout": list(layout), "bounds": [0, 0, 1000, 800]}
+
+    async def click(x, y, **_kwargs):
+        pressed.append(next(r["text"] for r in layout if (r["center_x"], r["center_y"]) == (x, y)))
+        layout[:] = [{"text": "Resign", "center_x": 0.6, "center_y": 0.5}]
+        return True
+
+    asked: list[str] = []
+
+    async def her_model(ask, prompt, schema, most, *, matters):
+        asked.append(prompt)
+        return schema(press="Start game")
+
+    monkeypatch.setattr(pursuit, "read_screen", read_screen)
+    monkeypatch.setattr(surface, "click_normalized", click)
+    monkeypatch.setattr(way_on, "_stands_out", lambda scores: None)
+    monkeypatch.setattr("core.cognition.what_things_are.asked_patiently", her_model)
+    assert asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, {}, nothing_answered=True))
+    assert pressed == ["Start game"]
+    assert "Start game" in asked[0] and "En Croissant" not in asked[0].split("can be pressed is this:")[1]

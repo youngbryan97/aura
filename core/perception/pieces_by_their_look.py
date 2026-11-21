@@ -342,9 +342,12 @@ class Looks:
 
     @classmethod
     def from_memory(cls, kept: dict) -> Looks:
+        """The looks kept, where they are looks as they are taken now; nothing where they were taken another way."""
         try:
-            return cls(kinds=[np.asarray(kind, dtype=np.float32) for kind in kept.get("kinds", [])],
-                       cut=float(kept.get("cut", 0.0)), sides=[float(s) for s in kept.get("sides", [])])
+            kinds = [np.asarray(kind, dtype=np.float32) for kind in kept.get("kinds", [])]
+            if any(kind.shape != (2 * LOOK_SIDE, LOOK_SIDE) for kind in kinds):
+                return cls()
+            return cls(kinds=kinds, cut=float(kept.get("cut", 0.0)), sides=[float(s) for s in kept.get("sides", [])])
         except (TypeError, ValueError):
             return cls()
 

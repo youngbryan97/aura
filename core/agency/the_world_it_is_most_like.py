@@ -93,6 +93,13 @@ def _thing(said: str) -> str:
     return f"thing {said}"
 
 
+def _in_words(said: str) -> bool:
+    """Whether a thing is said in words: a run of two letters or more, as a word is, and not a number."""
+    import re
+
+    return bool(re.search(r"[^\W\d_]{2,}", str(said or "")))
+
+
 def shape_of(state: Any, acts: Sequence[str] = ()) -> Graph:
     """What a world shows on a reading, as relations between its things.
 
@@ -118,6 +125,11 @@ def shape_of(state: Any, acts: Sequence[str] = ()) -> Graph:
     for said, count in sorted(counts.items()):
         if count > 1:
             relations.append(Relation("more than once", (_thing(said),)))
+        if _in_words(said):
+            # What a thing is made of is part of its shape: a card that says "Play Chess: play against an engine or a
+            # friend" is not a tile that says 2. LIVE 20 November 2026 En Croissant's start page, five such cards in a
+            # grid, was taken for 2048 at 0.89 of its shape, and she pressed arrows at it.
+            relations.append(Relation("said in words", (_thing(said),)))
     valued = sorted(
         {
             (number, cell.says)
@@ -196,6 +208,13 @@ def _upper_tail(scores: Sequence[float], at: float) -> float:
     return ordered[min(len(ordered) - 1, max(0, math.ceil(at * len(ordered)) - 1))]
 
 
+def _share_in_words(graph: Graph) -> float:
+    """The share of a look's things that are said in words."""
+    things = {arg for relation in graph.relations for arg in relation.args}
+    in_words = {relation.args[0] for relation in graph.relations if relation.predicate == "said in words"}
+    return len(in_words) / len(things) if things else 0.0
+
+
 def most_like(
     here: Graph,
     solved: Mapping[str, Graph],
@@ -226,8 +245,13 @@ def most_like(
     if not here.relations:
         return None
     scored: list[tuple[float, str, dict[str, str]]] = []
+    here_in_words = _share_in_words(here)
     for world, there in sorted(solved.items()):
         if not there.relations:
+            continue
+        # Worlds made of different stuff share no rules, however their things are laid out: most of one's things
+        # said in words and most of the other's not.
+        if (here_in_words > 0.5) != (_share_in_words(there) > 0.5):
             continue
         score, mapping = _shared(here, there)
         scored.append((score, world, mapping))
