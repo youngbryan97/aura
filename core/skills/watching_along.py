@@ -612,9 +612,12 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     if room_to_say > says and not remark:
         # An answer that tells something long (a whole game played) has room for it, and the time that room takes at
         # the rate the usual room was given its time. LIVE 21 November 2026 her account of a 66-move game stopped at
-        # "25." with the usual room, before it said how the game ended.
-        seconds *= (thinks + room_to_say) / (thinks + says)
-        says = room_to_say
+        # "25." with the usual room, before it said how the game ended. Room to work it out grows with room to say it:
+        # given more to say and the same 160 tokens to think, her account of game 13 worked its moves out aloud,
+        # "Nxe5? — Wait, no: Ne5", "Let me re-read… Actually:".
+        grown = room_to_say / says
+        seconds *= grown
+        thinks, says = int(thinks * grown), room_to_say
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
                "turn_sensory_evidence": evidence.to_dict(), "max_tokens": max(thinks + says, A_CLOSED_QUESTIONS_FLOOR + 1),
                "private_channel_budget": thinks, "hard_output_token_ceiling": thinks + says,

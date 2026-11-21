@@ -83,7 +83,12 @@ async def test_an_answer_telling_something_long_has_room_and_time_for_it(monkeyp
                         else default)
     await her_turn("play a game", "the game", [])
     usual_ceiling, usual_time = handed["context"]["hard_output_token_ceiling"], handed["timeout_s"]
+    usual_thinking = handed["context"]["private_channel_budget"]
     await her_turn("play a game", "the game", [], room_to_say=800)
     assert handed["context"]["hard_output_token_ceiling"] > usual_ceiling
     assert handed["timeout_s"] == pytest.approx(usual_time * handed["context"]["hard_output_token_ceiling"]
-                                                / usual_ceiling)
+                                                / usual_ceiling, rel=0.01)
+    # Room to work it out grows with room to say it: LIVE 21 November 2026 her account of game 13, given more to say
+    # and the same room to think, worked its moves out aloud ("Nxe5? — Wait, no: Ne5").
+    grown = handed["context"]["private_channel_budget"] / usual_thinking
+    assert grown == pytest.approx(800 / 352, rel=0.01)
