@@ -32,6 +32,12 @@ _CODE_WORK = (
     "Can you debug this stack trace for me?",
     "Make this JavaScript function async.",
     "Add type hints to this module.",
+    # Code run over files or data to measure them. LIVE 20 November 2026, "Find the two largest Python files under
+    # core/brain by line count, count their lines by actually running something, and tell me by what percentage the
+    # larger one is bigger" was read as not code work: nothing declared here ran code to measure anything.
+    "Run a script that counts the lines in every file of this folder and print the totals.",
+    "Measure which files in this directory are largest by running something, and list their sizes.",
+    "Compute the mean of the numbers in this CSV with code and show what it prints.",
 )
 #: About the world, in words that name a language or a tool: what a search answers, not what code computes. And a code
 #: that opens, addresses or names something, which is no program: LIVE 19 November 2026, "What is the locker code for
@@ -53,6 +59,21 @@ _ABOUT_THE_WORLD = (
     "What is the airport code for Lisbon?",
     "Do you remember the alarm code I gave you?",
 )
+#: Acting on the screen or in an application, which is no work on code either. LIVE 20 November 2026, once this reading
+#: began deciding which lane a request goes to (core/runtime/desktop_objective_intent.py), on her encoder it read
+#: "increase the brightness" and "create a folder called Orca on my desktop" as work on code: it knew two kinds, code and
+#: questions about the world, and screen work sat nearer code.
+_ON_THE_SCREEN = (
+    "Open Notes and write a line about today.",
+    "Turn the screen brightness up a little.",
+    "Make a new folder on my desktop named Projects.",
+    "Close the window that is in front.",
+    "Put this note into the Notes app.",
+    "Write a short list in Pages and save the document.",
+    "Click the blue button, then scroll to the bottom of the page.",
+    "Play the next song in Music.",
+    "Look through my documents for last month's invoice.",
+)
 
 _SURFACE: list[Any] = []
 _SURFACE_FAILED: list[bool] = []
@@ -66,10 +87,13 @@ def _surface() -> Any:
     if _SURFACE_FAILED:
         return None
     try:
-        from core.language.learned_matcher import LearnedMatcher, embed_sentences
+        from core.language.learned_matcher import LearnedMatcher, her_encoder_only
 
-        _SURFACE.append(LearnedMatcher(name="asks_for_code_work", positives=_CODE_WORK, negatives=_ABOUT_THE_WORLD,
-                                       features=embed_sentences))
+        # Her encoder or nothing: this reading sends a turn to her code runner (core/runtime/desktop_objective_intent.py)
+        # and keeps code_repl offered, and a boundary measured on hashed words decides nonsense.
+        _SURFACE.append(LearnedMatcher(name="asks_for_code_work", positives=_CODE_WORK,
+                                       negatives=(*_ABOUT_THE_WORLD, *_ON_THE_SCREEN),
+                                       features=her_encoder_only))
         return _SURFACE[0]
     except (ImportError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("the code-work surface could not be built, so the kind stays the words' (%s: %s)",

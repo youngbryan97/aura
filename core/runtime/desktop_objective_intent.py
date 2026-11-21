@@ -739,6 +739,20 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         # not a failure: the comment below says the vocabulary check is
         # where an unenumerated phrasing dies, and it still runs.
         pass
+    # Work on code is done by her code runner, not on the screen: read by meaning on her encoder, after a named
+    # application has had its say ("open VS Code and run my script" opens VS Code). LIVE 20 November 2026, "Find the two
+    # largest Python files under core/brain by line count, count their lines by actually running something, and tell me
+    # by what percentage the larger one is bigger" met "find" and "files" below, went to the desktop lane, and came back
+    # "OS automation refused to act because the objective has no complete observable acceptance contract", as it must:
+    # running code shows nothing a screen check can see.
+    try:
+        from core.intent.asks_for_code_work import asks_for_code_work
+
+        if asks_for_code_work(user_message) is True:
+            return False
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: without the reader the words below decide, as they did.
+        pass
     # The vocabulary check is where a phrasing nobody enumerated dies.
     #
     # A request with no term from either list returns False here, before

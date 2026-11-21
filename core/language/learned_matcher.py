@@ -63,6 +63,7 @@ __all__ = [
     "LearnedMatcher",
     "cosine",
     "embed_sentences",
+    "her_encoder_only",
 ]
 
 _RECOVERABLE = (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError)
@@ -114,6 +115,25 @@ def _cosines(rows: np.ndarray, columns: np.ndarray) -> np.ndarray:
     scale = np.outer(row_norms, column_norms)
     products = rows @ columns.T
     return np.divide(products, scale, out=np.zeros_like(products), where=scale > 0.0)
+
+
+def her_encoder_only(sentences: Iterable[str]) -> list[list[float]]:
+    """Vectors from the encoder her app holds, only when it is loaded already; [] otherwise, so a surface abstains.
+
+    For a surface whose decision moves her turn somewhere else. ``embed_sentences`` falls back to the shared runtime,
+    which can answer with hashed words; on those, LIVE 20 November 2026 in a test process, the code-work surface read
+    "close the front window" and "Create a Word document ... and save it" as work on code.
+    """
+    texts = [str(text or "").strip() for text in sentences]
+    if not any(texts):
+        return []
+    try:
+        from core.cognition.evidence_relevance import vectors_if_ready
+
+        return vectors_if_ready(texts)
+    except _RECOVERABLE as exc:
+        logger.debug("her app's encoder was not asked (%s: %s); nothing is decided", type(exc).__name__, exc)
+        return []
 
 
 def embed_sentences(sentences: Iterable[str]) -> list[list[float]]:

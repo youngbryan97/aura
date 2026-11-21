@@ -92,7 +92,7 @@ def test_with_no_encoder_the_reader_says_nothing(monkeypatch):
 
 
 def test_no_held_out_request_is_among_the_declared_examples():
-    declared = {*reader._CODE_WORK, *reader._ABOUT_THE_WORLD}
+    declared = {*reader._CODE_WORK, *reader._ABOUT_THE_WORLD, *reader._ON_THE_SCREEN}
     assert not declared & {*HELD_OUT_CODE_WORK, *HELD_OUT_ABOUT_THE_WORLD}
 
 

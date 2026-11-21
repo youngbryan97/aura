@@ -5212,6 +5212,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     loaded, and there a skip fails (`tests/test_a_skipped_model_claim_fails_in_the_model_suite.py`): her attribution
     surface's bug had survived green runs because such tests skipped where her encoder was not loaded. Two modules that
     skip without her encoder now carry the mark. First run, her runtime stopped: 66 passed, none skipped, 83 s.
+  - 20 November, 21:08, typed into her window: "Find the two largest Python files under core/brain by line count,
+    count their lines by actually running something, and tell me by what percentage the larger one is bigger than
+    the smaller." "find" and "files" made it screen work; her desktop lane refused it ("no complete observable
+    acceptance contract"), the whole message was searched on the web, and no answer of hers was served (24.8 s).
+    Her reading of work on code read it as not code work: nothing it declared ran code to measure anything. It now
+    declares that, and screen work on its other side (on her encoder it had read "increase the brightness" as code),
+    reads only on her encoder (on hashed words it called "close the front window" code), and a request it reads as
+    work on code is not screen work unless it names an application to act in
+    (`tests/test_work_on_code_is_not_screen_work.py`).
   - U07-10, the tool loop's terminal boundary, as the outside review set it, already holds by tests: the last pass
     is offered no tools and a call written there is not run (`tests/test_the_tool_loops_last_pass.py`); the pass that
     writes cannot open a call (`tests/test_the_pass_that_writes_opens_no_call.py`); a capability's output reaches her
