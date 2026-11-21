@@ -212,7 +212,11 @@ def capture(window: Window) -> Any:
             return None
         per_row = int(quartz.CGImageGetBytesPerRow(image))
         raw = quartz.CGDataProviderCopyData(quartz.CGImageGetDataProvider(image))
-        pixels = np.frombuffer(bytes(raw), dtype=np.uint8)
+        # Read through a view, never bytes(raw): PyObjC's bytes() of the data kept every copy it made, a whole frame
+        # per look. LIVE 21 November 2026 her process grew 2.6 GB over one seven-minute game, and a probe measured
+        # 5.83 MB kept per capture that way and none through a view. The array returned below is a copy, so nothing
+        # keeps the data once it is read.
+        pixels = np.frombuffer(memoryview(raw), dtype=np.uint8)
         pixels = pixels[: per_row * tall].reshape(tall, per_row)[:, : wide * 4]
         pixels = pixels.reshape(tall, wide, 4)
         info = int(quartz.CGImageGetBitmapInfo(image))

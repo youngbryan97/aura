@@ -51,7 +51,7 @@ class Rehearsal:
     """Her rehearsal of one game: the weights she plays by, the positions gathered, which groups she has earned."""
 
     weights: Weights
-    samples_x: list[list[float]] = field(default_factory=list)
+    samples_x: list[np.ndarray] = field(default_factory=list)
     samples_y: list[float] = field(default_factory=list)
     earned: list[str] = field(default_factory=list)
     #: How many plies each rehearsed game ran: what tells her how long a game of this sort goes.
@@ -196,7 +196,9 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         label = float(result)
         if label == 0.5 and spread > 0 and index < len(games_of) and games_of[index] < len(standing):
             label = _as_a_result(standing[games_of[index]], spread)
-        rehearsal.samples_x.append(list(features))
+        # Kept as one compact row of numbers, not a list of Python floats: a position's features as floats took 13 KB,
+        # and LIVE 21 November 2026 one game's rehearsal gathered 15,820 of them.
+        rehearsal.samples_x.append(np.asarray(features, dtype=np.float32))
         rehearsal.samples_y.append(label)
     rehearsal.rounds += 1
     trying = next((group for group in GROUPS if group not in rehearsal.earned), None)
