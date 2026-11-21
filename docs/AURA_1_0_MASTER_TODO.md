@@ -8230,6 +8230,16 @@ needs her 27B free (her app down, or her app's own influence trials).
   - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was
     recorded 19 November (part 10 above).
     Six rounds ran; the next attacker should be neither Hydrogen nor Argon.
+  - 20 November: nothing of hers had reached origin since 17 November, and Bryan noticed. She had made five changes
+    since, each lowering what a full collection cost her at one site, and her own yes refused each before it landed.
+    Her runtime sets `AURA_GOVERNANCE_MODE=production` on itself (aura_main.py), and every check of a change of hers
+    ran as its child with it, so 20 tests that pass at a shell failed: one change was refused on
+    tests/test_resource_observation_hermeticity.py ("offline subprocess tooling bypass denied while live governance
+    is active"), another on tests/test_server_runtime_hardening.py. The checks now run in a developer's environment,
+    with none of her runtime's own variables (`core/self_modification/a_checks_environment.py`, all seven sites;
+    `tests/test_her_checks_run_in_a_developers_environment.py` runs the test that refused her change both ways). One
+    more was refused by the outside check after every other gate passed, and one had its writing gate killed
+    mid-run; both are read next.
 
 ## Live session 2026-09-07: what the runtime showed
 

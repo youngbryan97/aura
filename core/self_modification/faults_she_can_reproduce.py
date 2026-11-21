@@ -12,10 +12,8 @@ import dataclasses
 import hashlib
 import json
 import logging
-import os
 import re
 import sys
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -349,8 +347,9 @@ def _run_the_test(test: str, workspace: Path) -> tuple[bool, str]:
     from core.governance_context import local_internal_governed_scope
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
-    env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-fault-logs-"),
-           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    from core.self_modification.a_checks_environment import a_checks_environment
+
+    env = a_checks_environment(log_prefix="her-fault-logs-")
     argv = ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", test]
     try:
         with local_internal_governed_scope("faults_she_can_reproduce.run", domain="tool_execution",

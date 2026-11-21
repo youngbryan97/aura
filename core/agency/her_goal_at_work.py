@@ -623,9 +623,7 @@ def _guard_what_it_kept(standing: GoalRecord) -> dict[str, Any]:
     The guard is written on origin's main as it is now, and it lands only after it passes there, with lint and the
     writing gate, the way her own yes lands a draft. A guard that fails there means her source has since changed what
     the change gave, and a test of the old answer would be wrong, so it is not landed."""
-    import os
     import sys
-    import tempfile
 
     from core.self_modification.what_her_change_must_keep import guarding_test_source, path_of_its_guard
 
@@ -648,8 +646,9 @@ def _guard_what_it_kept(standing: GoalRecord) -> dict[str, Any]:
     with local_internal_governed_scope("her_goal_at_work.guard", domain="file_write", receipt_prefix="her-goal-guard",
                                        constraints={"artifact": "aura.her_goal_guard.v1", "operation": "write"}):
         get_file_write_gateway().write_text(workspace / path, source, source="her_goal_at_work")
-    env = {**os.environ, "PYTHON": sys.executable, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
-           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    from core.self_modification.a_checks_environment import a_checks_environment
+
+    env = a_checks_environment(log_prefix="her-gate-logs-", PYTHON=sys.executable)
     for name, argv in (("its test", ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
                                      path]),
                        ("lint", ["nice", "-n", "10", "make", "lint"]),
@@ -803,13 +802,14 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     the outside check, alone and again over her real calls of what the draft changes. They run in the order given and
     stop at the first that fails. Bryan's yes is his own judgment and asks none.
     """
-    import os
     import sys
     import tempfile
 
     workspace = record.workspace
-    env = {**os.environ, "PYTHON": sys.executable, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
-           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    from core.self_modification.a_checks_environment import a_checks_environment
+
+    # A developer's environment, not her runtime's: under her production governance 20 tests fail that pass at a shell.
+    env = a_checks_environment(log_prefix="her-gate-logs-", PYTHON=sys.executable)
     tests = tests_that_touch(list(record.offer.get("files") or []), workspace)
     gates: list[tuple[str, list[str]]] = []
     if tests:
@@ -904,12 +904,11 @@ def _replayed_on_origin(record: GoalRecord, commit: str) -> str | dict[str, Any]
         return {"why": f"her draft does not apply on origin's main: {replayed.stderr.strip()[:240]}"}
     tests = tests_that_touch(list(record.offer.get("files") or []), workspace)
     if tests:
-        import os
         import sys
-        import tempfile
 
-        env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
-               "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+        from core.self_modification.a_checks_environment import a_checks_environment
+
+        env = a_checks_environment(log_prefix="her-gate-logs-")
         passed, tail = _run_a_gate(["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
                                     *tests], cwd=workspace, env=env)
         if not passed:
@@ -921,7 +920,6 @@ def _judged_again(record: GoalRecord, commit: str) -> tuple[str, list[dict[str, 
     """The outside check's verdict on ``commit`` in her workspace, as written: HELD, PROBATION, REFUSED, or
     NOT_APPLICABLE where her source has no outside check, with the inputs it doubted. A verdict not written is "" and
     counts as a doubt."""
-    import os
     import sys
     import tempfile
 
@@ -929,8 +927,9 @@ def _judged_again(record: GoalRecord, commit: str) -> tuple[str, list[dict[str, 
     if not outside.exists():
         return "NOT_APPLICABLE", []
     shown = Path(tempfile.mkdtemp(prefix="her-gate-results-")) / "outside-check-again.json"
-    env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-gate-logs-"),
-           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    from core.self_modification.a_checks_environment import a_checks_environment
+
+    env = a_checks_environment(log_prefix="her-gate-logs-")
     passed, _tail = _run_a_gate(["nice", "-n", "10", sys.executable, str(outside), "--repo", str(record.workspace),
                                  "--commit", commit, "--result", str(shown)], cwd=record.workspace, env=env)
     said = _the_verdict_written(shown)

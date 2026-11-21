@@ -30,7 +30,6 @@ import hashlib
 import inspect
 import json
 import logging
-import os
 import random
 import re
 import subprocess
@@ -518,8 +517,9 @@ def probe(clone: Path, guards: Sequence[Path], scratch: Path) -> dict[str, list[
     runs disagree on is left out, so the call is not pinned. A run that fails or passes its bound pins nothing."""
     script = scratch / "probe_her_real_calls.py"
     _write(script, _PROBE, "probe")
-    env = {**os.environ, "PYTHONPATH": str(clone), "PYTHONDONTWRITEBYTECODE": "1", "VECLIB_MAXIMUM_THREADS": "1",
-           "OMP_NUM_THREADS": "1", "AURA_LOG_DIR": str(scratch / "logs")}
+    from core.self_modification.a_checks_environment import a_checks_environment
+
+    env = a_checks_environment(log_dir=str(scratch / "logs"), PYTHONPATH=str(clone))
     runs = []
     for number in range(2):
         out = scratch / f"probe-{number}.json"
@@ -645,8 +645,9 @@ def _the_verdict_in(out: str) -> tuple[dict[str, Any], str]:
 
 
 def _run_the_check(argv: list[str], clone: Path) -> tuple[int, str]:
-    env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-real-calls-logs-"),
-           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    from core.self_modification.a_checks_environment import a_checks_environment
+
+    env = a_checks_environment(log_prefix="her-real-calls-logs-")
     try:
         done = _run(["nice", "-n", "10", *argv], cwd=clone, env=env, timeout=_JUDGE_SECONDS, operation="check")
     except subprocess.TimeoutExpired:
