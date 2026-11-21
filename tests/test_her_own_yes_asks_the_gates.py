@@ -189,3 +189,43 @@ def test_her_yes_decides_by_the_verdict_written_and_not_by_the_words_printed(her
     monkeypatch.setattr(work, "_run_a_gate", run)
     record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
     assert bool(work.load(record.slug).offer.get("on_probation")) is on_probation
+
+
+def test_a_gate_stopped_before_it_finished_judges_nothing_and_her_draft_stays_offered(her_source, monkeypatch):
+    """LIVE 20 November 2026 a restart of her runtime killed her writing gate mid-run ("make: *** [writing]
+    Terminated: 15"), and the draft was sent back to her as failing it; its next try stalled."""
+    stopped = [True]
+
+    def run(argv, *, cwd, env):
+        if argv[-1] == "writing" and stopped[0]:
+            return (None, "make: *** [writing] Terminated: 15")
+        return (True, "fine")
+
+    monkeypatch.setattr(work, "_run_a_gate", run)
+    record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    assert record.status == work.OFFERED, "a gate that judged nothing leaves the draft as it was"
+    assert not any("writing failed" in said["words"] for said in record.said)
+    assert not (her_source / "core" / "more_notes.py").exists()
+    stopped[0] = False
+    assert work.take_it_herself(record.slug)["ok"] is True, "asked again, it is taken"
+    assert (her_source / "core" / "more_notes.py").exists()
+
+
+def test_a_gate_killed_by_a_signal_or_out_of_time_is_one_that_did_not_finish(monkeypatch, tmp_path):
+    import subprocess
+    from types import SimpleNamespace
+
+    import core.runtime.subprocess_gateway as gateway
+
+    class _Killed:
+        def run(self, argv, **_kwargs):
+            return SimpleNamespace(returncode=-15, stdout="", stderr="make: *** [writing] Terminated: 15")
+
+    class _OutOfTime:
+        def run(self, argv, **_kwargs):
+            raise subprocess.TimeoutExpired(argv, 2400.0)
+
+    monkeypatch.setattr(gateway, "get_subprocess_gateway", lambda: _Killed())
+    assert work._run_a_gate(["make", "writing"], cwd=tmp_path, env={})[0] is None
+    monkeypatch.setattr(gateway, "get_subprocess_gateway", lambda: _OutOfTime())
+    assert work._run_a_gate(["make", "writing"], cwd=tmp_path, env={}) == (None, "stopped after 2400 s")

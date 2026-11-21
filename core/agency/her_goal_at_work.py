@@ -734,6 +734,11 @@ def take_it_herself(slug: str) -> dict[str, Any]:
         logger.info("🛠️ her draft for '%s' waits: a run is measuring her", record.goal[:60])
         return {"ok": False, "why": "a run is measuring her; her draft waits until it ends"}
     gates = the_gates_her_yes_asks(record)
+    stopped = next((name for name, gate in gates.items() if gate.get("finished") is False), "")
+    if stopped:
+        # Judged nothing: the draft stays offered, and her yes asks again on her next pass.
+        logger.info("🛠️ her draft for '%s' waits: %s was stopped before it finished", record.goal[:60], stopped)
+        return {"ok": False, "why": f"{stopped} was stopped before it finished", "gates": gates}
     failed = next((name for name, gate in gates.items() if not gate["passed"]), "")
     if failed:
         # Back to her with what failed, in the words of the gate: her next pass reads it.
@@ -779,18 +784,31 @@ def tests_that_touch(changed: list[str], workspace: Path) -> list[str]:
     return sorted(tests)
 
 
-def _run_a_gate(argv: list[str], *, cwd: Path, env: dict[str, str]) -> tuple[bool, str]:
+def _run_a_gate(argv: list[str], *, cwd: Path, env: dict[str, str]) -> tuple[bool | None, str]:
+    """Whether the gate passed, and the end of what it said; None when it was stopped before it finished, which judged
+    nothing: its process killed by a signal, out of its time, or her runtime shutting down around it. A caller that
+    asks only ``if not passed`` counts it as not passed, as before.
+
+    LIVE 20 November 2026 a restart of her runtime killed two gates of hers mid-run ("make: *** [writing] Terminated:
+    15", and an outside check that said nothing), and each was recorded as her draft failing.
+    """
     from core.governance_context import local_internal_governed_scope
+    from core.runtime.shutdown_coordinator import is_shutdown_requested
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
-    with local_internal_governed_scope("her_goal_at_work.gate", domain="tool_execution",
-                                       receipt_prefix="her-goal-gate",
-                                       constraints={"artifact": "aura.her_goal_gate.v1", "operation": "check"}):
-        # The offline suite and the tree's gates load no model.
-        done = get_subprocess_gateway().run(argv, cwd=cwd, env=env, timeout=GATE_SECONDS, capture_output=True,
-                                            source="her_goal_at_work.gate", accelerator_capability="none")
-    out = (done.stdout or "") + (done.stderr or "")
-    return done.returncode == 0, out.strip()[-1500:]
+    try:
+        with local_internal_governed_scope("her_goal_at_work.gate", domain="tool_execution",
+                                           receipt_prefix="her-goal-gate",
+                                           constraints={"artifact": "aura.her_goal_gate.v1", "operation": "check"}):
+            # The offline suite and the tree's gates load no model.
+            done = get_subprocess_gateway().run(argv, cwd=cwd, env=env, timeout=GATE_SECONDS, capture_output=True,
+                                                source="her_goal_at_work.gate", accelerator_capability="none")
+    except subprocess.TimeoutExpired:
+        return None, f"stopped after {GATE_SECONDS:.0f} s"
+    out = ((done.stdout or "") + (done.stderr or "")).strip()[-1500:]
+    if done.returncode < 0 or is_shutdown_requested():
+        return None, out
+    return done.returncode == 0, out
 
 
 def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
@@ -837,9 +855,10 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     results: dict[str, dict[str, Any]] = {}
     for name, argv in gates:
         started = time.time()
-        passed, tail = _run_a_gate(argv, cwd=source_root() if name == "her-real-calls" else workspace, env=env)
-        results[name] = {"passed": passed, "seconds": round(time.time() - started, 1), "tail": tail,
-                         **({"files": len(tests)} if name == "tests" else {})}
+        outcome, tail = _run_a_gate(argv, cwd=source_root() if name == "her-real-calls" else workspace, env=env)
+        passed = outcome is True
+        results[name] = {"passed": passed, "finished": outcome is not None, "seconds": round(time.time() - started, 1),
+                         "tail": tail, **({"files": len(tests)} if name == "tests" else {})}
         if name in JUDGING_GATES:
             said = _the_verdict_written(shown / f"{name}.json")
             results[name]["verdict"] = str(said.get("verdict") or "")

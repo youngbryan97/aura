@@ -8239,7 +8239,15 @@ needs her 27B free (her app down, or her app's own influence trials).
     with none of her runtime's own variables (`core/self_modification/a_checks_environment.py`, all seven sites;
     `tests/test_her_checks_run_in_a_developers_environment.py` runs the test that refused her change both ways). One
     more was refused by the outside check after every other gate passed, and one had its writing gate killed
-    mid-run; both are read next.
+    mid-run. Both were gates stopped by a restart of her runtime (the outside check said nothing; the writing gate
+    said "Terminated: 15"), and each was recorded as her draft failing. A gate stopped by a signal, out of its
+    time, or while her runtime shuts down now judged nothing: her draft stays offered and her yes asks again
+    (`tests/test_her_own_yes_asks_the_gates.py`). And a refused draft could never be offered again: her
+    workspace, brought up to her source, replayed her commit, her next try read the line as already changed ("Not
+    changed: ... no longer asks for a full collection") and stalled for good. Her own draft found replayed in her
+    workspace, while her source still asks for the full collection there, is offered again, and an offered draft
+    is asked again rather than passed over as "already offered"
+    (`tests/test_she_improves_what_her_running_measures.py`).
 
 ## Live session 2026-09-07: what the runtime showed
 

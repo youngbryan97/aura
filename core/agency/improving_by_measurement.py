@@ -148,8 +148,12 @@ async def _propose(cost: MeasuredCost) -> dict[str, Any]:
     goal = f"Lower what the full collections asked for at {cost.site} cost her"
     slug = goals.slug_of(goal)
     record = goals.load(slug) or goals.GoalRecord(goal=goal, slug=slug)
-    if record.status in (goals.OFFERED, goals.MERGED):
-        return {"slug": slug, "status": record.status, "why": "already changed or offered"}
+    if record.status == goals.MERGED:
+        return {"slug": slug, "status": record.status, "why": "already changed"}
+    if record.status == goals.OFFERED:
+        # Offered and not taken: a gate stopped before it finished leaves it so (her_goal_at_work.take_it_herself), and
+        # her own yes is asked again. It was returned as "already offered" and never asked again.
+        return await _asked_again(record, cost)
     if _measured_worse_before(record):
         return {"slug": slug, "status": record.status, "why": "measured no better when it was made before"}
     if record.status == goals.STALLED and record.stalled_on == goals.source_head():
@@ -159,6 +163,13 @@ async def _propose(cost: MeasuredCost) -> dict[str, Any]:
     await goals.save(record)
     before = (workspace / cost.path).read_text(encoding="utf-8")
     after = young_collection_in_place_of(before, cost.line)
+    if after is None and await _her_draft_is_in_her_workspace(workspace, record, cost):
+        # Her own draft, replayed onto her source when her workspace was brought up to it: offered again, not read as a
+        # line that changed. LIVE 20 November 2026, two drafts refused by gates killed in a restart said "Not changed:
+        # ... no longer asks for a full collection" on their next try and stalled for good.
+        record.status = goals.OFFERED
+        await goals.save(record)
+        return await _asked_again(record, cost)
     if after is None:
         record.status, record.stalled_on = goals.STALLED, goals.source_head()
         record.said.append({"words": f"Not changed: {cost.site} no longer asks for a full collection with gc.collect().",
@@ -190,6 +201,12 @@ async def _propose(cost: MeasuredCost) -> dict[str, Any]:
                     "site": cost.site}
     record.status = goals.OFFERED
     await goals.save(record)
+    return await _her_yes(slug, cost, before, after, head.strip())
+
+
+async def _her_yes(slug: str, cost: MeasuredCost, before: str, after: str, head: str) -> dict[str, Any]:
+    """Her own yes asked of the draft, and what it changed loaded into her running process when it is taken."""
+    from core.agency import her_goal_at_work as goals
 
     def take_and_load() -> dict[str, Any]:
         taken = goals.take_it_herself(slug)
@@ -204,8 +221,55 @@ async def _propose(cost: MeasuredCost) -> dict[str, Any]:
         record_degradation("improving_by_measurement", exc, severity="warning",
                            action="left her change offered; her own yes did not run")
         taken = {"ok": False, "why": f"her own yes did not run: {type(exc).__name__}"}
-    return {"slug": slug, "status": "merged" if taken.get("ok") else goals.OFFERED, "commit": head.strip(),
+    return {"slug": slug, "status": "merged" if taken.get("ok") else goals.OFFERED, "commit": head,
             "loaded": taken.get("loaded") or {}, "taken": taken, "why": cost.in_words()}
+
+
+async def _the_source_version(workspace: Path, record: Any, path: str) -> str | None:
+    """``path`` as her source has it at the commit her workspace was brought up to; None where it cannot be read."""
+    from core.agency.mending_a_fault_of_hers import _governed_run
+
+    base = str(getattr(record, "base", "") or "")
+    if not base:
+        return None
+    code, out = await _governed_run(["git", "-c", "core.fsmonitor=false", "show", f"{base}:{path}"], cwd=workspace,
+                                    env=None, timeout=30.0, effect="compute")
+    return out if code == 0 else None
+
+
+async def _her_draft_is_in_her_workspace(workspace: Path, record: Any, cost: MeasuredCost) -> bool:
+    """Whether the line asks for a full collection in her source and not in her workspace because a commit of hers,
+    ahead of her source, changed it: her own draft, not a line her source changed."""
+    from core.agency.mending_a_fault_of_hers import _governed_run
+
+    source = await _the_source_version(workspace, record, cost.path)
+    if source is None or young_collection_in_place_of(source, cost.line) is None:
+        return False
+    code, ahead = await _governed_run(["git", "-c", "core.fsmonitor=false", "rev-list", "--count",
+                                       f"{record.base}..HEAD"], cwd=workspace, env=None, timeout=30.0,
+                                      effect="compute")
+    return code == 0 and ahead.strip() not in ("", "0")
+
+
+async def _asked_again(record: Any, cost: MeasuredCost) -> dict[str, Any]:
+    """Her offered draft, as her workspace holds it now, asked of her own yes again."""
+    from core.agency.mending_a_fault_of_hers import _governed_run
+
+    workspace = Path(record.workspace)
+    before = await _the_source_version(workspace, record, cost.path)
+    try:
+        after = (workspace / cost.path).read_text(encoding="utf-8")
+    except OSError:
+        after = None
+    _, head = await _governed_run(["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"], cwd=workspace, env=None,
+                                  timeout=30.0, effect="compute")
+    if before is None or after is None or before == after:
+        return {"slug": record.slug, "status": record.status, "why": "her offered draft is not in her workspace"}
+    from core.agency import her_goal_at_work as goals
+
+    # Replayed onto her source, the draft is a commit of its own; that one is what her gates judge.
+    await asyncio.to_thread(goals.note_on_offer, record.slug, commit=head.strip())
+    return await _her_yes(record.slug, cost, before, after, head.strip())
 
 
 def _loaded(path: str, before: str, after: str, slug: str) -> dict[str, Any]:

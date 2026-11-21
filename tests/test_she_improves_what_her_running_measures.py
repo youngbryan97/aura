@@ -117,3 +117,31 @@ def test_her_change_is_made_loaded_and_then_judged_by_the_same_measurement(her_s
         assert record.status == goals.STALLED and record.offer.get("reverted")
         again = asyncio.run(improving.improve_by_measurement(since=0.0, now=loaded_at + 2000.0))
         assert not again or again[0]["why"] == "measured no better when it was made before", again
+
+
+def test_her_refused_draft_replayed_onto_her_source_is_offered_again_and_not_stalled(her_source, monkeypatch):
+    """LIVE 20 November 2026 two drafts of hers refused by gates killed in a restart were replayed onto her source when
+    her workspace was brought up to it, and the next try read the line as already changed: "Not changed: ... no longer
+    asks for a full collection with gc.collect()", stalled for good."""
+    import planted_gc.keeper  # noqa: F401 - running, so her change is loaded into it
+
+    monkeypatch.setattr(collector_pauses, "asked_for_collections",
+                        lambda since, until: {_SITE: _measured(10, 232)})
+    monkeypatch.setattr("core.runtime.lockdep.LOOP_BLOCKING_HOLD_S", 0.05)
+    answers = [{"tests": {"passed": False, "finished": True, "tail": "a test failed"}},
+               {"stand-in": {"passed": True, "finished": True, "tail": ""}}]
+    monkeypatch.setattr(goals, "the_gates_her_yes_asks", lambda record: answers.pop(0))
+
+    first = asyncio.run(improving.improve_by_measurement(since=0.0, now=1000.0))
+    slug = first[0]["slug"]
+    assert goals.load(slug).status == goals.WORKING, "refused: back to her"
+    (her_source / "elsewhere.py").write_text("X = 1\n")
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A", cwd=her_source)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "her source moves on", cwd=her_source)
+
+    again = asyncio.run(improving.improve_by_measurement(since=0.0, now=1000.0))
+    record = goals.load(slug)
+    assert not any("Not changed" in said["words"] for said in record.said), record.said
+    assert again and again[0]["status"] == "merged", again
+    assert "gc.collect(1)" in (her_source / "planted_gc" / "keeper.py").read_text()
+    assert again[0]["loaded"]["functions"] == ["tidy"]
