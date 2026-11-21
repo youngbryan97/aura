@@ -67,3 +67,37 @@ def test_a_turn_whose_clock_cannot_be_read_has_the_last_share_it_could(monkeypat
               if record.getMessage().startswith("her turn ")]
     assert len(shares) >= 2, shares
     assert "not on a clock" not in shares, shares
+
+
+def test_the_first_piece_of_a_turn_waits_for_room_once_a_pick_up_is_timed() -> None:
+    game = _a_game()
+    assert playing._room_to_learn(game, spent=0.0, share=2.4, probes=0)
+    game.timed_probe(1.6)
+    assert not playing._room_to_learn(game, spent=0.0, share=2.4, probes=0)
+    assert playing._room_to_learn(game, spent=0.0, share=5.0, probes=0)
+    assert not playing._room_to_learn(game, spent=1.6, share=5.0, probes=1)
+
+
+def test_one_look_that_shows_her_move_made_is_enough() -> None:
+    from core.agency.pieces_by_their_kind import moves
+
+    app = BoardApplication(NOBODYS_GAME, seed=5)
+
+    async def run() -> tuple[bool, int]:
+        picture = app.draw()
+        seat = playing.a_board_of_two_sides_at_its_start(picture)
+        game = playing._Game(learned=HowThePiecesMove.from_the_start(seat.rows, seat.columns, seat.start),
+                             believed=Position(cells=dict(seat.start), turn=FIRST, unmoved=frozenset(seat.start)))
+        move = next(one for one in moves(NOBODYS_GAME, NOBODYS_GAME.the_start()) if one.taken_at is None)
+        await app.click(*seat.centre_share(move.start, picture))
+        await app.click(*seat.centre_share(move.end, picture))
+        looks = {"n": 0}
+
+        async def look():
+            looks["n"] += 1
+            return await app.look()
+
+        return await playing._comes_to_show(seat, look, game, move), looks["n"]
+
+    shown, looks = asyncio.run(run())
+    assert shown and looks == 1, looks

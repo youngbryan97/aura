@@ -570,8 +570,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 break
             if _times_offered(game.learned, kind) >= SEEN_ENOUGH and game.made:
                 continue
-            # Learning and thinking split the turn evenly: nothing says which of the two this move needs more.
-            if on_her_clock and probes and time.monotonic() - turn_began + game.probe_s > share / 2:
+            if on_her_clock and not _room_to_learn(game, time.monotonic() - turn_began, share, probes):
                 break
             probe_began = time.monotonic()
             squares = await _offers_for(seat, look, click, picture, square)
@@ -704,6 +703,15 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned}
 
 
+def _room_to_learn(game: _Game, spent: float, share: float, probes: int) -> bool:
+    """Whether her turn has room to pick up one more piece to learn from: learning and thinking split the turn evenly,
+    since nothing says which of the two this move needs more. The first piece of a turn too, once she knows what picking
+    one up costs: LIVE 21 November 2026, game 11, late turns with 2.4 s of clock spent 1.6 s of it on one piece."""
+    if not probes and not game.probes_timed:
+        return True
+    return spent + game.probe_s <= share / 2
+
+
 def _looks_first(game: _Game) -> bool:
     """Whether she picks the piece up to see what the game offers before she moves it: on every move until her rules
     have earned going without (core/cognition/how_far_to_go_before_looking.py), and then on every move they have not."""
@@ -810,6 +818,12 @@ async def _comes_to_show(seat: Seat, look: Look, game: _Game, move: Move) -> boo
     board next, as moves seen."""
     ends_at = time.monotonic() + MOVE_SHOWS_S
     while time.monotonic() < ends_at:
+        # One look that shows her move's squares as her move leaves them is enough; a board still moving cannot show
+        # that. Waiting for it to read the same twice first took 2.1 s a move, a third of game 11's clock.
+        picture = await look()
+        seen = None if picture is None else seat.looks.read(picture, seat.lattice, settled=True)
+        if seen is not None and _shows_her_move(_read_against(seat.as_rules(seen), game.believed.cells), move):
+            return True
         still = await _seen_still(seat, look, within_s=MOVE_SHOWS_S)
         if still is None:
             return False
@@ -822,10 +836,16 @@ async def _comes_to_show(seat: Seat, look: Look, game: _Game, move: Move) -> boo
             # The squares of her move as her move leaves them: made, whatever else the board shows that she cannot
             # read yet. The rest is followed as the board is followed. Taken for a refusal, a move the game made
             # would teach her a rule that is false.
-            if shown.get(move.start, (None,))[0] != FIRST and shown.get(move.end, (None,))[0] == FIRST:
+            if _shows_her_move(shown, move):
                 return True
         await asyncio.sleep(0.15)
     return False
+
+
+def _shows_her_move(shown: dict, move: Move) -> bool:
+    """Whether the board shows her move's squares as her move leaves them: the square it left not hers, the square it
+    went to hers."""
+    return shown.get(move.start, (None,))[0] != FIRST and shown.get(move.end, (None,))[0] == FIRST
 
 
 def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, Any]:
