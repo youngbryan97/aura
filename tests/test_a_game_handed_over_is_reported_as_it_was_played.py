@@ -68,3 +68,28 @@ def test_what_she_says_in_a_run_is_kept_for_its_report(monkeypatch) -> None:
     finally:
         pursuit._SAID_THIS_RUN.reset(token)
     assert kept and "b8 to c6" in kept[0]
+
+
+def test_a_game_played_on_their_screen_is_not_a_watch_with_nothing_playing(monkeypatch) -> None:
+    """LIVE 21 November 2026 the game was taken for a request to watch with nothing playing, and her reply was written
+    from "what her browsing found, with nothing opened or playing yet": "Let me look at the board to see what's on it."""
+    from core.skills.desktop_task import a_game_was_played
+    from interface.routes import chat_desktop_objective
+
+    receipts = [{"action": "computer_use", "result": {"ok": True, "handed_over": {"ended": "lost", "moves": 13}}}]
+    assert a_game_was_played(receipts)
+    assert not a_game_was_played([{"action": "computer_use", "result": {"ok": True}}])
+    monkeypatch.setattr(chat_desktop_objective, "_asks_to_watch", lambda objective: True)
+    assert not chat_desktop_objective._asked_to_watch_and_nothing_plays({"ok": True, "played": True}, "play a game")
+
+
+def test_a_game_step_is_verified_with_the_moves_made_in_the_game() -> None:
+    """LIVE 21 November 2026 eleven moves a side were verified as "moves=0", and her reply doubted the game was played."""
+    import json
+
+    from core.skills.desktop_task import DesktopTaskSkill, DesktopTaskStep
+
+    step = DesktopTaskStep(action="pursue_on_screen", target=json.dumps({"goal": "play a game"}), reason="asked")
+    ok, why = DesktopTaskSkill._verify_step_effect(step, {"ok": True, "moves": [], "outcome": "goal_reached",
+                                                          "handed_over": {"ended": "lost", "moves": 11, "theirs": 11}})
+    assert ok and "moves=11" in why

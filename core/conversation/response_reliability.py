@@ -2102,6 +2102,17 @@ _JAMMED_NUMBERED_MARKER_RE = re.compile(
 )
 
 
+def _welded_marker(match: re.Match[str]) -> str:
+    """A number welded onto a word put on its own line as a list marker, where the marker before it is already
+    there; left as it is otherwise (a square's or a part's name)."""
+    marker = match.group(1)
+    previous = int(marker) - 1
+    preceding = match.string[: match.start()]
+    if previous >= 1 and re.search(rf"(?:^|[\n.!?:]|[a-z])\s*{previous}[.)]\s", preceding):
+        return f"\n{marker}."
+    return match.group(0)
+
+
 def _split_jammed_numbered_markers(text: str) -> str:
     """Put a jammed list marker on its own line without breaking decimals.
 
@@ -2503,8 +2514,13 @@ def _normalize_prose_format(text: str) -> str:
     text = re.sub(r"(?<=[0-9])(?=[A-Z][a-z]{4,})", "\n", text)
     # A numbered marker welded straight onto a word: "= 12 marbles2. We want
     # to find…". A letter before the digits distinguishes it from a decimal,
-    # and the space-plus-capital after it from a model number.
-    text = re.sub(r"(?<=[a-z])(\d{1,2})\.(?=\s+[A-Z])", r"\n\1.", text)
+    # and the space-plus-capital after it from a model number. By sequence, as
+    # _split_jammed_numbered_markers does: a marker continues a list, so the
+    # one before it is already there. A square or a part named by a letter
+    # and a number ends sentences too: LIVE 21 November 2026 "Knight g1 → f3.
+    # It's the piece that leaps" reached him as "f" and, on its own line,
+    # "3. It's the piece that leaps", at every move of a game.
+    text = re.sub(r"(?<=[a-z])(\d{1,2})\.(?=\s+[A-Z])", _welded_marker, text)
     # A list marker is followed by a word. A digit after the point makes it a
     # decimal or a section number, and a space there turned her answer "0.3"
     # into "0. 3" and "3.5 out of 5" into "3. 5 out of 5".

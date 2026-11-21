@@ -393,18 +393,21 @@ class _Rehearsing:
             fresh = a_first_rehearsal(family)
             if self.rehearsal is not None:
                 fresh.earned = []
+                # How long its games run is about the game, not about the kinds she reads in it.
+                fresh.lengths = list(self.rehearsal.lengths)
             self.rehearsal = fresh
         self.rounds += 1
         self.running = pool.submit(rehearse, family, family.the_start(), self.rehearsal, seed=self.rounds)
 
     def moves_left(self, made: int) -> int:
-        """Her moves still to come, by the games she has rehearsed: half their median length, less hers so far, and
-        never less than half of that median again."""
+        """Her moves still to come, by the games she has rehearsed: half their median length, less hers so far, never
+        less than half of that median again, and never fewer than she has made already: a game that has gone so many
+        moves is as likely as not to go as many more."""
         lengths = list(getattr(self.rehearsal, "lengths", []) or [])
         if not lengths:
             return 0
         typical = sorted(lengths)[len(lengths) // 2] / 2
-        return int(max(typical / 2, typical - made, 1))
+        return int(max(typical / 2, typical - made, made, 1))
 
 
 async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Callable[[str], None] | None,

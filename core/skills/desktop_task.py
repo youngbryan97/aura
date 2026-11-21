@@ -176,6 +176,12 @@ def _objective_wants_a_timestamp(objective: Any) -> bool:
     return bool(_TIMESTAMP_REQUEST_RE.search(str(objective or "")))
 
 
+def a_game_was_played(receipts: list[dict]) -> bool:
+    """Whether a step of the task handed a game to its own player and that player played it."""
+    return any(isinstance(receipt, dict) and isinstance(receipt.get("result"), dict)
+               and bool(receipt["result"].get("handed_over")) for receipt in receipts or [])
+
+
 class DesktopTaskStep(BaseModel):
     action: str = Field(
         ...,
@@ -2771,6 +2777,12 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             outcome = str(result.get("outcome") or "").strip()
             moves = result.get("moves")
             made = len(moves) if isinstance(moves, list) else 0
+            # A game handed to its own player counts the moves made in it, not the keys the pursuit pressed: LIVE 21
+            # November 2026 eleven moves a side were verified as "moves=0", and her reply doubted the game was played.
+            game = result.get("handed_over") or {}
+            if isinstance(game, dict) and game:
+                made = int(game.get("moves") or 0)
+                outcome = outcome or f"the game {game.get('ended')}"
             if not bool(result.get("ok")):
                 reason = (
                     str(result.get("cannot_decide") or "")
@@ -5136,6 +5148,10 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             "receipts": receipts,
             "failures": failures,
             "planner": planner,
+            # A game played on their screen by its own player: what was asked to be played was played, here. LIVE 21
+            # November 2026 a game of thirteen moves a side against Stockfish was taken for a request to watch with
+            # nothing playing, and her reply began "Let me look at the board to see what's on it."
+            "played": a_game_was_played(receipts),
             "document_provenance": document_provenance,
             "research": {
                 "query": task_context.get("desktop_task_research_query"),

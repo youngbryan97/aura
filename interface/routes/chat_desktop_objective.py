@@ -36,8 +36,9 @@ from core.skills.watching_together import her_answer_before_it_plays, her_answer
 
 
 def _asked_to_watch_and_nothing_plays(result: dict[str, Any], objective: str) -> bool:
-    """Whether the objective asked for something to be watched and the task watched nothing, here or beside them."""
-    return not (result.get("watched") or result.get("beside")) and _asks_to_watch(objective)
+    """Whether the objective asked for something to be watched, run or played, and the task did none of it: watched
+    nothing here or beside them, and played nothing on their screen."""
+    return not (result.get("watched") or result.get("beside") or result.get("played")) and _asks_to_watch(objective)
 
 
 def _asks_to_watch(objective: str) -> bool:

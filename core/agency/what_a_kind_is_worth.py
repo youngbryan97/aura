@@ -153,7 +153,11 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     begin = placed(start)
     played = engine.self_play(description, begin, rehearsal.weights.as_json(), rehearsal.weights.as_json(),
                               games, nodes, random_plies=RANDOM_PLIES, seed=seed)
-    rehearsal.lengths.extend(int(n) for n in played.get("plies", []))
+    # How long a game of this sort goes, from games that ended with a result: one that stopped on a repetition early, in
+    # a model that cannot yet end a game, says nothing of it. LIVE 21 November 2026 such games ran a dozen plies, she
+    # expected two or three more moves of her own, and gave each move a third of her clock.
+    rehearsal.lengths.extend(int(n) for n, points in zip(played.get("plies", []), played.get("results", []))
+                             if float(points) != 0.5)
     # A game that stopped without a result (no piece she knows must be kept safe, so none can be lost; or out of moves
     # to play) is judged by how it stood in material when it stopped. Without that, every game of a sort whose ending
     # she has not learned is level, and there is nothing to learn from: LIVE 20-21 November 2026 she played two games

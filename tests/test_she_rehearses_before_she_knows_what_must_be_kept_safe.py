@@ -38,3 +38,36 @@ def test_her_rehearsal_starts_before_she_knows_what_must_be_kept_safe() -> None:
     rehearsing = playing._Rehearsing()
     rehearsing.start(_Pool(), NOTHING_KNOWN_ROYAL)
     assert submitted, "no round was started for a game whose royal piece she does not know yet"
+
+
+def test_only_games_that_ended_with_a_result_say_how_long_a_game_goes() -> None:
+    """LIVE 21 November 2026 rehearsed games that stopped on a repetition after a dozen plies told her two or three moves
+    were left, and she gave each move a third of her clock."""
+    rehearsal = rehearse(NOTHING_KNOWN_ROYAL, NOTHING_KNOWN_ROYAL.the_start(), a_first_rehearsal(NOTHING_KNOWN_ROYAL),
+                         games=8, nodes=300, seed=2)
+    # With no piece known to be the one kept safe, no game in her model can be won or lost.
+    assert rehearsal.lengths == []
+
+
+def test_she_never_expects_fewer_moves_to_come_than_she_has_made() -> None:
+    from core.agency.what_a_kind_is_worth import Rehearsal
+    from core.agency.searching_by_kind import first_weights
+
+    rehearsing = playing._Rehearsing(Rehearsal(weights=first_weights(CHESS), lengths=[12] * 9))
+    assert rehearsing.moves_left(0) == 6
+    assert rehearsing.moves_left(10) == 10
+
+
+def test_a_fresh_rehearsal_keeps_how_long_its_games_go() -> None:
+    from core.agency.what_a_kind_is_worth import Rehearsal
+    from core.agency.searching_by_kind import first_weights
+
+    class _Pool:
+        def submit(self, *args, **kwargs):
+            return None
+
+    old = Rehearsal(weights=first_weights(CHESS), lengths=[50, 54, 60])
+    old.weights.worth["gone"] = 1.0  # a kind she no longer reads: the rehearsal starts fresh
+    rehearsing = playing._Rehearsing(old)
+    rehearsing.start(_Pool(), NOTHING_KNOWN_ROYAL)
+    assert rehearsing.rehearsal is not old and rehearsing.rehearsal.lengths == [50, 54, 60]
