@@ -93,3 +93,35 @@ def test_a_game_step_is_verified_with_the_moves_made_in_the_game() -> None:
     ok, why = DesktopTaskSkill._verify_step_effect(step, {"ok": True, "moves": [], "outcome": "goal_reached",
                                                           "handed_over": {"ended": "lost", "moves": 11, "theirs": 11}})
     assert ok and "moves=11" in why
+
+
+@pytest.mark.asyncio
+async def test_how_the_game_went_is_what_her_call_came_back_with(monkeypatch) -> None:
+    """The game goes to her turn as hers to tell, and what her call came back with is the game's record, not "done"."""
+    import json as _json
+
+    from core.conversation.surface_disposition import her_calls_this_turn, record_tool_receipt
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+    from core.skills.desktop_task import how_the_game_went
+    from interface.routes import chat as chat_routes
+
+    record = "Played a game: 20 move(s) of mine and 20 of theirs; it ended lost."
+    receipts = [{"action": "computer_use", "result": {"ok": True, "said": record,
+                                                      "handed_over": {"ended": "lost", "moves": 20}}}]
+    assert how_the_game_went(receipts) == record
+    played = {"ok": True, "status": "completed", "played": True, "evidence": record, "receipts": receipts,
+              "steps_requested": 1, "steps_completed": 1}
+
+    class _Engine:
+        async def execute(self, skill_name, params, context=None):
+            record_tool_receipt(skill_name, ok=True, evidence=str(played["evidence"]))
+            return dict(played)
+
+    monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(
+        lambda name, default=None: _Engine() if name == "capability_engine" else default))
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        result = await chat_routes._execute_desktop_objective_from_chat(
+            "Open En Croissant and play a game of chess against Stockfish.", cognitive_reply="")
+        calls = her_calls_this_turn()
+    assert result["status"] == "desktop_objective_game_read" and result["response"] == ""
+    assert _json.loads(calls[1]["content"])["came_to"] == record

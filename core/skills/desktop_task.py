@@ -182,6 +182,16 @@ def a_game_was_played(receipts: list[dict]) -> bool:
                and bool(receipt["result"].get("handed_over")) for receipt in receipts or [])
 
 
+def how_the_game_went(receipts: list[dict]) -> str:
+    """What the step that played a game said of it: how it ended, the moves on each side, and what she said as she
+    played."""
+    for receipt in receipts or []:
+        result = receipt.get("result") if isinstance(receipt, dict) else None
+        if isinstance(result, dict) and result.get("handed_over"):
+            return str(result.get("said") or result.get("summary") or "")
+    return ""
+
+
 class DesktopTaskStep(BaseModel):
     action: str = Field(
         ...,
@@ -5152,6 +5162,9 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             # November 2026 a game of thirteen moves a side against Stockfish was taken for a request to watch with
             # nothing playing, and her reply began "Let me look at the board to see what's on it."
             "played": a_game_was_played(receipts),
+            # What the game's step said of it, as this call's evidence: what her call came back with, which her model
+            # reads when she tells how the game went (core/conversation/surface_disposition.py her_calls_this_turn).
+            **({"evidence": how_the_game_went(receipts)} if a_game_was_played(receipts) else {}),
             "document_provenance": document_provenance,
             "research": {
                 "query": task_context.get("desktop_task_research_query"),

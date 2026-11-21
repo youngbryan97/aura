@@ -341,6 +341,13 @@ async def _execute_desktop_objective_from_chat(
     if _the_page_goes_to_her_turn(result, objective):
         # No reply from here: the turn goes on into her cognition, with the page beside it.
         return {"ok": True, "status": "desktop_objective_page_read", "response": "", "result": result}
+    if result.get("played"):
+        # A game played on their screen: how it went is hers to tell, from the calls she made and what they came back
+        # with, as a person tells how a game went. LIVE 21 November 2026 the game's record was served as her reply:
+        # "Played a game: 20 move(s) of mine and 20 of theirs; it ended over", then every line she had said as she
+        # played, said again.
+        return {"ok": bool(result.get("ok")), "status": "desktop_objective_game_read", "response": "",
+                "result": result}
     if not her_reply_first and _what_it_came_to_goes_to_her_turn(result, objective):
         # The same for a step that did not complete: what it came to is beside her turn, and the answer is hers.
         return {"ok": False, "status": "desktop_objective_failure_read", "response": "", "result": result}

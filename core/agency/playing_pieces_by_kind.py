@@ -194,15 +194,24 @@ def said_of_a_move(family: Family, position: Position, move: Move, learned: HowT
     return words
 
 
-def _how_it_stands(found: Any, weights: Any) -> str:
+def _how_it_stands(found: Any, weights: Any, start: dict | None = None) -> str:
+    """How the position stands, in what her commonest piece is worth: the kind she has most of at the start. A kind
+    rehearsal finds worth next to nothing made "of my least piece" a unit of nothing: LIVE 21 November 2026, "I judge
+    myself behind by about 48.1 of my least piece"."""
     if getattr(found, "mate", False):
         return "I can force a win from here" if found.score > 0 else "They can force a win from here"
-    worths = sorted(w for w in (weights.worth.values() if weights else []) if w > 0)
-    unit = worths[0] if worths else 100.0
+    worth = dict(weights.worth) if weights else {}
+    mine = [kind for side, kind in (start or {}).values() if side == FIRST]
+    commonest = max(set(mine), key=mine.count) if mine else ""
+    unit = worth.get(commonest, 0.0)
+    noun = "my commonest piece"
+    if unit <= 0:
+        positive = sorted(w for w in worth.values() if w > 0)
+        unit, noun = (positive[len(positive) // 2], "a middling piece of mine") if positive else (100.0, "a piece")
     ahead = found.score / unit
     if abs(ahead) < 0.3:
         return "It looks about even"
-    return f"I judge myself {'ahead' if ahead > 0 else 'behind'} by about {abs(ahead):.1f} of my least piece"
+    return f"I judge myself {'ahead' if ahead > 0 else 'behind'} by about {abs(ahead):.1f} of {noun}"
 
 
 async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tuple[Any, PiecesSeen] | None:
@@ -591,7 +600,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         if move is None:
             return _the_end("no move", game, tell)
         tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. "
-             f"{_how_it_stands(found, weights)}. (looked {found.depth} moves deep, {found.nodes:,} positions)")
+             f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, "
+             f"{found.nodes:,} positions)")
         made = False
         finish_began = time.monotonic()
         for attempt in range(TRIES_OF_A_MOVE):

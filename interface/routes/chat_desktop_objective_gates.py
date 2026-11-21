@@ -38,7 +38,8 @@ __all__ = [
 
 #: A lane result that gave her turn what it found or what it came to: the reply is hers, and a later door serves nothing.
 _HANDED_TO_HER_TURN = frozenset(
-    {"desktop_objective_page_read", "desktop_objective_failure_read", "desktop_objective_pointing_read"})
+    {"desktop_objective_page_read", "desktop_objective_failure_read", "desktop_objective_pointing_read",
+     "desktop_objective_game_read"})
 
 
 async def _lifted_run_desktop_objective_tracked(
