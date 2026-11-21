@@ -32,6 +32,7 @@ import math
 import time
 from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
+from contextvars import ContextVar
 from types import SimpleNamespace
 from typing import Any
 
@@ -881,6 +882,10 @@ async def pursue_on_screen(
     judgement or a test that needs a fixed one. ``think`` replaces only the
     reasoning, keeping the predict-and-check loop around it.
     """
+    # What she says out loud in this run, kept for the report of it: the turn that hands the run over reports what
+    # happened from these, not from a count of steps.
+    said_this_run: list[str] = []
+    said_token = _SAID_THIS_RUN.set(said_this_run)
     from core.agency import what_she_is_doing as doing
     from core.agency.deliberate_action import Attempt
     from core.agency.how_good_is_this import (
@@ -1117,6 +1122,7 @@ async def pursue_on_screen(
         # to press keys at (core/skills/screen_pursuit_board_of_pieces.py).
         played = await played_a_board_of_pieces(target_app or anchor.get("app", ""), ends_at, pending, seen)
         if played is not None:
+            drawn["board_of_pieces"] = dict(played)
             return {**seen, "board_of_pieces": played}
         # A window of labelled choices that nothing she has pressed has changed: the way on is the control whose words
         # mean what she was asked (core/skills/screen_pursuit_a_way_on.py), not the arrow keys.
@@ -1139,9 +1145,17 @@ async def pursue_on_screen(
                     target_app=target_app,
                 ),
             ))
+            # What the press changed may be a board now ready to play: it is looked for at once, not after the wait a
+            # board that would not take a move was left for. LIVE 20 November 2026 she pressed "Start game", and in the
+            # eight seconds the setup's board was left for she pressed the up arrow at the game twice.
+            pending.pop("board_left_until", None)
+            pending.pop("board_looked_for_at", None)
             return {**fresh, "surface": "a way on taken"}
         if pending.get("surface_is_controls"):
             return {**seen, "surface": "controls", "nothing_to_press": bool(pending.get("way_on_found_nothing"))}
+        if time.monotonic() < float(pending.get("board_left_until", 0.0)):
+            # A board of pieces she found a moment ago would not take a move yet: it is waited on, not tried with keys.
+            return {**seen, "surface": "a board of pieces"}
         return seen
 
     def satisfied(observation: dict[str, Any]) -> bool:
@@ -1392,8 +1406,9 @@ async def pursue_on_screen(
 
     async def decide(observation: dict[str, Any]) -> Step | None:
         """Lifted to screen_pursuit_decision.py; the scope is handed over per call."""
-        if observation.get("surface") == "a way on taken":
-            # A control pressed in the look changed the screen: progress, and the new screen is looked at next.
+        if observation.get("surface") in ("a way on taken", "a board of pieces"):
+            # A control pressed in the look changed the screen: progress, and the new screen is looked at next. A board
+            # of pieces is played by its own player when it takes a move, never by the arrow keys.
             from core.skills.fluid_executor import WAITING
 
             return WAITING
@@ -1659,6 +1674,8 @@ async def pursue_on_screen(
         if holding_the_foreground is not None:
             holding_the_foreground.close()
     result = _pursue_on_screen_result(already, blocker_attempts, history, moves, pacing, receipt, restarts, seen_through, success_when, drawn)
+    result["said_along_the_way"] = list(said_this_run)
+    _SAID_THIS_RUN.reset(said_token)
     where_it_answers = responds["state"].band()
     if responds["state"].nothing_answers():
         result["stopped_responding"] = True
@@ -1842,6 +1859,11 @@ def _the_finish_the_place_says(first: dict[str, Any], goal: str, narrate: bool, 
     return finish
 
 
+#: The lines a run says out loud, for the report of it; at most this many, the first ones.
+_SAID_THIS_RUN: ContextVar[list[str] | None] = ContextVar("said_this_run", default=None)
+SAID_KEPT_AT_MOST = 400
+
+
 def _tell(line: str) -> None:
     """Say something that is not a move — the line she is taking, or a change of it.
 
@@ -1856,6 +1878,9 @@ def _tell(line: str) -> None:
     if not said:
         return
     logger.info("saying out loud: %r", said[:160])
+    kept = _SAID_THIS_RUN.get()
+    if kept is not None and len(kept) < SAID_KEPT_AT_MOST:
+        kept.append(said)
     try:
         from core.agency.narrator import Narrator
 

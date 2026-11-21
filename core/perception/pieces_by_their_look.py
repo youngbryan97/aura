@@ -313,14 +313,16 @@ def _widest_gap(looks: list[np.ndarray]) -> float:
 @dataclass
 class PiecesSeen:
     """The board read: ``cells[row][column]`` is None for an empty square, else (side, look): side 0 is the lighter
-    side, look an index into ``Looks.kinds``."""
+    side, look an index into ``Looks.kinds``, or None for a piece whose look is like none of them on a board read as
+    settled. ``nearest`` holds, for each of those, the kind it looks most like."""
 
     lattice: Lattice
-    cells: list[list[tuple[int, int] | None]]
+    cells: list[list[tuple[int, int | None] | None]]
+    nearest: dict[tuple[int, int], int] = field(default_factory=dict)
 
     def says(self) -> str:
-        return "\n".join(" ".join("." if cell is None else f"{'ab'[cell[0]]}{cell[1]}" for cell in row)
-                         for row in self.cells)
+        return "\n".join(" ".join("." if cell is None else f"{'ab'[cell[0]]}{'?' if cell[1] is None else cell[1]}"
+                                   for cell in row) for row in self.cells)
 
     def occupied(self) -> list[tuple[int, int]]:
         return [(r, c) for r, row in enumerate(self.cells) for c, cell in enumerate(row) if cell is not None]
@@ -337,22 +339,44 @@ class Looks:
 
     def as_memory(self) -> dict:
         """The looks she knows on this board, kept with what she learned of the game, so the next sitting calls each
-        kind by the same name."""
-        return {"kinds": [np.round(kind, 2).tolist() for kind in self.kinds], "cut": self.cut, "sides": list(self.sides)}
+        kind by the same name. Each look is kept whole, as one string of bytes: kept as rows of numbers, a record too
+        big to keep lost the oldest rows of each, and a look cut in half is no look (LIVE 20 November 2026)."""
+        import base64
+
+        return {"kinds": [base64.b64encode(np.round(np.clip(kind, 0.0, 1.0) * 255).astype(np.uint8).tobytes())
+                          .decode("ascii") for kind in self.kinds],
+                "cut": self.cut, "sides": list(self.sides)}
 
     @classmethod
     def from_memory(cls, kept: dict) -> Looks:
         """The looks kept, where they are looks as they are taken now; nothing where they were taken another way."""
+        import base64
+        import binascii
+
         try:
-            kinds = [np.asarray(kind, dtype=np.float32) for kind in kept.get("kinds", [])]
+            kinds = []
+            for kind in kept.get("kinds", []):
+                if isinstance(kind, str):
+                    raw = np.frombuffer(base64.b64decode(kind), dtype=np.uint8)
+                    if raw.size != 2 * LOOK_SIDE * LOOK_SIDE:
+                        return cls()
+                    kinds.append(raw.reshape(2 * LOOK_SIDE, LOOK_SIDE).astype(np.float32) / 255.0)
+                else:
+                    kinds.append(np.asarray(kind, dtype=np.float32))
             if any(kind.shape != (2 * LOOK_SIDE, LOOK_SIDE) for kind in kinds):
                 return cls()
             return cls(kinds=kinds, cut=float(kept.get("cut", 0.0)), sides=[float(s) for s in kept.get("sides", [])])
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, binascii.Error):
             return cls()
 
-    def read(self, picture: np.ndarray, lattice: Lattice | None = None) -> PiecesSeen | None:
-        """The board in ``picture`` read square by square; None where there is no board."""
+    def read(self, picture: np.ndarray, lattice: Lattice | None = None, *, settled: bool = False) -> PiecesSeen | None:
+        """The board in ``picture`` read square by square; None where there is no board.
+
+        ``settled``: the kinds are known, learned from a board at its start, and a look like none of them is read as a
+        piece of that side whose kind is unread, not as a kind of its own. A game's marks (a piece picked up, a square
+        it may go to, a glow) change how a piece looks while they last; learned as kinds, they part the board she sees
+        from the board she holds for good. LIVE 20 November 2026 her record of En Croissant's board, with six kinds of
+        piece, held sixteen."""
         picture = np.asarray(picture)
         lattice = lattice or squares_of_one_ground(picture)
         if lattice is None:
@@ -371,10 +395,19 @@ class Looks:
                 found[(row, column)] = (_look(silhouette, square), colour)
         if not self.kinds and found:
             self._learn([v[0] for v in found.values()], [v[1] for v in found.values()])
-        cells: list[list[tuple[int, int] | None]] = [[None] * lattice.columns for _ in range(lattice.rows)]
+        cells: list[list[tuple[int, int | None] | None]] = [[None] * lattice.columns for _ in range(lattice.rows)]
+        nearest: dict[tuple[int, int], int] = {}
         for (row, column), (look, colour) in found.items():
-            cells[row][column] = (self._side_of(colour), self._kind_of(look))
-        return PiecesSeen(lattice, cells)
+            if settled and self.kinds:
+                apart = [_apart(look, kind) for kind in self.kinds]
+                closest = int(np.argmin(apart))
+                kind: int | None = closest if apart[closest] <= self.cut else None
+                if kind is None:
+                    nearest[(row, column)] = closest
+            else:
+                kind = self._kind_of(look)
+            cells[row][column] = (self._side_of(colour), kind)
+        return PiecesSeen(lattice, cells, nearest)
 
     def _learn(self, looks: list[np.ndarray], colours: list[float]) -> None:
         self.cut = _widest_gap(looks)

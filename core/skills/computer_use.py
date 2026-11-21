@@ -1784,6 +1784,7 @@ end tell
                 or str(result.get("needs_person") or "")
                 or str(result.get("blocked_by") or "")
                 or str(result.get("could_not_get_there") or "")
+                or str(result.get("stopped_because") or "")
                 or {
                     "could_not_get_there": "she could not get to where the task happens",
                     "out_of_cycles": "ran out of moves before reaching the goal",
@@ -1799,13 +1800,26 @@ end tell
         # handing somebody a step count. General to any pursuit: how many
         # moves, how many did what she expected, and how it ended.
         made = len(moves)
-        if result.get("completed"):
+        game = result.get("handed_over") or {}
+        lines = [str(line) for line in result.get("said_along_the_way") or []]
+        if game:
+            # A game played by its own player is reported as that player saw it, with what she said as she played,
+            # not as a count of the pursuit's steps.
+            said = (f"Played a game: {game.get('moves', 0)} move(s) of mine and {game.get('theirs', 0)} of theirs; "
+                    f"it ended {game.get('ended')}.")
+            if "closed" in game:
+                said += " I closed the application." if game["closed"] else " I did not manage to close the application."
+            else:
+                said += " The application is still open."
+            if lines:
+                said += " What I said as I played, in order: " + " | ".join(lines)
+        elif result.get("completed"):
             said = f"Reached it: {success_when!r} appeared after {made} move(s)."
         elif made:
             said = f"Made {made} move(s) and stopped — {reason}."
         else:
             said = f"Did not get started — {reason}."
-        if made:
+        if made and not game:
             said += f" {held} of them did what I expected."
         if result.get("restarts"):
             said += f" Began again {result['restarts']} time(s)."
@@ -1821,6 +1835,8 @@ end tell
             "action": "pursue_on_screen",
             "goal": goal,
             "outcome": outcome,
+            "handed_over": game,
+            "said_along_the_way": lines,
             "cycles": result.get("cycles"),
             "moves": result.get("moves") or [],
             "attempts": result.get("attempts") or [],

@@ -55,8 +55,11 @@ class BoardApplication:
     """The application: its position, what is picked up, its last move. Her side is the first, drawn at the bottom."""
 
     def __init__(self, family: Family, *, she_goes_first: bool = True, square: int = 64, margin: int = 80,
-                 answers_in_s: float = 0.05, seed: int = 0) -> None:
+                 answers_in_s: float = 0.05, seed: int = 0, keeps_it_picked: bool = False) -> None:
         self.family = family
+        #: Whether a second click on the piece picked up leaves it picked up, as many board applications do (a click
+        #: there may begin a drag); a click on an empty square it may not go to puts it down.
+        self.keeps_it_picked = keeps_it_picked
         self.square = square
         self.margin = margin
         self.position = family.the_start()
@@ -127,11 +130,15 @@ class BoardApplication:
                 self.picked = square
             return True
         if square == self.picked:
-            self.picked = None
+            if not self.keeps_it_picked:
+                self.picked = None
             return True
         chosen = [m for m in moves(self.family, self.position) if m.start == self.picked and m.end == square]
         if chosen:
             self.make(chosen[0])
+        elif self.keeps_it_picked and square in self.position.cells and self.position.cells[square][0] == FIRST:
+            self.picked = square
+            return True
         self.picked = None
         return True
 

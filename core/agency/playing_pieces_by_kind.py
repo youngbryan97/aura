@@ -90,13 +90,26 @@ class Seat:
     def seen_square(self, square: tuple[int, int]) -> tuple[int, int]:
         return self.rows - 1 - square[0], square[1]
 
-    def as_rules(self, seen: PiecesSeen) -> dict[tuple[int, int], tuple[int, str]]:
-        cells: dict[tuple[int, int], tuple[int, str]] = {}
+    def as_rules(self, seen: PiecesSeen) -> dict[tuple[int, int], tuple[int, str | None]]:
+        """The board read, in the rules' frame: each piece's side and kind, the kind None where its look was unread."""
+        cells: dict[tuple[int, int], tuple[int, str | None]] = {}
         for row, line in enumerate(seen.cells):
             for column, cell in enumerate(line):
                 if cell is not None:
                     side, look = cell
-                    cells[self.rules_square(row, column)] = (FIRST if side == self.her_seen_side else SECOND, str(look))
+                    cells[self.rules_square(row, column)] = (FIRST if side == self.her_seen_side else SECOND,
+                                                             None if look is None else str(look))
+        return cells
+
+    def filled(self, seen: PiecesSeen, believed: dict) -> dict[tuple[int, int], tuple[int, str]]:
+        """The board read with every unread kind given: the kind she holds on that square where her side there agrees,
+        else the kind the look is most like."""
+        cells = self.as_rules(seen)
+        for square, (side, kind) in list(cells.items()):
+            if kind is None:
+                held = believed.get(square)
+                cells[square] = (side, held[1] if held is not None and held[0] == side
+                                 else str(seen.nearest.get(self.seen_square(square), 0)))
         return cells
 
     def centre_share(self, square: tuple[int, int], picture: Any) -> tuple[float, float]:
@@ -144,6 +157,17 @@ def _square_named(square: tuple[int, int], first_is_hers: bool, rows: int, colum
     return f"{'abcdefghijklmnopqrstuvwxyz'[column]}{row + 1}"
 
 
+def _owned(what: str, whose: str) -> str:
+    """A piece's description as one side's: "the piece that leaps" becomes "my piece that leaps", and "a piece I
+    haven't seen move" becomes "a piece of mine I haven't seen move", since "my a piece" is no English."""
+    if what.startswith("the "):
+        return f"{whose} {what.removeprefix('the ')}"
+    if what.startswith("a "):
+        noun, _, rest = what.removeprefix("a ").partition(" ")
+        return f"a {noun} of {'mine' if whose == 'my' else 'theirs'} {rest}".rstrip()
+    return f"{whose} {what}"
+
+
 def said_of_a_move(family: Family, position: Position, move: Move, learned: HowThePiecesMove, first_is_hers: bool,
                    *, whose: str = "my") -> str:
     """A move in words: what moved, from where to where, what it took, what it became, whether it now attacks the
@@ -156,7 +180,7 @@ def said_of_a_move(family: Family, position: Position, move: Move, learned: HowT
             learned.what_it_does(letter)
 
     _side, letter = position.cells[move.start]
-    words = f"{whose} {kind_named(letter).removeprefix('the ')} from {named(move.start)} to {named(move.end)}"
+    words = f"{_owned(kind_named(letter), whose)} from {named(move.start)} to {named(move.end)}"
     if move.partner is not None:
         words += f", crossing with {kind_named(position.cells[move.partner[0]][1])}"
     if move.taken_at is not None and move.taken_at in position.cells:
@@ -189,7 +213,7 @@ async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tupl
         picture = await look()
         if picture is None:
             return None
-        seen = seat.looks.read(picture, seat.lattice)
+        seen = seat.looks.read(picture, seat.lattice, settled=True)
         if seen is None:
             lattice = squares_of_one_ground(picture)
             if lattice is not None:
@@ -204,7 +228,7 @@ async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tupl
     return None
 
 
-def _marked(seat: Seat, before: Any, now: Any, picked: tuple[int, int]) -> set[tuple[int, int]]:
+def _marked(seat: Seat, before: Any, now: Any, picked: tuple[int, int] | None) -> set[tuple[int, int]]:
     """The squares the game marked between two pictures: where enough of a square's pixels changed. The square picked
     up is left out; it is marked as picked, not offered."""
     marked: set[tuple[int, int]] = set()
@@ -229,11 +253,42 @@ async def _offers_for(seat: Seat, look: Look, click: Click, picture: Any, square
     await click(*seat.centre_share(square, picture))
     await asyncio.sleep(OFFERS_SHOW_S)
     marked_picture = await look()
+    if marked_picture is None or marked_picture.shape != picture.shape:
+        await _put_down(seat, look, click, picture, square, set())
+        return None
+    marked = _marked(seat, picture, marked_picture, square)
+    await _put_down(seat, look, click, picture, square, marked)
+    return marked
+
+
+async def _put_down(seat: Seat, look: Look, click: Click, picture: Any, square: tuple[int, int],
+                    marked: set[tuple[int, int]]) -> bool:
+    """Put a piece picked up down again, and see the board as it was before. A second click on it puts it down in some
+    applications and leaves it picked up in others, where a click may begin a drag; there, a click on an empty square
+    the game did not mark puts it down. Left picked up, its marks are read as the next piece's offers."""
     await click(*seat.centre_share(square, picture))
     await asyncio.sleep(OFFERS_SHOW_S)
-    if marked_picture is None or marked_picture.shape != picture.shape:
-        return None
-    return _marked(seat, picture, marked_picture, square)
+    if await _as_it_was(seat, look, picture):
+        return True
+    seen = seat.looks.read(picture, seat.lattice, settled=True)
+    occupied = set(seat.as_rules(seen)) if seen is not None else set()
+    empty = [sq for sq in (seat.rules_square(r, c) for r in range(seat.rows) for c in range(seat.columns))
+             if sq not in occupied and sq not in marked and sq != square]
+    if not empty:
+        return False
+    # The empty square furthest from the piece: the least likely to be anything the piece could be meant to do.
+    away = max(empty, key=lambda sq: abs(sq[0] - square[0]) + abs(sq[1] - square[1]))
+    await click(*seat.centre_share(away, picture))
+    await asyncio.sleep(OFFERS_SHOW_S)
+    put = await _as_it_was(seat, look, picture)
+    if not put:
+        logger.info("a piece picked up on %s would not be put down again", square)
+    return put
+
+
+async def _as_it_was(seat: Seat, look: Look, picture: Any) -> bool:
+    now = await look()
+    return now is not None and now.shape == picture.shape and not _marked(seat, picture, now, None)
 
 
 @dataclass
@@ -247,6 +302,20 @@ class _Game:
     #: Since when she has waited on the other side, and the longest it has taken to answer.
     waiting_since: float = field(default_factory=time.monotonic)
     longest_answer_s: float = 0.0
+    #: What her hands cost on her clock this game, measured: picking a piece up to see its offers, and making a move
+    #: and seeing it shown. Each is the mean of the times taken, with how many there were.
+    probe_s: float = 0.0
+    probes_timed: int = 0
+    finish_s: float = 0.0
+    finishes_timed: int = 0
+
+    def timed_probe(self, seconds: float) -> None:
+        self.probes_timed += 1
+        self.probe_s += (seconds - self.probe_s) / self.probes_timed
+
+    def timed_finish(self, seconds: float) -> None:
+        self.finishes_timed += 1
+        self.finish_s += (seconds - self.finish_s) / self.finishes_timed
 
     def follow(self, move: Move) -> None:
         """A move seen made: learned from, and the position taken from the board, with what the board cannot show
@@ -348,7 +417,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         still = await _seen_still(seat, look)
         if still is None:
             return {"ended": "the board went out of sight", "moves": 0, "learned": learned}
-        start = seat.as_rules(still[1])
+        start = seat.filled(still[1], {})
     game = _Game(learned=learned or HowThePiecesMove.from_the_start(seat.rows, seat.columns, start),
                  believed=Position(cells=dict(start), turn=FIRST, unmoved=frozenset(start)))
     tell("Two sides facing each other on a board. I'll take the side nearest me, find out how the pieces move by "
@@ -357,7 +426,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
     waited = time.monotonic()
     while time.monotonic() - waited < WAITS_FOR_THE_FIRST_MOVE_S:
         now = await _seen_still(seat, look, within_s=2.0)
-        if now is not None and seat.as_rules(now[1]) != game.believed.cells and moves_seen(
+        if now is not None and not _agrees(seat.as_rules(now[1]), game.believed.cells) and moves_seen(
                 Position(cells=game.believed.cells, turn=SECOND, unmoved=game.believed.unmoved),
                 seat.as_rules(now[1]), SECOND, game.learned.family()):
             game.believed = Position(cells=game.believed.cells, turn=SECOND, unmoved=game.believed.unmoved)
@@ -373,15 +442,29 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     "learned": game.learned}
         picture, seen = still
         shown = seat.as_rules(seen)
-        if shown != game.believed.cells:
-            game.learned.knows_of({kind for _side, kind in shown.values()})
+        if not _agrees(shown, game.believed.cells):
+            game.learned.knows_of({kind for _side, kind in shown.values() if kind is not None})
             seen_moves = moves_seen(game.believed, shown, game.believed.turn, game.learned.family())
             if seen_moves is None:
                 misread += 1
+                if misread == 1:
+                    logger.info("the board shows what no move she can read explains: %s", _what_differs(
+                        game.believed.cells, shown, seat))
                 if misread >= MISREAD_AT_MOST:
-                    tell("I've lost track of the board; I'll stop here.")
-                    return {"ended": "lost track of the board", "moves": game.made, "theirs": game.theirs,
-                            "learned": game.learned}
+                    # The board reads, and no move she can read explains it: she goes by the board as it stands, as a
+                    # person who has lost the thread of the moves looks at the position, rather than stopping with her
+                    # clock running. LIVE 20 November 2026 she stopped 22 seconds after her tenth move against
+                    # Stockfish, and her clock ran out seven seconds later on a board she could read square by square.
+                    turn = await _whose_turn_by_the_clock(clock)
+                    tell("I've lost the thread of the moves, so I'll go by the board as it stands.")
+                    held = game.believed
+                    cells = seat.filled(seen, held.cells)
+                    game.earlier.append(held)
+                    game.believed = Position(cells=cells, turn=turn, unmoved=frozenset(
+                        sq for sq in held.unmoved if cells.get(sq) == held.cells.get(sq)))
+                    game.waiting_since = time.monotonic()
+                    misread = 0
+                    continue
                 await asyncio.sleep(0.3)
                 continue
             misread = 0
@@ -406,7 +489,12 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             await asyncio.sleep(0.2)
             continue
         rehearsing.collect()
-        # Her turn: learn from a few pieces she has not seen enough of, then think.
+        # Her turn, all of it on her clock where the game shows one: picking pieces up, thinking and moving share the
+        # turn's part of the time she has left. LIVE 20 November 2026 only the thinking was held to it, and picking up
+        # six pieces a turn and seeing each move shown took a third of a three-minute game.
+        turn_began = time.monotonic()
+        share, on_her_clock = await _time_for_a_move(clock, rehearsing, game.made, thinks_s)
+        # Learn from a few pieces she has not seen enough of, then think.
         offered: dict[tuple[int, int], set] = {}
         probes = 0
         # Pieces with room around them first: one boxed in by its own side shows nothing.
@@ -417,7 +505,12 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 break
             if _times_offered(game.learned, kind) >= SEEN_ENOUGH and game.made:
                 continue
+            # Learning and thinking split the turn evenly: nothing says which of the two this move needs more.
+            if on_her_clock and probes and time.monotonic() - turn_began + game.probe_s > share / 2:
+                break
+            probe_began = time.monotonic()
             squares = await _offers_for(seat, look, click, picture, square)
+            game.timed_probe(time.monotonic() - probe_began)
             probes += 1
             if squares is not None:
                 offered[square] = squares
@@ -432,10 +525,12 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         if ended or not legal:
             return _the_end(ended or "no move", game, tell)
         weights = rehearsing.weights_for(family)
-        thinks = await _time_for_a_move(clock, rehearsing, game.made, thinks_s)
         set_aside: list[Move] = []
         found = None
         for _ in range(CHECKS_A_TURN):
+            # What is left of the turn, less what making the move and seeing it shown has taken her this game.
+            thinks = (max(0.2, share - (time.monotonic() - turn_began) - game.finish_s) if on_her_clock
+                      else share)
             found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
                            set_aside=set_aside)
             if found.move is None:
@@ -468,6 +563,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. "
              f"{_how_it_stands(found, weights)}. (looked {found.depth} moves deep, {found.nodes:,} positions)")
         made = False
+        finish_began = time.monotonic()
         for attempt in range(TRIES_OF_A_MOVE):
             await click(*seat.centre_share(move.start, picture))
             await asyncio.sleep(OFFERS_SHOW_S * (1 + attempt))
@@ -475,6 +571,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             made = await _comes_to_show(seat, look, game, move)
             if made:
                 break
+        if made:
+            game.timed_finish(time.monotonic() - finish_began)
         if not made:
             game.learned.refused(game.believed, move, family=family)
             tell("The game didn't take that move; I've learned it isn't one.")
@@ -485,20 +583,57 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
 
 
 async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, rehearsing: _Rehearsing, made: int,
-                           otherwise: float) -> float:
-    """How long this move is thought about: the time she has left over the moves she expects still to make, where the
-    game shows her clock and her rehearsal says how long its games run; ``otherwise`` where it does not."""
+                           otherwise: float) -> tuple[float, bool]:
+    """The part of her clock this turn may take, and whether it came from her clock: the time she has left over the
+    moves she expects still to make, where the game shows her clock and her rehearsal says how long its games run;
+    ``otherwise``, to think for, where it does not."""
     if clock is None:
-        return otherwise
+        return otherwise, False
     try:
         left = await clock()
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.info("her clock was not read (%s)", exc)
-        return otherwise
+        return otherwise, False
     moves_left = rehearsing.moves_left(made)
     if left is None or moves_left <= 0:
-        return otherwise
-    return max(0.2, left / moves_left)
+        return otherwise, False
+    return max(0.2, left / moves_left), True
+
+
+#: The coarsest a game's clock shows its time: a whole second.
+A_CLOCK_SHOWS_S = 1.0
+
+
+async def _whose_turn_by_the_clock(clock: Callable[[], Awaitable[float | None]] | None) -> int:
+    """Whose turn it is, where the game shows her clock: hers where it runs. Hers where there is no clock to read, since
+    a turn that is not hers is found out the moment the game offers her nothing."""
+    if clock is None:
+        return FIRST
+    try:
+        one = await clock()
+        # A second apart, and a reading's own time on top: a running clock has shown a change by then.
+        await asyncio.sleep(A_CLOCK_SHOWS_S)
+        two = await clock()
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("her clock was not read (%s)", exc)
+        return FIRST
+    if one is None or two is None:
+        return FIRST
+    return FIRST if two < one else SECOND
+
+
+def _agrees(shown: dict, believed: dict) -> bool:
+    """Whether the board seen is the board held: the same squares, each with the same side, and the same kind where
+    the kind was read."""
+    return set(shown) == set(believed) and all(
+        shown[sq][0] == believed[sq][0] and shown[sq][1] in (None, believed[sq][1]) for sq in shown)
+
+
+def _what_differs(believed: dict, shown: dict, seat: Seat) -> str:
+    """The squares where the board she holds and the board she sees part, named as the board names them."""
+    differ = sorted(sq for sq in set(believed) | set(shown) if believed.get(sq) != shown.get(sq))
+    return "; ".join(f"{_square_named(sq, True, seat.rows, seat.columns)} held {believed.get(sq)} seen {shown.get(sq)}"
+                     for sq in differ)
 
 
 def _room_around(position: Position, square: tuple[int, int]) -> int:
@@ -522,10 +657,15 @@ async def _comes_to_show(seat: Seat, look: Look, game: _Game, move: Move) -> boo
         if still is None:
             return False
         shown = seat.as_rules(still[1])
-        if shown != game.believed.cells:
-            game.learned.knows_of({kind for _side, kind in shown.values()})
+        if not _agrees(shown, game.believed.cells):
+            game.learned.knows_of({kind for _side, kind in shown.values() if kind is not None})
             seen_moves = moves_seen(game.believed, shown, FIRST, game.learned.family())
             if seen_moves and (seen_moves[0].start, seen_moves[0].end) == (move.start, move.end):
+                return True
+            # The squares of her move as her move leaves them: made, whatever else the board shows that she cannot
+            # read yet. The rest is followed as the board is followed. Taken for a refusal, a move the game made
+            # would teach her a rule that is false.
+            if shown.get(move.start, (None,))[0] != FIRST and shown.get(move.end, (None,))[0] == FIRST:
                 return True
         await asyncio.sleep(0.15)
     return False

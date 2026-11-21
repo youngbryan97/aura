@@ -225,6 +225,18 @@ def _pursue_on_screen_result(
         {"option": a.option, "expected": a.expected, "held": a.verdict.held, "why": a.verdict.why()}
         for a in history
     ]
+    # A game handed to its own player: what came of it, as that player saw it.
+    # LIVE 20 November 2026 a game of ten moves a side, lost on time, was
+    # reported as "Reached it after 2 move(s)", and her reply made up the rest.
+    played = (drawn or {}).get("board_of_pieces")
+    if played:
+        from .screen_pursuit_board_of_pieces import GAME_OVER
+
+        result["handed_over"] = {key: played[key] for key in ("ended", "moves", "theirs", "closed") if key in played}
+        if played.get("ended") not in GAME_OVER:
+            result["completed"] = False
+            result["outcome"] = "stopped"
+            result["stopped_because"] = f"the game stopped before its end: {played.get('ended')}"
     # The last thing the thing said, so whoever handed it over can tell a game
     # that ended from one that is waiting for her.
     if drawn and ('last_observation' in drawn or drawn.get('last_seen')):
