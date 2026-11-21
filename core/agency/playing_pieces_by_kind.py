@@ -35,6 +35,7 @@ from core.agency.pieces_by_their_kind import (
     moves,
     outcome,
 )
+from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.perception.pieces_by_their_look import Lattice, Looks, PiecesSeen, squares_of_one_ground
 
 logger = logging.getLogger("Aura.PlayingPiecesByKind")
@@ -321,6 +322,12 @@ class _Game:
     played: list[str] = field(default_factory=list)
     #: When she last saw a move of theirs made: from then her clock runs, though her turn has not begun.
     their_move_seen_at: float = 0.0
+    #: The part of her clock the last turn she could read it took: what a turn whose clock she cannot read is given.
+    last_share: float = 0.0
+    #: How many of her moves her rules have earned between looks at what the game offers before she moves
+    #: (core/cognition/how_far_to_go_before_looking.py), and how many she has made since the last look.
+    far: HowFarToGo = field(default_factory=HowFarToGo)
+    unlooked: int = 0
 
     def timed_probe(self, seconds: float) -> None:
         self.probes_timed += 1
@@ -546,6 +553,12 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         # six pieces a turn and seeing each move shown took a third of a three-minute game.
         turn_began = time.monotonic()
         share, on_her_clock = await _time_for_a_move(clock, rehearsing, game.made, thinks_s)
+        if on_her_clock:
+            game.last_share = share
+        elif clock is not None and game.last_share:
+            # Her clock went on running while it could not be read. LIVE 21 November 2026, game 10, four late turns
+            # read no clock and were given four seconds of thought where the last reading left her one or two.
+            share, on_her_clock = game.last_share, True
         # Learn from a few pieces she has not seen enough of, then think.
         offered: dict[tuple[int, int], set] = {}
         probes = 0
@@ -620,12 +633,22 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 searched_s += time.monotonic() - search_began
             if found.move is None:
                 break
-            # Before she moves it, she picks it up: the move is made only where the game offers it.
+            # Before she moves it, she picks it up: the move is made only where the game offers it. Each look that
+            # finds the game offering just what her rules said lets her go one move further without it; the first
+            # that does not, or a move the game refuses, has her looking before every move again. LIVE 21 November
+            # 2026, game 10: the look took 47 s of a 232 s game, where her thinking had 60.
             if found.move.start not in offered:
+                if not _looks_first(game):
+                    break
                 squares = await _offers_for(seat, look, click, picture, found.move.start)
                 if squares is not None:
                     offered[found.move.start] = squares
                     game.learned.offered(game.believed, found.move.start, squares, family=family)
+                    said = {one.end for one in legal if one.start == found.move.start}
+                    if set(squares) == said:
+                        game.far.it_was_where_she_said(1)
+                    else:
+                        game.far.it_was_not(1)
             if found.move.start not in offered or found.move.end in offered[found.move.start]:
                 break
             game.learned.refused(game.believed, found.move, family=family)
@@ -671,11 +694,24 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                         f"{share:.1f} s" if on_her_clock else "not on a clock")
         if not made:
             game.learned.refused(game.believed, move, family=family)
+            if game.unlooked:
+                game.far.it_was_not(game.unlooked)
+                game.unlooked = 0
             tell("The game didn't take that move; I've learned it isn't one.")
             continue
         game.made += 1
         game.waiting_since = time.monotonic()
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned}
+
+
+def _looks_first(game: _Game) -> bool:
+    """Whether she picks the piece up to see what the game offers before she moves it: on every move until her rules
+    have earned going without (core/cognition/how_far_to_go_before_looking.py), and then on every move they have not."""
+    if game.unlooked + 1 < game.far.how_many(trusted=game.far.how_often_it_held):
+        game.unlooked += 1
+        return False
+    game.unlooked = 0
+    return True
 
 
 async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, rehearsing: _Rehearsing, made: int,
@@ -723,7 +759,7 @@ def _read_against(shown: dict, believed: dict) -> dict:
     how a piece looks (a glow round a piece under attack) changes its colour as well, and a piece does not change side
     where it stands."""
     out = dict(shown)
-    for square, (side, kind) in shown.items():
+    for square, (_side, kind) in shown.items():
         if kind is None and square in believed:
             out[square] = (believed[square][0], None)
     return out
