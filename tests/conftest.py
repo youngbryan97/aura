@@ -1179,6 +1179,9 @@ def _reset_process_wide_state():
         # What each telemetry channel last read, with its declaration kept. A tendency conflict one test wrote at
         # 0.998 left its channel red for the next, whose verifier then found a red channel (Q09, 15 November 2026).
         ("core.fsw.telemetry_dictionary", lambda m: m.get_telemetry().forget_readings_for_test()),
+        # What each host has said of its supply: a refusal one test's fake host gave would hold the next test's
+        # request to the same host.
+        ("core.runtime.what_a_host_has_left", lambda m: m.forget_hosts_for_test()),
     ):
         try:
             import importlib

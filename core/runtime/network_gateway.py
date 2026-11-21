@@ -278,6 +278,13 @@ class NetworkGateway:
             }
         request_data = privacy["body"]
 
+        # A host that has said how long to wait is not asked again before then (core/runtime/what_a_host_has_left.py).
+        from core.runtime.what_a_host_has_left import heard_from, held_back
+
+        refused_already = held_back(url_text)
+        if refused_already is not None:
+            return refused_already
+
         req = urllib.request.Request(
             url_text,
             data=request_data,
@@ -305,6 +312,7 @@ class NetworkGateway:
                 # and the persuaded party looks entirely legitimate at the gate.
                 _record_web_provenance(response.url or url_text)
                 response_headers = dict(response.info())
+                heard_from(url_text, int(response.status or 0), response_headers)
                 content, limit_error = _read_bounded_http_body(
                     response,
                     headers=response_headers,
@@ -324,6 +332,7 @@ class NetworkGateway:
                 return result
         except urllib.error.HTTPError as exc:
             response_headers = dict(exc.headers or {})
+            heard_from(url_text, int(exc.code or 0), response_headers)
             content, limit_error = _read_bounded_http_body(
                 exc,
                 headers=response_headers,
