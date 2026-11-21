@@ -40,7 +40,7 @@ def test_each_component_is_recorded_by_name_and_accumulates() -> None:
         record_latency("queue", 0.8, ended_at=now - 40.0)  # the wait came before the work
         record_latency("prefill", 15.66)
         record_latency("decode", 20.22)
-        record_latency("tool", 1.5)
+        record_latency("tool", 1.5, ended_at=now - 10.0)  # one call, then another: a call inside a call counts once
         record_latency("tool", 2.5)
     as_dict = receipt.as_dict()
     assert as_dict["latency_s"] == {"prefill": 15.66, "decode": 20.22, "tool": 4.0, "queue": 0.8}

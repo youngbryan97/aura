@@ -5203,7 +5203,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     delivered, each with its seconds from the turn's start) and, where what was served is not her answer, why
     it stopped in the runtime's own word. Finished receipts are kept, one line a turn, in
     `data/runtime/turn_receipts.jsonl`, written behind the turn; `tools/delivery_metrics.py` counts them apart
-    (`tests/test_how_far_her_answers_get.py`). Not yet read over a day of her turns.
+    (`tests/test_how_far_her_answers_get.py`). Read at 20:54 the same day: 37 kept, 3 of them a person's (the rest
+    her kernel's background ticks and her influence campaign's trials, now counted apart). A typed question went
+    drafted 37.8 s, checked 39.4 s, committed 39.5 s, delivered 39.6 s. Two chess turns through her desktop lane
+    recorded delivery and no draft, as that lane records none, and one said tool=8321 s in a 4,197 s turn: a call
+    inside a call was added to the one around it. Each component now counts the seconds its spans cover.
     The conversational amplifier keeps to the turn's clock too.
   - 19 November, the outside bar's second baseline: every benchmark turn waited at least 48 s before her model began. Of
     that, the reading of what a request asks of her took the most: it scored up to 64 candidate replies in one batch,

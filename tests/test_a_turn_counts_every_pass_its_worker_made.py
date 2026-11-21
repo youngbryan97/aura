@@ -24,10 +24,16 @@ def test_a_pass_that_did_not_measure_a_part_adds_nothing_for_it():
 
 
 def test_the_receipt_adds_each_pass_it_is_told():
+    import time
+
     with turn_receipt.recording_turn("t-passes", phases_available=()) as receipt:
+        # Each pass ends where the next begins, as core/brain/llm/mlx_client_recording.py chains them.
+        ended = time.time() - (8.9 + 14.0 + 21.85 + 10.3)
         for prefill, decode in ((8.9, 14.0), (21.85, 10.3)):
-            turn_receipt.record_latency("prefill", prefill)
-            turn_receipt.record_latency("decode", decode)
+            ended += prefill
+            turn_receipt.record_latency("prefill", prefill, ended_at=ended)
+            ended += decode
+            turn_receipt.record_latency("decode", decode, ended_at=ended)
     assert receipt.latency_s["prefill"] == pytest.approx(30.75)
     assert receipt.latency_s["decode"] == pytest.approx(24.3)
     assert receipt.latency_samples == {"prefill": 2, "decode": 2}

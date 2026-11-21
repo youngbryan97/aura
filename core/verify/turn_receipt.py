@@ -195,6 +195,7 @@ def recording_turn(
             receipt.latency_s["delivery"] = max(0.0, receipt.finished_at - receipt.answered_at)
             receipt.latency_samples["delivery"] = 1
             receipt.spans.append(("delivery", receipt.answered_at, receipt.finished_at))
+        _each_second_once(receipt)
         _net_of_work(receipt)
         try:
             _CURRENT.reset(token)
@@ -214,6 +215,28 @@ def recording_turn(
 #: preflight and preparation and kept neither.
 _WORK = frozenset({"prefill", "decode", "tool", "retrieval"})
 _AROUND_WORK = frozenset({"queue", "delivery", "preparation"})
+
+
+def _union_s(spans: list[tuple[float, float]]) -> float:
+    total, reach = 0.0, float("-inf")
+    for began, ended in sorted(spans):
+        if ended <= reach:
+            continue
+        total += ended - max(began, reach)
+        reach = ended
+    return total
+
+
+def _each_second_once(receipt: TurnReceipt) -> None:
+    """A component's time as the seconds its spans cover, so a span inside another of its kind is not counted twice.
+
+    LIVE 20 November 2026 a desktop turn of 4,197 s said "tool=8321.30s": her desktop task's call held the calls it
+    made inside it (computer_use, a reference search), and each was added to the one around it.
+    """
+    for name in {kind for kind, _began, _ended in receipt.spans}:
+        covered = _union_s([(began, ended) for kind, began, ended in receipt.spans if kind == name and ended > began])
+        if name in receipt.latency_s and covered < receipt.latency_s[name]:
+            receipt.latency_s[name] = covered
 
 
 def _net_of_work(receipt: TurnReceipt) -> None:

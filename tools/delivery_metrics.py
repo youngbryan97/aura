@@ -46,13 +46,21 @@ def _median(values: list[float]) -> float | None:
 
 
 def summary(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
-    """How many turns reached each stage, how long each took, and why the others stopped."""
+    """How many turns reached each stage, how long each took, and why the others stopped.
+
+    Only turns that came through the chat route are a person's: one that reached a stage or said why it stopped. Her own
+    turns (a background tick of her kernel, a trial of her influence campaign) are kept beside them and counted apart;
+    on 20 November 34 of 37 kept turns were hers, and counted as turns that went nowhere they hid the three that came.
+    """
     rows = [row for row in rows if isinstance(row.get("reached"), dict)]
+    hers = sum(1 for row in rows if not row["reached"] and not row.get("stopped"))
+    rows = [row for row in rows if row["reached"] or row.get("stopped")]
     reached = {stage: [float(row["reached"][stage]) for row in rows if stage in row["reached"]] for stage in STAGES}
     drafted_and_checked = [float(row["reached"]["checked"]) - float(row["reached"]["drafted"]) for row in rows
                            if {"drafted", "checked"} <= set(row["reached"])]
     return {
         "turns": len(rows),
+        "her_own_turns": hers,
         "reached": {stage: len(reached[stage]) for stage in STAGES},
         "median_s": {
             "to_first_draft": _median(reached["drafted"]),
@@ -66,7 +74,7 @@ def summary(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
 
 
 def as_text(measured: Mapping[str, Any]) -> str:
-    lines = [f"Turns kept: {measured['turns']}"]
+    lines = [f"Turns a person asked: {measured['turns']} (and {measured['her_own_turns']} of her own, not counted)"]
     lines += [f"  {stage:<10} {count}" for stage, count in measured["reached"].items()]
     lines.append("Median seconds: " + ", ".join(f"{name.replace('_', ' ')} {value}"
                                                 for name, value in measured["median_s"].items()))

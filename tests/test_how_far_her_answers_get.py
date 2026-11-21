@@ -90,14 +90,33 @@ def test_the_metrics_count_each_stage_apart(tmp_path):
         {"started_at": 20.0, "reached": {"drafted": 60.0}, "stopped": "deadline_exceeded"},
         {"started_at": 30.0, "reached": {"delivered": 3.0}},
         {"started_at": 40.0, "reached": {}, "stopped": "foreground_busy"},
+        {"started_at": 50.0, "reached": {}},  # a background tick of her own
     ]
     kept = tmp_path / "turn_receipts.jsonl"
     kept.write_text("".join(json.dumps(row) + "\n" for row in rows) + "not json\n", encoding="utf-8")
     measured = summary(read_kept(kept))
-    assert measured["turns"] == 4
+    assert measured["turns"] == 4 and measured["her_own_turns"] == 1
     assert measured["reached"] == {"drafted": 2, "checked": 1, "committed": 1, "delivered": 2}
     assert measured["median_s"] == {"to_first_draft": 50.0, "checking_the_draft": 4.0, "to_delivered": 24.25}
     assert measured["delivered_with_no_draft_recorded"] == 1
     assert measured["stopped"] == {"deadline_exceeded": 1, "foreground_busy": 1}
     assert summary(read_kept(kept, since=25.0))["turns"] == 2
+    assert as_text(measured).startswith("Turns a person asked: 4 (and 1 of her own, not counted)")
     assert "Stopped, deadline_exceeded: 1" in as_text(measured)
+
+
+def test_a_call_inside_a_call_is_counted_once(_kept_lines):
+    """LIVE 20 November 2026: a desktop turn of 4,197 s said "tool=8321.30s", her desktop task's call holding the calls
+    it made inside it, each added to the one around it."""
+    import time
+
+    from core.verify.turn_receipt import record_latency
+
+    with recording_turn("t-nested", phases_available=()) as receipt:
+        now = time.time()
+        record_latency("tool", 2.0, ended_at=now - 5.0)  # a call inside the one below
+        record_latency("tool", 1.0, ended_at=now - 4.5)  # and another inside it
+        record_latency("tool", 6.0, ended_at=now - 4.0)  # the call around both
+        record_latency("tool", 1.0, ended_at=now)  # a later call of its own
+    assert receipt.latency_s["tool"] == pytest.approx(7.0)
+    assert receipt.latency_samples["tool"] == 4
