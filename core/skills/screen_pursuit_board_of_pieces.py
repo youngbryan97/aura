@@ -167,6 +167,7 @@ def _what_she_kept(target_app: str) -> dict[str, Any]:
     if worth.get("weights"):
         try:
             kept["rehearsal"] = Rehearsal(weights=Weights(**worth["weights"]), earned=list(worth.get("earned", [])),
+                                          royal=(list(worth["royal"]) if isinstance(worth.get("royal"), list) else None),
                                           lengths=[int(n) for n in worth.get("lengths", [])])
         except (TypeError, ValueError) as why:
             logger.info("what she measured at this board could not be read back (%s)", why)
@@ -183,5 +184,6 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
         record["rules"] = learned.as_memory()
     if rehearsal is not None and getattr(rehearsal, "earned", None):
         record["worth"] = {"weights": asdict(rehearsal.weights), "earned": list(rehearsal.earned),
+                           "royal": rehearsal.royal,
                            "lengths": list(rehearsal.lengths)[-400:]}
     remember(_her_record(target_app), record)

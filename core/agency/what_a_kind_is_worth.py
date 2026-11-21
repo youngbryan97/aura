@@ -58,6 +58,10 @@ class Rehearsal:
     lengths: list[int] = field(default_factory=list)
     rounds: int = 0
     last: dict[str, Any] = field(default_factory=dict)
+    #: The kinds held to be the one the game keeps safe when these weights were fitted: what a kind is worth is worth
+    #: in that game, and none where it is not known. LIVE 21 November 2026 weights fitted while she held the pawns'
+    #: kind as the one kept safe valued her rooks at -16.7 and her pawns at -68.4, and were kept for every game after.
+    royal: list[str] | None = None
 
 
 def _engine() -> Any | None:
@@ -195,6 +199,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
                       "error": round(error, 3), "kept": kept}
     if kept:
         rehearsal.weights = candidate
+        rehearsal.royal = royal_kinds(family)
         if trying and trying not in rehearsal.earned:
             rehearsal.earned.append(trying)
     logger.info("rehearsal round %d: %s", rehearsal.rounds, rehearsal.last)
@@ -202,4 +207,9 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
 
 
 def a_first_rehearsal(family: Family) -> Rehearsal:
-    return Rehearsal(weights=first_weights(family))
+    return Rehearsal(weights=first_weights(family), royal=royal_kinds(family))
+
+
+def royal_kinds(family: Family) -> list[str]:
+    """The kinds the game keeps safe, as she holds the game now."""
+    return sorted(letter for letter, kind in family.kinds.items() if kind.royal)

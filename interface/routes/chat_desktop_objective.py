@@ -35,6 +35,22 @@ from core.runtime.errors import describe_error, record_degradation
 from core.skills.watching_together import her_answer_before_it_plays, her_answer_when_nothing_plays
 
 
+async def _her_account_of_a_game(request: str, record: str) -> str:
+    """Her own turn on a game she has just played: the request as the person's turn, and the game's record (how it
+    ended, the moves on each side, what she said as she played) as what she has just seen; "" where her turn gives
+    nothing, and the record is told as it stands."""
+    if not record:
+        return ""
+    from core.skills.watching_along import OBSERVATION_ROOM, her_turn
+
+    try:
+        return (await her_turn(request, f"the game she has just played, as her record of it has it: "
+                                        f"{record[:OBSERVATION_ROOM - 80]}", [])).strip()
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
+        record_degradation("chat", exc, severity="info", action="told the game's record as it stands")
+        return ""
+
+
 def _asked_to_watch_and_nothing_plays(result: dict[str, Any], objective: str) -> bool:
     """Whether the objective asked for something to be watched, run or played, and the task did none of it: watched
     nothing here or beside them, and played nothing on their screen."""
@@ -342,12 +358,15 @@ async def _execute_desktop_objective_from_chat(
         # No reply from here: the turn goes on into her cognition, with the page beside it.
         return {"ok": True, "status": "desktop_objective_page_read", "response": "", "result": result}
     if result.get("played"):
-        # A game played on their screen: how it went is hers to tell, from the calls she made and what they came back
-        # with, as a person tells how a game went. LIVE 21 November 2026 the game's record was served as her reply:
-        # "Played a game: 20 move(s) of mine and 20 of theirs; it ended over", then every line she had said as she
-        # played, said again.
-        return {"ok": bool(result.get("ok")), "status": "desktop_objective_game_read", "response": "",
-                "result": result}
+        # A game played on their screen: how it went is hers to tell, in her own turn, from the game's record, as a
+        # person tells how a game went. LIVE 21 November 2026 the record was served as her reply ("Played a game: 20
+        # move(s) of mine and 20 of theirs; it ended over", then every line she had said as she played, again). Handed
+        # on with no reply, the turn found none: this lane is the one that answers a desktop objective.
+        record = str(result.get("evidence") or "").strip()
+        told = await _her_account_of_a_game(objective, record)
+        return {"ok": bool(result.get("ok")),
+                "status": "desktop_objective_completed" if result.get("ok") else "desktop_objective_failed",
+                "response": told or record, "result": result}
     if not her_reply_first and _what_it_came_to_goes_to_her_turn(result, objective):
         # The same for a step that did not complete: what it came to is beside her turn, and the answer is hers.
         return {"ok": False, "status": "desktop_objective_failure_read", "response": "", "result": result}

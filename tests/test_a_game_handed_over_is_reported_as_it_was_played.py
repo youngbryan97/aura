@@ -95,33 +95,45 @@ def test_a_game_step_is_verified_with_the_moves_made_in_the_game() -> None:
     assert ok and "moves=11" in why
 
 
+@pytest.mark.parametrize("her_words", ["I lost in twenty moves; their knight forked my king and rook.", ""])
 @pytest.mark.asyncio
-async def test_how_the_game_went_is_what_her_call_came_back_with(monkeypatch) -> None:
-    """The game goes to her turn as hers to tell, and what her call came back with is the game's record, not "done"."""
+async def test_how_the_game_went_is_told_in_her_own_turn_from_its_record(monkeypatch, her_words) -> None:
+    """LIVE 21 November 2026 the game went on to a turn of hers that never came: this lane answers a desktop objective,
+    and handed on with no reply, the person got "No reply formed for this message". Her own turn tells it, from the
+    record; where her turn gives nothing, the record is told as it stands. Her call comes back with the record."""
     import json as _json
 
+    import core.skills.watching_along as watching_along
     from core.conversation.surface_disposition import her_calls_this_turn, record_tool_receipt
     from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
     from core.skills.desktop_task import how_the_game_went
     from interface.routes import chat as chat_routes
 
     record = "Played a game: 20 move(s) of mine and 20 of theirs; it ended lost."
-    receipts = [{"action": "computer_use", "result": {"ok": True, "said": record,
+    receipts = [{"action": "computer_use", "ok": True, "effect_verified": True, "result": {"ok": True, "said": record,
                                                       "handed_over": {"ended": "lost", "moves": 20}}}]
     assert how_the_game_went(receipts) == record
     played = {"ok": True, "status": "completed", "played": True, "evidence": record, "receipts": receipts,
               "steps_requested": 1, "steps_completed": 1}
+    seen: list[str] = []
+
+    async def her_turn(request, observation, said, **_kwargs):
+        seen.append(observation)
+        return her_words
 
     class _Engine:
         async def execute(self, skill_name, params, context=None):
             record_tool_receipt(skill_name, ok=True, evidence=str(played["evidence"]))
             return dict(played)
 
+    monkeypatch.setattr(watching_along, "her_turn", her_turn)
     monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(
         lambda name, default=None: _Engine() if name == "capability_engine" else default))
     with bind_turn_evidence_custody(session_id="s", turn_id="t"):
         result = await chat_routes._execute_desktop_objective_from_chat(
             "Open En Croissant and play a game of chess against Stockfish.", cognitive_reply="")
         calls = her_calls_this_turn()
-    assert result["status"] == "desktop_objective_game_read" and result["response"] == ""
+    assert result["status"] in ("desktop_objective_completed", "desktop_objective_failed")
+    assert result["response"] == (her_words or record)
+    assert seen and record in seen[0]
     assert _json.loads(calls[1]["content"])["came_to"] == record

@@ -398,7 +398,12 @@ class _Rehearsing:
         self.collect()
         if self.running is not None or not any(kind.steps for kind in family.kinds.values()):
             return
-        if self.rehearsal is None or set(self.rehearsal.weights.worth) != set(family.kinds):
+        from core.agency.what_a_kind_is_worth import royal_kinds
+
+        # Weights belong to the game they were fitted in: the kinds there are, and which of them the game keeps safe.
+        # A rehearsal kept before that was recorded is of a game she cannot name, and starts again.
+        if (self.rehearsal is None or set(self.rehearsal.weights.worth) != set(family.kinds)
+                or getattr(self.rehearsal, "royal", None) != royal_kinds(family)):
             fresh = a_first_rehearsal(family)
             if self.rehearsal is not None:
                 fresh.earned = []

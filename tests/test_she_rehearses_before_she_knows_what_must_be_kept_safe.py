@@ -71,3 +71,38 @@ def test_a_fresh_rehearsal_keeps_how_long_its_games_go() -> None:
     rehearsing = playing._Rehearsing(old)
     rehearsing.start(_Pool(), NOTHING_KNOWN_ROYAL)
     assert rehearsing.rehearsal is not old and rehearsing.rehearsal.lengths == [50, 54, 60]
+
+
+def test_weights_fitted_in_another_game_are_measured_again() -> None:
+    """LIVE 21 November 2026 weights fitted while she held the pawns' kind as the one kept safe valued her rooks at
+    -16.7 and her pawns at -68.4, and she played every game after by them."""
+    from core.agency.searching_by_kind import Weights, first_weights
+    from core.agency.what_a_kind_is_worth import Rehearsal
+
+    class _Pool:
+        def submit(self, *args, **kwargs):
+            return None
+
+    royal_known = CHESS  # the test world's game, its royal kind known
+    kept_then = Rehearsal(weights=Weights(worth={**first_weights(royal_known).worth, "R": -16.7, "P": -68.4},
+                                          mobility=dict(first_weights(royal_known).mobility)),
+                          earned=["worth"], lengths=[50, 54], royal=None)
+    rehearsing = playing._Rehearsing(kept_then)
+    rehearsing.start(_Pool(), royal_known)
+    assert rehearsing.rehearsal is not kept_then and rehearsing.rehearsal.earned == []
+    assert rehearsing.rehearsal.lengths == [50, 54]
+    assert rehearsing.weights_for(royal_known).worth["R"] > 0
+
+
+def test_weights_fitted_in_the_same_game_are_kept() -> None:
+    from core.agency.what_a_kind_is_worth import a_first_rehearsal
+
+    class _Pool:
+        def submit(self, *args, **kwargs):
+            return None
+
+    same = a_first_rehearsal(CHESS)
+    same.earned = ["worth"]
+    rehearsing = playing._Rehearsing(same)
+    rehearsing.start(_Pool(), CHESS)
+    assert rehearsing.rehearsal is same
