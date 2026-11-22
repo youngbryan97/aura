@@ -178,7 +178,9 @@ def strip_role_artifacts(text: str) -> str:
     cleaned = apply_outside_fenced_code(
         cleaned, lambda body: re.sub(r"\s+([,.!?;:])", r"\1", body)
     )
-    return cleaned.strip(" \t\r\n\"'")
+    from core.utils.text_after_removal import without_wrapping_quotes
+
+    return without_wrapping_quotes(cleaned)
 
 
 #: A chat-role label that leaked into the reply: at the start of the text or a

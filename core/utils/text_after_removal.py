@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["closed_up"]
+__all__ = ["closed_up", "without_wrapping_quotes"]
 
 _FENCE = re.compile(r"^[ \t]*(```|~~~)")
 _INNER_RUN = re.compile(r"(?<=\S)[ \t]{2,}")
@@ -48,3 +48,19 @@ def closed_up(text: str) -> str:
             blank = 0
         out.append(line)
     return "\n".join(out).strip("\n")
+
+
+def without_wrapping_quotes(text: str) -> str:
+    """``text`` with the quotes around the whole of it taken off, where there are such quotes: the same straight quote
+    opens and closes it and appears nowhere between. A quotation it only begins or ends with keeps its marks.
+
+    LIVE 22 November 2026, typed into her window: her answer ended `rather than just "playing well."`, every straight
+    quote at either end of a reply was stripped, and the closing one went. With an odd count of quotes left, her
+    whole answer was read as cut off mid-quotation and refused, and after three more tries and 512 s the person was
+    told "I lost the reply lane for a moment".
+    """
+    body = str(text or "").strip()
+    for mark in ('"', "'"):
+        if len(body) >= 2 and body[0] == mark == body[-1] and mark not in body[1:-1]:
+            return body[1:-1].strip()
+    return body

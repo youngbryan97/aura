@@ -328,7 +328,9 @@ class HigherOrderThoughtEngine:
 
         if text is None:
             return ""
-        text = _WHITESPACE_RE.sub(" ", str(text)).strip().strip("\"'")
+        from core.utils.text_after_removal import without_wrapping_quotes
+
+        text = without_wrapping_quotes(_WHITESPACE_RE.sub(" ", str(text)))
         if not text:
             return ""
         if not text.lower().startswith("i notice"):

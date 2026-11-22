@@ -5246,6 +5246,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     in any of them, make and pytest under her process supervisor included. The limit is now the user's count, taken
     in the parent, plus what the child may start. Under the kernel boundary her code still may not start another
     program, and is told so as that (`tests/test_a_child_may_start_the_processes_it_is_allowed.py`).
+  - 22 November, 00:26, typed into her window by Bryan: "Aura, you freaking genius…. I think we can work with this!
+    ... What would that look like?" Her answer, 7,389 characters, ended `rather than just "playing well."` where her
+    model stopped on its own. The last clean-up of every reply stripped straight quotes from both of its ends, so
+    the closing one went; 49 straight quotes were left, an odd number, and her reliability gate read the answer as
+    cut off mid-quotation. Three more tries and two smaller models later, 512 s after the message, he was told "I
+    lost the reply lane for a moment." Quotes come off a reply now only when they wrap the whole of it, and the same
+    for her higher-order thoughts (`tests/test_a_reply_keeps_its_closing_quote.py`).
   - U07-10, the tool loop's terminal boundary, as the outside review set it, already holds by tests: the last pass
     is offered no tools and a call written there is not run (`tests/test_the_tool_loops_last_pass.py`); the pass that
     writes cannot open a call (`tests/test_the_pass_that_writes_opens_no_call.py`); a capability's output reaches her
