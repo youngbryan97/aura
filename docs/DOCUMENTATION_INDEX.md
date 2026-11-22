@@ -20,16 +20,16 @@ Definitions and examples come from [the reviewed topic catalogue](../config/docu
 | [Aura Architecture](../ARCHITECTURE.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura artifact index](../ARTIFACT_INDEX.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Aura Autonomy Boundaries](../AUTONOMY_BOUNDARIES.md) | [Goals and autonomous work](PLAIN_ENGLISH_GUIDE.md#agency) |
-| [Aura Claims Matrix](../CLAIMS_MATRIX.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Aura claims and evidence](../CLAIMS_MATRIX.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Aura: Unsupported Claims Ledger](../CLAIMS_NOT_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Aura: Supported Claims Ledger](../CLAIMS_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Aura Data Card](../DATA_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
+| [Supported Aura claims](../CLAIMS_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Aura data card](../DATA_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
 | [Guide to evaluating Aura](../EVALUATE_AURA.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Aura Hardware & Model Profiles](../HARDWARE_PROFILES.md) | [Memory, speed and resource limits](PLAIN_ENGLISH_GUIDE.md#resources) |
 | [How Aura works](../HOW_IT_WORKS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Install Aura from source](../INSTALL.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
 | [Known Failure Modes — Aura Cognitive Runtime](../KNOWN_FAILURE_MODES.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
-| [Aura Memory Card](../MEMORY_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
+| [Aura memory card](../MEMORY_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
 | [Aura Model Card](../MODEL_CARD.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |
 | [Ownership map](../OWNERSHIP.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura](../README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |

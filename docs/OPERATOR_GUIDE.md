@@ -42,9 +42,19 @@ Two specific checks are especially important:
   The inventory recorded **60,348 tests across 4,457 files** on 2026-09-30
   in `config/test_inventory.json`. Use the chunk runner for the full suite.
 
-## Backup & restore
-- Backup: `tar czf aura-backup.tar.gz ~/.aura/data ~/.aura/live-source`
-- Restore: `tar xzf aura-backup.tar.gz -C ~/`
+## Backup and restore
+
+```bash
+make backup
+make backup-verify
+```
+
+The backup tool tries to copy SQLite stores through the SQLite backup API.
+The manifest lists raw-copy fallbacks and oversized files the tool skipped.
+The default archive directory is `~/.aura/backups/`. Before restoring,
+verify the archive and stop the runtime you intend to restore.
+Use `make restore BACKUP=<path>` for the selected archive.
+[Backup and restore source](../tools/state_backup.py)
 
 ## Diagnostics
 - `aura doctor` — Pre-flight check before booting (verifies Python environment, SQLite database, Apple MLX framework, storage directories, and file writing permissions).

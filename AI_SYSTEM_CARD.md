@@ -13,27 +13,18 @@
 | **Primary Use** | A persistent AI agent with its own memory, goals, and initiative, running locally on the owner's hardware |
 | **AI RMF Profile** | NIST AI RMF 1.0 — General Purpose AI System |
 
-## Intended Use
+## Intended use
 
-Aura is an independent, self-directed AI agent, not a standard chatbot assistant. This distinction is built into her system architecture, not just how she talks: she remembers goals across computer restarts, starts her own projects during idle time, and routes every action—even commands from you—through an internal gatekeeper called the Unified Will (`core/will.py`), which has the authority to say no. A system that only sits and waits for user instructions does not need a Will; Aura does.
+Aura is a single-user research assistant for Apple Silicon Macs. Its
+language models run on the Mac. It can retrieve stored records, use
+authorized tools, and work on saved goals in the background. A browser or
+external-service tool can still send data to the service it contacts.
+[Architecture](ARCHITECTURE.md) · [Network and data handling](DATA_CARD.md)
 
-Identity and presentation mechanisms guide the response style. Their presence
-does not establish stable identity or useful continuity in every conversation;
-those outcomes need separate behavioral evidence.
-
-Aura runs all model inference (the actual AI thinking and text generation) locally on the owner's machine. While she has tools to read web pages and interact with authorized external services, she never sends your prompts or reasoning tasks to outside cloud AI providers.
-
-What she does:
-
-- Holds conversations while keeping a steady personality and long-term memory across sessions
-- Executes local tools (accessing the filesystem, running shell commands, browsing the web, and conducting research)
-- Operates autonomously in the background—handling maintenance, learning, self-repair, and pursuing projects she chooses on her own
-- Schedules local model roles under memory admission; their existence does not imply all are resident together
-
-### Intended Users
-- Individuals who want a private, persistent AI agent running entirely on their own machine
-- Developers and researchers studying independent, goal-driven AI systems
-- Operators running local, self-hosted AI setups
+The software uses the Unified Will to decide whether to authorize a
+proposed consequential action. The execution gateways check that authority
+and record outcomes on their covered routes. [Tool use policy](TOOL_USE_POLICY.md) ·
+[Decision code](core/governance/will.py)
 
 ### Out-of-Scope Uses
 - High-stakes decision-making without human oversight
@@ -55,16 +46,13 @@ Consequential actions are required to route through the Unified Will
 (`core/will.py`) and receive an `AuthorityGateway` receipt. A bypass or absent
 receipt is a defect; a diagram alone does not prove every live path complied.
 
-## AI Models
+## Models
 
-| Model Role | Type | Location | Purpose |
-|-----------|------|----------|---------|
-| Cortex (foreground) | 27B parameter LLM (`Aura-Cortex`: `Aura-Qwen3.8-27B-persona`, a persona fine-tune of the fused Qwen3.8-27B) | Local (MLX) | Main reasoning and conversation |
-| Deep (optional) | The Cortex by default; a second local model (such as a 72B at 4 bits) only when assigned and qualified | Local (MLX) | Deep reasoning on hard problems |
-| Reflex (fast lane) | 1.5B parameter LLM | Local (MLX) | Low-latency replies and routing |
-| Brainstem (background) | 27B parameter LLM at two bits (`Ternary-Bonsai-2-27B-mlx-2bit`, 8.6 GB; replaced the 9B on 20 September 2026) | Local (MLX) | Background / maintenance tasks |
-
-See `MODEL_CARD.md` for detailed model information.
+The foreground role is `Aura-Cortex`. The project has used a persona-tuned
+27B checkpoint for that role. There are also local roles for vision,
+background work, and fallback. Check the configured artifact and request
+record to identify the model that served a particular response.
+[Model card](MODEL_CARD.md) · [Hardware profiles](HARDWARE_PROFILES.md)
 
 ## Risk Assessment (NIST AI RMF aligned)
 
@@ -125,12 +113,13 @@ See `MODEL_CARD.md` for detailed model information.
 
 ## Evaluation
 
-The dated `docs/evidence/EVALUATION_REPORT.md` records its original evaluation scope. For current ISC findings and later corrections, read [ISC status](docs/ISC_STATUS.md). Historical reports may cover:
-- AGI proof battery results (broad problem-solving evaluations)
-- Agency emergence testing (verifying independent, self-directed behavior)
-- Behavioral proof standard results
-- Production readiness gate results
-- Longevity soak results (stability during extended runtime)
+The claim matrix links individual results and their conditions. The November
+ISC study reports a 24/24 confirmatory result for the v7 operational checks
+on the measured substrate. The study and its later controls are summarized
+in the ISC results. The August DNU comparison was withdrawn because the
+baselines received a smaller output budget and different tools.
+[Claim matrix](CLAIMS_MATRIX.md) · [ISC results](docs/ISC_STATUS.md) ·
+[DNU retraction](artifacts/current/agi_live/RETRACTION.json)
 
 ## Human Oversight
 

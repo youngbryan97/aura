@@ -76,10 +76,9 @@ runs. A short idle sample is not a multi-day stability result. New longevity
 work needs the workload, duration and resource limits in
 [the soak standard](docs/LONGEVITY_SOAK_STANDARD.md).
 
-For ISC use [current status](docs/ISC_STATUS.md) and
-[reproduction](docs/ISC_REPRODUCTION.md). Seed-23 outputs predate subsequent
-arm-isolation repairs; no full ISC pass or new carrier campaign is established
-by this document review.
+For the ISC-v7 result, start with seed 101 in the [results](docs/ISC_STATUS.md)
+and use the [reproduction guide](docs/ISC_REPRODUCTION.md) to identify the
+matching run files. Seed 23 and its isolation findings are earlier records.
 
 ## Explain a finding plainly
 

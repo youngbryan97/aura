@@ -28,7 +28,7 @@ decides when to listen or start speaking, see the [voice guide](AMBIENT_VOICE_AN
 Open the memory panel to review saved items. The controls let you edit or
 delete an item, freeze it against automated cleanup, contest it, or mark
 it false. Open **Provenance** to see the record's source when available.
-Use **Backup & Export** to export the panel's supported stores.
+Use **Backup & Export** to download semantic memory records.
 [Memory card](../MEMORY_CARD.md) · [Data card](../DATA_CARD.md)
 
 ## When something stops working

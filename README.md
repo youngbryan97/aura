@@ -22,11 +22,11 @@ packages the research source. [Release](https://github.com/youngbryan97/aura/rel
 
 ## Research results
 
-Two August experiments measured specific parts of the assistant. Retrieval
-helped on a recall task when the answer fell outside a fixed window of recent
-messages. A rule for choosing between two drafts beat always using the first
-or always using the second on one test family. A matched task comparison of
-the full assistant against a stripped-down version is still open.
+In an August recall test, retrieving relevant history helped when the
+answer fell outside a fixed window of recent messages. A separate test with
+scripted drafts checked when the revision rule keeps the better answer. A
+matched comparison of the full assistant against a stripped-down version
+is still open.
 [Claims and evidence](CLAIMS_MATRIX.md)
 
 The November preprint reports that seed 101 passed 24 of 24 ISC-v7 checks

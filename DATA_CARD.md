@@ -1,75 +1,41 @@
-# Aura Data Card
+# Aura data card
 
-This card maps the declared application stores and their controls. It is not
-an exhaustive inventory of every experiment artifact, model cache, external
-service record or operator-created backup.
+Aura keeps application state on the Mac, usually under `~/.aura/`.
+Conversation records, semantic memories, goals, and receipts have separate
+stores. Close the app and verify the state location before handling its
+files. [State paths](core/runtime/state_ownership.py) · [Operator guide](docs/OPERATOR_GUIDE.md)
 
-Application memory is stored locally. Local storage does not by itself
-eliminate off-device exposure: authorised browser and external-service tools
-make network requests, and those requests need their own data-handling
-controls. Protect the local files, credentials, backups and exported copies
-according to their actual contents and use.
+## Export or delete a memory
 
-## Memory Systems
+Open **Backup & Export** in the memory panel to download a JSON file of
+records exposed by the semantic memory service. To remove a supported
+record, select **Delete** on that record and check the result. Conversation
+transcripts, audit receipts, backups, and exports have their own lifetimes.
+[Memory panel](interface/static/memory_panel.html) · [API handlers](interface/routes/memory.py)
 
-| Store | Type | Persistence | Encryption | Privacy |
-|-------|------|-------------|------------|---------|
-| Working Memory | In-process | Session only | N/A | Cleared on shutdown |
-| Conversation History | SQLite | Durable | Available (vault) | User-deletable |
-| Semantic Memory (RAG) | Vector DB | Durable | At-rest available | User-deletable |
-| ColdStore (Long-term) | SQLite | Durable | Available (vault) | User-deletable |
-| State Snapshots | JSON/SQLite | Durable | Available (vault) | User-exportable |
-| Will Receipt Log | Append-only log | Durable | Integrity-hashed | Audit-readable |
+The `make memory-export`, `make memory-purge`, `make data-export`, and
+`make data-purge` targets are placeholders. The export targets print status
+or create an output directory. The purge targets wait and print messages
+without deleting records. This corrects the export and deletion entry in
+the earlier closeout. [Makefile](Makefile) · [Earlier closeout](docs/evidence/CLOSEOUT.md)
 
-## Data Retention
+## Retention and backups
 
-| Data Type | Default Retention | User Control |
-|-----------|-------------------|--------------|
-| Conversation history | Indefinite | Delete any/all |
-| Semantic memories | Indefinite | Delete any/all |
-| Long-term memories | Indefinite | Delete any/all |
-| Will receipts | Indefinite (audit) | Export only |
-| Logs | 30 days (rotation) | Export/delete |
-| Metrics | 7 days | Export/delete |
-| Backups | 3 most recent | Delete any/all |
+The experience stream prunes private frames after 24 hours and standard
+frames after 30 days when its retention job runs. Those defaults apply
+to that stream. Audit receipts, exports, and archived copies are governed
+separately. [Experience stream](core/consciousness/continuous_experience.py) · [Retention policy](docs/DATA_RETENTION_DELETION_POLICY.md)
 
-## Data Flow
+`make backup` archives the configured state trees and available live data.
+It keeps up to seven archives by default. Check the manifest for skipped files
+and use `make backup-verify` to check the archive before relying on it.
+[Backup implementation](tools/state_backup.py)
 
-```
-User Input → Sanitizer → Working Memory → Model Context
-                                              ↓
-                                         Model Output
-                                              ↓
-                                    Integrity Check → User
-                                              ↓
-                               Will Decision → Memory Write
-                                              ↓
-                                    State Snapshot → Backup
-```
+## Network access
 
-## Privacy Controls
-
-| Control | Mechanism |
-|---------|-----------|
-| No remote inference | All AI model processing runs locally; `allow_cloud_fallback` is pinned to `False` in `core/brain/request_contract.py` |
-| Outbound body inspection | `core/security/egress_privacy.py` inspects requests routed through its controls; this is not an operating-system boundary covering every possible call |
-| Memory export | `make memory-export` |
-| Memory delete | `make memory-purge` (delete all memories) / app memory panel `POST /api/memory/delete` (delete specific memories) |
-| Log purge | `make log-purge` |
-| Full data export | `make data-export` (inspect which configured stores the export includes) |
-| Full data delete | `make data-purge` (covered application stores; separate artifacts and backups require their own handling) |
-
-## No External Data Collection
-
-In its default configuration, Aura:
-- Uses local model inference. Authorised browser and external-service tools
-  can still send their required requests off-device.
-- Has no telemetry, tracking, or "phone-home" behavior.
-- Does not collect product analytics or user telemetry.
-- Does not send crash reports to external servers.
-- Stores all files, logs, and databases locally on your computer.
-
-The retired cloud-model fallback is not a supported inference mode. Legacy
-`api_fast`/`api_deep` labels resolve to local lanes; a remote-only model request
-is refused. This does not make browser/tool requests local. See
-[model routing](docs/MODEL_ROSTER.md) and [the API trust boundary](docs/LOCAL_API_TRUST_BOUNDARY.md).
+Model inference runs locally. Authorized browsing and external services
+can send data over the network. If configured, the error-alert webhook can
+send log messages to its destination. The local API has its own access
+rules. [Model request contract](core/brain/request_contract.py) ·
+[Egress checks](core/security/egress_privacy.py) ·
+[Logging](core/utils/aura_logging.py) · [Local API](docs/LOCAL_API_TRUST_BOUNDARY.md)

@@ -43,8 +43,11 @@ The threat model is also explicit about its limitations: Aura has not yet underg
 
 ## Handling of your data
 
-All your data stays completely local on the machine running Aura. There is no user account to create, and no telemetry or usage data is sent back to external servers.
+Model inference and the main application stores are local. Authorized
+browser and service requests can leave the Mac. A configured error-alert
+webhook can also send messages off the device.
+[Data card](DATA_CARD.md)
 
-[docs/DATA_RETENTION_DELETION_POLICY.md](docs/DATA_RETENTION_DELETION_POLICY.md) explains what data is saved and how to remove it. You can completely delete your data at any time:
-- `make memory-purge` — deletes all stored conversation memories.
-- `make data-purge` — deletes all stored data and logs.
+The memory panel supports export of semantic records and deletion of
+individual records. Its export and deletion scope is listed in the
+[data card](DATA_CARD.md), along with the limitations of the Make targets.
