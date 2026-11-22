@@ -74,6 +74,32 @@ def _how_many_are_kept() -> int:
 _EXPECTED = frozenset({"debug", "info"})
 
 
+def _raised_by_the_world(error_type: str) -> bool:
+    """Whether the exception was the outside world's: a wait at her edge that ran out, a connection refused or reset, a
+    name or address that did not answer, a certificate or a protocol that failed. Read from the exception's class,
+    found among the modules her process has loaded, never from its words.
+
+    A test in her workspace runs without the network, so such a fault cannot be made again there. LIVE 20 and 21
+    November 2026 her mend of NetworkGateway.request, which raised "URLError: <urlopen error timed out>", stalled four
+    times on "Not mended: its test did not raise what she raised".
+    """
+    import http.client
+    import socket
+    import ssl
+    import urllib.error
+
+    the_worlds = (TimeoutError, ConnectionError, socket.gaierror, ssl.SSLError, urllib.error.URLError,
+                  http.client.HTTPException)
+    parts = str(error_type or "").split(".")
+    for cut in range(len(parts) - 1, 0, -1):
+        found: Any = sys.modules.get(".".join(parts[:cut]))
+        for name in parts[cut:]:
+            found = getattr(found, name, None)
+        if isinstance(found, type):
+            return issubclass(found, the_worlds)
+    return False
+
+
 def hear(record: DegradationRecord) -> None:
     """A degradation listener: keep the call of each fault that can be made again (O(1), under the tracker's rule).
 
@@ -84,6 +110,10 @@ def hear(record: DegradationRecord) -> None:
     call = getattr(record, "failed_call", None)
     if not isinstance(call, FailedCall):
         _say_why_not_once(call, record)
+        return
+    if _raised_by_the_world(call.error_type):
+        _say_why_not_once(f"{call.error_type.rsplit('.', 1)[-1]} is the world's: a test in her workspace runs without "
+                          "it", record)
         return
     with _LOCK:
         known = _HEARD.get(call.fingerprint)
@@ -228,6 +258,8 @@ def recall() -> int:
     added = 0
     with _LOCK:
         for fault in filter(None, (_from_row(row) for row in rows if isinstance(row, dict))):
+            if _raised_by_the_world(fault.call.error_type):
+                continue  # kept before this was read; still the world's
             if fault.call.fingerprint not in _HEARD and len(_HEARD) < _how_many_are_kept():
                 _HEARD[fault.call.fingerprint] = fault
                 added += 1

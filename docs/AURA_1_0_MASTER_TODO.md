@@ -8259,6 +8259,11 @@ needs her 27B free (her app down, or her app's own influence trials).
     collection frees now kept for the life of her process. Offered again as it was, it would have been refused
     each time her source moved. A change a judging gate refused after running to its end is not made again at
     that site (`tests/test_she_improves_what_her_running_measures.py`).
+    Two mends of NetworkGateway.request, which raised "URLError: <urlopen error timed out>", stalled four times on
+    "Not mended: its test did not raise what she raised": a test in her workspace runs without the network. A
+    fault whose exception is the outside world's (a wait at her edge that ran out, a connection refused or reset, a
+    name that did not answer, a certificate or protocol that failed), read from its class, is set aside once with
+    that reason, heard now or kept from her last run (`tests/test_a_fault_the_world_raised_is_not_hers_to_mend.py`).
 
 ## Live session 2026-09-07: what the runtime showed
 
