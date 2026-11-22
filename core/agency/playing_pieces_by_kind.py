@@ -406,9 +406,8 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     or None. What came of it, with what she learned and the rehearsal, for her to keep."""
     from concurrent.futures import ThreadPoolExecutor
 
-    from core.agency.searching_by_kind import search
-
     from core.agency.practising_between_games import at_a_board
+    from core.agency.searching_by_kind import search
 
     rehearsing = _Rehearsing(rehearsal)
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
@@ -543,6 +542,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             tell(f"This board begins as the one in {where} does, so I'll start from what I learned there.")
     game.learned.first_was_hers = game.first_is_hers
     misread = 0
+    unexplained: dict | None = None
     while time.monotonic() - began < seconds:
         still = await _seen_still(seat, look)
         if still is None:
@@ -554,11 +554,28 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             game.learned.knows_of({kind for _side, kind in shown.values() if kind is not None})
             seen_moves = moves_seen(game.believed, shown, game.believed.turn, game.learned.family())
             if seen_moves is None:
+                # A look she cannot read on a square she held empty is a mark as likely as a piece (a glow round her
+                # piece under attack spilling onto the next square): where the board is explained without it, it was
+                # a mark. A piece that came there by a move leaves the square it came from empty, so it is never
+                # explained away. LIVE 22 November 2026, game 19, a look of nothing read on h1 beside her king in check
+                # left her board unexplained.
+                unmarked = _without_marks_where_nothing_stood(shown, game.believed.cells)
+                if unmarked != shown:
+                    seen_moves = ([] if _agrees(unmarked, game.believed.cells) else
+                                  moves_seen(game.believed, unmarked, game.believed.turn, game.learned.family()))
+                    if seen_moves is not None:
+                        shown = unmarked
+            if seen_moves is None:
                 misread += 1
+                settled = unexplained is not None and shown == unexplained
+                unexplained = shown
                 if misread == 1:
                     logger.info("the board shows what no move she can read explains: %s", _what_differs(
                         game.believed.cells, shown, seat))
-                if misread >= MISREAD_AT_MOST:
+                # Read the same twice, each reading itself of a board standing still, it has settled: looking again
+                # will not make it explain itself, and her clock is running. LIVE 22 November 2026, game 19, twenty
+                # looks took 24 s of a turn whose share was 0.6 s.
+                if misread >= MISREAD_AT_MOST or settled:
                     # The board reads, and no move she can read explains it: she goes by the board as it stands, as a
                     # person who has lost the thread of the moves looks at the position, rather than stopping with her
                     # clock running. LIVE 20 November 2026 she stopped 22 seconds after her tenth move against
@@ -571,14 +588,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.believed = Position(cells=cells, turn=turn, unmoved=frozenset(
                         sq for sq in held.unmoved if cells.get(sq) == held.cells.get(sq)))
                     game.waiting_since = time.monotonic()
-                    misread = 0
+                    misread, unexplained = 0, None
                     continue
                 await asyncio.sleep(0.3)
                 continue
             if misread:
                 # What no move explained, the next look did: the board was believed still while it was still changing.
                 seat.settles.too_soon()
-            misread = 0
+            misread, unexplained = 0, None
             for move in seen_moves:
                 if game.believed.turn != FIRST:
                     family = game.learned.family()
@@ -593,7 +610,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.read_this_wait = False
                 game.follow(move)
                 game.waiting_since = time.monotonic()
-            continue
+            if seen_moves:
+                continue
+            # Nothing moved: what differed was a mark. The board is as she holds it, and the turn goes on from there.
         if game.believed.turn != FIRST:
             # While the other side thinks, she rehearses the game in her model.
             rehearsing.start(pool, game.learned.family())
@@ -928,6 +947,11 @@ async def _whose_turn_by_the_clock(clock: Callable[[], Awaitable[float | None]] 
     if one is None or two is None:
         return FIRST
     return FIRST if two < one else SECOND
+
+
+def _without_marks_where_nothing_stood(shown: dict, believed: dict) -> dict:
+    """The board read without the looks she could not read on squares she held empty."""
+    return {square: held for square, held in shown.items() if held[1] is not None or square in believed}
 
 
 def _read_against(shown: dict, believed: dict) -> dict:
