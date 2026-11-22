@@ -10,6 +10,8 @@ What is fitted grows a group at a time, because a weak player's games say little
 then whose turn it is and how pressed a royal piece stands, then each kind's moves, then where each kind stands. Each
 group is kept only where the weights it gives beat the ones she plays by now, in a paired match in her model with
 colours swapped, by more than the match's standard error; a group that does not is tried again when more games are in.
+Each side of the match looks at as many positions a move as its own pace affords in the same time, because a game is
+played on a clock: a judgement that slows her search is judged with what it costs.
 Measured on chess in its test world, 19 November 2026: fitting worth alone scored 0.56 against the first guess, and
 fitting moves too on the same games scored 0.43 and 0.28.
 
@@ -32,9 +34,10 @@ shipped; nothing here knows a game.
 """
 from __future__ import annotations
 
+import io
 import logging
 import math
-import io
+import time
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -345,6 +348,27 @@ def tried_as(group: str, teacher: str) -> str:
     return group if teacher == RESULTS else f"{group}, taught by {teacher}"
 
 
+def _pace(engine: Any, description: str, begin: str, candidate: str, current: str, nodes: int) -> float:
+    """How many positions a second her compiled search looks at with the candidate's weights, as a part of how many it
+    looks at with the current ones: from the start, each timed twice by turns, the faster of each pair kept, so that
+    whatever else the machine is doing counts against neither."""
+    looks = max(1, nodes * 10)
+    fastest = {candidate: math.inf, current: math.inf}
+    for _ in range(2):
+        for weights in (candidate, current):
+            began = time.perf_counter()
+            try:
+                found = engine.search(description, begin, weights, 60.0, 64, 4, looks)
+            # not a failure: an engine that cannot be timed this way is taken to look at as many either way.
+            except (AttributeError, TypeError, ValueError):
+                return 1.0
+            spent = (time.perf_counter() - began) / max(1, int(found.get("nodes", looks) or looks))
+            fastest[weights] = min(fastest[weights], spent)
+    if not all(math.isfinite(v) and v > 0 for v in fastest.values()):
+        return 1.0
+    return fastest[current] / fastest[candidate]
+
+
 def how_far_above_even(tries: int) -> float:
     """How many standard errors above even a group must score on its ``tries``-th try to be kept. The first try asks
     BETTER_BY; later ones ask more, so that the chance a group that does not help is ever kept stays what one try's
@@ -425,8 +449,18 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "kept": False,
                           "why": "too few positions to fit"}
         return rehearsal
-    match = engine.self_play(description, begin, candidate.as_json(), rehearsal.weights.as_json(), games, nodes,
-                             random_plies=RANDOM_PLIES, seed=seed + 7919)
+    theirs, mine = candidate.as_json(), rehearsal.weights.as_json()
+    # Each side looks at as many positions a move as its pace affords in the same time: a judgement that slows her
+    # search is judged with the time it costs, as it is in a game on a clock.
+    pace = _pace(engine, description, begin, theirs, mine, nodes)
+    try:
+        match = engine.self_play(description, begin, theirs, mine, games, max(1, round(nodes * pace)),
+                                 random_plies=RANDOM_PLIES, seed=seed + 7919, nodes_per_move_b=nodes)
+    # not a failure: a build of the compiled search from before paces gives both sides the same positions.
+    except TypeError:
+        pace = 1.0
+        match = engine.self_play(description, begin, theirs, mine, games, nodes, random_plies=RANDOM_PLIES,
+                                 seed=seed + 7919)
     results = np.array(match["results"], dtype=np.float64)
     standing, spread = _standing_where_it_stopped(match, rehearsal.weights, family)
     if spread > 0 and len(standing) == len(results):
@@ -443,7 +477,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         tries = rehearsal.tries[counted] = rehearsal.tries.get(counted, 0) + 1
     kept = mean - 0.5 > how_far_above_even(tries) * max(error, 1e-9)
     rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "scored": round(mean, 3),
-                      "error": round(error, 3), "kept": kept}
+                      "error": round(error, 3), "kept": kept, "pace": round(pace, 3)}
     if kept:
         rehearsal.weights = candidate
         rehearsal.royal = royal_kinds(family)

@@ -190,3 +190,31 @@ def test_lent_to_a_board_seen_from_its_other_side_each_row_of_squares_turns_roun
     assert lent.learned["own"]["x"] == [[1.0], [0.0], [3.0], [2.0]]
     assert lent.learned["theirs"]["x"] == [[1.0], [0.0], [3.0], [2.0]]
     assert Weights(worth={"a": 1.0}, learned=learned).under_other_names({"a": "x"}).learned["own"]["x"] == rows
+
+
+def test_a_slower_judgement_is_matched_with_the_time_it_costs(monkeypatch) -> None:
+    # A game is on a clock: a judgement that slows her search looks at fewer positions a move in its match.
+    import time
+
+    class _Paced(_Engine):
+        def __init__(self) -> None:
+            super().__init__()
+            self.asked: list[tuple] = []
+
+        def search(self, description, begin, weights, seconds, deepest, hash_mb, nodes):
+            time.sleep(0.02 if '"learned": null' in weights else 0.04)
+            return {"nodes": nodes}
+
+        def self_play(self, description, begin, weights_a, weights_b, games, nodes, **options):
+            self.asked.append((nodes, options.get("nodes_per_move_b", 0)))
+            return super().self_play(description, begin, weights_a, weights_b, games, nodes, **options)
+
+    engine = _Paced()
+    learned = {"hidden": 1, "columns": 8, "own": {}, "theirs": {}, "first_bias": [0.0], "out": [0.0], "out_bias": 0.0,
+               "held_out": [0.01, 0.009]}
+    monkeypatch.setattr(worth, "_engine", lambda: engine)
+    monkeypatch.setattr(worth.LookedAtLonger, "judgement", lambda self, seed=0: learned)
+    rehearsal = worth.rehearse(CHESS, CHESS.the_start(), _with_every_weighted_group_earned(), games=40, nodes=1000)
+    candidates, current = engine.asked[-1]
+    assert current == 1000 and 400 < candidates < 650, engine.asked
+    assert 0.4 < rehearsal.last["pace"] < 0.65

@@ -1712,7 +1712,7 @@ fn search_result(py: Python<'_>, g: &Game, result: (Option<Move>, i32, i32, u64,
 /// each sample came from, and each game's count of every kind where it stopped (first side less second): a game that
 /// stopped without a result can still be judged by how it stood.
 #[pyfunction]
-#[pyo3(signature = (description, start, weights_a, weights_b, games, nodes_per_move, random_plies=4, seed=1, max_plies=300, sample_every=2, deep_nodes=0))]
+#[pyo3(signature = (description, start, weights_a, weights_b, games, nodes_per_move, random_plies=4, seed=1, max_plies=300, sample_every=2, deep_nodes=0, nodes_per_move_b=0))]
 #[allow(clippy::too_many_arguments)]
 fn self_play(
     py: Python<'_>,
@@ -1727,6 +1727,7 @@ fn self_play(
     max_plies: u32,
     sample_every: u32,
     deep_nodes: u64,
+    nodes_per_move_b: u64,
 ) -> PyResult<PyObject> {
     let (ga, b0) = parse(description, start, weights_a)?;
     let (gb, _) = parse(description, start, weights_b)?;
@@ -1755,6 +1756,10 @@ fn self_play(
             let (ta, tb) = (Table::new(entries), Table::new(entries));
             let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0 };
             let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0 };
+            // The second side looks at as many positions as its own pace affords in the same time, where it is given.
+            if nodes_per_move_b > 0 {
+                sb.max_nodes = nodes_per_move_b;
+            }
             let mut board = b0.clone();
             let mut taken: Vec<Vec<f32>> = Vec::new();
             let mut taken_scores: Vec<i32> = Vec::new();
