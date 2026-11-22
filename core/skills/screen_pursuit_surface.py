@@ -611,7 +611,14 @@ async def _drag_on_the_host(start: tuple[int, int], end: tuple[int, int]) -> boo
     except (FileNotFoundError, OSError, TimeoutError) as why:
         logger.info("the drag from %s to %s was not made: %s", start, end, why)
         return False
-    return proc.returncode == 0
+    if proc.returncode != 0:
+        return False
+    from core.capabilities.host_automation import AutomationReceipt, get_host_automation
+
+    # Made by her hand like a click, and shown as hers on the desktop as one is.
+    get_host_automation()._mark_her_hand(AutomationReceipt(action="drag", target=f"{start}->{end}", adapter="cliclick",
+                                                            success=True))
+    return True
 
 
 async def _screen_size() -> tuple[int, int]:

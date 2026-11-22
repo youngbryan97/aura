@@ -150,8 +150,12 @@ def test_on_the_desktop_her_actions_show_her_hue_and_pointer_kept_out_of_capture
     from pathlib import Path
 
     launcher = Path("scripts/AuraLauncher.swift").read_text(encoding="utf-8")
-    assert 'desktopInputCommands: Set<String> = ["move", "click", "write", "press", "hotkey", "scroll"]' in launcher
-    assert "self?.noteDesktopAction(at: pointer, actionMayTake: allowed)" in launcher
+    assert ('desktopInputCommands: Set<String> = ["move", "click", "write", "press", "hotkey", "scroll", "note_action"]'
+            in launcher)
+    assert "self?.noteDesktopAction(at: pointer, actionMayTake: allowed, activity: activity)" in launcher
+    # Her name and what she is using, top right, fading with the hue and the pointer when the stretch ends.
+    assert "showDesktopLabel(activity)" in launcher
+    assert "[desktopHueWindow, desktopPointerWindow, desktopLabelWindow]" in launcher
     overlay = launcher.split("private func desktopOverlayWindow(frame: NSRect) -> NSWindow {", 1)[1].split("\n    }\n", 1)[0]
     assert "window.sharingType = .none" in overlay and "window.ignoresMouseEvents = true" in overlay
     assert "desktopHueReach: CGFloat = 22" in launcher and "const HUE_REACH = 22;" in Path(

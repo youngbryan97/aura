@@ -569,6 +569,22 @@ def resolve_application_name(app_name: str) -> AppNameResolution:
 
 # The base is Any to mypy because the ratchet runs --follow-imports=skip,
 # so host_automation_screen is never read. The base is a real class there.
+#: The actions of hers that the launcher shows as hers on the desktop (scripts/AuraLauncher.swift, note_action).
+_HER_HAND = frozenset({"click", "click_element", "scroll", "hotkey", "hotkeys", "type_text", "menu_select", "drag"})
+
+
+def _tell_the_launcher(activity: str) -> None:
+    """Ask the launcher to show her hand on the desktop, with what she is doing; nothing where it is not running."""
+    try:
+        from core.security.native_desktop_bridge import invoke_native_desktop_bridge
+
+        invoke_native_desktop_bridge("note_action", read_only=True, timeout=1.0, allow_one_shot=False,
+                                     activity=activity)
+    # not a failure: without the launcher there is no mark to show, and the action was made either way.
+    except (ImportError, OSError, RuntimeError, TimeoutError, TypeError, ValueError):
+        return
+
+
 class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
     """Generalized OS automation through governed primitives.
 
@@ -586,6 +602,22 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
         self._receipts: list[AutomationReceipt] = []
         self._max_receipts = 500
         self._started = False
+        #: The application her last action was for, where it was named: what her mark on the desktop says she is using.
+        self._acting_in = ""
+
+    def _mark_her_hand(self, receipt: AutomationReceipt) -> None:
+        """An action of hers on the desktop, done: the launcher is told, so it shows her neuron where her pointer is,
+        her hue at the screen's edges and her name with what she is using, as her browser does on its pages. Bryan,
+        22 November 2026: "helps denote what she is doing vs what im doing", for all of her computer use. Told in
+        the background, so her clock pays nothing for it; an action the launcher made itself it already shows."""
+        if not receipt.success or receipt.action not in _HER_HAND or receipt.adapter == "resident_native_bridge":
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        # not a failure: an action outside a running loop has no launcher beside it to tell.
+        except RuntimeError:
+            return
+        loop.run_in_executor(None, _tell_the_launcher, f"using {self._acting_in}" if self._acting_in else "")
 
     async def start(self) -> None:
         if self._started:
@@ -596,6 +628,7 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
 
     def _log_receipt(self, receipt: AutomationReceipt) -> None:
         """Log receipt to internal buffer and LifeTrace."""
+        self._mark_her_hand(receipt)
         self._receipts.append(receipt)
         if len(self._receipts) > self._max_receipts:
             self._receipts = self._receipts[-self._max_receipts:]
@@ -1083,6 +1116,8 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
     ) -> AutomationReceipt | None:
         """None when `expect_app` is in front, a refusal receipt when it is not.
 
+        The application named is also what her mark on the desktop says she is using (_mark_her_hand).
+
         LIVE DEFECT, 2026-08-18. Playing 2048 in a browser: her own browser
         controller opened play2048.co, her own screen read found the board, and
         `hotkey("left")` returned success=True while nothing on the board moved.
@@ -1102,6 +1137,8 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
         Substring match, case-insensitive, because the frontmost reading is
         "Google Chrome|<page title>" and a caller means the application.
         """
+        if str(expect_app or "").strip():
+            self._acting_in = str(expect_app).strip()
         wanted = " ".join(str(expect_app or "").split()).lower()
         if not wanted:
             return None

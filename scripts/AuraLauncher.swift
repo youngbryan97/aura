@@ -803,6 +803,10 @@ private func nativeDesktopBridgeResult(payload: [String: Any]) -> ([String: Any]
             return (["ok": false, "error": "screen_capture_write_failed"], 2)
         }
         return (["ok": true, "path": path, "width": width, "height": height], 0)
+    case "note_action":
+        // An action of hers made some other way (a click sent by another tool, a key pressed through System Events):
+        // nothing is done here but to show it is hers.
+        return (["ok": true], 0)
     case "move":
         if let refusal = bridgeExpectedForegroundRefusal(payload) {
             return (refusal, 2)
@@ -2102,6 +2106,9 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     // her pointer is, while she acts through the bridge (see noteDesktopAction).
     private var desktopHueWindow: NSWindow?
     private var desktopPointerWindow: NSWindow?
+    // And a label at the top right of the screen saying it is her and what she is doing, as in her browser.
+    private var desktopLabelWindow: NSWindow?
+    private var desktopLabelActivity: NSTextField?
     private var desktopStretchLastActionAt: Date?
     private var desktopStretchLongestGap: TimeInterval = 0
     private var desktopStretchEndWork: DispatchWorkItem?
@@ -2720,8 +2727,9 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             if status == 0, Self.desktopInputCommands.contains(command) {
                 let pointer = CGEvent(source: nil)?.location
                 let allowed = bridgeNumber(payload, "timeout", default: Self.desktopActionDefaultTimeout)
+                let activity = (payload["activity"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 DispatchQueue.main.async { [weak self] in
-                    self?.noteDesktopAction(at: pointer, actionMayTake: allowed)
+                    self?.noteDesktopAction(at: pointer, actionMayTake: allowed, activity: activity)
                 }
             }
         } else {
@@ -2749,7 +2757,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     // MARK: - Her hand on the desktop
 
     /// The bridge commands that act on the person's desktop.
-    private static let desktopInputCommands: Set<String> = ["move", "click", "write", "press", "hotkey", "scroll"]
+    private static let desktopInputCommands: Set<String> = ["move", "click", "write", "press", "hotkey", "scroll", "note_action"]
     /// What one bridge action may take when its request does not say: the Python
     /// client's default (core/security/native_desktop_bridge.py, timeout=12.0).
     private static let desktopActionDefaultTimeout: TimeInterval = 12.0
@@ -2767,13 +2775,14 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     /// been quiet for longer than her longest gap between actions in it, and
     /// never less than one action may take. Both windows are kept out of screen
     /// captures, hers included, and never take a click.
-    private func noteDesktopAction(at pointer: CGPoint?, actionMayTake allowed: TimeInterval) {
+    private func noteDesktopAction(at pointer: CGPoint?, actionMayTake allowed: TimeInterval, activity: String? = nil) {
         let now = Date()
         if let last = desktopStretchLastActionAt {
             desktopStretchLongestGap = max(desktopStretchLongestGap, now.timeIntervalSince(last))
         }
         desktopStretchLastActionAt = now
         showDesktopHue()
+        showDesktopLabel(activity)
         if let pointer { moveDesktopPointer(to: pointer) }
 
         desktopStretchEndWork?.cancel()
@@ -2848,6 +2857,60 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         }
     }
 
+    /// Her name and what she is doing, top right of the screen below the menu bar, while the desktop is in her hands:
+    /// the label her browser shows (core/perception/browser_presence.js), on the desktop. Bryan, 22 November 2026:
+    /// the glyph, the "Aura is using the computer" tag and the border "help denote what she is doing vs what im
+    /// doing", for all of her computer use.
+    private func showDesktopLabel(_ activity: String?) {
+        guard let screen = NSScreen.screens.first else { return }
+        let height: CGFloat = 34
+        let window = desktopLabelWindow ?? {
+            let created = desktopOverlayWindow(frame: NSRect(x: 0, y: 0, width: 260, height: height))
+            let panel = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: height))
+            panel.wantsLayer = true
+            panel.autoresizingMask = [.width, .height]
+            panel.layer?.backgroundColor = NSColor(calibratedRed: 0.09, green: 0.075, blue: 0.12, alpha: 0.96).cgColor
+            panel.layer?.cornerRadius = 12
+            panel.layer?.borderWidth = 1
+            panel.layer?.borderColor = NSColor(calibratedRed: 0.68, green: 0.60, blue: 1.0, alpha: 0.25).cgColor
+            let mark = NSImageView(frame: NSRect(x: 9, y: (height - 21) / 2, width: 21, height: 21))
+            mark.imageScaling = .scaleProportionallyUpOrDown
+            mark.image = NSImage(contentsOf: auraRoot.appendingPathComponent("interface/static/neuron_glyph.svg"))
+            panel.addSubview(mark)
+            let name = NSTextField(labelWithString: "Aura")
+            name.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+            name.textColor = NSColor(calibratedRed: 0.93, green: 0.91, blue: 0.96, alpha: 1)
+            name.sizeToFit()
+            name.frame.origin = NSPoint(x: 36, y: (height - name.frame.height) / 2)
+            panel.addSubview(name)
+            let doing = NSTextField(labelWithString: "")
+            doing.font = NSFont.systemFont(ofSize: 12)
+            doing.textColor = NSColor(calibratedRed: 0.84, green: 0.81, blue: 0.90, alpha: 1)
+            doing.lineBreakMode = .byTruncatingTail
+            doing.frame.origin = NSPoint(x: name.frame.maxX + 10, y: (height - name.frame.height) / 2)
+            panel.addSubview(doing)
+            desktopLabelActivity = doing
+            created.contentView = panel
+            desktopLabelWindow = created
+            return created
+        }()
+        if let doing = desktopLabelActivity {
+            if let activity { doing.stringValue = activity }
+            if doing.stringValue.isEmpty { doing.stringValue = "using the computer" }
+            doing.sizeToFit()
+            doing.frame.size.width = min(doing.frame.width, 360)
+            let width = doing.frame.maxX + 13
+            let visible = screen.visibleFrame
+            window.setFrame(NSRect(x: visible.maxX - width - 18, y: visible.maxY - height - 12, width: width,
+                                   height: height), display: true)
+        }
+        window.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            window.animator().alphaValue = 1
+        }
+    }
+
     private func moveDesktopPointer(to pointer: CGPoint) {
         // Bridge points are global, from the top-left of the main screen; windows
         // are placed from its bottom-left.
@@ -2890,7 +2953,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     private func endDesktopStretch() {
         desktopStretchLastActionAt = nil
         desktopStretchLongestGap = 0
-        for window in [desktopHueWindow, desktopPointerWindow].compactMap({ $0 }) {
+        for window in [desktopHueWindow, desktopPointerWindow, desktopLabelWindow].compactMap({ $0 }) {
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.6
                 window.animator().alphaValue = 0
