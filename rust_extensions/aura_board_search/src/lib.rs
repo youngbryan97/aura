@@ -12,6 +12,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 const EMPTY: u8 = 0;
@@ -685,13 +687,91 @@ struct Entry {
     depth: i8,
     flag: u8, // 0 exact, 1 lower, 2 upper
     score: i32,
-    best: Option<Move>,
+    /// The best move as ``packed``: its squares and what it becomes, which find it again among the moves made.
+    best: Option<u32>,
+}
+
+/// A move as a table keeps it: its two squares and what it becomes. None where a board or a family is too big to pack.
+fn packed(m: &Move) -> Option<u32> {
+    if m.from >= 1024 || m.to >= 1024 || m.becomes >= 16 {
+        return None;
+    }
+    Some(m.from as u32 | (m.to as u32) << 10 | (m.becomes as u32) << 20)
+}
+
+fn found_among(moves: &[Move], key: u32) -> Option<Move> {
+    moves.iter().copied().find(|m| packed(m) == Some(key))
+}
+
+/// The transposition table, in slots each one word of key and one of what is known, so searchers in threads of their
+/// own can share it without a lock: the key is kept xor'd with the word it goes with, and a slot read while another
+/// thread wrote it reads as some other position's, and is not used.
+struct Table {
+    slots: Vec<(AtomicU64, AtomicU64)>,
+}
+
+/// The table kept between one search and the next of the same game with the same weights: what the last move's search
+/// worked out is where the next one starts. Other weights, or another game, are another table.
+static KEPT: OnceLock<Mutex<Option<(u64, Arc<Table>)>>> = OnceLock::new();
+
+fn kept_table(description: &str, weights: &str, entries: usize) -> Arc<Table> {
+    let mut key: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in description.bytes().chain([0u8]).chain(weights.bytes()) {
+        key = (key ^ byte as u64).wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    key ^= entries as u64;
+    let mut held = KEPT.get_or_init(|| Mutex::new(None)).lock().unwrap();
+    if let Some((k, table)) = held.as_ref() {
+        if *k == key {
+            return Arc::clone(table);
+        }
+    }
+    let table = Arc::new(Table::new(entries));
+    *held = Some((key, Arc::clone(&table)));
+    table
+}
+
+impl Table {
+    fn new(entries: usize) -> Table {
+        Table { slots: (0..entries.max(1)).map(|_| (AtomicU64::new(0), AtomicU64::new(0))).collect() }
+    }
+
+    fn len(&self) -> usize {
+        self.slots.len()
+    }
+
+    fn get(&self, i: usize) -> Entry {
+        let data = self.slots[i].1.load(Ordering::Relaxed);
+        let key = self.slots[i].0.load(Ordering::Relaxed) ^ data;
+        if data == 0 {
+            return Entry::default();
+        }
+        let score = ((data & 0x3F_FFFF) as i32) << 10 >> 10; // 22 bits, sign kept
+        let depth = ((data >> 22) & 0xFF) as u8 as i8;
+        let flag = ((data >> 30) & 0x3) as u8;
+        let best = if (data >> 32) & 1 == 1 { Some(((data >> 33) & 0x1FF_FFFF) as u32) } else { None };
+        Entry { key, depth, flag, score, best }
+    }
+
+    fn set(&self, i: usize, e: Entry) {
+        let score = (e.score.clamp(-(1 << 21), (1 << 21) - 1) as u32 as u64) & 0x3F_FFFF;
+        let mut data = score | (e.depth as u8 as u64) << 22 | (e.flag as u64 & 0x3) << 30;
+        if let Some(b) = e.best {
+            data |= 1 << 32 | (b as u64 & 0x1FF_FFFF) << 33;
+        }
+        // Never a word of nothing for a position kept: nothing is what an empty slot reads as.
+        data |= 1 << 63;
+        self.slots[i].0.store(e.key ^ data, Ordering::Relaxed);
+        self.slots[i].1.store(data, Ordering::Relaxed);
+    }
 }
 
 struct Searcher<'a> {
     g: &'a Game,
     b: Board,
-    tt: Vec<Entry>,
+    tt: &'a Table,
+    /// Set by the searcher whose answer is used, when it is done: the others stop with it.
+    halt: Option<&'a AtomicBool>,
     killers: Vec<[Move; 2]>,
     history: Vec<i32>,
     nodes: u64,
@@ -773,11 +853,11 @@ impl<'a> Searcher<'a> {
         }
     }
 
-    fn order(&self, moves: &mut [Move], best: Option<Move>, ply: usize) {
+    fn order(&self, moves: &mut [Move], best: Option<u32>, ply: usize) {
         let mut keyed: Vec<(i64, Move)> = moves
             .iter()
             .map(|&m| {
-                let key: i64 = if Some(m) == best {
+                let key: i64 = if best.is_some() && packed(&m) == best {
                     1 << 40
                 } else if m.taken_at != NONE {
                     let victim = self.worth_of(self.b.cells[m.taken_at as usize]) as i64;
@@ -803,7 +883,9 @@ impl<'a> Searcher<'a> {
 
     fn time_up(&mut self) -> bool {
         if self.nodes & 1023 == 0
-            && (self.started.elapsed().as_secs_f64() > self.seconds || (self.max_nodes > 0 && self.nodes > self.max_nodes))
+            && (self.started.elapsed().as_secs_f64() > self.seconds
+                || (self.max_nodes > 0 && self.nodes > self.max_nodes)
+                || self.halt.is_some_and(|h| h.load(Ordering::Relaxed)))
         {
             self.stop = true;
         }
@@ -900,7 +982,7 @@ impl<'a> Searcher<'a> {
         }
         let key = self.b.hash;
         let idx = self.tt_index(key);
-        let entry = self.tt[idx];
+        let entry = self.tt.get(idx);
         let mut tt_move = None;
         if entry.key == key {
             tt_move = entry.best;
@@ -1016,7 +1098,8 @@ impl<'a> Searcher<'a> {
         }
         let replace = entry.key != key || depth >= entry.depth as i32 || flag == 0;
         if replace {
-            self.tt[idx] = Entry { key, depth: depth.min(127) as i8, flag, score: stored, best: best_move };
+            self.tt.set(idx, Entry { key, depth: depth.min(127) as i8, flag, score: stored,
+                                     best: best_move.and_then(|m| packed(&m)) });
         }
         best_score
     }
@@ -1026,15 +1109,13 @@ impl<'a> Searcher<'a> {
         let mut undos = vec![self.b.make(self.g, first)];
         let mut seen = vec![self.b.hash];
         while line.len() < most {
-            let e = self.tt[self.tt_index(self.b.hash)];
+            let e = self.tt.get(self.tt_index(self.b.hash));
             if e.key != self.b.hash {
                 break;
             }
-            let Some(m) = e.best else { break };
+            let Some(k) = e.best else { break };
             let legal = self.b.legal(self.g);
-            if !legal.contains(&m) {
-                break;
-            }
+            let Some(m) = found_among(&legal, k) else { break };
             undos.push(self.b.make(self.g, m));
             line.push(m);
             if seen.contains(&self.b.hash) {
@@ -1050,8 +1131,34 @@ impl<'a> Searcher<'a> {
 }
 
 impl<'a> Searcher<'a> {
+    fn fresh(g: &'a Game, b: Board, tt: &'a Table, seconds: f64, started: Instant, max_nodes: u64) -> Searcher<'a> {
+        Searcher {
+            g,
+            b,
+            tt,
+            halt: None,
+            killers: vec![[Move::null(); 2]; MAX_PLY],
+            history: vec![0; g.size * g.size],
+            nodes: 0,
+            started,
+            seconds,
+            stop: false,
+            max_nodes,
+            excluded: vec![],
+            unsteady: 0,
+        }
+    }
+}
+
+impl<'a> Searcher<'a> {
     /// Iterative deepening at the root over ``legal``: the best move, its score, and the depth completed.
     fn best(&mut self, deepest: i32, legal: &[Move]) -> (Option<Move>, i32, i32) {
+        self.best_from(1, deepest, legal)
+    }
+
+    /// The same, beginning at ``first``: a searcher beside another begins a depth on from it, to look where it has
+    /// not yet.
+    fn best_from(&mut self, first: i32, deepest: i32, legal: &[Move]) -> (Option<Move>, i32, i32) {
         if legal.is_empty() {
             return (None, 0, 0);
         }
@@ -1059,7 +1166,7 @@ impl<'a> Searcher<'a> {
         let mut best_score = 0;
         let mut done = 0;
         let mut window = (-INF, INF);
-        for depth in 1..=deepest {
+        for depth in first.max(1)..=deepest.max(first.max(1)) {
             let mut score = self.search(depth, window.0, window.1, 0, false);
             if !self.stop && (score <= window.0 || score >= window.1) {
                 score = self.search(depth, -INF, INF, 0, false);
@@ -1067,12 +1174,10 @@ impl<'a> Searcher<'a> {
             if self.stop {
                 break;
             }
-            let e = self.tt[self.tt_index(self.b.hash)];
+            let e = self.tt.get(self.tt_index(self.b.hash));
             if e.key == self.b.hash {
-                if let Some(m) = e.best {
-                    if legal.contains(&m) {
-                        best = m;
-                    }
+                if let Some(m) = e.best.and_then(|k| found_among(legal, k)) {
+                    best = m;
                 }
             }
             if done > 0 {
@@ -1205,10 +1310,12 @@ fn legal_moves(description: &str, position: &str) -> PyResult<Vec<(i32, i32, i32
 #[pyfunction]
 fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
     let (g, b) = parse(description, position, weights)?;
+    let table = Table::new(1);
     let mut s = Searcher {
         g: &g,
         b,
-        tt: vec![Entry::default(); 1],
+        tt: &table,
+        halt: None,
         killers: vec![[Move::null(); 2]; MAX_PLY],
         history: vec![0; g.size * g.size],
         nodes: 0,
@@ -1225,7 +1332,7 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
 /// The best move found in ``seconds`` (or ``nodes``, when given): a dict with the move, its score for the side to move,
 /// the depth completed, the nodes looked at, and the line expected after it.
 #[pyfunction]
-#[pyo3(signature = (description, position, weights, seconds, deepest=64, hash_mb=64, nodes=0, excluded=vec![]))]
+#[pyo3(signature = (description, position, weights, seconds, deepest=64, hash_mb=64, nodes=0, excluded=vec![], threads=1))]
 #[allow(clippy::too_many_arguments)]
 fn search(
     py: Python<'_>,
@@ -1237,14 +1344,61 @@ fn search(
     hash_mb: usize,
     nodes: u64,
     excluded: Vec<(i32, i32, i32, i32, String)>,
+    threads: usize,
 ) -> PyResult<PyObject> {
     let (g, b) = parse(description, position, weights)?;
+    let entries = ((hash_mb.max(1) * 1024 * 1024) / std::mem::size_of::<(AtomicU64, AtomicU64)>()).max(1024);
+    if threads > 1 && nodes == 0 {
+        // Searchers in threads of their own over the same position, sharing one table, so what each finds is there
+        // for the others. The first one's answer is the answer; the rest stop with it.
+        let result = py.allow_threads(|| {
+            let table = kept_table(description, weights, entries);
+            let table: &Table = &table;
+            let halt = AtomicBool::new(false);
+            let started = Instant::now();
+            let mut main = Searcher::fresh(&g, b.clone(), table, seconds, started, 0);
+            let all = main.b.legal(&g);
+            let legal: Vec<Move> = all.iter().copied().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
+            if legal.is_empty() {
+                return (None, 0, 0, 0u64, vec![], 0, 0);
+            }
+            main.excluded = all.into_iter().filter(|m| !legal.contains(m)).collect();
+            let mut helpers: Vec<Searcher> = (1..threads)
+                .map(|_| {
+                    let mut h = Searcher::fresh(&g, b.clone(), table, seconds, started, 0);
+                    h.halt = Some(&halt);
+                    h.excluded = main.excluded.clone();
+                    h
+                })
+                .collect();
+            let (found, best_score, done) = std::thread::scope(|scope| {
+                for (n, helper) in helpers.iter_mut().enumerate() {
+                    let legal = &legal;
+                    scope.spawn(move || {
+                        helper.best_from(1 + (n as i32 % 2), deepest, legal);
+                    });
+                }
+                let answer = main.best(deepest, &legal);
+                halt.store(true, Ordering::Relaxed);
+                answer
+            });
+            let best = found.unwrap_or(legal[0]);
+            let line = main.line(best, 12);
+            let n = main.nodes + helpers.iter().map(|h| h.nodes).sum::<u64>();
+            let ms = (started.elapsed().as_secs_f64() * 1000.0) as u64;
+            (Some(best), best_score, done, n, line, ms, main.unsteady)
+        });
+        return search_result(py, &g, result);
+    }
     let result = py.allow_threads(|| {
-        let entries = (hash_mb.max(1) * 1024 * 1024) / std::mem::size_of::<Entry>();
+        // Searched by time, a search starts where the last one of this game left its table; searched by a count of
+        // nodes, it starts from nothing, so that a count means the same thing every time.
+        let table = if nodes == 0 { kept_table(description, weights, entries) } else { Arc::new(Table::new(entries)) };
         let mut s = Searcher {
             g: &g,
             b,
-            tt: vec![Entry::default(); entries.max(1024)],
+            tt: &table,
+            halt: None,
             killers: vec![[Move::null(); 2]; MAX_PLY],
             history: vec![0; g.size * g.size],
             nodes: 0,
@@ -1268,10 +1422,16 @@ fn search(
         let ms = (s.started.elapsed().as_secs_f64() * 1000.0) as u64;
         (Some(best), best_score, done, n, line, ms, s.unsteady)
     });
+    search_result(py, &g, result)
+}
+
+#[allow(clippy::type_complexity)]
+fn search_result(py: Python<'_>, g: &Game, result: (Option<Move>, i32, i32, u64, Vec<Move>, u64, i32))
+                 -> PyResult<PyObject> {
     let d = PyDict::new_bound(py);
     let (best, score, depth, n, line, ms, unsteady) = result;
     match best {
-        Some(m) => d.set_item("move", move_out(&g, &m))?,
+        Some(m) => d.set_item("move", move_out(g, &m))?,
         None => d.set_item("move", py.None())?,
     }
     d.set_item("score", score)?;
@@ -1280,7 +1440,7 @@ fn search(
     d.set_item("ms", ms)?;
     d.set_item("mate", score.abs() > MATE - 1000)?;
     d.set_item("unsteady", unsteady)?;
-    let line_out: Vec<(i32, i32, i32, i32, String)> = line.iter().map(|m| move_out(&g, m)).collect();
+    let line_out: Vec<(i32, i32, i32, i32, String)> = line.iter().map(|m| move_out(g, m)).collect();
     d.set_item("line", line_out)?;
     Ok(d.into())
 }
@@ -1291,7 +1451,7 @@ fn search(
 /// each sample came from, and each game's count of every kind where it stopped (first side less second): a game that
 /// stopped without a result can still be judged by how it stood.
 #[pyfunction]
-#[pyo3(signature = (description, start, weights_a, weights_b, games, nodes_per_move, random_plies=4, seed=1, max_plies=300, sample_every=2))]
+#[pyo3(signature = (description, start, weights_a, weights_b, games, nodes_per_move, random_plies=4, seed=1, max_plies=300, sample_every=2, deep_nodes=0))]
 #[allow(clippy::too_many_arguments)]
 fn self_play(
     py: Python<'_>,
@@ -1305,10 +1465,11 @@ fn self_play(
     seed: u64,
     max_plies: u32,
     sample_every: u32,
+    deep_nodes: u64,
 ) -> PyResult<PyObject> {
     let (ga, b0) = parse(description, start, weights_a)?;
     let (gb, _) = parse(description, start, weights_b)?;
-    let (points, results, samples, lengths, sample_games, final_counts) = py.allow_threads(|| {
+    let (points, results, samples, lengths, sample_games, final_counts, sample_scores) = py.allow_threads(|| {
         let mut rng = Rng(seed.wrapping_mul(0x2545F4914F6CDD1D) | 1);
         let entries = (4 * 1024 * 1024) / std::mem::size_of::<Entry>();
         let mut points = 0.0f64;
@@ -1317,12 +1478,17 @@ fn self_play(
         let mut samples: Vec<(Vec<f32>, f64)> = Vec::new();
         let mut sample_games: Vec<u32> = Vec::new();
         let mut final_counts: Vec<Vec<f32>> = Vec::new();
+        // What her search found each sampled position worth, for the first side, in the order the game reached them:
+        // what a position turned out to be worth, by the positions after it, is learned from these.
+        let mut sample_scores: Vec<i32> = Vec::new();
         for game in 0..games {
             let a_is_first = game % 2 == 0;
-            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: vec![Entry::default(); entries], killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0 };
-            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: vec![Entry::default(); entries], killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0 };
+            let (ta, tb) = (Table::new(entries), Table::new(entries));
+            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0 };
+            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0 };
             let mut board = b0.clone();
             let mut taken: Vec<Vec<f32>> = Vec::new();
+            let mut taken_scores: Vec<i32> = Vec::new();
             let mut result_first = 0.5;
             let mut last_took = false;
             let mut plies = 0u32;
@@ -1340,6 +1506,7 @@ fn self_play(
                     break;
                 }
                 let first_moves = (board.turn == 0) == a_is_first;
+                let mut found_score = 0;
                 let chosen = if ply < random_plies {
                     legal[(rng.next() % legal.len() as u64) as usize]
                 } else {
@@ -1348,13 +1515,30 @@ fn self_play(
                     s.nodes = 0;
                     s.stop = false;
                     s.started = Instant::now();
-                    s.best(64, &legal).0.unwrap_or(legal[0])
+                    let (best, score, _) = s.best(64, &legal);
+                    found_score = if board.turn == 0 { score } else { -score };
+                    best.unwrap_or(legal[0])
                 };
                 if ply >= random_plies && sample_every > 0 && ply % sample_every == 0 && !last_took
                     && !board.in_check(&ga, board.turn)
                 {
                     sa.b = board.clone();
                     taken.push(sa.features());
+                    // With ``deep_nodes``, what a much longer look of hers finds the position worth: her slow
+                    // thinking, kept to teach her quick judgement what it would have found.
+                    let score = if deep_nodes > 0 {
+                        let saved = sa.max_nodes;
+                        sa.max_nodes = deep_nodes;
+                        sa.nodes = 0;
+                        sa.stop = false;
+                        sa.started = Instant::now();
+                        let (_, deep, _) = sa.best(64, &legal);
+                        sa.max_nodes = saved;
+                        if board.turn == 0 { deep } else { -deep }
+                    } else {
+                        found_score
+                    };
+                    taken_scores.push(score);
                 }
                 last_took = chosen.taken_at != NONE;
                 board.make(&ga, chosen);
@@ -1367,11 +1551,12 @@ fn self_play(
                 samples.push((f, result_first));
                 sample_games.push(game);
             }
+            sample_scores.extend(taken_scores);
             sa.b = board.clone();
             let k = ga.kinds.len();
             final_counts.push(sa.features()[..k].to_vec());
         }
-        (points, results, samples, lengths, sample_games, final_counts)
+        (points, results, samples, lengths, sample_games, final_counts, sample_scores)
     });
     let d = PyDict::new_bound(py);
     d.set_item("points", points)?;
@@ -1380,6 +1565,7 @@ fn self_play(
     d.set_item("samples", samples)?;
     d.set_item("sample_games", sample_games)?;
     d.set_item("final_counts", final_counts)?;
+    d.set_item("sample_scores", sample_scores)?;
     Ok(d.into())
 }
 

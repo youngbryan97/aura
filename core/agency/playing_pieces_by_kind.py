@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import statistics
 import time
 from collections.abc import Awaitable, Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -67,9 +69,15 @@ CHECKS_A_TURN = 8
 NO_ANSWER_AFTER_S = 90.0
 #: Pictures in a row that no move explains before she says she has lost track.
 MISREAD_AT_MOST = 20
+#: The longest she thinks ahead on one position she expects, whatever the other side's answers have taken.
+AHEAD_AT_MOST_S = 30.0
 
 Look = Callable[[], Awaitable[Any]]
 Click = Callable[[float, float], Awaitable[bool]]
+
+#: One thread she thinks ahead on, beside the one she rehearses on: what it finds is kept in her search's table for the
+#: turn it was thinking about, and nothing waits on it.
+_THINKING_AHEAD = ThreadPoolExecutor(max_workers=1, thread_name_prefix="thinking-ahead")
 
 
 @dataclass
@@ -333,6 +341,14 @@ class _Game:
     #: game's turns she searched: where she stood, what she played, and how she judged it.
     went_wrong: WhatFailedWhere = field(default_factory=WhatFailedWhere)
     judged: list[tuple[str, str, int]] = field(default_factory=list)
+    #: The reply her search expects to her last move, the position it leads to, and the rules it was found by: while
+    #: they think she thinks on that position, and whether the reply came is counted, foreseen of foreseeable.
+    expected: tuple[Move, Position, Family] | None = None
+    thinking_ahead: Any = None
+    foreseen: int = 0
+    foreseeable: int = 0
+    #: How long each of their answers took: how long she can think ahead.
+    answers_s: list[float] = field(default_factory=list)
 
     def timed_probe(self, seconds: float) -> None:
         self.probes_timed += 1
@@ -538,17 +554,22 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             for move in seen_moves:
                 if game.believed.turn != FIRST:
                     family = game.learned.family()
+                    foreseen = _was_expected(game, move)
                     tell("They played " + said_of_a_move(family, game.believed, move, game.learned,
-                                                         game.first_is_hers, whose="their") + ".")
+                                                         game.first_is_hers, whose="their")
+                         + (", as I expected." if foreseen else "."))
                     game.theirs += 1
+                    game.answers_s.append(time.monotonic() - game.waiting_since)
                     game.longest_answer_s = max(game.longest_answer_s, time.monotonic() - game.waiting_since)
                     game.their_move_seen_at = time.monotonic()
                 game.follow(move)
                 game.waiting_since = time.monotonic()
             continue
         if game.believed.turn != FIRST:
-            # While the other side thinks, she rehearses the game in her model.
+            # While the other side thinks, she rehearses the game in her model, and thinks ahead on the position she
+            # expects their answer to leave her.
             rehearsing.start(pool, game.learned.family())
+            _think_ahead(game, rehearsing, search)
             # A side that has not answered for ten times as long as it ever took is not playing: a board that took her
             # move before the game was begun, or a game ended by something she cannot see. Given back, not waited on.
             if time.monotonic() - game.waiting_since > max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s):
@@ -645,7 +666,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             else:
                 search_began = time.monotonic()
                 found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
-                               set_aside=set_aside)
+                               set_aside=set_aside, threads=_cores_free())
                 searched_s += time.monotonic() - search_began
             if found.move is None:
                 break
@@ -713,6 +734,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 break
         if made:
             game.timed_finish(time.monotonic() - finish_began)
+            _expect_back(game, family, move, found)
             # Where her turn went, for knowing what her clock pays for besides thinking.
             seen = game.their_move_seen_at or turn_began
             logger.info("her turn %d took %.1f s: %.1f s before it began, %.1f s learning, %.1f s thinking, %.1f s "
@@ -729,7 +751,61 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             continue
         game.made += 1
         game.waiting_since = time.monotonic()
-    return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned}
+    return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned,
+            "foresaw": (game.foreseen, game.foreseeable)}
+
+
+def _expect_back(game: _Game, family: Family, move: Move, found: Any) -> None:
+    """What she expects back from the move she has made: the reply her search found best for them, and where it leaves
+    her. Nothing when her search did not look past her own move."""
+    game.expected = None
+    line = list(getattr(found, "line", None) or [])
+    if getattr(found, "by", "") == "the only move" or len(line) < 2 or line[0] != move:
+        return
+    mine = after(family, game.believed, move)
+    game.expected = (line[1], after(family, mine, line[1]), family)
+
+
+def _was_expected(game: _Game, move: Move) -> bool:
+    """Whether their move is the one she expected, counted; what she thought ahead on is let go either way."""
+    expected, game.expected, game.thinking_ahead = game.expected, None, None
+    if expected is None:
+        return False
+    game.foreseeable += 1
+    if _named(expected[0]) == _named(move):
+        game.foreseen += 1
+        return True
+    return False
+
+
+def _think_ahead(game: _Game, rehearsing: _Rehearsing, search: Any) -> None:
+    """While they think, she thinks on the position she expects their answer to leave her, for about as long as their
+    answers take: getting ready for what can be seen coming (core/cognition/getting_ready_for_what_is_coming.py), done
+    with the time she would otherwise spend waiting. What she finds stays in her search's table, so when the answer
+    comes as she expected, her turn begins where that thinking got to: measured 22 November 2026, a 0.3 s search began
+    after 2 s of it reached 12 moves deep where one begun cold reached 9. Started once a turn of theirs; when their
+    answer is another, what she found still holds for any position the two share."""
+    if game.expected is None or game.thinking_ahead is not None:
+        return
+    _reply, there, family = game.expected
+    seconds = min(AHEAD_AT_MOST_S, statistics.median(game.answers_s) if game.answers_s else max(1.0, game.last_share))
+    game.thinking_ahead = _THINKING_AHEAD.submit(
+        search, family, there, seconds=seconds, weights=rehearsing.weights_for(family),
+        earlier=[*game.earlier, game.believed], threads=max(1, _cores_free() - 1))
+
+
+def _cores_free() -> int:
+    """How many of the machine's cores nothing else is using now, to think with: its cores less its load over the last
+    minute, and one at the least. LIVE 21 November 2026 her search ran on one of eighteen; in a test world four times
+    the time to think took her from 0.396 to 0.708 against Stockfish held to depth 4 (24 games each)."""
+    import os
+
+    cores = os.cpu_count() or 1
+    try:
+        busy = os.getloadavg()[0]
+    except OSError:
+        return 1
+    return max(1, int(cores - busy))
 
 
 def _room_to_learn(game: _Game, spent: float, share: float, probes: int) -> bool:
@@ -936,4 +1012,7 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
     else:
         result = "drawn"
         tell(f"It's a draw ({ended.split(':', 1)[-1].strip()}).")
-    return {"ended": result, "moves": game.made, "theirs": game.theirs, "learned": game.learned}
+    if game.foreseeable:
+        logger.info("she foresaw %d of their %d answers", game.foreseen, game.foreseeable)
+    return {"ended": result, "moves": game.made, "theirs": game.theirs, "learned": game.learned,
+            "foresaw": (game.foreseen, game.foreseeable)}

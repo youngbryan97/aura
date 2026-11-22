@@ -168,16 +168,24 @@ def _matching(family: Family, position: Position, found: tuple) -> Move | None:
 
 
 def search(family: Family, position: Position, *, seconds: float, weights: Weights | None = None,
-           earlier: list[Position] | None = None, nodes: int = 0, set_aside: list[Move] | None = None) -> Found:
+           earlier: list[Position] | None = None, nodes: int = 0, set_aside: list[Move] | None = None,
+           threads: int = 1) -> Found:
     """The best move for the side to move, searched for ``seconds`` (or ``nodes``), leaving out ``set_aside``: moves
-    the game has shown are not moves."""
+    the game has shown are not moves. With ``threads`` above one, that many searchers look at once, sharing what each
+    finds (a count of nodes is searched by one)."""
     weights = weights or first_weights(family)
     aside = list(set_aside or [])
     engine = _compiled()
     if engine is not None:
-        result = engine.search(described(family), placed(position, earlier), weights.as_json(), float(seconds),
-                               nodes=int(nodes),
-                               excluded=[(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in aside])
+        asked = (described(family), placed(position, earlier), weights.as_json(), float(seconds))
+        excluded = [(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in aside]
+        try:
+            result = engine.search(*asked, nodes=int(nodes), excluded=excluded,
+                                   **({"threads": int(threads)} if threads > 1 else {}))
+        # not a failure: a build of the compiled search from before it could think in threads takes no ``threads``,
+        # and thinks in one.
+        except TypeError:
+            result = engine.search(*asked, nodes=int(nodes), excluded=excluded)
         if result.get("move") is None:
             return Found(None, 0, 0, int(result.get("nodes", 0)), [], by="compiled")
         line: list[Move] = []
