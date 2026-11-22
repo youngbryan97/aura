@@ -1,14 +1,12 @@
 # Aura AI System Card
 
 <!-- reader-navigation:start -->
-> **In plain English:** The language model supplies text generation. Steering changes selected internal calculations using a measured direction and a controlled strength.
+> A local language model drafts replies. One experiment tests whether a measured change inside the model can carry information about Aura’s current condition into those replies.
 >
-> **Why it matters:** An internal state should affect the intended part of a response while preserving competence and remaining tied to the measured model and basis.
+> A useful change should preserve answer quality and hold on the particular model and settings tested. If a reply sounds more energetic, compare the model with the experimental channel enabled and disabled to find out what caused the change.
 >
-> **In everyday use:** A change in internal condition may alter how a reply is formed; a channel measurement must show the change rather than relying on the reply sounding different.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#models) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#models) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#steering) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#models) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#models) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#steering)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## System Overview

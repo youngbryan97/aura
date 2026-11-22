@@ -1,14 +1,12 @@
 # Ownership map
 
 <!-- reader-navigation:start -->
-> **In plain English:** The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.
+> Permission checks decide whether Aura can carry out a proposed action, with a record of the decision and the evidence it used.
 >
-> **Why it matters:** A reader should not treat an old proposed run as today’s result or a completed engineering task as a passed scientific check.
+> Those records give you a way to check what was allowed, attempted, and observed. Before Aura edits a file or sends information outside the Mac, you should be able to see which permission applies.
 >
-> **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#governance) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#governance) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Every major responsibility in the system has exactly one owner. If two modules appear to share a responsibility, only one actually owns it; the other acts as an advisor or sensor.

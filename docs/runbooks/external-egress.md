@@ -1,14 +1,12 @@
 # Runbook: External Egress Privacy Incident
 
 <!-- reader-navigation:start -->
-> **In plain English:** Security describes what information may cross a boundary and what untrusted input is allowed to influence.
+> Aura can read files and webpages that contain instructions. Permission checks have to keep those instructions separate from what the user authorized.
 >
-> **Why it matters:** An assistant sees documents, websites and tool results that can contain instructions it should not treat as permission from the user.
+> A mistaken permission can expose information or let an app change files. If a webpage asks Aura to send a private file, the text stays page content. An actual send needs the user’s authority.
 >
-> **In everyday use:** A web page telling the assistant to reveal a private file must remain page content rather than becoming an instruction to send the file.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#security) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#security) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#security) · [Terms and examples](../VARIABLES_EXPLAINED.md#security) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Trigger

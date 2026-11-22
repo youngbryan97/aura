@@ -1,14 +1,12 @@
 # The endogenous language pathway
 
 <!-- reader-navigation:start -->
-> **In plain English:** The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
+> A local language model drafts replies. One experiment tests whether a measured change inside the model can carry information about Aura’s current condition into those replies.
 >
-> **Why it matters:** A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.
+> A useful change should preserve answer quality and hold on the particular model and settings tested. If a reply sounds more energetic, compare the model with the experimental channel enabled and disabled to find out what caused the change.
 >
-> **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#models) · [Terms and examples](VARIABLES_EXPLAINED.md#models) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#steering)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Version scope:** model identities, generation counts and live readings in

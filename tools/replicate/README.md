@@ -1,5 +1,14 @@
 # Replicate the substrate battery on your Mac
 
+<!-- reader-navigation:start -->
+> The Intrinsic Subject Core experiments ask whether Aura’s measured parts act as one continuing process.
+>
+> This puts a concrete question ahead of any argument about experience: which parts affect each other, and through what paths? Restore the same saved moment twice, change a value in one copy, and compare what happens to recall or a report.
+>
+> [Plain-language guide](../../docs/PLAIN_ENGLISH_GUIDE.md#isc) · [Terms and examples](../../docs/VARIABLES_EXPLAINED.md#isc) · [Evidence and related work](../../docs/DEMOS_AND_RELATED_WORK.md#isc)
+> [All docs](../../docs/DOCUMENTATION_INDEX.md) · [Glossary](../../docs/GLOSSARY.md) · [Worked formulas](../../docs/FORMULAS.md)
+<!-- reader-navigation:end -->
+
 This kit runs seed 101's substrate campaign on your machine and compares the result with three reference runs, line by
 line. The campaign decides 22 of the 24 lines of the battery. Her language model is stubbed in it, so no model weights
 are needed and 16 GB of memory is enough.

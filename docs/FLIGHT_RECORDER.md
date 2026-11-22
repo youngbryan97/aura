@@ -1,21 +1,22 @@
 # Black-box flight recorder — crash-survivable last moments (roadmap A5)
 
 <!-- reader-navigation:start -->
-> **In plain English:** Observability records what the system did, how long each stage took, and where an assumption failed.
+> Logs and timing records show what Aura did, which parts ran, and where a check failed.
 >
-> **Why it matters:** A visible error or delay needs a traceable cause; otherwise a repair can change the wrong thing while hiding the real failure.
+> You can use those records to investigate delays and errors that look the same in chat. For a late spoken reply, check how long it took to hear the request, prepare the answer, make audio, and finish playback.
 >
-> **In everyday use:** When a reply arrives late, separate time spent waiting for input, reasoning, synthesis and playback before deciding which stage to optimise.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#observability) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#observability) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#observability) · [Terms and examples](VARIABLES_EXPLAINED.md#observability) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Aerospace keeps a record that survives the crash. Aura now does too: an
-always-on, fixed-size, mmap-backed ring (`data/error_logs/flight/flight_ring.bin`)
-receives one compact **mind-moment** frame per cognitive tick — wall/monotonic
-time, tick id, stage, mode, RSS, tick duration, consecutive loop failures,
-unhealthy typed conditions (K6), degradation count.
+If Aura crashes, the flight recorder gives you a short trail of what the
+process was doing before it stopped. It writes a compact record for each
+cognitive cycle into a fixed-size memory-mapped ring at
+`data/error_logs/flight/flight_ring.bin`.
+
+Each record contains wall and monotonic time, the tick ID, stage, mode,
+memory use (RSS), tick duration, consecutive loop failures, typed health
+conditions (K6), and the degradation count.
 
 ## Why it survives
 

@@ -1,14 +1,12 @@
 # Source-function update geometry
 
 <!-- reader-navigation:start -->
-> **In plain English:** The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
+> Aura tests ways of doing more work on hard questions. It can check a proposed answer with a program, or use a learned representation to work out the steps.
 >
-> **Why it matters:** A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.
+> Doing extra work takes time. Compare answers on fresh problems to see when the extra work earns that time. On a difficult delivery plan, check whether the routes satisfy the constraints and whether the software can say when the answer is uncertain.
 >
-> **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Terms and examples](VARIABLES_EXPLAINED.md#reasoning) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#reasoning)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 The operation classifier is shared across many language constructions. A

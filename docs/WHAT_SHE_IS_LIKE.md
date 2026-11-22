@@ -1,14 +1,12 @@
 # What she is like, as something she lives in
 
 <!-- reader-navigation:start -->
-> **In plain English:** Aura uses internal variables for positive or negative condition, activation, needs and operating strain. Their role is established by what they change.
+> Aura tracks software values for its condition, level of activity, and competing needs. These can change how it spends resources and responds.
 >
-> **Why it matters:** A named mood or drive is useful only if its consumers produce an appropriate effect, rather than merely displaying a label.
+> To find what a value does, follow it to the part of the program that uses it. When the Mac is under strain, Aura can defer expensive background work so the conversation can continue.
 >
-> **In everyday use:** Under resource strain, the system may need to reduce expensive background work while preserving the conversation.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#affect) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#affect) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#affect) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#affect) · [Terms and examples](VARIABLES_EXPLAINED.md#affect) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#affect)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 On 26 September she was asked to take a personality test and said she had no

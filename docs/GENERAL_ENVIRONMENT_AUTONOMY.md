@@ -1,19 +1,18 @@
 # General Environment Autonomy
 
 <!-- reader-navigation:start -->
-> **In plain English:** Computer-use work observes an interface, chooses an action, and checks whether that action moved the task toward its goal.
+> Aura can read a webpage, choose a next step, and check what changed. It can repeat this across several pages.
 >
-> **Why it matters:** A click is useful only if it reaches the intended control and produces the intended outcome, including on unfamiliar pages.
+> That matters when the next screen depends on the previous answer. On a form, opening the page, entering a value, and seeing the confirmation are three different observations.
 >
-> **In everyday use:** Opening the right page, selecting the correct field and confirming the changed state are separate steps in filling a form.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#browser) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#browser) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#agents) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#browser) · [Terms and examples](VARIABLES_EXPLAINED.md#browser) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#agents)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This is the current, code-grounded checklist for an Aura architecture that can
-handle NetHack-scale complexity without becoming NetHack-specific. NetHack is a
-stress adapter; the reusable system is the environment OS.
+Can Aura keep track of a changing place, choose a move, and tell whether
+that move helped? This guide gives the software checklist for those jobs.
+NetHack supplies a difficult test environment. The same interface is designed
+to carry observations, actions, and their results in other environments.
 
 ## Required Capabilities
 

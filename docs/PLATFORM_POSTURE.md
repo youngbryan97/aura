@@ -1,26 +1,21 @@
 # Aura Platform Posture
 
 <!-- reader-navigation:start -->
-> **In plain English:** Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.
+> Aura runs on an Apple Silicon Mac. The desktop app opens a conversation, and local software handles speech, memory, tools, and background work.
 >
-> **Why it matters:** A reader needs to know which pieces must be installed, which resources they use, and which capabilities have actually been measured.
+> Start with the parts you need and check what the machine can run. The setup guides give the hardware requirements and link to measured capabilities. To work on a document, Aura needs a model that has finished loading, permission to read the file, and enough memory to handle the request.
 >
-> **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Terms and examples](VARIABLES_EXPLAINED.md#getting-started) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 *Reviewed against the tree: 2026-08-01. See [documentation status map](DOC_STATUS.md) for how to read this file.*
 
-Five platform decisions, all of them deliberate.
-
-No RBAC. No SSO. Single-tenant. Manual backups. Hash-allowlisted plugins.
-
-Read that list cold and it looks like a gap analysis. It isn't. Each one is
-a choice that fits a local-first, single-operator system, and each one names
-the code that enforces it. An operator can change any of them — but should
-know they're changing a decision, not filling a hole.
+Aura is designed for one operator per installation. It uses API tokens,
+keeps each installation in one tenant boundary, relies on the operator to
+make backups, and checks plugins against a list of permitted hashes. The
+table explains how the source enforces those choices, including the scope of
+role-based access control (RBAC) and single sign-on (SSO).
 
 | Decision area      | Posture today                       | Enforced by                                                                                       |
 |--------------------|-------------------------------------|---------------------------------------------------------------------------------------------------|

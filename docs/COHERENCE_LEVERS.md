@@ -1,14 +1,12 @@
 # Coherence levers
 
 <!-- reader-navigation:start -->
-> **In plain English:** Several concerns can propose work, but attention selects what has influence now and makes selected information available elsewhere.
+> Aura can have a new request, a recalled event, and unfinished work to deal with at the same time. Its attention system selects which information to use now and makes it available to other parts.
 >
-> **Why it matters:** A new question, a recalled event and an old task must not silently become interchangeable sources of authority.
+> The source of an item matters. A remembered suggestion and a new instruction carry different authority. Ask a question while a background task is running. The scheduler should give the new request priority.
 >
-> **In everyday use:** Your new question should not be overwritten by a background task that happened to win a previous competition.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#attention) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#attention) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#cognitive-architectures) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#attention) · [Terms and examples](VARIABLES_EXPLAINED.md#attention) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#cognitive-architectures)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 The continuity controls below are read from the Aura process's environment

@@ -1,13 +1,13 @@
 {
   "schema": "aura.documentation.reading_topics.v1",
-  "as_of": "2026-10-25",
+  "as_of": "2026-11-21",
   "topics": [
     {
       "id": "getting-started",
       "title": "Getting started",
-      "definition": "Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.",
-      "why": "A reader needs to know which pieces must be installed, which resources they use, and which capabilities have actually been measured.",
-      "daily": "Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.",
+      "definition": "Aura runs on an Apple Silicon Mac. The desktop app opens a conversation, and local software handles speech, memory, tools, and background work.",
+      "why": "Start with the parts you need and check what the machine can run. The setup guides give the hardware requirements and link to measured capabilities.",
+      "daily": "To work on a document, Aura needs a model that has finished loading, permission to read the file, and enough memory to handle the request.",
       "metaphor": "Think of preparing a workshop: having a tool on the shelf is different from having it connected, supplied and ready to use.",
       "metaphor_limit": "The comparison explains readiness. It does not certify that every installed capability works.",
       "variables": [
@@ -40,9 +40,9 @@
     {
       "id": "conversation",
       "title": "Conversation and voice",
-      "definition": "Conversation support turns a request into a reply and, when enabled, into speech. Streaming lets delivery begin before every later stage finishes.",
-      "why": "The person should receive a timely, coherent answer to the current request without hearing a stale or unapproved fragment.",
-      "daily": "When you interrupt a spoken reply, the old reply should stop owning the conversation and the new turn should take priority.",
+      "definition": "Aura can accept a request in text or speech and read the reply aloud. Parts of a reply can start playing while later words are still being prepared.",
+      "why": "A short time to the first word makes a conversation feel responsive. The app also has to stop an earlier reply when you change the subject.",
+      "daily": "If you interrupt a spoken answer, the previous audio should stop and your new question should get priority.",
       "metaphor": "Think of a live radio conversation: the first audible words, the complete sentence and the end of playback happen at different times.",
       "metaphor_limit": "The comparison explains timing and turn ownership; it does not establish a measured latency for Aura.",
       "variables": [
@@ -80,9 +80,9 @@
     {
       "id": "models",
       "title": "Language models and internal steering",
-      "definition": "The language model supplies text generation. Steering changes selected internal calculations using a measured direction and a controlled strength.",
-      "why": "An internal state should affect the intended part of a response while preserving competence and remaining tied to the measured model and basis.",
-      "daily": "A change in internal condition may alter how a reply is formed; a channel measurement must show the change rather than relying on the reply sounding different.",
+      "definition": "A local language model drafts replies. One experiment tests whether a measured change inside the model can carry information about Aura’s current condition into those replies.",
+      "why": "A useful change should preserve answer quality and hold on the particular model and settings tested.",
+      "daily": "If a reply sounds more energetic, compare the model with the experimental channel enabled and disabled to find out what caused the change.",
       "metaphor": "Think of adjusting a sound mixer during a performance: a control can affect the output without changing the written score.",
       "metaphor_limit": "The analogy is about changing a computation. Model activations are not audio channels, and the metaphor does not prove feeling.",
       "variables": [
@@ -150,9 +150,9 @@
     {
       "id": "memory",
       "title": "Memory and recall",
-      "definition": "Memory keeps records beyond the immediate request and selects relevant records for the current turn.",
-      "why": "Useful continuity depends on recalling the right information, retaining its source and correcting or deleting it when needed.",
-      "daily": "If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.",
+      "definition": "Aura keeps records of events, facts, preferences, and procedures. It looks for records relevant to the question or task in front of it.",
+      "why": "A memory is useful when you can find its source, correct it, or remove it.",
+      "daily": "If you correct the date of a project, a later reply should use the correction and remember where it came from.",
       "metaphor": "Think of a notebook with an index: keeping a page and finding the right page are separate jobs.",
       "metaphor_limit": "A software memory record is not evidence of a human-like recollection or a felt past.",
       "variables": [
@@ -196,9 +196,9 @@
     {
       "id": "affect",
       "title": "Affect and operating condition",
-      "definition": "Aura uses internal variables for positive or negative condition, activation, needs and operating strain. Their role is established by what they change.",
-      "why": "A named mood or drive is useful only if its consumers produce an appropriate effect, rather than merely displaying a label.",
-      "daily": "Under resource strain, the system may need to reduce expensive background work while preserving the conversation.",
+      "definition": "Aura tracks software values for its condition, level of activity, and competing needs. These can change how it spends resources and responds.",
+      "why": "To find what a value does, follow it to the part of the program that uses it.",
+      "daily": "When the Mac is under strain, Aura can defer expensive background work so the conversation can continue.",
       "metaphor": "Think of a dashboard connected to controls: a reading matters when it changes a decision, rather than only lighting up.",
       "metaphor_limit": "A dashboard value does not establish a feeling. The analogy is limited to causal use of internal readings.",
       "variables": [
@@ -242,9 +242,9 @@
     {
       "id": "attention",
       "title": "Attention and competing concerns",
-      "definition": "Several concerns can propose work, but attention selects what has influence now and makes selected information available elsewhere.",
-      "why": "A new question, a recalled event and an old task must not silently become interchangeable sources of authority.",
-      "daily": "Your new question should not be overwritten by a background task that happened to win a previous competition.",
+      "definition": "Aura can have a new request, a recalled event, and unfinished work to deal with at the same time. Its attention system selects which information to use now and makes it available to other parts.",
+      "why": "The source of an item matters. A remembered suggestion and a new instruction carry different authority.",
+      "daily": "Ask a question while a background task is running. The scheduler should give the new request priority.",
       "metaphor": "Think of a meeting with an agenda: choosing the next speaker and deciding what the group will do are related but different decisions.",
       "metaphor_limit": "The candidates are software records, not separate people. Winning attention does not itself grant permission to act.",
       "variables": [
@@ -282,9 +282,9 @@
     {
       "id": "reasoning",
       "title": "Reasoning and checking answers",
-      "definition": "The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.",
-      "why": "A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.",
-      "daily": "On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.",
+      "definition": "Aura tests ways of doing more work on hard questions. It can check a proposed answer with a program, or use a learned representation to work out the steps.",
+      "why": "Doing extra work takes time. Compare answers on fresh problems to see when the extra work earns that time.",
+      "daily": "On a difficult delivery plan, check whether the routes satisfy the constraints and whether the software can say when the answer is uncertain.",
       "metaphor": "Think of doing a second calculation before submitting a result: extra effort is valuable when it catches a mistake or solves a harder case.",
       "metaphor_limit": "The analogy does not establish that more computation always helps or that one measured task family proves general intelligence.",
       "variables": [
@@ -323,9 +323,9 @@
     {
       "id": "learning",
       "title": "Learning and kept procedures",
-      "definition": "Learning changes later behavior using earlier outcomes. A kept procedure is executable work retained for reuse under a defined checking rule.",
-      "why": "Experience should improve later work without accumulating unreliable shortcuts or expensive rules that no longer help.",
-      "daily": "After solving one kind of task, the system may reuse a checked procedure on a later task of that kind instead of deriving every step again.",
+      "definition": "Aura can learn a small program from examples. It keeps a program after it passes checks, then can call it again on a similar request.",
+      "why": "Keeping a checked method can save work the next time. A bad match can also send an answer off course.",
+      "daily": "After learning how to count days between dates, Aura answered three new date questions using the method the next day.",
       "metaphor": "Think of keeping a recipe that has been tested: reuse saves effort, but the recipe still needs the right ingredients and limits.",
       "metaphor_limit": "A reusable procedure does not establish general learning or transfer to unrelated tasks.",
       "variables": [
@@ -363,9 +363,9 @@
     {
       "id": "agency",
       "title": "Goals and autonomous work",
-      "definition": "Agency concerns proposing work, choosing goals and pursuing them over time while remaining responsive to the person and the environment.",
-      "why": "An assistant must distinguish what it is able to attempt, what it has permission to do, and what it has actually completed.",
-      "daily": "A reminder to inspect a document should not become permission to send it to somebody else. A new request can change the priority of existing work.",
+      "definition": "Aura can propose tasks, keep goals, and return to unfinished work. The user and the current situation can change which task takes priority.",
+      "why": "The useful questions are what it tried, who allowed it, and whether it finished.",
+      "daily": "Permission to inspect a document covers reading it. Sending that document is a separate action that needs its own authorization.",
       "metaphor": "Think of a work queue managed by a capable colleague: unfinished tasks persist, but priorities and permissions still matter.",
       "metaphor_limit": "A software goal record does not establish a human intention or unconstrained independence.",
       "variables": [
@@ -403,9 +403,9 @@
     {
       "id": "governance",
       "title": "Permission, actions and receipts",
-      "definition": "Governance checks whether a proposed action is allowed and records the decision and relevant evidence.",
-      "why": "The user needs meaningful control and a way to find out what was authorised, attempted and observed.",
-      "daily": "Before editing a file or sending information outside the machine, the action must be checked against the applicable scope and recorded honestly.",
+      "definition": "Permission checks decide whether Aura can carry out a proposed action, with a record of the decision and the evidence it used.",
+      "why": "Those records give you a way to check what was allowed, attempted, and observed.",
+      "daily": "Before Aura edits a file or sends information outside the Mac, you should be able to see which permission applies.",
       "metaphor": "Think of a signed work order followed by a completion record: permission to do a job and evidence it was done answer different questions.",
       "metaphor_limit": "A receipt can record a mistake as well as a success. Its existence alone does not prove correct governance.",
       "variables": [
@@ -443,9 +443,9 @@
     {
       "id": "resources",
       "title": "Memory, speed and resource limits",
-      "definition": "Resource management keeps model inference, background work and the operating system within the machine’s real capacity.",
-      "why": "A useful assistant must avoid exhausting the host or making the conversation unusable while doing background work.",
-      "daily": "A second large model load can disrupt a working session even if each model fits alone. Scheduling and a measured memory budget matter.",
+      "definition": "Model work and background jobs share the Mac’s memory and processing time. Aura can defer work when the machine is busy.",
+      "why": "Two models can each fit on a Mac by themselves and still overwhelm it if loaded together.",
+      "daily": "Before starting a second large job, check how much memory the active conversation and its model already need.",
       "metaphor": "Think of sharing a kitchen circuit: two appliances that work separately may overload the same circuit together.",
       "metaphor_limit": "Computer memory is not electrical current. The analogy explains a shared finite budget, not an exact failure threshold.",
       "variables": [
@@ -495,9 +495,9 @@
     {
       "id": "reliability",
       "title": "Staying alive and recovering",
-      "definition": "Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.",
-      "why": "A user should not lose work because a slow component was mistaken for a dead one, or because a restart created another large process.",
-      "daily": "If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.",
+      "definition": "Aura checks whether parts are making progress, keeps state that can be restored, and has procedures for recovery.",
+      "why": "A mistaken restart can interrupt work or leave two large processes competing for memory.",
+      "daily": "If a reply takes a long time, first check whether its worker is still making progress. A stalled worker needs a different response.",
       "metaphor": "Think of a hospital monitor with separate readings for pulse and readiness to exercise: being alive and being ready for a task are different conditions.",
       "metaphor_limit": "This is an analogy for software health signals. It does not describe biological life or certify safety-critical reliability.",
       "variables": [
@@ -541,9 +541,9 @@
     {
       "id": "observability",
       "title": "Logs, measurements and evidence trails",
-      "definition": "Observability records what the system did, how long each stage took, and where an assumption failed.",
-      "why": "A visible error or delay needs a traceable cause; otherwise a repair can change the wrong thing while hiding the real failure.",
-      "daily": "When a reply arrives late, separate time spent waiting for input, reasoning, synthesis and playback before deciding which stage to optimise.",
+      "definition": "Logs and timing records show what Aura did, which parts ran, and where a check failed.",
+      "why": "You can use those records to investigate delays and errors that look the same in chat.",
+      "daily": "For a late spoken reply, check how long it took to hear the request, prepare the answer, make audio, and finish playback.",
       "metaphor": "Think of a parcel-tracking history: the useful record shows where the parcel waited, not only that delivery took a long time.",
       "metaphor_limit": "A trace reports observed software events. Missing events or an incomplete recorder limit what can be concluded.",
       "variables": [
@@ -587,9 +587,9 @@
     {
       "id": "security",
       "title": "Privacy and trust boundaries",
-      "definition": "Security describes what information may cross a boundary and what untrusted input is allowed to influence.",
-      "why": "An assistant sees documents, websites and tool results that can contain instructions it should not treat as permission from the user.",
-      "daily": "A web page telling the assistant to reveal a private file must remain page content rather than becoming an instruction to send the file.",
+      "definition": "Aura can read files and webpages that contain instructions. Permission checks have to keep those instructions separate from what the user authorized.",
+      "why": "A mistaken permission can expose information or let an app change files.",
+      "daily": "If a webpage asks Aura to send a private file, the text stays page content. An actual send needs the user’s authority.",
       "metaphor": "Think of reading a sign through a window: seeing the sign does not give its author a key to the building.",
       "metaphor_limit": "The metaphor explains authority separation; actual protection depends on the enforced checks and their coverage.",
       "variables": [
@@ -627,9 +627,9 @@
     {
       "id": "browser",
       "title": "Using a browser or screen",
-      "definition": "Computer-use work observes an interface, chooses an action, and checks whether that action moved the task toward its goal.",
-      "why": "A click is useful only if it reaches the intended control and produces the intended outcome, including on unfamiliar pages.",
-      "daily": "Opening the right page, selecting the correct field and confirming the changed state are separate steps in filling a form.",
+      "definition": "Aura can read a webpage, choose a next step, and check what changed. It can repeat this across several pages.",
+      "why": "That matters when the next screen depends on the previous answer.",
+      "daily": "On a form, opening the page, entering a value, and seeing the confirmation are three different observations.",
       "metaphor": "Think of finding a door handle in a room you have not visited: a label helps, but position, obstruction and the door’s response still matter.",
       "metaphor_limit": "A screenshot or successful click alone does not demonstrate reliable task completion.",
       "variables": [
@@ -667,9 +667,9 @@
     {
       "id": "vision",
       "title": "Visual control and moving worlds",
-      "definition": "Visual control connects what is seen with an identified object, its motion and actions that change what happens next.",
-      "why": "A system needs to keep tracking the same object and account for delay, rather than react to whichever pixels look convenient in one frame.",
-      "daily": "In a moving game, a key can arrive after the picture it was chosen from. The controller must learn how its actions affect the identified body.",
+      "definition": "For visual control, Aura connects what it sees on the screen to an object, its motion, and the effect of an action.",
+      "why": "The software needs to keep track of the same object over time while the screen and controls update at different speeds.",
+      "daily": "In Pong, the ball can move between the frame the system reads and the moment its key press reaches the game.",
       "metaphor": "Think of catching a ball: you need its direction and timing as well as its current position.",
       "metaphor_limit": "The metaphor does not establish human vision or general game-playing ability. A fixture win and a live unfamiliar-game win remain different evidence.",
       "variables": [
@@ -707,9 +707,9 @@
     {
       "id": "engineering",
       "title": "Engineering calculations and drawings",
-      "definition": "Engineering work turns declared inputs, formulas and assumptions into a design or drawing with traceable numerical findings.",
-      "why": "A plausible-looking diagram is insufficient when somebody needs to know where its dimensions came from and when they apply.",
-      "daily": "A beam calculation should retain the load, units, material assumptions and equation beside the proposed dimension.",
+      "definition": "Aura’s engineering tools can turn stated inputs, formulas, and assumptions into a calculation, drawing, or design.",
+      "why": "The result should let someone check where a dimension came from and when it applies.",
+      "daily": "A proposed beam size belongs with the loads, units, material assumptions, and equation used to calculate it.",
       "metaphor": "Think of a builder reading a dimensioned plan with the calculation sheet attached, rather than guessing from the picture.",
       "metaphor_limit": "A calculated design is not a physical test or professional approval. The scope and model assumptions stay relevant.",
       "variables": [
@@ -747,9 +747,9 @@
     {
       "id": "physical",
       "title": "Claims about the physical world",
-      "definition": "A physical-effect claim needs an independently observed change outside the program, compared with the relevant baseline.",
-      "why": "Users should be able to tell an internal simulation, an attempted command and a measured real-world result apart.",
-      "daily": "A command to a device is an attempt. A separate sensor reading is needed to establish that the intended physical quantity changed.",
+      "definition": "A claim about changing something in the physical world needs a separate observation of what changed.",
+      "why": "Distinguish a simulated change, a command sent to a device, and a measured result.",
+      "daily": "After a command to turn something on, a separate sensor can show whether it actually turned on.",
       "metaphor": "Think of placing an order and receiving the goods: the request and the observed delivery are different records.",
       "metaphor_limit": "The metaphor explains evidence stages. It does not establish any physical capability for Aura.",
       "variables": [
@@ -787,9 +787,9 @@
     {
       "id": "measurement",
       "title": "Tests, controls and claims",
-      "definition": "A test makes a specific claim answerable by a stated measurement, comparison and decision rule.",
-      "why": "A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.",
-      "daily": "To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.",
+      "definition": "A test states what will be measured, what it will be compared with, and what counts as a pass.",
+      "why": "Source code, a passing test, and a useful result in practice each answer a different question.",
+      "daily": "To see whether memory helps, try the same tasks with memory enabled and disabled. Keep every success and failure.",
       "metaphor": "Think of weighing two packages on the same checked scale: a difference matters only if the scale’s own error cannot explain it.",
       "metaphor_limit": "A passing test supports its stated scope. It does not automatically establish performance on every task or in the live application.",
       "variables": [
@@ -833,9 +833,9 @@
     {
       "id": "isc",
       "title": "ISC and the subjecthood research",
-      "definition": "ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.",
-      "why": "The project needs evidence that memories, attention and self-state actually affect one another before arguing about what that organisation means.",
-      "daily": "Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.",
+      "definition": "The Intrinsic Subject Core experiments ask whether Aura’s measured parts act as one continuing process.",
+      "why": "This puts a concrete question ahead of any argument about experience: which parts affect each other, and through what paths?",
+      "daily": "Restore the same saved moment twice, change a value in one copy, and compare what happens to recall or a report.",
       "metaphor": "Think of testing an orchestra by changing one part and observing how the ensemble responds, while also checking that the recording equipment did not create the difference.",
       "metaphor_limit": "An orchestra is an analogy for interacting parts. It does not establish subjecthood or provide a substitute for the stated ISC controls.",
       "variables": [
@@ -880,9 +880,9 @@
     {
       "id": "architecture",
       "title": "Architecture and runtime components",
-      "definition": "Architecture describes which parts exist, how information reaches them and which component is responsible for a decision or effect.",
-      "why": "A useful component needs a real reader and a real route into behavior; a box on a diagram can otherwise be disconnected from what users see.",
-      "daily": "If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.",
+      "definition": "The architecture is the software that coordinates Aura’s conversations, memory, attention, and actions.",
+      "why": "Following information through the system explains how a component can change what you see or what the computer does.",
+      "daily": "A stored correction can only affect a later answer if the reply uses the record that contains it.",
       "metaphor": "Think of plumbing: a tank can be full while a closed or missing pipe prevents water reaching a tap.",
       "metaphor_limit": "The metaphor explains connection and responsibility. Software behavior still needs source inspection and tests.",
       "variables": [
@@ -920,9 +920,9 @@
     {
       "id": "documentation",
       "title": "Reading records and research plans",
-      "definition": "The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.",
-      "why": "A reader should not treat an old proposed run as today’s result or a completed engineering task as a passed scientific check.",
-      "daily": "An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.",
+      "definition": "Some pages explain how to use Aura. Others record a past result, list open work, or give the rules for a test.",
+      "why": "The date and type of document tell you how to use it.",
+      "daily": "If an old plan calls a test upcoming, look for its result in the current status page.",
       "metaphor": "Think of a lab notebook beside a user manual: the notebook preserves what happened then, while the manual explains what to do now.",
       "metaphor_limit": "A date or category helps interpretation but does not validate the contents. Follow the linked evidence for a claim.",
       "variables": [
@@ -966,9 +966,9 @@
     {
       "id": "numbers",
       "title": "Reading mathematical symbols",
-      "definition": "Symbols are shorthand for quantities whose definitions belong beside them. The same letter can mean different things in different parts of the project.",
-      "why": "An impressive-looking equation is useful only when a reader knows what was measured and what a change would do.",
-      "daily": "When a status page says a ratio rose, ask which quantities changed, whether the units match and whether the practical outcome improved.",
+      "definition": "A symbol stands for a quantity measured or calculated in a specific way. The same letter can have different meanings on different pages.",
+      "why": "Before comparing values, check what the quantity measures and how the software uses it.",
+      "daily": "If a ratio rises, check which numbers changed, what units they use, and whether the practical outcome improved.",
       "metaphor": "Think of a recipe’s abbreviations: a quantity and a unit only make sense when you know which ingredient they refer to.",
       "metaphor_limit": "The analogy explains notation. A mathematical model still needs its own assumptions, measurements and tests.",
       "variables": [

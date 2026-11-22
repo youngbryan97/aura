@@ -1,14 +1,12 @@
 # Writing rules
 
 <!-- reader-navigation:start -->
-> **In plain English:** The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.
+> Some pages explain how to use Aura. Others record a past result, list open work, or give the rules for a test.
 >
-> **Why it matters:** A reader should not treat an old proposed run as today’s result or a completed engineering task as a passed scientific check.
+> The date and type of document tell you how to use it. If an old plan calls a test upcoming, look for its result in the current status page.
 >
-> **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#documentation) · [Terms and examples](VARIABLES_EXPLAINED.md#documentation) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#measurement)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: Guide · Standing conventions for prose in this repository
@@ -200,7 +198,11 @@ Use a worked example when arithmetic helps. Use a metaphor when it makes an
 unfamiliar mechanism easier to picture, and state where the comparison stops.
 An illustration is labeled as an illustration; it is not an extra experiment.
 
-Keep the technical detail available after that introduction. A reader should
+Keep the technical detail available after that introduction. Give the system or
+subsystem a name readers can recognize, then explain what it does in ordinary
+terms. Show a task, failure, or result they can picture and say what would
+make the result useful to them. Introduce an internal name where it helps
+someone find code or interpret evidence. A reader should
 be able to explain the idea aloud without first translating a dense paragraph.
 The shared [tour](PLAIN_ENGLISH_GUIDE.md) and
 [variable definitions](VARIABLES_EXPLAINED.md) support the page-specific reading

@@ -1,14 +1,12 @@
 # Runbook: Actor Crash Loop
 
 <!-- reader-navigation:start -->
-> **In plain English:** Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.
+> Aura checks whether parts are making progress, keeps state that can be restored, and has procedures for recovery.
 >
-> **Why it matters:** A user should not lose work because a slow component was mistaken for a dead one, or because a restart created another large process.
+> A mistaken restart can interrupt work or leave two large processes competing for memory. If a reply takes a long time, first check whether its worker is still making progress. A stalled worker needs a different response.
 >
-> **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#reliability) · [Terms and examples](../VARIABLES_EXPLAINED.md#reliability) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Diagnostic scope:** bundle members and field names below are examples to

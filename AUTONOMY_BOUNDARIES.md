@@ -1,21 +1,23 @@
 # Aura Autonomy Boundaries
 
 <!-- reader-navigation:start -->
-> **In plain English:** Agency concerns proposing work, choosing goals and pursuing them over time while remaining responsive to the person and the environment.
+> Aura can propose tasks, keep goals, and return to unfinished work. The user and the current situation can change which task takes priority.
 >
-> **Why it matters:** An assistant must distinguish what it is able to attempt, what it has permission to do, and what it has actually completed.
+> The useful questions are what it tried, who allowed it, and whether it finished. Permission to inspect a document covers reading it. Sending that document is a separate action that needs its own authorization.
 >
-> **In everyday use:** A reminder to inspect a document should not become permission to send it to somebody else. A new request can change the priority of existing work.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#agency) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#agency) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#agents) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#agency) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#agency) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#agents)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Core Principle
 
-Every background and autonomous task in Aura is strictly controlled by its governance engine, the Unified Will. This includes routine maintenance, learning, self-repair, background AI reasoning, and memory cleanup.
-
-Crucially, autonomous actions follow the exact **same** security path as actions initiated by a human user. They never get a separate, relaxed set of rules. A system with a separate "fast lane" for autonomous tasks is an ungoverned system.
+An assistant can suggest work on its own. Before a proposed action runs,
+the same permission path should apply whether the user requested it or a
+background job suggested it. On governed routes, the Unified Will checks the
+proposal and the authority gateway checks the tool action. The design covers
+maintenance, learning, self-repair, background reasoning, and memory cleanup.
+The [claim ledger](CLAIMS_NOT_SUPPORTED.md#10-process-level-non-bypassable-governance)
+records the limits of enforcement.
 
 ```
 perception → shared state → attention → goals → planning → Unified Will → AuthorityGateway → action → verification → memory commit

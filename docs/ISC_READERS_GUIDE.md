@@ -1,13 +1,11 @@
 # Finding your way through the ISC documents
 
-Status: Guide · Updated 25 October 2026
+Status: Guide · Includes the November 2026 preprint
 
-Start with [ISC explained](ISC_EXPLAINED.md) if you are new to Aura or want
-words you can use to explain it to someone else. Read the
-[status page](ISC_STATUS.md) next for the latest checked result.
-
-The technical pages stay available. You do not need to learn the equations
-before you can understand what the project is asking or what remains open.
+Start with [ISC explained](ISC_EXPLAINED.md) for what the experiment asks
+and an example of how a comparison works. The [status page](ISC_STATUS.md)
+gives the results, including the confirmatory 24/24 under ISC-v7 and the
+tests that came out against Aura later. [November preprint](https://zenodo.org/records/24075466)
 
 ## The questions and their documents
 
@@ -16,7 +14,7 @@ before you can understand what the project is asking or what remains open.
 | What is Aura trying to find out? | [ISC explained](ISC_EXPLAINED.md) | An introduction, a short spoken explanation, examples and a glossary |
 | What actually passed? | [Current status](ISC_STATUS.md) | A plain-language summary followed by the measurements and source records |
 | Why are there 24 checks? | [The battery](SUBJECT_CORE.md) | What is measured and how the operational requirements fit together |
-| What process are we measuring? | [The carrier](SUBJECT_CORE_V25.md) | How the boundary is tested and what prevents a settled answer |
+| What process are we measuring? | [The carrier](SUBJECT_CORE_V25.md) | How the boundary is tested and which conclusions depend on the chosen setup |
 | What would this say about experience? | [The bridge](BRIDGE_PARITY.md) | The five grounds, the assumptions and the limits of the inference |
 | What do the mathematical arguments establish? | [Bridge proofs](BRIDGE_PROOFS.md) | Formal arguments with their assumptions; no requirement to start here |
 | How can somebody check the result? | [Reproduction](ISC_REPRODUCTION.md) | Files, commands, controls and conditions needed for an honest comparison |

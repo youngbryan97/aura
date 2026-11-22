@@ -1,14 +1,12 @@
 # Aura — User Guide
 
 <!-- reader-navigation:start -->
-> **In plain English:** Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.
+> Aura runs on an Apple Silicon Mac. The desktop app opens a conversation, and local software handles speech, memory, tools, and background work.
 >
-> **Why it matters:** A reader needs to know which pieces must be installed, which resources they use, and which capabilities have actually been measured.
+> Start with the parts you need and check what the machine can run. The setup guides give the hardware requirements and link to measured capabilities. To work on a document, Aura needs a model that has finished loading, permission to read the file, and enough memory to handle the request.
 >
-> **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Terms and examples](VARIABLES_EXPLAINED.md#getting-started) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Use this guide to start the desktop app, talk to Aura, and manage its

@@ -1,14 +1,12 @@
 # Runbook: log rotation failure
 
 <!-- reader-navigation:start -->
-> **In plain English:** Observability records what the system did, how long each stage took, and where an assumption failed.
+> Logs and timing records show what Aura did, which parts ran, and where a check failed.
 >
-> **Why it matters:** A visible error or delay needs a traceable cause; otherwise a repair can change the wrong thing while hiding the real failure.
+> You can use those records to investigate delays and errors that look the same in chat. For a late spoken reply, check how long it took to hear the request, prepare the answer, make audio, and finish playback.
 >
-> **In everyday use:** When a reply arrives late, separate time spent waiting for input, reasoning, synthesis and playback before deciding which stage to optimise.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#observability) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#observability) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#observability) · [Terms and examples](../VARIABLES_EXPLAINED.md#observability) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Covers [F13](../../KNOWN_FAILURE_MODES.md). Low severity — **no data loss**.

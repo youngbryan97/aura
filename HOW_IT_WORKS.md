@@ -1,19 +1,18 @@
 # How Aura works
 
 <!-- reader-navigation:start -->
-> **In plain English:** Architecture describes which parts exist, how information reaches them and which component is responsible for a decision or effect.
+> The architecture is the software that coordinates Aura’s conversations, memory, attention, and actions.
 >
-> **Why it matters:** A useful component needs a real reader and a real route into behavior; a box on a diagram can otherwise be disconnected from what users see.
+> Following information through the system explains how a component can change what you see or what the computer does. A stored correction can only affect a later answer if the reply uses the record that contains it.
 >
-> **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#architecture) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Aura runs chat, memory, goals, and background cognition as parts of one local
-application. Follow the path of a message through a tick and the decision gate
-to see how its internal state can affect a reply or action.
+Ask Aura to pick up work you discussed earlier. To act on the request, the app
+needs to find the old information, decide what it can do now, and check any tool
+it plans to use. This guide follows that path and explains what else keeps
+running while you talk to it.
 
 ## Table of contents
 

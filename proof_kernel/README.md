@@ -1,14 +1,12 @@
 # Aura operational cognition component demo
 
 <!-- reader-navigation:start -->
-> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+> The Intrinsic Subject Core experiments ask whether Aura’s measured parts act as one continuing process.
 >
-> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+> This puts a concrete question ahead of any argument about experience: which parts affect each other, and through what paths? Restore the same saved moment twice, change a value in one copy, and compare what happens to recall or a report.
 >
-> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
->
-> [Example and metaphor](../docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](../docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](../docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](../docs/DOCUMENTATION_INDEX.md)
-> [Glossary](../docs/GLOSSARY.md) · [Formulas with worked examples](../docs/FORMULAS.md)
+> [Plain-language guide](../docs/PLAIN_ENGLISH_GUIDE.md#isc) · [Terms and examples](../docs/VARIABLES_EXPLAINED.md#isc) · [Evidence and related work](../docs/DEMOS_AND_RELATED_WORK.md#isc)
+> [All docs](../docs/DOCUMENTATION_INDEX.md) · [Glossary](../docs/GLOSSARY.md) · [Worked formulas](../docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: Guide · Reconciled 25 October 2026

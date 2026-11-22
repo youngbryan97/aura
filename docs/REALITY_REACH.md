@@ -1,14 +1,12 @@
 # Aura Reality Reach
 
 <!-- reader-navigation:start -->
-> **In plain English:** A physical-effect claim needs an independently observed change outside the program, compared with the relevant baseline.
+> A claim about changing something in the physical world needs a separate observation of what changed.
 >
-> **Why it matters:** Users should be able to tell an internal simulation, an attempted command and a measured real-world result apart.
+> Distinguish a simulated change, a command sent to a device, and a measured result. After a command to turn something on, a separate sensor can show whether it actually turned on.
 >
-> **In everyday use:** A command to a device is an attempt. A separate sensor reading is needed to establish that the intended physical quantity changed.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#physical) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#physical) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#engineering) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#physical) · [Terms and examples](VARIABLES_EXPLAINED.md#physical) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#engineering)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: active implementation initiative

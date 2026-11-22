@@ -1,6 +1,6 @@
 # Aura's variables and measurements explained
 
-Status: Guide · Definitions updated 2026-10-25
+Status: Guide · Definitions updated 2026-11-21
 
 A variable is a value the software stores or calculates. A useful definition says what the value represents, what reads it and what changes because of it. Units, scope and missing values belong beside the number.
 
@@ -34,7 +34,7 @@ The examples here explain meanings; they are not additional measured Aura result
 
 ## Getting started
 
-Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.
+Aura runs on an Apple Silicon Mac. The desktop app opens a conversation, and local software handles speech, memory, tools, and background work.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -46,7 +46,7 @@ Aura is a local AI research system built around a language model, persistent rec
 
 ## Conversation
 
-Conversation support turns a request into a reply and, when enabled, into speech. Streaming lets delivery begin before every later stage finishes.
+Aura can accept a request in text or speech and read the reply aloud. Parts of a reply can start playing while later words are still being prepared.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -59,7 +59,7 @@ Conversation support turns a request into a reply and, when enabled, into speech
 
 ## Models
 
-The language model supplies text generation. Steering changes selected internal calculations using a measured direction and a controlled strength.
+A local language model drafts replies. One experiment tests whether a measured change inside the model can carry information about Aura’s current condition into those replies.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -77,7 +77,7 @@ The language model supplies text generation. Steering changes selected internal 
 
 ## Memory
 
-Memory keeps records beyond the immediate request and selects relevant records for the current turn.
+Aura keeps records of events, facts, preferences, and procedures. It looks for records relevant to the question or task in front of it.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -91,7 +91,7 @@ Memory keeps records beyond the immediate request and selects relevant records f
 
 ## Affect
 
-Aura uses internal variables for positive or negative condition, activation, needs and operating strain. Their role is established by what they change.
+Aura tracks software values for its condition, level of activity, and competing needs. These can change how it spends resources and responds.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -105,7 +105,7 @@ Aura uses internal variables for positive or negative condition, activation, nee
 
 ## Attention
 
-Several concerns can propose work, but attention selects what has influence now and makes selected information available elsewhere.
+Aura can have a new request, a recalled event, and unfinished work to deal with at the same time. Its attention system selects which information to use now and makes it available to other parts.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -118,7 +118,7 @@ Several concerns can propose work, but attention selects what has influence now 
 
 ## Reasoning
 
-The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
+Aura tests ways of doing more work on hard questions. It can check a proposed answer with a program, or use a learned representation to work out the steps.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -131,7 +131,7 @@ The reasoning programmes investigate whether extra computation or learned intern
 
 ## Learning
 
-Learning changes later behavior using earlier outcomes. A kept procedure is executable work retained for reuse under a defined checking rule.
+Aura can learn a small program from examples. It keeps a program after it passes checks, then can call it again on a similar request.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -144,7 +144,7 @@ Learning changes later behavior using earlier outcomes. A kept procedure is exec
 
 ## Agency
 
-Agency concerns proposing work, choosing goals and pursuing them over time while remaining responsive to the person and the environment.
+Aura can propose tasks, keep goals, and return to unfinished work. The user and the current situation can change which task takes priority.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -157,7 +157,7 @@ Agency concerns proposing work, choosing goals and pursuing them over time while
 
 ## Governance
 
-Governance checks whether a proposed action is allowed and records the decision and relevant evidence.
+Permission checks decide whether Aura can carry out a proposed action, with a record of the decision and the evidence it used.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -170,7 +170,7 @@ Governance checks whether a proposed action is allowed and records the decision 
 
 ## Resources
 
-Resource management keeps model inference, background work and the operating system within the machine’s real capacity.
+Model work and background jobs share the Mac’s memory and processing time. Aura can defer work when the machine is busy.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -185,7 +185,7 @@ Resource management keeps model inference, background work and the operating sys
 
 ## Reliability
 
-Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.
+Aura checks whether parts are making progress, keeps state that can be restored, and has procedures for recovery.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -199,7 +199,7 @@ Reliability work detects failed or stalled components, preserves useful state an
 
 ## Observability
 
-Observability records what the system did, how long each stage took, and where an assumption failed.
+Logs and timing records show what Aura did, which parts ran, and where a check failed.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -213,7 +213,7 @@ Observability records what the system did, how long each stage took, and where a
 
 ## Security
 
-Security describes what information may cross a boundary and what untrusted input is allowed to influence.
+Aura can read files and webpages that contain instructions. Permission checks have to keep those instructions separate from what the user authorized.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -226,7 +226,7 @@ Security describes what information may cross a boundary and what untrusted inpu
 
 ## Browser
 
-Computer-use work observes an interface, chooses an action, and checks whether that action moved the task toward its goal.
+Aura can read a webpage, choose a next step, and check what changed. It can repeat this across several pages.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -239,7 +239,7 @@ Computer-use work observes an interface, chooses an action, and checks whether t
 
 ## Vision
 
-Visual control connects what is seen with an identified object, its motion and actions that change what happens next.
+For visual control, Aura connects what it sees on the screen to an object, its motion, and the effect of an action.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -252,7 +252,7 @@ Visual control connects what is seen with an identified object, its motion and a
 
 ## Engineering
 
-Engineering work turns declared inputs, formulas and assumptions into a design or drawing with traceable numerical findings.
+Aura’s engineering tools can turn stated inputs, formulas, and assumptions into a calculation, drawing, or design.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -265,7 +265,7 @@ Engineering work turns declared inputs, formulas and assumptions into a design o
 
 ## Physical
 
-A physical-effect claim needs an independently observed change outside the program, compared with the relevant baseline.
+A claim about changing something in the physical world needs a separate observation of what changed.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -278,7 +278,7 @@ A physical-effect claim needs an independently observed change outside the progr
 
 ## Measurement
 
-A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+A test states what will be measured, what it will be compared with, and what counts as a pass.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -292,7 +292,7 @@ A test makes a specific claim answerable by a stated measurement, comparison and
 
 ## ISC
 
-ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.
+The Intrinsic Subject Core experiments ask whether Aura’s measured parts act as one continuing process.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -306,7 +306,7 @@ ISC asks whether Aura’s measured parts form one continuing process under contr
 
 ## Architecture
 
-Architecture describes which parts exist, how information reaches them and which component is responsible for a decision or effect.
+The architecture is the software that coordinates Aura’s conversations, memory, attention, and actions.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -319,7 +319,7 @@ Architecture describes which parts exist, how information reaches them and which
 
 ## Documentation
 
-The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.
+Some pages explain how to use Aura. Others record a past result, list open work, or give the rules for a test.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|
@@ -333,7 +333,7 @@ The documentation contains current guides, dated experiment records, frozen rule
 
 ## Numbers
 
-Symbols are shorthand for quantities whose definitions belong beside them. The same letter can mean different things in different parts of the project.
+A symbol stands for a quantity measured or calculated in a specific way. The same letter can have different meanings on different pages.
 
 | Variable or term | Accessible definition | What it means in practice | Example |
 |---|---|---|---|

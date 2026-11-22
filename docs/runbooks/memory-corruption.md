@@ -1,14 +1,12 @@
 # Runbook: Memory Corruption
 
 <!-- reader-navigation:start -->
-> **In plain English:** Resource management keeps model inference, background work and the operating system within the machine’s real capacity.
+> Model work and background jobs share the Mac’s memory and processing time. Aura can defer work when the machine is busy.
 >
-> **Why it matters:** A useful assistant must avoid exhausting the host or making the conversation unusable while doing background work.
+> Two models can each fit on a Mac by themselves and still overwhelm it if loaded together. Before starting a second large job, check how much memory the active conversation and its model already need.
 >
-> **In everyday use:** A second large model load can disrupt a working session even if each model fits alone. Scheduling and a measured memory budget matter.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#resources) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#resources) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#resources) · [Terms and examples](../VARIABLES_EXPLAINED.md#resources) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Diagnostic scope:** bundle members and field names below are examples to

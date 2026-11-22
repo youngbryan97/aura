@@ -1,28 +1,23 @@
 # Aura — Research Guide
 
 <!-- reader-navigation:start -->
-> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+> A test states what will be measured, what it will be compared with, and what counts as a pass.
 >
-> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+> Source code, a passing test, and a useful result in practice each answer a different question. To see whether memory helps, try the same tasks with memory enabled and disabled. Keep every success and failure.
 >
-> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#measurement) · [Terms and examples](VARIABLES_EXPLAINED.md#measurement) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#measurement)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Status: Guide · Research entry points reconciled 25 October 2026
+Status: Guide · Includes the November 2026 preprint results
 
-Aura is a local AI research system. It combines a language model with memory,
-attention, internal condition and action control. Research asks which of those
-mechanisms actually affect outcomes, under what conditions, and whether their
-organisation supports a scientific argument about subjecthood.
-
-A newcomer can say: “We add mechanisms that should make earlier events matter
-to later decisions, then test whether removing or changing them makes the
-predicted difference.” The [plain-English tour](PLAIN_ENGLISH_GUIDE.md) and
-[variable definitions](VARIABLES_EXPLAINED.md) explain the parts before the
-technical details.
+Aura gives researchers a system they can change while keeping the rest of
+an experiment comparable. For example, save a running moment, restore it twice,
+change memory in one copy, and measure what happens to attention or recall.
+The same app can talk, use the screen, and work through a task in front of a
+user. [Software tour](PLAIN_ENGLISH_GUIDE.md) ·
+[Worked variables](VARIABLES_EXPLAINED.md) ·
+[Demo recordings](DEMOS_AND_RELATED_WORK.md#the-seven-recordings)
 
 ## Follow a claim to its evidence
 
@@ -30,7 +25,7 @@ technical details.
 |---|---|---|
 | What is the project claiming? | [Claim boundaries](CLAIM_BOUNDARIES.md), [unsupported claims](../CLAIMS_NOT_SUPPORTED.md) | Exact capability and evidence scope |
 | What scientific work motivates the design? | [Scientific source map](SCIENCE_AND_SOURCES.md), [related work](DEMOS_AND_RELATED_WORK.md) | Original source, relevant mechanism and limits of the adaptation |
-| What does the current ISC result say? | [ISC status](ISC_STATUS.md), [source-hashed results](evidence/ISC_STATUS_2026-10-25.json) | Source revision, seed, run identity, controls and later isolation correction |
+| What does the current ISC result say? | [ISC status](ISC_STATUS.md), [November preprint](https://zenodo.org/records/24075466), [25 October snapshot](evidence/ISC_STATUS_2026-10-25.json) | Source revision, seed, run identity, controls and later isolation correction |
 | What is the experiment meant to test? | [ISC explained](ISC_EXPLAINED.md), [worked variables](ISC_VARIABLES.md), [readers' guide](ISC_READERS_GUIDE.md) | Definition, comparison, decision rule and open questions |
 | How was it measured? | [ISC reproduction](ISC_REPRODUCTION.md) and the linked frozen protocols | Commands from the actual manifest, measurement readers, artifacts and refusal reasons |
 | Does the reasoning machinery help? | [RLC programme](RECURSIVE_LATENT_CORTEX.md), [reasoning engines](REASONING_ENGINES.md) | Task family, held-out results, public answers and qualification status |
@@ -39,20 +34,25 @@ technical details.
 
 ## The current ISC qualification matters
 
-The completed seed-23 run recorded 22/24 under ISC-v6 and positive content and
-withheld-report outputs. Later source repair found that comparison arms shared
-consequence history. Those results remain in the record and need rechecking
-under repaired isolation before being called clean causal confirmation. The
-[isolation update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json) records that
-finding. No full ISC pass or settled five-ground bridge result is reported.
+The November preprint reports 24/24 under ISC-v7 at confirmatory seed 101.
+Its carrier analysis identified the ten measured domains, and its
+five-ground comparison met the paper's criteria under its stated
+assumptions. A separate 27B experiment tested how reports followed changes
+to internal valence. The [current status](ISC_STATUS.md) links the runs
+and covers later negative results and the independent replication still owed.
 
-The later closure method also keeps an open boundary distinct from an
-unresolved question. The least-domain margin proposed in the afternoon was
-withdrawn at `72dd0d703`. The night addendum at `96487c6f1` names K*, a
-numeric margin about 0.0196 and an additional interventional closure test.
-The revised estimator predicts change and excludes failed folds from closed
-readings. These method changes need fresh confirmation. Use [current status](ISC_STATUS.md) for the exact
-versioned reading and the distinction between discovery and confirmation.
+The earlier seed-23 run recorded 22/24 under ISC-v6 and positive content and
+withheld-report outputs. Later inspection found that comparison copies
+shared consequence history, limiting how those results can be interpreted.
+[Isolation finding](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json)
+
+The method for asking whether outside state helps drive the proposed core
+also changed after seed 23. The least-domain margin was withdrawn at
+`72dd0d703`. The night addendum at `96487c6f1` names the enlarged state
+boundary K*, a margin of about 0.0196, and a test that swaps outside state
+to see whether it affects the core. Its estimator predicts change and
+excludes failed folds before making a closure claim. The later results use
+their own fixed scoring rules.
 
 ## Source names and measured mechanisms
 

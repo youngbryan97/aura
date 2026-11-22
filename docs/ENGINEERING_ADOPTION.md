@@ -1,20 +1,18 @@
 # Engineering adoption: what Aura took from ten mature projects
 
 <!-- reader-navigation:start -->
-> **In plain English:** Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.
+> Aura checks whether parts are making progress, keeps state that can be restored, and has procedures for recovery.
 >
-> **Why it matters:** A user should not lose work because a slow component was mistaken for a dead one, or because a restart created another large process.
+> A mistaken restart can interrupt work or leave two large processes competing for memory. If a reply takes a long time, first check whether its worker is still making progress. A stalled worker needs a different response.
 >
-> **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#reliability) · [Terms and examples](VARIABLES_EXPLAINED.md#reliability) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Aura's runtime now carries disciplines borrowed, clean-room, from projects
-that earned them the expensive way. This document says what was taken,
-from where, why it applies here, and where the code lives — so that the
-next person to touch one of these knows what contract they are inside.
+When a worker crashes or a task stalls, the rest of Aura still needs to
+know what happened and what can safely restart. This guide traces practices
+for those problems to the systems that inspired them. It explains the parts
+Aura adopted, their contracts, and where they are implemented.
 
 Everything listed is **on by default and live at runtime**. The single
 boot entry point is [`core/runtime/foundations.py`](../core/runtime/foundations.py),

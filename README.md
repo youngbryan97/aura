@@ -1,17 +1,32 @@
 # Aura
 
-Aura is a local AI agent and research project for Apple Silicon Macs. You can
-talk to it in a desktop app or from the command line. A local language model
-drafts replies, and the surrounding system keeps memories and goals across
-restarts, looks up information, and checks and records consequential actions.
-Background workers handle jobs such as memory consolidation and repair checks.
+Aura is an experimental AI desktop assistant and a cognitive architecture
+for Apple Silicon Macs. It can talk with you by voice or text, look things up
+in a local copy of Wikipedia, and work with apps, files, and webpages when
+given access. The demos show Aura winning a game of 2048, fixing and test-playing
+Pong, building a small document editor and exporting a file, and commenting on
+a video as it plays. In another demo, an Apple Notes request goes unfinished.
 
-The research asks how that persistent state affects what Aura writes, remembers,
-and does. A good way to see the difference is to follow a single action from
-the state that prompted it, through the tool-permission check, to the receipt
-that records what happened.
+The **cognitive architecture** is the software that coordinates how Aura pays
+attention, remembers, decides what to do, and checks what happened. The language
+model runs on the Mac. Other parts interpret screen and sound input, keep goals
+and memories across restarts, and manage background work and the resources it
+uses. When Aura uses a tool through its permission system, it records what was
+allowed and what happened. It can also test proposed fixes to its own code in
+a separate workspace before the running app takes them up.
 
-[ISC preprint on Zenodo](https://zenodo.org/records/24075466) · [Independent Φ audit](https://arxiv.org/html/2610.41604v1#S8) · [AuraDemos channel](https://www.youtube.com/@AuraDemos) · [Project video](https://www.youtube.com/watch?v=iTyxeugcZtI) · [What the demos and research support](docs/DEMOS_AND_RELATED_WORK.md)
+The research asks how much a desktop assistant can learn from doing the work.
+In one live test, Aura learned a method from corrections to date calculations
+and answered three new questions the next day. Reusing checked methods helped
+on fresh math and planning problems. A separate test of everyday requests found
+no reliable improvement. The subjecthood experiments look at how Aura's parts
+depend on each other while it runs. The preprint reports a pass on all 24
+checks in its confirmatory run. What those results mean for subjective
+experience remains open.
+
+[What to watch in each demo](docs/DEMOS_AND_RELATED_WORK.md#the-seven-recordings) · [AuraDemos channel](https://www.youtube.com/@AuraDemos) · [Desktop control demo](https://www.youtube.com/watch?v=iTyxeugcZtI)
+
+[What the learning tests found](#knowledge-procedures-and-learning-in-use) · [ISC preprint on Zenodo](https://zenodo.org/records/24075466) · [Independent Φ audit](https://arxiv.org/html/2610.41604v1#S8)
 
 [![License: All Rights Reserved with Research-Use Grant](https://img.shields.io/badge/License-All_Rights_Reserved_(Research_Use)-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)

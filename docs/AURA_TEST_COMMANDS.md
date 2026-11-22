@@ -1,14 +1,12 @@
 # Aura Test Commands
 
 <!-- reader-navigation:start -->
-> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+> A test states what will be measured, what it will be compared with, and what counts as a pass.
 >
-> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+> Source code, a passing test, and a useful result in practice each answer a different question. To see whether memory helps, try the same tasks with memory enabled and disabled. Keep every success and failure.
 >
-> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#measurement) · [Terms and examples](VARIABLES_EXPLAINED.md#measurement) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#measurement)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 The commands, in the order you actually want them.

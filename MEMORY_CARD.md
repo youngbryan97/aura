@@ -1,21 +1,20 @@
 # Aura Memory Card
 
 <!-- reader-navigation:start -->
-> **In plain English:** Memory keeps records beyond the immediate request and selects relevant records for the current turn.
+> Aura keeps records of events, facts, preferences, and procedures. It looks for records relevant to the question or task in front of it.
 >
-> **Why it matters:** Useful continuity depends on recalling the right information, retaining its source and correcting or deleting it when needed.
+> A memory is useful when you can find its source, correct it, or remove it. If you correct the date of a project, a later reply should use the correction and remember where it came from.
 >
-> **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#memory) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#memory) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#memory) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#memory) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#memory)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Purpose
 
-How Aura's memory works, how what she remembers changes her actions, and how you can control it.
-
-Memory here isn't just a stored transcript. It actively shapes how she feels and responds. Something she remembers about you today can change how she answers you next week. You should be able to see those memories and delete them if you want.
+This page explains what Aura can remember, how a past conversation can affect
+a reply or action next week, and what you can control. In the app, you can
+inspect and remove the memories exposed by its memory panel. The sections
+below show where those records live and how Aura reads them.
 
 ## Memory Architecture
 

@@ -1,7 +1,11 @@
 # docs/
 
-This folder contains guides for running Aura, technical references, and
-research records. [Document status](DOC_STATUS.md) identifies current guides,
+If you came here to find out what Aura does, start with the
+[seven demo recordings](DEMOS_AND_RELATED_WORK.md#the-seven-recordings).
+To understand how it follows a conversation, uses a tool, or learns a
+procedure, start with the [plain-English tour](PLAIN_ENGLISH_GUIDE.md).
+This folder also contains setup guides, technical references, and the
+research records behind those examples. [Document status](DOC_STATUS.md) identifies current guides,
 historical records, generated references, and evidence standards.
 
 ## Contents

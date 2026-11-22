@@ -1,14 +1,12 @@
 # Runbook: Model Fails To Load
 
 <!-- reader-navigation:start -->
-> **In plain English:** The language model supplies text generation. Steering changes selected internal calculations using a measured direction and a controlled strength.
+> Aura checks whether parts are making progress, keeps state that can be restored, and has procedures for recovery.
 >
-> **Why it matters:** An internal state should affect the intended part of a response while preserving competence and remaining tied to the measured model and basis.
+> A mistaken restart can interrupt work or leave two large processes competing for memory. If a reply takes a long time, first check whether its worker is still making progress. A stalled worker needs a different response.
 >
-> **In everyday use:** A change in internal condition may alter how a reply is formed; a channel measurement must show the change rather than relying on the reply sounding different.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#models) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#models) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#steering) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#reliability) · [Terms and examples](../VARIABLES_EXPLAINED.md#reliability) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Diagnostic scope:** bundle members and field names below are examples to

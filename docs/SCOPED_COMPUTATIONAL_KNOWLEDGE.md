@@ -1,14 +1,12 @@
 # Scoped Computational Knowledge
 
 <!-- reader-navigation:start -->
-> **In plain English:** Engineering work turns declared inputs, formulas and assumptions into a design or drawing with traceable numerical findings.
+> Aura’s engineering tools can turn stated inputs, formulas, and assumptions into a calculation, drawing, or design.
 >
-> **Why it matters:** A plausible-looking diagram is insufficient when somebody needs to know where its dimensions came from and when they apply.
+> The result should let someone check where a dimension came from and when it applies. A proposed beam size belongs with the loads, units, material assumptions, and equation used to calculate it.
 >
-> **In everyday use:** A beam calculation should retain the load, units, material assumptions and equation beside the proposed dimension.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#engineering) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#engineering) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#engineering) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#engineering) · [Terms and examples](VARIABLES_EXPLAINED.md#engineering) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#engineering)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Aura can calculate consequences of an explicit model and scoped premises, then

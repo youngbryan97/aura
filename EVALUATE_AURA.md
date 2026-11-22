@@ -1,24 +1,24 @@
 # Guide to evaluating Aura
 
 <!-- reader-navigation:start -->
-> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+> A test states what will be measured, what it will be compared with, and what counts as a pass.
 >
-> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+> Source code, a passing test, and a useful result in practice each answer a different question. To see whether memory helps, try the same tasks with memory enabled and disabled. Keep every success and failure.
 >
-> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#measurement) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: Guide · Commands and evidence scope reviewed 25 October 2026
 
-Start with the claim you want to assess. A passing code check, a bounded
-experiment and an independently reproduced capability answer different questions.
-For example, G09 passed its registered math-and-planning criterion; G12’s
-frontier comparison and L09’s reliable ordinary-use benefit remain open.
-The [programme summary](docs/RECURSIVE_LATENT_CORTEX.md) and
-[claim ledger](CLAIMS_NOT_SUPPORTED.md) link the results and limits.
+Start with something you want to check. Does Aura remember a correction?
+Can a learned method improve an answer? Is a published number reproducible?
+The commands and records below help you choose a check for that question.
+
+The G09 comparison passed its declared math and planning criterion. Tests
+of reliable improvement in everyday use (L09) and a matched comparison with
+frontier systems (G12) remain open. [Reasoning experiments](docs/RECURSIVE_LATENT_CORTEX.md) ·
+[Open claims](CLAIMS_NOT_SUPPORTED.md)
 
 ## Prepare an independent checkout
 

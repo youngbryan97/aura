@@ -1,14 +1,12 @@
 # Aura artifact index
 
 <!-- reader-navigation:start -->
-> **In plain English:** Observability records what the system did, how long each stage took, and where an assumption failed.
+> Logs and timing records show what Aura did, which parts ran, and where a check failed.
 >
-> **Why it matters:** A visible error or delay needs a traceable cause; otherwise a repair can change the wrong thing while hiding the real failure.
+> You can use those records to investigate delays and errors that look the same in chat. For a late spoken reply, check how long it took to hear the request, prepare the answer, make audio, and finish playback.
 >
-> **In everyday use:** When a reply arrives late, separate time spent waiting for input, reasoning, synthesis and playback before deciding which stage to optimise.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#observability) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#observability) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#observability) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#observability) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 The `artifacts/current/` directory holds generated build and test outputs. Because it is listed in `.gitignore`, files created there during verification runs are not pushed to GitHub. They exist only locally on the computer where they were generated, which means clicking a link to one from a web browser will result in a 404 error. This page maps each test artifact to the command used to generate it.

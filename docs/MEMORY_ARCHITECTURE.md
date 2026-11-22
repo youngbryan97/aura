@@ -1,20 +1,24 @@
 # Aura Memory Architecture
 
 <!-- reader-navigation:start -->
-> **In plain English:** Memory keeps records beyond the immediate request and selects relevant records for the current turn.
+> Aura keeps records of events, facts, preferences, and procedures. It looks for records relevant to the question or task in front of it.
 >
-> **Why it matters:** Useful continuity depends on recalling the right information, retaining its source and correcting or deleting it when needed.
+> A memory is useful when you can find its source, correct it, or remove it. If you correct the date of a project, a later reply should use the correction and remember where it came from.
 >
-> **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#memory) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#memory) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#memory) · [Terms and examples](VARIABLES_EXPLAINED.md#memory) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#memory)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Overview
-Aura's memory system is not a passive transcript but an active cognitive substrate. It shapes generation, preference, identity, and affective context. Memories have several storage and retrieval paths. Governance and encryption
-apply through their declared owners; the presence of an encrypted quarantine
-store does not establish encryption of every memory database or artifact.
+Suppose you correct a fact about a project on Monday and ask about it on
+Friday. Aura has to find the right record, know where it came from, and use it
+when producing the answer. Different paths keep the current conversation,
+past events, facts, and learned procedures. What they retrieve can affect
+generation, preferences, identity records, and affect values.
+
+The stores have different rules. The quarantine store can encrypt its own
+records. For other stores, check the storage and retention rules that apply
+to each one.
 
 ## Multi-Tiered Architecture
 

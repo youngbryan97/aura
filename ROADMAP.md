@@ -1,14 +1,12 @@
 # ROADMAP — Path to a Perfect Score
 
 <!-- reader-navigation:start -->
-> **In plain English:** The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.
+> Some pages explain how to use Aura. Others record a past result, list open work, or give the rules for a test.
 >
-> **Why it matters:** A reader should not treat an old proposed run as today’s result or a completed engineering task as a passed scientific check.
+> The date and type of document tell you how to use it. If an old plan calls a test upcoming, look for its result in the current status page.
 >
-> **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#documentation) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#documentation) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 This scorecard records dated assessments and later progress notes. The August

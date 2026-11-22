@@ -1,14 +1,12 @@
 # Runbook: Governance Receipt Missing
 
 <!-- reader-navigation:start -->
-> **In plain English:** Governance checks whether a proposed action is allowed and records the decision and relevant evidence.
+> Permission checks decide whether Aura can carry out a proposed action, with a record of the decision and the evidence it used.
 >
-> **Why it matters:** The user needs meaningful control and a way to find out what was authorised, attempted and observed.
+> Those records give you a way to check what was allowed, attempted, and observed. Before Aura edits a file or sends information outside the Mac, you should be able to see which permission applies.
 >
-> **In everyday use:** Before editing a file or sending information outside the machine, the action must be checked against the applicable scope and recorded honestly.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#governance) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#governance) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#governance) · [Terms and examples](../VARIABLES_EXPLAINED.md#governance) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Diagnostic scope:** bundle members and field names below are examples to

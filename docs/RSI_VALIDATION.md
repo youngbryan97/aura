@@ -1,14 +1,12 @@
 # Aura RSI Validation
 
 <!-- reader-navigation:start -->
-> **In plain English:** Learning changes later behavior using earlier outcomes. A kept procedure is executable work retained for reuse under a defined checking rule.
+> Aura can learn a small program from examples. It keeps a program after it passes checks, then can call it again on a similar request.
 >
-> **Why it matters:** Experience should improve later work without accumulating unreliable shortcuts or expensive rules that no longer help.
+> Keeping a checked method can save work the next time. A bad match can also send an answer off course. After learning how to count days between dates, Aura answered three new date questions using the method the next day.
 >
-> **In everyday use:** After solving one kind of task, the system may reuse a checked procedure on a later task of that kind instead of deriving every step again.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#learning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#learning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#learning) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#learning) · [Terms and examples](VARIABLES_EXPLAINED.md#learning) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#learning)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 *Reviewed against the tree: 2026-08-01. See [documentation status map](DOC_STATUS.md) for how to read this file.*

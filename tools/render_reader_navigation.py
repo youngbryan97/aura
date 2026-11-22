@@ -66,6 +66,13 @@ OVERRIDES = {
     "docs/TERMINOLOGY.md": "documentation", "docs/WRITING_RULES.md": "documentation",
     "docs/RESEARCH_GUIDE.md": "measurement", "docs/REVIEWER_PACKET.md": "measurement",
     "docs/SCIENCE_AND_SOURCES.md": "measurement",
+    "docs/DEMOS_AND_RELATED_WORK.md": "measurement", "docs/FORMULAS.md": "numbers",
+    "docs/FICTIONAL_AI_CAPABILITY_MAP.md": "measurement",
+    "OWNERSHIP.md": "governance", "proof_kernel/README.md": "isc",
+    "tools/replicate/README.md": "isc", "outside_bar/README.md": "measurement",
+    "docs/ENDOGENOUS_LANGUAGE_PATHWAY.md": "models",
+    "docs/runbooks/prompt-cache-never-reused.md": "reliability",
+    "docs/runbooks/model-fails-to-load.md": "reliability",
     "docs/CONNECTOME.md": "architecture", "docs/MORPHOGENESIS.md": "architecture",
     "docs/MORPHOGENESIS_README.md": "architecture", "docs/SOUL.md": "affect",
     "docs/WHAT_SHE_IS_LIKE.md": "affect", "docs/WHAT_A_MITOCHONDRION_TEACHES.md": "resources",
@@ -160,11 +167,10 @@ def reading_card(path: str, topic: dict) -> str:
     formulas_link = link(path, "docs/FORMULAS.md")
     return "\n".join((
         OPEN,
-        f"> **In plain English:** {topic['definition']}", ">",
-        f"> **Why it matters:** {topic['why']}", ">",
-        f"> **In everyday use:** {topic['daily']}", ">",
-        f"> [Example and metaphor]({plain}) · [Variables and practical meanings]({variables}) · [Demos and related work]({related}) · [Document map]({index})",
-        f"> [Glossary]({glossary_link}) · [Formulas with worked examples]({formulas_link})",
+        f"> {topic['definition']}", ">",
+        f"> {topic['why']} {topic['daily']}", ">",
+        f"> [Plain-language guide]({plain}) · [Terms and examples]({variables}) · [Evidence and related work]({related})",
+        f"> [All docs]({index}) · [Glossary]({glossary_link}) · [Worked formulas]({formulas_link})",
         CLOSE,
     ))
 
@@ -182,19 +188,17 @@ def with_card(text: str, card: str) -> str:
 def tour(topics: list[dict], date: str) -> str:
     doc = "docs/PLAIN_ENGLISH_GUIDE.md"
     out = ["# Aura in plain English", "", f"Status: Guide · Reading explanations updated {date}", "",
-           "Aura is a local AI research project. It combines a language model with memory, attention, action control and ongoing internal state. The purpose is useful continuity: what happened earlier should matter to what it does next, with a traceable route from a request to an outcome.", "",
-           "This tour explains the mechanisms and why someone would care. It is a guide to the design, not a certification that every feature works in the live app. Use the [claim boundaries](../CLAIMS_NOT_SUPPORTED.md), [current ISC results](ISC_STATUS.md) and each page's evidence for supported outcomes.", "",
+           "Aura is an experimental AI desktop assistant and a cognitive architecture for Apple Silicon Macs. You can talk to it, ask it to look something up, or give it work in an app. The language model drafts the reply. Other parts keep track of work, decide what to do, check permissions, and record what happened.", "",
+           "Start with a task you recognise. You can watch Aura work through a game or build a small document editor in the [recorded demos](DEMOS_AND_RELATED_WORK.md#the-seven-recordings). The topics below explain the software behind those examples. For measured outcomes, see each topic’s evidence and the [claim boundaries](../CLAIMS_NOT_SUPPORTED.md). The [ISC status page](ISC_STATUS.md) covers the separate subjecthood experiments.", "",
            "The [scientific source map](SCIENCE_AND_SOURCES.md) explains the research behind the ideas, what each source supports and where Aura's own evidence is required.", "",
            "## A short explanation you can use", "",
-           "> Aura is built to do more than answer a message in isolation. It keeps records, chooses what deserves attention, checks proposed actions and learns or reuses some procedures. The practical goal is an assistant that can keep track of your work, explain what it did and remain responsive while it works. We test whether each extra mechanism actually helps, because a complicated architecture can still give an ordinary or unreliable result.", "",
+           "> Aura is a Mac assistant built to carry work across conversations. It can pick up an earlier task, use information you gave it, and check whether it has permission to act. If it changes a file, the record can tell you what it tried and what happened. The research measures where those features actually help.", "",
            "## Choose a topic", ""]
     out += [f"- [{t['title']}](#{t['id']})" for t in topics]
     for t in topics:
-        out += ["", f"## {heading(t)}", "", f"**{t['title']}.** {t['definition']}", "",
-                "**Why an ordinary user would care.** " + t["why"], "",
-                "**Day-to-day example.** " + t["daily"], "",
-                "**Metaphor.** " + t["metaphor"], "",
-                "**Where the comparison stops.** " + t["metaphor_limit"], "",
+        out += ["", f"## {heading(t)}", "", t["definition"], "",
+                t["why"] + " " + t["daily"], "",
+                t["metaphor"] + " " + t["metaphor_limit"], "",
                 f"[Variables and their practical meanings](VARIABLES_EXPLAINED.md#{t['id']}) · [Demonstrations and related work](DEMOS_AND_RELATED_WORK.md#{t['related']})", "",
                 "Read next: " + ", ".join(f"[{Path(p).stem.replace('_', ' ').title()}]({link(doc, p)})" for p in t["read_more"]) + "."]
     return "\n".join(out).rstrip() + "\n"
@@ -264,8 +268,14 @@ def document_map(root: Path, paths: list[str], topics: list[dict], date: str) ->
         title = title.replace("|", "\\|").replace("[", "").replace("]", "")
         groups.setdefault(category(path, text), []).append((path, title, topic_for(path)))
     out = ["# Aura documentation: every tracked Markdown page", "", f"Status: Generated navigation · Updated {date}", "",
-           "Start with [the plain-English tour](PLAIN_ENGLISH_GUIDE.md), [variables and examples](VARIABLES_EXPLAINED.md), or [demos and related work](DEMOS_AND_RELATED_WORK.md). For ISC, use [the introduction](ISC_EXPLAINED.md) and [current results](ISC_STATUS.md).", "",
-           "This map includes the source repository's Markdown pages and the new reading guides. It is an inventory, not a claim that every old document is a current capability statement. Historical records and frozen protocols retain their original wording; generated pages and standards retain their own sources.", "",
+           "| If you want to | Start here |", "|---|---|",
+           "| See Aura use a computer | [Seven recorded demos](DEMOS_AND_RELATED_WORK.md#the-seven-recordings) |",
+           "| Understand how Aura works | [Plain-English tour](PLAIN_ENGLISH_GUIDE.md) · [Variables and examples](VARIABLES_EXPLAINED.md) |",
+           "| Run it or get help | [Install](../INSTALL.md) · [Use the app](USER_GUIDE.md) · [Operate and troubleshoot](OPERATOR_GUIDE.md) |",
+           "| Read about the subjecthood experiments | [What ISC asks](ISC_EXPLAINED.md) · [Results and open questions](ISC_STATUS.md) |",
+           "| Check a project claim | [Research guide](RESEARCH_GUIDE.md) · [Claims and their evidence](../CLAIMS_MATRIX.md) |", "",
+           "Below is the full inventory. Use a guide for an explanation and a dated record for what happened in a particular run. Frozen protocols, standards, and generated references give the original rules or their source.", "",
+           "[Guides](#guide-or-reference) · [Open work](#living-status-or-append-only-ledger) · [Standards and policies](#standard-policy-or-contributor-reference) · [Generated references](#generated-reference) · [Historical records](#historical-or-frozen-record)", "",
            f"**{len(paths)} Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.", "",
            "Definitions, examples and reading notes come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.", ""]
     for group in ("Guide or reference", "Living status or append-only ledger", "Standard, policy or contributor reference", "Generated reference", "Historical or frozen record"):

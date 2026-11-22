@@ -1,14 +1,12 @@
 # Runbook: quadratic conversation cost from a never-reused prompt cache
 
 <!-- reader-navigation:start -->
-> **In plain English:** Conversation support turns a request into a reply and, when enabled, into speech. Streaming lets delivery begin before every later stage finishes.
+> Aura checks whether parts are making progress, keeps state that can be restored, and has procedures for recovery.
 >
-> **Why it matters:** The person should receive a timely, coherent answer to the current request without hearing a stale or unapproved fragment.
+> A mistaken restart can interrupt work or leave two large processes competing for memory. If a reply takes a long time, first check whether its worker is still making progress. A stalled worker needs a different response.
 >
-> **In everyday use:** When you interrupt a spoken reply, the old reply should stop owning the conversation and the new turn should take priority.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#conversation) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#conversation) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#interaction) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#reliability) · [Terms and examples](../VARIABLES_EXPLAINED.md#reliability) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Covers [F19](../../KNOWN_FAILURE_MODES.md). **Fixed.** Root cause in

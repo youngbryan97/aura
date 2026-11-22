@@ -1,6 +1,6 @@
 # Aura glossary: terms in ordinary language
 
-Status: Generated reference · Definitions reviewed 2026-10-25
+Status: Generated reference · Definitions reviewed 2026-11-21
 
 Use this page when a term stops you understanding a sentence. The context matters: the same word or letter can have different meanings in different experiments.
 

@@ -1,21 +1,46 @@
 # Demonstrations, evidence and related work
 
-Status: Guide · References checked 25 October 2026
+Status: Guide · Seven recordings reviewed alongside the experiment records
 
-A demonstration helps a person see why a mechanism matters. A controlled test
-helps establish what caused the result. A paper can supply a useful design
-idea without supplying evidence that Aura performs as well as the system in
-that paper. This page keeps those connections explicit.
+Start here if you want to see the desktop app in use. The recordings go from
+conversation and browser interaction to game control, code repair, document
+export, and watching a video together. Each row below points out what you can
+see and where that particular run stops.
 
-For the overall idea, read [the plain-English tour](PLAIN_ENGLISH_GUIDE.md).
-For measurements, use the linked experiment or test record and retain its
-scope. The examples below do not establish universal capability or comparative
-superiority.
+A recording shows what happened once. A controlled experiment can tell you
+whether changing a software component made a difference. The
+[plain-English tour](PLAIN_ENGLISH_GUIDE.md) explains the design, and the
+[scientific source map](SCIENCE_AND_SOURCES.md) traces the neuroscience,
+human studies, mathematical methods, and related ideas. It includes a
+bibliography for following those sources.
 
-For neuroscience, human studies, mathematical methods and the support each
-reference actually supplies, use [the scientific source map](SCIENCE_AND_SOURCES.md).
-It distinguishes empirical results, theory, analogy and Aura's own evidence,
-with a bibliography for later paper writing.
+## Contents
+
+- [The seven recordings](#the-seven-recordings) · [How to read the evidence](#what-kind-of-evidence-is-linked)
+- [Talk with Aura](#interaction) · [Remembering and recall](#memory) · [How state can change a reply](#steering)
+- [How the parts work together](#cognitive-architectures) · [Reasoning](#reasoning) · [Learning](#learning) · [Taking action](#agents)
+- [Internal condition](#affect) · [Keeping the app running](#runtime) · [Engineering tools](#engineering)
+- [Subjecthood research](#isc) · [Measurement](#measurement) · [The outside Φ audit](#independent-audit-of-the-φ-core) · [Writing a comparison](#how-to-state-an-extension-or-comparison)
+
+## The seven recordings
+
+The recordings are collected on the [AuraDemos channel](https://www.youtube.com/@AuraDemos).
+Each title below opens the corresponding recording.
+
+| Recording | What to watch for |
+|---|---|
+| [1. Desktop control](https://www.youtube.com/watch?v=iTyxeugcZtI) | The chat, activity panel, and state display show the desktop app and the work it reports as the user talks to it. An Apple Notes request goes unfinished. |
+| [2. Vision and self-inspection](https://www.youtube.com/watch?v=smfzngYbF7s) | Aura describes what it sees, discusses its own running state, and works with a browser. The software’s self-descriptions are reported by Aura itself. |
+| [3. 2048](https://www.youtube.com/watch?v=wE5Dx5l3pjI) | Aura plays the tile game and reaches 2048 in the recorded run. |
+| [4. Browser questionnaire](https://www.youtube.com/watch?v=LNlGUBeTIQY) | Aura works through a personality questionnaire in the browser. The visible behavior is reading prompts and entering answers on a multi-step page. |
+| [5. Pong repair](https://www.youtube.com/watch?v=0FKDBQkvIPs) | Aura edits a broken local game file and plays the repaired game. The play session makes the result of the edit visible. |
+| [6. Document editor](https://www.youtube.com/watch?v=C6wtBY4DmJ8) | Aura builds a small Word-inspired editor and exports a document. The recording shows document creation and export for that example. |
+| [7. Watching a video together](https://www.youtube.com/watch?v=kM-B8mh314E) | Aura comments on specific moments in a YouTube video and helps choose what to watch next. Some remarks are late, and a later recap misstates what happened. |
+
+The [November preprint](https://zenodo.org/records/24075466) discusses the
+8 November watch-along in Section 3.1, including a recap error. The videos
+show the system used in the paper. The experimental results come from separate
+runs with recorded comparisons.
 
 ## What kind of evidence is linked
 
@@ -27,12 +52,6 @@ with a bibliography for later paper writing.
 | Test or experiment | The property measured under its stated inputs, controls and scope |
 | Source implementation | How a mechanism is built; its presence alone does not prove a useful result |
 | Related work | An earlier idea or comparison point; its results do not transfer automatically to Aura |
-
-The project links the [AuraDemos channel](https://www.youtube.com/@AuraDemos)
-and [this video](https://www.youtube.com/watch?v=iTyxeugcZtI). The channel and
-video contents could not be read during this pass. They remain project video
-links; no specific causal or performance claim below is attributed to footage
-that was not inspected.
 
 ## Interaction
 

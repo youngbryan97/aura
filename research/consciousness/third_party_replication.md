@@ -1,14 +1,12 @@
 # Third-Party Replication Protocol for Aura
 
 <!-- reader-navigation:start -->
-> **In plain English:** ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.
+> The Intrinsic Subject Core experiments ask whether Aura’s measured parts act as one continuing process.
 >
-> **Why it matters:** The project needs evidence that memories, attention and self-state actually affect one another before arguing about what that organisation means.
+> This puts a concrete question ahead of any argument about experience: which parts affect each other, and through what paths? Restore the same saved moment twice, change a value in one copy, and compare what happens to recall or a report.
 >
-> **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
->
-> [Example and metaphor](../../docs/PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](../../docs/VARIABLES_EXPLAINED.md#isc) · [Demos and related work](../../docs/DEMOS_AND_RELATED_WORK.md#isc) · [Document map](../../docs/DOCUMENTATION_INDEX.md)
-> [Glossary](../../docs/GLOSSARY.md) · [Formulas with worked examples](../../docs/FORMULAS.md)
+> [Plain-language guide](../../docs/PLAIN_ENGLISH_GUIDE.md#isc) · [Terms and examples](../../docs/VARIABLES_EXPLAINED.md#isc) · [Evidence and related work](../../docs/DEMOS_AND_RELATED_WORK.md#isc)
+> [All docs](../../docs/DOCUMENTATION_INDEX.md) · [Glossary](../../docs/GLOSSARY.md) · [Worked formulas](../../docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 This document describes how external auditors can run the software introspection and behavioral-adaptation suites. They check their

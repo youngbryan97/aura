@@ -1,27 +1,22 @@
 # Autonomous Architecture Governor
 
 <!-- reader-navigation:start -->
-> **In plain English:** Agency concerns proposing work, choosing goals and pursuing them over time while remaining responsive to the person and the environment.
+> Aura can propose tasks, keep goals, and return to unfinished work. The user and the current situation can change which task takes priority.
 >
-> **Why it matters:** An assistant must distinguish what it is able to attempt, what it has permission to do, and what it has actually completed.
+> The useful questions are what it tried, who allowed it, and whether it finished. Permission to inspect a document covers reading it. Sending that document is a separate action that needs its own authorization.
 >
-> **In everyday use:** A reminder to inspect a document should not become permission to send it to somebody else. A new request can change the priority of existing work.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#agency) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#agency) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#agents) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#agency) · [Terms and examples](VARIABLES_EXPLAINED.md#agency) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#agents)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 *Reviewed against the tree: 2026-08-01. See [documentation status map](DOC_STATUS.md) for how to read this file.*
 
-The Autonomous Architecture Governor is an audit-first architect. Audit-first
-matters: it looks before it proposes, and proposes before it touches
-anything.
-
-It builds a live architecture graph, finds structural and governance smells,
-stages refactor plans, runs candidates in a local shadow workspace, verifies
-proof obligations, promotes only eligible
-low-risk changes, monitors after promotion, and restores from rollback packets
-when delayed regression appears.
+When Aura proposes a change to its own code, it needs to see what depends on
+that code, test the change away from the running app, and know how to undo it.
+The Autonomous Architecture Governor builds the dependency map, looks for
+structural and permission problems, and prepares changes in a separate local
+workspace. Eligible low-risk changes can move into use after checks. A monitor
+looks for delayed problems, and a rollback record is available for recovery.
 
 The implementation lives in `core/architect/` and is registered as the optional
 `architecture_governor` / `autonomous_architecture_governor` service. Boot mode

@@ -1,29 +1,24 @@
 # Claim surface — what the profound names actually name
 
 <!-- reader-navigation:start -->
-> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+> A test states what will be measured, what it will be compared with, and what counts as a pass.
 >
-> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+> Source code, a passing test, and a useful result in practice each answer a different question. To see whether memory helps, try the same tasks with memory enabled and disabled. Keep every success and failure.
 >
-> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#measurement) · [Terms and examples](VARIABLES_EXPLAINED.md#measurement) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#measurement)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-External reviewers grep this codebase and hit words like *soul*, *qualia*,
-*phenomenal*, *consciousness*, *organism*, *personhood*. This document is the
-precision map: for each term, what the code mechanically does, where it lives,
-and which claims ledger bounds it. The two ledgers are authoritative:
+Use this page when you encounter a name such as `Soul`, “qualia,” or
+“phenomenal” in Aura's source. Each row gives the software function, the file,
+and the scope of the evidence. The names come from research on how minds work.
+The claims depend on the code paths and what changes when they run.
+[Tests with components disabled](ABLATION_LEGIBILITY.md)
 
-- [CLAIMS_SUPPORTED.md](../CLAIMS_SUPPORTED.md) — evidence-backed engineering claims
-- [CLAIMS_NOT_SUPPORTED.md](../CLAIMS_NOT_SUPPORTED.md) — declared **not proven / unsupported** (subjective consciousness & qualia are §1; personhood is §7)
-
-**Rule of the house:** profound names label *functional machinery inspired by
-consciousness science*. None of them assert subjective experience. Where a
-term appears in code, the mechanism must be real and causal — otherwise the
-name is a defect (see the de-rigging history in
-[ABLATION_LEGIBILITY.md](ABLATION_LEGIBILITY.md)).
+- [Supported claims](../CLAIMS_SUPPORTED.md) gives the engineering evidence.
+- [Open claims](../CLAIMS_NOT_SUPPORTED.md) covers the evidence needed for
+  [subjective experience](../CLAIMS_NOT_SUPPORTED.md#1-subjective-consciousness-and-qualia)
+  and [personhood](../CLAIMS_NOT_SUPPORTED.md#9-legal-and-moral-personhood).
 
 | Term in code | What it mechanically is | Home | Claim status |
 |---|---|---|---|

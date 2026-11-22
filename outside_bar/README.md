@@ -1,5 +1,14 @@
 # The outside bar
 
+<!-- reader-navigation:start -->
+> A test states what will be measured, what it will be compared with, and what counts as a pass.
+>
+> Source code, a passing test, and a useful result in practice each answer a different question. To see whether memory helps, try the same tasks with memory enabled and disabled. Keep every success and failure.
+>
+> [Plain-language guide](../docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Terms and examples](../docs/VARIABLES_EXPLAINED.md#measurement) · [Evidence and related work](../docs/DEMOS_AND_RELATED_WORK.md#measurement)
+> [All docs](../docs/DOCUMENTATION_INDEX.md) · [Glossary](../docs/GLOSSARY.md) · [Worked formulas](../docs/FORMULAS.md)
+<!-- reader-navigation:end -->
+
 This folder measures Aura with benchmarks that other people wrote. Her self-repair must not make these results worse.
 Aura cannot change this folder or its results.
 

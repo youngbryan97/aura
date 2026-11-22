@@ -1,14 +1,12 @@
 # Runbook: Movie Mode Broken
 
 <!-- reader-navigation:start -->
-> **In plain English:** Conversation support turns a request into a reply and, when enabled, into speech. Streaming lets delivery begin before every later stage finishes.
+> Aura can accept a request in text or speech and read the reply aloud. Parts of a reply can start playing while later words are still being prepared.
 >
-> **Why it matters:** The person should receive a timely, coherent answer to the current request without hearing a stale or unapproved fragment.
+> A short time to the first word makes a conversation feel responsive. The app also has to stop an earlier reply when you change the subject. If you interrupt a spoken answer, the previous audio should stop and your new question should get priority.
 >
-> **In everyday use:** When you interrupt a spoken reply, the old reply should stop owning the conversation and the new turn should take priority.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#conversation) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#conversation) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#interaction) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#conversation) · [Terms and examples](../VARIABLES_EXPLAINED.md#conversation) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#interaction)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Diagnostic scope:** bundle members and field names below are examples to

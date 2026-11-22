@@ -1,14 +1,12 @@
 # Fictional-AI Capability Map for Aura
 
 <!-- reader-navigation:start -->
-> **In plain English:** Architecture describes which parts exist, how information reaches them and which component is responsible for a decision or effect.
+> A test states what will be measured, what it will be compared with, and what counts as a pass.
 >
-> **Why it matters:** A useful component needs a real reader and a real route into behavior; a box on a diagram can otherwise be disconnected from what users see.
+> Source code, a passing test, and a useful result in practice each answer a different question. To see whether memory helps, try the same tasks with memory enabled and disabled. Keep every success and failure.
 >
-> **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#measurement) · [Terms and examples](VARIABLES_EXPLAINED.md#measurement) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#measurement)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Comparison scope:** fictional systems supply design targets and metaphors.

@@ -1,19 +1,19 @@
 # Aura Architecture
 
 <!-- reader-navigation:start -->
-> **In plain English:** Architecture describes which parts exist, how information reaches them and which component is responsible for a decision or effect.
+> The architecture is the software that coordinates Aura’s conversations, memory, attention, and actions.
 >
-> **Why it matters:** A useful component needs a real reader and a real route into behavior; a box on a diagram can otherwise be disconnected from what users see.
+> Following information through the system explains how a component can change what you see or what the computer does. A stored correction can only affect a later answer if the reply uses the record that contains it.
 >
-> **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+> [Plain-language guide](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Terms and examples](docs/VARIABLES_EXPLAINED.md#architecture) · [Evidence and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime)
+> [All docs](docs/DOCUMENTATION_INDEX.md) · [Glossary](docs/GLOSSARY.md) · [Worked formulas](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This reference covers Aura's algorithms, interfaces, and source files.
-For a walkthrough of a message, read [How Aura works](HOW_IT_WORKS.md).
-For installation and startup, see the [README](README.md#quick-start).
+When you ask Aura to open a file, one part interprets the request, another
+checks permission, and the tool reports what it observed. This reference
+shows where work passes between those parts and where each decision is made.
+It includes the algorithms, interfaces, and source files.
+[Walk through a message](HOW_IT_WORKS.md) · [Install and start](README.md#quick-start)
 
 The spec records the design as it evolved. Sections 1–17 cover the foundations
 through July 2026. Later sections cover physical reach, Recursive Latent

@@ -1,14 +1,12 @@
 # Runbook: Browser Actor Leaked
 
 <!-- reader-navigation:start -->
-> **In plain English:** Computer-use work observes an interface, chooses an action, and checks whether that action moved the task toward its goal.
+> Aura can read a webpage, choose a next step, and check what changed. It can repeat this across several pages.
 >
-> **Why it matters:** A click is useful only if it reaches the intended control and produces the intended outcome, including on unfamiliar pages.
+> That matters when the next screen depends on the previous answer. On a form, opening the page, entering a value, and seeing the confirmation are three different observations.
 >
-> **In everyday use:** Opening the right page, selecting the correct field and confirming the changed state are separate steps in filling a form.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#browser) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#browser) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#agents) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+> [Plain-language guide](../PLAIN_ENGLISH_GUIDE.md#browser) · [Terms and examples](../VARIABLES_EXPLAINED.md#browser) · [Evidence and related work](../DEMOS_AND_RELATED_WORK.md#agents)
+> [All docs](../DOCUMENTATION_INDEX.md) · [Glossary](../GLOSSARY.md) · [Worked formulas](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Diagnostic scope:** bundle members and field names below are examples to

@@ -1,14 +1,12 @@
 # Ambient voice, streamed speech, and media in the chat
 
 <!-- reader-navigation:start -->
-> **In plain English:** Conversation support turns a request into a reply and, when enabled, into speech. Streaming lets delivery begin before every later stage finishes.
+> Aura can accept a request in text or speech and read the reply aloud. Parts of a reply can start playing while later words are still being prepared.
 >
-> **Why it matters:** The person should receive a timely, coherent answer to the current request without hearing a stale or unapproved fragment.
+> A short time to the first word makes a conversation feel responsive. The app also has to stop an earlier reply when you change the subject. If you interrupt a spoken answer, the previous audio should stop and your new question should get priority.
 >
-> **In everyday use:** When you interrupt a spoken reply, the old reply should stop owning the conversation and the new turn should take priority.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#conversation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#conversation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#interaction) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+> [Plain-language guide](PLAIN_ENGLISH_GUIDE.md#conversation) · [Terms and examples](VARIABLES_EXPLAINED.md#conversation) · [Evidence and related work](DEMOS_AND_RELATED_WORK.md#interaction)
+> [All docs](DOCUMENTATION_INDEX.md) · [Glossary](GLOSSARY.md) · [Worked formulas](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **Evidence scope:** source wiring and focused offline checks are distinct
@@ -16,14 +14,10 @@ from measured microphone-to-speaker latency. This document does not certify
 the installed app's timing or error rate. Producer task binding, clause
 ownership and final governance must be retained when using early speech.
 
-What changed, why, and — at the end — what is not measured.
-
-The goal was ordinary: launch Aura, start talking, and have her answer in the
-same chat thread as everything else; ask her to play something and have it
-play there; and when something fails, hear about it in her own words rather
-than in a sentence a developer wrote months earlier.
-
-Four things had to be true for that, and none of them were.
+The aim was a conversation you could start by speaking, continue in the
+same chat, and use to ask Aura to play something. When speech or playback
+fails, the app should report what failed in that conversation. This page
+follows the changes to speech, turn-taking, vision, and media playback.
 
 ---
 
