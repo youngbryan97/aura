@@ -36,6 +36,7 @@ from core.agency.pieces_by_their_kind import (
     outcome,
 )
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
+from core.cognition.keeping_her_own_count import KeptCount
 from core.cognition.the_furthest_she_has_got import WhatFailedWhere
 from core.perception.pieces_by_their_look import Lattice, Looks, PiecesSeen, squares_of_one_ground
 
@@ -325,6 +326,12 @@ class _Game:
     their_move_seen_at: float = 0.0
     #: The part of her clock the last turn she could read it took: what a turn whose clock she cannot read is given.
     last_share: float = 0.0
+    #: Her clock as her own count keeps it, as it shows while it stands (core/cognition/keeping_her_own_count.py), and
+    #: whether she has read it already while this wait for their answer lasts.
+    count: KeptCount = field(default_factory=KeptCount)
+    read_this_wait: bool = False
+    #: How long a reading of her clock has taken, at most, this game.
+    read_s: float = 0.0
     #: How many of her moves her rules have earned between looks at what the game offers before she moves
     #: (core/cognition/how_far_to_go_before_looking.py), and how many she has made since the last look.
     far: HowFarToGo = field(default_factory=HowFarToGo)
@@ -553,12 +560,17 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.answers_s.append(time.monotonic() - game.waiting_since)
                     game.longest_answer_s = max(game.longest_answer_s, time.monotonic() - game.waiting_since)
                     game.their_move_seen_at = time.monotonic()
+                    game.read_this_wait = False
                 game.follow(move)
                 game.waiting_since = time.monotonic()
             continue
         if game.believed.turn != FIRST:
             # While the other side thinks, she rehearses the game in her model.
             rehearsing.start(pool, game.learned.family())
+            if clock is not None and not game.read_this_wait:
+                # Her clock is read, where her count of it may have drifted, while it stands still on their time.
+                game.read_this_wait = True
+                await _read_her_clock_while_it_stands(clock, rehearsing, game)
             # A side that has not answered for ten times as long as it ever took is not playing: a board that took her
             # move before the game was begun, or a game ended by something she cannot see. Given back, not waited on.
             if time.monotonic() - game.waiting_since > max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s):
@@ -571,7 +583,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         # turn's part of the time she has left. LIVE 20 November 2026 only the thinking was held to it, and picking up
         # six pieces a turn and seeing each move shown took a third of a three-minute game.
         turn_began = time.monotonic()
-        share, on_her_clock = await _time_for_a_move(clock, rehearsing, game.made, thinks_s)
+        # Her clock has run since their move was seen, or since her turn began where nothing of theirs came first.
+        clock_began = game.their_move_seen_at if game.theirs else turn_began
+        share, on_her_clock = await _time_for_a_move(clock, rehearsing, game.made, thinks_s, game, clock_began)
         if on_her_clock:
             game.last_share = share
         elif clock is not None and game.last_share:
@@ -718,11 +732,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             await click(*seat.centre_share(move.start, picture))
             await asyncio.sleep(OFFERS_SHOW_S * (1 + attempt))
             await click(*seat.centre_share(move.end, picture))
+            moved_at = time.monotonic()
             made = await _comes_to_show(seat, look, game, move)
             if made:
                 break
         if made:
             game.timed_finish(time.monotonic() - finish_began)
+            # Her clock stopped when her move was made: what it ran this turn is counted off.
+            game.count.step(-(moved_at - clock_began))
             _expect_back(game, family, move, found)
             # Where her turn went, for knowing what her clock pays for besides thinking.
             seen = game.their_move_seen_at or turn_began
@@ -803,21 +820,62 @@ def _looks_first(game: _Game, *, pressed: bool = False) -> bool:
 
 
 async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, rehearsing: _Rehearsing, made: int,
-                           otherwise: float) -> tuple[float, bool]:
+                           otherwise: float, game: _Game | None = None,
+                           clock_began: float | None = None) -> tuple[float, bool]:
     """The part of her clock this turn may take, and whether it came from her clock: the time she has left over the
     moves she expects still to make, where the game shows her clock and her rehearsal says how long its games run;
-    ``otherwise``, to think for, where it does not."""
+    ``otherwise``, to think for, where it does not.
+
+    The time she has left is her own count of her clock, where she keeps one: the clock is read on her turn only where
+    she has no count yet, or her count may be off by more than a turn's share and their answers came too fast to read
+    it on their time. LIVE 21 November 2026, game 16, reading it took half a second of every turn, and by her
+    thirtieth move her turns had a second and a half to think in."""
     if clock is None:
         return otherwise, False
+    moves_left = rehearsing.moves_left(made)
+    if moves_left <= 0:
+        return otherwise, False
+    began = time.monotonic() if clock_began is None else clock_began
+    if game is not None and game.count.value is not None and not game.count.must_read(game.count.value / moves_left):
+        return max(0.2, (game.count.value - (time.monotonic() - began)) / moves_left), True
     try:
         left = await clock()
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.info("her clock was not read (%s)", exc)
         return otherwise, False
-    moves_left = rehearsing.moves_left(made)
-    if left is None or moves_left <= 0:
+    if left is None:
         return otherwise, False
+    if game is not None:
+        # Her count begins from it, as the clock showed when it began to run this turn.
+        game.count.read(left + (time.monotonic() - began))
     return max(0.2, left / moves_left), True
+
+
+async def _read_her_clock_while_it_stands(clock: Callable[[], Awaitable[float | None]], rehearsing: _Rehearsing,
+                                          game: _Game) -> None:
+    """Her clock read on their time, where her count of it may by now be off by more than a turn's share of it: a
+    clock that stands still reads exactly, and the reading costs her nothing of it. Only where the reading will be
+    done before their answer comes, as their answers have come: an answer that comes while she reads is seen late, on
+    her clock."""
+    count = game.count
+    moves_left = max(1, rehearsing.moves_left(game.made))
+    if count.value is not None and not count.must_read(count.value / moves_left):
+        return
+    waited = time.monotonic() - game.waiting_since
+    if game.answers_s and waited + game.read_s > min(game.answers_s):
+        return
+    began = time.monotonic()
+    try:
+        left = await clock()
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info("her clock was not read (%s)", exc)
+        return
+    finally:
+        game.read_s = max(game.read_s, time.monotonic() - began)
+    if left is not None:
+        if count.value is not None:
+            logger.info("her clock read %.1f s where her count said %.1f s", left, count.value)
+        count.read(left)
 
 
 #: The coarsest a game's clock shows its time: a whole second.

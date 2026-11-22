@@ -5,7 +5,8 @@
 //! become others on the far row, a royal that crosses with a partner, and the draw counts. Nothing here knows a game.
 //! What a kind and a square are worth comes in as weights measured by playing; the search is alpha-beta with the
 //! general refinements of game-tree search: iterative deepening, a transposition table, quiescence on takes, null
-//! moves, late-move reductions, killer and history ordering.
+//! moves, late-move reductions, killer and history ordering, and margins: a line whose verdict a margin of the least
+//! piece for each ply left cannot change is not looked at further.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -120,6 +121,9 @@ struct Game {
     no_move_draws: bool,
     tempo: i32,
     royal_pressed: i32,
+    /// The least a piece that can be taken is worth: the unit a search's margins are counted in. Zero while no kind is
+    /// worth anything yet, and then there are no margins.
+    least: i32,
     zob_piece: Vec<u64>,
     zob_unmoved: Vec<u64>,
     zob_passable: Vec<u64>,
@@ -240,6 +244,7 @@ impl Game {
                 on_board.push(((r + border) * stride + c + border) as usize);
             }
         }
+        let least = kinds.iter().filter(|k| !k.royal && k.worth > 0).map(|k| k.worth).min().unwrap_or(0);
         Ok(Game {
             rows: f.rows,
             cols: f.columns,
@@ -252,6 +257,7 @@ impl Game {
             no_move_draws: f.no_move_unattacked == "draw",
             tempo: w.tempo.round() as i32,
             royal_pressed: w.royal_pressed.round() as i32,
+            least,
             zob_piece,
             zob_unmoved,
             zob_passable,
@@ -995,8 +1001,9 @@ impl<'a> Searcher<'a> {
         }
         let side = self.b.turn;
         let checked = self.b.in_check(self.g, side);
+        let mut stand = -INF;
         if !checked {
-            let stand = self.evaluate();
+            stand = self.evaluate();
             if stand >= beta {
                 return stand;
             }
@@ -1012,7 +1019,15 @@ impl<'a> Searcher<'a> {
         self.order(&mut moves, None, ply);
         let mut any = false;
         let mut best = if checked { -MATE + ply as i32 } else { alpha };
+        let unit = self.g.least;
         for m in moves {
+            // A take that would leave her short of the bound even with what it takes and a margin of two of the least
+            // pieces cannot raise the bound: not looked at.
+            if !checked && unit > 0 && m.becomes == 0 && m.taken_at != NONE
+                && stand + self.worth_of(self.b.cells[m.taken_at as usize]) + 2 * unit < alpha
+            {
+                continue;
+            }
             let u = self.b.make(self.g, m);
             if self.b.in_check(self.g, side) {
                 self.b.unmake(u);
@@ -1094,8 +1109,16 @@ impl<'a> Searcher<'a> {
             }
         }
         let pv_node = beta - alpha > 1;
+        let unit = g.least;
+        let stand = if !checked && !pv_node { self.evaluate() } else { -INF };
+        // A position past the bound by more than a least piece for each ply still to look: what those plies could
+        // find against it is not worth looking for.
+        if !checked && !pv_node && unit > 0 && depth <= 6 && beta.abs() < MATE - 1000
+            && stand - unit * depth >= beta
+        {
+            return stand - unit * depth;
+        }
         if !checked && null_ok && !pv_node && depth >= 3 && self.has_pieces_beyond_irreversible(side) {
-            let stand = self.evaluate();
             if stand >= beta {
                 let r = 2 + depth / 6;
                 let saved = self.b.make_null(g);
@@ -1116,6 +1139,7 @@ impl<'a> Searcher<'a> {
         let mut best_score = -INF;
         let mut best_move = None;
         let mut legal = 0;
+        let mut quiets_tried: Vec<Move> = Vec::new();
         for m in moves {
             if ply == 0 && self.excluded.contains(&m) {
                 continue;
@@ -1128,13 +1152,26 @@ impl<'a> Searcher<'a> {
             }
             legal += 1;
             let gives_check = self.b.in_check(g, 1 - side);
+            if legal > 1 && !pv_node && !checked && quiet && !gives_check && best_score > -MATE + 1000 {
+                // Near the end of a look, a quiet move late in the order, or one that even with a margin cannot lift
+                // her to the bound, is not looked at.
+                let late = depth <= 4 && legal as i32 > 3 + depth * depth;
+                let futile = unit > 0 && depth <= 2 && stand + 2 * unit * depth <= alpha;
+                if late || futile {
+                    self.b.unmake(u);
+                    continue;
+                }
+            }
             let mut score;
             if legal == 1 {
                 score = -self.search(depth - 1, -beta, -alpha, ply + 1, true);
             } else {
                 let mut reduction = 0;
                 if depth >= 3 && legal > 3 && quiet && !checked && !gives_check {
-                    reduction = 1 + (legal as i32 > 8) as i32 + (depth > 6) as i32;
+                    // The later a move comes in the order and the deeper the look, the less it is likely to be the
+                    // one: reduced by both, in proportion to their logarithms.
+                    let r = 0.75 + (depth as f64).ln() * (legal as f64).ln() / 2.25;
+                    reduction = (r as i32 - pv_node as i32).clamp(1, depth - 2);
                 }
                 score = -self.search(depth - 1 - reduction, -alpha - 1, -alpha, ply + 1, true);
                 if score > alpha && reduction > 0 {
@@ -1167,9 +1204,17 @@ impl<'a> Searcher<'a> {
                                 *v /= 2;
                             }
                         }
+                        // The quiet moves tried before it and found wanting are tried later next time.
+                        for q in &quiets_tried {
+                            let h = &mut self.history[q.from as usize * g.size + q.to as usize];
+                            *h = (*h - depth * depth).max(-(1 << 20));
+                        }
                     }
                     break;
                 }
+            }
+            if quiet {
+                quiets_tried.push(m);
             }
         }
         if legal == 0 {
