@@ -293,13 +293,8 @@ async def _execute_explicit_local_file_objective(user_message: str) -> dict[str,
     }
 
 
-def _should_collect_desktop_required_search_evidence(
-    user_message: str,
-) -> tuple[bool, str, Any | None]:
-    if not str(user_message or "").strip():
-        return False, "", None
-    if _chat_preflight._looks_like_desktop_objective(user_message):
-        return False, "", None
+def _its_evidence_is_on_her_disk(user_message: str) -> bool:
+    """The request names a file or a folder that is on her disk, so what answers it is read there, not on the web."""
     # A file on this disk is not a live-search question.
     #
     # LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me the first
@@ -320,7 +315,7 @@ def _should_collect_desktop_required_search_evidence(
         # does not apply and the turn keeps looking for its evidence.
         named_file = None
     if named_file is not None and named_file.exists:
-        return False, "", None
+        return True
     # A DIRECTORY on this disk settles it for the same reason.
     #
     # The reader above finds a named file; "debug the project at <path>" names
@@ -335,7 +330,7 @@ def _should_collect_desktop_required_search_evidence(
         from core.language.named_paths import first_existing_path
 
         if first_existing_path(user_message) is not None:
-            return False, "", None
+            return True
     except _CHAT_RECOVERABLE_ERRORS:
         # not a failure: one signal of several that the evidence is local,
         # and the checks below still run.
@@ -355,10 +350,20 @@ def _should_collect_desktop_required_search_evidence(
 
         counted = requested_filesystem_count(user_message)
     except _CHAT_RECOVERABLE_ERRORS:
-        # not a failure: no count was asked for that this can read, and the
-        # checks below still run.
+        # not a failure: no count was asked for that this can read, so the
+        # request names nothing on her disk that this can find.
         counted = None
-    if counted is not None and counted.exists:
+    return counted is not None and bool(counted.exists)
+
+
+def _should_collect_desktop_required_search_evidence(
+    user_message: str,
+) -> tuple[bool, str, Any | None]:
+    if not str(user_message or "").strip():
+        return False, "", None
+    if _chat_preflight._looks_like_desktop_objective(user_message):
+        return False, "", None
+    if _its_evidence_is_on_her_disk(user_message):
         return False, "", None
     # A document the person addressed directly is not a search question
     # either, for the same reason: the bytes are AT that address.
@@ -1266,10 +1271,14 @@ async def _what_the_world_says_for_the_turn(
             )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.world_evidence", exc, severity="debug", action="looked up within the turn's own clock")
+    # Her own files are read on her disk, and the web is searched for them only when she is told to search. LIVE 20
+    # November 2026, typed into her window, "Find the two largest Python files under core/brain by line count, ..."
+    # was searched on the web whole, and nothing it found bore on her files.
+    on_her_disk = not instructed and await asyncio.to_thread(_its_evidence_is_on_her_disk, user_message)
     try:
         evidence = await gather_world_evidence(
             user_message, previous_request=previous, fetch=_read_a_page,
-            search=None if contracted else search, outside_wanted=outside, read_since=turn_began,
+            search=None if contracted or on_her_disk else search, outside_wanted=outside, read_since=turn_began,
             # Something as it is now: its pages fill their values in with scripts, so they are read as shown.
             render=_read_a_page_as_shown if current else None, now_wanted=current,
             previous_reply=previous_reply,

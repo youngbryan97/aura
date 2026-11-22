@@ -5225,6 +5225,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     whole by the runtime's served count, "174 .py files, counted from disk. The largest is inference_gate.py at
     543,707 bytes", which answers neither part. That count is for a model that guessed; where her turn holds a
     run of hers that came back, her answer stands (`tests/test_a_count_and_a_superlative_are_two_questions.py`).
+    The web search of the whole message came from her world evidence: the route's search check had said no, since
+    core/brain is on her disk, but the other reasons to look outside never asked that. They do now, and her files
+    are searched for on the web only when she is told to search (`tests/test_her_own_files_are_not_searched_on_the_web.py`).
   - U07-10, the tool loop's terminal boundary, as the outside review set it, already holds by tests: the last pass
     is offered no tools and a call written there is not run (`tests/test_the_tool_loops_last_pass.py`); the pass that
     writes cannot open a call (`tests/test_the_pass_that_writes_opens_no_call.py`); a capability's output reaches her
