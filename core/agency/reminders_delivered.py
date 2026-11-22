@@ -69,12 +69,13 @@ async def deliver_reminders_as_they_come_due(notify: Callable[[Any], Awaitable[b
     changed = asyncio.Event()
     _RUNNING.update(loop=asyncio.get_running_loop(), changed=changed)
     not_sent: set[str] = set()
+    sent_not_marked: set[str] = set()
     try:
         while True:
             changed.clear()
             pending = await asyncio.to_thread(pending_reminders)
             for reminder in pending:
-                if reminder.is_due and reminder.id not in not_sent:
+                if reminder.is_due and reminder.id not in not_sent | sent_not_marked:
                     try:
                         sent = await notify(reminder)
                     except Exception as exc:  # noqa: BLE001 - one reminder that cannot go out does not stop the rest
@@ -82,8 +83,10 @@ async def deliver_reminders_as_they_come_due(notify: Callable[[Any], Awaitable[b
                                            action="a due reminder was not sent; it stays pending")
                         sent = False
                     if sent:
-                        await asyncio.to_thread(complete_reminder, reminder.id)
                         logger.info("a reminder came due and went to the desktop: %r", reminder.text[:120])
+                        if not await asyncio.to_thread(_marked_done, complete_reminder, reminder.id):
+                            # It went out; it is not sent again because the store could not say so.
+                            sent_not_marked.add(reminder.id)
                     else:
                         not_sent.add(reminder.id)
             if until is not None and until():
@@ -98,6 +101,26 @@ async def deliver_reminders_as_they_come_due(notify: Callable[[Any], Awaitable[b
     finally:
         if _RUNNING.get("changed") is changed:
             _RUNNING.clear()
+
+
+def _marked_done(complete: Callable[[str], bool], reminder_id: str) -> bool:
+    """Mark a sent reminder done, as her runtime's own upkeep: a write from this loop is no person's request.
+
+    LIVE 21 November 2026, 19:41: the first reminder this loop sent went out, and marking it done was refused as a
+    write "called outside governed context", so the store kept it pending and the next change would have sent it again.
+    """
+    from core.governance_context import local_internal_governed_scope
+
+    try:
+        with local_internal_governed_scope("reminders_delivered.mark_done", domain="file_write"):
+            done = bool(complete(reminder_id))
+    except Exception as exc:  # noqa: BLE001 - a reminder that went out is never sent again for want of a mark
+        record_degradation("reminders_delivered", exc, severity="warning",
+                           action="a reminder went out and was not marked done; it is not sent again this run")
+        return False
+    if not done:
+        logger.warning("a reminder went out and could not be marked done: %s", reminder_id)
+    return done
 
 
 def ensure_reminders_are_delivered() -> bool:

@@ -119,3 +119,39 @@ def test_setting_a_reminder_starts_what_delivers_it(monkeypatch):
     monkeypatch.setattr(delivered, "ensure_reminders_are_delivered", lambda: started.append(True) or True)
     result = asyncio.run(ReminderSkill().execute({"objective": "remind me in 20 minutes to stretch my back"}, {}))
     assert result["ok"] is True and started == [True]
+
+
+def test_a_reminder_that_went_out_and_could_not_be_marked_done_is_not_sent_again(monkeypatch):
+    """LIVE 21 November 2026, 19:41: the first reminder went to the desktop, marking it done was refused as a write
+    outside a governed context, and the store kept it pending for the next change to send again."""
+    add_reminder("stretch my back", 0)
+    monkeypatch.setattr(store_module, "complete_reminder", lambda reminder_id: False)
+    sent: list[str] = []
+
+    async def notify(reminder):
+        sent.append(reminder.text)
+        return True
+
+    async def go():
+        loop = asyncio.create_task(delivered.deliver_reminders_as_they_come_due(notify))
+        await asyncio.sleep(0.3)
+        delivered.a_reminder_was_added()
+        await asyncio.sleep(0.3)
+        loop.cancel()
+        await asyncio.gather(loop, return_exceptions=True)
+
+    asyncio.run(go())
+    assert sent == ["stretch my back"]
+
+
+def test_marking_a_sent_reminder_done_is_her_own_governed_upkeep():
+    from core.governance_context import is_governed
+
+    seen: list[bool] = []
+
+    def complete(reminder_id):
+        seen.append(is_governed())
+        return True
+
+    assert not is_governed()
+    assert delivered._marked_done(complete, "r1") is True and seen == [True]
