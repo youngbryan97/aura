@@ -574,6 +574,26 @@ def _a_superlative_is_owed(which: str, present: list[Any], text: str) -> bool:
     return False
 
 
+def _she_measured_it_herself(text: str) -> bool:
+    """Whether her reply stands on something she ran this turn that came back: the count served below is for a model
+    that guessed. LIVE 20 November 2026, asked for the two largest Python files under core/brain by line count and by
+    what percentage the larger is bigger, she made eleven calls of her code runner and her file reader over 486 s, and
+    her answer was replaced whole by "174 .py files, counted from disk. The largest is inference_gate.py at 543,707
+    bytes", which answers neither part."""
+    if not text.strip():
+        return False
+    try:
+        from core.conversation.response_reliability import _a_run_came_back
+        from core.conversation.turn_evidence_custody import current_turn_evidence_custody
+
+        custody = current_turn_evidence_custody()
+        return custody is not None and _a_run_came_back(custody.receipts())
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.filesystem_check", exc, severity="debug",
+                           action="read her reply as not measured by her")
+        return False
+
+
 def _serve_measured_filesystem_count(user_message: object, reply: object) -> object:
     """Replace a contradicted file count with the one the runtime took.
 
@@ -640,6 +660,8 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
             return f"{correction}\n\n{text}".strip()
 
     if not counts:
+        return reply
+    if _she_measured_it_herself(text):
         return reply
     # Every count that was asked for. Serving only the first answered half of
     # "how many test files do you have, and how many python files are in

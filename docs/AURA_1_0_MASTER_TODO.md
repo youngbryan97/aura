@@ -5221,6 +5221,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     reads only on her encoder (on hashed words it called "close the front window" code), and a request it reads as
     work on code is not screen work unless it names an application to act in
     (`tests/test_work_on_code_is_not_screen_work.py`).
+    Asked again at 22:03 on that build, it went to her code runner (eleven calls, 486 s), and her answer was replaced
+    whole by the runtime's served count, "174 .py files, counted from disk. The largest is inference_gate.py at
+    543,707 bytes", which answers neither part. That count is for a model that guessed; where her turn holds a
+    run of hers that came back, her answer stands (`tests/test_a_count_and_a_superlative_are_two_questions.py`).
   - U07-10, the tool loop's terminal boundary, as the outside review set it, already holds by tests: the last pass
     is offered no tools and a call written there is not run (`tests/test_the_tool_loops_last_pass.py`); the pass that
     writes cannot open a call (`tests/test_the_pass_that_writes_opens_no_call.py`); a capability's output reaches her

@@ -121,3 +121,20 @@ def test_a_plain_count_question_is_left_alone_when_it_is_right():
     assert counted and counted[0].exists
     already = f"There are {counted[0].count} .py files under core/consciousness."
     assert str(_serve_measured_filesystem_count(question, already)) == already
+
+
+def test_an_answer_she_measured_herself_is_not_replaced_by_the_served_count():
+    """LIVE 20 November 2026: eleven calls of her code runner and file reader, and her answer replaced whole by "174 .py
+    files, counted from disk. The largest is inference_gate.py at 543,707 bytes", which answered neither part."""
+    from core.conversation.surface_disposition import record_tool_receipt
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+    from interface.routes.chat_served_answers import _serve_measured_filesystem_count
+
+    question = ("Find the two largest Python files under core/brain by line count, count their lines by actually "
+                "running something, and tell me by what percentage the larger one is bigger than the smaller.")
+    hers = "inference_gate.py has 11,227 lines and engine.py 10,397, so the larger is 8.0% bigger."
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-measured"):
+        assert str(_serve_measured_filesystem_count(question, hers)) != hers, "with no run of hers, the count is served"
+        record_tool_receipt("code_repl", ok=True, action="execute", observed_content="11227 10397",
+                            as_made={"id": "c", "arguments": {"code": "..."}, "returned": "11227 10397"})
+        assert str(_serve_measured_filesystem_count(question, hers)) == hers
