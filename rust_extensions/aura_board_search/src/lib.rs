@@ -304,6 +304,41 @@ struct Undo {
     hash: u64,
 }
 
+/// What one walk of each side's reach finds, kept per thread so a position's judgement allocates nothing.
+#[derive(Default)]
+struct Reach {
+    /// Per side and square, how many of the side's pieces could take there: its own pieces' squares included, which
+    /// is what defends them.
+    attacks: [Vec<u8>; 2],
+    /// Per side and kind, the moves its pieces have.
+    mobility: [Vec<i32>; 2],
+    /// Squares one piece has already counted a move to, marked with that piece's stamp.
+    seen: Vec<u32>,
+    stamp: u32,
+}
+
+thread_local! {
+    static REACH: std::cell::RefCell<Reach> = std::cell::RefCell::new(Reach::default());
+}
+
+impl Reach {
+    fn walked(&mut self, g: &Game, b: &Board) {
+        for side in 0..2 {
+            self.attacks[side].clear();
+            self.attacks[side].resize(g.size, 0);
+            self.mobility[side].clear();
+            self.mobility[side].resize(g.kinds.len(), 0);
+        }
+        if self.seen.len() != g.size {
+            self.seen = vec![0; g.size];
+            self.stamp = 0;
+        }
+        for side in 0..2 {
+            b.reach(g, side, &mut self.attacks[side], &mut self.mobility[side], &mut self.seen, &mut self.stamp);
+        }
+    }
+}
+
 #[derive(Clone)]
 struct Board {
     cells: Vec<u8>,
@@ -390,6 +425,63 @@ impl Board {
             }
         }
         false
+    }
+
+    /// One walk of the reach of every piece of ``side``: per kind the moves its pieces have, as ``possible`` counts
+    /// them (a promotion once for each kind it may become; crossings left out), and per square how many of the side's
+    /// pieces could take there. What ``attacked`` answers for one square, this answers for all of them at once.
+    fn reach(&self, g: &Game, side: usize, attacks: &mut [u8], mobility: &mut [i32], seen: &mut [u32], stamp: &mut u32) {
+        let far = g.far_row(side);
+        for &sq in &g.on_board {
+            let c = self.cells[sq];
+            if c == EMPTY || side_of(c) != side {
+                continue;
+            }
+            let ki = kind_of(c);
+            let k = &g.kinds[ki];
+            *stamp = stamp.wrapping_add(1);
+            if *stamp == 0 {
+                seen.fill(0);
+                *stamp = 1;
+            }
+            for s in &k.steps {
+                if s.only_unmoved && !self.unmoved[sq] {
+                    continue;
+                }
+                for &d in &s.deltas[side] {
+                    let mut t = sq as i32 + d;
+                    let mut n = 1;
+                    loop {
+                        let tu = t as usize;
+                        let c2 = self.cells[tu];
+                        if c2 == OFF {
+                            break;
+                        }
+                        if s.may != 1 {
+                            attacks[tu] = attacks[tu].saturating_add(1);
+                        }
+                        let movable = if c2 == EMPTY {
+                            s.may != 2
+                                || (s.takes_in_passing && self.passable.is_some_and(|(p, _)| p as usize == tu))
+                        } else {
+                            side_of(c2) != side && s.may != 1
+                        };
+                        if movable && seen[tu] != *stamp {
+                            seen[tu] = *stamp;
+                            mobility[ki] += if !k.becomes.is_empty() && g.row(tu) == far { k.becomes.len() as i32 } else { 1 };
+                        }
+                        if c2 != EMPTY {
+                            break;
+                        }
+                        if s.rides != 0 && n >= s.rides {
+                            break;
+                        }
+                        t += d;
+                        n += 1;
+                    }
+                }
+            }
+        }
     }
 
     fn royals<'b>(&'b self, g: &'b Game, side: usize) -> impl Iterator<Item = usize> + 'b {
@@ -789,7 +881,6 @@ impl<'a> Searcher<'a> {
     fn evaluate(&mut self) -> i32 {
         let g = self.g;
         let mut score = [0i32; 2];
-        let mut moves = Vec::with_capacity(64);
         for &sq in &g.on_board {
             let c = self.b.cells[sq];
             if c == EMPTY {
@@ -800,46 +891,47 @@ impl<'a> Searcher<'a> {
             score[s] += k.worth + k.squares[s][sq];
         }
         let any_mobility = g.kinds.iter().any(|k| k.mobility != 0);
-        if any_mobility {
-            for side in 0..2 {
-                let saved = self.b.turn;
-                self.b.turn = side;
-                moves.clear();
-                self.b.possible(g, &mut moves, false);
-                self.b.turn = saved;
-                for m in &moves {
-                    let k = &g.kinds[kind_of(self.b.cells[m.from as usize])];
-                    score[side] += k.mobility;
+        let any_exposed = g.kinds.iter().any(|k| k.exposed != 0);
+        if any_mobility || any_exposed || g.royal_pressed != 0 {
+            // One walk of each side's reach answers mobility, pressure on a royal piece and what is left exposed: it
+            // used to be a whole move generation per side and a ray scan for every square asked about.
+            let b = &self.b;
+            REACH.with(|cell| {
+                let mut reach = cell.borrow_mut();
+                reach.walked(g, b);
+                for side in 0..2 {
+                    for (ki, k) in g.kinds.iter().enumerate() {
+                        score[side] += reach.mobility[side][ki] * k.mobility;
+                    }
                 }
-            }
-        }
-        if g.royal_pressed != 0 {
-            for side in 0..2 {
-                let royals: Vec<usize> = self.b.royals(g, side).collect();
-                for r in royals {
-                    for dr in -1..=1 {
-                        for dc in -1..=1 {
-                            let t = (r as i32 + dr * g.stride + dc) as usize;
-                            if self.b.cells[t] != OFF && self.b.attacked(g, t, 1 - side) {
-                                score[side] -= g.royal_pressed;
+                if g.royal_pressed != 0 {
+                    for side in 0..2 {
+                        for r in b.royals(g, side) {
+                            for dr in -1..=1 {
+                                for dc in -1..=1 {
+                                    let t = (r as i32 + dr * g.stride + dc) as usize;
+                                    if b.cells[t] != OFF && reach.attacks[1 - side][t] > 0 {
+                                        score[side] -= g.royal_pressed;
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
-        }
-        if g.kinds.iter().any(|k| k.exposed != 0) {
-            for &sq in &g.on_board {
-                let c = self.b.cells[sq];
-                if c == EMPTY {
-                    continue;
+                if any_exposed {
+                    for &sq in &g.on_board {
+                        let c = b.cells[sq];
+                        if c == EMPTY {
+                            continue;
+                        }
+                        let s = side_of(c);
+                        let k = &g.kinds[kind_of(c)];
+                        if k.exposed != 0 && reach.attacks[1 - s][sq] > 0 && reach.attacks[s][sq] == 0 {
+                            score[s] -= k.exposed;
+                        }
+                    }
                 }
-                let s = side_of(c);
-                let k = &g.kinds[kind_of(c)];
-                if k.exposed != 0 && self.b.attacked(g, sq, 1 - s) && !self.b.attacked(g, sq, s) {
-                    score[s] -= k.exposed;
-                }
-            }
+            });
         }
         let me = self.b.turn;
         score[me] - score[1 - me] + g.tempo
@@ -1214,45 +1306,42 @@ impl<'a> Searcher<'a> {
             let own_row = if side == 0 { r } else { g.rows - 1 - r };
             f[2 * k + 2 + kind * squares + (own_row * g.cols + col) as usize] += sign;
         }
-        let saved = self.b.turn;
-        let mut moves = Vec::with_capacity(64);
-        for side in 0..2 {
-            self.b.turn = side;
-            moves.clear();
-            self.b.possible(g, &mut moves, false);
-            let sign = if side == 0 { 1.0 } else { -1.0 };
-            for m in &moves {
-                f[k + kind_of(self.b.cells[m.from as usize])] += sign;
-            }
-        }
-        self.b.turn = saved;
-        for side in 0..2 {
-            let sign = if side == 0 { 1.0 } else { -1.0 };
-            let royals: Vec<usize> = self.b.royals(g, side).collect();
-            for r in royals {
-                for dr in -1..=1 {
-                    for dc in -1..=1 {
-                        let t = (r as i32 + dr * g.stride + dc) as usize;
-                        if self.b.cells[t] != OFF && self.b.attacked(g, t, 1 - side) {
-                            f[2 * k] -= sign;
+        // Moves, pressure on a royal piece and what is left exposed, from the same walk of each side's reach the
+        // search judges positions by, so what is fitted is what is searched with.
+        let b = &self.b;
+        REACH.with(|cell| {
+            let mut reach = cell.borrow_mut();
+            reach.walked(g, b);
+            for side in 0..2 {
+                let sign = if side == 0 { 1.0 } else { -1.0 };
+                for kind in 0..k {
+                    f[k + kind] += sign * reach.mobility[side][kind] as f32;
+                }
+                for r in b.royals(g, side) {
+                    for dr in -1..=1 {
+                        for dc in -1..=1 {
+                            let t = (r as i32 + dr * g.stride + dc) as usize;
+                            if b.cells[t] != OFF && reach.attacks[1 - side][t] > 0 {
+                                f[2 * k] -= sign;
+                            }
                         }
                     }
                 }
             }
-        }
+            // Per kind, the pieces of it each side leaves attacked and undefended: the second side's less the first's.
+            let exposed_at = 2 * k + 2 + k * squares;
+            for &sq in &g.on_board {
+                let c = b.cells[sq];
+                if c == EMPTY {
+                    continue;
+                }
+                let s = side_of(c);
+                if reach.attacks[1 - s][sq] > 0 && reach.attacks[s][sq] == 0 {
+                    f[exposed_at + kind_of(c)] += if s == 0 { -1.0 } else { 1.0 };
+                }
+            }
+        });
         f[2 * k + 1] = if self.b.turn == 0 { 1.0 } else { -1.0 };
-        // Per kind, the pieces of it each side leaves attacked and undefended: the second side's less the first's.
-        let exposed_at = 2 * k + 2 + k * squares;
-        for &sq in &g.on_board {
-            let c = self.b.cells[sq];
-            if c == EMPTY {
-                continue;
-            }
-            let s = side_of(c);
-            if self.b.attacked(g, sq, 1 - s) && !self.b.attacked(g, sq, s) {
-                f[exposed_at + kind_of(c)] += if s == 0 { -1.0 } else { 1.0 };
-            }
-        }
         f
     }
 }
