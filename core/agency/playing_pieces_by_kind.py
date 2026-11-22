@@ -16,10 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import statistics
 import time
 from collections.abc import Awaitable, Callable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -69,15 +67,9 @@ CHECKS_A_TURN = 8
 NO_ANSWER_AFTER_S = 90.0
 #: Pictures in a row that no move explains before she says she has lost track.
 MISREAD_AT_MOST = 20
-#: The longest she thinks ahead on one position she expects, whatever the other side's answers have taken.
-AHEAD_AT_MOST_S = 30.0
 
 Look = Callable[[], Awaitable[Any]]
 Click = Callable[[float, float], Awaitable[bool]]
-
-#: One thread she thinks ahead on, beside the one she rehearses on: what it finds is kept in her search's table for the
-#: turn it was thinking about, and nothing waits on it.
-_THINKING_AHEAD = ThreadPoolExecutor(max_workers=1, thread_name_prefix="thinking-ahead")
 
 
 @dataclass
@@ -341,13 +333,12 @@ class _Game:
     #: game's turns she searched: where she stood, what she played, and how she judged it.
     went_wrong: WhatFailedWhere = field(default_factory=WhatFailedWhere)
     judged: list[tuple[str, str, int]] = field(default_factory=list)
-    #: The reply her search expects to her last move, the position it leads to, and the rules it was found by: while
-    #: they think she thinks on that position, and whether the reply came is counted, foreseen of foreseeable.
+    #: The reply her search expects to her last move, the position it leads to, and the rules it was found by; whether
+    #: the reply came is counted, foreseen of foreseeable.
     expected: tuple[Move, Position, Family] | None = None
-    thinking_ahead: Any = None
     foreseen: int = 0
     foreseeable: int = 0
-    #: How long each of their answers took: how long she can think ahead.
+    #: How long each of their answers took.
     answers_s: list[float] = field(default_factory=list)
 
     def timed_probe(self, seconds: float) -> None:
@@ -566,10 +557,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 game.waiting_since = time.monotonic()
             continue
         if game.believed.turn != FIRST:
-            # While the other side thinks, she rehearses the game in her model, and thinks ahead on the position she
-            # expects their answer to leave her.
+            # While the other side thinks, she rehearses the game in her model.
             rehearsing.start(pool, game.learned.family())
-            _think_ahead(game, rehearsing, search)
             # A side that has not answered for ten times as long as it ever took is not playing: a board that took her
             # move before the game was begun, or a game ended by something she cannot see. Given back, not waited on.
             if time.monotonic() - game.waiting_since > max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s):
@@ -767,8 +756,8 @@ def _expect_back(game: _Game, family: Family, move: Move, found: Any) -> None:
 
 
 def _was_expected(game: _Game, move: Move) -> bool:
-    """Whether their move is the one she expected, counted; what she thought ahead on is let go either way."""
-    expected, game.expected, game.thinking_ahead = game.expected, None, None
+    """Whether their move is the one she expected, counted."""
+    expected, game.expected = game.expected, None
     if expected is None:
         return False
     game.foreseeable += 1
@@ -776,22 +765,6 @@ def _was_expected(game: _Game, move: Move) -> bool:
         game.foreseen += 1
         return True
     return False
-
-
-def _think_ahead(game: _Game, rehearsing: _Rehearsing, search: Any) -> None:
-    """While they think, she thinks on the position she expects their answer to leave her, for about as long as their
-    answers take: getting ready for what can be seen coming (core/cognition/getting_ready_for_what_is_coming.py), done
-    with the time she would otherwise spend waiting. What she finds stays in her search's table, so when the answer
-    comes as she expected, her turn begins where that thinking got to: measured 22 November 2026, a 0.3 s search began
-    after 2 s of it reached 12 moves deep where one begun cold reached 9. Started once a turn of theirs; when their
-    answer is another, what she found still holds for any position the two share."""
-    if game.expected is None or game.thinking_ahead is not None:
-        return
-    _reply, there, family = game.expected
-    seconds = min(AHEAD_AT_MOST_S, statistics.median(game.answers_s) if game.answers_s else max(1.0, game.last_share))
-    game.thinking_ahead = _THINKING_AHEAD.submit(
-        search, family, there, seconds=seconds, weights=rehearsing.weights_for(family),
-        earlier=[*game.earlier, game.believed], threads=max(1, _cores_free() - 1))
 
 
 def _cores_free() -> int:
