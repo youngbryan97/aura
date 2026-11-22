@@ -99,7 +99,8 @@ def _one_round(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
     _HELD["rehearsal"] = rehearsal
     if _PLAYING:
         # A game begun while the round ran owns her record of the board, and writes it when it ends: the round is not
-        # written over it. LIVE 22 November 2026 a round begun before game 18 finished two minutes into it.
+        # written over it. LIVE 22 November 2026 a round begun before game 18 was asked for finished while she was
+        # getting to the board.
         logger.info("practised %s between games, a round not kept: a game began while it ran", name)
         return rehearsal.last
     _keep_what_she_learned(kept.get("app") or name, kept["looks"], kept["rules"], rehearsal, kept.get("went_wrong"))
