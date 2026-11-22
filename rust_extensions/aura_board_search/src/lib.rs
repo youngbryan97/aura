@@ -83,7 +83,36 @@ struct WeightsD {
     /// what she cannot afford to lose (core/cognition/what_she_cannot_afford_to_lose.py).
     #[serde(default)]
     exposed: HashMap<String, f64>,
+    /// A second judgement, learned from what her longer looks found positions worth: added to the first.
+    #[serde(default)]
+    learned: Option<LearnedD>,
 }
+
+/// One hidden layer over which kind stands where, from the side to move: per kind, for the mover's pieces and the
+/// other side's, a row of weights into the hidden layer for each square in the mover's own frame.
+#[derive(Deserialize, Clone)]
+struct LearnedD {
+    hidden: usize,
+    #[serde(default)]
+    own: HashMap<String, Vec<Vec<f32>>>,
+    #[serde(default)]
+    theirs: HashMap<String, Vec<Vec<f32>>>,
+    first_bias: Vec<f32>,
+    out: Vec<f32>,
+    out_bias: f32,
+}
+
+/// The learned judgement as the search reads it: weights by (kind, the mover's or not, square) into the hidden layer.
+struct Learned {
+    hidden: usize,
+    first: Vec<f32>,
+    first_bias: Vec<f32>,
+    out: Vec<f32>,
+    out_bias: f32,
+}
+
+/// The most hidden units a learned judgement may have.
+const HIDDEN_AT_MOST: usize = 256;
 
 #[derive(Clone)]
 struct Step {
@@ -127,6 +156,7 @@ struct Game {
     /// weights she judges by: 94 on her offline weights of 22 November 2026, 357 on her live ones, which count each
     /// square a piece reaches nearly half a pawn.
     margin: AtomicI32,
+    learned: Option<Learned>,
     zob_piece: Vec<u64>,
     zob_unmoved: Vec<u64>,
     zob_passable: Vec<u64>,
@@ -247,6 +277,33 @@ impl Game {
                 on_board.push(((r + border) * stride + c + border) as usize);
             }
         }
+        let squares = (f.rows * f.columns) as usize;
+        let learned = match &w.learned {
+            None => None,
+            Some(l) => {
+                if l.hidden == 0 || l.hidden > HIDDEN_AT_MOST || l.first_bias.len() != l.hidden || l.out.len() != l.hidden {
+                    return Err("learned: hidden layer sizes disagree".into());
+                }
+                let mut first = vec![0f32; f.kinds.len() * 2 * squares * l.hidden];
+                for (ki, k) in f.kinds.iter().enumerate() {
+                    for (rel, rows) in [(0usize, l.own.get(&k.letter)), (1usize, l.theirs.get(&k.letter))] {
+                        let Some(rows) = rows else { continue };
+                        if rows.len() != squares {
+                            return Err(format!("learned: {} has {} squares, the board {}", k.letter, rows.len(), squares));
+                        }
+                        for (sq, row) in rows.iter().enumerate() {
+                            if row.len() != l.hidden {
+                                return Err("learned: a square's row is not the hidden layer's size".into());
+                            }
+                            let at = ((ki * 2 + rel) * squares + sq) * l.hidden;
+                            first[at..at + l.hidden].copy_from_slice(row);
+                        }
+                    }
+                }
+                Some(Learned { hidden: l.hidden, first, first_bias: l.first_bias.clone(), out: l.out.clone(),
+                               out_bias: l.out_bias })
+            }
+        };
         Ok(Game {
             rows: f.rows,
             cols: f.columns,
@@ -260,6 +317,7 @@ impl Game {
             tempo: w.tempo.round() as i32,
             royal_pressed: w.royal_pressed.round() as i32,
             margin: AtomicI32::new(0),
+            learned,
             zob_piece,
             zob_unmoved,
             zob_passable,
@@ -942,7 +1000,54 @@ impl<'a> Searcher<'a> {
             });
         }
         let me = self.b.turn;
-        score[me] - score[1 - me] + g.tempo
+        score[me] - score[1 - me] + g.tempo + self.learned_judgement()
+    }
+
+    /// Which (kind, the mover's or not, square in the mover's frame) each piece is: the learned judgement's inputs.
+    fn cells_seen_by_the_mover(&self) -> Vec<u16> {
+        let g = self.g;
+        let me = self.b.turn;
+        let squares = (g.rows * g.cols) as usize;
+        let mut seen = Vec::with_capacity(32);
+        for &sq in &g.on_board {
+            let c = self.b.cells[sq];
+            if c == EMPTY {
+                continue;
+            }
+            let rel = (side_of(c) != me) as usize;
+            let (r, col) = g.rc(sq);
+            let row = if me == 0 { r } else { g.rows - 1 - r };
+            seen.push(((kind_of(c) * 2 + rel) * squares + (row * g.cols + col) as usize) as u16);
+        }
+        seen
+    }
+
+    fn learned_judgement(&self) -> i32 {
+        let Some(l) = &self.g.learned else { return 0 };
+        let g = self.g;
+        let me = self.b.turn;
+        let squares = (g.rows * g.cols) as usize;
+        let mut h = [0f32; HIDDEN_AT_MOST];
+        h[..l.hidden].copy_from_slice(&l.first_bias);
+        for &sq in &g.on_board {
+            let c = self.b.cells[sq];
+            if c == EMPTY {
+                continue;
+            }
+            let rel = (side_of(c) != me) as usize;
+            let (r, col) = g.rc(sq);
+            let row = if me == 0 { r } else { g.rows - 1 - r };
+            let at = ((kind_of(c) * 2 + rel) * squares + (row * g.cols + col) as usize) * l.hidden;
+            let w = &l.first[at..at + l.hidden];
+            for j in 0..l.hidden {
+                h[j] += w[j];
+            }
+        }
+        let mut out = l.out_bias;
+        for j in 0..l.hidden {
+            out += l.out[j] * h[j].max(0.0);
+        }
+        out.round() as i32
     }
 
     fn worth_of(&self, c: u8) -> i32 {
@@ -1625,7 +1730,8 @@ fn self_play(
 ) -> PyResult<PyObject> {
     let (ga, b0) = parse(description, start, weights_a)?;
     let (gb, _) = parse(description, start, weights_b)?;
-    let (points, results, samples, lengths, sample_games, final_counts, sample_scores) = py.allow_threads(|| {
+    let (points, results, samples, lengths, sample_games, final_counts, sample_scores, sample_cells, sample_static,
+         sample_quiet, sample_turns) = py.allow_threads(|| {
         let mut rng = Rng(seed.wrapping_mul(0x2545F4914F6CDD1D) | 1);
         let entries = (4 * 1024 * 1024) / std::mem::size_of::<Entry>();
         let mut points = 0.0f64;
@@ -1637,6 +1743,13 @@ fn self_play(
         // What her search found each sampled position worth, for the first side, in the order the game reached them:
         // what a position turned out to be worth, by the positions after it, is learned from these.
         let mut sample_scores: Vec<i32> = Vec::new();
+        // For a judgement learned over where each kind stands: each sample's pieces as the mover sees them, her first
+        // judgement of it for the mover, whether a look at the takes alone leaves that judgement as it is, and whose
+        // turn it was.
+        let mut sample_cells: Vec<Vec<u16>> = Vec::new();
+        let mut sample_static: Vec<i32> = Vec::new();
+        let mut sample_quiet: Vec<bool> = Vec::new();
+        let mut sample_turns: Vec<u8> = Vec::new();
         for game in 0..games {
             let a_is_first = game % 2 == 0;
             let (ta, tb) = (Table::new(entries), Table::new(entries));
@@ -1681,6 +1794,20 @@ fn self_play(
                 {
                     sa.b = board.clone();
                     taken.push(sa.features());
+                    sample_cells.push(sa.cells_seen_by_the_mover());
+                    let judged = sa.evaluate();
+                    // Her first judgement without the learned one: what a learned judgement is fitted on top of.
+                    let first_look = judged - sa.learned_judgement();
+                    sa.nodes = 0;
+                    sa.stop = false;
+                    sa.started = Instant::now();
+                    let saved_nodes = sa.max_nodes;
+                    sa.max_nodes = 0;
+                    let takes_settled = sa.quiesce(-INF, INF, 0);
+                    sa.max_nodes = saved_nodes;
+                    sample_static.push(first_look);
+                    sample_quiet.push(takes_settled == judged);
+                    sample_turns.push(board.turn as u8);
                     // With ``deep_nodes``, what a much longer look of hers finds the position worth: her slow
                     // thinking, kept to teach her quick judgement what it would have found.
                     let score = if deep_nodes > 0 {
@@ -1714,7 +1841,8 @@ fn self_play(
             let k = ga.kinds.len();
             final_counts.push(sa.features()[..k].to_vec());
         }
-        (points, results, samples, lengths, sample_games, final_counts, sample_scores)
+        (points, results, samples, lengths, sample_games, final_counts, sample_scores, sample_cells, sample_static,
+         sample_quiet, sample_turns)
     });
     let d = PyDict::new_bound(py);
     d.set_item("points", points)?;
@@ -1724,6 +1852,11 @@ fn self_play(
     d.set_item("sample_games", sample_games)?;
     d.set_item("final_counts", final_counts)?;
     d.set_item("sample_scores", sample_scores)?;
+    d.set_item("sample_cells", sample_cells)?;
+    d.set_item("sample_static", sample_static)?;
+    d.set_item("sample_quiet", sample_quiet)?;
+    d.set_item("sample_turns", sample_turns)?;
+    d.set_item("kind_order", ga.kinds.iter().map(|k| k.letter.clone()).collect::<Vec<_>>())?;
     Ok(d.into())
 }
 

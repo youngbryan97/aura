@@ -30,18 +30,24 @@ class KeptCount:
     since: int = 0
     #: What each step changed that her count did not know, learned from readings: added to every step.
     per_step: float = 0.0
-    #: At each reading after the first: what her count had missed, per step since the reading before.
-    missed: list[float] = field(default_factory=list)
+    #: At each reading after the first: how far her count was from it, and over how many steps.
+    missed: list[tuple[float, int]] = field(default_factory=list)
+    #: Of the readings remembered, what the steps changed that her count did not know, in all, and how many steps.
+    unknown: list[tuple[float, int]] = field(default_factory=list)
 
     def read(self, reading: float) -> None:
-        """The instrument read ``reading``: her count is set to it, and what the count missed is learned."""
+        """The instrument read ``reading``: her count is set to it, and what the count missed is learned. What each
+        step adds unknown is everything the steps since the readings began added unknown, over how many steps there
+        were: an instrument read in whole units misses by up to half of one each time, so a step's share of one
+        reading's miss says little, and a share of many says more."""
         reading = float(reading)
         if self.value is not None and self.since:
-            # What a step changed that her count did not know: what the last steps missed, with what was already being
-            # added for it put back.
-            unknown = (reading - self.value) / self.since + self.per_step
-            self.missed = [*self.missed[-(REMEMBERED - 1):], unknown]
-            self.per_step = statistics.fmean(self.missed)
+            miss = reading - self.value
+            self.missed = [*self.missed[-(REMEMBERED - 1):], (miss, self.since)]
+            # What the steps added that her count did not know: what they missed, with what was already being added
+            # for it put back.
+            self.unknown = [*self.unknown[-(REMEMBERED - 1):], (miss + self.per_step * self.since, self.since)]
+            self.per_step = sum(u for u, _ in self.unknown) / sum(n for _, n in self.unknown)
         self.value = reading
         self.since = 0
 
@@ -58,7 +64,7 @@ class KeptCount:
         varies."""
         if self.value is None or len(self.missed) < 2:
             return None
-        usual = statistics.median(abs(m - self.per_step) for m in self.missed)
+        usual = statistics.median(abs(miss) / steps for miss, steps in self.missed)
         return usual * self.since
 
     def must_read(self, can_be_off_by: float) -> bool:

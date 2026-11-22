@@ -87,8 +87,10 @@ class Seat:
     columns: int
     #: The board as it stood when she sat down, in the rules' frame.
     start: dict[tuple[int, int], tuple[int, str]] = field(default_factory=dict)
-    #: How long a change on this board takes to settle, as she has watched its changes settle.
+    #: How long a change on this board takes to settle, as she has watched its changes settle, and what the board read
+    #: when she last saw it stand still: a change between two looks at it is a change watched.
     settles: HowLongItSettles = field(default_factory=lambda: HowLongItSettles(STILL_S))
+    last_still: str = ""
 
     def rules_square(self, row: int, column: int) -> tuple[int, int]:
         """Rows counted from her back row, columns from her left: her side is the rules' first side."""
@@ -244,8 +246,13 @@ async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tupl
         if said == last:
             if first_change is not None:
                 seat.settles.watched(last_change - first_change)
+            seat.last_still = said
             return picture, seen
-        if last:
+        # A reading that differs from the one before it, or from the board as it last stood still, is a change seen.
+        # LIVE 22 November 2026 her wait never learned: each of their moves came between her looks, and only a
+        # change seen within one wait was counted.
+        before = last or seat.last_still
+        if before and said != before:
             now = time.monotonic()
             first_change = now if first_change is None else first_change
             last_change = now
@@ -439,7 +446,8 @@ class _Rehearsing:
                        mobility={k: earned.weights.mobility.get(k, 0.0) for k in family.kinds},
                        squares={k: v for k, v in earned.weights.squares.items() if k in family.kinds},
                        tempo=earned.weights.tempo, royal_pressed=earned.weights.royal_pressed,
-                       exposed={k: v for k, v in earned.weights.exposed.items() if k in family.kinds})
+                       exposed={k: v for k, v in earned.weights.exposed.items() if k in family.kinds},
+                       learned=getattr(earned.weights, "learned", None))
 
     def collect(self) -> None:
         if self.running is not None and self.running.done():
@@ -467,8 +475,10 @@ class _Rehearsing:
             fresh = a_first_rehearsal(family)
             if self.rehearsal is not None:
                 fresh.earned = []
-                # How long its games run is about the game, not about the kinds she reads in it.
+                # How long its games run is about the game, not about the kinds she reads in it; the positions her
+                # longer look searched are kept by each kind's name, and a kind read since does not unsettle them.
                 fresh.lengths = list(self.rehearsal.lengths)
+                fresh.looked_at_longer = self.rehearsal.looked_at_longer
             self.rehearsal = fresh
         self.rounds += 1
         self.running = pool.submit(rehearse, family, family.the_start(), self.rehearsal, seed=self.rounds)

@@ -55,3 +55,25 @@ def test_a_board_whose_changes_finish_at_once_is_believed_after_two_quick_looks(
     for _ in range(REMEMBERED):
         seat.settles.watched(0.0)
     assert asyncio.run(watch()) < 0.25
+
+
+def test_a_change_that_comes_between_her_looks_teaches_the_wait(monkeypatch) -> None:
+    # The board stands still; then a move comes while she is not looking, already drawn when she looks again.
+    app = BoardApplication(NOBODYS_GAME, seed=5)
+    seat = playing.a_board_of_two_sides_at_its_start(app.draw())
+    assert seat is not None
+    seat.settles = HowLongItSettles(0.05)
+
+    async def look():
+        return app.draw()
+
+    async def watch() -> None:
+        assert await playing._seen_still(seat, look) is not None
+        for _ in range(REMEMBERED):
+            from core.agency.pieces_by_their_kind import moves
+
+            app.make(moves(NOBODYS_GAME, app.position)[0])
+            assert await playing._seen_still(seat, look) is not None
+
+    asyncio.run(watch())
+    assert seat.settles.wait() == 0.0

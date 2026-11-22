@@ -587,6 +587,41 @@ def recall(world: str, *, indexed_tables: Sequence[Mapping[str, Any]] = ()) -> d
     return json.loads(_RECALLED[known])
 
 
+def remember_beside(world: str, what: str, payload: bytes) -> bool:
+    """Keep beside a thing's record what a record cannot hold: numbers gathered about it, as one file of bytes named
+    ``what``. What a record may hold (_MOST_KEPT) does not bound it, so its caller does."""
+    if not payload or not re.fullmatch(r"[a-z0-9-]+", what or ""):
+        return False
+    try:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope(
+            "what_she_learned.remember_beside",
+            domain="state_mutation",
+            constraints={"world": named(world), "what": what},
+        ):
+            get_file_write_gateway().ensure_directory(_kept_in(), source="what_she_learned")
+            get_file_write_gateway().write_bytes(
+                _kept_in() / f"{named(world)}.{what}", payload, source="what_she_learned"
+            )
+        return True
+    except Exception as exc:  # noqa: BLE001 - remembering is never the task
+        logger.info("what she gathered about %r was not kept (%s: %s)", world, type(exc).__name__, exc)
+        return False
+
+
+def recall_beside(world: str, what: str) -> bytes | None:
+    """What was kept beside a thing's record under ``what``, or None where nothing was."""
+    if not re.fullmatch(r"[a-z0-9-]+", what or ""):
+        return None
+    try:
+        return (_kept_in() / f"{named(world)}.{what}").read_bytes()
+    # not a failure: nothing kept beside the record is what a first visit has.
+    except OSError:
+        return None
+
+
 def kept_worlds() -> list[str]:
     """The name of every thing she has kept a record of, for a caller looking across them."""
     try:

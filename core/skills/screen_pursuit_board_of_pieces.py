@@ -12,6 +12,8 @@ Nothing here knows a game or an application.
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import re
 import time
@@ -105,7 +107,9 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         keep["pieces_learned"] = learned_now
     if rehearsal_now is not None:
         keep["pieces_rehearsal"] = rehearsal_now
-    _keep_what_she_learned(target_app, seat.looks, learned_now, rehearsal_now, went_wrong_now)
+    # Off the loop: what she gathered beside the record runs to megabytes.
+    await asyncio.to_thread(_keep_what_she_learned, target_app, seat.looks, learned_now, rehearsal_now,
+                            went_wrong_now)
     if came.get("ended") in ("not taking moves", "not answered"):
         keep["board_left_until"] = time.monotonic() + LEFT_UNTIL_S
         return None
@@ -201,6 +205,11 @@ async def _her_clock(target_app: str) -> float | None:
     return max(clocks)[1]
 
 
+#: What is kept beside her record of a board: how the pieces stand together, and the positions it is learned from.
+_TOGETHER = "how-the-pieces-stand-together"
+_LOOKED_AT_LONGER = "positions-looked-at-longer"
+
+
 def _her_record(target_app: str) -> str:
     """Where what she learned of this board is kept: apart from the rest of what she worked out about the app, which
     her pursuit writes back whole."""
@@ -215,9 +224,9 @@ def _what_she_kept(target_app: str) -> dict[str, Any]:
 def _kept_under(record: str) -> dict[str, Any]:
     from core.agency.how_the_pieces_move import HowThePiecesMove
     from core.agency.searching_by_kind import Weights
-    from core.agency.what_a_kind_is_worth import RESULTS, Rehearsal
+    from core.agency.what_a_kind_is_worth import RESULTS, LookedAtLonger, Rehearsal
     from core.perception.pieces_by_their_look import Looks
-    from core.runtime.what_she_learned import recall
+    from core.runtime.what_she_learned import recall, recall_beside
 
     held = recall(record)
     kept: dict[str, Any] = {"app": str(held.get("app") or "")}
@@ -232,12 +241,19 @@ def _kept_under(record: str) -> dict[str, Any]:
     worth = held.get("worth") or {}
     if worth.get("weights"):
         try:
-            kept["rehearsal"] = Rehearsal(weights=Weights(**worth["weights"]), earned=list(worth.get("earned", [])),
-                                          royal=(list(worth["royal"]) if isinstance(worth.get("royal"), list) else None),
-                                          tries={str(k): int(v) for k, v in (worth.get("tries") or {}).items()},
-                                          lengths=[int(n) for n in worth.get("lengths", [])],
-                                          teacher=str(worth.get("teacher") or RESULTS))
-        except (TypeError, ValueError) as why:
+            weights = dict(worth["weights"])
+            together = recall_beside(record, _TOGETHER)
+            weights["learned"] = json.loads(together) if together else None
+            rehearsal = Rehearsal(weights=Weights(**weights), earned=list(worth.get("earned", [])),
+                                  royal=(list(worth["royal"]) if isinstance(worth.get("royal"), list) else None),
+                                  tries={str(k): int(v) for k, v in (worth.get("tries") or {}).items()},
+                                  lengths=[int(n) for n in worth.get("lengths", [])],
+                                  teacher=str(worth.get("teacher") or RESULTS))
+            positions = recall_beside(record, _LOOKED_AT_LONGER)
+            if positions:
+                rehearsal.looked_at_longer = LookedAtLonger.from_bytes(positions)
+            kept["rehearsal"] = rehearsal
+        except (TypeError, ValueError, KeyError, OSError) as why:
             logger.info("what she measured at this board could not be read back (%s)", why)
     return kept
 
@@ -246,7 +262,7 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
     from dataclasses import asdict
 
     from core.agency.what_a_kind_is_worth import RESULTS
-    from core.runtime.what_she_learned import remember
+    from core.runtime.what_she_learned import remember, remember_beside
 
     record: dict[str, Any] = {"app": target_app, "looks": looks.as_memory()}
     if learned is not None:
@@ -254,7 +270,16 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
     if went_wrong is not None and went_wrong.ruled_out:
         record["went_wrong"] = went_wrong.as_memory()
     if rehearsal is not None and getattr(rehearsal, "earned", None):
-        record["worth"] = {"weights": asdict(rehearsal.weights), "earned": list(rehearsal.earned),
+        weights = asdict(rehearsal.weights)
+        # How the pieces stand together, and the positions it is learned from, are kept beside the record: thousands of
+        # numbers where a record holds sixty thousand characters.
+        together = weights.pop("learned", None)
+        if together:
+            remember_beside(_her_record(target_app), _TOGETHER, json.dumps(together).encode())
+        looked = getattr(rehearsal, "looked_at_longer", None)
+        if looked is not None and looked.parts:
+            remember_beside(_her_record(target_app), _LOOKED_AT_LONGER, looked.as_bytes())
+        record["worth"] = {"weights": weights, "earned": list(rehearsal.earned),
                            "royal": rehearsal.royal, "tries": dict(rehearsal.tries),
                            "lengths": list(rehearsal.lengths)[-400:],
                            "teacher": getattr(rehearsal, "teacher", RESULTS)}

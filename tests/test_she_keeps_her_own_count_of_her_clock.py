@@ -47,6 +47,30 @@ def test_she_reads_again_only_when_her_count_may_be_off_by_more_than_she_can_aff
     assert count.must_read(1.0), "steps enough since the last reading and her count may have drifted"
 
 
+def test_a_clock_read_in_whole_seconds_teaches_what_each_turn_misses() -> None:
+    # LIVE 22 November 2026, game 17: her clock read 98.0 s where her count said 104.5 s. A clock shown in whole seconds
+    # misses by up to half of one at every reading, and what she learned a turn misses was each reading's miss alone.
+    import random
+
+    rng = random.Random(1)
+    shown, count = 180.0, KeptCount()
+    count.read(round(shown))
+    worst, reads = 0.0, 0
+    for _ in range(60):
+        took = 2.6 + rng.uniform(-0.3, 0.3)
+        # Her turn, and a third of a second before she sees their move that her count does not know of.
+        shown -= took + 0.33
+        count.step(-took)
+        worst = max(worst, abs(count.value - shown))
+        if count.must_read(max(shown, 1.0) / 30):
+            count.read(round(shown))
+            reads += 1
+    assert abs(count.per_step + 0.33) < 0.05, count.per_step
+    assert worst < 1.5, worst
+    # Read on one turn in four at most: the rest go by her count.
+    assert reads <= 15, reads
+
+
 class _ClockedApplication(BoardApplication):
     """Her clock runs while it is her turn and stands while it is theirs, and gives back half a second after each of
     her moves. Each reading is counted, with whether her clock was running as it was read. The other side thinks
@@ -91,7 +115,7 @@ class _ClockedApplication(BoardApplication):
         return self.shows()
 
 
-def test_her_clock_is_read_on_their_time_and_seldom(monkeypatch) -> None:
+def test_her_clock_is_read_on_their_time(monkeypatch) -> None:
     monkeypatch.setattr(playing, "STILL_S", 0.02)
     monkeypatch.setattr(playing, "OFFERS_SHOW_S", 0.01)
     monkeypatch.setattr(playing, "WAITS_FOR_THE_FIRST_MOVE_S", 0.2)
@@ -124,7 +148,8 @@ def test_her_clock_is_read_on_their_time_and_seldom(monkeypatch) -> None:
     assert hers >= 6, came
     # Read on her own time once, where she had no count to begin from.
     assert app.reads_on_her_time <= 1, (app.reads_on_her_time, app.reads_on_theirs)
-    assert app.reads_on_her_time + app.reads_on_theirs < hers
+    # At most once while each answer of theirs is awaited.
+    assert app.reads_on_theirs <= hers
     # Her count is where the clock stood when it last stopped or began again, within a look's lag.
     count = counts[-1]
     assert count.value is not None

@@ -42,6 +42,10 @@ class Weights:
     #: Per kind, against its side, for each piece of it the other side attacks and its own does not defend
     #: (core/cognition/what_she_cannot_afford_to_lose.py). Nothing until rehearsal measures it.
     exposed: dict[str, float] = field(default_factory=dict)
+    #: A second judgement over where each kind stands, learned from what her longer looks found positions worth, added
+    #: to the first: its hidden layer's size, per kind a row into it for each square from the mover's side and from the
+    #: other side's, and the layer's biases and output. None until rehearsal has earned one.
+    learned: dict[str, Any] | None = None
 
     def as_json(self) -> str:
         return json.dumps(asdict(self))
@@ -54,10 +58,25 @@ class Weights:
         def by_name(of: dict[str, Any]) -> dict[str, Any]:
             return {names[kind]: value for kind, value in of.items() if kind in names}
 
+        learned = None
+        if self.learned:
+            columns = int(self.learned.get("columns") or 0)
+
+            def turned(rows: list[list[float]]) -> list[list[float]]:
+                # The learned judgement's squares run row by row in the mover's own frame: seen from the other side,
+                # each row's columns swap.
+                if not turned_round or not columns:
+                    return [list(row) for row in rows]
+                return [rows[r * columns + (columns - 1 - c)] for r in range(len(rows) // columns)
+                        for c in range(columns)]
+
+            learned = {**self.learned, "own": {k: turned(v) for k, v in by_name(self.learned.get("own", {})).items()},
+                       "theirs": {k: turned(v) for k, v in by_name(self.learned.get("theirs", {})).items()}}
         return Weights(worth=by_name(self.worth), mobility=by_name(self.mobility),
                        squares={kind: [list(reversed(row)) if turned_round else list(row) for row in table]
                                 for kind, table in by_name(self.squares).items()},
-                       tempo=self.tempo, royal_pressed=self.royal_pressed, exposed=by_name(self.exposed))
+                       tempo=self.tempo, royal_pressed=self.royal_pressed, exposed=by_name(self.exposed),
+                       learned=learned)
 
 
 @dataclass

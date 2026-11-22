@@ -19,6 +19,14 @@ what that search finds it worth, read as a chance to win on the scale her own re
 thinking teaches her quick judgement what it would have found. It cannot teach worth itself, which it reads from the
 weights it searches with.
 
+Once every group a weighted sum can hold is earned, what is left is how the pieces stand together: what a piece is
+worth where it stands depends on where the others stand. The quiet positions her longer look searched are kept, and a
+judgement over which kind stands where, from the side to move, is learned from what her first look missed of what the
+longer look found (core/cognition/a_quick_judgement_from_slow_ones.py). It is tried as a group like any other, once it
+foretells positions it was not fitted on better than her first look does, and kept only where it wins its match.
+Measured 22 November 2026 on 84,299 such positions against Stockfish held to depth 5, 40 games on each of four seeds:
+0.447, 0.474, 0.550 and 0.538 with it, 0.412, 0.450, 0.350 and 0.425 without.
+
 What she measures is hers, about this one game, kept with what she learned of it. Nothing is measured for her and
 shipped; nothing here knows a game.
 """
@@ -26,7 +34,8 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass, field
+import io
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -36,8 +45,8 @@ from core.agency.searching_by_kind import PER_SQUARE, Weights, described, first_
 
 logger = logging.getLogger("Aura.WhatAKindIsWorth")
 
-__all__ = ["GROUPS", "HER_LONGER_LOOK", "RESULTS", "Rehearsal", "a_first_rehearsal", "calibrated_scale", "fitted",
-           "rehearse", "tried_as"]
+__all__ = ["GROUPS", "HER_LONGER_LOOK", "RESULTS", "TOGETHER", "LookedAtLonger", "Rehearsal", "a_first_rehearsal",
+           "calibrated_scale", "fitted", "rehearse", "tried_as"]
 
 #: Games a round of rehearsal plays, and the nodes each move is searched to: small, so a round fits in the other
 #: side's turn.
@@ -49,8 +58,10 @@ RANDOM_PLIES = 8
 HELD_BACK = 1.0
 #: How many standard errors above even a new set of weights must score against the old to be kept.
 BETTER_BY = 1.0
+#: What a weighted sum cannot hold: how the pieces stand together, learned from her longer look.
+TOGETHER = "how the pieces stand together"
 #: What is fitted, a group at a time, in the order a weak player's games can tell them apart.
-GROUPS = ("worth", "turn and safety", "moves", "what is left to be taken", "where each stands")
+GROUPS = ("worth", "turn and safety", "moves", "what is left to be taken", "where each stands", TOGETHER)
 #: Who teaches her a position: how her games ended, or what a much longer look of hers finds it worth.
 RESULTS = "how her games ended"
 HER_LONGER_LOOK = "her longer look"
@@ -58,6 +69,108 @@ HER_LONGER_LOOK = "her longer look"
 LONGER_LOOK_NODES = 30_000
 #: Tries of a group taught by results, failed, before her longer look teaches instead.
 RESULTS_TRIED_AT_MOST = 2
+#: Positions her longer look searched, kept at most, the latest: about seven and a half megabytes of her disk.
+LOOKED_AT_LONGER_AT_MOST = 100_000
+
+
+@dataclass
+class LookedAtLonger:
+    """The quiet positions her longer look searched: each one's pieces as the side to move sees them, her first
+    judgement of it for that side, what the longer look found it worth for that side, and the game it came from. A
+    position is quiet where a look at the takes alone leaves her first judgement as it is: what is left to learn there is
+    how the pieces stand, not what is about to be taken."""
+
+    #: The kinds in the order a position's parts count them; a kind seen later is added at the end.
+    kinds: list[str] = field(default_factory=list)
+    squares: int = 0
+    columns: int = 0
+    parts: list[np.ndarray] = field(default_factory=list)
+    glance: list[float] = field(default_factory=list)
+    slow: list[float] = field(default_factory=list)
+    game: list[int] = field(default_factory=list)
+    #: The scale her results showed her longer look's scores on, a round at a time.
+    scales: list[float] = field(default_factory=list)
+
+    def add(self, played: dict, round_: int, rows: int, columns: int) -> None:
+        """The positions of one round of her games, where her compiled search gave what is needed of them."""
+        cells, statics = played.get("sample_cells"), played.get("sample_static")
+        quiet, turns, scores = played.get("sample_quiet"), played.get("sample_turns"), played.get("sample_scores")
+        order, games = played.get("kind_order"), played.get("sample_games") or []
+        if not (cells and statics and quiet and turns and scores and order) or len({len(cells), len(statics),
+                                                                                     len(quiet), len(turns),
+                                                                                     len(scores)}) != 1:
+            return
+        squares = rows * columns
+        self.squares, self.columns = squares, columns
+        for letter in order:
+            if letter not in self.kinds:
+                self.kinds.append(letter)
+        slot = np.array([self.kinds.index(letter) for letter in order], dtype=np.int64)
+        results = [float(result) for _features, result in played.get("samples") or []]
+        if len(results) == len(scores):
+            self.scales.append(calibrated_scale(list(scores), results))
+        for n, (seen, glance, settled, turn, score) in enumerate(zip(cells, statics, quiet, turns, scores, strict=True)):
+            if not settled or abs(int(score)) >= 3000:
+                continue
+            index = np.asarray(seen, dtype=np.int64)
+            kind, rest = np.divmod(index, 2 * squares)
+            self.parts.append(((slot[kind] * 2 * squares) + rest).astype(np.int16))
+            self.glance.append(float(glance))
+            self.slow.append(float(score) if int(turn) == 0 else -float(score))
+            self.game.append(round_ * 10_000 + (int(games[n]) if n < len(games) else 0))
+        extra = len(self.parts) - LOOKED_AT_LONGER_AT_MOST
+        if extra > 0:
+            del self.parts[:extra], self.glance[:extra], self.slow[:extra], self.game[:extra]
+
+    def judgement(self, *, seed: int = 0) -> dict[str, Any] | None:
+        """How the pieces stand together, learned from what her first look missed of what her longer look found, as
+        weights her compiled search reads; None where nothing learned yet foretells positions it was not fitted on
+        better than her first look."""
+        from core.cognition.a_quick_judgement_from_slow_ones import learned_from_slow_ones
+
+        if not self.parts or not self.scales or not self.squares:
+            return None
+        width = max(len(p) for p in self.parts)
+        parts = np.full((len(self.parts), width), -1, dtype=np.int64)
+        for n, p in enumerate(self.parts):
+            parts[n, :len(p)] = p
+        learned = learned_from_slow_ones(parts, np.array(self.glance), np.array(self.slow), np.array(self.game),
+                                         inputs=len(self.kinds) * 2 * self.squares,
+                                         scale=float(np.median(self.scales)), seed=seed)
+        if learned is None:
+            return None
+        rows = learned.first
+
+        def by_kind(theirs: int) -> dict[str, list[list[float]]]:
+            return {letter: [[round(float(x), 3) for x in row]
+                             for row in rows[(k * 2 + theirs) * self.squares:(k * 2 + theirs + 1) * self.squares]]
+                    for k, letter in enumerate(self.kinds)}
+
+        return {"hidden": int(rows.shape[1]), "columns": self.columns, "own": by_kind(0), "theirs": by_kind(1),
+                "first_bias": [round(float(x), 3) for x in learned.first_bias],
+                "out": [round(float(x), 5) for x in learned.out], "out_bias": round(float(learned.out_bias), 3),
+                "held_out": [round(learned.held_out_before, 6), round(learned.held_out_after, 6)]}
+
+    def as_bytes(self) -> bytes:
+        """Kept on disk as one compressed file of arrays."""
+        width = max((len(p) for p in self.parts), default=0)
+        parts = np.full((len(self.parts), width), -1, dtype=np.int16)
+        for n, p in enumerate(self.parts):
+            parts[n, :len(p)] = p
+        out = io.BytesIO()
+        np.savez_compressed(out, kinds=np.array(self.kinds), squares=np.array(self.squares),
+                            columns=np.array(self.columns), parts=parts,
+                            glance=np.array(self.glance, dtype=np.float32), slow=np.array(self.slow, dtype=np.float32),
+                            game=np.array(self.game, dtype=np.int64), scales=np.array(self.scales, dtype=np.float32))
+        return out.getvalue()
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> LookedAtLonger:
+        held = np.load(io.BytesIO(data), allow_pickle=False)
+        return cls(kinds=[str(k) for k in held["kinds"]], squares=int(held["squares"]), columns=int(held["columns"]),
+                   parts=[row[row >= 0].astype(np.int16) for row in held["parts"]],
+                   glance=[float(x) for x in held["glance"]], slow=[float(x) for x in held["slow"]],
+                   game=[int(x) for x in held["game"]], scales=[float(x) for x in held["scales"]])
 
 
 @dataclass
@@ -87,6 +200,8 @@ class Rehearsal:
     #: what a kind holds is worth, which it reads from the weights it searches with: begun from her first guess, eight
     #: rounds of it earned nothing.
     teacher: str = RESULTS
+    #: The quiet positions her longer look searched, for learning how the pieces stand together.
+    looked_at_longer: LookedAtLonger = field(default_factory=LookedAtLonger)
 
 
 def _engine() -> Any | None:
@@ -254,6 +369,8 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
                                     rehearsal.weights.as_json(), games, nodes, longer=longer,
                                     random_plies=RANDOM_PLIES, seed=seed)
     taught = _what_her_longer_look_found(played) if looked_longer else None
+    if looked_longer:
+        rehearsal.looked_at_longer.add(played, rehearsal.rounds, family.rows, family.columns)
     # How long a game of this sort goes, from games that ended with a result: one that stopped on a repetition early, in
     # a model that cannot yet end a game, says nothing of it. LIVE 21 November 2026 such games ran a dozen plies, she
     # expected two or three more moves of her own, and gave each move a third of her clock.
@@ -278,8 +395,19 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     rehearsal.rounds += 1
     trying = next((group for group in GROUPS if group not in rehearsal.earned), None)
     groups = [*rehearsal.earned, *([trying] if trying else [])]
-    candidate = fitted(family, np.array(rehearsal.samples_x, dtype=np.float64),
-                       np.array(rehearsal.samples_y, dtype=np.float64), groups)
+    if trying == TOGETHER:
+        learned = rehearsal.looked_at_longer.judgement(seed=seed)
+        if learned is None:
+            rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,
+                              "why": "nothing learned yet foretells her longer look better than her first look"}
+            return rehearsal
+        candidate = replace(rehearsal.weights, learned=learned)
+    else:
+        candidate = fitted(family, np.array(rehearsal.samples_x, dtype=np.float64),
+                           np.array(rehearsal.samples_y, dtype=np.float64), groups)
+        if candidate is not None:
+            # A refit of what a weighted sum holds keeps how the pieces stand together as it was learned.
+            candidate.learned = rehearsal.weights.learned
     if candidate is None:
         rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "kept": False,
                           "why": "too few positions to fit"}
