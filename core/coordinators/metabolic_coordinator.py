@@ -1150,6 +1150,12 @@ class MetabolicCoordinator(_TriggersTheImpulses):
         if frustration > 0.6:
             if time.time() - orch._last_reflection_impulse > 300:
                 self.trigger_reflection_impulse()
+        if time.time() - getattr(orch, "_last_practice_check", 0.0) > 60:
+            # Between games she practises the last one she played (core/agency/practising_between_games.py).
+            orch._last_practice_check = time.time()
+            from core.agency.practising_between_games import practise_when_idle
+
+            practise_when_idle(orch, self.track_metabolic_task)
         if time.time() - orch._last_pulse > 5:
             self.emit_neural_pulse()
             self.emit_telemetry_pulse()

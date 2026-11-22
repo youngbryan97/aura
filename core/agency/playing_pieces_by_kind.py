@@ -408,14 +408,17 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
 
     from core.agency.searching_by_kind import search
 
+    from core.agency.practising_between_games import at_a_board
+
     rehearsing = _Rehearsing(rehearsal)
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
     the_moves: list[str] = []
     went_wrong = went_wrong if went_wrong is not None else WhatFailedWhere()
     try:
-        came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
-                           rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
-                           the_moves=the_moves, went_wrong=went_wrong)
+        with at_a_board():
+            came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
+                               rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
+                               the_moves=the_moves, went_wrong=went_wrong)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     came["rehearsal"] = rehearsing.rehearsal

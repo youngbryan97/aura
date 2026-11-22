@@ -71,7 +71,10 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     if seat is None:
         return None
     learned = keep.get("pieces_learned") or kept.get("rules")
-    rehearsal = keep.get("pieces_rehearsal") or kept.get("rehearsal")
+    # The rehearsal she has in hand from a game this sitting, or the one kept with her record, whichever has run more
+    # rounds: practice between games (core/agency/practising_between_games.py) keeps its rounds with the record.
+    in_hand, recorded = keep.get("pieces_rehearsal"), kept.get("rehearsal")
+    rehearsal = max((r for r in (in_hand, recorded) if r is not None), key=lambda r: r.rounds, default=None)
     if learned is not None:
         learned.start = dict(seat.start)
     logger.info("two sides of pieces at their start in %r: %dx%d; playing it by search", target_app, seat.rows,
@@ -248,7 +251,7 @@ def _kept_under(record: str) -> dict[str, Any]:
                                   royal=(list(worth["royal"]) if isinstance(worth.get("royal"), list) else None),
                                   tries={str(k): int(v) for k, v in (worth.get("tries") or {}).items()},
                                   lengths=[int(n) for n in worth.get("lengths", [])],
-                                  teacher=str(worth.get("teacher") or RESULTS))
+                                  teacher=str(worth.get("teacher") or RESULTS), rounds=int(worth.get("rounds") or 0))
             positions = recall_beside(record, _LOOKED_AT_LONGER)
             if positions:
                 rehearsal.looked_at_longer = LookedAtLonger.from_bytes(positions)
@@ -282,7 +285,8 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
         record["worth"] = {"weights": weights, "earned": list(rehearsal.earned),
                            "royal": rehearsal.royal, "tries": dict(rehearsal.tries),
                            "lengths": list(rehearsal.lengths)[-400:],
-                           "teacher": getattr(rehearsal, "teacher", RESULTS)}
+                           "teacher": getattr(rehearsal, "teacher", RESULTS),
+                           "rounds": int(getattr(rehearsal, "rounds", 0))}
     remember(_her_record(target_app), record)
 
 
