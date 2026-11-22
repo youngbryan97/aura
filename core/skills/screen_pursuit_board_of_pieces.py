@@ -215,7 +215,7 @@ def _what_she_kept(target_app: str) -> dict[str, Any]:
 def _kept_under(record: str) -> dict[str, Any]:
     from core.agency.how_the_pieces_move import HowThePiecesMove
     from core.agency.searching_by_kind import Weights
-    from core.agency.what_a_kind_is_worth import Rehearsal
+    from core.agency.what_a_kind_is_worth import RESULTS, Rehearsal
     from core.perception.pieces_by_their_look import Looks
     from core.runtime.what_she_learned import recall
 
@@ -235,7 +235,8 @@ def _kept_under(record: str) -> dict[str, Any]:
             kept["rehearsal"] = Rehearsal(weights=Weights(**worth["weights"]), earned=list(worth.get("earned", [])),
                                           royal=(list(worth["royal"]) if isinstance(worth.get("royal"), list) else None),
                                           tries={str(k): int(v) for k, v in (worth.get("tries") or {}).items()},
-                                          lengths=[int(n) for n in worth.get("lengths", [])])
+                                          lengths=[int(n) for n in worth.get("lengths", [])],
+                                          teacher=str(worth.get("teacher") or RESULTS))
         except (TypeError, ValueError) as why:
             logger.info("what she measured at this board could not be read back (%s)", why)
     return kept
@@ -244,6 +245,7 @@ def _kept_under(record: str) -> dict[str, Any]:
 def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal: Any, went_wrong: Any = None) -> None:
     from dataclasses import asdict
 
+    from core.agency.what_a_kind_is_worth import RESULTS
     from core.runtime.what_she_learned import remember
 
     record: dict[str, Any] = {"app": target_app, "looks": looks.as_memory()}
@@ -254,7 +256,8 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
     if rehearsal is not None and getattr(rehearsal, "earned", None):
         record["worth"] = {"weights": asdict(rehearsal.weights), "earned": list(rehearsal.earned),
                            "royal": rehearsal.royal, "tries": dict(rehearsal.tries),
-                           "lengths": list(rehearsal.lengths)[-400:]}
+                           "lengths": list(rehearsal.lengths)[-400:],
+                           "teacher": getattr(rehearsal, "teacher", RESULTS)}
     remember(_her_record(target_app), record)
 
 

@@ -13,6 +13,12 @@ colours swapped, by more than the match's standard error; a group that does not 
 Measured on chess in its test world, 19 November 2026: fitting worth alone scored 0.56 against the first guess, and
 fitting moves too on the same games scored 0.43 and 0.28.
 
+Results of weak games teach what a kind is worth and little more. A group they fail to earn twice, once worth is
+earned, is taught by her longer look instead: each position she rehearses is also searched twenty times as long, and
+what that search finds it worth, read as a chance to win on the scale her own results show, is the label. Her slow
+thinking teaches her quick judgement what it would have found. It cannot teach worth itself, which it reads from the
+weights it searches with.
+
 What she measures is hers, about this one game, kept with what she learned of it. Nothing is measured for her and
 shipped; nothing here knows a game.
 """
@@ -30,7 +36,8 @@ from core.agency.searching_by_kind import PER_SQUARE, Weights, described, first_
 
 logger = logging.getLogger("Aura.WhatAKindIsWorth")
 
-__all__ = ["GROUPS", "Rehearsal", "a_first_rehearsal", "fitted", "rehearse"]
+__all__ = ["GROUPS", "HER_LONGER_LOOK", "RESULTS", "Rehearsal", "a_first_rehearsal", "calibrated_scale", "fitted",
+           "rehearse"]
 
 #: Games a round of rehearsal plays, and the nodes each move is searched to: small, so a round fits in the other
 #: side's turn.
@@ -44,6 +51,13 @@ HELD_BACK = 1.0
 BETTER_BY = 1.0
 #: What is fitted, a group at a time, in the order a weak player's games can tell them apart.
 GROUPS = ("worth", "turn and safety", "moves", "what is left to be taken", "where each stands")
+#: Who teaches her a position: how her games ended, or what a much longer look of hers finds it worth.
+RESULTS = "how her games ended"
+HER_LONGER_LOOK = "her longer look"
+#: Nodes of the longer look that teaches a position once results cannot: twenty times a rehearsal move's.
+LONGER_LOOK_NODES = 30_000
+#: Tries of a group taught by results, failed, before her longer look teaches instead.
+RESULTS_TRIED_AT_MOST = 2
 
 
 @dataclass
@@ -65,6 +79,14 @@ class Rehearsal:
     #: How many times each group has been tried: each try is one more chance for a group that does not help to win a
     #: match by luck, so each asks more of it.
     tries: dict[str, int] = field(default_factory=dict)
+    #: Who teaches her positions now (RESULTS or HER_LONGER_LOOK). Results of games between two weak players say what
+    #: a kind holds is worth and little more: measured 22 November 2026 on 141,547 positions of hers, where each piece
+    #: stands added nothing to how well a fit foretold results it had not seen (log-loss 0.5294 without, 0.5295 with),
+    #: and a candidate fitted to them lost its match 0.107 +- 0.048. Taught by what a search twenty times as long found
+    #: each position worth, the same group was earned on its first try (0.657 +- 0.071). A longer look cannot teach
+    #: what a kind holds is worth, which it reads from the weights it searches with: begun from her first guess, eight
+    #: rounds of it earned nothing.
+    teacher: str = RESULTS
 
 
 def _engine() -> Any | None:
@@ -72,6 +94,8 @@ def _engine() -> Any | None:
         import aura_board_search
 
         return aura_board_search
+    # not a failure: without the compiled search there is nothing to rehearse in, and a rehearsal is returned as it
+    # was given.
     except ImportError:
         return None
 
@@ -111,6 +135,7 @@ def fitted(family: Family, xs: np.ndarray, ys: np.ndarray, groups: list[str]) ->
         try:
             step = np.linalg.solve((chosen * (p * (1 - p))[:, None]).T @ chosen + penalty,
                                    chosen.T @ (p - ys) + penalty @ theta)
+        # not a failure: positions too alike to fit tell her nothing yet, and no candidate is tried this round.
         except np.linalg.LinAlgError:
             return None
         theta -= step
@@ -157,6 +182,43 @@ def _as_a_result(standing: float, spread: float) -> float:
     return 1.0 / (1.0 + math.exp(-standing / spread))
 
 
+def calibrated_scale(scores: list[float], results: list[float]) -> float:
+    """The score that reads as about three chances in four to win: the scale on which her search's scores best foretell
+    how her games ended. Her own scores, read against her own results; nothing is assumed of what a score means."""
+    v = np.clip(np.asarray(scores, dtype=np.float64), -3000, 3000)
+    z = np.asarray(results, dtype=np.float64)
+    best, best_fit = 200.0, -math.inf
+    for scale in np.geomspace(30, 3000, 60):
+        p = np.clip(1.0 / (1.0 + np.exp(-v / scale)), 1e-6, 1 - 1e-6)
+        fit = float(np.sum(z * np.log(p) + (1 - z) * np.log(1 - p)))
+        if fit > best_fit:
+            best, best_fit = float(scale), fit
+    return best
+
+
+def _what_her_longer_look_found(played: dict) -> list[float] | None:
+    """Each sampled position read as a chance to win from what her longer look found it worth, or None where the
+    games carry no such scores (a build of the compiled search from before them)."""
+    scores = list(played.get("sample_scores") or [])
+    results = [float(result) for _features, result in played.get("samples") or []]
+    if not scores or len(scores) != len(results):
+        return None
+    scale = calibrated_scale(scores, results)
+    return [1.0 / (1.0 + math.exp(-max(-3000.0, min(3000.0, float(v))) / scale)) for v in scores]
+
+
+def _played(engine: Any, *asked: Any, longer: int = 0, **options: Any) -> tuple[dict, bool]:
+    """Games of her search in her model, and whether each sampled position was also looked at ``longer`` nodes."""
+    if longer:
+        try:
+            return engine.self_play(*asked, deep_nodes=longer, **options), True
+        # not a failure: a build of the compiled search from before longer looks plays the games without them, and
+        # the positions are taught by results.
+        except TypeError:
+            pass
+    return engine.self_play(*asked, **options), False
+
+
 def how_far_above_even(tries: int) -> float:
     """How many standard errors above even a group must score on its ``tries``-th try to be kept. The first try asks
     BETTER_BY; later ones ask more, so that the chance a group that does not help is ever kept stays what one try's
@@ -179,8 +241,11 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         return rehearsal
     description = described(family)
     begin = placed(start)
-    played = engine.self_play(description, begin, rehearsal.weights.as_json(), rehearsal.weights.as_json(),
-                              games, nodes, random_plies=RANDOM_PLIES, seed=seed)
+    longer = LONGER_LOOK_NODES if rehearsal.teacher == HER_LONGER_LOOK else 0
+    played, looked_longer = _played(engine, description, begin, rehearsal.weights.as_json(),
+                                    rehearsal.weights.as_json(), games, nodes, longer=longer,
+                                    random_plies=RANDOM_PLIES, seed=seed)
+    taught = _what_her_longer_look_found(played) if looked_longer else None
     # How long a game of this sort goes, from games that ended with a result: one that stopped on a repetition early, in
     # a model that cannot yet end a game, says nothing of it. LIVE 21 November 2026 such games ran a dozen plies, she
     # expected two or three more moves of her own, and gave each move a third of her clock.
@@ -194,7 +259,9 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     games_of = list(played.get("sample_games") or [])
     for index, (features, result) in enumerate(played["samples"]):
         label = float(result)
-        if label == 0.5 and spread > 0 and index < len(games_of) and games_of[index] < len(standing):
+        if taught is not None:
+            label = taught[index]
+        elif label == 0.5 and spread > 0 and index < len(games_of) and games_of[index] < len(standing):
             label = _as_a_result(standing[games_of[index]], spread)
         # Kept as one compact row of numbers, not a list of Python floats: a position's features as floats took 13 KB,
         # and LIVE 21 November 2026 one game's rehearsal gathered 15,820 of them.
@@ -229,6 +296,12 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         rehearsal.royal = royal_kinds(family)
         if trying and trying not in rehearsal.earned:
             rehearsal.earned.append(trying)
+    elif (rehearsal.teacher == RESULTS and trying and "worth" in rehearsal.earned
+          and tries >= RESULTS_TRIED_AT_MOST):
+        # What results could teach they have taught: from here her longer look teaches, on positions of its own.
+        rehearsal.teacher = HER_LONGER_LOOK
+        rehearsal.samples_x, rehearsal.samples_y = [], []
+        rehearsal.last["teacher"] = HER_LONGER_LOOK
     logger.info("rehearsal round %d: %s", rehearsal.rounds, rehearsal.last)
     return rehearsal
 
