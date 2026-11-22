@@ -113,3 +113,26 @@ def test_she_practises_though_no_one_has_spoken_to_her_since_she_woke(monkeypatc
     _a_board_she_played("A Practice Board")
     assert _practise()
     assert ran == [1] and asked[-1]["allow_no_user_anchor"] is True
+
+
+def test_a_round_that_ends_during_a_game_leaves_the_record_to_the_game(monkeypatch) -> None:
+    import core.runtime.background_policy as policy
+
+    monkeypatch.setattr(policy, "background_activity_reason", lambda *a, **k: "")
+    monkeypatch.setattr(practice, "_HELD", {})
+    monkeypatch.setattr(practice, "_RUNNING", None)
+    monkeypatch.setattr(practice, "_on_mains", lambda: True)
+    _a_board_she_played("A Practice Board")
+
+    def a_round_that_a_game_interrupts(family, start, rehearsal, **options):
+        practice._PLAYING += 1  # a game sits down while the round runs
+        rehearsal.rounds += 1
+        rehearsal.last = {"kept": False}
+        return rehearsal
+
+    monkeypatch.setattr(worth, "rehearse", a_round_that_a_game_interrupts)
+    try:
+        assert _practise()
+    finally:
+        practice._PLAYING = 0
+    assert pursuit._what_she_kept("A Practice Board")["rehearsal"].rounds == 0
