@@ -97,6 +97,17 @@ def _readable(instance: Any, name: str) -> bool:
     return callable(method) and not inspect.iscoroutinefunction(method)
 
 
+def host_memory_headroom() -> float:
+    """What is left of the host's memory, from 0.0 to 1.0: the reading the resource governor's eviction tiers are read
+    from (core/resource/resource_governor.py), so a repair of load is judged by the load it was asked to lower."""
+    from core.runtime.resource_observation import get_resource_observer
+
+    memory = get_resource_observer().memory(include_process_tree=False)
+    if not memory.available:
+        raise RuntimeError(f"the host's memory could not be read: {memory.error or 'unavailable'}")
+    return _clamp01(1.0 - float(memory.percent) / 100.0)
+
+
 def _clamp01(value: float) -> float:
     return float(max(0.0, min(1.0, value)))
 
@@ -500,7 +511,10 @@ class IntegrationAuditor:
                 metabolism = None
             if metabolism is not None and callable(getattr(metabolism, "reduce_load", None)):
                 try:
-                    autopoiesis.register_repair_handler(RepairStrategy.REDUCE_LOAD, "global", metabolism.reduce_load)
+                    # Judged by what it was asked to lower: the host's memory, the reading the resource governor's
+                    # eviction tiers are read from. With no measure it read 0.000 before and after every run.
+                    autopoiesis.register_repair_handler(RepairStrategy.REDUCE_LOAD, "global", metabolism.reduce_load,
+                                                        measure=host_memory_headroom)
                     self._auto_wired_repairs.add(key)
                     repair_added.append("global:reduce_load")
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:

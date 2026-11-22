@@ -249,6 +249,8 @@ class AutopoiesisEngine:
     def __init__(self, *, tick_interval: float | None = None) -> None:
         # -- Component registry --
         self._health_fns: dict[str, Callable[[], float]] = {}
+        #: For a component nothing monitors, what a repair of it is judged by, read before and after the repair only.
+        self._repair_measures: dict[str, Callable[[], float]] = {}
         self._component_snapshots: dict[str, deque[ComponentSnapshot]] = defaultdict(
             lambda: deque(maxlen=self._HEALTH_WINDOW)
         )
@@ -326,6 +328,8 @@ class AutopoiesisEngine:
         strategy: RepairStrategy,
         component: str,
         handler: Callable[[], Any],
+        *,
+        measure: Callable[[], float] | None = None,
     ) -> None:
         """Register a callable that performs a specific repair on a component.
 
@@ -337,8 +341,13 @@ class AutopoiesisEngine:
             strategy:  Which repair strategy this handler implements.
             component: Which component this handler is for.
             handler:   An async or sync callable.  If async, it will be awaited.
+            measure:   For a component nothing monitors, a reading from 0.0 to
+                       1.0 that the repair should raise: it is read before and
+                       after the repair, and the component is not monitored.
         """
         self._repair_handlers[strategy][component] = handler
+        if measure is not None:
+            self._repair_measures[component] = measure
         logger.debug(
             "Repair handler registered: %s / %s", strategy.value, component
         )
@@ -492,7 +501,35 @@ class AutopoiesisEngine:
             A RepairResult describing what happened.
         """
         async with self._lock:
+            unhelpful = self._did_not_help_lately(component, strategy)
+            if unhelpful is not None:
+                return unhelpful
             return await self._execute_repair(component, strategy)
+
+    def _did_not_help_lately(self, component: str, strategy: RepairStrategy) -> RepairResult | None:
+        """The last run of this repair on this component, when it ran within the cooldown and did not help: asked for
+        again inside the cooldown, that is the answer, and it is not run again. LIVE 21 November 2026, her immune system
+        asked for reduce_load on global every few seconds while the host's memory was held by other programs, and it
+        ran each time: "Repair INEFFECTIVE ... attempt #438" in 27 minutes."""
+        for result in reversed(self._repair_history):
+            if result.component == component and result.strategy == strategy:
+                if (result.governance_approved and not result.success
+                        and time.time() - result.timestamp < self._REPAIR_COOLDOWN):
+                    return result
+                return None
+        return None
+
+    def _measured(self, component: str) -> float | None:
+        """A repair measure's reading, 0.0 to 1.0, or None when there is no measure or it cannot be read."""
+        measure = self._repair_measures.get(component)
+        if measure is None:
+            return None
+        try:
+            return max(0.0, min(1.0, float(measure())))
+        except _AUTOPOIESIS_RECOVERABLE_ERRORS as exc:
+            _record_autopoiesis_degradation(exc, action="judged the repair without its measure", severity="warning",
+                                            extra={"component": component})
+            return None
 
     def get_repair_history(self, limit: int = 50) -> list[RepairResult]:
         """Return the most recent repair results."""
@@ -835,7 +872,8 @@ class AutopoiesisEngine:
             4. Record health after repair.
             5. Log the result and update success tracking.
         """
-        health_before = self.get_component_health(component)
+        measured_before = self._measured(component)
+        health_before = measured_before if measured_before is not None else self.get_component_health(component)
         t0 = time.time()
 
         # -- Nothing to run --
@@ -928,7 +966,9 @@ class AutopoiesisEngine:
         # Give the subsystem a moment to stabilize.
         try:
             fn = self._health_fns.get(component)
-            health_after = max(0.0, min(1.0, float(fn()))) if fn else health_before
+            measured_after = None if fn else self._measured(component)
+            health_after = (max(0.0, min(1.0, float(fn()))) if fn
+                            else measured_after if measured_after is not None else health_before)
         except _AUTOPOIESIS_RECOVERABLE_ERRORS as exc:
             _record_autopoiesis_degradation(
                 exc,

@@ -1613,6 +1613,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   back to the immune system as a failure. The handler is gone. The immune
   system now asks to reduce load only when the resource governor, which
   owns load and sheds it on its own cadence, names an eviction tier.
+  21 November: a handler was registered for it again, her metabolism's
+  reduce_load, and with "global" still unmeasured 438 runs went
+  "INEFFECTIVE (0.000 -> 0.000)" in 27 minutes of one boot, while the
+  host's memory was held by test runs of mine beside her. The repair is
+  judged now by what is left of the host's memory, read before and after
+  it only, and asked for again inside its cooldown after it did not help,
+  it is not run again (`tests/test_a_load_repair_is_judged_by_the_load.py`).
   "Relational memory withheld: no bound principal for user requests (hint
   was 'bryan')" was her re-answer: when the runtime asked her again (a stale
   energy figure), the call passed no principal, so the second pass to Bryan

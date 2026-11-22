@@ -14,12 +14,15 @@ class _AutopoiesisStub:
     def __init__(self):
         self._health_fns = {}
         self.handlers = {}
+        self.measures = {}
 
     def register_component(self, name, health_fn):
         self._health_fns[name] = health_fn
 
-    def register_repair_handler(self, strategy, component, handler):
+    def register_repair_handler(self, strategy, component, handler, *, measure=None):
         self.handlers[(strategy.value, component)] = handler
+        if measure is not None:
+            self.measures[component] = measure
 
 
 class _ServiceStub:
@@ -352,6 +355,8 @@ def test_load_asked_of_the_whole_of_her_is_shed_by_her_metabolism():
     report = auditor.auto_wire_autopoiesis()
     assert "global:reduce_load" in report["repair_handlers_added"]
     assert autopoiesis.handlers[("reduce_load", "global")]() is True and shed == [True]
+    # Judged by what it lowers: what is left of the host's memory (tests/test_a_load_repair_is_judged_by_the_load.py).
+    assert 0.0 <= autopoiesis.measures["global"]() <= 1.0 and "global" not in autopoiesis._health_fns
     # Wired once.
     assert "global:reduce_load" not in auditor.auto_wire_autopoiesis()["repair_handlers_added"]
 
