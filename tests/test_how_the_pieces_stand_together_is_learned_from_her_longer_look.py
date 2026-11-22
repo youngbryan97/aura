@@ -86,7 +86,8 @@ def test_until_something_learned_foretells_better_nothing_is_tried(monkeypatch) 
 
 
 def test_a_learned_judgement_that_wins_its_match_is_kept_and_a_refit_keeps_it(monkeypatch) -> None:
-    learned = {"hidden": 1, "columns": 8, "own": {}, "theirs": {}, "first_bias": [0.0], "out": [0.0], "out_bias": 0.0}
+    learned = {"hidden": 1, "columns": 8, "own": {}, "theirs": {}, "first_bias": [0.0], "out": [0.0], "out_bias": 0.0,
+               "held_out": [0.01, 0.009]}
     monkeypatch.setattr(worth, "_engine", lambda: _Engine())
     monkeypatch.setattr(worth.LookedAtLonger, "judgement", lambda self, seed=0: learned)
     rehearsal = worth.rehearse(CHESS, CHESS.the_start(), _with_every_weighted_group_earned(), games=40, nodes=10)
@@ -95,6 +96,28 @@ def test_a_learned_judgement_that_wins_its_match_is_kept_and_a_refit_keeps_it(mo
     monkeypatch.setattr(worth, "fitted", lambda family, xs, ys, groups: first_weights(family))
     rehearsal = worth.rehearse(CHESS, CHESS.the_start(), rehearsal, games=40, nodes=10, seed=2)
     assert rehearsal.weights.learned == learned
+
+
+def test_one_that_foretells_no_better_than_the_last_tried_is_not_tried(monkeypatch) -> None:
+    def learned_with(after: float) -> dict:
+        return {"hidden": 1, "columns": 8, "own": {}, "theirs": {}, "first_bias": [0.0], "out": [0.0],
+                "out_bias": 0.0, "held_out": [0.01, after]}
+
+    class _LosesEveryMatch(_Engine):
+        def self_play(self, *args, **options):
+            played = super().self_play(*args, **options)
+            if self.calls % 2 == 0:
+                played["results"] = [0.0] * 40
+            return played
+
+    engine = _LosesEveryMatch()
+    monkeypatch.setattr(worth, "_engine", lambda: engine)
+    rehearsal = _with_every_weighted_group_earned()
+    for after, tried in ((0.009, True), (0.009, False), (0.0095, False), (0.008, True)):
+        monkeypatch.setattr(worth.LookedAtLonger, "judgement", lambda self, seed=0, a=after: learned_with(a))
+        rehearsal = worth.rehearse(CHESS, CHESS.the_start(), rehearsal, games=40, nodes=10)
+        assert ("scored" in rehearsal.last) is tried, rehearsal.last
+    assert rehearsal.tries[worth.tried_as(worth.TOGETHER, worth.HER_LONGER_LOOK)] == 2
 
 
 def test_her_compiled_search_judges_as_the_learned_layer_does() -> None:

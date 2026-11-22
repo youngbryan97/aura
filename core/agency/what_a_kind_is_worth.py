@@ -202,6 +202,9 @@ class Rehearsal:
     teacher: str = RESULTS
     #: The quiet positions her longer look searched, for learning how the pieces stand together.
     looked_at_longer: LookedAtLonger = field(default_factory=LookedAtLonger)
+    #: How the last judgement of how the pieces stand together that was tried foretold positions held back from it,
+    #: as a part of how her first look foretold them: one before any is tried.
+    together_tried_at: float = 1.0
 
 
 def _engine() -> Any | None:
@@ -401,6 +404,16 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
             rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,
                               "why": "nothing learned yet foretells her longer look better than her first look"}
             return rehearsal
+        before, after = learned.get("held_out", [1.0, 1.0])
+        foretells = after / before if before > 0 else 1.0
+        if foretells >= rehearsal.together_tried_at:
+            # Each try asks more of the next, so one no better than the last is not tried: LIVE 22 November 2026 her
+            # first round between games tried one learned from 1,891 positions.
+            rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,
+                              "why": "it foretells her longer look no better than the one tried last",
+                              "foretells": round(foretells, 4), "tried_at": round(rehearsal.together_tried_at, 4)}
+            return rehearsal
+        rehearsal.together_tried_at = foretells
         candidate = replace(rehearsal.weights, learned=learned)
     else:
         candidate = fitted(family, np.array(rehearsal.samples_x, dtype=np.float64),
