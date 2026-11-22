@@ -97,3 +97,19 @@ def test_not_at_a_board_nor_when_she_is_not_idle_nor_on_battery(monkeypatch) -> 
     monkeypatch.setattr(practice, "_on_mains", lambda: False)
     assert not _practise()
     assert ran == []
+
+
+def test_she_practises_though_no_one_has_spoken_to_her_since_she_woke(monkeypatch) -> None:
+    import core.runtime.background_policy as policy
+
+    asked: list[dict] = []
+
+    def reason(*args, **options):
+        asked.append(options)
+        return "" if options.get("allow_no_user_anchor") else "no_user_anchor"
+
+    monkeypatch.setattr(policy, "background_activity_reason", reason)
+    ran = _rounds_run(monkeypatch)
+    _a_board_she_played("A Practice Board")
+    assert _practise()
+    assert ran == [1] and asked[-1]["allow_no_user_anchor"] is True
