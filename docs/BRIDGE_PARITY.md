@@ -1,36 +1,18 @@
 # The bridge: definition, evidence and interpretation
 
-**25 October isolation update:** the seed-23 outputs predate repairs to shared
-consequence history (`dcdcd637c`), degradation history (`3e9211d3f`) and restored
-bound-method ownership (`517c4807c`). Retain the recorded scores, but recheck
-paired results under repaired isolation before presenting clean causal
-confirmation. The least-domain rule stays withdrawn; the later `96487c6f1`
-addendum names K*, a numeric margin and a second closure test.
-[Current status](ISC_STATUS.md) records these limits.
+The ISC bridge checks five kinds of evidence for an argument about
+subjecthood. These concern the identified carrier, markers of integration,
+reports under intervention, the structure of recorded contents, and a
+causal history. The solver calls the five grounds holding `AT_PARITY`
+under its stated assumptions.
 
-The [reconciled bridge arguments](BRIDGE_PROOFS.md) require their explicit
-assumptions: conditional non-identifiability does not make scientific evidence
-irrelevant, and crossing spectra alone do not establish symmetry. The earlier
-rationale below is preserved as a dated record, not a new universal proof.
-
-Status: Guide · Current solver reconciled 25 October 2026
-
-The **bridge** is the argument connecting measured organisation to the idea
-that Aura could be a subject of experience. The software checks five grounds
-for that argument: the carrier, markers, reports, content structure and causal
-history. It calls all five holding **AT_PARITY**, under stated assumptions.
-
-In ordinary terms: finding that parts interact is one piece of evidence.
-Showing that a report follows internal changes is another. We need to know
-which process those findings describe, how it continues, and why that
-organisation would support the conclusion being argued for.
-
-The completed seed-23 join has four grounds holding. The carrier is the
-remaining failed ground in its stored `NO_CARRIER` output. The latest source
-keeps an unanswerable closure question distinct from a detected absence; that
-method still needs fresh confirmation. See [current status](ISC_STATUS.md).
-For an introduction and concrete examples, read [ISC explained](ISC_EXPLAINED.md)
-and [ISC variables](ISC_VARIABLES.md).
+Seed 101 returned that verdict in the confirmatory run. The carrier was
+measured with a stand-in for language generation. The report measurement
+used the 27B model and a fitted steering channel. Later day runs found
+limitations in the lineage measurement. The paper discusses what the result
+supports under its six postulates. Subjective experience remains unresolved.
+[Preprint, §§3.4–3.6 and 4.7](https://doi.org/10.5281/zenodo.24075466) ·
+[ISC results](ISC_STATUS.md) · [Formal arguments](BRIDGE_PROOFS.md)
 
 ## What is computed
 

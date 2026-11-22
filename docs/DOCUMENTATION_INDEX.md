@@ -1,27 +1,21 @@
 # Aura documentation: every tracked Markdown page
 
-Status: Generated navigation · Updated 2026-10-25
+1001 Markdown pages. Use the [documentation home](README.md) for common entry points or the [documentation status page](DOC_STATUS.md) for corrections to older records.
 
-Start with [the plain-English tour](PLAIN_ENGLISH_GUIDE.md), [variables and examples](VARIABLES_EXPLAINED.md), or [demos and related work](DEMOS_AND_RELATED_WORK.md). For ISC, use [the introduction](ISC_EXPLAINED.md) and [current results](ISC_STATUS.md).
-
-This map includes the source repository's Markdown pages and the new reading guides. It is an inventory, not a claim that every old document is a current capability statement. Historical records and frozen protocols retain their original wording; generated pages and standards retain their own sources.
-
-**1001 Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.
-
-Definitions and examples come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.
+Regenerate this index with `python tools/render_reader_navigation.py`.
 
 ## Guide or reference
 
-164 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
+164 pages.
 
-| Page | Plain-language context |
+| Page | Topic |
 |---|---|
 | [Aura AI System Card](../AI_SYSTEM_CARD.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |
-| [Aura Architecture](../ARCHITECTURE.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
+| [Aura architecture](../ARCHITECTURE.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura artifact index](../ARTIFACT_INDEX.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Aura Autonomy Boundaries](../AUTONOMY_BOUNDARIES.md) | [Goals and autonomous work](PLAIN_ENGLISH_GUIDE.md#agency) |
 | [Aura claims and evidence](../CLAIMS_MATRIX.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Aura: Unsupported Claims Ledger](../CLAIMS_NOT_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Open Aura claims](../CLAIMS_NOT_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Supported Aura claims](../CLAIMS_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Aura data card](../DATA_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
 | [Guide to evaluating Aura](../EVALUATE_AURA.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
@@ -53,7 +47,7 @@ Definitions and examples come from [the reviewed topic catalogue](../config/docu
 | [Deliberate Practice — the Practice Director](DELIBERATE_PRACTICE.md) | [Learning and kept procedures](PLAIN_ENGLISH_GUIDE.md#learning) |
 | [Demonstrations, evidence and related work](DEMOS_AND_RELATED_WORK.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Documentation content audit](DOCUMENTATION_CONTENT_AUDIT.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Documentation status map](DOC_STATUS.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
+| [Documentation status](DOC_STATUS.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [The endogenous language pathway](ENDOGENOUS_LANGUAGE_PATHWAY.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [Engineering adoption: what Aura took from ten mature projects](ENGINEERING_ADOPTION.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Engineering design: how a drawing gets its numbers](ENGINEERING_DESIGN.md) | [Engineering calculations and drawings](PLAIN_ENGLISH_GUIDE.md#engineering) |
@@ -105,7 +99,7 @@ Definitions and examples come from [the reviewed topic catalogue](../config/docu
 | [Release lifecycle](RELEASE_LIFECYCLE.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Reliability & Maturity Roadmap — Chrome / Kubernetes / Aerospace](RELIABILITY_MATURITY_ROADMAP.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Requirement-to-Proof Control Plane (SCOPE-001 / PROGRESS-CONTROL-001)](REQUIREMENT_CONTROL_PLANE.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Aura — Research Guide](RESEARCH_GUIDE.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Aura research guide](RESEARCH_GUIDE.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Reviewer packet](REVIEWER_PACKET.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Commitment search: what to do when depth stopped working](RLC_COMMITMENT_SEARCH.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [RLC Knowledge Source Causality Matrix](RLC_KNOWLEDGE_SOURCE_MATRIX.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
@@ -183,9 +177,9 @@ Definitions and examples come from [the reviewed topic catalogue](../config/docu
 
 ## Living status or append-only ledger
 
-4 pages. Current status and append-only entries share a file. Read the latest scoped item without erasing earlier history.
+4 pages.
 
-| Page | Plain-language context |
+| Page | Topic |
 |---|---|
 | [Aura 1.0 master work queue](AURA_1_0_MASTER_TODO.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Execution Tracker](AURA_EXECUTION_TRACKER.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
@@ -194,9 +188,9 @@ Definitions and examples come from [the reviewed topic catalogue](../config/docu
 
 ## Standard, policy or contributor reference
 
-43 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
+43 pages.
 
-| Page | Plain-language context |
+| Page | Topic |
 |---|---|
 | [capability](../.github/ISSUE_TEMPLATE/capability.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [defect](../.github/ISSUE_TEMPLATE/defect.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
@@ -244,9 +238,9 @@ Definitions and examples come from [the reviewed topic catalogue](../config/docu
 
 ## Generated reference
 
-14 pages. Generated inventories describe the inputs and revision their producer recorded; a checked-in snapshot is not a live service report.
+14 pages.
 
-| Page | Plain-language context |
+| Page | Topic |
 |---|---|
 | [Aura Subsystem and Service Ownership Manifest](../SERVICE_OWNERSHIP.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Architecture Dependency Map](../artifacts/architecture/latest.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
@@ -255,19 +249,19 @@ Definitions and examples come from [the reviewed topic catalogue](../config/docu
 | [Aura Progress Control](AURA_PROGRESS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura Remaining Docket](AURA_REMAINING_DOCKET.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura documentation: every tracked Markdown page](DOCUMENTATION_INDEX.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [Aura FMEA — failure modes & effects registry](FMEA.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
+| [Aura failure modes](FMEA.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Aura glossary: terms in ordinary language](GLOSSARY.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [The ISC completion list](ISC_COMPLETION_TODO.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [Aura in plain English](PLAIN_ENGLISH_GUIDE.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
-| [Aura Runtime Contract — what must be alive](RUNTIME_CONTRACT.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
+| [Aura runtime health contract](RUNTIME_CONTRACT.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura's variables and measurements explained](VARIABLES_EXPLAINED.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura Operational Cognition Kernel Report](../proof_kernel/report.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 
 ## Historical or frozen record
 
-776 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
+776 pages.
 
-| Page | Plain-language context |
+| Page | Topic |
 |---|---|
 | [Changelog](../CHANGELOG.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [README](../archive/repair_scripts/README.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
@@ -832,7 +826,7 @@ Definitions and examples come from [the reviewed topic catalogue](../config/docu
 | [R09 service observation and desktop lifetime](evidence/R09_SERVICE_AND_DESKTOP_LIFETIMES_2026-09-09.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [R09 terminal history and worker cancellation](evidence/R09_TERMINAL_HISTORY_AND_WORKER_STOP_2026-09-08.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [R10 semantic executable examples](evidence/R10_SEMANTIC_EXECUTABLE_EXAMPLES_2026-09-08.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
-| [docs/evidence — historical proofs, closeouts, and research narrative](evidence/README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
+| [Experiment and engineering records](evidence/README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Being Closed Loop v3 — main-15 adapted](evidence/README_BEING_CLOSED_LOOP_V3.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Retained structural state, 10 October 2026](evidence/RETAINED_STRUCTURAL_STATE_2026-10-10.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Runtime ledger continuation](evidence/R_LEDGER_CONTINUATION_2026-09-07.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |

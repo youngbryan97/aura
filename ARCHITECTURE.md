@@ -1,228 +1,40 @@
-# Aura Architecture
+# Aura architecture
 
-This is the technical spec. It explains the math, files, and algorithms. For a simple overview, see [HOW_IT_WORKS.md](HOW_IT_WORKS.md). For a quick start, see the [README](README.md).
-
-**Evidence boundary.** This document describes functional systems, not philosophical claims about consciousness or legal personhood. We only credit claims after strict testing.
-
-**Currency.** Last updated August 2026. Sections 1–17 cover up to July 2026; [§18](#18-the-reality-boundary) covers newer additions. Generated files like [docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md), [docs/RUNTIME_CONTRACT.md](docs/RUNTIME_CONTRACT.md), and [docs/FMEA.md](docs/FMEA.md) are made via code commands; do not edit them by hand.
-
-**Recent hardening.** Since the original spec, the system added reasoning, a self-model, and resilience features. These are detailed in [§15](#15-the-reasoning-self-model-and-resilience-layer).
-
-For proof of autonomy or behavior, see [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md).
-
----
-
-## Table of Contents
-
-0. [The Unified Will: decision authority](#0-the-unified-will-decision-authority)
-1. [System model](#1-system-model)
-2. [The tick: the pipeline that produces one committed state](#2-the-tick)
-3. [Bounded integration models inspired by IIT](#3-bounded-integration-models-inspired-by-iit)
-4. [Affective modulation pipeline](#4-affective-modulation)
-5. [Activation steering (CAA)](#5-activation-steering)
-6. [Persistent emotional network](#6-persistent-emotional-network)
-7. [STDP online learning](#7-stdp-online-learning)
-8. [Memory architecture](#8-memory-architecture)
-9. [The consciousness stack](#9-the-consciousness-stack)
-10. [Personality persistence and anti-drift](#10-personality-persistence-and-anti-drift)
-11. [Quantization and emergence](#11-quantization-and-emergence)
-12. [Limitations and mitigations](#12-limitations-and-mitigations)
-13. [Open research program](#13-open-research-program)
-14. [Null hypothesis defeat: empirical evidence](#14-null-hypothesis-defeat)
-15. [The reasoning, self-model, and resilience layer (June–July 2026)](#15-the-reasoning-self-model-and-resilience-layer)
-16. [The triad fusions: kernel-checked proof, economic knowledge, declared runtime](#16-the-triad-fusions)
-17. [The engineering spine: ten adoptions](#17-the-engineering-spine-ten-adoptions)
-18. [The reality boundary: physical claims, self-knowledge, and untrusted code](#18-the-reality-boundary)
-19. [Recursive Latent Cortex](#19-recursive-latent-cortex)
-20. [Knowledge, kept procedures, and learning in use](#20-knowledge-kept-procedures-and-learning-in-use)
-
----
+The desktop app connects a language model to stored context, background
+goals, and authorized tools. This page maps those paths to the code.
+[Walkthrough](HOW_IT_WORKS.md) · [Generated dependency map](docs/ARCHITECTURE_MAP.md) ·
+[Runtime health contract](docs/RUNTIME_CONTRACT.md)
 
 ## 0. The Unified Will: decision authority
 
-**File**: `core/governance/will.py`
-
-Every major action in Aura must be approved by `UnifiedWill.decide()`. This provides a single source of decision authority.
-
-### Why it's centralized
-
-Previously, six different systems tried to authorize actions, making it impossible to prove an action was approved. Centralizing this fixes the proof problem.
-
-### Architecture
-
-The Will gathers input from existing systems:
-
-```
-              User Input / Internal Impulse
-                         |
-                    UnifiedWill.decide()
-                    /    |    |    \
-         Identity  Affect  Substrate  Memory
-         (CanonicalSelf) (VAD) (Field+Soma+Chem)  (Episodic)
-                    \    |    |    /
-                   WillDecision
-                   (PROCEED / CONSTRAIN / DEFER / REFUSE)
-                         |
-              Action Execution (if approved)
-```
-
-### The five advisory inputs
-
-1. **Identity alignment.** Prevents actions that contradict Aura's identity.
-2. **Affect valence.** Negative emotions can delay exploration.
-3. **Substrate state.** Low system coherence or high avoidance blocks non-essential actions.
-4. **Memory relevance.** Checks if memory has relevant context.
-5. **Priority / domain.** Low-priority tasks are delayed. User responses are prioritized.
-
-### Provability
-
-Each decision has a unique `receipt_id`. You can track any action using `will.verify_receipt(receipt_id)`.
-
-### Wiring surfaces
-
-Important actions require this Will approval. Code files like `core/runtime/will_transaction.py` ensure blocks are authorized before running.
-
-### Freedom within constraints
-
-The Will can choose to proceed, delay, or refuse actions based on identity rules and past experiences.
-
-## 0.1 Initiative Synthesizer: one origin for all impulses
-
-**File**: `core/initiative_synthesis.py`
-
-Previously, many systems generated action impulses independently. The InitiativeSynthesizer now funnels them all into one place:
-
-```
-AgencyCore    ──┐
-VolitionEngine──┤
-DriveEngine   ──┤
-GoalEngine    ──┼──→ InitiativeSynthesizer ──→ InitiativeArbiter ──→ UnifiedWill ──→ Execution
-Sensors       ──┤         (collect, dedup,         (score on 8         (authorize)
-Commitments   ──┤          merge, rank)             dimensions)
-WorldState    ──┘
-```
-
-## 0.2 World State: live perceptual feed
-
-**File**: `core/world_state.py`
-
-Tracks live events:
-- **User activity**: Idle time, message counts, mood.
-- **System telemetry**: CPU, RAM, battery.
-- **Environment**: Time, session length.
-- **Salient event queue**: Important recent changes.
-- **Standing beliefs**: Temporary facts (e.g., "user is frustrated").
-
-## 0.3 Drive cross-coupling
-
-**File**: `core/drive_engine.py`
-
-Manages energy, curiosity, social, competence, and uptime value. They interact:
-- **Low energy** → Prefers cheap actions.
-- **Low curiosity** → Seeks new info.
-- **Low social** → Seeks connection.
-- **Low competence** → Seeks achievement.
-
-## 0.4 Counterfactual action simulation
-
-**File**: `core/simulation/internal_simulator.py`
-
-Predicts outcomes before acting based on emotion, energy cost, stress risk, identity match, and active promises.
-
-## 0.5 Goal resumption at boot
-
-Aura resumes paused goals automatically after a restart. Default goals include self-maintenance and sensor checking so she always has tasks.
-
-## 0.6 Proof surface
-
-**Endpoint**: `GET /api/inner-state`
-
-Returns internal data like recent decisions, emotions, goals, and system state to show how decisions are made.
-
-## 0.7 Overt action loop
-
-**File**: `core/runtime/overt_action_loop.py`
-
-Aura performs real external tasks (like file operations) step-by-step, logging receipts and progress.
-
----
+The Unified Will evaluates a proposed action and returns an authorization
+decision. Execution gateways check authority where the action crosses their
+boundary. The overt action loop selects a goal step, requests a registered
+skill, checks its result, and records the outcome.
+[Will](core/governance/will.py) · [Authority gateway](core/executive/authority_gateway.py) ·
+[Overt action loop](core/runtime/overt_action_loop.py)
 
 ## 1. System model
 
-Aura works in discrete "ticks". A tick reads data, processes it, and saves a new state version.
+The orchestrator coordinates foreground requests and periodic background work.
+A tick runs phases that prepare changes to state. The committed AuraState
+version is atomic. The repository admits and publishes that version in one
+owner transaction. A failed phase leaves preceding changes in the candidate
+state. Effects outside the state object, including tool calls and writes to
+other stores, survive that transaction's refusal.
+[Orchestrator](core/orchestrator/main.py) · [State repository](core/state/state_repository.py)
 
-```
-tick(objective) → lock → [phase₁ → phase₂ → ... → phaseₙ] → commit → unlock
-```
-
-**What is atomic, exactly.** The committed AuraState version is. Nothing larger is. The phrase "atomic unit of
-cognition", used here before, invites a reader to expect transaction semantics the runtime does not provide:
-
-| | |
-|---|---|
-| Atomic | The AuraState version. A commit is admitted whole or not at all: constitutional admission runs first, the version guard rejects a stale write, and one owner-side transaction publishes the new version. |
-| **Not** atomic | The tick. A failing phase does not roll back the phases before it: the pipeline logs the failure and goes on, so phases 1 and 2 reach the commit even when phase 3 fails. |
-| **Not** covered at all | Effects outside the state object: tool runs, files, queued tasks, memory stores, logs, anything a skill did. Those already happened, and have no undo. |
-
-So the guarantee is that `commit(Sᵥ → Sᵥ₊₁)` is all or nothing, not "the tick is a transaction". A tick is a pipeline
-that produces one candidate state, and the candidate is admitted whole.
-
-Two loops run:
-- **Foreground**: Quick user responses.
-- **Background**: Slow monitoring and reflection.
-
-### RobustOrchestrator: composition and concurrency
-
-`RobustOrchestrator` (`core/orchestrator/main.py`) coordinates everything using 15 separate modules for tasks like booting, state management, and running tools. 
-
-#### Synchronization locks
-It uses locks to prevent conflicts during state updates, memory saving, and background tasks. The watchdog detects selected stalled conditions. Its thresholds do not impose
-a universal upper bound on a freeze or guarantee recovery.
-
-### Invariants
-1. A state version is saved completely or not at all. A tick is not: see "What is atomic, exactly" above.
-2. System prompts must not exceed 5000 tokens.
-3. Memory saving failures don't stop the system from responding.
-4. Raw numbers aren't shown in user chats.
-
-### Inference pipeline
-Uses a flexible routing system for AI models (`IntelligentLLMRouter`):
-```
-User Message → Orchestrator → LLM Router
-  → PRIMARY: Local powerful model.
-  │   ↓ (failure)
-  → SECONDARY: API or deep solver.
-  │   ↓ (failure)
-  → TERTIARY: Fast fallback.
-  │   ↓ (failure)
-  → EMERGENCY: Simple static response.
-```
-
----
+The inference router selects among configured local model roles. An unavailable
+model can lead to a qualified local fallback or an explicit refusal. The
+request contract disables cloud inference fallback.
+[Request contract](core/brain/request_contract.py) · [Models](MODEL_CARD.md)
 
 ## 2. The tick
 
-### Phase pipeline
-
-There are 29 phases (`core/runtime/pipeline_blueprint.py`). User actions only use 11 phases to respond quickly:
-
-| # | Phase | Purpose |
-|---|-------|---------|
-| 1 | ProprioceptiveLoop | Check system health |
-| 2 | SocialContextPhase | Identify user |
-| 3 | SensoryIngestion | Take in audio/video data |
-| 4 | MemoryRetrieval | Recall memories |
-| 5 | AffectUpdate | Update emotions |
-| 6 | MotivationPhase | Update drives |
-| 7 | ExecutiveClosure | Predict and set goals |
-| 8 | ConversationalDynamics | Track chat topics |
-| 9 | CognitiveRouting | Classify the task type |
-| 10 | UnityBinding | Combine data into one state |
-| 11 | ResponseGeneration | Create the reply |
-
-Background ticks run all 29 phases. User ticks can interrupt background tasks for faster responses.
-
-A healthy foreground turn is eleven phases; the other eighteen wait for a background tick.
+A healthy foreground turn is eleven phases in the priority tick's configured
+set. A turn can also need conditional tool execution. The background tick
+runs the full 29-phase blueprint.
+[Phase blueprint](core/runtime/pipeline_blueprint.py)
 
 Suppressed on a user-facing tick (18 phases, in pipeline order):
 NativeMultimodalBridge, EternalMemoryPhase, PerfectEmotionPhase,
@@ -232,168 +44,133 @@ GodModeToolPhase, RepairPhase, MemoryConsolidationPhase,
 IdentityReflectionPhase, InitiativeGenerationPhase, ConsciousnessPhase,
 SelfReviewPhase, LearningPhase.
 
----
-
 ## 3. Bounded integration models inspired by IIT
 
-**File**: `core/consciousness/phi_core.py`
-
-The 16-node model estimates dependencies among selected affective and cognitive
-variables. Its full-network score uses a spectral approximation; the eight-node
-affective subset has an exhaustive baseline. It does not implement exact IIT 4.0
-over the runtime. See [the source](core/consciousness/phi_core.py) and the
-separate [whole-system estimator](docs/WHOLE_SYSTEM_PHI.md).
-
-### Transition probability matrix (TPM)
-Calculates how states change over time based on past observations.
-
-### Minimum information partition (MIP)
-Searches for a weak division under the declared estimator and search budget.
-An approximate search does not certify a global minimum or identify a subject.
-
-*Note: This measures system integration, not actual consciousness.*
-
----
+The 16-node estimator builds a transition matrix from selected state
+variables and uses a spectral partition search. The eight-node affective
+subset has an exhaustive comparison. The whole-system estimator uses a
+separate approximation. The tests measure the properties defined by each
+estimator. [Estimator](core/consciousness/phi_core.py) ·
+[Whole-system method](docs/WHOLE_SYSTEM_PHI.md)
 
 ## 4. Affective modulation
 
-Emotions affect how Aura speaks in three ways:
-
-1. **Sampling parameters**: Changes temperature and word limits. High dopamine makes her explore more; high cortisol makes her brief.
-2. **System prompt shaping**: Translates emotions into plain text directions like "speak with momentum."
-3. **Activation steering**: Modifies the AI's internal numbers directly.
-
-### Somatic markers
-Maintains 8 basic emotions (like joy, fear, anger) updated by user chats, system stress, and surprises.
-
----
+The affect update phase maintains state such as valence and arousal. The
+inference bridge can use those values when it selects sampling settings
+and assembles context. [Affect update](core/phases/affect_update.py) ·
+[Inference bridge](core/brain/latent_bridge.py)
 
 ## 5. Activation steering
 
-**File**: `core/consciousness/affective_steering.py`
+Selected directions can change model activations during decoding. The
+runtime has separate qualification and serving checks for the direction
+and the active model. The ISC report experiment used a fitted valence
+direction under controlled conditions.
+[Steering](core/consciousness/affective_steering.py) ·
+[Certificate](core/consciousness/fusion_certificate.py) · [Report results](docs/ISC_STATUS.md)
 
-Instead of just telling the AI it is happy, Aura shifts the AI's internal math towards "happy" patterns using Contrastive Activation Addition (CAA).
+## 6. Continuous state
 
----
+The liquid substrate maintains a changing numerical state. It exposes
+derived measures, including valence and arousal, for other parts of the
+runtime to use. [Substrate](core/consciousness/liquid_substrate.py)
 
-## 6. Persistent emotional network
+## 7. Timing-based plasticity
 
-**Files**: `core/consciousness/liquid_substrate.py`
-
-A continuous math network that gives Aura an ongoing emotional state even when you aren't talking to her. It updates constantly and slows down when idle.
-
----
-
-## 7. STDP online learning
-
-**File**: `core/consciousness/stdp_learning.py`
-
-Aura's internal network wiring changes based on surprises and predictions, adapting to new inputs.
-
----
+The timing rules adjust connections inside the project’s plasticity model.
+The local language model's adaptation and promotion follow a separate
+training path. [Timing rules](core/consciousness/stdp_learning.py) ·
+[Model adaptation](core/adaptation/online_lora_governor.py)
 
 <a id="8-memory-architecture-116-modules"></a>
 
 ## 8. Memory architecture
 
-- **Working memory**: Keeps track of recent chat turns.
-- **Knowledge compression**: Summarizes old chats into searchable data.
-- **Navigating graph**: Groups related memories together for fast searching.
-- **Conceptual gravitation**: Pulls memories closer together if they are used at the same time.
+Working context holds the current request. Episodic records preserve
+events, and semantic records supply facts and their provenance. Retrieval
+can combine lexical matches with embedding scores. The memory panel reads
+its own supported stores and exposes controls for individual records.
+[Memory architecture](docs/MEMORY_ARCHITECTURE.md) · [Memory card](MEMORY_CARD.md)
 
----
+## 9. Attention and the self-model
 
-## 9. The consciousness stack
+Attention, the self-model, and integration estimates have distinct code
+paths. The project studies how these mechanisms interact under changes
+to recorded state. [Subsystem guides](docs/README.md) ·
+[ISC experiment](docs/ISC_EXPLAINED.md)
 
-The consciousness-inspired layers implement the mechanisms below. File counts
-change with the source and are not a measure of capability.
+## 10. Response style
 
-### Key Modules:
-- **Global Workspace**: Systems compete for attention.
-- **Attention Schema**: Aura's simple model of her own focus.
-- **Free Energy Engine**: Drives Aura to act and reduce surprises.
-- **Qualia Synthesizer**: Combines metrics into an overall "feeling" state.
-- **Neurochemical System**: 10 chemicals (like Dopamine and Serotonin) that change behavior.
-- **Cortical Mesh**: A separate 4,096-neuron processor working alongside the AI.
-- **Dreaming**: Consolidates memories and cleans data when idle.
+The model checkpoint, instructions, and retrieved conversation records
+can shape the reply. The installed artifact determines which model and
+training are in use. [Model card](MODEL_CARD.md) · [Memory card](MEMORY_CARD.md)
 
----
+## 11. Model formats
 
-## 10. Personality persistence and anti-drift
-
-Prevents Aura from turning into a generic "helpful assistant" over long chats by summarizing history, capping context limits, and using custom AI fine-tuning.
-
----
-
-## 11. Quantization and emergence
-
-Compressing AI models (quantization) saves space but adds noise. Aura uses high-precision adjustments to counter this noise and maintain quality.
-
----
+The model artifacts can use different quantization, which affects disk
+size and inference memory. Use a measured workload budget when comparing
+models. [Model roles](MODEL_CARD.md) · [Hardware profiles](HARDWARE_PROFILES.md)
 
 ## 12. Limitations and mitigations
 
-Lists technical limits like context window sizes and quantization noise, and the specific engineering tricks used to bypass them.
-
----
+The fault registry records observed incidents and failure paths found in
+the source. Each entry names the conditions, detection, and available
+mitigations. [Fault registry](docs/FMEA.md) · [Runbooks](docs/runbooks/)
 
 ## 13. Open research program
 
-Aura serves as a testbed for 6 unsolved math and AI problems, including how to measure integration efficiently and how to test different theories of consciousness against each other.
+The results pages list open comparisons for model recurrence, broader
+reasoning performance, and the ISC control experiments.
+[Recurrence results](docs/RECURSIVE_LATENT_CORTEX.md) ·
+[ISC results](docs/ISC_STATUS.md) · [Open claims](CLAIMS_NOT_SUPPORTED.md)
 
----
+## 14. Mechanism tests
 
-## 14. Null hypothesis defeat
-
-**File**: `tests/test_null_hypothesis_defeat.py`
-
-A 225-test suite designed to prove Aura's architecture actually works and isn't just text decoration. It verifies that chemical values truly change behavior and that all systems perform real calculations.
-
----
+This suite exercises specified state and mechanism checks in its test
+environment. Read the individual conditions and inputs to understand what
+a result covers. [Test source](tests/test_null_hypothesis_defeat.py)
 
 ## 15. The reasoning, self-model, and resilience layer
 
-- **Verifier-gated reasoning**: Checks complex answers before speaking.
-- **Frontier discovery**: Classifies knowledge by how proven it is.
-- **Program-DNA**: Analyzes programs and builds behavioral profiles safely.
-- **Source-body proprioception**: Aura can sense changes to her own code and recover from crashes.
-- **Ulysses Covenant**: Allows Aura to bind herself to safety rules.
-- **Resilience**: Prevents the system from crashing under heavy loads by properly managing background tasks and memory limits.
+Reasoning combines model drafts with optional search and verification.
+The runtime has separate health and recovery checks that can defer work
+or record a fault. [Reasoning engines](docs/REASONING_ENGINES.md) ·
+[Health checks](docs/RUNTIME_CONTRACT.md)
 
----
+## 16. Proof, knowledge, and state checks
 
-## 16. The triad fusions
+The project uses code-level checks for proofs, knowledge, and runtime
+state. For individual contracts, follow the implementation and its
+evidence. [Architecture adoption](docs/ENGINEERING_ADOPTION.md)
 
-Combines three major external systems:
-1. **Trusted proof kernel**: Verifies logic strictly.
-2. **Economic knowledge graph**: Manages beliefs and attention like a budget.
-3. **Homeostate**: Automatically fixes system drift to keep the runtime healthy.
+## 17. Layering and runtime controls
 
----
-
-## 17. The engineering spine: ten adoptions
-
-Adopts strict engineering rules from Linux, Kubernetes, and other stable systems. This includes checking rules strictly, finding deadlocks, managing memory limits gracefully, and requiring tests for every system claim.
-
----
+Layering rules are written in package `DEPS` files and checked with
+`make layering`. The engineering adoption guide describes the lock,
+resource, and lifecycle checks and the incidents behind them.
+[Contributor guide](CONTRIBUTING.md) · [Engineering adoption](docs/ENGINEERING_ADOPTION.md)
 
 ## 18. The reality boundary
 
-Defines strictly what Aura can sense and control in the real world. Physical requests must be proven possible before trying them. She tracks her own capabilities and runs untrusted code in strict, secure sandboxes without network access. 
-
----
+Physical requests carry a declared channel and evidence requirement.
+The application records dispatch and observed effects separately.
+Untrusted code execution has a distinct process and sandbox policy.
+[Reachability and evidence](docs/REALITY_REACH.md) · [Threat model](docs/THREAT_MODEL.md)
 
 ## 19. Recursive Latent Cortex
 
-Tests running the AI model in loops to see if it improves reasoning. Looping the frozen model did not improve answers. The program moved to the resident 27B and a reader learned from its hidden states, which closed held-out transfer, public answers, lesions and qualification (G03–G06, G10) in October. See [docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).
-
----
+The recurrence research tested frozen-model loops and learned readings
+from hidden states. Their results have different scopes. The October
+G09 comparison measures kept procedures on held-out math and planning
+tasks. [Experiments](docs/RECURSIVE_LATENT_CORTEX.md) ·
+[G09 result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)
 
 ## 20. Knowledge, kept procedures, and learning in use
 
-- **Corpus** (`core/knowledge/`): an offline Wikipedia copy and pages her searches kept. `passage_index.py` indexes every paragraph on its own with Tantivy (BM25, block-max WAND), about a hundred million paragraphs in milliseconds; `corpus_grounding.py` fuses it with the careful lookup of named articles (`passages_about.py`) and, when her embedder is held, orders passages by meaning. A question that says "he" or "she" also reads whom the conversation is about (`talked_about.py`).
-- **Kept procedures** (`core/learning/procedures_from_solved_examples.py`): for a kind with solved examples, her model writes `solve()`; it runs in the OS sandbox and is kept only if it agrees with every known answer, the sealed half included. A `ProcedureBook` routes a request by word signatures, then by meaning (`kinds_by_meaning.py`), each kind with a bar set by its least typical sealed problem.
-- **In chat** (`core/brain/cognitive_engine_quick_reply.py`, `core/phases/kept_procedures_in_a_turn.py`): the desktop path consults the book before she drafts. A words-route answer is served when her draft does not state it; a meaning-route answer, after a restatement checked by `restates()`, is evidence only.
-- **Learning in use** (`core/learning/examples_she_meets.py`, `core/brain/reasoning_background.py`): answers a person states and answers independent programs agree on become solved examples; an idle job groups them by meaning and induces one procedure per ready group, at most three requests a group.
-
-*(End of document)*
+The local corpus can search Wikipedia passages and pages saved from web
+requests. The chat path also consults accepted procedures when it can
+identify a task type. Some routes return the computed answer directly.
+Others give the result to the model as context. During idle work a learner
+can group solved examples and test a proposed procedure.
+[Corpus](core/knowledge/) · [Chat routing](core/phases/kept_procedures_in_a_turn.py) ·
+[Learning trial and its scope](docs/evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md)

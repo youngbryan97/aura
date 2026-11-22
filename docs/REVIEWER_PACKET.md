@@ -50,9 +50,11 @@ independently replicated.
 
 ## Interpret results within their scope
 
-The ISC seed-23 outputs and later measurement corrections must be read
-together. The 22/24 record is not a completed full pass. The component demo is
-not the current ISC experiment. The [demos guide](DEMOS_AND_RELATED_WORK.md)
+The November preprint identifies seed 101 at `aeefdca31` as the confirmatory
+run. Start with its versioned scorecard and the follow-up controls.
+[ISC results](ISC_STATUS.md) · [Run data](https://doi.org/10.5281/zenodo.24075592)
+
+The [demos guide](DEMOS_AND_RELATED_WORK.md)
 separates scripts, fixtures, recorded interactions and controlled experiments.
 
 A runner does not establish a 30-day result. Physical interfaces do not

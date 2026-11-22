@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""tools/render_health_contract.py — the runtime contract, rendered from code.
-
-"What must be alive for Aura to be considered healthy?" has exactly one
-authoritative answer: core/runtime/health_contract.py. This renders that
-answer into docs/RUNTIME_CONTRACT.md so a human (or a skeptical engineer)
-can read the contract without reading the module — and a drift test keeps
-the document honest: if the code changes and the doc doesn't, the suite
-fails. Never edit the doc by hand.
-
-Usage:
-  python tools/render_health_contract.py            # writes docs/RUNTIME_CONTRACT.md
-  python tools/render_health_contract.py --check    # exit 1 if the doc drifted
-"""
+"""Write docs/RUNTIME_CONTRACT.md from the runtime health contract. Use --check to compare."""
 from __future__ import annotations
 
 import argparse
@@ -34,20 +22,19 @@ def render() -> str:
     )
 
     lines = [
-        "# Aura Runtime Contract — what must be alive",
+        "# Aura runtime health contract",
         "",
-        "> GENERATED from `core/runtime/health_contract.py` by",
-        "> `tools/render_health_contract.py`. Do not edit by hand — a drift",
-        "> test regenerates and compares this file on every suite run.",
+        "These checks come from the [runtime health contract](../core/runtime/health_contract.py).",
+        "Regenerate this page with `make contract-doc`.",
         "",
         f"Contract version: `{HEALTH_CONTRACT_VERSION}`",
         "",
     ]
 
     tier_meaning = {
-        ServiceTier.CRITICAL: "Aura CANNOT function without these",
-        ServiceTier.IMPORTANT: "Aura works but the experience is degraded",
-        ServiceTier.OPTIONAL: "background enrichment; loss is invisible to the user",
+        ServiceTier.CRITICAL: "required services",
+        ServiceTier.IMPORTANT: "services monitored for degraded operation",
+        ServiceTier.OPTIONAL: "optional services",
     }
     for tier in (ServiceTier.CRITICAL, ServiceTier.IMPORTANT, ServiceTier.OPTIONAL):
         entries = [r for r in RUNTIME_CONTRACT if r.tier == tier]

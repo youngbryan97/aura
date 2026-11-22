@@ -219,11 +219,13 @@ indicators as a provisional approach under computational functionalism. ISC
 is the project's own operationalisation, with controlled interventions,
 separate carrier and content experiments, and named bridge assumptions.
 
-The [plain introduction](ISC_EXPLAINED.md),
-[worked variables](ISC_VARIABLES.md), [current results](ISC_STATUS.md) and
-[source-hashed snapshot](evidence/ISC_STATUS_2026-10-25.json) connect the idea
-with actual measurements. The main battery's 22/24 and the four-ground bridge
-reading do not establish a completed full pass or a probability of experience.
+The November preprint reports that seed 101 passed the 24 ISC-v7 checks
+and met the five operational bridge criteria. The substrate campaign used
+a stand-in for language generation. Separate report runs used the 27B
+model with experimental steering. The paper states the assumptions and
+describes the later split, lineage, and self-prediction controls.
+[Introduction](ISC_EXPLAINED.md) · [Results](ISC_STATUS.md) ·
+[Preprint](https://doi.org/10.5281/zenodo.24075466)
 
 ## Measurement
 

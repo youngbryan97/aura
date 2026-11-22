@@ -1,14 +1,12 @@
-# Aura FMEA — failure modes & effects registry
+# Aura failure modes
 
-> GENERATED from `core/runtime/fmea.py` by `tools/render_fmea.py`
-> (`make fmea-doc`). Do not edit by hand — a drift test regenerates
-> and compares this file on every suite run.
+This list of failure modes and effects comes from the [runtime registry](../core/runtime/fmea.py).
+Regenerate it with `make fmea-doc`.
 
 Registry version: `1.1` — 25 modes (2 catastrophic, 12 critical, 9 major, 2 minor); 1 open mitigation gap(s), 0 open detection gap(s).
 
-Every entry is REAL: it either occurred live (occurrences cite when)
-or is a structurally-reachable state found by analysis. Gaps are
-explicit and pinned by an allowlist test that only shrinks.
+Entries describe observed incidents or failure paths identified in the source.
+Incident dates are listed where the registry records them.
 
 ## FM-LANE-001 — First-token stall under memory pressure → force-kill → cold reload doom loop
 

@@ -65,43 +65,25 @@ hardware nobody has.
 
 ## Speech to text
 
-| Role | Model | Where |
-|---|---|---|
-| **Primary** | `parakeet-tdt-0.6b-v3` (`parakeet_mlx`) | `core/voice/duplex/streaming_asr.py` |
-| **Fallback** | `faster_whisper` (CPU) | `core/senses/voice_engine.py` |
+The duplex recognizer prefers Parakeet and can fall back to MLX Whisper
+or CPU Whisper. Parakeet runs in its own process following crashes in
+the in-process MLX route. [Recognizer code](../core/voice/duplex/streaming_asr.py)
 
-Both duplex stages — 480 ms partials and the final — now run **one streaming
-model**. The previous design ran two Whisper models on purpose: `small.en` for
-partials and `large-v3-turbo` once for the final, because Whisper is not a
-streaming model and paying the accurate model's cost on every partial would
-contend with the resident 32B for no accuracy that mattered. The entire
-LocalAgreement-2 stable-prefix apparatus existed to work around that same fact.
+An earlier local benchmark used 12.4 seconds of synthesized speech with
+a known transcript and took the median of five warm runs per model.
 
-Parakeet TDT removes the trade. Measured on this host with real speech and a
-known transcript (locally synthesised — nothing left the machine), median of
-5 warm runs over 12.4 s of audio:
+| Model | Median decoding time |
+|---|---:|
+| Parakeet TDT 0.6B v3 | 166 ms |
+| Whisper small.en | 193 ms |
+| Whisper large-v3-turbo | 317 ms |
 
-| Model | Latency | Stage it replaces |
-|---|---|---|
-| `parakeet-tdt-0.6b-v3` | **166 ms** | both |
-| `whisper-small.en` | 193 ms | partials |
-| `whisper-large-v3-turbo` | 317 ms | finals |
-
-One Parakeet decode is cheaper than the incumbent *partial* and about half the
-incumbent *final* on that short warm sample. It does not establish unchanged
-accuracy across languages, noise conditions or a loaded live desktop.
-
-**A discarded first benchmark.** The first pass used synthetic noise and
-produced nonsense for Whisper.
-Whisper pads every input to 30 s and its cost is bound by tokens emitted, so on
-noise it hallucinated variable-length output and the timings were
-non-monotonic — 3 s of audio measured slower than 10 s. Discarded and redone on
-real speech. All three models then scored 0% WER on the clean local sample,
-which is too easy to discriminate, so the accuracy case (6.32% vs 7.83% English
-WER) is cited from published figures rather than claimed as a local
-measurement.
-
----
+The note reports zero word errors for all three on that sample. The
+sample covers one clean recording. Use the model vendors' evaluations
+for larger speech tests, or measure the installed voice app for
+end-to-end latency.
+[NVIDIA model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) ·
+[Voice architecture](AMBIENT_VOICE_AND_MEDIA.md)
 
 ## Embeddings
 

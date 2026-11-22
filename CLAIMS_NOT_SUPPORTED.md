@@ -1,210 +1,168 @@
-# Aura: Unsupported Claims Ledger
+# Open Aura claims
 
-This is the list of claims the project has not established or does not make.
+These are questions the current experiments leave open. Each section points
+to the evidence the project has and the measurement still needed.
 
-Every project has things it cannot do. Most projects never write them down. That is how a quick demo turns into an exaggerated claim that no one can walk back. Each entry below is marked either:
-- **not proven**: We have not shown or tested this yet.
-- **strictly unsupported**: The project does not claim a direct, assumption-free conclusion of this kind from its software tests.
+## 1. Subjective consciousness and qualia
 
-If you are evaluating this repository, start here rather than with the README. It is shorter, and it tells you more.
+Seed 101 passed the ISC-v7 operational checks, and the bridge returned
+`AT_PARITY` under the study's assumptions. The interpretation depends on
+those assumptions, the measured substrate, and the controls that remain
+open. Whether the system has subjective experience remains unresolved.
+[ISC results](docs/ISC_STATUS.md)
 
-*Claim-boundary wording reconciled 25 October 2026; each measurement retains its own recorded date and scope.* There is an automated check in `core/organism/model_validation.py`. In that code, no claim can be registered without an attached test—because a claim without a test is just words, not a fact. The method `ValidationSuite.unsupported_claims()` reports the live version of this ledger directly from running code. A disagreement between the ledger and registry needs investigation; a
-software flag is not itself an empirical finding.
+## 2. Artificial general intelligence
 
----
+The DNU comparison used a smaller output budget and different tools for the
+baselines. Its retraction records which conclusions were withdrawn. A broad
+capability claim needs fresh tasks and matched comparisons evaluated by
+someone outside the project.
+[Retraction](artifacts/current/agi_live/RETRACTION.json)
 
-## 1. Subjective Consciousness & Qualia
-* **Status**: `strictly unsupported`
-* **Rationale**: The project has not established phenomenal experience.
-  Its state variables and reports are inspectable mechanisms, not a direct
-  measurement of feeling. This is not evidence that experience is absent.
-  A scientific subjecthood argument must state its theory and bridge
-  assumptions, measurement validity and remaining alternatives. Read
-  [ISC status](docs/ISC_STATUS.md) for the recorded results and corrections,
-  and [scientific sources](docs/SCIENCE_AND_SOURCES.md) for the theoretical
-  context. No complete ISC pass or assumption-free phenomenal verdict is claimed.
+## 3. Metaphysical free will
 
+Aura implements selection and authorization of proposed actions. Its test
+results concern those algorithms. [Decision code](core/governance/will.py)
 
-## 2. Artificial General Intelligence (AGI)
-* **Status**: `not proven`
-* **Rationale**: Aura passes internal test suites covering multiple tasks (such as the DNU 100-task suite) by measurable margins. However, doing well on internal tests does not prove broad, human-like intelligence across unpredictable real-world situations. Artificial general intelligence remains an unsolved research challenge.
+## 4. Recursive self-improvement
 
-  **What would change this status**: Strong performance on a fresh benchmark that neither Aura nor her authors chose, scored by an independent third party, on task categories absent from our local test suites—with margins that hold up when the test set is swapped.
+The July 1.5B demonstration completed two promotion cycles. The sealed
+scores were 0.667 and 0.625. A sustained-gain claim needs a series of
+improvements against matched held-out tasks.
+[Training run](artifacts/learning_compounding/2026-07-07-1p5b-2cycle/)
 
-## 3. Metaphysical Free Will
-* **Status**: `strictly unsupported`
-* **Rationale**: Aura's "Operational Volition" is simply an algorithm for evaluating and choosing actions. It selects action paths through mathematical optimization, scoring rules, and probabilities. It does not possess genuine free will, and it does not make choices outside the physical rules of standard computer hardware.
+## 5. Indefinite autonomy
 
-## 4. Recursive Self-Improvement (RSI)
-* **Status**: `not proven`
-* **Rationale**: What IS demonstrated (CLAIMS_MATRIX claim 23): an automated training loop that updates model weights without human supervision. In this loop, the system generates responses, grades them automatically using a verifier, trains via Direct Preference Optimization (DPO), tests the result against locked test cases, promotes the winner, and trains the next version on that model artifact (`artifacts/learning_compounding/2026-07-07-1p5b-2cycle/`, reproducible via `make demo-learning`). What is NOT demonstrated: compounded capability scaling. No run has produced a steadily improving capability score across promoted generations on held-out tests. In fact, our verified test run showed scores dropping from 0.667 to 0.625, which the system logged as `BOUNDED_SELF_OPTIMIZATION`. Until the system consistently gets smarter generation after generation, recursive self-improvement remains unproven.
+The July soak verdicts record specific workloads and time windows. Longer
+operation needs measured resource use, task completion, and recovery.
+An earlier set of certification reports came from a simulator and was
+withdrawn from the evidence for longevity.
+[Soak standard](docs/LONGEVITY_SOAK_STANDARD.md) ·
+[Withdrawal record](docs/DOC_STATUS.md#what-was-corrected-on-2026-08-21)
 
-  **What would change this status**: A benchmark score that steadily improves across three or more promoted generations, measured against locked test tasks that do not change, with the automated system log moving off `BOUNDED_SELF_OPTIMIZATION`.
+## 6. Independent validation
 
-## 5. Indefinite Autonomy
-* **Status**: `not proven`
-* **Rationale**: Long-term operational stability has not been demonstrated. The longest test windows we have run are short, dated soak tests, and each is a single test run rather than an established trend. For example, on 2026-07-18, idle memory usage (Resident Set Size, or RSS) dropped by 21 MB/h over 50 minutes across 100 samples. On 2026-07-25, idle memory usage grew from 1.14 GB to 1.22 GB over the same 50-minute window. Neither test shows what happens over a multi-week run.
+The second-Mac substrate repeats were run by the author. One changed its
+synergy decision. Independent replication requires another experimenter
+using the recorded inputs and protocol.
+[Reproduction guide](docs/ISC_REPRODUCTION.md)
 
-  Three files claiming 4-hour, 24-hour, and 72-hour runs were committed under `artifacts/certification/latest/` until 2026-08-21. These were never real evidence: a simulator generated all three files in just six milliseconds. Both those dummy files and the tool that created them have been deleted.
+## 7. Physical effects outside the host
 
-  **What would change this status**: A continuous multi-week test run showing flat memory usage and zero unexplained restarts. (The earlier 2026-07-07 figure of roughly 242 MB/h that this entry used to cite has been superseded twice and should not be quoted as the current number.)
+The code can describe a physical request and check whether a declared
+channel can supply the required evidence. A physical result needs an
+independent measurement against a baseline.
+[Physical evidence and open work](docs/REALITY_REACH.md)
 
-## 6. Real-World External Validation
-* **Status**: `not proven`
-* **Rationale**: Although local Aletheia benchmarks and automated simulation tests are run under strict isolation so tests cannot cheat or peek at answers, Aura's results have not been independently tested or reproduced by outside third parties on live production networks.
+## 8. Complete self-knowledge
 
-  **What would change this status**: Someone outside this project reproducing a headline result from the published files alone, on their own hardware, without help from the authors.
+The faculty model lists the capabilities covered by its probes and exposes
+missing measurements. A broader claim needs coverage beyond the declared
+probe set. [Faculty model](core/metacognition/faculty_model.py)
 
-## 7. Physical Effects on the World Beyond the Host
+## 9. Legal and moral personhood
 
-* **Status**: `not proven`
-* **Rationale**: The code in `core/reality_reach/` provides data formats and safety contracts for physical requests—typed `RealityIR`, declared channels, deterministic reachability checks, and typed limitation certificates. But having software infrastructure in place is not a physical result. **Aura makes no claim of physical movement, physical effects, weakpoint actions, modifying ambient physical laws, or passing any physical acceptance test.** The RR-10 acceptance test suite (acoustic control, optical control, thermal trajectory, cross-channel interaction, weakpoint null and signal, translation, spacetime honesty, and ambient-constant honesty) remains completely open. Specifically unsupported: any claim that Aura has changed an ambient physical law or constant, and any claim that an internal or simulated result counts as a direct physical effect. The planned evidence grading system (the P0–P6 state machine in RR-07) is not implemented. The open ledger and current evidence statement are in [docs/REALITY_REACH.md](docs/REALITY_REACH.md).
+Legal status and moral standing require their own grounds. The application
+operates under the person's authorization and permissions.
+[Human oversight policy](HUMAN_OVERRIDE_POLICY.md) · [ISC results](docs/ISC_STATUS.md)
 
-  **What would change this status**: Passing at least one RR-10 acceptance test end-to-end with an external physical measurement—meaning a physical quantity recorded by a sensor that Aura does not control, compared against a control baseline—and implementing the P0–P6 evidence grading system (RR-07) so results cannot be claimed without the evidence to back them up.
+## 10. Process-level governance
 
-## 8. Complete Self-Knowledge
+The current safeguards cover action routes that reach the application's
+gateways. A process-level guarantee would require an enforced separation
+of privileges between the application and the process that performs
+consequential operations.
+[Tool use policy](TOOL_USE_POLICY.md) · [Threat model](docs/THREAT_MODEL.md)
 
-* **Status**: `not proven`
-* **Rationale**: The module `core/metacognition/faculty_model.py` gives Aura an internal model of her own capabilities, with declared performance floors, targets, and ceilings. This self-model is only as honest as its measurement probes: any metric that no probe can read is marked `measured=False` and excluded from scores rather than guessed, and any capability that cannot be measured at all is reported by `blind_spots()` as a gap in self-knowledge. A good capability score is therefore only a statement about the features we can measure, never about the whole system. The blind-spot list shows the true boundaries of the self-model, rather than just an unfinished bug list.
+## 11. Within-generation neural feedback
 
-  **What would change this status**: `blind_spots()` returning an empty list because every declared capability has an active probe. Even then, the system would only have complete knowledge of its *declared* capabilities, which is not the same as complete self-knowledge.
+The model can leave state that influences a later request. A claim about
+feedback inside one uninterrupted generation needs a test that changes
+the state mid-generation and measures its effect on the remaining tokens.
+[Model client](core/brain/llm/mlx_client.py)
 
-## 9. Legal and Moral Personhood
-* **Status**: `strictly unsupported`
-* **Rationale**: This repository does not establish legal personhood or grant rights or
-action authority to Aura. Moral status requires its own normative and
-scientific argument; it is not settled either way by naming a software
-mechanism or counting tests. The application's human-authorisation and
-safety boundaries remain engineering requirements.
+## 12. Open-ended evolution
 
-## 10. Process-Level Non-Bypassable Governance
+The project has experimented with changing and selecting parts of the
+architecture under defined scoring rules. A broader claim needs a
+prospective test of sustained adaptation across new conditions.
+[Architecture governor](docs/AUTONOMOUS_ARCHITECTURE_GOVERNOR.md)
 
-* **Status**: `strictly unsupported`
-* **Rationale**: Aura has extensive, audited safety checks—including the Unified Will, `core/executive/authority_gateway.py`, `SubstrateAuthority`, gateways for file writes and subprocesses, and code checks via `make governance-lint`. What it does not have is an un-bypassable operating-system boundary (a reference monitor).
+## 13. Continuous model weight learning
 
-  Aura's reasoning code and action-taking code live in the **same Python process with the same operating system permissions**. Any code path can technically touch the filesystem, the network, or a subprocess without asking a gate. Automated scans find dozens of direct standard library calls (like `os.replace`, `os.remove`, `os.unlink`, `shutil.rmtree`, `shutil.move`, `socket.socket`, and two `os.execv` calls). Most are legitimate internal tools with local rules, and subprocess calls are centralized in `core/runtime/subprocess_gateway.py`. But internal rules are not the same as being physically unable to bypass a gate.
+Memory updates and model training use separate paths. Background LoRA
+training has resource and admission checks. Continuous beneficial
+weight adaptation needs evidence from promoted checkpoints over time.
+[Training governor](core/adaptation/online_lora_governor.py)
 
-  In addition, three documented bypasses exist even on standard message paths:
-  1. The Somatic Reflex Bypass for real-time control contracts.
-  2. The Will gate's error-handling path, which continues in a degraded state if an error occurs inside the gate.
-  3. The `is_critical` flag, documented as "the ONLY bypass", which grants an unconditional `CRITICAL_PASS`. Until 2026-08-09, an error in the environment bridge set `is_critical=True` whenever risk was marked `irreversible` or `forbidden`—meaning the two highest-risk categories accidentally skipped the veto check! That bug is fixed and the bridge no longer claims criticality, but the `is_critical` bypass mechanism itself remains in the code. Any execution turns that reach the reasoning engine without a Will decision are counted and displayed at `runtime_health_report()["integrity"]["ungoverned_turns"]` (`core/runtime/governance_coverage.py`) rather than passing silently.
+## 14. General visual detail perception
 
-  **What would change this status**: Separating privileges outside the main Python process. Consequential actions would be handled by a separate broker process, while the cognitive process would lack filesystem, network, or execution permissions of its own. Requests would require unforgeable cryptographic tokens over inter-process communication (IPC), with the operating system enforcing that no other path exists. Until that is built, our supportable claim is *governed code paths within a single application*, not OS- or cryptographically-enforced non-bypassability.
+The frame-quality checks can flag image conditions that make a detail
+unreliable. Accuracy across low light, occlusion, motion, distance, and
+crowds requires labeled examples and both coverage and error rates.
+[Frame-quality checks](core/perception/frame_quality.py)
 
-## 11. A Within-Generation Neural Feedback Loop
+## 15. Biological self-organization
 
-* **Status**: `not proven` — the loop is real, the timing claim was wrong.
-* **Rationale**: There is a genuine feedback loop from the model's internal representations back into long-term system state ("persistent substrate"). Background workers collect latent representations, and the main process turns them into a stimulus vector that calls `substrate.inject_stimulus(...)`. Internal transformer representations really do reach persistent state.
+The project uses biological terms as names for software mechanisms.
+Read the implemented update rules and their evidence for each one.
+[Terminology](docs/TERMINOLOGY.md) · [Architecture](ARCHITECTURE.md)
 
-  What is not true is that this feedback loop closes during a single generation step. In `core/brain/llm/mlx_client.py`, queued signals are processed **before** text generation runs (`_generate_inner`). The actual sequence is:
+## 16. Uniform phase contracts
 
-      H_t → R_t → S_{t+1} → H_{t+1}
+Phase contracts declare reads, writes, and branch conditions where that
+information has been checked. Coverage across the whole pipeline needs
+an inventory of declarations and observed effects.
+[Phase blueprint](core/runtime/pipeline_blueprint.py)
 
-  rather than updating inside a single uninterrupted stream of tokens (`H_t → S_t → H_t`). The internal state from one interaction does not alter that same response; it alters a later response. Across a multi-step conversation involving several model calls, the loop does close, and that is what we can legitimately claim.
+## 17. Exact IIT 4.0 integrated information
 
-  **What would change this status**: Injecting feedback mid-generation between generated tokens inside `_generate_inner`, and demonstrating a measurable effect on the remaining tokens of that same generation compared to an un-injected baseline.
+Aura's integration estimates use selected variables and declared
+approximation or search rules. Exact IIT 4.0 would require the causal
+state model and partitions that theory specifies.
+[Estimator](core/consciousness/phi_core.py) ·
+[Whole-system estimates](docs/WHOLE_SYSTEM_PHI.md)
 
-## 12. Open-Ended Evolution
+## 18. Reproduction of steering vectors
 
-* **Status**: `not proven`
-* **Rationale**: The evolutionary mechanisms are real and operate on live data structures. However, what they optimize is a fitness goal hand-written by a human engineer:
+The reported steering effects are bound to the model, basis, and test.
+Reproduction requires the matching inputs or a documented procedure for
+regenerating them.
+[Model card](MODEL_CARD.md) · [ISC reproduction](docs/ISC_REPRODUCTION.md)
 
-      F = 0.30Φ + 0.25C + 0.20E + 0.15I + 0.10S
+## 19. Capability gains from recurrence training
 
-  A person picked those five terms and those five weights. In biological evolution, fitness is tested against a complex natural environment rather than an arbitrary mathematical formula. While Aura has genuine variation and selection, her definition of success is hardcoded rather than emergent. The system cannot invent its own criteria for fitness or evolve in truly open-ended ways.
+The project tested frozen loops and separate learned readers. A gain from
+training the model to recur needs a promoted checkpoint and a held-out
+comparison that isolates recurrence at matched cost.
+[Recurrence experiments](docs/RECURSIVE_LATENT_CORTEX.md)
 
-  **What would change this status**: Allowing the fitness weights themselves to undergo evolutionary selection, and demonstrating that the system's goals drifted into novel, viable territory that the author never programmed while keeping the organism stable.
+## 20. A provably contractive substrate
 
-## 13. Continuous Weight-Level Learning
+The stability tools check selected dynamics and can test a candidate
+Lyapunov function. A global claim needs a proof for the actual update
+map over its declared state domain and step size.
+[Stability checks](core/consciousness/timescale_stability.py)
 
-* **Status**: `not proven`
-* **Rationale**: Aura is **continuously state-plastic (her memory and state change all the time), but only optionally weight-plastic (her neural network weights change only when weight learning is turned on)**. That distinction matters:
+## 21. Broad reasoning gain from kept procedures
 
-      S_{t+1} ≠ S_t   holds every tick, with fixed base weights
-      θ_{t+1} ≠ θ_t   is not continuously guaranteed
+* **Status**: `CLOSED` under G09’s registered math and planning criterion.
 
-  Aura's working data and long-term memory change constantly—including episodic memory, beliefs, preferences, goals, and world models. That is learning in the general computational sense, and it is always active. While weight adaptation exists as a technical capability (the CRSM-LoRA loop can train, merge, and verify parameter updates on the resident model), automated background weight training (`LiveLearner`) is **turned off by default**. It runs only when explicitly enabled, not as part of standard everyday operation.
-
-  **What would change this status**: Enabling weight learning as a standard, continuous background feature, with evidence that it steadily improves the system without causing instability or forgetting over long runs.
-
-## 14. General Visual Detail Perception
-
-* **Status**: `not proven`
-* **Rationale**: Aura can describe what a camera sees, and she now honestly declines to answer when she cannot see clearly. Neither capability proves that her visual perception is *general* across low light, blocked views, motion blur, distance, and crowded scenes.
-
-  What is currently working and verified:
-
-  - Video frame quality is **measured mathematically** rather than guessed from the model's confidence (`core/perception/frame_quality.py` checks brightness and clipping, sharpness via Laplacian variance, usable pixel count, and lens-obstruction uniformity).
-  - Detail claims that the image quality cannot justify are **removed** before other components use them, with the measured reason recorded (`temper_reading`). For example, a confident claim of "two people" on a heavily motion-blurred frame is corrected to `faces_detected: None`.
-  - The system cleanly distinguishes between "checked and found nothing", "checked but the image was too poor to tell", and "never checked", rather than lumping them together as zeroes.
-
-  What has **not** been proven is the vision model's actual accuracy under difficult conditions. The filtering layer prevents the system from acting on bad visual guesses; it does not measure how often the model gets the right answer. We have not run evaluations across a labeled dataset testing low light, occlusion, motion, distance, and multi-person scenes, so true accuracy remains unknown. So far, we have made it safe when the vision model is wrong, but have not proven that it consistently works.
-
-  **What would change this status**: A benchmark test across those five condition axes (lighting, occlusion, motion, distance, and crowds) with per-axis accuracy scores run against the vision model, plus a control test confirming that the filtering layer does not simply reject every difficult image.
-
-## 15. Biological Self-Organisation in the Named "Organs"
-
-* **Status**: `strictly unsupported`
-* **Rationale**: Several software components had names that sounded far more sophisticated than their actual algorithms, and that mismatch hid real problems.
-
-  For example, `core/brain/autopoiesis.py` described itself as a "self-creating topology" performing "mitosis" (cell division), "apoptosis" (programmed cell death), and "spontaneous generation of a new pathway." In reality, it was a short list of strings, each holding two floating-point numbers. The fancy vocabulary concealed three bugs:
-  - The pruning check was **unreachable** (it only triggered if `friction < 0.0`, but friction only increases and all callers passed positive values).
-  - The logic claiming to "split into nuanced concepts" just appended duplicate entries with a single hardcoded name, resulting in 20 entries sharing just two distinct names across 40 observations.
-  - **Nothing in the codebase ever read the data**—two functions in `cognitive_engine` wrote to it, but zero functions read from it.
-
-  That module has since been renamed to describe what it actually does, its working mechanisms were fixed, and a consumer was added so the output is used. However, it remains a small, hand-written controller and is described as one.
-
-  The same caution applies across the project: systems named "workspace competition" or "ignition" are engineered scoring formulas rather than emergent neural networks, and "autopoiesis" features are rule-based adjustments. They are practical software engineering, not the living biological processes their names evoke.
-
-## 16. Uniform Semantic Contracts Across the Phase Pipeline
-
-* **Status**: `not proven`
-* **Rationale**: `CognitiveTransformContract` lets an execution step ("phase") declare what state fields it reads, modifies, branches on, and guarantees. The runtime checks these declarations against actual execution behavior rather than trusting them blindly. When this feature was first introduced, only **1 of 29 phases** had declared a contract.
-
-  Expanding coverage was initially blocked by a circular dependency in the tooling: `watched_fields()` only looked at state fields that registered contracts had already named. As a result, the inspection tool (`write_profile`) reported almost nothing for the 28 uncontracted phases it was supposed to help measure. The tool couldn't discover new fields because it only looked where contracts were already written.
-
-  We fixed this by introducing `discovery_paths` and `tools/observe_phase_writes.py`, which runs each phase against a live `AuraState` and logs everything it modifies. Using these empirical measurements, ten additional contracts were written. Coverage is now **11 of 29 phases**, and the number of monitored state fields has grown from 11 to 30.
-
-  **What would change this status**: Writing contracts for the remaining 18 phases based on measured execution data rather than code inspection, and marking more of them as `thresholds_exhaustive` (a contract that declares its branches without specifying the exact numbers deciding them leaves the criteria incomplete).
-
-## 17. Exact IIT 4.0 Integrated Information
-
-* **Status**: `not proven`
-* **What the code does**: The module `core/consciousness/phi_core.py` calculates a mathematical approximation (spectral approximation) of integrated information ($\Phi$, or "phi") across a 16-node network, and uses an exhaustive search over an 8-node emotional subset as a baseline check. The code comments note that the 16-node calculation is only an approximation, not a consciousness meter. Testing all 32,767 ways to divide 16 nodes ($2^{16} = 65,536$ states) is too computationally expensive to run completely.
-* **Why the approximation is not the theory**: Integrated Information Theory (IIT 4.0) defines $\Phi$ using an exhaustive search for the weakest informational link (the minimum-information partition) and relies on active interventions (the "do-operator" testing cause and effect). Our code does neither. Its transition probability matrix is built by observing state changes over time, meaning it measures statistical correlation rather than true causal power.
-* **What would change this status**: Calculating an exact minimum-information partition (MIP) across all 32,767 divisions, and building the transition probability matrix (TPM) through controlled interventions rather than passive observation. The first challenge requires significant computing power; the second is an experimental design challenge, because actively intervening in a running system changes the very behavior being measured.
-
-## 18. Reproducible Concept-Activation Vectors
-
-* **Status**: `not proven`
-* **What the code does**: The module `core/consciousness/caa/production_caa.py` extracts concept-activation vectors (internal model direction vectors representing specific concepts) from the resident language model at runtime. However, our published evidence bundle only includes test results as JSON files, without the raw vector files (`.npy`). Anyone reading the bundle cannot re-run the calculations independently because reproduction depends on local cache files that only exist on the original computer.
-* **What would change this status**: Committing the vetted vector files as repository artifacts along with the cryptographic hash of the exact model version used to produce them, so anyone can reproduce the numbers independently.
-
-## 19. A Closed Recurrence-Training Loop
-
-* **Status**: `not proven`
-* **What the code does**: The code for training recurrence loops exists in `core/learning/recurrent_sft_kernel_probe.py` and campaign scripts under `tools/`, along with pre-registered test protocols and pilot contracts. What is missing is a complete run that closes the entire loop: training a model, promoting it, evaluating it on unseen test tasks, and beating the baseline target that was registered before the test.
-* **What would change this status**: A complete standalone test run producing a model checkpoint, an automated run receipt, and an improvement on unseen test tasks that holds up when the test set is swapped. Writing a pre-registered test plan establishes the standard for an experiment, but it is not the experiment itself.
-
-## 20. A Provably Contractive Substrate
-
-* **Status**: `not proven`
-* **What the code does**: The module `core/consciousness/timescale_stability.py` checks system stability across multiple timescales by computing a stability matrix (Jacobian), calculating the maximum Lyapunov exponent (measuring whether fluctuations grow or shrink), and verifying whether a test function $V(x)$ is a valid Lyapunov stability function. In addition, `core/phenomenal_substrate/maths.py` keeps internal numbers bounded within safe limits and replaces invalid numbers (`NaN`) with neutral values instead of letting errors cascade.
-* **What is missing**: Keeping numbers within bounds is not the same as proving stability. Nothing in the code mathematically proves that state updates are contractive (guaranteed to settle into a stable point rather than oscillating indefinitely in an endless loop). The step size used for updates was chosen by the programmer, not derived from a mathematical proof of stability.
-* **What would change this status**: A formal mathematical stability proof (a Lyapunov function) for the core state updates themselves—rather than just the timescale interactions—showing that the step size guarantees stability across all possible states.
-
-## 21. Broad Reasoning Gain From Kept Procedures: G09 Passed, Wider Claims Open
-
-* **Status**: `CLOSED` under G09’s registered broad-gain criterion (17 October 2026); unrestricted reasoning remains unestablished.
-* **What the code does**: `core/learning/procedures_from_solved_examples.py` has her model write a small program for a kind of problem from solved examples, and keeps it only if it agrees with every known answer of the kind, half of them unseen while it was written. Her chat consults kept procedures before she drafts (`core/brain/cognitive_engine_quick_reply.py`).
-* **What was shown**: attempt 6, preregistered, beat her own answers on held-out kinds in math and planning with no domain harmed, as registered and once every changed row was read: 29 gained, 0 lost, *p* 3.7e-9 ([result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)).
-* **What is still missing**: The gain is narrow. In math it is almost all problems too long for her thinking budget (large primes, factorizations); on 20 of 27 math kinds her own answers were already right. A plain-English prime-factor question was initially declined on 17 October; the result’s 18 October amendment records a successful live answer after routing repairs. That demonstration does not re-run the frozen attempt-6 test. Transfer to competition mathematics is not shown, and open-ended reasoning is not measured.
-* **What would change this status**: widening it needs the same test on domains beyond math and planning, and on requests in a person's own words rather than a benchmark's.
+Attempt 6 met its preregistered criterion. The row review found 29 gains
+and zero losses (p = 3.7e-9). The test
+covered 444 math and planning requests. No competition MATH question
+was admitted by the routing rule. Transfer to other tasks remains open.
+[Attempt 6 results](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)
 
 ## 22. Learning From Conversation That Improves Ordinary Use
 
-* **Status**: `not proven` (L09 open)
-* **What the code does**: `core/learning/examples_she_meets.py` keeps an answer a person states in chat as a solved example, holds one that contradicts a kept procedure as disputed, and, while she is idle, groups what she has met and writes procedures for groups large enough to check.
-* **What was shown**: The [live learning loop](docs/evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md) retained ten taught date differences, induced a procedure while idle and answered three fresh questions through it 25.6 hours after teaching.
-* **What is still missing**: A reliable benefit across ordinary use. The [18 October comparison](docs/evidence/L09_ORDINARY_USE_RESULT_2026-10-18.md) was underpowered (3 gained, 0 lost after row review); [attempt 2](docs/evidence/L09_ORDINARY_USE_RESULT_2_2026-10-19.md) did not meet its criterion (3 gained, 4 lost, with misroutes). [Attempt 3](docs/evidence/L09_WHERE_SHE_IS_WRONG_PREREGISTRATION_3_2026-10-20.md) ended at its registered first step because none of the sampled kinds supplied the required baseline error rate; 80 of 80 answers were right on hand review. L09 remains open.
-* **What would change this status**: That loop passing live, then procedures on and off compared over realistic tasks.
+In the live date trial, Aura used a learned procedure to answer three
+new questions 25.6 hours after the user supplied examples. A broader
+comparison on October 18 was underpowered. The second attempt gained
+three and lost four. The third stopped at its registered baseline check
+after all 80 sampled answers were graded correct. The L09 claim about
+ordinary use remains open.
+[Date trial](docs/evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md) ·
+[October 18](docs/evidence/L09_ORDINARY_USE_RESULT_2026-10-18.md) ·
+[October 19](docs/evidence/L09_ORDINARY_USE_RESULT_2_2026-10-19.md) ·
+[October 20](docs/evidence/L09_WHERE_SHE_IS_WRONG_PREREGISTRATION_3_2026-10-20.md)

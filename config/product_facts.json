@@ -324,7 +324,7 @@
         },
         {
           "file": "CLAIMS_NOT_SUPPORTED.md",
-          "pattern": "once every changed row was read: (\\d+) gained, 0 lost"
+          "pattern": "The row review found (\\d+) gains\\s+and zero losses"
         }
       ]
     },

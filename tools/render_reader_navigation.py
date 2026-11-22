@@ -143,24 +143,35 @@ def heading(topic: dict) -> str:
     return "ISC" if topic["id"] == "isc" else topic["id"].replace("-", " ").capitalize()
 
 
-def tour(topics: list[dict], date: str) -> str:
+def tour(topics: list[dict]) -> str:
     doc = "docs/PLAIN_ENGLISH_GUIDE.md"
-    out = ["# Aura in plain English", "", f"Status: Guide · Reading explanations updated {date}", "",
-           "Aura is a local AI research project. It combines a language model with memory, attention, action control and ongoing internal state. The purpose is useful continuity: what happened earlier should matter to what it does next, with a traceable route from a request to an outcome.", "",
-           "This tour explains the mechanisms and why someone would care. It is a guide to the design, not a certification that every feature works in the live app. Use the [claim boundaries](../CLAIMS_NOT_SUPPORTED.md), [current ISC results](ISC_STATUS.md) and each page's evidence for supported outcomes.", "",
-           "The [scientific source map](SCIENCE_AND_SOURCES.md) explains the research behind the ideas, what each source supports and where Aura's own evidence is required.", "",
-           "## A short explanation you can use", "",
-           "> Aura is built to do more than answer a message in isolation. It keeps records, chooses what deserves attention, checks proposed actions and learns or reuses some procedures. The practical goal is an assistant that can keep track of your work, explain what it did and remain responsive while it works. We test whether each extra mechanism actually helps, because a complicated architecture can still give an ordinary or unreliable result.", "",
-           "## Choose a topic", ""]
-    out += [f"- [{t['title']}](#{t['id']})" for t in topics]
-    for t in topics:
-        out += ["", f"## {heading(t)}", "", f"**{t['title']}.** {t['definition']}", "",
-                "**Why an ordinary user would care.** " + t["why"], "",
-                "**Day-to-day example.** " + t["daily"], "",
-                "**Metaphor.** " + t["metaphor"], "",
-                "**Where the comparison stops.** " + t["metaphor_limit"], "",
-                f"[Variables and their practical meanings](VARIABLES_EXPLAINED.md#{t['id']}) · [Demonstrations and related work](DEMOS_AND_RELATED_WORK.md#{t['related']})", "",
-                "Read next: " + ", ".join(f"[{Path(p).stem.replace('_', ' ').title()}]({link(doc, p)})" for p in t["read_more"]) + "."]
+    out = [
+        "# Aura in plain English",
+        "",
+        "Aura is an experimental assistant for Apple Silicon Macs. It saves conversation "
+        "records and can look them up when you return with a related question. The app can "
+        "also make a decision about a tool request and keep a record of what happened.",
+        "",
+        "[How a chat turn works](../HOW_IT_WORKS.md) · [Measured results](../CLAIMS_MATRIX.md)",
+        "",
+        "## Topics",
+        "",
+    ]
+    out.extend(f"- [{topic['title']}](#{topic['id']})" for topic in topics)
+    for topic in topics:
+        out.extend([
+            "",
+            f"## {heading(topic)}",
+            "",
+            topic["definition"],
+            "",
+            topic["daily"],
+            "",
+            " · ".join(
+                f"[{Path(source).stem.replace('_', ' ').title()}]({link(doc, source)})"
+                for source in topic["read_more"]
+            ),
+        ])
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -174,9 +185,8 @@ def glossary(topics: list[dict], extra: list[dict], date: str) -> str:
     rows.sort(key=lambda row: (row["name"].casefold(), row["context"].casefold()))
     out = ["# Aura glossary: terms in ordinary language", "",
            f"Status: Generated reference · Definitions reviewed {date}", "",
-           "Use this page when a term stops you understanding a sentence. The context matters: the same word or letter can have different meanings in different experiments.", "",
-           "For arithmetic, read [the formula guide](FORMULAS.md). For the overall idea, read [the plain-English tour](PLAIN_ENGLISH_GUIDE.md). [Scientific sources](SCIENCE_AND_SOURCES.md) explains the research connections; [current ISC status](ISC_STATUS.md) gives results rather than definitions.", "",
-           f"**{len(rows)} contextual definitions**, sorted alphabetically. Examples explain the term; they are not extra measured results.", "",
+           "Each entry gives the term's meaning in the named subsystem or experiment. Examples are illustrative.", "",
+           "[Formulas](FORMULAS.md) · [Project tour](PLAIN_ENGLISH_GUIDE.md) · [ISC results](ISC_STATUS.md)", "",
            "| Term and context | Meaning | Why it matters in practice | Example |",
            "|---|---|---|---|"]
     for row in rows:
@@ -184,14 +194,14 @@ def glossary(topics: list[dict], extra: list[dict], date: str) -> str:
         cells = [f"[{label}]({row['reference']}) ({row['context']})"]
         cells += [row[key].replace("|", "\\|") for key in ("meaning", "practical", "example")]
         out.append("| " + " | ".join(cells) + " |")
-    out += ["", "Definitions are rendered from [the reviewed catalogue](../config/documentation_reading_topics.json). Project labels such as qualia, will and felt state do not acquire scientific validity from their names. Read the formula, its consumers, controls and evidence scope together."]
+    out += ["", "Source definitions are in the [topic catalogue](../config/documentation_reading_topics.json)."]
     return "\n".join(out).rstrip() + "\n"
 
 
 def variables(topics: list[dict], date: str) -> str:
     out = ["# Aura's variables and measurements explained", "", f"Status: Guide · Definitions updated {date}", "",
-           "A variable is a value the software stores or calculates. A useful definition says what the value represents, what reads it and what changes because of it. Units, scope and missing values belong beside the number.", "",
-           "The examples here explain meanings; they are not additional measured Aura results. For numerical ISC arithmetic, use [the worked ISC guide](ISC_VARIABLES.md). For the overall project, use [the plain-English tour](PLAIN_ENGLISH_GUIDE.md).", "",
+           "These tables explain quantities that Aura stores or calculates. The examples illustrate the terms.", "",
+           "[ISC worked examples](ISC_VARIABLES.md) · [Formulas](FORMULAS.md)", "",
            "## Find a topic", ""]
     out += [f"- [{t['title']}](#{t['id']})" for t in topics]
     for t in topics:
@@ -201,9 +211,6 @@ def variables(topics: list[dict], date: str) -> str:
         for v in t["variables"]:
             out.append("| " + " | ".join(v[k].replace("|", "\\|") for k in ("name", "meaning", "practical", "example")) + " |")
         out += ["", f"[Why this matters, with a metaphor](PLAIN_ENGLISH_GUIDE.md#{t['id']}) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#{t['related']})"]
-    out += ["", "## Before interpreting a number", "",
-            "Ask what was measured, in which units, on which cases and under which controls. Check whether the value is missing, estimated or directly observed. A threshold passing is a statement about the declared test, not a general guarantee.", "",
-            "A larger value is not automatically better. More stored records can mean worse retrieval, more work can mean worse latency, and stronger coupling can mean less useful flexibility. The user-visible outcome needs its own measurement."]
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -215,7 +222,7 @@ def inventory(root: Path) -> list[str]:
     return sorted({p for p in raw.split("\0") if p} | OUTPUTS)
 
 
-def document_map(root: Path, paths: list[str], topics: list[dict], date: str) -> str:
+def document_map(root: Path, paths: list[str], topics: list[dict]) -> str:
     doc = "docs/DOCUMENTATION_INDEX.md"
     by_id = {t["id"]: t for t in topics}
     groups: dict[str, list[tuple[str, str, str]]] = {}
@@ -227,21 +234,14 @@ def document_map(root: Path, paths: list[str], topics: list[dict], date: str) ->
             title = "Aura documentation: every tracked Markdown page"
         title = title.replace("|", "\\|").replace("[", "").replace("]", "")
         groups.setdefault(category(path, text), []).append((path, title, topic_for(path)))
-    out = ["# Aura documentation: every tracked Markdown page", "", f"Status: Generated navigation · Updated {date}", "",
-           "Start with [the plain-English tour](PLAIN_ENGLISH_GUIDE.md), [variables and examples](VARIABLES_EXPLAINED.md), or [demos and related work](DEMOS_AND_RELATED_WORK.md). For ISC, use [the introduction](ISC_EXPLAINED.md) and [current results](ISC_STATUS.md).", "",
-           "This map includes the source repository's Markdown pages and the new reading guides. It is an inventory, not a claim that every old document is a current capability statement. Historical records and frozen protocols retain their original wording; generated pages and standards retain their own sources.", "",
-           f"**{len(paths)} Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.", "",
-           "Definitions and examples come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.", ""]
+    out = ["# Aura documentation: every tracked Markdown page", "",
+           f"{len(paths)} Markdown pages. Use the [documentation home](README.md) for common entry points "
+           "or the [documentation status page](DOC_STATUS.md) for corrections to older records.", "",
+           "Regenerate this index with `python tools/render_reader_navigation.py`.", ""]
     for group in ("Guide or reference", "Living status or append-only ledger", "Standard, policy or contributor reference", "Generated reference", "Historical or frozen record"):
         rows = groups.get(group, [])
-        out += [f"## {group}", "", f"{len(rows)} pages. " + (
-            "Generated inventories describe the inputs and revision their producer recorded; a checked-in snapshot is not a live service report."
-            if group == "Generated reference" else
-            "Current status and append-only entries share a file. Read the latest scoped item without erasing earlier history."
-            if group == "Living status or append-only ledger" else
-            "Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth."
-        ), "",
-                "| Page | Plain-language context |", "|---|---|"]
+        out += [f"## {group}", "", f"{len(rows)} pages.", "",
+                "| Page | Topic |", "|---|---|"]
         for path, title, key in rows:
             topic = by_id[key]
             out.append(f"| [{title}]({link(doc, path)}) | [{topic['title']}](PLAIN_ENGLISH_GUIDE.md#{key}) |")
@@ -268,7 +268,7 @@ def main() -> int:
             changes[path] = BLOCK.sub("", text)
     # Render these before the index so their actual titles are available.
     planned = {
-        "docs/PLAIN_ENGLISH_GUIDE.md": tour(topics, config["as_of"]),
+        "docs/PLAIN_ENGLISH_GUIDE.md": tour(topics),
         "docs/VARIABLES_EXPLAINED.md": variables(topics, config["as_of"]),
         "docs/GLOSSARY.md": glossary(topics, config.get("glossary_extra_terms", []), config["as_of"]),
     }
@@ -278,7 +278,7 @@ def main() -> int:
     if not args.check:
         for path, body in changes.items():
             (ROOT / path).write_text(body)
-    index = document_map(ROOT, paths, topics, config["as_of"])
+    index = document_map(ROOT, paths, topics)
     if not (ROOT / "docs/DOCUMENTATION_INDEX.md").exists() or (ROOT / "docs/DOCUMENTATION_INDEX.md").read_text() != index:
         changes["docs/DOCUMENTATION_INDEX.md"] = index
         if not args.check:

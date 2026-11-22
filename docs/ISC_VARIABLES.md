@@ -1,20 +1,8 @@
 # ISC variables, with examples
 
-Status: Guide · Updated 25 October 2026
-
-This page translates the symbols in the ISC documents. Start with
-[ISC explained](ISC_EXPLAINED.md) for the overall idea. For the measured
-results, use [current status](ISC_STATUS.md).
-
-The numbers in the worked examples below are invented to explain the
-arithmetic. They are not additional Aura experiment results.
-
-The [scientific source map](SCIENCE_AND_SOURCES.md#measurement-and-statistical-interpretation)
-links methods references and explains their role. For example,
-[Phipson and Smyth](https://gksmyth.github.io/pubs/PermPValuesPreprint.pdf)
-address finite, randomly drawn permutation calculations. The actual ISC
-statistics and decision rules remain those in its versioned protocol; a
-methods citation does not validate a comparison with failed controls.
+The worked numbers on this page are examples. Use the results page for
+measured values and the introduction for the experimental design.
+[Results](ISC_STATUS.md) · [Design](ISC_EXPLAINED.md)
 
 ## State: the information available at one moment
 
@@ -145,19 +133,11 @@ as 0.02, while a predeclared acceptable margin is 0.03. If the upper bound is
 that margin. If the method can only detect 0.05, it cannot establish the
 0.03 claim by failing to see a contribution.
 
-**Current method, through `96487c6f1`:** `CLOSURE_MARGIN` is `0.02 / 1.02`
-(about 0.0196078); `CLOSURE_MARGIN_RULE` remains `None`. The earlier least-domain
-rule stays withdrawn. The night addendum adopts a conventional small-effect
-margin; that convention is not a measured boundary for consciousness.
-Closure also requires an interventional `CLOSED` result on the scored seed.
-See [the current method and source limits](ISC_STATUS.md#the-night-addendum-include-what-the-transition-reads-then-test-both-ways).
-
-The estimator now predicts core change from declared inputs, enters periphery
-columns as increments, and refuses to use a failed fold to establish closure.
-A failed predictor is not evidence of a closed boundary. Read the
-[withdrawal record](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json) and
-[formula guide](FORMULAS.md#closure-margin-and-decision). The earlier numerical
-margin example above is illustrative arithmetic, not a newly selected threshold.
+The carrier report uses a margin of `0.02 / 1.02`, about 0.0196, for
+observational closure. The v7 battery uses interventional closure for
+its scored closure line. Seed 101 scored 24/24 under v7 and 23/24 under v6,
+which scored the substrate campaign's observational closure result.
+[Results](ISC_STATUS.md) · [Closure formula](FORMULAS.md#closure-margin-and-decision)
 
 The experiment's clock is also distinct from wall-clock waiting. A two-turn
 comparison can be defined as 66 simulated processing frames even when the
@@ -205,5 +185,5 @@ establish that this record includes every possible cause.
 **Observational closure** asks whether outside readings improve prediction
 beyond the permitted margin. **Interventional closure** asks whether the
 specified outside-state swaps actually change K or held state at the tested
-anchors and two-turn horizon. Both are required by the current rule. Passing
-neither is implied by having written the code that measures them.
+anchors and two-turn horizon. The preprint reports both measurements and
+identifies which one each battery version scores.

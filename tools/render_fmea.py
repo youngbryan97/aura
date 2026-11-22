@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""tools/render_fmea.py — the failure-mode registry, rendered from code.
-
-Every known way Aura fails has exactly one authoritative enumeration:
-core/runtime/fmea.py. This renders it into docs/FMEA.md so a skeptical
-engineer can audit coverage without reading the module — and a drift test
-keeps the document honest. Never edit the doc by hand.
-
-Usage:
-  python tools/render_fmea.py            # writes docs/FMEA.md
-  python tools/render_fmea.py --check    # exit 1 if the doc drifted
-"""
+"""Write docs/FMEA.md from the runtime failure mode registry. Use --check to compare."""
 from __future__ import annotations
 
 import argparse
@@ -34,11 +24,10 @@ def render() -> str:
 
     summary = registry_summary()
     lines = [
-        "# Aura FMEA — failure modes & effects registry",
+        "# Aura failure modes",
         "",
-        "> GENERATED from `core/runtime/fmea.py` by `tools/render_fmea.py`",
-        "> (`make fmea-doc`). Do not edit by hand — a drift test regenerates",
-        "> and compares this file on every suite run.",
+        "This list of failure modes and effects comes from the [runtime registry](../core/runtime/fmea.py).",
+        "Regenerate it with `make fmea-doc`.",
         "",
         f"Registry version: `{FMEA_VERSION}` — "
         f"{summary['total']} modes "
@@ -47,9 +36,8 @@ def render() -> str:
         f"{summary['mitigation_gaps']} open mitigation gap(s), "
         f"{summary['detection_gaps']} open detection gap(s).",
         "",
-        "Every entry is REAL: it either occurred live (occurrences cite when)",
-        "or is a structurally-reachable state found by analysis. Gaps are",
-        "explicit and pinned by an allowlist test that only shrinks.",
+        "Entries describe observed incidents or failure paths identified in the source.",
+        "Incident dates are listed where the registry records them.",
         "",
     ]
 

@@ -1,12 +1,11 @@
-# Aura Runtime Contract — what must be alive
+# Aura runtime health contract
 
-> GENERATED from `core/runtime/health_contract.py` by
-> `tools/render_health_contract.py`. Do not edit by hand — a drift
-> test regenerates and compares this file on every suite run.
+These checks come from the [runtime health contract](../core/runtime/health_contract.py).
+Regenerate this page with `make contract-doc`.
 
 Contract version: `runtime-health-v1`
 
-## CRITICAL — Aura CANNOT function without these
+## CRITICAL — required services
 
 | Service | Container key | Liveness check | Why it matters |
 | :--- | :--- | :--- | :--- |
@@ -32,7 +31,7 @@ Contract version: `runtime-health-v1`
 | Live Mind Runtime | `live_mind_runtime` | `is_ready` | Boot-owned causal organs and snapshot contract required for grounded live desktop speech. |
 | External Memory Sentinel | `external_memory_sentinel` | `is_armed` | Out-of-process memory guard. Without it, a live desktop runaway can outpace in-process watchdogs and crash the host. |
 
-## IMPORTANT — Aura works but the experience is degraded
+## IMPORTANT — services monitored for degraded operation
 
 | Service | Container key | Liveness check | Why it matters |
 | :--- | :--- | :--- | :--- |
@@ -51,7 +50,7 @@ Contract version: `runtime-health-v1`
 | Resource Governor | `resource_governor` | `is_alive` | Canonical sampler and eviction adapter feeding the runtime control plane. |
 | Resource Arbitrator | `resource_arbitrator` | `is_ready` | Compatibility facade ensuring legacy inference and evolution callers use canonical admission. |
 
-## OPTIONAL — background enrichment; loss is invisible to the user
+## OPTIONAL — optional services
 
 | Service | Container key | Liveness check | Why it matters |
 | :--- | :--- | :--- | :--- |
