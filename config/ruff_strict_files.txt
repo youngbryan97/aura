@@ -2577,7 +2577,6 @@ tests/test_governance_strictness_resolver.py
 tests/test_governed_file_ops_declare_their_scope.py
 tests/test_graceful_shutdown_coordinator.py
 tests/test_grassmann_phi.py
-tests/test_grounded_claims_bind_exact_receipts.py
 tests/test_grounded_recall.py
 tests/test_grounded_search_stack.py
 tests/test_grounding_placement.py
