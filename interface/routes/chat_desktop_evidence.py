@@ -1133,6 +1133,15 @@ def _about_the_world_now(user_message: str, seeks_the_world: bool) -> bool:
     # Nor a question one of her own readings answers: the screen, the clipboard, the clock (15 November, 22:22).
     if her_own_readings_answer(user_message):
         return False
+    # Read by meaning once her encoder is warm, and only a question it reads as about the world now is one. LIVE 22
+    # November 2026, 00:07: "What's it like to play Stockfish?" counted as current because "stock" begins "Stockfish",
+    # and its pages, read as shown, took the turn's time before her model was asked.
+    from core.cognition.evidence_relevance import semantic_routing_ready
+
+    if semantic_routing_ready():
+        from core.conversation.asks_about_the_world_now import asks_about_the_world_now
+
+        return asks_about_the_world_now(user_message) is True
     return bool(seeks_the_world) or any(_query_is_current(clause) for clause in asking_clauses(user_message))
 
 
@@ -1194,7 +1203,8 @@ async def _what_the_world_says_for_the_turn(
         from core.conversation.asks_about_the_world import wants_outside_evidence
 
         seeks = wants_outside_evidence(user_message)
-        current = _about_the_world_now(user_message, seeks)
+        # It reads by meaning on her encoder: off her event loop.
+        current = await asyncio.to_thread(_about_the_world_now, user_message, seeks)
         outside = should_collect or current or seeks
     except _CHAT_RECOVERABLE_ERRORS:
         current, outside = False, should_collect

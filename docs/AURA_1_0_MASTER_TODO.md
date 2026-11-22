@@ -5267,6 +5267,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     about named things on one side and her own working-out on the other, and only a question read as a fact is
     looked up there (`core/conversation/asks_for_a_fact.py`, `tests/test_a_fact_is_told_from_her_own_working_out.py`,
     `tests/test_what_the_world_says.py`).
+  - 22 November, 00:07, typed into her window by Bryan: "How've the games been going? What's it like to play
+    Stockfish?" Whether a turn is about the world as it is now was read from a list of words, each claiming every
+    word it begins, and "stock" begins "Stockfish". The turn was searched as something current, its pages were
+    read as her browser shows them, a dictionary's page for "how" ran out of time, and her model was never asked: a
+    smaller one's 90 tokens went to him, cut off after "The endgames are especially humbling." Once her encoder is
+    warm, a turn is about now only where her encoder reads it so; measured on questions not used to write its
+    examples, 12 of 13 about now read as now and none of 15 others did (`core/conversation/asks_about_the_world_now.py`,
+    `tests/test_stockfish_is_not_the_stock_market.py`).
   - U07-10, the tool loop's terminal boundary, as the outside review set it, already holds by tests: the last pass
     is offered no tools and a call written there is not run (`tests/test_the_tool_loops_last_pass.py`); the pass that
     writes cannot open a call (`tests/test_the_pass_that_writes_opens_no_call.py`); a capability's output reaches her
