@@ -5228,6 +5228,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     The web search of the whole message came from her world evidence: the route's search check had said no, since
     core/brain is on her disk, but the other reasons to look outside never asked that. They do now, and her files
     are searched for on the web only when she is told to search (`tests/test_her_own_files_are_not_searched_on_the_web.py`).
+    Asked again at 18:57 on 21 November, typed into her window on 588cb329f: nothing was searched, five runs of her
+    code, and in 433 s her answer: mlx_client.py 12,591 lines and inference_gate.py 11,231 of 497 files, 12.11%, a gap
+    of 1,360 lines, each figure matching an independent count, drafted, checked, committed and delivered. Its
+    closing note on bytes said both that mlx_client.py leads in bytes and that inference_gate.py is larger in bytes;
+    the first is true, 568,036 against 543,707, and no check of hers reads an ordering claim yet. Two of her runs
+    started `wc` and failed with "BlockingIOError: Resource temporarily unavailable". RLIMIT_NPROC counts every
+    process of the user, and her children were given 32, 64 or 256 while her user ran 275, so no process could start
+    in any of them, make and pytest under her process supervisor included. The limit is now the user's count, taken
+    in the parent, plus what the child may start. Under the kernel boundary her code still may not start another
+    program, and is told so as that (`tests/test_a_child_may_start_the_processes_it_is_allowed.py`).
   - U07-10, the tool loop's terminal boundary, as the outside review set it, already holds by tests: the last pass
     is offered no tools and a call written there is not run (`tests/test_the_tool_loops_last_pass.py`); the pass that
     writes cannot open a call (`tests/test_the_pass_that_writes_opens_no_call.py`); a capability's output reaches her

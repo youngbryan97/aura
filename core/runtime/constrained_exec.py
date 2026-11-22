@@ -51,18 +51,49 @@ RLIMIT_CPU_S = 30
 RLIMIT_ADDRESS_SPACE_BYTES = 2 * 1024 * 1024 * 1024   # 2 GiB
 RLIMIT_FILE_SIZE_BYTES = 64 * 1024 * 1024             # 64 MiB
 RLIMIT_OPEN_FILES = 128
+#: How many processes a child may start beyond those its user already runs. RLIMIT_NPROC counts every process of the
+#: user, so it is set to that count plus this (``process_ceiling``), never to this alone.
 RLIMIT_PROCESSES = 32
 
 #: Environment keys the child may inherit. Everything else is dropped.
 SAFE_ENV_KEYS = ("PATH", "LANG", "LC_ALL", "TZ")
 
 
-def child_preexec() -> None:
+def processes_this_user_runs() -> int | None:
+    """How many processes this user runs now, or None when that cannot be read."""
+    try:
+        import psutil
+
+        me = os.getuid()
+        return sum(1 for process in psutil.process_iter(["uids"])
+                   if process.info.get("uids") is not None and process.info["uids"].real == me)
+    except (ImportError, AttributeError, OSError) as exc:
+        logger.info("the processes this user runs could not be counted: %s", exc)
+        return None
+
+
+def process_ceiling(allowance: int) -> int | None:
+    """The RLIMIT_NPROC that lets a child start ``allowance`` processes, counted in the parent before it starts.
+
+    The kernel counts every process of the user against RLIMIT_NPROC, on macOS and on Linux, not the child's own
+    descendants. Set to the allowance alone it refused every process start once the user ran more than that: LIVE 21
+    November 2026, typed into her window, "count their lines by actually running something" had her code start
+    ``wc``, and code_repl refused it twice with "BlockingIOError: [Errno 35] Resource temporarily unavailable" while
+    her user ran 275 processes against a limit of 64. None when the count cannot be read: the limit is then left
+    unset, and the child is still bounded by its CPU time and reaped with its process group.
+    """
+    running = processes_this_user_runs()
+    return None if running is None else running + max(0, int(allowance))
+
+
+def child_preexec(processes: int | None = None) -> None:
     """Apply POSIX limits and start a new session in the child.
 
     Runs between fork and exec. The new session (and therefore process group)
     is what makes a recursive reap possible: without it a timeout can only
-    signal the direct child, and its descendants survive.
+    signal the direct child, and its descendants survive. ``processes`` is the
+    RLIMIT_NPROC worked out in the parent (``process_ceiling``); without it the
+    limit is not set.
     """
     try:
         os.setsid()
@@ -82,7 +113,7 @@ def child_preexec() -> None:
         (resource.RLIMIT_AS, RLIMIT_ADDRESS_SPACE_BYTES),
         (resource.RLIMIT_FSIZE, RLIMIT_FILE_SIZE_BYTES),
         (resource.RLIMIT_NOFILE, RLIMIT_OPEN_FILES),
-        (getattr(resource, "RLIMIT_NPROC", resource.RLIMIT_NOFILE), RLIMIT_PROCESSES),
+        *([(resource.RLIMIT_NPROC, processes)] if processes and hasattr(resource, "RLIMIT_NPROC") else []),
         (getattr(resource, "RLIMIT_CORE", resource.RLIMIT_FSIZE), 0),
     ]
     for limit, value in limits:

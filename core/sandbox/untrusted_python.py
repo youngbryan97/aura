@@ -68,6 +68,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.constrained_exec import process_ceiling
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,9 @@ DEFAULT_MEM_BYTES = 512 * 1024 * 1024
 DEFAULT_OUTPUT_LIMIT = 200 * 1024
 DEFAULT_CODE_BYTES = 512 * 1024
 DEFAULT_FILE_SIZE_BYTES = 32 * 1024 * 1024
+#: How many processes the code may start beyond those its user already runs: its RLIMIT_NPROC is that count plus
+#: this (core/runtime/constrained_exec.py, process_ceiling).
+PROCESS_ALLOWANCE = 64
 
 #: Escape hatch for platforms with no kernel boundary. Off by default.
 UNCONFINED_ENV = "AURA_SANDBOX_ALLOW_UNCONFINED"
@@ -542,7 +546,7 @@ def _execute(
                     "cpu_seconds": max(1, int(timeout_s)),
                     "mem_bytes": int(mem_bytes),
                     "file_size_bytes": DEFAULT_FILE_SIZE_BYTES,
-                    "processes": 64,
+                    "processes": process_ceiling(PROCESS_ALLOWANCE),
                 },
             }
         )

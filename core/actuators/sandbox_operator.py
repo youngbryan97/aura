@@ -26,6 +26,7 @@ exists, ``isolation_level`` reports ``"constrained_process"`` and never
 CP126 f52d8430 / 84fc4f9d / 0f681b67 / 688c0259.
 """
 
+import functools
 import logging
 import math
 import os
@@ -42,8 +43,10 @@ from core.actuators.code_execution_actuator import (
 from core.runtime.constrained_exec import (  # noqa: F401 - _RLIMIT_OPEN_FILES is re-exported for tests
     ISOLATION_LEVEL,
     RLIMIT_OPEN_FILES as _RLIMIT_OPEN_FILES,
+    RLIMIT_PROCESSES,
     child_preexec as _child_preexec,
     isolation_receipt,
+    process_ceiling,
     reap_process_group as _reap_process_group,
     scrubbed_env as _scrubbed_env,
 )
@@ -156,7 +159,7 @@ class SandboxOperator:
                 stderr=subprocess.PIPE,
                 text=True,
                 start_new_session=True,
-                preexec_fn=_child_preexec,
+                preexec_fn=functools.partial(_child_preexec, process_ceiling(RLIMIT_PROCESSES)),
                 source="sandbox_operator",
                 accelerator_capability="none",
             )

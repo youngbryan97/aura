@@ -15,8 +15,10 @@ from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.task_ownership import create_tracked_task
+from core.runtime.constrained_exec import process_ceiling
 from core.sandbox.untrusted_python import (
     DEFAULT_FILE_SIZE_BYTES,
+    PROCESS_ALLOWANCE,
     _child_environment,
     _interpreter_paths,
     _wrap_with_boundary,
@@ -605,7 +607,8 @@ def run_untrusted(
             {
                 "code": code,
                 "confined": bool(boundary),
-                **({"file_size_bytes": DEFAULT_FILE_SIZE_BYTES, "processes": 64} if boundary else {}),
+                **({"file_size_bytes": DEFAULT_FILE_SIZE_BYTES, "processes": process_ceiling(PROCESS_ALLOWANCE)}
+                   if boundary else {}),
                 "mem_bytes": mem_bytes,
                 # Not the caller's timeout. That number says how long they
                 # are willing to WAIT; this one says how much computation the

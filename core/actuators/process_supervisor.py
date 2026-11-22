@@ -10,6 +10,7 @@ are killed by process group (no orphan descendants), and every spawn/exit/kill
 is receipted. The registry is lock-synchronized and completed jobs are reaped.
 """
 
+import functools
 import hashlib
 import json
 import logging
@@ -25,6 +26,7 @@ from typing import Any
 
 from core.actuators.actuator_registry import ActuatorResult, BaseActuator
 from core.actuators.authority import verify_actuator_authority
+from core.runtime.constrained_exec import process_ceiling
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.wall_clock import wall_time
 
@@ -66,6 +68,8 @@ _PREVIEW_MAX_LINE = 2048           # per-line clamp in a preview
 _COMPLETED_RETENTION_S = 3600.0    # keep finished job metadata this long
 _RLIMIT_CPU_SECONDS = int(os.environ.get("AURA_PROCESS_RLIMIT_CPU_S", "3600") or "3600")
 _RLIMIT_FSIZE_BYTES = int(os.environ.get("AURA_PROCESS_RLIMIT_FSIZE", str(512 * 1024 * 1024)) or str(512 * 1024 * 1024))
+#: How many processes a supervised job may start beyond those its user already runs: RLIMIT_NPROC counts every process
+#: of the user, so the job's limit is that count plus this (core/runtime/constrained_exec.py, process_ceiling).
 _RLIMIT_NPROC = int(os.environ.get("AURA_PROCESS_RLIMIT_NPROC", "256") or "256")
 
 
@@ -161,16 +165,17 @@ def _validate_cwd(requested: Any, workspace_root: str) -> tuple[str | None, str]
     return resolved, ""
 
 
-def _rlimit_preexec() -> None:  # pragma: no cover - runs in the child
-    """Apply conservative resource limits in the child before exec."""
+def _rlimit_preexec(processes: int | None = None) -> None:  # pragma: no cover - runs in the child
+    """Apply conservative resource limits in the child before exec. ``processes`` is its RLIMIT_NPROC, worked out in
+    the parent; without it that limit is not set."""
     if _resource is None:
         return
     for what, soft in (
         (getattr(_resource, "RLIMIT_CPU", None), _RLIMIT_CPU_SECONDS),
         (getattr(_resource, "RLIMIT_FSIZE", None), _RLIMIT_FSIZE_BYTES),
-        (getattr(_resource, "RLIMIT_NPROC", None), _RLIMIT_NPROC),
+        (getattr(_resource, "RLIMIT_NPROC", None), processes),
     ):
-        if what is None:
+        if what is None or not soft:
             continue
         try:
             hard = _resource.getrlimit(what)[1]
@@ -312,7 +317,8 @@ class ProcessSupervisorActuator(BaseActuator):
                 env=env,
                 text=True,
                 start_new_session=True,
-                preexec_fn=_rlimit_preexec if _resource is not None else None,
+                preexec_fn=(functools.partial(_rlimit_preexec, process_ceiling(_RLIMIT_NPROC))
+                            if _resource is not None else None),
                 source="process_supervisor",
                 accelerator_capability="auto",
             )
