@@ -8267,6 +8267,15 @@ needs her 27B free (her app down, or her app's own influence trials).
     fault whose exception is the outside world's (a wait at her edge that ran out, a connection refused or reset, a
     name that did not answer, a certificate or protocol that failed), read from its class, is set aside once with
     that reason, heard now or kept from her last run (`tests/test_a_fault_the_world_raised_is_not_hers_to_mend.py`).
+    Her draft toward "Acting on curiosity: explore_knowledge" (c43fcfe64), 44 lines in one method of
+    core/orchestrator/mixins/autonomy.py, was refused after 7,212 s: every one of the check's three runs of its
+    guarding tests was cut short at its 2,400 s bound, and three tests the run on her change had not reached by then
+    were reported as "passed before and fails now". Each passes with her change, alone and in its file. Its guards
+    were every test file anywhere in her tree that named the module, scratch/test_full_boot.py among them, which
+    boots her whole runtime and sits outside the folders her pyproject.toml gives pytest. The check now guards a
+    change with the suite the repository declares, read as pytest reads its configuration and from the code before
+    the change, anywhere when none is declared; and a test a cut-short run never reached is not said to fail, the
+    run refusing the change by itself (`tests/test_the_outside_check_reads_where_tests_are.py`).
 
 ## Live session 2026-09-07: what the runtime showed
 

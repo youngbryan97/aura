@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import ast
 import builtins
+import configparser
 import itertools
 import json
 import math
@@ -39,6 +40,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import tomllib
 import types
 from collections import abc
 from collections.abc import Mapping, Sequence
@@ -209,8 +211,60 @@ def _modules_that_hand_it_on(checkout: Path, name: str, dotted: str, changed: Se
     return out
 
 
-def tests_naming(checkout: Path, files: Sequence[str], functions: Mapping[str, Sequence[str]] | None = None) -> list[str]:
-    """The test files anywhere in ``checkout`` that name a changed module or a module that passes it on."""
+#: Where pytest looks for its configuration, in the order it looks, and the table each must hold to be the one it uses: a
+#: pytest.ini is used even when empty (https://docs.pytest.org/en/stable/reference/customize.html).
+_PYTEST_CONFIGURATIONS = (("pytest.ini", "pytest"), (".pytest.ini", "pytest"), ("pyproject.toml", None),
+                          ("tox.ini", "pytest"), ("setup.cfg", "tool:pytest"))
+
+
+def declared_test_roots(checkout: Path) -> list[str] | None:
+    """The folders the repository's pytest configuration names as where its tests are (``testpaths``), or None when the
+    configuration pytest uses names none and its tests are anywhere. A test file outside them is not one of the suite
+    the repository runs: LIVE 21 November 2026, a change of hers to one method was guarded by scratch/test_full_boot.py,
+    which boots her whole runtime, and every run of its guards was cut short at the bound."""
+    for name, section in _PYTEST_CONFIGURATIONS:
+        path = checkout / name
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, ValueError):
+            continue  # unreadable, so not the configuration pytest uses either
+        if section is None:
+            try:
+                table = tomllib.loads(text).get("tool", {}).get("pytest")
+            except ValueError:
+                continue  # pytest stops on a pyproject.toml it cannot parse; the next file is the safer reading
+            if not isinstance(table, dict):
+                continue
+            options = table.get("ini_options") if isinstance(table.get("ini_options"), dict) else table
+            paths = options.get("testpaths") or []
+            paths = paths.split() if isinstance(paths, str) else [str(item) for item in paths]
+        else:
+            parser = configparser.ConfigParser(interpolation=None)
+            try:
+                parser.read_string(text)
+            except configparser.Error:
+                continue  # not a configuration pytest can read
+            if not parser.has_section(section):
+                if name.endswith("pytest.ini"):
+                    return None
+                continue
+            paths = parser.get(section, "testpaths", fallback="").split()
+        roots = sorted({found.relative_to(checkout).as_posix() for pattern in paths for found in checkout.glob(pattern)
+                        if found.is_dir()})
+        return roots or None
+    return None
+
+
+def _under(name: str, roots: Sequence[str] | None) -> bool:
+    return roots is None or any(name == root or name.startswith(root.rstrip("/") + "/") for root in roots)
+
+
+def tests_naming(checkout: Path, files: Sequence[str], functions: Mapping[str, Sequence[str]] | None = None,
+                 roots: Sequence[str] | None = None) -> list[str]:
+    """The test files in ``checkout`` that name a changed module or a module that passes it on, within ``roots``, the
+    folders its tests are declared to be in, or anywhere when none are given."""
     found: set[str] = set()
     for name in files:
         if not name.endswith(".py") or _a_test_file(name):
@@ -223,7 +277,7 @@ def tests_naming(checkout: Path, files: Sequence[str], functions: Mapping[str, S
         argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-F"]
         shown = subprocess.run([*argv, *itertools.chain(*(("-e", item) for item in patterns)), "--", "*.py"],
                                capture_output=True, text=True, check=False).stdout
-        found.update(line for line in shown.splitlines() if _a_test_file(line))
+        found.update(line for line in shown.splitlines() if _a_test_file(line) and _under(line, roots))
     return sorted(found - set(files))
 
 
@@ -1396,7 +1450,8 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                 if (old / path).exists():
                     functions[path] = list(dict.fromkeys([*functions.get(path, []), *names]))
                     source_of.setdefault(path, name)
-        guards = sorted({*tests_naming(new, [*files, *readers, *source_of], functions), *edited})
+        # Where its tests are is read from the code before it: a commit that moved them would choose its own judges.
+        guards = sorted({*tests_naming(new, [*files, *readers, *source_of], functions, declared_test_roots(old)), *edited})
         present = [name for name in guards if (new / name).is_file()]
         first, second = run_tests(old, guards, work, functions), run_tests(old, guards, work, functions)
         written_lines = {name: sorted(lines_it_wrote_that_run(repo, commit, name)) for name in functions
@@ -1412,7 +1467,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         git(new, "reset", "-q", "--hard", commit)
         git(new, "clean", "-fdq")
         # A test renamed where it stands still passes as it was first written, so it is not a test lost.
+        # A test a run cut short never reached has no verdict, not a failing one: that run refuses the change by itself.
         broke = sorted(node for node, passed in first["verdicts"].items() if passed and not third["verdicts"].get(node, False)
+                       and (third["finished"] or node in third["verdicts"])
                        and not (as_written.get(node, False) and (new / node.split("::")[0]).is_file()))
         rewritten = sorted(node for node, passed in first["verdicts"].items() if passed and node.split("::")[0] in edited
                            and node not in broke and not as_written.get(node, False))
