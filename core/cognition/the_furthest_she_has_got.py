@@ -34,7 +34,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["TheFurthestSheHasGot"]
+__all__ = ["TheFurthestSheHasGot", "WhatFailedWhere"]
 
 
 @dataclass
@@ -128,7 +128,7 @@ class TheFurthestSheHasGot:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> "TheFurthestSheHasGot":
+    def from_memory(cls, held: Any) -> TheFurthestSheHasGot:
         """What she got through last time. A route keeps between sittings."""
         if not isinstance(held, dict):
             return cls()
@@ -150,3 +150,35 @@ class TheFurthestSheHasGot:
             ruled_out_here=ruled,
             attempts=max(0, attempts),
         )
+
+
+@dataclass
+class WhatFailedWhere:
+    """What was tried at a place and came to nothing, for a world whose places come back as the same state rather than
+    at the same step: a board's position met again in a later game, after a different number of moves.
+
+    The same lesson as the route's, kept by place: the act that failed there is not tried there again while another
+    is open, and it is written against the place rather than the act, because the same act is right somewhere else.
+    LIVE 21 November 2026 she played the same opening against Stockfish in three games of six, nine moves alike in
+    two of them, and lost each.
+    """
+
+    ruled_out: dict[str, set[str]] = field(default_factory=dict)
+
+    def failed_at(self, place: str, act: str) -> None:
+        self.ruled_out.setdefault(str(place), set()).add(str(act))
+
+    def already_failed_at(self, place: str) -> frozenset[str]:
+        return frozenset(self.ruled_out.get(str(place), ()))
+
+    def as_memory(self) -> dict[str, Any]:
+        return {"ruled_out": {place: sorted(acts) for place, acts in self.ruled_out.items()}}
+
+    @classmethod
+    def from_memory(cls, held: Any) -> WhatFailedWhere:
+        if not isinstance(held, dict):
+            return cls()
+        ruled = held.get("ruled_out") or {}
+        if not isinstance(ruled, dict):
+            return cls()
+        return cls(ruled_out={str(place): {str(one) for one in (acts or ())} for place, acts in ruled.items()})

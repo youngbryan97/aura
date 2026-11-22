@@ -94,14 +94,18 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         return _borrowed_from_a_board_like_it(target_app, start, seat.rows, seat.columns, first_is_hers)
 
     came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=tell,
-                                     learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow)
+                                     learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
+                                     went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"))
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
+    went_wrong_now = came.pop("went_wrong", None)
+    if went_wrong_now is not None:
+        keep["pieces_went_wrong"] = went_wrong_now
     logger.info("a board of pieces played: %s", came)
     if learned_now is not None:
         keep["pieces_learned"] = learned_now
     if rehearsal_now is not None:
         keep["pieces_rehearsal"] = rehearsal_now
-    _keep_what_she_learned(target_app, seat.looks, learned_now, rehearsal_now)
+    _keep_what_she_learned(target_app, seat.looks, learned_now, rehearsal_now, went_wrong_now)
     if came.get("ended") in ("not taking moves", "not answered"):
         keep["board_left_until"] = time.monotonic() + LEFT_UNTIL_S
         return None
@@ -221,6 +225,10 @@ def _kept_under(record: str) -> dict[str, Any]:
         kept["looks"] = Looks.from_memory(held["looks"])
     if held.get("rules"):
         kept["rules"] = HowThePiecesMove.from_memory(held["rules"])
+    if held.get("went_wrong"):
+        from core.cognition.the_furthest_she_has_got import WhatFailedWhere
+
+        kept["went_wrong"] = WhatFailedWhere.from_memory(held["went_wrong"])
     worth = held.get("worth") or {}
     if worth.get("weights"):
         try:
@@ -233,7 +241,7 @@ def _kept_under(record: str) -> dict[str, Any]:
     return kept
 
 
-def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal: Any) -> None:
+def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal: Any, went_wrong: Any = None) -> None:
     from dataclasses import asdict
 
     from core.runtime.what_she_learned import remember
@@ -241,6 +249,8 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
     record: dict[str, Any] = {"app": target_app, "looks": looks.as_memory()}
     if learned is not None:
         record["rules"] = learned.as_memory()
+    if went_wrong is not None and went_wrong.ruled_out:
+        record["went_wrong"] = went_wrong.as_memory()
     if rehearsal is not None and getattr(rehearsal, "earned", None):
         record["worth"] = {"weights": asdict(rehearsal.weights), "earned": list(rehearsal.earned),
                            "royal": rehearsal.royal, "tries": dict(rehearsal.tries),

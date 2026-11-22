@@ -36,6 +36,7 @@ from core.agency.pieces_by_their_kind import (
     outcome,
 )
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
+from core.cognition.the_furthest_she_has_got import WhatFailedWhere
 from core.perception.pieces_by_their_look import Lattice, Looks, PiecesSeen, squares_of_one_ground
 
 logger = logging.getLogger("Aura.PlayingPiecesByKind")
@@ -328,6 +329,10 @@ class _Game:
     #: (core/cognition/how_far_to_go_before_looking.py), and how many she has made since the last look.
     far: HowFarToGo = field(default_factory=HowFarToGo)
     unlooked: int = 0
+    #: What she has played at a position before and seen go wrong, kept with the board (WhatFailedWhere); and this
+    #: game's turns she searched: where she stood, what she played, and how she judged it.
+    went_wrong: WhatFailedWhere = field(default_factory=WhatFailedWhere)
+    judged: list[tuple[str, str, int]] = field(default_factory=list)
 
     def timed_probe(self, seconds: float) -> None:
         self.probes_timed += 1
@@ -357,7 +362,8 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                               say: Callable[[str], None] | None = None, thinks_s: float = THINKS_S,
                               learned: HowThePiecesMove | None = None, rehearsal: Any = None,
                               clock: Callable[[], Awaitable[float | None]] | None = None,
-                              borrow: Callable[[dict, bool], Any] | None = None) -> dict[str, Any]:
+                              borrow: Callable[[dict, bool], Any] | None = None,
+                              went_wrong: WhatFailedWhere | None = None) -> dict[str, Any]:
     """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
     are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
     the game shows it. Where she has learned nothing of this board, ``borrow`` is asked, once she knows who moves first,
@@ -370,16 +376,18 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     rehearsing = _Rehearsing(rehearsal)
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
     the_moves: list[str] = []
+    went_wrong = went_wrong if went_wrong is not None else WhatFailedWhere()
     try:
         came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
                            rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
-                           the_moves=the_moves)
+                           the_moves=the_moves, went_wrong=went_wrong)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     came["rehearsal"] = rehearsing.rehearsal
     # The game as it went, for its record: every move in order, and who moved first.
     came["the_moves"] = list(the_moves)
     came["first_was_hers"] = getattr(came.get("learned"), "first_was_hers", None)
+    came["went_wrong"] = went_wrong
     return came
 
 
@@ -452,7 +460,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 thinks_s: float, learned: HowThePiecesMove | None, rehearsing: _Rehearsing, pool: Any,
                 clock: Callable[[], Awaitable[float | None]] | None, search: Any,
                 borrow: Callable[[dict, bool], Any] | None = None,
-                the_moves: list[str] | None = None) -> dict[str, Any]:
+                the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -467,7 +475,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         start = seat.filled(still[1], {})
     game = _Game(learned=learned or HowThePiecesMove.from_the_start(seat.rows, seat.columns, start),
                  believed=Position(cells=dict(start), turn=FIRST, unmoved=frozenset(start)),
-                 played=the_moves if the_moves is not None else [])
+                 played=the_moves if the_moves is not None else [],
+                 went_wrong=went_wrong if went_wrong is not None else WhatFailedWhere())
     tell("Two sides facing each other on a board. I'll take the side nearest me, find out how the pieces move by "
          "picking them up and watching, and search my moves.")
     # Who goes first: the other side, if it moves while she waits.
@@ -615,6 +624,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 continue
         weights = rehearsing.weights_for(family)
         set_aside: list[Move] = []
+        here = _a_place(game.believed)
+        failed_here = game.went_wrong.already_failed_at(here)
+        if failed_here:
+            again = [one for one in legal if _named(one) in failed_here]
+            if again and len(again) < len(legal):
+                set_aside = list(again)
+                tell(f"I've played {said_of_a_move(family, game.believed, again[0], game.learned, game.first_is_hers)}"
+                     " from here before and it went wrong, so I'll look at something else.")
         found = None
         learned_until, searched_s = time.monotonic(), 0.0
         for _ in range(CHECKS_A_TURN):
@@ -671,6 +688,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         if found.by == "the only move":
             how = "It's the only move I have"
         else:
+            game.judged.append((here, _named(move), int(found.score)))
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
                   f"{found.nodes:,} positions)"
         tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. {how}")
@@ -861,10 +879,38 @@ def _shows_her_move(shown: dict, move: Move) -> bool:
     return shown.get(move.start, (None,))[0] != FIRST and shown.get(move.end, (None,))[0] == FIRST
 
 
+def _a_place(position: Position) -> str:
+    """A position as a place she may come back to: what stands on each square, and whose turn it is."""
+    return ";".join(f"{r},{c}:{side}{kind}" for (r, c), (side, kind) in sorted(position.cells.items())) + \
+        f"|{position.turn}"
+
+
+def _named(move: Move) -> str:
+    return f"{move.start[0]},{move.start[1]}-{move.end[0]},{move.end[1]}{move.becomes}"
+
+
+def _where_it_went_wrong(game: _Game) -> None:
+    """In a game she lost, the move after which her own judgement fell furthest by her next turn: the answer to it she
+    least saw coming. It is ruled out at the place she made it (WhatFailedWhere), so a game that comes back to that
+    place goes another way. Nothing where her judgement never fell."""
+    drops = [(game.judged[i][2] - game.judged[i + 1][2], i) for i in range(len(game.judged) - 1)]
+    if not drops:
+        return
+    drop, at = max(drops)
+    if drop <= 0:
+        return
+    place, move, _score = game.judged[at]
+    game.went_wrong.failed_at(place, move)
+    logger.info("where it went wrong: her move %s, after which she judged herself %d lower by her next turn", move,
+                drop)
+
+
 def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, Any]:
     if ended.startswith("won:"):
         result = "won" if int(ended.split(":", 1)[1]) == FIRST else "lost"
         tell("I won." if result == "won" else "I lost. They found the better line.")
+        if result == "lost":
+            _where_it_went_wrong(game)
     elif ended == "no move":
         family = game.learned.family()
         if not any(k.royal for k in family.kinds.values()):
@@ -874,6 +920,8 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
             family = game.learned.family()
         royal_attacked = any(k.royal for k in family.kinds.values()) and in_check(family, game.believed, FIRST)
         result = "lost" if royal_attacked else "over"
+        if royal_attacked:
+            _where_it_went_wrong(game)
         tell("I have no move left, with my piece that must be kept safe attacked: I lost." if royal_attacked
              else "The game won't let me move any more, so it's over.")
     else:
