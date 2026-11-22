@@ -9320,7 +9320,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 )
             )
         else:
-            system_prompt = self._build_system_prompt(brief)
+            system_prompt = self._system_text_for(brief, origin, is_background)
             # [STABILITY v50] The 20+ consciousness subsystems queried here can
             # individually hang on lock contention or slow I/O. One deadline
             # covers the full assembly AND the compact fallback.

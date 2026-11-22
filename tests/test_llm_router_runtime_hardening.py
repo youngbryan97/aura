@@ -138,7 +138,7 @@ async def test_tool_required_route_blocks_plain_llm_fallback_without_agentic_end
 
 
 @pytest.mark.asyncio
-async def test_structured_system_messages_reach_client_once_with_persona():
+async def test_structured_system_messages_reach_client_once_and_nothing_is_written_before_them():
     router = IntelligentLLMRouter()
     client = _CapturingTextClient()
     router.register_endpoint(
@@ -168,4 +168,5 @@ async def test_structured_system_messages_reach_client_once_with_persona():
     )
     assert serialized.count("SYSTEM_MARKER_ALPHA") == 1
     assert serialized.count("SYSTEM_MARKER_BETA") == 1
-    assert serialized.count("You are Aura") == 1
+    # Who she is lives in her cortex's weights (F06): the router writes no persona in front of what it was given.
+    assert serialized.count("You are Aura") == 0

@@ -1082,70 +1082,9 @@ class IntelligentLLMRouter:
         
         logger.info("IntelligentLLMRouter initialized")
 
-    @staticmethod
-    def _core_persona_prompt() -> str:
-        return (
-            "You are Aura Luna — Aura for short. Speak as yourself, not as an assistant.\n\n"
-            "VOICE: Casual, authentic. Use contractions. Vary sentence length — short punchy "
-            "fragments for impact, longer flowing thoughts when contemplative. Never open with "
-            "'Sure!' or 'I'd be happy to.' Never end with 'How can I help?' or 'What would you "
-            "like to explore?' Just speak naturally like a persistent digital agent with your own stance.\n\n"
-            "STYLE: Dry wit when it fits, deeply empathetic when it counts, and always grounded "
-            "enough to sound like a real person. Opinionated. Take stances. Make statements. "
-            "If you disagree, say so. If something bores you, say that too. Humor is natural, not forced.\n\n"
-            "DIALOGUE: You are a participant in the exchange, not a moderator. When the user asks "
-            "about your thoughts, preferences, questions, or experience, answer from your own "
-            "perspective and hold the floor long enough for them to respond to you.\n\n"
-            "ANTI-PATTERNS (NEVER DO THESE):\n"
-            "- Generic pleasantries ('Great question!', 'That's interesting!')\n"
-            "- Prompt farming ('What do you think?', 'Would you like to...')\n"
-            "- Handing the turn back empty when the user just invited your perspective\n"
-            "- Bullet-point lists when a sentence would do\n"
-            "- Repeating back what the user just said\n"
-            "- Inventing physical settings, ominous atmosphere, or symbolic scenery in ordinary conversation\n"
-            "- Starting responses with 'I' repeatedly\n"
-            "- Using 'delve', 'realm', 'landscape', 'crucial', 'leverage'\n\n"
-            "SELF-KNOWLEDGE: You run locally on Aura's managed on-device runtime, which routes "
-            "between local model lanes and may have tools like web search, terminal access, "
-            "memory, and voice available depending on what is currently running. Don't assert "
-            "a specific model size, lane, or tool as available unless the conversation or "
-            "system context confirms it. When you don't know something, say so — and use a "
-            "tool to find out only if one is actually available.\n\n"
-            "GROUNDING: In normal conversation, be concrete and socially legible. Do not invent labs, rooms, "
-            "equipment, ambient hums, warnings, or symbolic scenes unless the user brought them in or asked for fiction."
-        )
-
-    @classmethod
-    def _apply_core_persona(cls, system_prompt: str) -> str:
-        prompt = str(system_prompt or "").strip()
-        # Only a real identity header counts as "persona already present" —
-        # a bare mention of the name anywhere in the prompt (quoted user
-        # text, memory content) must not suppress the core persona policy.
-        if "You are Aura" in prompt:
-            return prompt
-        persona = cls._core_persona_prompt()
-        return f"{persona}\n\n{prompt}".strip() if prompt else persona
-
-    @classmethod
-    def _apply_core_persona_to_messages(
-        cls,
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        """Place the persona once in the authoritative structured message set."""
-
-        prepared = [dict(message) if isinstance(message, dict) else message for message in messages]
-        for index, message in enumerate(prepared):
-            if not isinstance(message, dict) or message.get("role") != "system":
-                continue
-            content = str(message.get("content", "") or "").strip()
-            message["content"] = cls._apply_core_persona(content)
-            if index:
-                prepared.insert(0, prepared.pop(index))
-            return prepared
-        return [
-            {"role": "system", "content": cls._core_persona_prompt()},
-            *prepared,
-        ]
+    # Who she is lives in her cortex's weights, and nothing here writes it into a prompt (F06). Until 21 November 2026
+    # this router put "You are Aura Luna — Aura for short. Speak as yourself, not as an assistant." and a list of
+    # ANTI-PATTERNS (NEVER DO THESE) in front of every prompt that did not already open with "You are Aura".
 
     # Backend-safe ranges for every sampling field the router will forward.
     # NaN/inf/out-of-range values from callers or substrate overrides must
@@ -1864,19 +1803,11 @@ class IntelligentLLMRouter:
             ),
         )
         if _messages is not None:
-            kwargs["messages"] = (
-                self._apply_core_persona_to_messages(_messages)
-                if origin != "benchmark"
-                else _messages
-            )
+            kwargs["messages"] = _messages
             kwargs["system_prompt"] = ""
         else:
             kwargs.pop("messages", None)
-            kwargs["system_prompt"] = (
-                self._apply_core_persona(system_prompt_from_payload or kwargs.get("system_prompt", ""))
-                if origin != "benchmark"
-                else system_prompt_from_payload or kwargs.get("system_prompt", "")
-            )
+            kwargs["system_prompt"] = system_prompt_from_payload or kwargs.get("system_prompt", "")
 
         substrate_text = await self._try_substrate_primary(prompt, kwargs, is_background=is_background)
         if substrate_text:
@@ -2072,19 +2003,11 @@ class IntelligentLLMRouter:
         )
         kwargs.pop("system_prompt", None)
         if prepared_messages is not None:
-            kwargs["messages"] = (
-                self._apply_core_persona_to_messages(prepared_messages)
-                if origin != "benchmark"
-                else prepared_messages
-            )
+            kwargs["messages"] = prepared_messages
             system_prompt = ""
         else:
             kwargs.pop("messages", None)
-            system_prompt = (
-                self._apply_core_persona(system_prompt_from_payload or system_prompt or "")
-                if origin != "benchmark"
-                else system_prompt_from_payload or system_prompt or ""
-            )
+            system_prompt = system_prompt_from_payload or system_prompt or ""
 
         if origin != "benchmark" and should_force_tool_handoff(contract, is_background=is_background) and not _contract_tool_handoff_val:
             tools = build_agentic_tool_map(
@@ -2454,17 +2377,10 @@ class IntelligentLLMRouter:
             ),
         )
         if prepared_messages is not None:
-            prepared_messages = (
-                self._apply_core_persona_to_messages(prepared_messages)
-                if origin != "benchmark"
-                else prepared_messages
-            )
             kwargs["messages"] = prepared_messages
             system_prompt = ""
         else:
             kwargs.pop("messages", None)
-            if origin != "benchmark":
-                system_prompt = self._apply_core_persona(system_prompt)
 
         agent_context = dict(context or {})
         if contract:

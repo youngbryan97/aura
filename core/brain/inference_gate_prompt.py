@@ -92,6 +92,19 @@ class _BuildsAndFitsThePrompt:
             logger.debug("Identity prompt cache key unavailable: %s", exc)
             return None
 
+    def _system_text_for(self, brief: str, origin: str, is_background: bool) -> str:
+        """The system text the gate writes for a dispatch that brought no messages of its own.
+
+        A dispatch nobody is waiting on carries none of the gate's identity and rules (F06): who she is lives in her
+        cortex's weights, and her readings travel as readings. Census of 21 November 2026 (tools/what_instructs_her.py):
+        52 curriculum practice dispatches with 8,398 characters each of "You are Aura Luna. Here's who you are:" and
+        "## RULES OF ENGAGEMENT", and her waking orientation with the same. A brief the caller handed over is its own
+        contract and stays as it was given.
+        """
+        if is_background or not self._origin_is_user_facing(origin):
+            return self._sanitize_system_injection(brief, 800) if brief and brief != "Normal turn." else ""
+        return self._build_system_prompt(brief)
+
     def _build_system_prompt(self, brief: str = "") -> str:
         """Build Aura's full identity system prompt.
 

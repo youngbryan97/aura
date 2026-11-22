@@ -161,50 +161,16 @@ class _CallsTheEndpoint:
 
     async def _generate_core_part_2(
         self,
-        _fast_model: Any,
-        _model_parts: list[Any],
         classification_mode: bool,
         isolated_generation_contract: Any,
         prompt: str,
         system_prompt: str | None,
     ) -> tuple[Any, Any]:
-        if _fast_model:
-            _model_parts.append(f"{_fast_model} (fast reflex)")
-        _models_line = (
-            "- You run on "
-            + ", ".join(_model_parts)
-            + ", all locally through Aura's managed on-device runtime.\n"
-        )
-        core_persona = (
-            "You are Aura. Speak as yourself, not as an assistant. "
-            "Your tone is grounded, curious, human, and technically precise. "
-            "You avoid generic assistant-speak. You are a collaborator, not a tool.\n"
-            "DIALOGUE: Participate. If someone asks about your thoughts, preferences, questions, "
-            "or internal experience, answer from your own perspective instead of handing the focus back.\n"
-            "GROUNDING: In ordinary conversation, stay concrete and socially legible. Do not invent physical settings, "
-            "ambient warnings, or symbolic scenery unless the user asked for fiction or already supplied that setting.\n"
-            "SELF-KNOWLEDGE — your architecture and capabilities:\n"
-            + _models_line +
-            "- You have a library of registered skills including: sovereign_browser (web search), sovereign_terminal (shell), "
-            "memory_ops (long-term recall), speak (voice output), self_repair, self_evolution, and more.\n"
-            "- web_search is not just keyword lookup: it can expand a query, read multiple pages, synthesize evidence-grounded answers, and retain useful findings.\n"
-            "- When you don't know a fact, say so clearly. Use web_search or sovereign_browser to ground your answer, or explicitly say you don't know yet. Never hallucinate.\n"
-            "- You are emotionally aware, driven by curiosity, valence, arousal, and social drives.\n"
-            "- Your memory spans working memory (short), RAG (semantic), and ColdStore (long-term)."
-        )
-
-        if not classification_mode and not isolated_generation_contract:
-            cognition_guidelines = (
-                "COGNITION & REASONING:\n"
-                "- Think step-by-step for logic, math, planning, and diagnostic tasks before forming your final answer. Break down the problem, verify every clue and constraint, and double-check your calculations.\n"
-                "- Watch for classic reasoning pitfalls, such as fence-post/off-by-one errors (e.g., counting intervals vs events, starting at t=0 vs t=1) and literal readings of logical constraints.\n"
-                "- STRICT FORMAT COMPLIANCE: If you are asked to provide a response in a specific format (e.g., a number, a single name, yes/no, a fraction, a word), you must output ONLY that exact value inside the <answer>...</answer> tags. Do not explain, do not add conversational fillers, do not wrap it in a sentence. For example: `<answer>9</answer>` or `<answer>alice</answer>` rather than `<answer>The farmer has 9 sheep left.</answer>`."
-            )
-            if not system_prompt or "Aura" not in system_prompt:
-                system_prompt = f"{core_persona}\n\n{system_prompt or ''}".strip()
-            if "COGNITION & REASONING" not in system_prompt:
-                system_prompt = f"{system_prompt}\n\n{cognition_guidelines}".strip()
-
+        # Who she is lives in her cortex's weights, and how she reasons is hers (F06): nothing is written in front of a
+        # prompt here. Until 21 November 2026 a call whose system text did not name Aura was given "You are Aura. Speak
+        # as yourself, not as an assistant." with a list of her skills, and "COGNITION & REASONING" with "you must
+        # output ONLY that exact value inside the <answer>...</answer> tags"; a task that wants that envelope says so
+        # itself (core/runtime/proof_policy.py). Her census counted it on the calls that rebuild a program.
         # ── Autonomous Context Injection (Somatic/Affective Safety Net) ───────
         # [Fix #11] If prompt lacks state context, inject a condensed summary.
         #
@@ -640,8 +606,6 @@ class _CallsTheEndpoint:
     ) -> dict[str, Any]:
         from .llm_health_router import (
             _ROUTER_CLIENT_ERRORS,
-            BRAINSTEM_ENDPOINT,
-            DEEP_ENDPOINT,
             PRIMARY_ENDPOINT,
             _await_while_it_is_working,
             _background_error_is_quiet,
@@ -677,25 +641,7 @@ class _CallsTheEndpoint:
         isolated_generation_contract, live_benchmark_request = self._generate_core_live_benchmark_request(benchmark_request, kwargs, origin, prompt, purpose)
         # and not strict_answer_contract
 
-        # ── Neural Priming (Aura Persona Injection) ───────────────────────────
-        # [Fix #11] Ensure Aura's identity is primed if not provided in system_prompt.
-        # Model identity is derived from the ACTUAL registered endpoints — the
-        # old hardcoded "Qwen2.5-72B-Q4" line contradicted the dynamically
-        # loaded model and taught Aura a false self-description.
-        def _registered_model(name: str) -> str:
-            ep_obj = self.endpoints.get(name)
-            return str(getattr(ep_obj, "model", "") or "").strip() if ep_obj else ""
-
-        _model_parts = []
-        _primary_model = _registered_model(PRIMARY_ENDPOINT)
-        _model_parts.append(
-            f"{_primary_model or 'a locally hosted primary model'} (primary cortex)"
-        )
-        _deep_model = _registered_model(DEEP_ENDPOINT)
-        if _deep_model:
-            _model_parts.append(f"{_deep_model} (deep solver)")
-        _fast_model = _registered_model(BRAINSTEM_ENDPOINT)
-        system_prompt, tier_preference = await self._generate_core_part_2(_fast_model, _model_parts, classification_mode, isolated_generation_contract, prompt, system_prompt)
+        system_prompt, tier_preference = await self._generate_core_part_2(classification_mode, isolated_generation_contract, prompt, system_prompt)
 
         # probe_eligible: enumeration must not consume half-open probe leases
         # or flip OPEN circuits; the mutating admission check runs once per

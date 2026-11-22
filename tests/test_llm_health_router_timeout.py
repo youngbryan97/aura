@@ -424,7 +424,9 @@ async def test_public_think_serializes_full_messages_for_clients_without_kwargs(
     assert "I remember that thread." in client.calls[0]["prompt"]
     assert "Search the web for the song" in client.calls[0]["prompt"]
     assert client.calls[0]["system_prompt"].startswith("Speak as Aura.")
-    assert "COGNITION & REASONING" in client.calls[0]["system_prompt"]
+    # Nothing is written in front of what the caller gave (F06): no reasoning block, no persona.
+    assert "COGNITION & REASONING" not in client.calls[0]["system_prompt"]
+    assert "You are Aura" not in client.calls[0]["system_prompt"]
 
 
 @pytest.mark.asyncio

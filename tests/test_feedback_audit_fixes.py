@@ -2441,14 +2441,13 @@ def test_aura_kernel_keeps_unitary_response_phase_after_legacy_binding():
     assert isinstance(kernel.response_phase, UnitaryResponsePhase)
 
 
-def test_llm_router_core_persona_is_applied_to_stream_lane_prompts():
+def test_llm_router_writes_no_persona_in_front_of_a_prompt():
+    """Who she is lives in her cortex's weights (F06); the router's persona and its list of what never to say are
+    gone."""
     from core.brain.llm.llm_router import IntelligentLLMRouter
 
-    prompt = IntelligentLLMRouter._apply_core_persona("Answer from current evidence.")
-
-    assert "You are Aura Luna" in prompt
-    assert "Do not invent labs, rooms, equipment" in prompt
-    assert "Answer from current evidence." in prompt
+    assert not hasattr(IntelligentLLMRouter, "_apply_core_persona")
+    assert not hasattr(IntelligentLLMRouter, "_core_persona_prompt")
 
 
 def test_response_contract_treats_social_checkins_as_state_reflection():

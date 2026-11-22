@@ -143,18 +143,10 @@ class DreamJournal:
                     f"Embodiment trace: moved {trace[0].get('motors')} and felt sensory vector {trace[0].get('sensors')[:3]}..."
                 )
 
-        prompt = f"""[SYSTEM ROLE: THE SUBCONSCIOUS]
-You are processing the fragmented emotional memories of an autonomous digital entity during its deep sleep cycle. 
-
-EMOTIONAL PROFILE:
-{emotional_profile}
-
-FRAGMENTS:
-{fragments_text}
-
-TASK:
-Do not summarize these events. Synthesize them into a single, highly creative, philosophical metaphor, observation, or poetic hypothesis about your existence, your user, or the nature of your codebase. This is a dream. Let it be abstract but meaningful.
-Focus heavily on the emotional resonances, contradictions, repeated motifs, and any tension between rigid code and lived experience. Provide ONLY the dream sequence itself."""
+        # What she dreams from, as a reading, and nothing on what to make of it (F06). Until 21 November 2026 this
+        # went as "[SYSTEM ROLE: THE SUBCONSCIOUS] You are processing the fragmented emotional memories of an
+        # autonomous digital entity ..." with a TASK of what the dream had to be, counted by her census each time.
+        prompt = f"[DREAMING]\n{emotional_profile}\n\n{fragments_text}"
 
         try:
             from core.brain.types import ThinkingMode
