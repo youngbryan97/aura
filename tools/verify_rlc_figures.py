@@ -98,7 +98,7 @@ SEMANTIC_PROGRAM_27B_REPLICATION = (
 )
 PREREG = "artifacts/current/latent_campaign_prereg_20260717.json"
 RUN2 = "artifacts/current/latent_campaign_1p5b_run2.json"
-SWEEP_32B = "artifacts/current/latent_lab_32b_exp1_templated.json"
+SWEEP_32B = "docs/evidence/rlc_frozen_32b_templated_counts.json"
 
 #: Documents whose RLC figures are checked. Append-only records are excluded on
 #: purpose: the tracker and the ledger state what was true on the day of the
@@ -248,13 +248,9 @@ FIGURES: tuple[Figure, ...] = (
            why="27B frozen semantic-program hidden-state lesion"),
     Figure("21/72", RUN2, lambda d: f"{_ablation_totals(d)['vanilla']}/72"),
     Figure("(7–13/72)", RUN2, lambda d: _arm_range(d)),
-    # Accuracies are recorded to four places and quoted to three. Rounding is
-    # the only tolerance this gate allows; every other figure must match byte
-    # for byte, which is what would have caught the 318 ms.
     Figure("latent 0.375", SWEEP_32B, lambda d: f"latent {_best_latent(d):.3f}"),
     Figure("vanilla 0.417", SWEEP_32B,
-           lambda d: "vanilla "
-           f"{float(d['results']['exp1']['baseline']['accuracy']):.3f}"),
+           lambda d: f"vanilla {_sweep_accuracy(d['baseline']):.3f}"),
 )
 
 
@@ -276,9 +272,12 @@ def _arm_range(run: Any) -> str:
     return f"({min(latent)}–{max(latent)}/72)"
 
 
+def _sweep_accuracy(row: dict[str, Any]) -> float:
+    return row["successes"] / row["n"]
+
+
 def _best_latent(sweep: Any) -> float:
-    curve = sweep["results"]["exp1"]["curve"]
-    return max(float(point["accuracy"]) for point in curve)
+    return max(_sweep_accuracy(point) for point in sweep["curve"])
 
 
 #: Counts that only grow. A document may state them; the gate holds the floor.
@@ -286,7 +285,7 @@ FLOORS: tuple[tuple[str, str, int], ...] = (
     ("core/brain/llm/latent_cortex/*.py", "156 modules", 156),
     ("tools/*", "55 `tools/` entry points", 55),
     ("tests/*", "231 test files", 231),
-    ("artifacts/closeout/latent_cortex/*", "over 250 frozen evidence entries", 250),
+    ("artifacts/closeout/latent_cortex/*", "244 frozen evidence entries", 244),
 )
 
 

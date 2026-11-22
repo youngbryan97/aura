@@ -219,11 +219,13 @@ indicators as a provisional approach under computational functionalism. ISC
 is the project's own operationalisation, with controlled interventions,
 separate carrier and content experiments, and named bridge assumptions.
 
-The [plain introduction](ISC_EXPLAINED.md),
-[worked variables](ISC_VARIABLES.md), [current results](ISC_STATUS.md) and
-[source-hashed snapshot](evidence/ISC_STATUS_2026-10-25.json) connect the idea
-with actual measurements. The main battery's 22/24 and the four-ground bridge
-reading do not establish a completed full pass or a probability of experience.
+The [plain introduction](ISC_EXPLAINED.md) and
+[worked variables](ISC_VARIABLES.md) explain the measurements. The
+[25 October snapshot](evidence/ISC_STATUS_2026-10-25.json) records 22/24 and
+four bridge grounds holding in that earlier campaign. The November preprint
+reports 24/24 under ISC-v7 for confirmatory seed 101. The score counts
+operational checks passed in that run. [Current results](ISC_STATUS.md) ·
+[Preprint on Zenodo](https://zenodo.org/records/24075466)
 
 ## Measurement
 
@@ -236,6 +238,21 @@ The [evidence standard](BEHAVIORAL_PROOF_STANDARD.md),
 [ablation guide](ABLATION_LEGIBILITY.md) provide the project's own bars.
 A video, a unit test, a controlled experiment and independent replication
 supply different kinds of support.
+
+### Independent audit of the Φ core
+
+Chen, Zhang, Xu, and Zhang ran Aura's Φ criteria as a second-system case
+study. In their CPU-only setup, memoryless noise was labeled a complex when
+the affective estimator won because it never received its shuffled-state
+comparison. The standalone comparison behaved as expected. The review
+measured one mechanism and left the Apple Silicon outcome open.
+[Outside evaluation, Section 8](https://arxiv.org/html/2610.41604v1#S8)
+
+The project supplied the missing comparison inputs and now requires a
+measured comparison before setting the complex flag. The regression suite
+checks noise, coupled dynamics, and unmeasured winners.
+[Repair commit](https://github.com/youngbryan97/aura/commit/864179c50c49fa3d9b9feb17bcf74b087ed3991f) ·
+[Regression tests](../tests/test_phi_null_reaches_every_winner.py)
 
 ## How to state an extension or comparison
 

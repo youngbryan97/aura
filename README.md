@@ -11,7 +11,7 @@ and does. A good way to see the difference is to follow a single action from
 the state that prompted it, through the tool-permission check, to the receipt
 that records what happened.
 
-[AuraDemos channel](https://www.youtube.com/@AuraDemos) · [Project video](https://www.youtube.com/watch?v=iTyxeugcZtI) · [What the demos and research support](docs/DEMOS_AND_RELATED_WORK.md)
+[ISC preprint on Zenodo](https://zenodo.org/records/24075466) · [Independent Φ audit](https://arxiv.org/html/2610.41604v1#S8) · [AuraDemos channel](https://www.youtube.com/@AuraDemos) · [Project video](https://www.youtube.com/watch?v=iTyxeugcZtI) · [What the demos and research support](docs/DEMOS_AND_RELATED_WORK.md)
 
 [![License: All Rights Reserved with Research-Use Grant](https://img.shields.io/badge/License-All_Rights_Reserved_(Research_Use)-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
@@ -24,9 +24,99 @@ that records what happened.
 | **Run Aura** | [Quick start](#quick-start) · [Learning demo](#see-it-learn-one-command) · [Tracked and local files](#tracked-vs-local-workspace) |
 | **Understand the system** | [Why Aura is built this way](#why-aura-is-different) · [Architecture overview](#architecture-overview) · [Decision authority](#decision-authority) · [Inference-time steering](#inference-time-steering) |
 | **See how a subsystem works** | [Memory architecture](docs/MEMORY_ARCHITECTURE.md) · [Reasoning engines](docs/REASONING_ENGINES.md) · [Self-improvement architecture](docs/RSI_ARCHITECTURE.md) · [Personality training](#personality-training) · [Data layer](#data-layer) |
-| **Follow the research** | [Recursive Latent Cortex](#recursive-latent-cortex) · [Intrinsic Subject Core](#intrinsic-subject-core) · [Language and generality](#language-substrate-and-generality) · [Knowledge, procedures and learning](#knowledge-procedures-and-learning-in-use) · [IIT-inspired estimates](#iit-inspired-integration-estimates) · [Consciousness modules](#consciousness-modules) |
-| **Check a claim** | [Evidence boundary](#evidence-boundary) · [Evidence artifacts](#production-evidence-surface) · [Decisive evidence runner](#decisive-evidence-runner) · [Long-run autonomy harness](#long-run-autonomy-harness) · [Benchmarks](#benchmarks) · [Testing](#testing) · [Limits and open claims](#what-this-isnt) · [Behavioral proof standard](docs/BEHAVIORAL_PROOF_STANDARD.md) · [Physical reach](docs/REALITY_REACH.md) |
-| **Find or cite a document** | [Documentation status map](docs/DOC_STATUS.md) · [Docs index](docs/README.md) · [Changelog](CHANGELOG.md) · [Agent guide](AGENTS.md) · [License and citation](#license) |
+| **Follow the research** | [Research overview](#research-overview) · [Recursive Latent Cortex](#recursive-latent-cortex) · [Intrinsic Subject Core](#intrinsic-subject-core) · [Language and generality](#language-substrate-and-generality) · [Knowledge, procedures and learning](#knowledge-procedures-and-learning-in-use) · [IIT-inspired estimates](#iit-inspired-integration-estimates) · [Consciousness modules](#consciousness-modules) |
+| **Check a claim** | [Evidence boundary](#evidence-boundary) · [Evidence artifacts](#production-evidence-surface) · [Decisive evidence runner](#decisive-evidence-runner) · [Long-run autonomy harness](#long-run-autonomy-harness) · [Independent Φ audit and fix](#independent-audit-and-fix) · [Benchmarks](#benchmarks) · [Testing](#testing) · [Limits and open claims](#what-this-isnt) · [Behavioral proof standard](docs/BEHAVIORAL_PROOF_STANDARD.md) · [Physical reach](docs/REALITY_REACH.md) |
+| **Find or cite a document** | [Reading paths](#reading-paths) · [Documentation status map](docs/DOC_STATUS.md) · [Docs index](docs/README.md) · [Changelog](CHANGELOG.md) · [Agent guide](AGENTS.md) · [License and citation](#license) |
+
+<details>
+<summary>Full section outline</summary>
+
+- [Reading paths](#reading-paths)
+- [Research overview](#research-overview)
+  - [Recursive Latent Cortex in brief](#recursive-latent-cortex-in-brief)
+  - [Intrinsic Subject Core](#intrinsic-subject-core)
+- [Evidence boundary](#evidence-boundary)
+  - [Governance and autonomy](#governance-and-autonomy)
+  - [The cost of the cognitive layer](#the-cost-of-the-cognitive-layer)
+  - [What reaches a reply](#what-reaches-a-reply)
+  - [What the runtime measures](#what-the-runtime-measures)
+- [See it learn (one command)](#see-it-learn-one-command)
+- [Production Evidence Surface](#production-evidence-surface)
+  - [Substrate, sensing, and model coupling](#substrate-sensing-and-model-coupling)
+  - [Repair, governed actions, and persistence](#repair-governed-actions-and-persistence)
+  - [Measurement and qualification](#measurement-and-qualification)
+  - [Proof bundle](#proof-bundle)
+- [Recursive Latent Cortex](#recursive-latent-cortex)
+  - [Approach 1: Frozen Loop (didn't work)](#approach-1-frozen-loop-didnt-work)
+  - [Approach 2: Trained Intrinsic Recurrence (promising, bounded)](#approach-2-trained-intrinsic-recurrence-promising-bounded)
+  - [Since October: the resident 27B](#since-october-the-resident-27b)
+  - [Results summary](#results-summary)
+    - [Mechanics and frozen loops](#mechanics-and-frozen-loops)
+    - [Bounded task results and controls](#bounded-task-results-and-controls)
+    - [Held-out reasoning and open comparisons](#held-out-reasoning-and-open-comparisons)
+    - [Native semantic selection](#native-semantic-selection)
+    - [The 32B four-domain experiment](#the-32b-four-domain-experiment)
+    - [The 27B cross-generation replication](#the-27b-cross-generation-replication)
+    - [Family-blind procedure learning](#family-blind-procedure-learning)
+- [Language substrate and generality](#language-substrate-and-generality)
+  - [Relation induction](#relation-induction)
+  - [Endogenous language pathway](#endogenous-language-pathway)
+  - [Ghost substrate](#ghost-substrate)
+  - [Whole-system Φ and Inner Light](#whole-system-φ-and-inner-light)
+- [Knowledge, procedures and learning in use](#knowledge-procedures-and-learning-in-use)
+  - [Looking up facts offline](#looking-up-facts-offline)
+  - [Writing and keeping procedures](#writing-and-keeping-procedures)
+  - [Learning from corrections in chat](#learning-from-corrections-in-chat)
+  - [Where the results fall short](#where-the-results-fall-short)
+- [Why Aura is Different](#why-aura-is-different)
+- [Quick start](#quick-start)
+  - [Install and start](#install-and-start)
+  - [Boot modes](#boot-modes)
+  - [Hardware and models](#hardware-and-models)
+  - [Deployment options](#deployment-options)
+- [Tracked vs local workspace](#tracked-vs-local-workspace)
+  - [What Git tracks](#what-git-tracks)
+  - [What a reproduction needs](#what-a-reproduction-needs)
+- [Architecture overview](#architecture-overview)
+  - [Kernel (`core/kernel/`)](#kernel-corekernel)
+  - [Brain (`core/brain/`)](#brain-corebrain)
+  - [Decisive evidence runner](#decisive-evidence-runner)
+  - [Long-run autonomy harness](#long-run-autonomy-harness)
+  - [Affect (`core/affect/`)](#affect-coreaffect)
+  - [Identity (`core/identity.py`, `core/identity/heartstone.py`)](#identity-coreidentitypy-coreidentityheartstonepy)
+  - [Agency (`core/agency/`)](#agency-coreagency)
+  - [Skills (`core/skills/`, legacy wrappers in `skills/`)](#skills-coreskills-legacy-wrappers-in-skills)
+  - [Orchestrator (`core/orchestrator/`)](#orchestrator-coreorchestrator)
+  - [Somatic cortex (`core/somatic/`)](#somatic-cortex-coresomatic)
+  - [Autonomy (`core/autonomy/`)](#autonomy-coreautonomy)
+  - [Self-modification engine (`core/self_modification/`)](#self-modification-engine-coreself_modification)
+  - [Resilience (`core/resilience/`)](#resilience-coreresilience)
+  - [Interface (`interface/`)](#interface-interface)
+  - [Memory (`core/memory/`)](#memory-corememory)
+  - [Reasoning (`core/reasoning/`, `core/brain/reasoning_amplifier*.py`)](#reasoning-corereasoning-corebrainreasoning_amplifierpy)
+  - [Verification (`core/verify/`)](#verification-coreverify)
+  - [Hardware acceleration (`rust_extensions/aura_m1_ext`)](#hardware-acceleration-rust_extensionsaura_m1_ext)
+- [Decision authority](#decision-authority)
+- [Inference-time steering](#inference-time-steering)
+- [IIT-inspired integration estimates](#iit-inspired-integration-estimates)
+  - [16-node cognitive complex](#16-node-cognitive-complex)
+  - [32-node and subsystem integration](#32-node-and-subsystem-integration)
+  - [Independent audit and fix](#independent-audit-and-fix)
+  - [How this relates to ISC](#how-this-relates-to-isc)
+- [Consciousness modules](#consciousness-modules)
+  - [Consciousness Expansion (April 2026)](#consciousness-expansion-april-2026)
+  - [Reasoning, self-model, and resilience (mid-2026)](#reasoning-self-model-and-resilience-mid-2026)
+  - [Embodiment, self-knowledge, and physical honesty (late July to August 2026)](#embodiment-self-knowledge-and-physical-honesty-late-july-to-august-2026)
+- [Benchmarks](#benchmarks)
+  - [Ten-prompt conversation](#ten-prompt-conversation)
+  - [Example replies](#example-replies)
+- [Testing](#testing)
+- [Personality training](#personality-training)
+- [Data layer](#data-layer)
+- [What this isn't](#what-this-isnt)
+- [License](#license)
+
+</details>
 
 ## Reading paths
 
@@ -64,7 +154,7 @@ of each result.
 
 ### Intrinsic Subject Core
 
-[*A preregistered test of computational subjecthood in a running AI system*](https://doi.org/10.5281/zenodo.24075466)
+[*A preregistered test of computational subjecthood in a running AI system*](https://zenodo.org/records/24075466)
 reports a 24-line battery. The experiment makes controlled changes to saved
 copies of Aura and measures how they differ from comparison copies. The confirmatory run (seed 101, commit
 `aeefdca31`) passed 24/24 under ISC-v7. The carrier test identified all ten
@@ -74,10 +164,17 @@ stand-in for the language model. A separate report experiment used the resident
 `AT_PARITY`, meaning all five of its checks held under the paper's six
 stated postulates.
 
+Seed 97 was exploratory and helped settle the specification. Seed 101 also
+scores 23/24 under ISC-v6 and 22/24 under ISC-v5. The paper reports that
+nineteen partial imitation systems and an ordinary language-model agent
+with memory fell short of the battery. One stronger imitation account
+remains open. J* was determined up to relabelings that preserve the measured
+relations.
+
 The paper also reports later adverse results on self-prediction, lineage, and
-how the partitioned system was held apart. The battery measures the operational
-criteria of the study. Whether those criteria bear on subjective experience
-remains open.
+how the partitioned system was held apart. The battery measures the
+operational criteria of the study. Independent replication and the argument
+connecting these measurements to subjective experience remain open.
 
 [Plain-English explanation](docs/ISC_EXPLAINED.md) ·
 [Variables and worked examples](docs/ISC_VARIABLES.md) ·
@@ -218,9 +315,12 @@ Release gates generate a proof bundle with the records listed below.
   observations into the substrate input vector, so live sensor events
   directly affect the dynamical system. This is a separate input path from
   text and tool summaries.
-- `core/consciousness/phi_core.py` estimates integration using IIT-inspired steps: binarization, empirical transition probability matrix, KL-divergence
-  φ, exclusion postulate, polynomial-time spectral partitioning, with an
-  exhaustive 8-bipartition validation baseline.
+- `core/consciousness/phi_core.py` binarizes state, estimates an empirical
+  transition matrix, and uses KL divergence to estimate φ. It searches for
+  candidate complexes using an IIT-inspired exclusion rule. The 16-node path
+  uses polynomial-time spectral partitioning, and the 8-node reference can
+  evaluate all 127 bipartitions.
+  [Independent audit and repair](#independent-audit-and-fix)
 - `core/consciousness/hierarchical_phi.py` implements the 32-node hierarchical
   φ with K=8 overlapping subsystems and Bayesian-smoothed estimation.
 - `core/consciousness/affective_steering.py` hooks MLX transformer blocks and modifies the model's hidden states during text generation.
@@ -309,14 +409,18 @@ episode to prove nothing changed; episode-scoped fast weights are provably
 erased; equal-compute accounting is built in so "more compute helped" can't
 be mistaken for "the architecture helped."
 
-The pre-registered experiment — seed committed before any task was generated,
-n=24 per family, with statistical corrections — refuted it. *On a model that
-wasn't trained for recurrence at this scale, the frozen loop doesn't just
-fail to help — it hurts.*
+The preregistered experiments committed the seed before generating tasks
+and used 24 items per family with statistical corrections. At 1.5B, ordinary
+decoding beat all seven latent arms on the 72-item battery. In the 32B
+templated sweep, the best latent arm answered 9/24 and ordinary decoding
+answered 10/24. Their intervals overlapped. The 32B run found no improvement,
+and its estimate alone does not settle the size or direction of the effect.
+[32B sweep counts and intervals](docs/evidence/rlc_frozen_32b_templated_counts.json)
 
-The explanation: answer tokens only ever traversed the middle block once,
-so no extra depth was applied to the actual answer computation. Only the
-scratchpad was recurring.
+The repeated computation ran on the scratchpad. Answer tokens themselves
+passed through the middle layers once and could attend to the refined slots.
+That distinction matters when comparing this experiment with recurrence
+applied directly to answer generation.
 
 ### Approach 2: Trained Intrinsic Recurrence (promising, bounded)
 
@@ -1083,7 +1187,11 @@ mechanism of Aura. The [terminology guide](docs/TERMINOLOGY.md) and
 [whole-system estimator guide](docs/WHOLE_SYSTEM_PHI.md) distinguish these
 quantities from one another and from ISC.
 
-### 16-node cognitive complex — `core/consciousness/phi_core.py`
+<a id="16-node-cognitive-complex--coreconsciousnessphi_corepy"></a>
+
+### 16-node cognitive complex
+
+Source: `core/consciousness/phi_core.py`.
 
 The source binarizes declared affective/cognitive readings and retains a
 transition history. The full 16-node path uses a spectral candidate search;
@@ -1095,13 +1203,16 @@ the running system.
 `MIN_HISTORY_FOR_TPM` is a configured minimum of 50, not a proof that a sparse
 transition estimate is trustworthy. Samples, smoothing, controls and
 uncertainty still matter. The source also searches candidate subsets for a
-larger estimated integration value. A selected maximum belongs to that
-candidate search and estimator, rather than establishing a phenomenal subject.
+larger estimated integration value. The selected maximum describes that candidate search and estimator.
 Configured caching intervals and `computed_ms` are distinct from a benchmark
 on the current host; the earlier blanket millisecond timing was unsupported
 as a general latency claim.
 
-### 32-node + K-subsystem hierarchical φ — `core/consciousness/hierarchical_phi.py`
+<a id="32-node--k-subsystem-hierarchical-φ--coreconsciousnesshierarchical_phipy"></a>
+
+### 32-node and subsystem integration
+
+Source: `core/consciousness/hierarchical_phi.py`.
 
 This path estimates integration from recorded transitions for a declared
 32-node primary complex and overlapping subsystem candidates. It uses finite
@@ -1115,20 +1226,41 @@ passed them. The meaning and sample coverage of the stored output must be
 checked with its run. No general current-host refresh latency is established
 by this README.
 
-**What these numbers do not show.** They are integration measured on a
-binarized summary of her state, not IIT 4.0 over her mechanisms. The stricter
-test is the preregistered [24-line subject battery](docs/SUBJECT_CORE.md).
-Its current protocol is ISC-v6: partition irreducibility is read by actual
-interventions over all 511 cuts, and synergy by paired interventions on four
-fixed triples. The completed seed-23 campaign at `8f548ed79`
-recorded 22/24 under ISC-v6, with positive content and withheld-report outputs.
-Later shared-history contamination requires rechecking the paired results;
-the two partition checks failed after an unchanged comparison drifted.
-Those are earlier readings. The confirmatory reading, seed 101 at `aeefdca31`,
-passed all 24 lines under ISC-v7 and identified the carrier as all ten measured
-domains; [current results](docs/ISC_STATUS.md) and the
-[preprint](https://doi.org/10.5281/zenodo.24075466) give its numbers, and
-neither makes a claim about subjective experience.
+### Independent audit and fix
+
+Chen, Zhang, Xu, and Zhang ran Aura's preregistered Φ criteria on a CPU-only
+setup. The standalone shuffled comparison distinguished memoryless noise
+from coupled dynamics. In the runtime path, the winning 8-node affective
+estimator never received that comparison. The fallback labeled memoryless
+noise a complex at raw φ values of 0.42 to 0.46, and coupled dynamics scored
+no higher than noise. These were two failures of Aura's own criteria.
+[Outside evaluation, Section 8](https://arxiv.org/html/2610.41604v1#S8)
+
+The repair binds each of the four selectable estimators to its own history
+and partition tables for the shuffled comparison. The flag `is_complex`
+now stays false until the comparison has been measured and supports the
+classification. Regression tests cover the CPU case, the coupling comparison,
+all four input mappings, and an unmeasured winner. The outside paper evaluated
+the earlier revision and left the winning estimator on Apple Silicon open.
+[Repair commit](https://github.com/youngbryan97/aura/commit/864179c50c49fa3d9b9feb17bcf74b087ed3991f) ·
+[Regression tests](tests/test_phi_null_reaches_every_winner.py)
+
+### How this relates to ISC
+
+The Φ estimates describe integration over declared state summaries. The
+preregistered [24-line subject battery](docs/SUBJECT_CORE.md) is a separate
+experiment. Its earlier ISC-v6 protocol used interventions on 511 cuts for
+partition irreducibility and paired interventions on four fixed triples for
+synergy. Seed 23 at `8f548ed79` recorded 22/24 under ISC-v6, with positive
+content and withheld-report outputs. An unchanged comparison drifted enough
+to fail two partition-related checks. Later work also found shared history
+between comparison arms, which limited the earlier paired results.
+
+Confirmatory seed 101 at `aeefdca31` recorded 24/24 under ISC-v7 and
+identified all ten domains of the measured substrate as the carrier. The
+paper makes a separate, assumption-dependent argument about what those
+measurements could mean for subjecthood. Subjective experience remains open.
+[ISC results](docs/ISC_STATUS.md) · [Preprint](https://zenodo.org/records/24075466)
 
 ---
 
@@ -1260,7 +1392,9 @@ and the plain-English tour in
   each makes, with no-difference results reported honestly. See
   [docs/ABLATION_LEGIBILITY.md](docs/ABLATION_LEGIBILITY.md).
 
-### Embodiment, self-knowledge, and physical honesty (late July – August 2026)
+<a id="embodiment-self-knowledge-and-physical-honesty-late-july--august-2026"></a>
+
+### Embodiment, self-knowledge, and physical honesty (late July to August 2026)
 
 The newest work is all about one boundary: where Aura stops and the machine
 she runs on starts. What she can actually perceive. What she can actually
@@ -1325,9 +1459,10 @@ The current hardware target and model lanes are in [Quick start](#quick-start).
 python benchmarks/cognitive_stack_comparison.py
 ```
 
-The benchmark compares the outputs of a 10-prompt conversation with
-the cognitive stack enabled and disabled on a live instance. The table
-records the before and after values for the historical 32B example.
+The script sends ten prompts to one running configuration. It records
+replies, turn times, and substrate values before and after the conversation.
+The table gives the historical 32B example reported here. An on/off
+comparison would require a separate matched run.
 
 | Metric | Before | After | Δ |
 |--------|--------|-------|---|
@@ -1337,8 +1472,9 @@ records the before and after values for the historical 32B example.
 | Coherence | 0.764 | 0.766 | +0.002 |
 | Free Energy | 0.438 | 0.437 | −0.001 |
 
-The run recorded 10/10 successful responses, 0 generic-assistant
-phrasings, 0 hedges, and 10 first-person responses.
+The example reports 10/10 successful responses, 0 matches for the
+generic-assistant phrase list, 0 matches for the hedge list, and 10
+responses with first-person markers. These counts describe that sample.
 
 ### Example replies
 
@@ -1435,8 +1571,9 @@ measurable effects on downstream behavior.
 
 ## Personality training
 
-Personality isn't in the system prompt. It's fine-tuned into the weights
-as a LoRA (a small set of trainable weight adjustments):
+Aura can use a personality LoRA, a small set of trained weight adjustments,
+alongside its voice and identity prompts. The offline training recipe below
+also shows the optional fusion step.
 
 ```bash
 # 1. Build training data
@@ -1454,8 +1591,10 @@ python -m mlx_lm fuse --model models/Aura-Cortex \
   --save-path training/fused-model/Aura-Cortex-current
 ```
 
-The adapter auto-loads at boot via MLX. If you'd rather keep the adapter
-separate (for faster iteration), that's supported too.
+The default Cortex is a fused artifact. For an unfused configuration, MLX
+can load a resolved, compatible adapter with the base model. That lets you
+iterate on the adapter separately. Check the worker initialization receipt
+to confirm that the adapter actually loaded.
 
 Runtime plasticity is separate from the big offline run: Will-approved
 self-reflections are captured by `online_lora_governor`, written through
@@ -1468,8 +1607,9 @@ governor blocks itself when another LoRA process is running.
 
 - **State** — SQLite, event-sourced through `StateRepository`, with a
   write-ahead log in `core/resilience/cognitive_wal.py`.
-- **Models** — MLX runtime lanes. The personality LoRA loads at runtime rather
-  than being fused, so you can swap it without retraining the base.
+- **Models.** The local MLX lanes can serve fused model builds. A compatible
+  separate personality adapter can also load at runtime, so it can be
+  swapped without retraining the base weights.
 - **Memory** — episodic memory in SQLite, working memory in-process,
   semantic memory via the vector engine (`core/memory/vector_memory_engine.py`),
   local SQLite/BLOB vector fallback (`core/memory/sqlite_vector_store.py`), a

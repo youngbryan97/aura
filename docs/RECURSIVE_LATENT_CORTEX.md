@@ -96,9 +96,11 @@ Package: `core/brain/llm/latent_cortex/` (worker-side, pure MLX, lazy imports â€
 Service: `ServiceNames.LATENT_CORTEX = "latent_cortex"` (orchestrator-side)
 Worker action: `latent_reason` (runs on the RESIDENT model, no reload)
 Surface, 2026-08-24: 55 `tools/` entry points and 231 test files naming the
-latent cortex or recurrence, over 250 frozen evidence entries under
-`artifacts/closeout/latent_cortex/`. These only grow; `make rlc-figures`
-holds them to a floor rather than an exact count.
+latent cortex or recurrence. On 2026-11-21, the public tree had 244 frozen
+evidence entries under `artifacts/closeout/latent_cortex/`. The local archive
+had 274 at the same path. `make rlc-figures` checks the public minimum and
+recomputes quoted figures, including the
+[historical 32B templated sweep](evidence/rlc_frozen_32b_templated_counts.json).
 
 ---
 

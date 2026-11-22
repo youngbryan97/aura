@@ -1,0 +1,48 @@
+{
+  "scope": "Historical offline 32B templated run. Aggregate counts and recorded intervals transcribed from the original local result. This extract supports arithmetic verification of the figures.",
+  "source_filename": "latent_lab_32b_exp1_templated.json",
+  "source_sha256": "875fc02954f3d157ad120d332229669386553a3c53fb72950f36a495a275a93d",
+  "started_utc": "2026-07-17T01:48:28.816511+00:00",
+  "baseline": {
+    "name": "equal_flop_baseline",
+    "layer_apps": 242816,
+    "successes": 10,
+    "n": 24,
+    "wilson_lb": 0.268,
+    "wilson_ub": 0.5823
+  },
+  "curve": [
+    {
+      "name": "steps=1",
+      "layer_apps": 172672,
+      "successes": 4,
+      "n": 24,
+      "wilson_lb": 0.0771,
+      "wilson_ub": 0.3238
+    },
+    {
+      "name": "steps=2",
+      "layer_apps": 183680,
+      "successes": 9,
+      "n": 24,
+      "wilson_lb": 0.233,
+      "wilson_ub": 0.5423
+    },
+    {
+      "name": "steps=4",
+      "layer_apps": 191360,
+      "successes": 8,
+      "n": 24,
+      "wilson_lb": 0.1992,
+      "wilson_ub": 0.5012
+    },
+    {
+      "name": "steps=8",
+      "layer_apps": 222656,
+      "successes": 8,
+      "n": 24,
+      "wilson_lb": 0.1992,
+      "wilson_ub": 0.5012
+    }
+  ]
+}
