@@ -767,7 +767,7 @@ def _how_new(family: Family, position: Position, move: Move, allowed: bool) -> i
 
 
 def a_move_seen(before: Position, after_cells: dict[Square, tuple[int, str | None]], side: int,
-                size: tuple[int, int] | None = None) -> Move | None:
+                size: tuple[int, int] | None = None, royal: frozenset[str] = frozenset()) -> Move | None:
     """The move of ``side`` that turned ``before`` into what is seen, read from the squares that changed, where the
     rules she holds cannot say it: a piece gone from one square and come to another, a piece of the other side gone
     from the square it came to or from beside it, two pieces of the side moving at once."""
@@ -801,25 +801,26 @@ def a_move_seen(before: Position, after_cells: dict[Square, tuple[int, str | Non
         becomes = letter_after if letter_after is not None and letter_after != letter_before else ""
         return Move(start, end, becomes=becomes, taken_at=taken_at)
     if len(gone) == 2 and len(came) == 2:
-        # Two pieces at once: the one that went further is the one that moved, the other its partner.
-        pairs = [(a, b) for a in gone for b in came]
-        best = None
-        for a, b in pairs:
-            other_a = next(g for g in gone if g != a)
-            other_b = next(c for c in came if c != b)
-            if before.cells[a][1] == after_cells[b][1] and before.cells[other_a][1] == after_cells[other_b][1]:
-                spread = abs(a[1] - b[1]) + abs(a[0] - b[0])
-                if best is None or spread > best[0]:
-                    best = (spread, a, b, other_a, other_b)
-        if best is not None:
-            _spread, a, b, other_a, other_b = best
-            # Only in the one shape a crossing has: on one row, two squares toward a partner beyond, the partner onto
-            # the square crossed. LIVE-like 22 November 2026, two pieces of a draughts side read as moving at once taught
-            # her men a crossing, and her model made moves that put one piece where another stood.
-            way = 1 if b[1] > a[1] else -1
-            if (a[0] == b[0] == other_a[0] == other_b[0] and abs(b[1] - a[1]) == 2
-                    and other_b == (a[0], a[1] + way) and (other_a[1] - b[1]) * way > 0):
-                return Move(a, b, partner=(other_a, other_b))
+        # Two pieces at once, only in the one shape a crossing has: on one row, the one that moved two squares toward a
+        # partner beyond, the partner onto the square crossed. LIVE-like 22 November 2026, two pieces of a draughts side
+        # read as moving at once taught her men a crossing, and her model made moves that put one piece where another
+        # stood. Each pairing is held to the shape, not only the piece that went further: LIVE 22 November 2026 the rook
+        # of a long crossing went three squares to the royal's two, was taken for the mover, and the board went
+        # unexplained. Where both fit, as in a short crossing, the royal kind is the one that moved.
+        fits = []
+        for a in gone:
+            for b in came:
+                other_a = next(g for g in gone if g != a)
+                other_b = next(c for c in came if c != b)
+                if before.cells[a][1] != after_cells[b][1] or before.cells[other_a][1] != after_cells[other_b][1]:
+                    continue
+                way = 1 if b[1] > a[1] else -1
+                if (a[0] == b[0] == other_a[0] == other_b[0] and abs(b[1] - a[1]) == 2
+                        and other_b == (a[0], a[1] + way) and (other_a[1] - b[1]) * way > 0):
+                    fits.append((before.cells[a][1] not in royal, a, b, other_a, other_b))
+        if fits:
+            _not_royal, a, b, other_a, other_b = min(fits)
+            return Move(a, b, partner=(other_a, other_b))
     return None
 
 
@@ -841,8 +842,15 @@ def moves_seen(before: Position, after_cells: dict[Square, tuple[int, str | None
     def allowed(position: Position, move: Move) -> bool:
         return a_move_her_rules_allow(family, position, move)
 
+    # A move her rules allow that makes exactly what is seen, the only one that does, is the move.
+    exactly = [move for move in legal_moves(family, Position(cells=before.cells, turn=side, unmoved=before.unmoved,
+                                                             passable=before.passable))
+               if made_shows(after(family, before, move))]
+    if len(exactly) == 1:
+        return exactly
+    royal = frozenset(letter for letter, kind in family.kinds.items() if kind.royal)
     fitting: list[tuple[tuple[int, int, int], list[Move]]] = []
-    one = a_move_seen(before, after_cells, side, (family.rows, family.columns))
+    one = a_move_seen(before, after_cells, side, (family.rows, family.columns), royal)
     if one is not None and made_shows(after(family, before, one)):
         if allowed(before, one):
             return [one]
@@ -867,7 +875,7 @@ def moves_seen(before: Position, after_cells: dict[Square, tuple[int, str | None
             taken = end if end in before.cells and before.cells[end][0] != side else None
             mine = as_shown(Move(start, end, taken_at=taken))
             middle = after(family, before, mine)
-            answer = a_move_seen(middle, after_cells, 1 - side, (family.rows, family.columns))
+            answer = a_move_seen(middle, after_cells, 1 - side, (family.rows, family.columns), royal)
             if answer is not None and made_shows(after(family, middle, answer)):
                 rank = (_how_new(family, before, mine, allowed(before, mine)),
                         _how_new(family, middle, answer, allowed(middle, answer)), int(bool(answer.becomes)))
@@ -882,7 +890,7 @@ def moves_seen(before: Position, after_cells: dict[Square, tuple[int, str | None
             continue
         mine = as_shown(mine)
         middle = after(family, before, mine)
-        answer = a_move_seen(middle, after_cells, 1 - side, (family.rows, family.columns))
+        answer = a_move_seen(middle, after_cells, 1 - side, (family.rows, family.columns), royal)
         if answer is not None and made_shows(after(family, middle, answer)):
             fitting.append(((0, _how_new(family, middle, answer, allowed(middle, answer)), int(bool(answer.becomes))),
                             [mine, answer]))

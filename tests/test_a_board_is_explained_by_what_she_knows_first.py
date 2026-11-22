@@ -112,3 +112,27 @@ def test_her_piece_shown_changed_where_her_move_landed_became_that_kind() -> Non
     game.became_on_landing({(7, 1): (FIRST, "K"), (5, 5): (SECOND, "M")})
     assert game.believed.cells[(7, 1)] == (FIRST, "K")
     assert learned.becomes["M"] == ["K"]
+
+
+def _castled(fen: str, mover: tuple, partner: tuple) -> tuple[Position, dict]:
+    from tests.fixtures.a_game_of_pieces_to_learn import from_fen
+
+    before = from_fen(fen)
+    cells = dict(before.cells)
+    for start, end in (mover, partner):
+        cells[end] = cells.pop(start)
+    return before, cells
+
+
+def test_a_long_crossing_is_read_with_the_royal_kind_as_the_one_that_moved() -> None:
+    # LIVE 22 November 2026 her long crossing, e1-c1 with a1-d1, went unexplained: the rook went three squares to the
+    # king's two, was taken for the mover, and failed a crossing's shape.
+    from core.agency.how_the_pieces_move import a_move_seen
+
+    before, cells = _castled("r3k2r/8/8/8/8/8/8/R3K2R w KQkq -", ((0, 4), (0, 2)), ((0, 0), (0, 3)))
+    assert moves_seen(before, cells, FIRST, CHESS) == [Move((0, 4), (0, 2), partner=((0, 0), (0, 3)))]
+    assert a_move_seen(before, cells, FIRST) == Move((0, 4), (0, 2), partner=((0, 0), (0, 3)))
+    # The short one fits either piece as the mover: the royal kind is the one that moved.
+    before, cells = _castled("r3k2r/8/8/8/8/8/8/R3K2R w KQkq -", ((0, 4), (0, 6)), ((0, 7), (0, 5)))
+    assert moves_seen(before, cells, FIRST, CHESS) == [Move((0, 4), (0, 6), partner=((0, 7), (0, 5)))]
+    assert a_move_seen(before, cells, FIRST, royal=frozenset({"K"})) == Move((0, 4), (0, 6), partner=((0, 7), (0, 5)))
