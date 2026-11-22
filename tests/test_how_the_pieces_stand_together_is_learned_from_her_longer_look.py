@@ -218,3 +218,20 @@ def test_a_slower_judgement_is_matched_with_the_time_it_costs(monkeypatch) -> No
     candidates, current = engine.asked[-1]
     assert current == 1000 and 400 < candidates < 650, engine.asked
     assert 0.4 < rehearsal.last["pace"] < 0.65
+
+
+def test_a_pace_within_what_the_timings_scatter_by_is_no_difference(monkeypatch) -> None:
+    # Two timings of each side, by turns: candidate, current, candidate, current. The candidate is 5% slower by its
+    # fastest, and each side's two timings differ by 20%: no difference. Then a 2:1 difference with the same scatter.
+    def clocked(spent: list[float]):
+        moments = iter([t for pair in ((0.0, s) for s in spent) for t in pair])
+        monkeypatch.setattr(worth.time, "perf_counter", lambda: next(moments))
+
+    class _Timed:
+        def search(self, *args):
+            return {"nodes": 1000}
+
+    clocked([0.021, 0.020, 0.025, 0.024])
+    assert worth._pace(_Timed(), "d", "b", "candidate", "current", 100) == 1.0
+    clocked([0.040, 0.020, 0.048, 0.024])
+    assert abs(worth._pace(_Timed(), "d", "b", "candidate", "current", 100) - 0.5) < 1e-9

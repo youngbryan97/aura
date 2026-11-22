@@ -351,9 +351,11 @@ def tried_as(group: str, teacher: str) -> str:
 def _pace(engine: Any, description: str, begin: str, candidate: str, current: str, nodes: int) -> float:
     """How many positions a second her compiled search looks at with the candidate's weights, as a part of how many it
     looks at with the current ones: from the start, each timed twice by turns, the faster of each pair kept, so that
-    whatever else the machine is doing counts against neither."""
+    whatever else the machine is doing counts against neither. A difference no larger than the two timings of one
+    side differ by is no difference: on a busy machine, candidates that differed from her weights only in a weighted
+    sum, and so ran at her pace, were timed at 0.907 and 0.982 of it."""
     looks = max(1, nodes * 10)
-    fastest = {candidate: math.inf, current: math.inf}
+    timed: dict[str, list[float]] = {candidate: [], current: []}
     for _ in range(2):
         for weights in (candidate, current):
             began = time.perf_counter()
@@ -362,11 +364,12 @@ def _pace(engine: Any, description: str, begin: str, candidate: str, current: st
             # not a failure: an engine that cannot be timed this way is taken to look at as many either way.
             except (AttributeError, TypeError, ValueError):
                 return 1.0
-            spent = (time.perf_counter() - began) / max(1, int(found.get("nodes", looks) or looks))
-            fastest[weights] = min(fastest[weights], spent)
-    if not all(math.isfinite(v) and v > 0 for v in fastest.values()):
+            timed[weights].append((time.perf_counter() - began) / max(1, int(found.get("nodes", looks) or looks)))
+    if not all(v > 0 and math.isfinite(v) for times in timed.values() for v in times):
         return 1.0
-    return fastest[current] / fastest[candidate]
+    pace = min(timed[current]) / min(timed[candidate])
+    scatter = max(max(times) / min(times) for times in timed.values())
+    return 1.0 if abs(math.log(pace)) <= math.log(scatter) else pace
 
 
 def how_far_above_even(tries: int) -> float:
