@@ -423,8 +423,11 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
                 results[game] = _as_a_result(standing[game] if game % 2 == 0 else -standing[game], spread)
     mean = float(results.mean()) if len(results) else 0.5
     error = float(results.std(ddof=1) / math.sqrt(len(results))) if len(results) > 1 else 1.0
-    counted = tried_as(trying, rehearsal.teacher) if trying else ""
-    tries = rehearsal.tries[counted] = rehearsal.tries.get(counted, 0) + 1 if trying else 1
+    tries = 1
+    if trying:
+        # A refit of the groups she has, with none new to try, is no group's try.
+        counted = tried_as(trying, rehearsal.teacher)
+        tries = rehearsal.tries[counted] = rehearsal.tries.get(counted, 0) + 1
     kept = mean - 0.5 > how_far_above_even(tries) * max(error, 1e-9)
     rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "scored": round(mean, 3),
                       "error": round(error, 3), "kept": kept}

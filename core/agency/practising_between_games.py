@@ -29,6 +29,17 @@ _PLAYING = 0
 #: The round under way, if any, and the rehearsal it carries on, with which record it is of and when that was written.
 _RUNNING: asyncio.Task | None = None
 _HELD: dict[str, Any] = {}
+#: Why she last did not practise, said once each time it changes.
+_WAITING = ""
+
+
+def _waits(why: str) -> bool:
+    global _WAITING
+    if why != _WAITING:
+        _WAITING = why
+        if why:
+            logger.info("practice between games waits: %s", why)
+    return False
 
 
 class at_a_board:  # noqa: N801 - used as a statement: `with at_a_board():`
@@ -106,18 +117,20 @@ def practise_when_idle(orch: Any, track: Any = None) -> bool:
         background_activity_reason,
     )
 
-    if background_activity_reason(orch, profile=IDLE_COGNITION_BACKGROUND_POLICY, needs_the_model=False):
-        return False
+    why = background_activity_reason(orch, profile=IDLE_COGNITION_BACKGROUND_POLICY, needs_the_model=False)
+    if why:
+        return _waits(str(why))
     if not _on_mains():
-        return False
+        return _waits("the machine is on its battery")
     board = _the_board_she_last_played()
     if board is None:
-        return False
+        return _waits("she has played no board yet")
     try:
         loop = asyncio.get_running_loop()
     # not a failure: outside a running loop there is nothing to practise beside.
     except RuntimeError:
         return False
+    _waits("")
     work = asyncio.to_thread(_one_round, *board)
     _RUNNING = track("metabolic.practice_between_games", work) if track is not None else loop.create_task(work)
     if not isinstance(_RUNNING, asyncio.Task):
