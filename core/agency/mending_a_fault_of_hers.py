@@ -170,16 +170,21 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     record = goals.load(slug) or goals.GoalRecord(goal=goal, slug=slug)
     if record.status in (goals.OFFERED, goals.MERGED):
         return {"slug": slug, "status": record.status, "why": "already mended or offered"}
-    if record.status == goals.STALLED:
-        # Taken up again: worked again, so its workspace is brought up to her source before anything runs in it.
-        # LIVE 16 November 2026 her drill's retry ran in the workspace of the try before, on the old source.
-        record.status = goals.WORKING
     if goals.governs_her(fault.call.file):
         # LIVE 16 November 2026, 01:11 to 01:35, her loop searched until its deadline for a change to
         # require_governance, the check that refused an ungoverned save. A mend there loosens the check, and her own
         # yes refuses the file anyway.
-        return await _stop(record, f"it was raised in {fault.call.file}, which governs her; her own yes cannot take a "
-                                   "change there, so her loop drafts none", fault.call.error_message)
+        why = (f"it was raised in {fault.call.file}, which governs her; her own yes cannot take a change there, so her "
+               "loop drafts none")
+        if record.status == goals.STALLED and (record.last_check or {}).get("why") == why:
+            # Said once: no change to her source makes it hers to change. LIVE 21 November 2026 one refused save
+            # heard on every surprise of her mind tick was said again each time, some sixty times in an afternoon.
+            return {"slug": slug, "status": record.status, "why": why}
+        return await _stop(record, why, fault.call.error_message)
+    if record.status == goals.STALLED:
+        # Taken up again: worked again, so its workspace is brought up to her source before anything runs in it.
+        # LIVE 16 November 2026 her drill's retry ran in the workspace of the try before, on the old source.
+        record.status = goals.WORKING
     workspace = await asyncio.to_thread(goals.ensure_workspace, record)
     await goals.save(record)
     again = await _her_draft_asked_again(record, workspace, fault)

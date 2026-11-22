@@ -1,6 +1,7 @@
 """Universal typed observe -> model -> gate -> act -> learn kernel."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import asdict, dataclass, field, is_dataclass
@@ -415,8 +416,14 @@ class EnvironmentKernel:
         # --- Cross-system wiring: outcome -> learning stores ---
         # 1. Causal model: ground with empirical observations
         if self.causal_model and observed_events:
-            for event_name in observed_events:
-                self.causal_model.add_observation(intent.name, event_name, 1.0 if outcome.success_score > 0.5 else -0.5)
+            causal_model, weight = self.causal_model, 1.0 if outcome.success_score > 0.5 else -0.5
+
+            def observed() -> None:
+                for event_name in observed_events:
+                    causal_model.add_observation(intent.name, event_name, weight)
+
+            # Each observation saves the graph to disk: off the event loop.
+            await asyncio.to_thread(observed)
 
         # 2. Outcome ledger: record structured outcome for cross-episode transfer
         if self.outcome_ledger:

@@ -1285,7 +1285,9 @@ class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
                                 if cwm and error.surprise_signal > 0.4:
                                     safe_prediction = str(prediction.content).strip()[:30] if hasattr(prediction, 'content') else "unknown"
                                     safe_actual = str(actual).strip()[:30]
-                                    cwm.add_observation(
+                                    # It saves her graph to disk: off her event loop.
+                                    await asyncio.to_thread(
+                                        cwm.add_observation,
                                         source=safe_prediction,
                                         target=safe_actual,
                                         correlation=error.surprise_signal,

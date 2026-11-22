@@ -659,13 +659,17 @@ class CausalWorldModel:
                     "nodes": {k: asdict(v) for k, v in self.nodes.items()},
                     "edges": [asdict(e) for e in self.edges],
                 }
+            from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            get_file_write_gateway().write_text(
-                self.data_path,
-                json.dumps(payload, indent=4, default=str),
-                source="causal_world_model.save",
-            )
+            # Her own graph, kept by her own running: a maintenance write. LIVE 21 November 2026 every save from a
+            # surprise in her mind tick was refused as "called outside governed context", and the graph never landed.
+            with local_internal_governed_scope("brain.causal_world_model.save", domain="file_write"):
+                get_file_write_gateway().write_text(
+                    self.data_path,
+                    json.dumps(payload, indent=4, default=str),
+                    source="causal_world_model.save",
+                )
         except _CWM_RECOVERABLE_ERRORS as exc:
             record_degradation(
                 "causal_world_model",

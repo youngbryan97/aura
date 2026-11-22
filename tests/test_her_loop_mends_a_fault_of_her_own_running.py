@@ -222,6 +222,11 @@ def test_a_fault_raised_in_what_governs_her_is_not_drafted(her_source):
     done = asyncio.run(mend(HeardFault(call, "causal_world_model", 0.0, 0.0), proposals=10, seconds=60))
     assert done["status"] == goals.STALLED and "which governs her" in done["why"], done
     assert not (her_source.parent / "workspaces").exists(), "no workspace is made for a mend it will not draft"
+    # LIVE 21 November 2026: heard on every surprise of her mind tick, it was said again each time, some sixty times.
+    again = asyncio.run(mend(HeardFault(call, "causal_world_model", 0.0, 0.0), proposals=10, seconds=60))
+    assert again["status"] == goals.STALLED, again
+    said = goals.load(done["slug"]).said
+    assert len([entry for entry in said if "which governs her" in entry["words"]]) == 1, said
 
 
 def test_a_none_her_function_was_handed_is_mended_by_the_checker_its_exception_asks_for(her_source):

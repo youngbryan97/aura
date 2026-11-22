@@ -8276,6 +8276,12 @@ needs her 27B free (her app down, or her app's own influence trials).
     change with the suite the repository declares, read as pytest reads its configuration and from the code before
     the change, anywhere when none is declared; and a test a cut-short run never reached is not said to fail, the
     run refusing the change by itself (`tests/test_the_outside_check_reads_where_tests_are.py`).
+    A fault she heard that afternoon was the runtime's: every save of her causal world model after a surprise in
+    her mind tick was refused as "called outside governed context", so nothing she learned from a surprise reached
+    her disk. The save opens its own governed scope now, and her mind tick and the environment kernel call it from
+    a thread, not on her event loop (`tests/test_her_causal_model_is_saved_while_she_runs.py`). Her loop rightly
+    drafted nothing in core/governance_context.py, where it was raised, but said so again on each surprise, some
+    sixty times; it says so once (`tests/test_her_loop_mends_a_fault_of_her_own_running.py`).
 
 ## Live session 2026-09-07: what the runtime showed
 
