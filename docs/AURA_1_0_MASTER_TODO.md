@@ -5253,6 +5253,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     cut off mid-quotation. Three more tries and two smaller models later, 512 s after the message, he was told "I
     lost the reply lane for a moment." Quotes come off a reply now only when they wrap the whole of it, and the same
     for her higher-order thoughts (`tests/test_a_reply_keeps_its_closing_quote.py`).
+  - 22 November, the same turn: the message was searched on the web whole before her model saw it, and two pages,
+    "Essay Flagged as AI But You Wrote It?" and "AI Excuse Generator", went into her prompt as sources. A question
+    about a named thing that her offline copy answers only in part is looked up, and whether a question was factual
+    was read by its words: "What would" and "Stockfish". It is read on her encoder now, against declared facts
+    about named things on one side and her own working-out on the other, and only a question read as a fact is
+    looked up there (`core/conversation/asks_for_a_fact.py`, `tests/test_a_fact_is_told_from_her_own_working_out.py`,
+    `tests/test_what_the_world_says.py`).
   - U07-10, the tool loop's terminal boundary, as the outside review set it, already holds by tests: the last pass
     is offered no tools and a call written there is not run (`tests/test_the_tool_loops_last_pass.py`); the pass that
     writes cannot open a call (`tests/test_the_pass_that_writes_opens_no_call.py`); a capability's output reaches her

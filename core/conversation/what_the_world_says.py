@@ -482,8 +482,10 @@ async def read_as_shown(results: list[dict[str, Any]], render: Fetch, remaining:
     await asyncio.gather(*(one(result) for result in results[:_PAGES_PER_SEARCH]))
 
 
-def _answers_only_in_part(question: str, local: Sequence[WorldSource]) -> bool:
-    """A factual question about a named thing that the offline copy leaves open.
+def _answers_only_in_part(local: Sequence[WorldSource], fact: bool | None) -> bool:
+    """A factual question about a named thing that the offline copy leaves open. ``fact`` is whether the question asks
+    for a fact about something named, read by meaning (core/conversation/asks_for_a_fact.py); only a question read as
+    one is looked up here, and a question the reading cannot place is answered from what she has.
 
     LIVE 2026-10-03: "Who designed the Kaseya Center, and what did it cost to
     build?" was answered from the offline article (0.69, the bottom of the
@@ -491,9 +493,7 @@ def _answers_only_in_part(question: str, local: Sequence[WorldSource]) -> bool:
     want to verify it rather than look. Bryan: something should decide to
     look elsewhere, or double-check online.
     """
-    from core.conversation.asks_about_the_world import asks_about_a_named_thing
-
-    if not asks_about_a_named_thing(question):
+    if fact is not True:
         return False
     from core.cognition.evidence_relevance import matched_alignment_median
 
@@ -597,10 +597,13 @@ async def gather_world_evidence(
     )
     evidence.sources.extend(local[:3])
 
-    if search is not None and (
-        asked_for or (outside_wanted and (not local or now_wanted))
-        or (not _asks_her_view(question) and _answers_only_in_part(question, local))
-    ):
+    wanted = bool(asked_for or (outside_wanted and (not local or now_wanted)))
+    if search is not None and not wanted and not _asks_her_view(question):
+        from core.conversation.asks_for_a_fact import asks_for_a_fact
+
+        # Read by meaning, off her event loop: it computes on her encoder.
+        wanted = _answers_only_in_part(local, await asyncio.to_thread(asks_for_a_fact, question))
+    if search is not None and wanted:
         queries = searches_for(asked_for) if asked_for else [question]
 
         async def one(query: str) -> list[dict]:

@@ -277,6 +277,9 @@ def test_a_question_the_offline_copy_answers_only_in_part_is_looked_up(judge, mo
     from core.cognition import evidence_relevance as relevance
 
     monkeypatch.setattr(relevance, "matched_alignment_median", lambda: 0.78)
+    # Her encoder's reading of which questions ask for a fact (core/conversation/asks_for_a_fact.py), stood in for.
+    monkeypatch.setattr("core.conversation.asks_for_a_fact.asks_for_a_fact",
+                        lambda question: True if question.startswith("Who did") else None)
     asked: list[str] = []
 
     async def search(query):
@@ -649,3 +652,26 @@ def test_a_question_her_own_readings_answer_is_not_about_the_world_now() -> None
                   "what is the current price of bitcoin?", "What's the weather in Paris right now?"):
         assert _about_the_world_now(asked, seeks_the_world=False), asked
 
+
+
+def test_a_question_asking_her_to_work_something_out_is_not_searched(judge, monkeypatch) -> None:
+    """LIVE 22 November 2026, typed into her window: a question asking her to design something general from her chess
+    play named Stockfish and opened its last sentence "What would", and was searched on the web whole. Two pages came
+    back, "Essay Flagged as AI But You Wrote It?" and "AI Excuse Generator", and went into her prompt as sources. Only a
+    question her encoder reads as asking for a fact about something named is looked up when the offline copy falls
+    short (core/conversation/asks_for_a_fact.py)."""
+    from core.cognition import evidence_relevance as relevance
+
+    monkeypatch.setattr(relevance, "matched_alignment_median", lambda: 0.78)
+    asked: list[str] = []
+
+    async def search(query):
+        asked.append(query)
+        return []
+
+    design = ("Bam, I think we can work with this! I want this kind of reasoning to apply in any context, with beating "
+              "Stockfish as a proof of concept on the way. What would that look like?")
+    for reading in (False, None):  # read as her own working-out, or not placed by the reading
+        monkeypatch.setattr("core.conversation.asks_for_a_fact.asks_for_a_fact", lambda question, r=reading: r)
+        asyncio.run(gather_world_evidence(design, store=_Corpus(), search=search))
+    assert asked == [], "a question asking her to work something out went to the web"
