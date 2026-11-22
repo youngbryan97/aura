@@ -77,6 +77,9 @@ class ReminderSkill(BaseSkill):
                 ),
             }
         outstanding = len(pending_reminders())
+        from core.agency.reminders_delivered import ensure_reminders_are_delivered
+
+        ensure_reminders_are_delivered()  # what tells the person when it comes due
         return {
             "ok": True,
             "effect_verified": True,

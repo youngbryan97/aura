@@ -11,10 +11,10 @@ reminder a reminder — it has to survive a restart, and something has to notice
 when it comes due.
 
 So this is a durable store, written through the governed write gateway, read
-back by whoever asks what is queued. Nothing here notifies on its own; a
-reminder is DUE and the surfaces that already report queued work say so. That
-is the honest shape while there is no push channel, and it is the difference
-between a record and a claim.
+back by whoever asks what is queued. Nothing here notifies on its own: a
+reminder that comes due goes to the person's desktop from
+core/agency/reminders_delivered.py, which this store wakes when a reminder is
+added.
 """
 
 from __future__ import annotations
@@ -160,6 +160,9 @@ def add_reminder(text: str, delay_s: float) -> Reminder | None:
     existing.append(reminder)
     if not _save(existing):
         return None
+    from core.agency.reminders_delivered import a_reminder_was_added
+
+    a_reminder_was_added()
     return reminder
 
 

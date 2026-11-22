@@ -63,9 +63,16 @@ MAIL_REPLY_TOOLS = frozenset({"email_adapter"})
 _MAIL_REPLY_ARGUMENTS = frozenset({"mode", "uid", "body", "in_reply_to", "references", "limit", "query"})
 MAIL_REPLY_ORIGIN = "her_mail_reply"
 MAIL_REPLY_GRANT = "aura.own-mail-replies"
+#: A reminder a person asked for, come due (core/agency/reminders_delivered.py): it goes to their desktop as a
+#: notification, the tool and what it takes, the origin of the call, and the grant that lets it go out. The person who
+#: asked to be reminded is the yes; nothing is sent that is not the text of a reminder of theirs now due.
+REMINDER_DUE_TOOLS = frozenset({"notify_user"})
+_REMINDER_DUE_ARGUMENTS = frozenset({"title", "message", "sound"})
+REMINDER_DUE_ORIGIN = "her_reminder_due"
+REMINDER_DUE_GRANT = "aura.reminder-due"
 #: The grants whose lease is Bryan's yes to a call nobody is there to confirm (core/capabilities/permission_model.py),
 #: and for each, the modalities a call within it reaches that are off unless someone says otherwise.
-BRYANS_STANDING_YES = frozenset({OWN_GOAL_GRANT, DESK_COMPANY_GRANT, MAIL_REPLY_GRANT})
+BRYANS_STANDING_YES = frozenset({OWN_GOAL_GRANT, DESK_COMPANY_GRANT, MAIL_REPLY_GRANT, REMINDER_DUE_GRANT})
 STANDING_YES_MODALITIES = {MAIL_REPLY_GRANT: frozenset({"email", "network_write"})}
 
 
@@ -81,7 +88,8 @@ def carries_bryans_standing_yes(origin: Any, tool_name: Any) -> bool:
     source, name = str(origin or ""), normalize_tool_name(tool_name)
     return ((source == OWN_GOAL_ORIGIN and name in OWN_GOAL_TOOLS)
             or (source == DESK_COMPANY_ORIGIN and name in DESK_COMPANY_TOOLS)
-            or (source == MAIL_REPLY_ORIGIN and name in MAIL_REPLY_TOOLS))
+            or (source == MAIL_REPLY_ORIGIN and name in MAIL_REPLY_TOOLS)
+            or (source == REMINDER_DUE_ORIGIN and name in REMINDER_DUE_TOOLS))
 
 
 def her_passes_allow(policy: str, tool_name: str, arguments: dict[str, Any]) -> tuple[bool, str] | None:
@@ -102,6 +110,17 @@ def her_passes_allow(policy: str, tool_name: str, arguments: dict[str, Any]) -> 
         if not str(arguments.get("uid") or "").strip() or not str(arguments.get("body") or "").strip():
             return False, "her_mail_reply_names_no_message_or_says_nothing"
         return True, "her_mail_reply"
+    if policy == "reminder_due":
+        if tool_name not in REMINDER_DUE_TOOLS:
+            return False, "reminder_due_tool_mismatch"
+        if {key for key, value in arguments.items() if value not in (None, "")} - _REMINDER_DUE_ARGUMENTS:
+            return False, "reminder_due_arguments_unsupported"
+        from core.agency.reminders import due_reminders
+
+        said = " ".join(str(arguments.get("message") or "").split())
+        if not said or not any(reminder.text == said for reminder in due_reminders()):
+            return False, "reminder_due_is_no_reminder_now_due"
+        return True, "reminder_due"
     if policy == "desk_company":
         if tool_name not in DESK_COMPANY_TOOLS:
             return False, "desk_company_tool_mismatch"

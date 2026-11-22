@@ -49,6 +49,9 @@ from core.executive.her_own_passes import (  # noqa: F401 - re-exported: they we
     OWN_GOAL_GRANT,
     OWN_GOAL_ORIGIN,
     OWN_GOAL_TOOLS,
+    REMINDER_DUE_GRANT,
+    REMINDER_DUE_ORIGIN,
+    REMINDER_DUE_TOOLS,
     STANDING_YES_MODALITIES,
     carries_bryans_standing_yes,
     her_passes_allow,
@@ -129,6 +132,8 @@ AUTONOMOUS_AUTHORITY_ORIGINS = frozenset(
         "her_desk_company",
         # Her mail round sending a reply she wrote to someone who wrote to her (MAIL_REPLY_ORIGIN).
         "her_mail_reply",
+        # A reminder a person asked for, sent to their desktop when it comes due (REMINDER_DUE_ORIGIN).
+        "her_reminder_due",
     }
 )
 
@@ -218,6 +223,7 @@ _SUPPORTED_ARGUMENT_POLICIES = frozenset(
         "her_goal_work",
         "her_mail_reply",
         "local_introspection",
+        "reminder_due",
         "owner_private_message",
         "public_research",
         "read_only_maintenance",
@@ -655,6 +661,26 @@ def _builtin_grants() -> tuple[StandingAuthorityGrant, ...]:
             window_seconds=3600.0,
             lease_ttl_seconds=120.0,
             argument_policy="her_mail_reply",
+            built_in=True,
+        ),
+        # LIVE 19 November 2026: "Can you remind me in 20 minutes to stretch my back?" A reminder was a record in her
+        # store, and nothing told the person when it came due (core/agency/reminders.py said so).
+        StandingAuthorityGrant(
+            grant_id=REMINDER_DUE_GRANT,
+            issuer="owner_policy",
+            description=(
+                "When a reminder a person asked for comes due, Aura may send its text to their desktop as a "
+                "notification. Nothing else is sent."
+            ),
+            allowed_origins=(REMINDER_DUE_ORIGIN,),
+            allowed_tools=tuple(sorted(REMINDER_DUE_TOOLS)),
+            allowed_effect_scopes=("external_io",),
+            max_risk="medium",
+            # No count: one notification for each reminder a person set, which is marked done when it goes out.
+            max_actions=0,
+            window_seconds=3600.0,
+            lease_ttl_seconds=120.0,
+            argument_policy="reminder_due",
             built_in=True,
         ),
         StandingAuthorityGrant(
