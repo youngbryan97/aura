@@ -127,6 +127,21 @@ def pytest_runtest_call(item):
         )
 
 
+def _torch_is_torch_for_teardown() -> None:
+    """Put the real torch back as a test is torn down, when the test stood in for it.
+
+    pytest-randomly reseeds every registered seeder as each test is torn down, before that test's fixtures are, and
+    thinc's seeder (thinc.api:fix_random_seed) calls torch.manual_seed, which imports torch.cuda through
+    sys.modules["torch"]. A test that had put a stand-in there with monkeypatch made that raise, the raise left its
+    fixtures unfinished, so the stand-in stayed, and every later test on that worker errored at teardown: 21 November
+    2026, 1,349 errors in one run, and tests/test_tracking_models_share_host_capacity.py alone gave 14 passed and 11
+    errors. The test's own monkeypatch undoes its change afterwards, as it always would.
+    """
+    real = getattr(sys.modules.get("torch.random"), "torch", None)
+    if real is not None and sys.modules.get("torch") is not real:
+        sys.modules["torch"] = real
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_teardown(item, nextitem):
     """Undo a proof signal a module's own fixtures turned on, when the module is done.
@@ -141,6 +156,7 @@ def pytest_runtest_teardown(item, nextitem):
     asserted, green alone and red after test_a_v25_report_refuses_what_it_did_not_measure.
     Only the variables that switch ``proof_run_active()`` are put back.
     """
+    _torch_is_torch_for_teardown()
     yield
     if _ENV_AT_START is None:
         return
