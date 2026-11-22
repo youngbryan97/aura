@@ -1105,6 +1105,13 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
         wanted = " ".join(str(expect_app or "").split()).lower()
         if not wanted:
             return None
+        # What the window server shows in front says yes in about two milliseconds; asking System Events took 143 ms
+        # (measured 22 November 2026), and it was asked before every click and every key: two clicks a move and one
+        # for every piece picked up, in a game on a three-minute clock. Anything but a plain yes is still asked of
+        # System Events, so nothing is refused that was not refused before.
+        shown = (await asyncio.to_thread(_owner_of_the_front_window)).lower()
+        if shown and (wanted in shown or shown in wanted):
+            return None
         context = await self.get_frontmost_window_context()
         observed = str(getattr(context, "result", "") or "")
         # Keep the name as the OS spelled it for the message, and compare on a
@@ -1788,6 +1795,18 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
 # ---------------------------------------------------------------------------
 
 _instance: HostAutomationProvider | None = None
+
+
+def _owner_of_the_front_window() -> str:
+    """The application whose ordinary window the window server shows in front of every other, or "" where it cannot
+    say. Read from the window list, front to back, which is what is drawn where; System Events is not asked."""
+    try:
+        from core.capabilities import window_server
+
+        return str(window_server.front_owner() or "")
+    # not a failure: without the window server's list the guard asks System Events, as it always did.
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return ""
 
 
 def get_host_automation() -> HostAutomationProvider:
