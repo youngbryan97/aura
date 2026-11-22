@@ -12,7 +12,8 @@ from typing import Any
 
 #: The order a day's changes are read in: what needs a person first.
 _STATES = ("undone, not yet taken back", "taken back out", "her gates refused it", "waits for Bryan",
-           "landed, waits for her next start", "landed, its load not recorded", "landed and loaded")
+           "waits for her own yes", "landed, waits for her next start", "landed, its load not recorded",
+           "landed and loaded")
 
 
 def _state(record: Any, offer: dict[str, Any] | None = None) -> str:
@@ -33,7 +34,13 @@ def _state(record: Any, offer: dict[str, Any] | None = None) -> str:
         return "landed and loaded" if loaded.get("functions") and not loaded.get("waits") else \
             "landed, waits for her next start"
     if current and record.status == OFFERED:
-        return "waits for Bryan"
+        # Her own yes takes a draft (Bryan, 9 and 18 November 2026); only one that changes her own governance waits for
+        # him. LIVE 22 November 2026 this page said "waits for Bryan" of two drafts waiting on her own gates since the
+        # 17th and the 20th.
+        from core.agency.her_goal_at_work import governs_her
+
+        return ("waits for Bryan" if any(governs_her(name) for name in offer.get("files") or [])
+                else "waits for her own yes")
     return "her gates refused it"
 
 

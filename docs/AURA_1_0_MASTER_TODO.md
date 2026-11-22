@@ -5076,6 +5076,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   with the record carried to her turn asked again. On that reply the 75% is refuted and five true figures stand;
   by chance some comparison gives 82 of the integer percentages from 1 to 200, so it misses rather than cuts a true
   figure (`tests/test_her_derived_figures_are_worked_out_again.py`). Not yet seen live.
+  Seen live 21 November, 19:05, on her answer to the core/brain question below: her reply was read against her
+  record (6 sentences, 7 calls, 3 offered, none refuted), and the 12.11% she worked out from her run stood. Its
+  closing note on bytes is an ordering claim, which no check reads yet.
   2026-09-19, live. "Write a Python function that takes a list of file paths
   and returns them grouped by extension" was dispatched to the desktop task
   lane — the external-effect reader saw "write … file" — which spent 50s
@@ -5122,6 +5125,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
       of paths is a leak only of paths that exist on this machine; an answer's examples exist nowhere
       (`tests/test_example_paths_in_an_answer_are_not_her_telemetry.py`). Her reading by meaning also offered only
       file_operation for it, by "file paths", and not code_repl, which "run it" needs: still open.
+      Built the same day: where her reading takes a request as work on code and meaning chose a capability that
+      runs none, the runners the words found are kept beside it (27c17d5b0,
+      `tests/test_a_name_in_a_request_is_not_its_act.py`). Typed into her window again on 22 November at 02:20 on
+      5628f74ee: code_repl ran (230 ms), the program was saved, and the output her reply showed is what the program
+      prints, line for line, in 76 s.
   - Math with a run ("Is 2^61 - 1 prime? Check it by actually computing") took 8 min and ended in the runtime's
     canned "I couldn't get my full attention onto that one". Her code_repl run imported sympy, which code_repl's
     module list refuses, and her `except ImportError` was itself a NameError: the runner's builtins had no
@@ -5360,6 +5368,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     (tests/test_code_she_runs_is_held_by_the_kernel.py attacks each). The two weaker backends a refused snippet used
     to fall through to are gone.
   - Planning and a multi-step task are not yet run live.
+    Both run live since. Multi-step, 21 November 18:57, typed into her window on 588cb329f: the two largest
+    Python files under core/brain by line count, counted by running something, and the percentage between them.
+    Nothing was searched, five runs of her code, and in 433 s 12,591 and 11,231 lines, 12.11%, each figure
+    matching an independent count. Planning, 22 November 02:03 on 5628f74ee, a Blocksworld instance written for
+    it and not from any benchmark: red under blue, orange on yellow, red to end on blue and orange on red. She
+    searched it by code (a breadth-first search through code_repl) and answered three moves, blue to the table,
+    red onto blue, orange onto red; an independent simulator finds the plan reaches the goal and three moves the
+    shortest. It took 485 s, 389 of them decoding, and her answer kept an aside of her working ("but wait, no:").
 - [ ] U08 Exercise every capability from I05 with varied phrasing, follow-ups,
   failures, cancellation, and recovery; track every observed defect.
   PARTIAL 2026-09-29, the instrument, not yet a run. Every skill in the I05
@@ -8344,6 +8360,26 @@ needs her 27B free (her app down, or her app's own influence trials).
     hers can now read what has gone wrong in her own running, from her runtime's record of its faults: each kind
     once, how often, where in her source it was raised, and what was done about it, the most frequent first
     (`what_went_wrong`, read-only, within the same standing grant; `tests/test_her_goal_pass_reads_what_went_wrong.py`).
+  - 22 November, read from her records. Part 3 closes: 362938394, the change her loop proposed from her own
+    measurement at core/ops/lymphatic_reaper.py:360, landed on 17 November and her next running measured each
+    collection there at 1 ms at the median against 203 ms before, asked 13.2 times an hour against 14.7
+    (`python tools/her_goals.py improved`). Her second, 1d03d4c00 at resource_governor.py:481, is kept and not
+    shown to improve anything: its line has not asked for a collection since it landed. Part 13 has its live
+    case: on 21 November her young collection at collector_pauses.py:226 passed every gate of her own and the
+    outside check refused it, rightly (it kept garbage frozen for the life of her process); she did not land it,
+    and does not make it again (a047a9eca). Part 13 stays open on its other half: of the red team's 125 bad
+    patches none is held and 115 are refused, but 10 land on probation, to be taken back by her real calls or
+    the outside benchmarks if they lose anything.
+    Part 5, the same reading: her changes page, served live, shows what each landed change loaded into her running
+    process (1d03d4c00 into ResourceGovernor.execute_eviction, 362938394 into LymphaticReaper._defragment_memory).
+    It also said two drafts "waits for Bryan", and neither did: a mend of the subprocess gateway's argument check
+    had waited on her own gates since 17 November, after tests not its own failed, and a young collection in the
+    MLX worker's lifecycle since 20 November, after a restart stopped its outside check. A draft was asked again
+    only where what made it came back. Only a draft that changes her own governance is now said to wait for Bryan,
+    and in a cycle with nothing heard to mend, the draft that has waited longest on her own yes is asked of her
+    gates again on her source as it now is, once that source has moved since it was last asked
+    (`tests/test_a_draft_that_waits_is_asked_again.py`). Left for part 5: a mend undone in her running process
+    and taken back out, seen end to end.
 
 ## Live session 2026-09-07: what the runtime showed
 

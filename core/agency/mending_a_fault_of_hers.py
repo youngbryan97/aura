@@ -500,10 +500,50 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
                 and not await asyncio.to_thread(_what_it_stalled_on_has_moved, record, fault.call.file, head))):
             continue
         return [await mend(fault, proposals=sys.maxsize, seconds=seconds)]
-    # Nothing heard to mend: a change for a cost her running measures, or the judgement of one she made (F16, part 3).
+    # Nothing heard to mend: a draft of hers that waits on her own yes is asked again, once her source has moved.
+    asked = await _ask_again_of_a_draft_that_waits()
+    if asked is not None:
+        return [asked]
+    # Then a change for a cost her running measures, or the judgement of one she made (F16, part 3).
     from core.agency.improving_by_measurement import improve_by_measurement
 
     return await improve_by_measurement()
+
+
+async def _ask_again_of_a_draft_that_waits() -> dict[str, Any] | None:
+    """The draft of hers that has waited longest on her own yes, asked of her gates again on her source as it now is,
+    when that source has moved since it was last asked: one a cycle, and none that changes her own governance.
+
+    A draft is asked again where what made it comes back: a fault heard again, a cost measured again. Where it does not,
+    it waited for good. LIVE 22 November 2026: her mend of the subprocess gateway's argument check had waited since 17
+    November, after tests that were not its own failed, and her young collection in the MLX worker's lifecycle since
+    20 November, after a restart stopped its outside check, both said on her changes page to wait for Bryan.
+    """
+    import time
+
+    from core.agency import her_goal_at_work as goals
+
+    head = await asyncio.to_thread(goals.source_head)
+    if not head:
+        return None
+    waiting = [record for record in await asyncio.to_thread(goals.all_records)
+               if record.status == goals.OFFERED and record.offer.get("asked_on") != head
+               and not any(goals.governs_her(name) for name in record.offer.get("files") or [])]
+    if not waiting:
+        return None
+    record = min(waiting, key=lambda each: float(each.offer.get("asked_at") or each.offer.get("at") or 0.0))
+    record.offer = {**record.offer, "asked_on": head, "asked_at": time.time()}
+    await goals.save(record)
+    try:
+        await asyncio.to_thread(goals.ensure_workspace, record)
+    except (RuntimeError, OSError) as exc:
+        record_degradation("her_goal_at_work", exc, severity="warning",
+                           action="her waiting draft was not asked again: its workspace could not be brought up")
+        return {"slug": record.slug, "status": record.status, "why": f"{type(exc).__name__}: {exc}"[:240]}
+    done = await asyncio.to_thread(goals.take_it_herself, record.slug)
+    after = goals.load(record.slug)
+    return {"slug": record.slug, "status": after.status if after is not None else record.status,
+            "why": str(done.get("why") or ("taken" if done.get("ok") else ""))}
 
 
 __all__ = ["InHerWorkspace", "goal_for", "her_own_python_first", "mend", "mend_the_faults_she_heard"]
