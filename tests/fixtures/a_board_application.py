@@ -14,7 +14,16 @@ import random
 import numpy as np
 from PIL import Image, ImageDraw
 
-from core.agency.pieces_by_their_kind import FIRST, SECOND, Family, Move, Position, after, moves, outcome
+from core.agency.pieces_by_their_kind import (
+    FIRST,
+    SECOND,
+    Family,
+    Move,
+    Position,
+    after,
+    moves,
+    outcome,
+)
 from core.agency.searching_by_kind import search
 
 SHAPES = ("circle", "triangle", "square", "diamond", "cross", "star", "bar", "ring")
@@ -66,6 +75,8 @@ class BoardApplication:
         if not she_goes_first:
             self.position = Position(cells=self.position.cells, turn=SECOND, unmoved=self.position.unmoved)
         self.picked: tuple[int, int] | None = None
+        #: Squares landed on so far by a move that takes over again, made a landing at a time.
+        self.path: list[tuple[int, int]] = []
         self.last: set[tuple[int, int]] = set()
         self.answers_in_s = answers_in_s
         shapes = list(SHAPES)
@@ -93,7 +104,9 @@ class BoardApplication:
         draw = ImageDraw.Draw(image)
         offers = set()
         if self.picked is not None:
-            offers = {m.end for m in moves(self.family, self.position) if m.start == self.picked}
+            # As a board shows a move that lands more than once: its next landing.
+            offers = {(m.via + (m.end,))[len(self.path)] for m in moves(self.family, self.position)
+                      if m.start == self.picked and list((m.via + (m.end,))[:len(self.path)]) == self.path}
         for row in range(self.family.rows):
             for column in range(self.family.columns):
                 x0 = self.margin + column * self.square
@@ -133,13 +146,25 @@ class BoardApplication:
             if not self.keeps_it_picked:
                 self.picked = None
             return True
-        chosen = [m for m in moves(self.family, self.position) if m.start == self.picked and m.end == square]
+        mine = [m for m in moves(self.family, self.position) if m.start == self.picked]
+        landed = [*self.path, square]
+        going = [m for m in mine if list((m.via + (m.end,))[:len(landed)]) == landed]
+        chosen = [m for m in going if len(m.via) + 1 == len(landed)]
+        if not chosen and not self.path:
+            chosen = [m for m in mine if m.end == square]
         if chosen:
+            self.path = []
             self.make(chosen[0])
-        elif self.keeps_it_picked and square in self.position.cells and self.position.cells[square][0] == FIRST:
+            self.picked = None
+            return True
+        if going:
+            self.path = landed
+            return True
+        if self.keeps_it_picked and square in self.position.cells and self.position.cells[square][0] == FIRST:
             self.picked = square
             return True
         self.picked = None
+        self.path = []
         return True
 
     def make(self, move: Move) -> None:

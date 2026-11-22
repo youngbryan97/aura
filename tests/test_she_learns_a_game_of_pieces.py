@@ -2,8 +2,9 @@
 the game offers and what she watches, follows every move, and plays to the end.
 
 The games here are hidden worlds (tests/fixtures/a_game_of_pieces_to_learn.py): chess, because published move counts
-check the vocabulary can hold a real game exactly, and a game nobody plays, so a learner that has quietly come to know
-chess shows it by failing there.
+check the vocabulary can hold a real game exactly; draughts, whose pieces take by leaping over, again and again, where a
+side that can take must; and a game nobody plays, so a learner that has quietly come to know chess shows it by failing
+there.
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ from core.agency.pieces_by_their_kind import FIRST, after, moves, outcome
 from core.agency.searching_by_kind import described, placed
 from core.perception.pieces_by_their_look import Looks, squares_of_one_ground
 from tests.fixtures.a_board_application import BoardApplication
-from tests.fixtures.a_game_of_pieces_to_learn import CHESS, NOBODYS_GAME, from_fen
+from tests.fixtures.a_game_of_pieces_to_learn import CHESS, DRAUGHTS, NOBODYS_GAME, from_fen
 
 #: Published move counts (perft): the position, and the number of move sequences of each length from it.
 PUBLISHED = (
@@ -63,7 +64,9 @@ def _learned_by_playing(hidden, plies: int, seed: int) -> HowThePiecesMove:
             family = learned.family()
             for square, (side, _kind) in list(position.cells.items()):
                 if side == FIRST:
-                    learned.offered(position, square, {m.end for m in legal if m.start == square}, family=family)
+                    # What a board offers for a piece picked up is where each move first lands.
+                    learned.offered(position, square, {(*m.via, m.end)[0] for m in legal if m.start == square},
+                                    family=family)
         move = rng.choice(legal)
         learned.watched(position, move)
         position = after(hidden, position, move)
@@ -79,19 +82,26 @@ def _agreement(hidden, learned_family, positions: int, seed: int) -> float:
             position = hidden.the_start()
             continue
         tested += 1
-        exact += {(m.start, m.end, m.becomes) for m in legal} == {
-            (m.start, m.end, m.becomes) for m in moves(learned_family, position)}
+        exact += {(m.start, m.end, m.becomes, frozenset(m.taken())) for m in legal} == {
+            (m.start, m.end, m.becomes, frozenset(m.taken())) for m in moves(learned_family, position)}
         position = after(hidden, position, rng.choice(legal))
     return exact / max(1, tested)
 
 
-@pytest.mark.parametrize("hidden", [CHESS, NOBODYS_GAME], ids=["chess", "nobodys_game"])
+@pytest.mark.parametrize("hidden", [CHESS, DRAUGHTS, NOBODYS_GAME], ids=["chess", "draughts", "nobodys_game"])
 def test_she_learns_how_the_pieces_move_from_the_game_alone(hidden) -> None:
     learned = _learned_by_playing(hidden, plies=300, seed=1)
     family = learned.family()
     assert _agreement(hidden, family, positions=200, seed=7) >= 0.9
     royal = [k for k, kind in family.kinds.items() if kind.royal]
     assert royal == [k for k, kind in hidden.kinds.items() if kind.royal]
+
+
+def test_she_learns_that_in_draughts_a_side_that_can_take_must() -> None:
+    family = _learned_by_playing(DRAUGHTS, plies=300, seed=1).family()
+    assert family.takes_first and not _learned_by_playing(CHESS, plies=300, seed=1).family().takes_first
+    assert all(kind.takes_again for kind in family.kinds.values())
+    assert family.kinds["M"].becomes == ("K",)
 
 
 def test_she_holds_no_game_of_her_own() -> None:

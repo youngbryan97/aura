@@ -42,6 +42,8 @@ struct KindD {
     becomes: Vec<String>,
     cannot_go_back: bool,
     crosses_with: String,
+    #[serde(default)]
+    takes_again: bool,
 }
 
 #[derive(Deserialize)]
@@ -52,6 +54,8 @@ struct FamilyD {
     count_to_draw: i32,
     repeats_to_draw: i32,
     no_move_unattacked: String,
+    #[serde(default)]
+    takes_first: bool,
 }
 
 #[derive(Deserialize, Clone)]
@@ -117,8 +121,11 @@ const HIDDEN_AT_MOST: usize = 256;
 #[derive(Clone)]
 struct Step {
     deltas: [Vec<i32>; 2],
+    /// Per side, each offset's one square along its line, and how many such squares the offset is.
+    units: [Vec<i32>; 2],
+    lengths: Vec<i32>,
     rides: i32,
-    may: u8, // 0 either, 1 only moves, 2 only takes
+    may: u8, // 0 either, 1 only moves, 2 only takes, 3 takes over: beyond one piece of the other side, which it takes
     only_unmoved: bool,
     leaves_passable: bool,
     takes_in_passing: bool,
@@ -132,6 +139,10 @@ struct Kind {
     becomes: Vec<u8>,
     cannot_go_back: bool,
     crosses_with: Option<u8>,
+    /// Having taken over, it takes over again from where it landed while it can, in the same move.
+    takes_again: bool,
+    /// It has a step that takes over.
+    takes_over: bool,
     worth: i32,
     mobility: i32,
     squares: [Vec<i32>; 2],
@@ -148,6 +159,8 @@ struct Game {
     count_to_draw: i32,
     repeats_to_draw: i32,
     no_move_draws: bool,
+    /// A side that can take must.
+    takes_first: bool,
     tempo: i32,
     royal_pressed: i32,
     /// The most one quiet move moved her judgement at the position a search began from, the turn's own worth left
@@ -203,19 +216,35 @@ impl Game {
             let mut steps = Vec::new();
             for s in &k.steps {
                 let mut deltas: [Vec<i32>; 2] = [Vec::new(), Vec::new()];
+                let mut units: [Vec<i32>; 2] = [Vec::new(), Vec::new()];
+                let mut lengths = Vec::new();
+                for (fw, rt) in &s.offsets {
+                    let mut a = fw.abs();
+                    let mut b = rt.abs();
+                    while b != 0 {
+                        let t = a % b;
+                        a = b;
+                        b = t;
+                    }
+                    lengths.push(a.max(1));
+                }
                 for side in 0..2 {
                     let ahead = if side == 0 { 1 } else { -1 };
-                    for (fw, rt) in &s.offsets {
+                    for (i, (fw, rt)) in s.offsets.iter().enumerate() {
                         deltas[side].push(fw * ahead * stride + rt * ahead);
+                        units[side].push((fw / lengths[i]) * ahead * stride + (rt / lengths[i]) * ahead);
                     }
                 }
                 let may = match s.may.as_str() {
                     "moves" => 1,
                     "takes" => 2,
+                    "takes over" => 3,
                     _ => 0,
                 };
                 steps.push(Step {
                     deltas,
+                    units,
+                    lengths,
                     rides: s.rides,
                     may,
                     only_unmoved: s.only_unmoved,
@@ -252,6 +281,7 @@ impl Game {
                     }
                 }
             }
+            let takes_over = steps.iter().any(|s| s.may == 3);
             kinds.push(Kind {
                 letter: k.letter.clone(),
                 steps,
@@ -259,6 +289,8 @@ impl Game {
                 becomes,
                 cannot_go_back: k.cannot_go_back,
                 crosses_with,
+                takes_again: k.takes_again,
+                takes_over,
                 worth,
                 mobility,
                 squares,
@@ -314,6 +346,7 @@ impl Game {
             count_to_draw: f.count_to_draw,
             repeats_to_draw: f.repeats_to_draw,
             no_move_draws: f.no_move_unattacked == "draw",
+            takes_first: f.takes_first,
             tempo: w.tempo.round() as i32,
             royal_pressed: w.royal_pressed.round() as i32,
             margin: AtomicI32::new(0),
@@ -344,6 +377,9 @@ impl Game {
     }
 }
 
+/// The most pieces one move may take after its first, by taking over again: a move that would take more is not made.
+const MORE: usize = 11;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Move {
     from: u16,
@@ -352,11 +388,15 @@ struct Move {
     taken_at: u16,
     partner_from: u16,
     partner_to: u16,
+    /// The pieces a move that took again took after ``taken_at``, in order of square, so one set taken is one move.
+    more: [u16; MORE],
+    n_more: u8,
 }
 
 impl Move {
     fn null() -> Move {
-        Move { from: NONE, to: NONE, becomes: 0, taken_at: NONE, partner_from: NONE, partner_to: NONE }
+        Move { from: NONE, to: NONE, becomes: 0, taken_at: NONE, partner_from: NONE, partner_to: NONE,
+               more: [NONE; MORE], n_more: 0 }
     }
 }
 
@@ -364,7 +404,8 @@ struct Undo {
     m: Move,
     moved: u8,
     captured: u8,
-    unmoved_cleared: [u16; 4],
+    captured_more: [u8; MORE],
+    unmoved_cleared: [u16; 4 + MORE],
     passable: Option<(u16, u16)>,
     count: i32,
     hash: u64,
@@ -463,8 +504,11 @@ impl Board {
     fn attacked(&self, g: &Game, sq: usize, by: usize) -> bool {
         for (ki, k) in g.kinds.iter().enumerate() {
             let want = code(ki, by);
+            if k.takes_over && self.taken_over(sq, by, k, want) {
+                return true;
+            }
             for s in &k.steps {
-                if s.may == 1 {
+                if s.may == 1 || s.may == 3 {
                     continue;
                 }
                 for &d in &s.deltas[by] {
@@ -493,6 +537,58 @@ impl Board {
         false
     }
 
+    /// Whether a piece ``want`` of ``by`` could take over the piece on ``sq``: from a square behind it on a line of one
+    /// of its take overs, the way clear, onto an empty square beyond.
+    fn taken_over(&self, sq: usize, by: usize, k: &Kind, want: u8) -> bool {
+        for s in &k.steps {
+            if s.may != 3 {
+                continue;
+            }
+            for (i, &d) in s.deltas[by].iter().enumerate() {
+                let u = s.units[by][i];
+                let n = s.lengths[i];
+                if s.rides == 1 {
+                    for j in 1..n {
+                        let a = sq as i32 - u * j;
+                        if a < 0 || a as usize >= self.cells.len() || self.cells[a as usize] != want
+                            || (s.only_unmoved && !self.unmoved[a as usize]) {
+                            continue;
+                        }
+                        let end = a + d;
+                        if end < 0 || end as usize >= self.cells.len() || self.cells[end as usize] != EMPTY {
+                            continue;
+                        }
+                        if (1..n).all(|x| x == j || self.cells[(a + u * x) as usize] == EMPTY) {
+                            return true;
+                        }
+                    }
+                    continue;
+                }
+                let beyond = sq as i32 + u;
+                if beyond < 0 || beyond as usize >= self.cells.len() || self.cells[beyond as usize] != EMPTY {
+                    continue;
+                }
+                let mut t = sq as i32 - u;
+                let mut times = 1;
+                while t >= 0 && (t as usize) < self.cells.len() {
+                    let c = self.cells[t as usize];
+                    if c == OFF {
+                        break;
+                    }
+                    if c != EMPTY {
+                        if c == want && (s.rides == 0 || times < s.rides) && (!s.only_unmoved || self.unmoved[t as usize]) {
+                            return true;
+                        }
+                        break;
+                    }
+                    t -= u;
+                    times += 1;
+                }
+            }
+        }
+        false
+    }
+
     /// One walk of the reach of every piece of ``side``: per kind the moves its pieces have, as ``possible`` counts
     /// them (a promotion once for each kind it may become; crossings left out), and per square how many of the side's
     /// pieces could take there. What ``attacked`` answers for one square, this answers for all of them at once.
@@ -510,8 +606,19 @@ impl Board {
                 seen.fill(0);
                 *stamp = 1;
             }
+            if k.takes_over {
+                let mut hops = Vec::new();
+                self.hops(sq, sq, side, k, &[], &mut hops);
+                for (end, victim) in hops {
+                    attacks[victim] = attacks[victim].saturating_add(1);
+                    if seen[end] != *stamp {
+                        seen[end] = *stamp;
+                        mobility[ki] += 1;
+                    }
+                }
+            }
             for s in &k.steps {
-                if s.only_unmoved && !self.unmoved[sq] {
+                if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 {
                     continue;
                 }
                 for &d in &s.deltas[side] {
@@ -566,6 +673,7 @@ impl Board {
     fn possible(&self, g: &Game, out: &mut Vec<Move>, only_takes: bool) {
         let side = self.turn;
         let far = g.far_row(side);
+        let begin = out.len();
         for &sq in &g.on_board {
             let c = self.cells[sq];
             if c == EMPTY || side_of(c) != side {
@@ -574,7 +682,7 @@ impl Board {
             let k = &g.kinds[kind_of(c)];
             let start = out.len();
             for s in &k.steps {
-                if s.only_unmoved && !self.unmoved[sq] {
+                if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 {
                     continue;
                 }
                 if only_takes && s.may == 1 && k.becomes.is_empty() {
@@ -606,14 +714,7 @@ impl Board {
                             taken = t as u16;
                         }
                         if ok {
-                            let base = Move {
-                                from: sq as u16,
-                                to: t as u16,
-                                becomes: 0,
-                                taken_at: taken,
-                                partner_from: NONE,
-                                partner_to: NONE,
-                            };
+                            let base = Move { from: sq as u16, to: t as u16, taken_at: taken, ..Move::null() };
                             if !k.becomes.is_empty() && g.row(t as usize) == far {
                                 for &b in &k.becomes {
                                     let m = Move { becomes: b + 1, ..base };
@@ -643,6 +744,113 @@ impl Board {
                     }
                 }
             }
+            if k.takes_over {
+                let mut taken: Vec<u16> = Vec::with_capacity(MORE + 1);
+                let from_here = out.len();
+                self.take_over_from(g, sq, sq, side, k, far, &mut taken, out, from_here);
+            }
+        }
+        if g.takes_first && out[begin..].iter().any(|m| m.taken_at != NONE) {
+            let takes: Vec<Move> = out.drain(begin..).filter(|m| m.taken_at != NONE).collect();
+            out.extend(takes);
+        }
+    }
+
+    /// Each take over a piece of ``k`` could make from ``at``, having begun its move on ``origin`` (empty now) and taken
+    /// ``taken`` (standing still until the move ends): where it lands, and what it takes.
+    fn hops(&self, origin: usize, at: usize, side: usize, k: &Kind, taken: &[u16], found: &mut Vec<(usize, usize)>) {
+        let empty = |q: usize| q == origin || self.cells[q] == EMPTY;
+        for s in &k.steps {
+            if s.may != 3 || (s.only_unmoved && !self.unmoved[origin]) {
+                continue;
+            }
+            for (i, &d) in s.deltas[side].iter().enumerate() {
+                let u = s.units[side][i];
+                let n = s.lengths[i];
+                if s.rides == 1 {
+                    let end = (at as i32 + d) as usize;
+                    if self.cells[end] == OFF || !empty(end) {
+                        continue;
+                    }
+                    let mut victim = None;
+                    let mut standing = 0;
+                    for j in 1..n {
+                        let q = (at as i32 + u * j) as usize;
+                        if !empty(q) {
+                            standing += 1;
+                            victim = Some(q);
+                        }
+                    }
+                    if standing == 1 {
+                        let v = victim.unwrap();
+                        if side_of(self.cells[v]) != side && !taken.contains(&(v as u16)) {
+                            found.push((end, v));
+                        }
+                    }
+                    continue;
+                }
+                let mut t = at as i32 + u;
+                let mut times = 1;
+                let mut victim: Option<usize> = None;
+                loop {
+                    let q = t as usize;
+                    if self.cells[q] == OFF || (s.rides != 0 && times > s.rides) {
+                        break;
+                    }
+                    if !empty(q) {
+                        if victim.is_some() || side_of(self.cells[q]) == side || taken.contains(&(q as u16)) {
+                            break;
+                        }
+                        victim = Some(q);
+                    } else if let Some(v) = victim {
+                        found.push((q, v));
+                    }
+                    t += u;
+                    times += 1;
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn take_over_from(&self, g: &Game, origin: usize, at: usize, side: usize, k: &Kind, far: i32, taken: &mut Vec<u16>,
+                      out: &mut Vec<Move>, from_here: usize) {
+        let mut found = Vec::new();
+        self.hops(origin, at, side, k, taken, &mut found);
+        if found.is_empty() {
+            if !taken.is_empty() {
+                Board::push_chain(origin, at, 0, taken, out, from_here);
+            }
+            return;
+        }
+        for (end, victim) in found {
+            taken.push(victim as u16);
+            if !k.becomes.is_empty() && g.row(end) == far {
+                for &b in &k.becomes {
+                    Board::push_chain(origin, end, b + 1, taken, out, from_here);
+                }
+            } else if k.takes_again && taken.len() <= MORE {
+                self.take_over_from(g, origin, end, side, k, far, taken, out, from_here);
+            } else {
+                Board::push_chain(origin, end, 0, taken, out, from_here);
+            }
+            taken.pop();
+        }
+    }
+
+    fn push_chain(origin: usize, end: usize, becomes: u8, taken: &[u16], out: &mut Vec<Move>, from_here: usize) {
+        if taken.is_empty() || taken.len() > MORE + 1 {
+            return;
+        }
+        let mut sorted = taken.to_vec();
+        sorted.sort_unstable();
+        let mut m = Move { from: origin as u16, to: end as u16, becomes, taken_at: sorted[0], ..Move::null() };
+        for (i, &q) in sorted[1..].iter().enumerate() {
+            m.more[i] = q;
+        }
+        m.n_more = (sorted.len() - 1) as u8;
+        if !out[from_here..].contains(&m) {
+            out.push(m);
         }
     }
 
@@ -656,6 +864,10 @@ impl Board {
                 continue;
             }
             let way = if c > col { 1 } else { -1 };
+            if (c - col).abs() <= 2 {
+                // The partner must stand beyond where the royal lands.
+                continue;
+            }
             let mut clear = true;
             let mut x = col + way;
             while x != c {
@@ -679,10 +891,9 @@ impl Board {
             out.push(Move {
                 from: sq as u16,
                 to: g.sq(row, end_c) as u16,
-                becomes: 0,
-                taken_at: NONE,
                 partner_from: p as u16,
                 partner_to: g.sq(row, col + way) as u16,
+                ..Move::null()
             });
         }
     }
@@ -693,7 +904,7 @@ impl Board {
             if self.cells[sq] != EMPTY {
                 self.hash ^= g.zob_unmoved[sq];
             }
-            if *slot < 4 {
+            if *slot < 4 + MORE {
                 undo.unmoved_cleared[*slot] = sq as u16;
                 *slot += 1;
             }
@@ -708,7 +919,8 @@ impl Board {
             m,
             moved,
             captured: EMPTY,
-            unmoved_cleared: [NONE; 4],
+            captured_more: [EMPTY; MORE],
+            unmoved_cleared: [NONE; 4 + MORE],
             passable: self.passable,
             count: self.count,
             hash: self.hash,
@@ -722,6 +934,13 @@ impl Board {
             self.clear_unmoved(g, at, &mut undo, &mut slot);
             undo.captured = self.cells[at];
             self.hash ^= g.zob_piece[undo.captured as usize * g.size + at];
+            self.cells[at] = EMPTY;
+        }
+        for i in 0..m.n_more as usize {
+            let at = m.more[i] as usize;
+            self.clear_unmoved(g, at, &mut undo, &mut slot);
+            undo.captured_more[i] = self.cells[at];
+            self.hash ^= g.zob_piece[undo.captured_more[i] as usize * g.size + at];
             self.cells[at] = EMPTY;
         }
         self.clear_unmoved(g, to, &mut undo, &mut slot);
@@ -774,6 +993,9 @@ impl Board {
         self.cells[from] = u.moved;
         if m.taken_at != NONE {
             self.cells[m.taken_at as usize] = u.captured;
+        }
+        for i in 0..m.n_more as usize {
+            self.cells[m.more[i] as usize] = u.captured_more[i];
         }
         for &sq in &u.unmoved_cleared {
             if sq != NONE {

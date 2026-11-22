@@ -59,6 +59,23 @@ NOBODYS_GAME = Family(
 )
 
 
+#: Draughts as English players play it, for tests of the vocabulary's reach only: men on the dark squares step forward
+#: on the diagonal and take by leaping over, again and again while they can; a man reaching the far row becomes a king,
+#: which goes both ways; a side that can take must; a side with no move has lost.
+_MAN_STEPS = (Step(((1, 1), (1, -1)), may="moves"), Step(((2, 2), (2, -2)), may="takes over"))
+_KING_STEPS = (Step(((1, 1), (1, -1), (-1, 1), (-1, -1)), may="moves"),
+               Step(((2, 2), (2, -2), (-2, 2), (-2, -2)), may="takes over"))
+DRAUGHTS = Family(
+    name="draughts", rows=8, columns=8,
+    kinds={
+        "M": Kind("M", name="man", steps=_MAN_STEPS, becomes=("K",), cannot_go_back=True, takes_again=True),
+        "K": Kind("K", name="king", steps=_KING_STEPS, takes_again=True),
+    },
+    start={**{(r, c): (FIRST, "M") for r in range(3) for c in range(8) if (r + c) % 2 == 0},
+           **{(r, c): (SECOND, "M") for r in range(5, 8) for c in range(8) if (r + c) % 2 == 0}},
+    count_to_draw=80, no_move_unattacked="loses", takes_first=True,
+)
+
 def from_fen(fen: str) -> Position:
     """A chess position written the usual way, for the published counts."""
     board, turn, rights, passing = fen.split()[:4]

@@ -148,11 +148,11 @@ def described(family: Family) -> str:
                        "only_unmoved": s.only_unmoved, "leaves_passable": s.leaves_passable,
                        "takes_in_passing": s.takes_in_passing} for s in kind.steps],
             "royal": kind.royal, "becomes": list(kind.becomes), "cannot_go_back": kind.cannot_go_back,
-            "crosses_with": kind.crosses_with,
+            "crosses_with": kind.crosses_with, "takes_again": kind.takes_again,
         })
     return json.dumps({"rows": family.rows, "columns": family.columns, "kinds": kinds,
                        "count_to_draw": family.count_to_draw, "repeats_to_draw": family.repeats_to_draw,
-                       "no_move_unattacked": family.no_move_unattacked})
+                       "no_move_unattacked": family.no_move_unattacked, "takes_first": family.takes_first})
 
 
 def _position_data(position: Position) -> dict[str, Any]:

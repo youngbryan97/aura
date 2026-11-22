@@ -428,13 +428,25 @@ class Looks:
             return 0
         return int(np.argmin([abs(colour - s) for s in self.sides]))
 
-    def _kind_of(self, look: np.ndarray) -> int:
+    def learn_at(self, picture: np.ndarray, lattice: Lattice, row: int, column: int,
+                 among: set[int] | None = None) -> int | None:
+        """The look of the piece on one square taken as a kind: one she knows where it is like one, else a new one.
+        For a piece the game has just changed, not for a reading of the board, where a mark is not a kind. ``among``
+        is the kinds it may be, where some are known not to be its: a look like only those is a new kind."""
+        square = lattice.square(np.asarray(picture), row, column)
+        silhouette = _silhouette(square) if square.size else None
+        if silhouette is None:
+            return None
+        return self._kind_of(_look(silhouette, square), among)
+
+    def _kind_of(self, look: np.ndarray, among: set[int] | None = None) -> int:
         """The kind a look is, a new one where it is like none kept; a kind's look is kept as the first seen of it."""
-        if self.kinds:
-            apart = [_apart(look, kind) for kind in self.kinds]
+        choices = [i for i in range(len(self.kinds)) if among is None or i in among]
+        if choices:
+            apart = [_apart(look, self.kinds[i]) for i in choices]
             nearest = int(np.argmin(apart))
             if apart[nearest] <= self.cut:
-                return nearest
+                return choices[nearest]
         self.kinds.append(look)
         return len(self.kinds) - 1
 
