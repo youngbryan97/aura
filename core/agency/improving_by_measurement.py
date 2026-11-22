@@ -134,6 +134,26 @@ async def _written(workspace: Path, path: str, text: str) -> None:
         await get_file_write_gateway().write_text_async(workspace / path, text, source="improving_by_measurement")
 
 
+def _refused_on_its_merits(record: Any) -> str:
+    """What a judging gate of hers said when it refused this change made before, having run to its end; "" when none
+    did. Such a change is not made again: offered again as it was, it would be refused again each time her source moved.
+
+    LIVE 21 November 2026, her young collection at core/runtime/collector_pauses.py:226 sits just before gc.freeze(),
+    and the outside check refused it: freeze_what_boot_made froze 16,172 objects where it had frozen 16,069, garbage a
+    full collection frees now kept for the life of her process.
+    """
+    from core.agency.her_goal_at_work import JUDGING_GATES
+
+    for offer in [*(record.offers_before or []), record.offer or {}]:
+        if offer.get("origin") != YOUNG_COLLECTION:
+            continue
+        for name in JUDGING_GATES:
+            gate = (offer.get("gates") or {}).get(name) or {}
+            if gate and not gate.get("passed") and gate.get("finished", True) and gate.get("verdict") == "REFUSED":
+                return f"{name} refused it: {str(gate.get('tail') or '')[-300:]}"
+    return ""
+
+
 def _measured_worse_before(record: Any) -> bool:
     """Whether this change was made before and her measurement found it no better: it is not made again."""
     return any(offer.get("origin") == YOUNG_COLLECTION and (offer.get("judged") or {}).get("kept") is False
@@ -156,6 +176,13 @@ async def _propose(cost: MeasuredCost) -> dict[str, Any]:
         return await _asked_again(record, cost)
     if _measured_worse_before(record):
         return {"slug": slug, "status": record.status, "why": "measured no better when it was made before"}
+    refused = _refused_on_its_merits(record)
+    if refused:
+        if record.status != goals.STALLED:
+            record.status, record.stalled_on = goals.STALLED, goals.source_head()
+            record.said.append({"words": f"Not made again: {refused}", "at": time.time()})
+            await goals.save(record)
+        return {"slug": slug, "status": goals.STALLED, "why": "refused on its merits when it was made before"}
     if record.status == goals.STALLED and record.stalled_on == goals.source_head():
         return {"slug": slug, "status": record.status, "why": "tried on this source"}
     record.status = goals.WORKING

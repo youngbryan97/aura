@@ -8252,6 +8252,13 @@ needs her 27B free (her app down, or her app's own influence trials).
     workspace, while her source still asks for the full collection there, is offered again, and an offered draft
     is asked again rather than passed over as "already offered"
     (`tests/test_she_improves_what_her_running_measures.py`).
+  - 21 November, read from her records: the draft refused at resource_governor.py:481 on 20 November passed all nine
+    of her gates in a developer's environment at 05:05 and landed on origin (1d03d4c00), the first of hers since
+    17 November. Her young collection at collector_pauses.py:226, just before gc.freeze(), was refused by the
+    outside check, rightly: freeze_what_boot_made froze 16,172 objects where it had frozen 16,069, garbage a full
+    collection frees now kept for the life of her process. Offered again as it was, it would have been refused
+    each time her source moved. A change a judging gate refused after running to its end is not made again at
+    that site (`tests/test_she_improves_what_her_running_measures.py`).
 
 ## Live session 2026-09-07: what the runtime showed
 

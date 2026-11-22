@@ -145,3 +145,41 @@ def test_her_refused_draft_replayed_onto_her_source_is_offered_again_and_not_sta
     assert again and again[0]["status"] == "merged", again
     assert "gc.collect(1)" in (her_source / "planted_gc" / "keeper.py").read_text()
     assert again[0]["loaded"]["functions"] == ["tidy"]
+
+
+def test_a_change_her_outside_check_refused_on_its_merits_is_not_made_again(her_source, monkeypatch):
+    """LIVE 21 November 2026: her young collection just before gc.freeze() was refused by the outside check (16,172
+    objects frozen where there had been 16,069). Offered again as it was, it would be refused each time her source
+    moved, ten minutes of gates a time."""
+    import planted_gc.keeper  # noqa: F401
+
+    monkeypatch.setattr(collector_pauses, "asked_for_collections",
+                        lambda since, until: {_SITE: _measured(10, 232)})
+    asked = []
+
+    def gates(record):
+        asked.append(record.slug)
+        return {"outside-check": {"passed": False, "finished": True, "verdict": "REFUSED",
+                                  "tail": "did not hold: an input that worked gives another value"}}
+
+    monkeypatch.setattr(goals, "the_gates_her_yes_asks", gates)
+    first = asyncio.run(improving.improve_by_measurement(since=0.0, now=1000.0))
+    slug = first[0]["slug"]
+    (her_source / "elsewhere.py").write_text("X = 1\n")
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A", cwd=her_source)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "her source moves on", cwd=her_source)
+
+    again = asyncio.run(improving.improve_by_measurement(since=0.0, now=1000.0))
+    assert asked == [slug], "her gates are not asked again"
+    assert again and again[0]["why"] == "refused on its merits when it was made before", again
+    record = goals.load(slug)
+    assert record.status == goals.STALLED and record.said[-1]["words"].startswith("Not made again: outside-check refused")
+    assert "gc.collect()" in (her_source / "planted_gc" / "keeper.py").read_text()
+
+
+def test_a_refusal_by_a_gate_that_judged_nothing_is_not_a_refusal_on_its_merits():
+    record = goals.GoalRecord(goal="g", slug="g", offer={
+        "origin": improving.YOUNG_COLLECTION,
+        "gates": {"tests": {"passed": False, "finished": True, "tail": "governance active"},
+                  "outside-check": {"passed": False, "finished": False, "verdict": "", "tail": ""}}})
+    assert improving._refused_on_its_merits(record) == ""
