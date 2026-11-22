@@ -1,16 +1,5 @@
 # Aura Model Card
 
-<!-- reader-navigation:start -->
-> **In plain English:** The language model supplies text generation. Steering changes selected internal calculations using a measured direction and a controlled strength.
->
-> **Why it matters:** An internal state should affect the intended part of a response while preserving competence and remaining tied to the measured model and basis.
->
-> **In everyday use:** A change in internal condition may alter how a reply is formed; a channel measurement must show the change rather than relying on the reply sounding different.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#models) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#models) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#steering) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
-<!-- reader-navigation:end -->
-
 Status: Guide · Configuration and capability wording reconciled 25 October 2026
 
 Aura uses local model lanes for conversation, vision, background work and

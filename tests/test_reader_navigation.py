@@ -1,31 +1,21 @@
-"""Reading notes preserve document bodies and keep frozen records untouched."""
+"""Reader navigation indexes and classifies Markdown pages."""
 from tools.render_reader_navigation import (
     BLOCK,
     CLOSE,
     OPEN,
     category,
     link,
-    with_card,
 )
 
 
-def test_adding_a_reading_note_preserves_every_original_body_byte():
+def test_removing_a_generated_header_preserves_every_body_byte():
     original = '# A measured mechanism\n\nStatus: Guide\n\n## Definition\n\n`x = 2`\n'
     card = f'{OPEN}\n> An explanation.\n{CLOSE}'
-    result = with_card(original, card)
-    assert BLOCK.sub('', result) == original
-    assert with_card(result, card) == result
+    with_header = original.replace('\n\n', f'\n\n{card}\n\n', 1)
+    assert BLOCK.sub('', with_header) == original
 
 
-def test_updating_a_reading_note_replaces_only_the_owned_block():
-    original = '# Topic\n\nAn equation and its dated result.\n'
-    first = with_card(original, f'{OPEN}\n> Old note.\n{CLOSE}')
-    revised = with_card(first, f'{OPEN}\n> New note.\n{CLOSE}')
-    assert 'Old note' not in revised
-    assert BLOCK.sub('', revised) == original
-
-
-def test_frozen_and_generated_records_never_receive_reader_cards():
+def test_frozen_and_generated_records_are_classified_separately():
     for name in ('docs/ISC_V6_PREREGISTRATION.md', 'docs/evidence/run.md',
                  'docs/AURA_EXECUTION_TRACKER.md', 'proof_kernel/report.md',
                  'docs/worktodo/RESULTS.md', 'docs/SETTINGS_WIRING_AUDIT.md',
@@ -40,15 +30,11 @@ def test_deep_page_links_stay_inside_the_repository():
     assert link('README.md', 'docs/ISC_STATUS.md') == 'docs/ISC_STATUS.md'
 
 
-def test_a_page_without_a_title_is_left_as_written():
-    original = 'A preserved fragment without a page heading.\n'
-    assert with_card(original, f'{OPEN}\n> Note.\n{CLOSE}') == original
-
-
 def test_a_reading_card_cannot_hide_a_historical_status():
     original = '# Earlier audit\n\nStatus: Historical\n\nA retained result.\n'
     card = f'{OPEN}\n' + '> Reading note.\n' * 80 + CLOSE
-    assert category('docs/earlier_audit.md', with_card(original, card)) == 'Historical or frozen record'
+    with_header = original.replace('\n\n', f'\n\n{card}\n\n', 1)
+    assert category('docs/earlier_audit.md', with_header) == 'Historical or frozen record'
 
 
 def test_current_obligations_are_not_labelled_a_frozen_record():

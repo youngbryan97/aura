@@ -1,16 +1,5 @@
 # Writing rules
 
-<!-- reader-navigation:start -->
-> **In plain English:** The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.
->
-> **Why it matters:** A reader should not treat an old proposed run as today’s result or a completed engineering task as a passed scientific check.
->
-> **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
-<!-- reader-navigation:end -->
-
 Status: Guide · Standing conventions for prose in this repository
 
 Everyone learned the em-dash trick, so the tells moved. These are the patterns
@@ -202,9 +191,8 @@ An illustration is labeled as an illustration; it is not an extra experiment.
 
 Keep the technical detail available after that introduction. A reader should
 be able to explain the idea aloud without first translating a dense paragraph.
-The shared [tour](PLAIN_ENGLISH_GUIDE.md) and
-[variable definitions](VARIABLES_EXPLAINED.md) support the page-specific reading
-notes; their source is `config/documentation_reading_topics.json`.
+Link to the [tour](PLAIN_ENGLISH_GUIDE.md) or [variable definitions](VARIABLES_EXPLAINED.md)
+where a reader needs background.
 
 Connect a claim to a witnessed demo, controlled result or source check where
 one exists. Label a planned demonstration as a plan. Cite primary research for
@@ -230,11 +218,9 @@ check the supporting passage, version and correction status again before
 submission. This extends the source-attribution convention above; it adds no
 automatic claim of scientific validity.
 
-`python tools/render_reader_navigation.py --check` verifies the generated
-reading notes and document map. It checks coverage and consistency; judging
-whether the explanation is clear and the comparison is warranted remains
-editorial work. Frozen protocols, historical evidence and compliance text
-retain their original wording and are indexed separately.
+`python tools/render_reader_navigation.py --check` checks the generated
+tour, glossary, variable guide, and document index. Read the prose yourself
+to check that it explains the subject and that the examples hold up.
 
 ## What this does not apply to
 

@@ -1,16 +1,5 @@
 # Recursive Self-Improvement (RSI) Architecture
 
-<!-- reader-navigation:start -->
-> **In plain English:** Learning changes later behavior using earlier outcomes. A kept procedure is executable work retained for reuse under a defined checking rule.
->
-> **Why it matters:** Experience should improve later work without accumulating unreliable shortcuts or expensive rules that no longer help.
->
-> **In everyday use:** After solving one kind of task, the system may reuse a checked procedure on a later task of that kind instead of deriving every step again.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#learning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#learning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#learning) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
-<!-- reader-navigation:end -->
-
 *Source policy reconciled 25 October 2026. Earlier module counts retain their
 15 September scope. Policy admission is separate from successful live repair.*
 

@@ -1,16 +1,5 @@
 # Runbook: Governance Receipt Missing
 
-<!-- reader-navigation:start -->
-> **In plain English:** Governance checks whether a proposed action is allowed and records the decision and relevant evidence.
->
-> **Why it matters:** The user needs meaningful control and a way to find out what was authorised, attempted and observed.
->
-> **In everyday use:** Before editing a file or sending information outside the machine, the action must be checked against the applicable scope and recorded honestly.
->
-> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#governance) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#governance) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
-> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
-<!-- reader-navigation:end -->
-
 **Diagnostic scope:** bundle members and field names below are examples to
 locate in the actual output, not a guaranteed schema on every revision.
 Collectors can report missing services or errors. A separate CLI process may

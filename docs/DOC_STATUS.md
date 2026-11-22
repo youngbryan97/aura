@@ -1,16 +1,5 @@
 # Documentation status map
 
-<!-- reader-navigation:start -->
-> **In plain English:** The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.
->
-> **Why it matters:** A reader should not treat an old proposed run as today’s result or a completed engineering task as a passed scientific check.
->
-> **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
-<!-- reader-navigation:end -->
-
 **Content review, 25 October 2026:** the link audit did not certify every
 linked statement. The [content audit](DOCUMENTATION_CONTENT_AUDIT.md) lists
 the stale claims corrected and the source-backed consistency checks added.

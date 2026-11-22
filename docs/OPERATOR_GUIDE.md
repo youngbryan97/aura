@@ -1,16 +1,5 @@
 # Aura — Operator Guide
 
-<!-- reader-navigation:start -->
-> **In plain English:** Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.
->
-> **Why it matters:** A reader needs to know which pieces must be installed, which resources they use, and which capabilities have actually been measured.
->
-> **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
-<!-- reader-navigation:end -->
-
 **Resource scope:** the commands below are alternatives to plan for a new,
 reserved environment, not an unattended install-and-test sequence on a host
 already running Aura. Read [CLAUDE.md](../CLAUDE.md), set a separate

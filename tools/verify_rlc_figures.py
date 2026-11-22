@@ -14,8 +14,8 @@ like a real one once it is prose.
 
 So each figure below names the artifact field it came from, and the gate
 recomputes it. A quoted number that no longer matches its source is a finding; a
-quoted number whose source is missing is a finding. Counts that only ever grow
-(modules, tools, tests, evidence directories) are held to a floor instead, since
+quoted number whose source is missing is a finding. The documented lower bounds
+for counts of modules, tools and tests are held to a floor instead, since
 an exact count would fail on the next checkpoint and earn this gate the right to
 be switched off.
 
@@ -98,7 +98,7 @@ SEMANTIC_PROGRAM_27B_REPLICATION = (
 )
 PREREG = "artifacts/current/latent_campaign_prereg_20260717.json"
 RUN2 = "artifacts/current/latent_campaign_1p5b_run2.json"
-SWEEP_32B = "artifacts/current/latent_lab_32b_exp1_templated.json"
+SWEEP_32B = "docs/evidence/rlc_32b_template_parity_sweep.json"
 
 #: Documents whose RLC figures are checked. Append-only records are excluded on
 #: purpose: the tracker and the ledger state what was true on the day of the
@@ -286,17 +286,12 @@ FLOORS: tuple[tuple[str, str, int], ...] = (
     ("core/brain/llm/latent_cortex/*.py", "156 modules", 156),
     ("tools/*", "55 `tools/` entry points", 55),
     ("tests/*", "231 test files", 231),
-    ("artifacts/closeout/latent_cortex/*", "over 250 frozen evidence entries", 250),
 )
 
 
 def _floor_count(pattern: str) -> int:
     directory, _, glob = pattern.rpartition("/")
     base = ROOT if (ROOT / directory).exists() else INSTALL
-    if directory.startswith("artifacts"):
-        # Evidence directories grow untracked, so the installation is the
-        # honest denominator even when the source is checked out elsewhere.
-        base = INSTALL
     entries = sorted((base / directory).glob(glob))
     if directory == "tools" or directory == "tests":
         return sum(

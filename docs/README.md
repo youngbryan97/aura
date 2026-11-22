@@ -1,149 +1,29 @@
-# docs/
+# Aura documentation
 
-This folder contains the project guides and research records, with dated evidence under [evidence/](evidence/).
+## Use Aura
 
-If you need to check *whether a document is up to date*, see [DOC_STATUS.md](DOC_STATUS.md). It categorizes files into current docs, historical records, auto-generated files, and standards. Check there first if something looks unexpected.
+- Install it from source on an Apple Silicon Mac. [Installation](../INSTALL.md)
+- Chat, use voice, and manage saved memories. [User guide](USER_GUIDE.md)
+- Find configuration, logs, and maintenance commands. [Operator guide](OPERATOR_GUIDE.md)
+- Diagnose a fault. [Runbooks](runbooks/)
 
-## Start without the jargon
+## Understand the system
 
-Read [the plain-English tour](PLAIN_ENGLISH_GUIDE.md) for the project's moving
-parts, [variables and practical examples](VARIABLES_EXPLAINED.md) for the
-numbers, and [the complete document map](DOCUMENTATION_INDEX.md) to choose a
-page. For the subjecthood research, use [ISC explained](ISC_EXPLAINED.md).
-Technical specifications and original evidence remain available alongside them.
-The [scientific source map](SCIENCE_AND_SOURCES.md) explains the research
-connections and their limits; the [BibTeX bibliography](../research/references.bib)
-provides citation keys for a future paper.
+- Follow a request from chat through memory, the model, and tool execution.
+  [How Aura works](../HOW_IT_WORKS.md)
+- Look up subsystems and interfaces. [Architecture](../ARCHITECTURE.md)
+- Find a term, variable, or calculation. [Glossary](GLOSSARY.md) · [Variables](VARIABLES_EXPLAINED.md) · [Formulas](FORMULAS.md)
 
-Use [the alphabetical glossary](GLOSSARY.md) to look up a term and
-[the formula guide](FORMULAS.md) for symbols, units, worked arithmetic,
-practical meaning and source links. A resolved hyperlink is not a content
-review; [the content audit](DOCUMENTATION_CONTENT_AUDIT.md) records the
-contradictions corrected and the limits of the checks.
+## Read the research
 
-## Running it
+- See which capabilities were measured and under what conditions. [Claim matrix](../CLAIMS_MATRIX.md) · [Demos and related work](DEMOS_AND_RELATED_WORK.md)
+- Read the computational subjecthood study. [Introduction](ISC_EXPLAINED.md) · [Results](ISC_STATUS.md) · [Replication](ISC_REPRODUCTION.md)
+- Follow the work on model recurrence and reasoning procedures. [Reasoning experiments](RECURSIVE_LATENT_CORTEX.md)
+- Find the published studies behind the design. [Research sources](SCIENCE_AND_SOURCES.md)
 
-| | |
-|---|---|
-| [USER_GUIDE.md](USER_GUIDE.md) | How to use the app day-to-day |
-| [OPERATOR_GUIDE.md](OPERATOR_GUIDE.md) | Running Aura on your own machine — requirements, diagnostics, settings, and troubleshooting |
-| [runbooks/](runbooks/) | Step-by-step guides for fixing problems, based on output from `aura doctor --bundle` |
-| [SLO.md](SLO.md) | Runtime performance and reliability targets (Service Level Objectives), tested in CI |
-| [PLATFORM_POSTURE.md](PLATFORM_POSTURE.md) | Architectural choices (no RBAC, no SSO, single-user only, manual disaster recovery, approved plugins) and how code enforces them |
+## Find a specific file
 
-## Understanding it
-
-| | |
-|---|---|
-| [ARCHITECTURE_MAP.md](ARCHITECTURE_MAP.md) | System dependency map — components, connections, and startup order (auto-generated) |
-| [ONTOLOGY.md](ONTOLOGY.md) | Core concepts and definitions, verified by automated tests |
-| [TERMINOLOGY.md](TERMINOLOGY.md) | Glossary translating internal project names to standard engineering terms |
-| [RUNTIME_CONTRACT.md](RUNTIME_CONTRACT.md) | System health and behavior contracts, generated from `health_contract.py` |
-| [FMEA.md](FMEA.md) | Failure Mode and Effects Analysis — a registry of potential failure modes (auto-generated) |
-| [ENGINEERING_ADOPTION.md](ENGINEERING_ADOPTION.md) | The seven design phases and why each was implemented |
-| [COGNITIVE_ARCHITECTURE_ADOPTION.md](COGNITIVE_ARCHITECTURE_ADOPTION.md) | Ideas adapted from cognitive science architectures (Soar and ACT-R), including what worked and what didn't |
-| [MODEL_ROSTER.md](MODEL_ROSTER.md) | Every AI model used (large language models, speech-to-text, embeddings) and benchmark data justifying its use |
-| [BROWSER_PURSUIT.md](BROWSER_PURSUIT.md) | How the autonomous browser loop works: permissions, state carried across steps, and stop conditions |
-| [WRITING_RULES.md](WRITING_RULES.md) | Writing guidelines to keep documentation clear and avoid machine-sounding text, checked by `make writing` |
-
-## The claim surface
-
-This section tracks project claims and verification standards to keep evaluations honest.
-
-| | |
-|---|---|
-| [REALITY_REACH.md](REALITY_REACH.md) | Real-world physical interaction claims: hardware contracts, proofs of reachability, and test records. Read "Current Evidence" before accepting any physical claim |
-| [CLAIM_BOUNDARIES.md](CLAIM_BOUNDARIES.md) · [CLAIM_SURFACE.md](CLAIM_SURFACE.md) | What the project claims to do and what falls outside its scope |
-| [ABLATION_LEGIBILITY.md](ABLATION_LEGIBILITY.md) | Ablation tests (running with components disabled) showing measured performance changes — including cases with no difference |
-| [BEHAVIORAL_PROOF_STANDARD.md](BEHAVIORAL_PROOF_STANDARD.md) | Evidence required to claim autonomous behavior or novel model output |
-| `*_STANDARD.md` (11 files) | Evidence standards for each capability area. These remain fixed and only update when standards change, not when code changes |
-
-## Research programmes
-
-Long-running research initiatives and their progress records.
-
-- **Recursive latent cortex** — the core model research track. Start with
-  [RECURSIVE_LATENT_CORTEX.md](RECURSIVE_LATENT_CORTEX.md), the overview page
-  explaining the research milestones. Supporting documents include:
-  [INTRINSIC_RECURRENCE.md](INTRINSIC_RECURRENCE.md) (current training experiments),
-  [RLC_RECONCILIATION.md](RLC_RECONCILIATION.md) (analysis of earlier negative results),
-  [RLC_WIRING_HANDOFF.md](RLC_WIRING_HANDOFF.md),
-  [RLC_SPARK_EXECUTION_LEDGER.md](RLC_SPARK_EXECUTION_LEDGER.md),
-  [RLC_COMMITMENT_SEARCH.md](RLC_COMMITMENT_SEARCH.md),
-  [RLC_SPARK_LITERATURE.md](RLC_SPARK_LITERATURE.md),
-  [RLC_KNOWLEDGE_SOURCE_MATRIX.md](RLC_KNOWLEDGE_SOURCE_MATRIX.md), and
-  [SPARK_PRETRAINING_LEGS.md](SPARK_PRETRAINING_LEGS.md).
-- **General reasoning and kept procedures** — whether what she learns and keeps
-  makes her reason better, measured on held-out tasks under plans committed
-  before the tasks are drawn. The plan is
-  [evidence/GENERAL_REASONING_PROGRAM_2026-10-14.md](evidence/GENERAL_REASONING_PROGRAM_2026-10-14.md)
-  and its first round
-  [evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md](evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md);
-  kept procedures (G09) closed with
-  [evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md),
-  after [evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md).
-  Every item's state is in [AURA_1_0_MASTER_TODO.md](AURA_1_0_MASTER_TODO.md).
-- **Language substrate and generality** — research on how the system forms,
-  represents, and combines new concepts.
-  [LANGUAGE_SUBSTRATE_AND_GENERALITY.md](LANGUAGE_SUBSTRATE_AND_GENERALITY.md)
-  is the main overview; related files include
-  [GENERALITY_ANALYSIS.md](GENERALITY_ANALYSIS.md) (problem breakdown and literature review),
-  [GENERALITY_TODO.md](GENERALITY_TODO.md) (the development backlog),
-  [ENDOGENOUS_LANGUAGE_PATHWAY.md](ENDOGENOUS_LANGUAGE_PATHWAY.md) (turning internal states into language),
-  [FRONTIER_GENERAL_ARC.md](FRONTIER_GENERAL_ARC.md) (generalization goals), and
-  [METALANGUAGE_MY_OWN_ATTEMPT.md](METALANGUAGE_MY_OWN_ATTEMPT.md).
-- **Intrinsic Subject Core** — start with [ISC_EXPLAINED.md](ISC_EXPLAINED.md),
-  [ISC_VARIABLES.md](ISC_VARIABLES.md), and [ISC_STATUS.md](ISC_STATUS.md)
-  for the current evidence, [SUBJECT_CORE.md](SUBJECT_CORE.md) for the battery,
-  and [ISC_REPRODUCTION.md](ISC_REPRODUCTION.md) for run planning and review.
-  [ISC_V6_PREREGISTRATION.md](ISC_V6_PREREGISTRATION.md) replaces the synergy
-  line; [ISC_V5_PREREGISTRATION.md](ISC_V5_PREREGISTRATION.md), including its
-  addenda, supplies the partition design. The separate carrier programme is
-  [SUBJECT_CORE_V25.md](SUBJECT_CORE_V25.md); J* and the five-ground bridge are
-  explained in [BRIDGE_PARITY.md](BRIDGE_PARITY.md) and
-  [BRIDGE_PROOFS.md](BRIDGE_PROOFS.md). The October work record is
-  [ISC_OCT21_EVERY_ITEM.md](ISC_OCT21_EVERY_ITEM.md). A probe, a full battery
-  result, a carrier result and parity are separate claims.
-- **Other consciousness and integration work** — exploration of system integration and self-modeling:
-  [WHOLE_SYSTEM_PHI.md](WHOLE_SYSTEM_PHI.md),
-  [ORGANISMAL_WORKSPACE_THEORY.md](ORGANISMAL_WORKSPACE_THEORY.md),
-  [INNER_LIGHT_TEST.md](INNER_LIGHT_TEST.md), and
-  [GHOST_SUBSTRATE.md](GHOST_SUBSTRATE.md).
-- **Autonomy and self-modification** — safety boundaries and mechanisms for self-directed operation:
-  [ULYSSES_COVENANT.md](ULYSSES_COVENANT.md),
-  [ALLOSTASIS_ENGINE.md](ALLOSTASIS_ENGINE.md),
-  [AUTONOMOUS_ARCHITECTURE_GOVERNOR.md](AUTONOMOUS_ARCHITECTURE_GOVERNOR.md),
-  [GENERAL_ENVIRONMENT_AUTONOMY.md](GENERAL_ENVIRONMENT_AUTONOMY.md),
-  [RSI_VALIDATION.md](RSI_VALIDATION.md), and
-  [RSI_ARCHITECTURE.md](RSI_ARCHITECTURE.md).
-- **Subsystem deep dives** —
-  [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md) (architecture of the 116-module memory system), and
-  [REASONING_ENGINES.md](REASONING_ENGINES.md) (rule-based reasoning, sandboxed code execution, and operations kept outside the neural network).
-- **Capability maps** — evaluations of capabilities against benchmarks and external frameworks:
-  [OMEGA_CAPABILITY_MATRIX.md](OMEGA_CAPABILITY_MATRIX.md),
-  [FICTIONAL_AI_CAPABILITY_MAP.md](FICTIONAL_AI_CAPABILITY_MAP.md),
-  [FLIGHT_RECORDER.md](FLIGHT_RECORDER.md), and
-  [DELIBERATE_PRACTICE.md](DELIBERATE_PRACTICE.md).
-
-## Records
-
-`evidence/` and all files with a date in their filename are historical snapshots. Each includes a header marking it as an archive. **These records are preserved as originally recorded** — for example, an evaluation verdict from July is not altered in August.
-
-## Generated — do not hand-edit
-
-Four files here are rendered from code. A manual edit survives until the
-next build and then vanishes.
-
-```bash
-make architecture-map                          # ARCHITECTURE_MAP.md
-make fmea-doc                                  # FMEA.md
-make contract-doc                              # RUNTIME_CONTRACT.md
-python tools/reqproof/progress.py              # AURA_PROGRESS.md
-```
-
-Check for drift without rewriting:
-
-```bash
-python tools/render_fmea.py --check
-python tools/render_health_contract.py --check
-```
+The [full document index](DOCUMENTATION_INDEX.md) lists guides, generated
+references, and dated records. Experimental methods and outcomes are filed
+by date in [evidence](evidence/). Source and commands for generated pages
+are in the [documentation status map](DOC_STATUS.md).

@@ -1,203 +1,67 @@
-# Installation
+# Install Aura from source
 
-<!-- reader-navigation:start -->
-> **In plain English:** Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.
->
-> **Why it matters:** A reader needs to know which pieces must be installed, which resources they use, and which capabilities have actually been measured.
->
-> **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
->
-> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
-> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
-<!-- reader-navigation:end -->
+Use an Apple Silicon Mac and Python 3.12. The 27B configuration used on the
+project's Mac targets 64 GB of unified memory. Storage and memory requirements
+depend on the model files and the lanes you enable. [Hardware profiles](HARDWARE_PROFILES.md)
 
-## Requirements
+The checkout contains the application source. You need compatible local
+Apple MLX model files to use chat. The persona-tuned 27B checkpoint and
+the offline Wikipedia index are separate from the source release.
+To repeat the published substrate test, use the [replication kit](tools/replicate/README.md),
+which uses a stand-in for the language model.
 
-- macOS on Apple Silicon (M-series chip).
-- Python 3.12, matching `.python-version` and the production doctor check.
-- The resident-model target is 64 GB of unified memory. Smaller profiles
-  require their own model and workload validation.
-
-The target is an Apple Silicon Mac with 64 GB of unified memory. The
-Cortex, Brainstem and Reflex are model roles; their names do not authorise
-loading every lane concurrently. Admission depends on the current process
-tree, reserved memory and existing campaigns. A 32 GB configuration requires
-a smaller declared model profile and its own validation; this guide supplies
-no latency guarantee for it. See [HARDWARE_PROFILES.md](HARDWARE_PROFILES.md).
-
-## Setup
+## Set up the Python environment
 
 ```bash
 git clone https://github.com/youngbryan97/aura.git
 cd aura
-
-make setup        # creates .venv, installs requirements/core.txt + requirements/dev.txt
-```
-
-`make setup-prod` is the strict production installer: it stops immediately if any dependency fails to install rather than silently continuing with degraded features. Use this variant if you plan to run Aura unattended.
-
-Manual equivalent:
-
-```bash
-python3.12 -m venv .venv
+make setup-prod PYTHON=python3.12
 source .venv/bin/activate
-pip install -r requirements/core.txt
-pip install -r requirements/dev.txt      # test + lint tooling
 ```
 
-Requirements are split into separate files by feature: `requirements/core.txt` (core runtime), `dev.txt` (tests and linting), `ml.txt` (training pipelines), `senses.txt` (camera, screen, and audio capture), and `voice.txt` / `voice-high-fidelity.txt` (speech). Install only the packages you plan to use.
+`make setup-prod` installs the core runtime requirements and stops on an
+installation error. Use `make setup PYTHON=python3.12` if you also need the
+test and lint dependencies. Optional dependencies are listed by feature in
+[requirements](requirements/).
 
-For reproducible installs pinned to verified file hashes, use the lockfile (regenerate with `pip-compile --allow-unsafe --generate-hashes --output-file=requirements_lock.txt requirements.txt`):
+## Select the local model
+
+Set `AURA_LLM__MLX_MODEL_PATH` to the directory containing your compatible
+MLX checkpoint. An installed system can also resolve a promoted checkpoint
+from its active model record. A different checkpoint needs its own claims
+about behavior, resource use, and compatible steering or adapters.
+[Model card](MODEL_CARD.md) · [Model registry](core/brain/llm/model_registry.py)
+
+| Environment variable | Source default | Role |
+|---|---|---|
+| `AURA_MODEL` | `Aura-Cortex` | Logical name of the foreground model. |
+| `AURA_BRAINSTEM_MODEL` | `Ternary-Bonsai-2-27B-mlx-2bit` | Background model, when available and admitted. |
+
+The environment or project-root `.env` can provide settings. Pydantic uses
+double underscores for nested settings. See the [operator guide](docs/OPERATOR_GUIDE.md)
+for configuration and diagnostics.
+
+## Start the app
+
+In the activated environment, with your model path set:
 
 ```bash
-pip install --require-hashes -r requirements_lock.txt
-```
-
-## Running
-
-```bash
-# Full stack with web UI
+python aura_main.py doctor
 python aura_main.py --desktop
-
-# Headless (background cognition only, no UI)
-python aura_main.py --headless
-
-# Philosophy/proof stream: live substrate, phi, affect, and Will receipts
-python aura_main.py --philosophy
 ```
 
-Once the server is running, open the web interface at `http://localhost:8000`.
+The desktop mode opens the app. API modes listen on `127.0.0.1:8000` by
+default. Use `--headless` for the local API without the desktop window or
+`--gui-window` to attach to an existing runtime. `--host` and `--port` set the
+API bind address. Docker is for headless services and does not supply the
+Apple MLX desktop model runtime. [Docker definition](docker-compose.yml)
 
-### All boot modes
+If the app fails to load a model, check the resolved checkpoint path and
+the machine's available memory. An existing Aura process can already own
+the model and its port. [Model loading runbook](docs/runbooks/model-fails-to-load.md)
 
-| Flag | Mode |
-|------|------|
-| `--desktop` | Desktop GUI (the standard way to run Aura) |
-| `--headless` | API server only; runs background processes without a GUI |
-| `--server` | API server mode |
-| `--cli` | Interactive terminal console |
-| `--gui-window` | Open a GUI window connected to an already-running server |
-| `--watchdog` | Watchdog supervisor process to keep Aura running |
-| `--philosophy` | Stream internal state logs (substrate, phi, emotion, and decision receipts) as JSON lines |
-| `--skeletal` | Start quickly by skipping heavy optional subsystems (useful for troubleshooting) |
-| `--profile minimal` | Named startup profile |
-| `--stop` | Stop a running Aura instance |
-| `--reboot` | Cleanly shut down and restart |
-| `--host` / `--port` | Network address and port to bind to (default: `127.0.0.1:8000`) |
+## Next steps
 
-### Operational subcommands
-
-Installing the package provides the `aura` command-line tool (`aura = aura_main:main`), which includes maintenance commands:
-
-```bash
-aura doctor                  # pre-boot self-check: python, sqlite, mlx, data dir,
-                             # atomic-writer round-trip
-aura doctor --bundle         # redacted diagnostics tarball for incident triage
-aura conformance             # schema + integrity sweep
-aura verify-state            # cross-subsystem state coherence
-aura verify-memory           # memory facade integrity
-aura rebuild-index           # vector index rebuild
-aura backup / restore / migrate
-aura chaos                   # fault-injection smoke
-aura plugin                  # plugin management
-```
-
-## First boot
-
-Startup includes artifact loading and, when needed, Metal shader compilation.
-Duration depends on the artifact, cache, disk, network and host workload; the
-previous timing estimates were not a universal startup or download guarantee.
-Use startup progress and logs to distinguish loading from a stalled process.
-
-System state is loaded from a local SQLite database. If no database exists, Aura starts with a clean slate.
-
-The secondary model (Brainstem) does not load at boot time. It loads only when needed (lazy loading) so the primary model (Cortex) gets all available memory. Keeping those weight bytes out of memory reduces pressure; it does not
-guarantee a successful Cortex load. Admission must include caches, workers,
-other applications and reservations.
-
-## Optional: fine-tune personality
-
-```bash
-# Generate training data
-python training/build_dataset.py
-
-# Fine-tune the LoRA adapter (10–30 min)
-python -m mlx_lm lora \
-  --model models/Aura-Cortex \
-  --train \
-  --data training/data \
-  --adapter-path training/adapters/aura-personality \
-  --num-layers 16 \
-  --batch-size 1 \
-  --iters 600 \
-  --learning-rate 1e-5
-```
-
-If the trained adapter is saved to `training/adapters/aura-personality/`, Aura will automatically detect and load it on the next startup.
-
-## Environment variables (optional)
-
-Aura manages configuration using Pydantic Settings (`core/config.py:AuraConfig`). All settings can be set with environment variables prefixed by `AURA_`, using double underscores for nested fields (for example, `AURA_LLM__MLX_DEEP_MODEL_PATH` sets `llm.mlx_deep_model_path`). You can also set these in a `.env` file in the project root. Unrecognized `AURA_*` variables are ignored without warning, so run `aura doctor` to verify your configuration if a setting does not seem to take effect.
-
-There is no `AURA_HOST` environment variable; use the `--host` command-line flag instead (default: `127.0.0.1`). Set `AURA_INTERNAL_ONLY=1` to reject any network requests coming from outside your local computer.
-
-| Variable | Default | What it does |
-|----------|---------|--------------|
-| `--port PORT` | `8000` | Port to run the local API on. This is a flag for `launch_aura.sh`, not an environment variable (`launch_aura.sh` sets `AURA_PORT` itself before reading the environment, so exporting it has no effect). |
-| `AURA_INTERNAL_ONLY` | from security profile | Set to `1` to reject requests from outside localhost. |
-| `AURA_API_TOKEN` | unset | Secret token required to authenticate API requests. |
-| `AURA_LORA_PATH` | auto-detected | Path to the directory containing fine-tuned LoRA weights. |
-| `AURA_MODEL` | `Aura-Cortex` | Main language model (`Aura-Qwen3.8-27B-persona`, a persona fine-tune of the fused Qwen3.8-27B). |
-| `AURA_DEEP_MODEL` | unset (deep work runs on the Cortex) | A second local model for hard reasoning, admitted only with an attested qualification certificate (`AURA_DEEP_SPECIALIST_CERTIFICATE`); see `docs/OPERATOR_GUIDE.md`. |
-| `AURA_BRAINSTEM_MODEL` | `Ternary-Bonsai-2-27B-mlx-2bit` | Background lane (heartbeat, telemetry, background tasks), lazy-loaded: 2-bit quantized Qwen3.5 27B, about 8.6 GB of weights before runtime/cache overhead (replaced 9B on 2026-09-20; see `docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md`). |
-| `AURA_FALLBACK_MODEL` | `Qwen2.5-1.5B-Instruct-4bit` | Configured auxiliary fallback role. A draft or contrastive use additionally requires compatibility with the selected Cortex; a name does not prove compatibility or CPU-only execution. |
-| `AURA_LOCAL_BACKEND` | `mlx` | Local inference engine (Apple MLX framework). Production Aura always uses this backend. |
-| `AURA_BROWSER_STEALTH` | `1` | Whether her browser hides that it is automated: playwright-stealth, a borrowed user agent, and the automation flag switched off. `0` browses as what it is. A site that refuses automated visitors should be met with `0`; see `docs/BROWSER_PURSUIT.md`. |
-| `AURA_SUBSTRATE_PRIMARY` | `1` | Check continuous neural state before falling back to standard text tokens. |
-| `AURA_SUBSTRATE_DIM` | `64` | Dimension of the continuous neural state vector (clamped between 16 and 512). |
-| `AURA_ONLINE_LORA` | `1` | Allow Aura to update its own weights through background reflection. |
-| `AURA_ROOT` | auto-detected | Base directory of the project. |
-| `AURA_SAFE_BOOT_DESKTOP` | `0` | Set to `1` to start with a lightweight desktop interface. |
-| `AURA_MODE` | `production` | Operating mode: `safe` turns off tool use and autonomous actions; `dev` enables developer features and self-modification; `production` is the default. See `core/runtime/mode.py` for full details. |
-| `AURA_LOG_DIR` | `~/.aura/logs` | Directory where log files are written. **Always change this when running tests** so test runs do not overwrite production logs. |
-| `AURA_LATENT_CORTEX` | off | Enable recursive latent-space thinking. |
-| `AURA_STRICT_RUNTIME` | `0` | Immediately stop on minor errors instead of logging them and continuing. |
-| `AURA_GOVERNANCE_MODE` | profile default | Safety policy level applied to consequential tool actions. |
-| `AURA_PROCESS_RSS_LIMIT_GB` | derived from total RAM | Maximum physical RAM (Resident Set Size) the main process is allowed to use. Capped by safe limits unless specifically overridden. |
-| `AURA_MLX_MEMORY_LIMIT_GB` | derived from total RAM | Maximum memory limit for the Apple MLX memory allocator. |
-| `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` | `24.0` | Minimum free RAM (in GB) required before loading a large model. |
-
-### Debugging entry points
-
-| Variable | What it does |
-|----------|--------------|
-| `AURA_PASS_BISECT_LIMIT=N` | Run only the first N thinking phases. Useful for binary searching which stage caused a problem in an answer. |
-| `AURA_PASS_TRACE=1` | Print the name of each cognitive phase to the console as it runs. |
-| `AURA_TEST_MODE` / `AURA_TESTING` | Enable test mode to disable external side effects. |
-
-## Docker
-
-```bash
-# Headless container services; this does not supply the Apple MLX model runtime
-docker-compose up -d
-
-# Tail logs
-docker-compose logs -f aura
-```
-
-The Docker image is built on `python:3.12-slim`, runs under a non-root user for security, and includes Redis and Celery for background work. Health checks query `/api/health`.
-
-## Troubleshooting
-
-- **Out of memory.** Account for existing runtimes and campaigns before a new
-  load. The earlier 18–20 GB figure does not include every cache, worker and
-  live request. Plan a smaller validated profile or postpone the work; do not
-  rely on the model label alone as a safe memory budget.
-- **Model won't load.** Verify that `mlx-lm` is installed (`pip install mlx-lm`). Both the desktop app and backend runtime rely on the internal Apple MLX engine to run models locally.
-- **Port in use.** Identify the process and its owner first. A working Aura
-  instance is not a stale port to clear. Only with authorisation for that
-  instance, use the supported graceful shutdown path (`python aura_main.py --stop`).
-  Never use a blanket `pkill -f aura_main`.
-- **Model load hangs.** Aura loads only one model into GPU memory at a time. If loading appears frozen, check for lingering background MLX worker processes.
-- **Backend choice.** Keep `AURA_LOCAL_BACKEND=mlx` on Apple Silicon. Native MLX hooks allow internal-state interventions. This does not establish
-  zero serving overhead or a measured end-to-end response time.
+- [Chat, voice, and memory](docs/USER_GUIDE.md)
+- [Diagnostics, backup, and updates](docs/OPERATOR_GUIDE.md)
+- [Tests](TESTING.md)

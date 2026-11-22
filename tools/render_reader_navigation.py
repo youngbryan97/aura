@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Render plain-language reading notes and a complete Markdown document map.
+"""Render the shared reading guides and Markdown index.
 
-Definitions, daily examples and metaphor limits come from the reviewed topic
-catalogue. Dated records, frozen protocols, generated pages and policy text
-are indexed without modifying their contents.
+The topic catalogue supplies the tour, glossary and variable guide. The index
+links to the tracked Markdown pages. Old generated headers are removed from
+maintained guides.
 """
 from __future__ import annotations
 
@@ -22,14 +22,6 @@ OPEN = "<!-- reader-navigation:start -->"
 CLOSE = "<!-- reader-navigation:end -->"
 BLOCK = re.compile(r"\n\n" + re.escape(OPEN) + r".*?" + re.escape(CLOSE), re.S)
 OUTPUTS = {"docs/PLAIN_ENGLISH_GUIDE.md", "docs/VARIABLES_EXPLAINED.md", "docs/DOCUMENTATION_INDEX.md", "docs/GLOSSARY.md"}
-MANUAL = {
-    "README.md", "docs/README.md", "docs/ISC_STATUS.md", "docs/ISC_EXPLAINED.md",
-    "docs/ISC_VARIABLES.md", "docs/ISC_READERS_GUIDE.md", "docs/DEMOS_AND_RELATED_WORK.md",
-    "docs/SCIENCE_AND_SOURCES.md",
-    "docs/FORMULAS.md", "docs/DOCUMENTATION_CONTENT_AUDIT.md",
-    "docs/MATHEMATICAL_CLAIM_LIMITS.md",
-    "AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md",
-}
 GENERATED = {
     "docs/ARCHITECTURE_MAP.md", "docs/FMEA.md", "docs/RUNTIME_CONTRACT.md",
     "docs/AURA_PROGRESS.md", "docs/ISC_COMPLETION_TODO.md", "proof_kernel/report.md", *OUTPUTS,
@@ -151,34 +143,6 @@ def heading(topic: dict) -> str:
     return "ISC" if topic["id"] == "isc" else topic["id"].replace("-", " ").capitalize()
 
 
-def reading_card(path: str, topic: dict) -> str:
-    plain = link(path, "docs/PLAIN_ENGLISH_GUIDE.md", topic["id"])
-    variables = link(path, "docs/VARIABLES_EXPLAINED.md", topic["id"])
-    related = link(path, "docs/DEMOS_AND_RELATED_WORK.md", topic["related"])
-    index = link(path, "docs/DOCUMENTATION_INDEX.md")
-    glossary_link = link(path, "docs/GLOSSARY.md")
-    formulas_link = link(path, "docs/FORMULAS.md")
-    return "\n".join((
-        OPEN,
-        f"> **In plain English:** {topic['definition']}", ">",
-        f"> **Why it matters:** {topic['why']}", ">",
-        f"> **In everyday use:** {topic['daily']}", ">",
-        f"> [Example and metaphor]({plain}) · [Variables and practical meanings]({variables}) · [Demos and related work]({related}) · [Document map]({index})",
-        f"> [Glossary]({glossary_link}) · [Formulas with worked examples]({formulas_link})",
-        CLOSE,
-    ))
-
-
-def with_card(text: str, card: str) -> str:
-    clean = BLOCK.sub("", text)
-    match = re.search(r"^# .+$", clean, re.M)
-    if not match:
-        return clean
-    # Keep the original title and all original body text outside this block.
-    end = match.end()
-    return clean[:end] + "\n\n" + card + clean[end:]
-
-
 def tour(topics: list[dict], date: str) -> str:
     doc = "docs/PLAIN_ENGLISH_GUIDE.md"
     out = ["# Aura in plain English", "", f"Status: Guide · Reading explanations updated {date}", "",
@@ -267,7 +231,7 @@ def document_map(root: Path, paths: list[str], topics: list[dict], date: str) ->
            "Start with [the plain-English tour](PLAIN_ENGLISH_GUIDE.md), [variables and examples](VARIABLES_EXPLAINED.md), or [demos and related work](DEMOS_AND_RELATED_WORK.md). For ISC, use [the introduction](ISC_EXPLAINED.md) and [current results](ISC_STATUS.md).", "",
            "This map includes the source repository's Markdown pages and the new reading guides. It is an inventory, not a claim that every old document is a current capability statement. Historical records and frozen protocols retain their original wording; generated pages and standards retain their own sources.", "",
            f"**{len(paths)} Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.", "",
-           "Definitions, examples and reading notes come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.", ""]
+           "Definitions and examples come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.", ""]
     for group in ("Guide or reference", "Living status or append-only ledger", "Standard, policy or contributor reference", "Generated reference", "Historical or frozen record"):
         rows = groups.get(group, [])
         out += [f"## {group}", "", f"{len(rows)} pages. " + (
@@ -296,19 +260,12 @@ def main() -> int:
         raise SystemExit("duplicate topic id")
     paths = inventory(ROOT)
     changes: dict[str, str] = {}
-    protected = 0
     for path in paths:
         if path in OUTPUTS or not (ROOT / path).is_file():
             continue
         text = (ROOT / path).read_text()
-        if category(path, text) != "Guide or reference" or path in MANUAL:
-            protected += 1
-            if OPEN in text:
-                changes[path] = BLOCK.sub("", text)
-            continue
-        new = with_card(text, reading_card(path, by_id[topic_for(path)]))
-        if new != text:
-            changes[path] = new
+        if category(path, text) == "Guide or reference" and BLOCK.search(text):
+            changes[path] = BLOCK.sub("", text)
     # Render these before the index so their actual titles are available.
     planned = {
         "docs/PLAIN_ENGLISH_GUIDE.md": tour(topics, config["as_of"]),
@@ -326,7 +283,7 @@ def main() -> int:
         changes["docs/DOCUMENTATION_INDEX.md"] = index
         if not args.check:
             (ROOT / "docs/DOCUMENTATION_INDEX.md").write_text(index)
-    print(json.dumps({"indexed": len(paths), "changed": len(changes), "protected_or_manual": protected, "by_topic": dict(Counter(topic_for(p) for p in paths))}, sort_keys=True))
+    print(json.dumps({"indexed": len(paths), "changed": len(changes), "by_topic": dict(Counter(topic_for(p) for p in paths))}, sort_keys=True))
     if args.check and changes:
         print("navigation has drifted: " + ", ".join(sorted(changes)))
         return 1

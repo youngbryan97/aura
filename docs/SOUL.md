@@ -1,16 +1,5 @@
 # What eighteen records do, and which of it she cannot do yet
 
-<!-- reader-navigation:start -->
-> **In plain English:** Aura uses internal variables for positive or negative condition, activation, needs and operating strain. Their role is established by what they change.
->
-> **Why it matters:** A named mood or drive is useful only if its consumers produce an appropriate effect, rather than merely displaying a label.
->
-> **In everyday use:** Under resource strain, the system may need to reduce expensive background work while preserving the conversation.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#affect) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#affect) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#affect) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
-<!-- reader-navigation:end -->
-
 Bryan came back from a Masego show with fourteen tracks and a question: what
 exactly makes these soulful, and which of it is a process rather than a style.
 Four more arrived while the first organs were being built, and they changed
