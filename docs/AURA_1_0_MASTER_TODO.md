@@ -4929,6 +4929,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   (754228b85). Live at 12:08 on 224c9cc94, with her window up and Claude in front, she recorded the window as not
   hers, and the with decided: "stays quiet (welcome 0.250 x worth 0.005 ...)". Still left: a ring, a page and a
   file shown on her own initiative.
+  19 to 21 November, reminders. Asked "Can you remind me in 20 minutes to stretch my back?" (19 November, 22:34),
+  the hand-off offered reminder and the dispatch refused it: what offers a tool read its scope from a table with no
+  entry for it, and the dispatch read the skill's own (677f5a857). With the scopes read alike, the risk rating
+  withheld it (5b1ff12e2). And a reminder that was set told nobody when it came due: the store said so. One loop
+  now sends each reminder as it comes due through notify_user, under a grant that lets out only the text of a
+  reminder now due (7a6220eb0), and marks it done as governed upkeep (a15721d6c). Live, 21 November, typed into her
+  window: "Remind me in 1 minute to drink some water." was set at 19:47, reached the desktop a minute later in
+  104 ms, and the store reads it done.
 - [x] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
   PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
