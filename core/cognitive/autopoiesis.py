@@ -514,10 +514,18 @@ class AutopoiesisEngine:
         for result in reversed(self._repair_history):
             if result.component == component and result.strategy == strategy:
                 if (result.governance_approved and not result.success
-                        and time.time() - result.timestamp < self._REPAIR_COOLDOWN):
+                        and time.time() - result.timestamp < self._cooldown_of(component)):
                     return result
                 return None
         return None
+
+    def _cooldown_of(self, component: str) -> float:
+        """How long a repair on ``component`` waits before it may run again: the cooldown, doubled for each repair in a
+        row that did not help, and never longer than the span her health is judged over. LIVE 22 November 2026
+        reduce_load on global ran every two minutes, attempt #19, while other programs held the host's memory."""
+        failures = self._repair_attempts.get(component, 0)
+        longest = max(self._REPAIR_COOLDOWN, self._HEALTH_WINDOW * self._TICK_INTERVAL)
+        return min(self._REPAIR_COOLDOWN * 2 ** max(0, failures - 1), longest)
 
     def _measured(self, component: str) -> float | None:
         """A repair measure's reading, 0.0 to 1.0, or None when there is no measure or it cannot be read."""
@@ -823,7 +831,7 @@ class AutopoiesisEngine:
 
         # Cooldown check: don't spam repairs.
         last_repair = self._last_repair_time.get(component, 0.0)
-        if now - last_repair < self._REPAIR_COOLDOWN:
+        if now - last_repair < self._cooldown_of(component):
             return None
 
         # Check immune memory for a known-good strategy.
@@ -1020,7 +1028,8 @@ class AutopoiesisEngine:
             )
         else:
             self._repair_attempts[component] = self._repair_attempts.get(component, 0) + 1
-            logger.warning(
+            # The first that did not help is news; the same again, waited longer for each time, is what she already knows.
+            (logger.warning if self._repair_attempts[component] == 1 else logger.info)(
                 "Repair INEFFECTIVE: %s on %s (%.3f -> %.3f), attempt #%d",
                 strategy.value,
                 component,

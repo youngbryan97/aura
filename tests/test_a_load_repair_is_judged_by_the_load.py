@@ -50,6 +50,20 @@ def test_a_repair_that_did_not_help_is_not_run_again_inside_its_cooldown():
     assert runs == [1, 1]
 
 
+def test_a_repair_that_keeps_not_helping_waits_longer_each_time():
+    runs: list[int] = []
+    engine = _engine([0.18], runs)
+    waits = []
+    for _ in range(6):
+        result = asyncio.run(engine.request_repair("global", RepairStrategy.REDUCE_LOAD))
+        waits.append(engine._cooldown_of("global"))
+        result.timestamp -= waits[-1] + 1  # the wait passes
+    assert len(runs) == 6
+    longest = engine._HEALTH_WINDOW * engine._TICK_INTERVAL
+    assert waits == [min(engine._REPAIR_COOLDOWN * 2 ** n, longest) for n in range(6)]
+    assert waits[-1] == longest, "never longer than the span her health is judged over"
+
+
 def test_a_repair_that_helped_may_be_asked_for_again():
     runs: list[int] = []
     engine = _engine([0.18, 0.31, 0.31, 0.40], runs)
