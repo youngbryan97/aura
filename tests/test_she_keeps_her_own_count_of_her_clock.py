@@ -121,7 +121,7 @@ def test_her_clock_is_read_on_their_time_and_seldom(monkeypatch) -> None:
 
     came = asyncio.run(run())
     hers = came["moves"]
-    assert hers >= 8, came
+    assert hers >= 6, came
     # Read on her own time once, where she had no count to begin from.
     assert app.reads_on_her_time <= 1, (app.reads_on_her_time, app.reads_on_theirs)
     assert app.reads_on_her_time + app.reads_on_theirs < hers

@@ -5,15 +5,15 @@
 //! become others on the far row, a royal that crosses with a partner, and the draw counts. Nothing here knows a game.
 //! What a kind and a square are worth comes in as weights measured by playing; the search is alpha-beta with the
 //! general refinements of game-tree search: iterative deepening, a transposition table, quiescence on takes, null
-//! moves, late-move reductions, killer and history ordering, and margins: a line whose verdict a margin of the least
-//! piece for each ply left cannot change is not looked at further.
+//! moves, late-move reductions, killer and history ordering, and margins: a line whose verdict cannot change by as
+//! much as a quiet move has moved her judgement, for each ply left, is not looked at further.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
@@ -121,9 +121,12 @@ struct Game {
     no_move_draws: bool,
     tempo: i32,
     royal_pressed: i32,
-    /// The least a piece that can be taken is worth: the unit a search's margins are counted in. Zero while no kind is
-    /// worth anything yet, and then there are no margins.
-    least: i32,
+    /// The most one quiet move moved her judgement at the position a search began from, the turn's own worth left
+    /// aside: the unit the search's margins are counted in. Zero where no quiet move moved it, and then there are no
+    /// margins. Measured at each search's start, because how far a move moves her judgement is a property of the
+    /// weights she judges by: 94 on her offline weights of 22 November 2026, 357 on her live ones, which count each
+    /// square a piece reaches nearly half a pawn.
+    margin: AtomicI32,
     zob_piece: Vec<u64>,
     zob_unmoved: Vec<u64>,
     zob_passable: Vec<u64>,
@@ -244,7 +247,6 @@ impl Game {
                 on_board.push(((r + border) * stride + c + border) as usize);
             }
         }
-        let least = kinds.iter().filter(|k| !k.royal && k.worth > 0).map(|k| k.worth).min().unwrap_or(0);
         Ok(Game {
             rows: f.rows,
             cols: f.columns,
@@ -257,7 +259,7 @@ impl Game {
             no_move_draws: f.no_move_unattacked == "draw",
             tempo: w.tempo.round() as i32,
             royal_pressed: w.royal_pressed.round() as i32,
-            least,
+            margin: AtomicI32::new(0),
             zob_piece,
             zob_unmoved,
             zob_passable,
@@ -1019,10 +1021,10 @@ impl<'a> Searcher<'a> {
         self.order(&mut moves, None, ply);
         let mut any = false;
         let mut best = if checked { -MATE + ply as i32 } else { alpha };
-        let unit = self.g.least;
+        let unit = self.g.margin.load(Ordering::Relaxed);
         for m in moves {
-            // A take that would leave her short of the bound even with what it takes and a margin of two of the least
-            // pieces cannot raise the bound: not looked at.
+            // A take that would leave her short of the bound even with what it takes and two margins cannot raise the
+            // bound: not looked at.
             if !checked && unit > 0 && m.becomes == 0 && m.taken_at != NONE
                 && stand + self.worth_of(self.b.cells[m.taken_at as usize]) + 2 * unit < alpha
             {
@@ -1109,10 +1111,10 @@ impl<'a> Searcher<'a> {
             }
         }
         let pv_node = beta - alpha > 1;
-        let unit = g.least;
+        let unit = g.margin.load(Ordering::Relaxed);
         let stand = if !checked && !pv_node { self.evaluate() } else { -INF };
-        // A position past the bound by more than a least piece for each ply still to look: what those plies could
-        // find against it is not worth looking for.
+        // A position past the bound by more than a margin for each ply still to look: what those plies could find
+        // against it is not worth looking for.
         if !checked && !pv_node && unit > 0 && depth <= 6 && beta.abs() < MATE - 1000
             && stand - unit * depth >= beta
         {
@@ -1391,6 +1393,24 @@ impl<'a> Searcher<'a> {
     }
 }
 
+/// The most one quiet move moves her judgement at ``b``, the turn's own worth left aside: set as the game's margin.
+fn measure_the_margin(g: &Game, b: &Board) {
+    let table = Table::new(1);
+    let mut s = Searcher::fresh(g, b.clone(), &table, 1e9, Instant::now(), 0);
+    let before = s.evaluate();
+    let mut most = 0;
+    for m in s.b.legal(g) {
+        if m.taken_at != NONE || m.becomes != 0 {
+            continue;
+        }
+        let u = s.b.make(g, m);
+        let after = -s.evaluate();
+        s.b.unmake(u);
+        most = most.max((after - before + 2 * g.tempo).abs());
+    }
+    g.margin.store(most, Ordering::Relaxed);
+}
+
 fn move_out(g: &Game, m: &Move) -> (i32, i32, i32, i32, String) {
     let (fr, fc) = g.rc(m.from as usize);
     let (tr, tc) = g.rc(m.to as usize);
@@ -1481,6 +1501,7 @@ fn search(
     threads: usize,
 ) -> PyResult<PyObject> {
     let (g, b) = parse(description, position, weights)?;
+    measure_the_margin(&g, &b);
     let entries = ((hash_mb.max(1) * 1024 * 1024) / std::mem::size_of::<(AtomicU64, AtomicU64)>()).max(1024);
     if threads > 1 && nodes == 0 {
         // Searchers in threads of their own over the same position, sharing one table, so what each finds is there
@@ -1564,6 +1585,7 @@ fn search_result(py: Python<'_>, g: &Game, result: (Option<Move>, i32, i32, u64,
                  -> PyResult<PyObject> {
     let d = PyDict::new_bound(py);
     let (best, score, depth, n, line, ms, unsteady) = result;
+    d.set_item("margin", g.margin.load(Ordering::Relaxed))?;
     match best {
         Some(m) => d.set_item("move", move_out(g, &m))?,
         None => d.set_item("move", py.None())?,
@@ -1644,6 +1666,7 @@ fn self_play(
                 let chosen = if ply < random_plies {
                     legal[(rng.next() % legal.len() as u64) as usize]
                 } else {
+                    measure_the_margin(if first_moves { &ga } else { &gb }, &board);
                     let s = if first_moves { &mut sa } else { &mut sb };
                     s.b = board.clone();
                     s.nodes = 0;
@@ -1661,6 +1684,7 @@ fn self_play(
                     // With ``deep_nodes``, what a much longer look of hers finds the position worth: her slow
                     // thinking, kept to teach her quick judgement what it would have found.
                     let score = if deep_nodes > 0 {
+                        measure_the_margin(&ga, &board);
                         let saved = sa.max_nodes;
                         sa.max_nodes = deep_nodes;
                         sa.nodes = 0;

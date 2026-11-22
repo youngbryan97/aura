@@ -37,7 +37,7 @@ from core.agency.searching_by_kind import PER_SQUARE, Weights, described, first_
 logger = logging.getLogger("Aura.WhatAKindIsWorth")
 
 __all__ = ["GROUPS", "HER_LONGER_LOOK", "RESULTS", "Rehearsal", "a_first_rehearsal", "calibrated_scale", "fitted",
-           "rehearse"]
+           "rehearse", "tried_as"]
 
 #: Games a round of rehearsal plays, and the nodes each move is searched to: small, so a round fits in the other
 #: side's turn.
@@ -219,6 +219,14 @@ def _played(engine: Any, *asked: Any, longer: int = 0, **options: Any) -> tuple[
     return engine.self_play(*asked, **options), False
 
 
+def tried_as(group: str, teacher: str) -> str:
+    """What a try of ``group`` is counted under: the group, and who taught it where that is not her results. A group
+    taught by another teacher is another candidate, and the tries of the first say nothing of it. LIVE 22 November 2026
+    a group tried 71 times was kept by none: its candidates taught by her longer look scored up to 0.646 +- 0.072, two
+    standard errors above even, against a bar its candidates taught by results had raised to three."""
+    return group if teacher == RESULTS else f"{group}, taught by {teacher}"
+
+
 def how_far_above_even(tries: int) -> float:
     """How many standard errors above even a group must score on its ``tries``-th try to be kept. The first try asks
     BETTER_BY; later ones ask more, so that the chance a group that does not help is ever kept stays what one try's
@@ -287,7 +295,8 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
                 results[game] = _as_a_result(standing[game] if game % 2 == 0 else -standing[game], spread)
     mean = float(results.mean()) if len(results) else 0.5
     error = float(results.std(ddof=1) / math.sqrt(len(results))) if len(results) > 1 else 1.0
-    tries = rehearsal.tries[trying] = rehearsal.tries.get(trying, 0) + 1 if trying else 1
+    counted = tried_as(trying, rehearsal.teacher) if trying else ""
+    tries = rehearsal.tries[counted] = rehearsal.tries.get(counted, 0) + 1 if trying else 1
     kept = mean - 0.5 > how_far_above_even(tries) * max(error, 1e-9)
     rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "scored": round(mean, 3),
                       "error": round(error, 3), "kept": kept}

@@ -36,6 +36,7 @@ from core.agency.pieces_by_their_kind import (
     outcome,
 )
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
+from core.cognition.how_long_a_change_takes_to_settle import HowLongItSettles
 from core.cognition.keeping_her_own_count import KeptCount
 from core.cognition.the_furthest_she_has_got import WhatFailedWhere
 from core.perception.pieces_by_their_look import Lattice, Looks, PiecesSeen, squares_of_one_ground
@@ -44,7 +45,8 @@ logger = logging.getLogger("Aura.PlayingPiecesByKind")
 
 __all__ = ["Seat", "a_board_of_two_sides_at_its_start", "play_pieces_by_kind", "said_of_a_move"]
 
-#: How long the board must look the same before it is believed: a piece being drawn across it is not a position.
+#: How long the board must look the same before it is believed, until she has watched how long its changes take to
+#: settle (core/cognition/how_long_a_change_takes_to_settle.py): a piece being drawn across it is not a position.
 STILL_S = 0.5
 #: How long she waits at the start for the other side to move, before taking it that she goes first.
 WAITS_FOR_THE_FIRST_MOVE_S = 6.0
@@ -85,6 +87,8 @@ class Seat:
     columns: int
     #: The board as it stood when she sat down, in the rules' frame.
     start: dict[tuple[int, int], tuple[int, str]] = field(default_factory=dict)
+    #: How long a change on this board takes to settle, as she has watched its changes settle.
+    settles: HowLongItSettles = field(default_factory=lambda: HowLongItSettles(STILL_S))
 
     def rules_square(self, row: int, column: int) -> tuple[int, int]:
         """Rows counted from her back row, columns from her left: her side is the rules' first side."""
@@ -218,9 +222,13 @@ def _how_it_stands(found: Any, weights: Any, start: dict | None = None) -> str:
 
 
 async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tuple[Any, PiecesSeen] | None:
-    """The board once it has stood still: two pictures a moment apart that read the same."""
+    """The board once it has stood still: two pictures that read the same, the second as long after the first as
+    changes on this board have kept going. A change watched to its end is learned from. LIVE 21 November 2026, game
+    16, seeing each of their moves stand still took 0.6 s of her clock, every turn."""
     last = ""
     began = time.monotonic()
+    first_change: float | None = None
+    last_change = 0.0
     while time.monotonic() - began < within_s:
         picture = await look()
         if picture is None:
@@ -234,9 +242,15 @@ async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tupl
             continue
         said = seen.says()
         if said == last:
+            if first_change is not None:
+                seat.settles.watched(last_change - first_change)
             return picture, seen
+        if last:
+            now = time.monotonic()
+            first_change = now if first_change is None else first_change
+            last_change = now
         last = said
-        await asyncio.sleep(STILL_S)
+        await asyncio.sleep(seat.settles.wait())
     return None
 
 
@@ -548,6 +562,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     continue
                 await asyncio.sleep(0.3)
                 continue
+            if misread:
+                # What no move explained, the next look did: the board was believed still while it was still changing.
+                seat.settles.too_soon()
             misread = 0
             for move in seen_moves:
                 if game.believed.turn != FIRST:
