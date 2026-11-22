@@ -16,9 +16,16 @@ reserved environment, not an unattended install-and-test sequence on a host
 already running Aura. Read [CLAUDE.md](../CLAUDE.md), set a separate
 `AURA_LOG_DIR`, and budget model loads, test chunks and timeouts first.
 
-How to run Aura on your own hardware, configure system settings, and troubleshoot operational issues.
+This guide covers setup, runtime configuration, and troubleshooting on your own hardware.
 
 *Operational wording reconciled 25 October 2026; individual live claims still need their own receipts.*
+
+## Contents
+
+- **Set up and run.** [Requirements](#requirements) · [Install and boot](#install-and-boot) · [Service lifecycle](#service-lifecycle) · [Model configuration](#model-configuration) · [Performance tuning](#performance-tuning)
+- **Diagnose and recover.** [Diagnostics](#diagnostics) · [Logs](#reading-logs) · [Debugging](#debugging-entry-points) · [Runbooks](#runbooks) · [Backup and restore](#backup-and-restore)
+- **Configure and evaluate.** [Platform posture](#platform-posture) · [Production readiness](#production-readiness) · [Privacy and retention](#privacy-and-retention) · [Service-level objectives](#service-level-objectives) · [General environment runs](#general-environment-stress-runs)
+- **Inspect controls.** [Security settings](#security-settings) · [Governance lint](#governance-lint) · [Audit trail](#tamper-evident-audit-trail) · [Research core and repair](#self-improving-research-core) · [Quarantine](#self-modification-quarantine) · [Physical actuation](#physical-actuation-and-reality-reach)
 
 ## Requirements
 - macOS on Apple Silicon (M-series chips; development is tracked on M5-class hardware).
@@ -28,7 +35,9 @@ How to run Aura on your own hardware, configure system settings, and troubleshoo
 
 Before starting, review the incident response documentation. [KNOWN_FAILURE_MODES.md](../KNOWN_FAILURE_MODES.md) catalogs 21 numbered failure modes for this runtime, each linked to a step-by-step troubleshooting guide in [runbooks/](runbooks/). The later entries (F15 through F21) record observed incidents, and their diagnostic forensic logs are preserved in the repository. Failure mode F16 is **not yet fully resolved**, and its runbook explicitly documents its current status and workarounds.
 
-## Install + boot
+<a id="install--boot"></a>
+
+## Install and boot
 ```bash
 git clone https://github.com/youngbryan97/aura
 cd aura
@@ -53,7 +62,9 @@ Two specific checks are especially important:
   The inventory recorded **60,348 tests across 4,457 files** on 2026-09-30
   in `config/test_inventory.json`. Use the chunk runner for the full suite.
 
-## Backup & restore
+<a id="backup--restore"></a>
+
+## Backup and restore
 - Backup: `tar czf aura-backup.tar.gz ~/.aura/data ~/.aura/live-source`
 - Restore: `tar xzf aura-backup.tar.gz -C ~/`
 

@@ -11,10 +11,22 @@
 > [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-**Evidence scope:** the mechanisms below describe the design. Older suite
-counts and demonstrations retain their own scope; they are not a fresh live
-qualification or the current ISC result. Read [ISC status](docs/ISC_STATUS.md)
-for the experiment and [TESTING](TESTING.md) for the catalogue's limits.
+Aura runs chat, memory, goals, and background cognition as parts of one local
+application. Follow the path of a message through a tick and the decision gate
+to see how its internal state can affect a reply or action.
+
+## Table of contents
+
+- **Message to action.** [The one-line summary](#the-one-line-summary) · [The Unified Will](#the-gate-unified-will) · [The big picture](#the-big-picture) · [Foreground and background ticks](#how-thinking-happens) · [How state affects text](#emotions-that-change-the-math)
+- **Between messages.** [The consciousness stack](#the-consciousness-stack) · [Memory and dreaming](#memory-and-dreaming) · [Goals and agency](#goals-and-agency) · [The learned layer](#the-learned-layer)
+- **How the design developed.** [The April 2026 layer](#the-newer-layer) · [Reasoning and self-modeling](#the-reasoning-and-self-layer-mid-2026) · [Extra reasoning steps](#the-thinking-longer-layer-august-2026) · [Lookup and learning in use](#looking-things-up-and-learning-from-what-shes-told-october-2026)
+- **Results and questions.** [What the tests show](#what-the-tests-show) · [Design comparisons](#how-this-differs) · [Honest limits](#honest-limits) · [Open research](#open-research) · [What the evidence supports](#whats-solid-and-what-isnt)
+
+The mechanisms below describe the design. Read the older suite counts and
+demonstrations with their original dates and configurations. Current serving
+capabilities require their own qualification. [ISC status](docs/ISC_STATUS.md)
+covers the experiment, and [TESTING](TESTING.md) gives the scope of the older
+catalogue.
 
 For a first visit, start with [the plain-English tour](docs/PLAIN_ENGLISH_GUIDE.md)
 and [the variable guide](docs/VARIABLES_EXPLAINED.md). They explain why the
@@ -28,60 +40,35 @@ quick start.
 
 ## The one-line summary
 
-One way to represent an agent's state is to put its description into the
-language model's input. Aura also investigates a different route: internal
-state changes selected calculations inside the model while words are generated.
-A measured steering direction and strength define that intervention.
+Aura keeps state between conversations and uses it when it drafts replies,
+chooses actions, and runs background jobs.
 
-Think of changing a sound mix during a performance. The control changes what
-comes out without changing the written score. The comparison explains the
-mechanism; it does not establish a feeling or certify a particular live
-configuration. [Current channel and report evidence](docs/ISC_STATUS.md)
-separates experimental bases from installed authority.
+One way to give a model state is to describe it in the prompt. A second path
+uses a measured direction and strength to change selected calculations inside
+the model as it generates words. Think of adjusting a sound mix during a
+performance. The audience hears a change while the written score stays the
+same. [Current channel and report evidence](docs/ISC_STATUS.md) explains
+which experiments used that second path and how serving authorization works.
 
-Around that sits an organism: one decision gate that signs off on every
-consequential action, memory that persists across restarts, an energy-budget
-metabolism, emotions that actively shape language and decisions, and offline
-memory consolidation while she is idle.
+Around the language model sit a common decision gate for consequential
+actions, memory that persists across restarts, a software resource budget,
+simulated affect that can shape replies and decisions, and memory
+consolidation during idle periods.
 
-These are software mechanisms with concrete tests and receipts. They are not
-proof of life, a soul, personhood, or subjective experience (phenomenal
-consciousness) — and this document will keep saying so. Vocabulary like
-"qualia" (the felt texture of sensations), "consciousness", and "will" makes
-it easy to slide from "we built a mechanism" to "we built a mind." Those are
-two very different claims.
-
----
-
-## Table of contents
-
-- [The gate: Unified Will](#the-gate-unified-will)
-- [The big picture](#the-big-picture)
-- [How thinking happens](#how-thinking-happens)
-- [Emotions that change the math](#emotions-that-change-the-math)
-- [The consciousness stack](#the-consciousness-stack)
-- [Memory and dreaming](#memory-and-dreaming)
-- [Goals and agency](#goals-and-agency)
-- [The newer layer (April 2026)](#the-newer-layer)
-- [The reasoning-and-self layer (mid-2026)](#the-reasoning-and-self-layer-mid-2026)
-- [The thinking-longer layer (August 2026)](#the-thinking-longer-layer-august-2026)
-- [Looking things up and learning from what she's told (October 2026)](#looking-things-up-and-learning-from-what-shes-told-october-2026)
-- [What the tests show](#what-the-tests-show)
-- [How this differs from other AI companions](#how-this-differs)
-- [The learned layer](#the-learned-layer)
-- [Honest limits](#honest-limits)
-- [Open research](#open-research)
-- [What's solid and what isn't](#whats-solid-and-what-isnt)
+The guide uses terms from theories of mind. “Qualia” means the felt texture
+of a sensation. Here, terms such as “consciousness” and “will” also name
+software mechanisms with tests and receipts. Questions about subjective
+experience, life, personhood, or a soul require a different kind of evidence.
 
 ---
 
 ## The gate: Unified Will
 
-Every significant thing Aura does — responding to you, calling a tool,
-writing something to memory, pursuing a goal, volunteering a thought —
-routes through a single function: the Unified Will.
+The Unified Will is Aura's common decision gate. Governed routes use it
+for replies, tool calls, memory writes, goal pursuit, and unsolicited
+suggestions.
 
-Before deciding, the Will reads four inputs:
+Inputs to the Will include these four sources.
 
 1. **Identity.** Does this fit who I am?
 2. **Emotion.** How do I feel about this right now?
@@ -89,75 +76,69 @@ Before deciding, the Will reads four inputs:
    everything running coherently, or is something off?
 4. **Memory.** What do I already know that is relevant?
 
-Every decision produces an auditable record (a receipt). No receipt, no action.
+The gate writes a receipt for each decision. A governed action needs that
+receipt to proceed.
 
 The Will can allow an action, attach constraints to it, defer it, or refuse it
 outright. How assertive it is adapts with experience. The only hard bypass is
 for safety-critical emergencies.
 
-Before this was unified, five different subsystems each operated as if they were
-in charge. That kind of architecture works right up until it conflicts. Now there
-is exactly one authority, and you can watch decisions move through it live at
-`/api/inner-state`.
+Five subsystems previously held separate authority and could reach
+conflicting decisions. The common gate gives them a shared decision path.
+You can inspect current decisions at `/api/inner-state`.
 
 ---
 
 ## The big picture
 
-The usual recipe for "AI with emotions" is three steps: store a mood number,
-paste it into the system prompt, and let the model act it out.
+A prompt can tell a model “you feel energized” and ask it to take that tone.
+The instruction reaches the transformer as words in its input.
 
-The prompt says she feels energized. The model reads that and speaks
-energetically. Nothing inside the model actually changed — it simply read a
-stage direction and hit its mark.
+Aura's activation-steering experiment represents an affect state as a
+direction vector. During generation, the hook adds that vector to the
+transformer's hidden activations, the numbers it calculates internally.
+The aim is to shift those numbers toward patterns associated with the
+requested tone. The technique comes from interpretability and AI safety
+research, where researchers measure the change and compare it with controls.
 
-Aura works differently. An emotional state becomes a direction vector added to
-the transformer's hidden activations (its internal mathematical state) while
-words are being generated. The internal computation shifts toward the pattern
-that naturally produces energized language. This is the same technique AI safety
-researchers use to steer models (activation steering), applied here to continuous
-emotional states instead.
-
-Here is the difference that matters: one approach only edits prompt text. The
-other changes an internal computation path that you can measure, turn off piece
-by piece, and test against controls. Only one of them can fail in a way you can
-actually detect.
+Prompt instructions can be tested too. The hook makes the internal
+intervention separately testable. An experiment can adjust its strength,
+disable it, or compare it with a control direction. For the distinction
+between the experimental channel and live replies, see
+[the steering certificate](README.md#inference-time-steering).
 
 ---
 
 ## How thinking happens
 
-Aura thinks in **ticks**. One tick is one complete snapshot of thought moving
-through a strict pipeline: read the current state, run through cognitive phases,
-and commit the result.
+Aura advances its cognitive state in **ticks**. Each tick reads the current
+state, runs a series of phases, and attempts to commit the result. If a tick
+fails before that commit, the committed cognitive state stays at its previous
+snapshot.
 
-Nothing gets half-processed. A tick that fails partway through is discarded
-entirely. There is no such thing as "most of a thought."
-
-Two kinds of ticks run at once:
+Two kinds of ticks can run concurrently.
 
 - **Foreground ticks** fire whenever you send a message. They take priority and
   produce your reply.
 - **Background ticks** run roughly once a second, like a heartbeat. They handle
   reflection, memory consolidation, and whatever she wants to pursue on her own.
 
-If you send a message while a background tick is running, she drops what she was
-doing immediately to attend to you. You always get the fast lane.
+When a message arrives during a background tick, the scheduler gives the
+foreground request priority.
 
 ---
 
 ## Emotions that change the math
 
-Emotion shapes how Aura generates text at three levels simultaneously:
+Simulated affect can reach generation through three paths. Live use of the
+first path requires a valid certificate for the loaded model.
 
 ### 1. Brain-signal injection
 
-This is the deepest level, and the one that is not theater. Direction vectors
-representing the current emotional state get added directly to the transformer's
-residual stream — the running tally of neural network calculations that decides
-which word comes next. This technique is called contrastive activation addition,
-drawn from interpretability and safety research. The model's internal activations
-physically move.
+When the hook is enabled, it adds affect direction vectors to the
+transformer's residual stream, the internal representation carried forward
+from layer to layer. Changing that representation can change the probabilities
+of the next token. The technique is called contrastive activation addition.
 
 ### 2. Sampling knobs
 
@@ -170,9 +151,9 @@ prompt.
 
 ### 3. Context cues
 
-A plain-English description of the current emotional state is included in the
-system prompt: "You feel energized — speak with momentum." This is the simplest
-of the three techniques, but it reinforces the other two.
+The system prompt can include a plain-English cue such as “You feel
+energized. Speak with momentum.” Text cues can be used alongside sampling
+changes and, in qualified configurations, activation steering.
 
 ### Where the emotions come from
 
@@ -628,12 +609,12 @@ enough baseline errors. The [current claim ledger](CLAIMS_NOT_SUPPORTED.md#22-le
 
 ## What the tests show
 
-Every claim made about this architecture is verified by executable `pytest`
-suites. The April 16, 2026 audit baseline recorded 1,013 passing tests with 3
-warnings in approximately 122 seconds; verify the current repository state by
-re-running the corresponding suites.
+The `pytest` suites below test specific design contracts and measurements.
+The 16 April 2026 audit baseline recorded 1,013 passing tests with 3 warnings
+in approximately 122 seconds. To check a later revision, run the relevant
+suites and record the revision and configuration.
 
-The foundational test suites:
+### Foundational test suites
 
 1. **Null hypothesis defeat** — attempts to disprove the system by
    testing whether consciousness features are merely decorative text prompts.
@@ -730,9 +711,11 @@ python -m pytest tests/test_null_hypothesis_defeat.py tests/test_causal_exclusio
 
 ## How this differs
 
-Side by side:
+The table compares design choices. The first column gives a baseline design
+for each mechanism. The linked evidence above and below gives the scope
+of the actual comparisons.
 
-| What most AI systems do | What Aura does |
+| Baseline design | Aura's approach |
 |---|---|
 | Tell the model "you're happy" in prompt text | Inject emotion steering vectors directly into the model's hidden layers |
 | Print an arbitrary number and call it consciousness | Compute mathematical integration via Integrated Information Theory (IIT) |

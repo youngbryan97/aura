@@ -11,6 +11,13 @@
 > [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
+## Contents
+
+- [Measure current coverage](#current-coverage) · [Interpret a result](#current-evidence-interpretation)
+- [Historical catalogue](#earlier-test-catalogue-and-attestation-language) · [Limits](#limitations)
+
+## Current coverage
+
 Use `make test-inventory` to count the current tests. This count and the code version it comes from are saved in `config/test_inventory.json`.
 The inventory is a dated record; `make doc-drift` checks document references,
 not every factual assertion or current test count. Always update it by running `make test-inventory` instead of typing the new number yourself.
@@ -20,19 +27,33 @@ make smoke       # focused contracts; duration depends on host and revision
 # For broad coverage, choose the chunk budget before running the full suite
 ```
 
-Always use the chunk runner for tests. Running all tests at once uses too much memory and crashes at around 83%. This is a known issue, and trying again won't fix it. Running `make test` uses `tools/run_test_chunks.py` to break the work into pieces. You can use `--continue-on-failure` to find all errors instead of stopping at the first one. Use `--only-chunks 5,6` to pick up where a run left off.
+### Choose a chunk size
 
-The number of chunks is a memory budget, not a constant. Six chunks (about 743 files a pytest process) suit an idle host. With her 27B model resident, or a training run holding memory, six chunks get the runner itself killed, and its log then holds only the chunk header, because each chunk's output was buffered in the process that died. Check free memory first; with the 27B up, use `--chunks 40` (about 112 files a chunk). `/tmp/aura_test_chunks_progress.log` names the chunk that was running, and `--min-free-gb N` refuses to start rather than gamble.
+`make test` uses `tools/run_test_chunks.py` to run the suite in fresh
+processes. An earlier single-process run ran out of memory near 83%.
+Use `--continue-on-failure` to collect failures across chunks and
+`--only-chunks 5,6` to resume selected chunks.
 
-Remember this rule: **if a test fails when run with others but passes when run alone, it is broken because it depends on the order of tests, not because it is a random error.** The test runner checks for this and reports these errors clearly so they cannot be ignored.
+The Makefile defaults to 40 chunks on macOS and 6 elsewhere. At the catalogue's
+rough size, six chunks meant about 743 files per process, while 40 meant
+about 112. Six chunks once exhausted memory with the 27B model or a training
+run resident. In that case the log showed the chunk heading because the
+child process's output was still buffered. Choose the chunk count and the
+`--min-free-gb` floor using available memory.
+
+The default progress record is `/tmp/aura_test_chunks_progress.log`. The
+runner retries a failing test in isolation to identify order-dependent
+failures. A test that passes alone after failing inside its chunk still
+needs investigation.
 
 ## Current evidence interpretation
 
-A passing unit test supports its declared software contract. A suite named
-“consciousness guarantee,” “personhood proof” or “decisive” does not establish
-those labels as empirical conclusions. The current ISC battery and its
-controls are separate: read [ISC status](docs/ISC_STATUS.md) and
-[reproduction](docs/ISC_REPRODUCTION.md). No complete ISC pass is reported.
+A passing unit test supports its declared software contract. Names such
+as “consciousness guarantee,” “personhood proof,” and “decisive” identify
+software test suites. The separate ISC experiment reported 24/24 under
+ISC-v7 for its confirmatory run, seed 101. See [ISC status](docs/ISC_STATUS.md)
+for the result and controls, and [reproduction](docs/ISC_REPRODUCTION.md)
+for the run procedure.
 
 Collection can also be expensive. Plan `make test-inventory` or broad
 collection under the same resource budget as tests; do not collect or run the

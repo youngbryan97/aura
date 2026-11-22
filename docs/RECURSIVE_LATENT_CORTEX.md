@@ -16,18 +16,24 @@ Checkpoints land faster than this page tracks; the claims ladder
 below changes slowly, and the append-only
 [ledger](RLC_SPARK_EXECUTION_LEDGER.md) is the live record.
 
-Aura's largest research programme. The question:
+Aura's main model-reasoning programme started with a specific question.
+Can a frozen 32B checkpoint, which ordinarily runs its 64 layers once per
+token, do better on hard problems by doing more internal computation with
+the same stored weights?
 
-> A frozen 32B checkpoint is a fixed-depth pipeline — 64 layers, once, per
-> token. Can you make it *think longer* on a hard problem without changing a
-> single stored weight?
+The frozen-loop campaign found no gain under the conditions tested. A second
+line of work learned a typed representation of the task, executed it, and
+used the resulting state during language-model decoding. That mechanism
+earned the adjudicator's `BOUNDED_WOW_SIGNAL` verdict on four executable
+families with the resident 32B (CP566) and fused 27B (CP1011). The verdict
+applies to that combined mechanism and the tested families.
 
-The frozen-loop campaign measured no gain under its tested conditions.
-A different mechanism, a learned typed semantic machine followed by
-state-conditioned language-model decoding, earned `BOUNDED_WOW_SIGNAL` on
-four executable families with the resident 32B (CP566) and fused 27B (CP1011).
-Those studies do not prove a reasoning gain from repeated middle-layer passes
-through the resident language model. The programme contains both mechanisms.
+## Contents
+
+- **Results.** [October evidence](#current-evidence-boundary-2026-10-25) · [September evidence](#earlier-evidence-boundary-2026-09-08) · [Programme summary](#the-short-version) · [Status and comparison results](#where-the-programme-actually-stands)
+- **Implementation.** [Supporting documents](#the-programmes-documents) · [Running it](#running-it) · [Checked invariant](#the-invariant-checked-not-promised) · [Architecture](#architecture) · [Falsification harness](#falsification-harness-experimentspy) · [Runtime wiring](#runtime-wiring) · [Operational notes](#operational-notes)
+- **Early experiments.** [Frozen-loop mechanics](#frozen-loop-mechanics-evidence-historical) · [July closeout](#closeout-state-2026-07-17-head-86d27cf0) · [Preregistered July campaign](#preregistered-offline-campaign-2026-07-17-seed-committed-first)
+- **Later mechanism studies.** [Heterogeneous integration](#calibrated-heterogeneous-integration-spark-034) · [KV state tree](#verified-kv-state-tree-and-rewind-spark-035) · [Latent search](#verified-latent-treeforest-search-spark-038) · [Negative constraints](#governed-transient-negative-constraints-spark-036) · [Cognitive acquisition](#governed-cognitive-acquisition-continuation-spark-051-partial) · [First 32B consolidation](#first-resident-32b-consolidation-execution)
 
 ## Current evidence boundary, 2026-10-25
 

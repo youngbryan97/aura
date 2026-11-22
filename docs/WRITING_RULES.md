@@ -236,6 +236,18 @@ whether the explanation is clear and the comparison is warranted remains
 editorial work. Frozen protocols, historical evidence and compliance text
 retain their original wording and are indexed separately.
 
+## Edit a long guide in place
+
+Put the contents near the opening. Give major sections links with labels
+that tell readers what they will find. Break long sections at changes in
+topic, method, or result. Add a short entry point when a reader needs one.
+
+Check the revision against the original. Keep the technical explanation,
+commands, figures, tables, examples, historical outcomes, and evidence links.
+For each changed finding, confirm the source and keep the date, method, and
+scope with the number. Name the thing that was measured and what remains open.
+Read the rendered page once as a newcomer, including the links and headings.
+
 ## What this does not apply to
 
 **Append-only records are never edited for style.** The execution tracker, the

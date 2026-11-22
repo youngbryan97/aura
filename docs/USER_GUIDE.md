@@ -11,15 +11,22 @@
 > [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-*Installation, timing and evidence scope reviewed 25 October 2026.*
+Use this guide to start the desktop app, talk to Aura, and manage its
+memory and voice settings.
+
+## Contents
+
+- [Install](#install) · [Talk to Aura](#talk-to-aura) · [Use voice](#use-voice)
+- [Manage memory](#manage-memory) · [Troubleshoot](#common-issues) · [Update](#update-aura) · [Uninstall](#uninstall)
 
 ## Install
-The GitHub Releases list checked on 25 October contains no published release.
-Use the source-install procedure below. If you have a separately built
-`Aura.app`, use its build provenance and included setup instructions; this
-guide does not establish that a public `Aura.dmg` is available.
 
-If you'd rather run from source (advanced):
+The setup procedure was reviewed on 25 October 2026. Install the app from source. The
+[November GitHub release](https://github.com/youngbryan97/aura/releases/tag/isc-preprint-2026-11)
+accompanies the ISC preprint and has no desktop installer attached. If you
+have a separately built `Aura.app`, use the setup instructions and
+provenance for that build.
+
 ```bash
 git clone https://github.com/youngbryan97/aura
 cd aura
@@ -32,16 +39,34 @@ Full install detail, boot modes, and environment variables are in
 
 ## Talk to Aura
 
-Open Aura. The startup screen lists each system component as it loads — Core runtime, Memory, Cortex (the local language model), Voice, and Autonomy. This shows you exactly what is still starting up instead of showing a generic loading spinner. When the parts you need finish loading, the chat input box becomes active.
+### Start a conversation
 
-Type your message and press Enter. If a reply takes a while, you will see a thinking indicator with an estimated wait time. A retained twelve-task sample from 28 August recorded a 102-second median
-(34 to 122 seconds). That sample does not predict ordinary chat or current
-voice latency. Progress and logs distinguish ongoing inference from a stall;
-a long wait alone cannot do so.
+Open Aura. The startup screen shows the status of Core runtime, Memory,
+Cortex (the local language model), Voice, and Autonomy as they load. The
+chat box activates when the required components are ready.
 
-Some answers are computed rather than written. For kinds of problem she keeps a procedure for (large primes, prime factors, date arithmetic once she has learned it), her chat runs the procedure before she replies. When your question is worded the way that kind's examples are and her draft does not state the computed answer, the computed answer is what you see; when it is worded otherwise, the computed answer is put in front of her as evidence and her reply stands. Factual questions are looked up in her offline Wikipedia copy and in pages her searches kept, and each source is labelled with where it came from and its date.
+Type a message and press Enter. The thinking indicator shows an estimated
+wait time. A twelve-task sample from 28 August recorded a median of
+102 seconds. The fastest task took 34 seconds and the slowest took 122.
+Ordinary chat and voice need their own measurements. Check progress
+and logs if you need to tell ongoing inference from a stall.
 
-If she gets something wrong, say so with the answer: "No, it's 1049." She keeps that as a solved example, and while she is idle she can learn a procedure from several of them. An answer that contradicts a procedure she already trusts is kept as disputed rather than believed.
+### When Aura looks something up or runs a procedure
+
+Factual questions can use the offline Wikipedia copy and pages saved by
+earlier searches. Each passage carries its source and date.
+
+Questions about large primes, prime factors, or a date calculation can run
+a kept procedure before the draft. For a wording match, the procedure's
+answer can replace a draft that omits it. For a meaning match, Aura sees
+the computed answer as evidence and returns the model's reply.
+
+### Correct an answer
+
+Give the correction as part of your message, for example “No, it's 1049.”
+Aura keeps it as a solved example. It can learn a procedure from several
+examples during idle time. When the correction conflicts with an existing
+kept procedure, Aura marks it disputed.
 
 ## Manage Memory
 
@@ -71,8 +96,7 @@ Settings → Voice holds both toggles, input (speech-to-text) and output (text-t
 ## Common Issues
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Banner: "My local Cortex is offline" | The large language model (32B/27B) failed to load | Check available disk space first — the model weights need about 20 GB. Identify the failed process and existing workload before an authorised
-graceful relaunch; do not start a second Cortex beside a live instance. Follow the step-by-step instructions in `docs/runbooks/model-fails-to-load.md`. |
+| Banner: "My local Cortex is offline" | The large language model (32B/27B) failed to load | Check available disk space first — the model weights need about 20 GB. Identify the failed process and existing workload before an authorised graceful relaunch; do not start a second Cortex beside a live instance. Follow the step-by-step instructions in `docs/runbooks/model-fails-to-load.md`. |
 | "I'm under load right now" replies | RAM pressure over 90% | Close memory-heavy apps. Aura frees up memory automatically when needed; there is no manual "clear memory" button in Settings. |
 | Voice button greyed out | Permission revoked | Grant microphone access in macOS Privacy & Security. In Aura, Settings → Desktop Access covers Screen Recording, Accessibility, and Automation permissions. |
 | Chat input stays disabled | Boot still warming | Check the startup indicator at the top of the window and wait until it displays "Cortex: Ready". |

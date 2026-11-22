@@ -11,21 +11,28 @@
 > [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This is the technical spec. It explains the math, files, and algorithms. For a simple overview, see [HOW_IT_WORKS.md](HOW_IT_WORKS.md). For a quick start, see the [README](README.md).
+This reference covers Aura's algorithms, interfaces, and source files.
+For a walkthrough of a message, read [How Aura works](HOW_IT_WORKS.md).
+For installation and startup, see the [README](README.md#quick-start).
 
-**Evidence boundary.** This document describes functional systems, not philosophical claims about consciousness or legal personhood. We only credit claims after strict testing.
+The spec records the design as it evolved. Sections 1–17 cover the foundations
+through July 2026. Later sections cover physical reach, Recursive Latent
+Cortex, and the October work on knowledge and procedures. For generated views
+of the source, see the [architecture map](docs/ARCHITECTURE_MAP.md), the
+[runtime contract](docs/RUNTIME_CONTRACT.md), and the
+[failure-mode registry](docs/FMEA.md). Regenerate these from their source
+commands when the code changes.
 
-**Currency.** Last updated August 2026. Sections 1–17 cover up to July 2026; [§18](#18-the-reality-boundary) covers newer additions. Generated files like [docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md), [docs/RUNTIME_CONTRACT.md](docs/RUNTIME_CONTRACT.md), and [docs/FMEA.md](docs/FMEA.md) are made via code commands; do not edit them by hand.
-
-**Recent hardening.** Since the original spec, the system added reasoning, a self-model, and resilience features. These are detailed in [§15](#15-the-reasoning-self-model-and-resilience-layer).
-
-For proof of autonomy or behavior, see [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md).
-
----
+The algorithms here describe software mechanisms. Use the
+[behavioral proof standard](docs/BEHAVIORAL_PROOF_STANDARD.md) to evaluate
+autonomy or behavior claims, and [ISC status](docs/ISC_STATUS.md) for the
+separate subjecthood experiment and its scope.
 
 ## Table of Contents
 
 0. [The Unified Will: decision authority](#0-the-unified-will-decision-authority)
+   - [Initiatives](#01-initiative-synthesizer-one-origin-for-all-impulses) · [World state](#02-world-state-live-perceptual-feed) · [Drives](#03-drive-cross-coupling)
+   - [Action simulation](#04-counterfactual-action-simulation) · [Goals at boot](#05-goal-resumption-at-boot) · [Proof surface](#06-proof-surface) · [Overt action loop](#07-overt-action-loop)
 1. [System model](#1-system-model)
 2. [The tick: the pipeline that produces one committed state](#2-the-tick)
 3. [Bounded integration models inspired by IIT](#3-bounded-integration-models-inspired-by-iit)

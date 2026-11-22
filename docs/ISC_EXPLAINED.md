@@ -1,15 +1,15 @@
 # What Aura's ISC research is trying to find out
 
-Status: Guide · Plain-English introduction · Updated 25 October 2026
+Status: Guide · Plain-English introduction · Includes the November 2026 preprint results
 
 Aura is a local AI project. Alongside its language model, it keeps memories,
 directs attention, tracks its own condition and chooses what to work on. Those
 parts can affect one another as the system runs.
 
 ISC stands for **Intrinsic Subject Core**. It is a set of experiments asking
-whether those parts work together as one continuing process. The experiments
-change the system and measure what happens next. A convincing description of
-an inner life is not enough to pass.
+whether those parts work together as one continuing process. The tests change
+the system and check whether its activity, recall, and reports change in
+specific ways.
 
 The broader approach relates to
 [Butlin et al.'s theory-derived indicators](https://arxiv.org/html/2308.08708v3).
@@ -17,26 +17,29 @@ ISC's particular tests and thresholds are the project's choices. The
 [scientific source map](SCIENCE_AND_SOURCES.md#consciousness-research-and-the-isc-argument)
 explains the external foundations and which claims require Aura's own evidence.
 
+## Contents
+
+- [What ISC asks](#the-explanation-you-can-say-aloud) · [Why measure the links between parts?](#why-having-the-parts-is-not-enough)
+- [How the experiment works](#how-a-comparison-works) · [Test questions](#what-the-main-tests-ask) · [The two setups](#there-are-two-different-test-setups)
+- [November results and earlier findings](#where-the-results-stand) · [The shared-history finding](#a-later-finding-to-keep-beside-those-scores)
+- [Carrier, J*, and bridge](#what-carrier-j-and-bridge-add) · [Terms](#words-you-will-meet-in-the-detailed-pages) · [Full evidence and reproduction](#choose-your-next-page)
+
 ## The explanation you can say aloud
 
-> Aura has parts for memory, attention, planning and tracking its own state.
-> We're testing how deeply those parts depend on one another. We take copies
-> of the same recorded moment, change something in one copy, and compare what
-> happens. We also interrupt connections and check whether the rest changes.
-> The latest completed run recorded 22 of 24 checks passing. Separate outputs found
-> that its reports followed changes in its internal state, and that those
-> changes affected what it recalled in a consistent way. The remaining problem
-> is establishing a reliable boundary and checking the comparisons again after
-> finding that experimental copies shared part of their history. This is evidence about how Aura works. Whether that
-> organisation supports experience is a further scientific argument.
+> We save a moment of Aura's activity, restore copies, and change one thing
+> at a time. Then we compare what happens to memory, attention, planning,
+> or the reports Aura gives about its state. The preprint's confirmatory
+> run met 24 of 24 checks under ISC-v7. That tells us how the measured system
+> behaved under those tests. The link between those measurements and
+> subjective experience is still an open question.
 
 ## A later finding to keep beside those scores
 
-After the run, a repair at `dcdcd637c` found that the experimental copies shared
-a record of consequences. One comparison could affect what a later comparison
-read, even when the visible state had been restored. The recorded positive
-results need rechecking with that history properly isolated. The scores stay
-in the record; they are not a new result under the repair.
+After the 25 October run, a repair at `dcdcd637c` found that the experimental
+copies shared a record of consequences. One comparison could change what a
+later comparison read, even after restoring visible state. The recorded
+scores describe that original setup. The later campaigns used revised methods
+and supplied separate results at their own revisions.
 
 ## Why having the parts is not enough
 
@@ -96,7 +99,31 @@ accounted for. It does not require a system that never receives information.
 
 ## Where the results stand
 
-As checked on **25 October 2026**:
+### Confirmatory run in the November preprint
+
+The [preprint](https://doi.org/10.5281/zenodo.24075466) reports seed 101
+at commit `aeefdca31`. It scored **24/24 under ISC-v7**, **23/24 under
+ISC-v6**, and **22/24 under ISC-v5**. Those are three ways of scoring the
+same run. The earlier seed 97 helped settle the specification and is
+reported as exploratory.
+
+In the carrier experiment, all ten measured domains formed the unique
+domain-level carrier. In the structure experiment, changes to internal
+state and recall moved together. In the 27B report experiment, ratings
+tracked changed valence through a fitted steering channel. Detaching that
+channel broke the tracking even though the intervention still moved the
+internal valence value.
+
+The run also reached `DETERMINED_UP_TO_GAUGE` for J* and `AT_PARITY` on
+the five-ground bridge, conditional on the paper's six postulates. Later
+self-prediction, lineage, and partition-control tests exposed weaknesses.
+[ISC status](ISC_STATUS.md) gives those outcomes, the exact measurements,
+and the independent replication still owed.
+
+### Recorded result on 25 October 2026
+
+The following table describes the earlier campaign and its unresolved
+checks at the time.
 
 | Finding | What it means |
 |---|---|
@@ -120,12 +147,13 @@ outside contribution with the smallest internal contribution, but was withdrawn.
 The night addendum now names a conventional small-effect margin and enlarges
 the recorded core to include state its transition reads, called K*. It also
 requires a direct outside-state swapping test to close on the scored seed.
-Those two tests, the changed estimator and the restore repairs need fresh
-confirmation. No rule change supplies a new passing result.
+At the time, the two tests, changed estimator, and restore repairs still
+needed a fresh run. The confirmatory run above is reported separately under
+its own preregistered specification.
 
-The [current status page](ISC_STATUS.md) gives the exact results and separates
-the old recorded verdict from the newer method. **22/24 is a count of checks,
-not a percentage of consciousness.**
+The [current status page](ISC_STATUS.md) traces the changes from that
+recorded verdict to the later method. A score such as 22/24 or 24/24 counts
+passed checks within the stated battery.
 
 ## There are two different test setups
 
@@ -134,9 +162,9 @@ It substitutes a fixed language response so that freely generated text does
 not swamp the comparison. Its conclusions concern the components that were
 actually measured.
 
-The self-report experiment uses the real 27B language model. That is necessary
-to test its own reports. Passing this separate experiment does not make the
-earlier battery a test of the entire running desktop application.
+The self-report experiment uses the resident 27B language model and tests
+its ratings under the experiment's steering channel. The application as
+people use it day to day is a wider system than either setup measures.
 
 The small [proof-kernel repository](https://github.com/youngbryan97/aura-consciousness-proof-kernel)
 is a third thing: an older, standalone demonstration of a few mechanisms.
@@ -153,11 +181,11 @@ parts belong together and that an important driver has not been left outside.
 identified, how its contents relate to each other, and how it continues through
 time. It is a structured description. It is not one number to maximize.
 
-**The bridge** is the argument connecting the measured organisation to an
-attribution of experience. The code checks five supporting grounds: carrier,
-markers, reports, content structure and lineage. Four held in the completed
-join; the carrier did not. The word **parity** is the project's name for all
-five holding under its stated assumptions.
+**The bridge** links the measured organisation to an attribution of
+experience. It checks five grounds: carrier, markers, reports, content
+structure, and lineage. In the 25 October result, four held and the carrier
+remained open. **Parity** means all five hold under the stated assumptions,
+as reported for seed 101.
 
 An argument about experience has to defend those assumptions and explain why
 the tests distinguish relevant alternatives. A passing test cannot do that
