@@ -70,3 +70,21 @@ def test_a_game_that_comes_back_to_the_place_goes_another_way(monkeypatch) -> No
     said_again: list[str] = []
     assert _first_move(went_wrong, said_again, monkeypatch) != first
     assert any("from here before and it went wrong" in line for line in said_again), said_again
+
+
+def test_a_judgement_already_decided_is_not_where_it_went_wrong() -> None:
+    """LIVE 21 November 2026, game 15: the fall into a mate found picked the move before the mate, at a place no game
+    comes back to; her judgement had fallen from even to 4.5 pieces behind at move 9."""
+    from core.agency.pieces_by_their_kind import Move
+    from core.agency.searching_by_kind import Found
+
+    start = dict(NOBODYS_GAME.start)
+    game = playing._Game(learned=HowThePiecesMove.from_the_start(7, 7, start),
+                         believed=Position(cells=start, turn=FIRST, unmoved=frozenset(start)))
+    one = Move((1, 1), (2, 1))
+    playing._judged(game, "p8", one, Found(one, 0, 9, 100, [one]))
+    playing._judged(game, "p9", one, Found(one, -450, 9, 100, [one]))
+    playing._judged(game, "p10", one, Found(one, -999_990, 6, 100, [one], mate=True))
+    assert [place for place, _move, _score in game.judged] == ["p8", "p9"]
+    playing._where_it_went_wrong(game)
+    assert set(game.went_wrong.ruled_out) == {"p8"}

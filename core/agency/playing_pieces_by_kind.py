@@ -688,7 +688,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         if found.by == "the only move":
             how = "It's the only move I have"
         else:
-            game.judged.append((here, _named(move), int(found.score)))
+            _judged(game, here, move, found)
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
                   f"{found.nodes:,} positions)"
         tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. {how}")
@@ -887,6 +887,15 @@ def _a_place(position: Position) -> str:
 
 def _named(move: Move) -> str:
     return f"{move.start[0]},{move.start[1]}-{move.end[0]},{move.end[1]}{move.becomes}"
+
+
+def _judged(game: _Game, place: str, move: Move, found: Any) -> None:
+    """A turn she searched, kept for finding where a lost game went wrong: only a judgement not yet decided. A fall
+    into a mate found is the end being seen, not the answer she least saw coming: LIVE 21 November 2026, game 15, it
+    ruled out the move before the mate, at a place no game comes back to, where her judgement had fallen from even to
+    4.5 pieces behind at move 9."""
+    if not getattr(found, "mate", False):
+        game.judged.append((place, _named(move), int(found.score)))
 
 
 def _where_it_went_wrong(game: _Game) -> None:
