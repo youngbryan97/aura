@@ -1534,14 +1534,15 @@ def _declared_text_fields(meta: Any) -> frozenset[str]:
 
 
 def _her_own_read_of_her_own_source(skill_name: str, effect_scope: str, origin: str) -> bool:
-    """Whether a call is her goal pass reading her own source: read_source or find_in_source, read-only, from her goal
-    origin. The outcome simulator scores an action's description, and a search pattern of hers with "evict" or
-    "forget" in it read as harm: it held her find_in_source at worst-case harm 0.80 and 1.00 on 10 November 2026.
-    Inside her workspace the worst case of a read is what she reads."""
+    """Whether a call is her goal pass reading her own source or her runtime's record of its faults: read_source,
+    find_in_source or what_went_wrong, read-only, from her goal origin. The outcome simulator scores an action's
+    description, and a search pattern of hers with "evict" or "forget" in it read as harm: it held her find_in_source
+    at worst-case harm 0.80 and 1.00 on 10 November 2026. Inside her workspace the worst case of a read is what she
+    reads."""
     from core.executive.standing_authority import OWN_GOAL_ORIGIN, OWN_GOAL_TOOLS
 
     return (str(origin or "") == OWN_GOAL_ORIGIN and str(effect_scope or "") == "read_only"
-            and skill_name in OWN_GOAL_TOOLS and skill_name in {"read_source", "find_in_source"})
+            and skill_name in OWN_GOAL_TOOLS and skill_name in {"read_source", "find_in_source", "what_went_wrong"})
 
 class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
     """Unified engine for Aura's capabilities (skills).

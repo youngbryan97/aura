@@ -1,5 +1,5 @@
-"""Her tools for a goal she set herself (core/agency/her_goal_at_work.py): read her source, search it, change a draft
-of it, check the draft, and offer it to Bryan.
+"""Her tools for a goal she set herself (core/agency/her_goal_at_work.py): read what has gone wrong in her running, read
+her source, search it, change a draft of it, check the draft, and offer it to Bryan.
 
 Each acts in her workspace for the goal: a git worktree of her source on a branch of its own. A draft changes nothing
 she runs on until Bryan takes it. A path outside the workspace, inside its .git, or naming keys or secrets is refused.
@@ -234,6 +234,55 @@ class FindInSourceSkill(BaseSkill):
                                                              else "")}
 
 
+class WhatWentWrongInput(BaseModel):
+    subsystem: str = Field("", description="Only what this subsystem recorded, or the start of its name, e.g. memory.")
+
+
+#: What a record of her runtime at these severities says is not a fault: expected waits and notes (CLAUDE.md, "log at
+#: info and only record a degradation when the condition is persistent").
+_NOT_A_FAULT = frozenset({"debug", "info"})
+
+
+class WhatWentWrongSkill(BaseSkill):
+    result_schema = THE_SHARED_RESULT
+    name = "what_went_wrong"
+    description = ("What has gone wrong in her own running since it started, from the faults her runtime recorded: "
+                   "each kind once, how many times, where in her source it was raised, the error, and what was done "
+                   "about it, the most frequent first.")
+    input_model = WhatWentWrongInput
+    effect_scope = "read_only"
+    timeout_seconds = 30.0
+
+    async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Her runtime's own record, read in her own process: LIVE 21 November 2026 her goal "Find something productive
+        to work on" had made 2,022 calls over 290 passes with no edit, searching her source for TODO and FIXME, while
+        her causal world model's every save was being refused in the same process, sixty times that afternoon."""
+        from core.runtime.errors import get_degradation_tracker
+
+        try:
+            asked = _params(WhatWentWrongInput, params)
+        except Refused as why:
+            return {"ok": False, "error": str(why)}
+        kinds: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for record in get_degradation_tracker().recent(limit=10_000):
+            if str(record.severity) in _NOT_A_FAULT or not str(record.subsystem).startswith(asked.subsystem.strip()):
+                continue
+            call = record.failed_call
+            where = (f"{call.file}:{call.line} in {call.qualname}" if getattr(call, "file", "")
+                     else ".".join(record.raised_in) if record.raised_in else "where it was raised was not kept")
+            kind = kinds.setdefault((record.subsystem, record.error_type, where), {"times": 0})
+            kind.update(times=kind["times"] + 1, severity=record.severity, error=record.error_message[:200],
+                        action=record.action[:160], last=record.timestamp)
+        ranked = sorted(kinds.items(), key=lambda item: (-item[1]["times"], -item[1]["last"]))
+        rows = [f"{kind['times']}x {kind['severity']} {subsystem}: {error_type} at {where}: {kind['error']}"
+                + (f" (then: {kind['action']})" if kind["action"] else "")
+                for (subsystem, error_type, where), kind in ranked]
+        summary = f"{len(rows)} kind(s) of fault recorded, {sum(kind['times'] for kind in kinds.values())} in all"
+        shown = _what_fits(rows, {"ok": True, "kinds": len(rows), "summary": summary})
+        return {"ok": True, "kinds": len(rows), "text": "\n".join(shown),
+                "summary": summary + (f"; the first {len(shown)} shown" if len(shown) < len(rows) else "")}
+
+
 class EditDraftInput(BaseModel):
     path: str = Field(..., description="File path, from the top of her source.")
     # Optional and None-tolerant: the capability engine drops an empty string before a skill sees it, so "" (a new
@@ -402,7 +451,7 @@ class OfferDraftSkill(BaseSkill):
 
 
 #: Her tools, in the order a goal is worked.
-HER_TOOLS = (ReadSourceSkill, FindInSourceSkill, EditDraftSkill, CheckDraftSkill, OfferDraftSkill)
+HER_TOOLS = (WhatWentWrongSkill, ReadSourceSkill, FindInSourceSkill, EditDraftSkill, CheckDraftSkill, OfferDraftSkill)
 
 
 def tool_definitions() -> dict[str, dict[str, Any]]:
@@ -418,4 +467,4 @@ def tool_definitions() -> dict[str, dict[str, Any]]:
 
 
 __all__ = ["CheckDraftSkill", "EditDraftSkill", "FindInSourceSkill", "HER_TOOLS", "OfferDraftSkill",
-           "ReadSourceSkill", "Refused", "tool_definitions"]
+           "ReadSourceSkill", "Refused", "WhatWentWrongSkill", "tool_definitions"]

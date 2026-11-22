@@ -8284,6 +8284,12 @@ needs her 27B free (her app down, or her app's own influence trials).
     sixty times; it says so once (`tests/test_her_loop_mends_a_fault_of_her_own_running.py`).
     Her goal pass asked read_source for her workspace's own folder, and it came back as an error. A folder she
     reads comes back as what her source keeps in it, one level down (`tests/test_what_she_reads_comes_back_readable.py`).
+    Her goal "Find something productive to work on" had made 2,022 calls over 290 passes by then, and no edit: her
+    tools read and searched her source, and she searched it for TODO and FIXME, which it does not use, while the
+    refused saves above went on in the same process where none of her tools could see them. A pass at a goal of
+    hers can now read what has gone wrong in her own running, from her runtime's record of its faults: each kind
+    once, how often, where in her source it was raised, and what was done about it, the most frequent first
+    (`what_went_wrong`, read-only, within the same standing grant; `tests/test_her_goal_pass_reads_what_went_wrong.py`).
 
 ## Live session 2026-09-07: what the runtime showed
 

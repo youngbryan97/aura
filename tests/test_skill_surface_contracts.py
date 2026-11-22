@@ -23,6 +23,7 @@ from core.skills.toggle_senses import ToggleSensesSkill
 EXPECTED_REGISTERED_SKILLS = {
     # Her goal tools (core/skills/her_draft.py, 8 November 2026): registered and
     # run, offered only to a pass of hers at a goal she set herself.
+    "what_went_wrong",
     "read_source",
     "find_in_source",
     "edit_draft",

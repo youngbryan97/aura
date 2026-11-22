@@ -21,6 +21,7 @@ from tests.test_her_goal_is_worked_by_her import GOAL, NEW_TEST, _git, _HerModel
 from tests.test_standing_authority import _manager
 
 CALLS = {
+    "what_went_wrong": {"subsystem": "memory"},
     "read_source": {"path": "core/memory/cold_store.py", "from_line": 1},
     "find_in_source": {"pattern": "TODO", "where": "core/memory"},
     "edit_draft": {"path": "core/notes.py", "old_text": "", "new_text": "x = 1\n"},

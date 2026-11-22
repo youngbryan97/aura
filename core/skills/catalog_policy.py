@@ -177,7 +177,8 @@ INTERNAL_ONLY_SKILLS = frozenset(
 #: Registered and run, but offered only to a pass of hers at a goal she set herself (core/agency/her_goal_at_work.py):
 #: each acts in her workspace for that goal, and a conversational turn has none. Offered to turns, "read /etc/hosts"
 #: was answered with read_source in place of file_operation (8 November 2026).
-HER_GOAL_TOOLS = frozenset({"read_source", "find_in_source", "edit_draft", "check_draft", "offer_draft"})
+HER_GOAL_TOOLS = frozenset({"what_went_wrong", "read_source", "find_in_source", "edit_draft", "check_draft",
+                            "offer_draft"})
 
 #: Registered and run, but offered only to her turn at the desk while she keeps a person company
 #: (core/skills/at_the_desk.py), under its own standing grant.
