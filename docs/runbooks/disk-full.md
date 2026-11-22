@@ -1,5 +1,16 @@
 # Runbook: Disk Full
 
+<!-- reader-navigation:start -->
+> **In plain English:** Resource management keeps model inference, background work and the operating system within the machine’s real capacity.
+>
+> **Why it matters:** A useful assistant must avoid exhausting the host or making the conversation unusable while doing background work.
+>
+> **In everyday use:** A second large model load can disrupt a working session even if each model fits alone. Scheduling and a measured memory budget matter.
+>
+> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#resources) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#resources) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
+> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+<!-- reader-navigation:end -->
+
 **Diagnostic scope:** bundle members and field names below are examples to
 locate in the actual output, not a guaranteed schema on every revision.
 Collectors can report missing services or errors. A separate CLI process may

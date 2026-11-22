@@ -1,5 +1,16 @@
 # Unattended LoRA Training (macOS)
 
+<!-- reader-navigation:start -->
+> **In plain English:** Learning changes later behavior using earlier outcomes. A kept procedure is executable work retained for reuse under a defined checking rule.
+>
+> **Why it matters:** Experience should improve later work without accumulating unreliable shortcuts or expensive rules that no longer help.
+>
+> **In everyday use:** After solving one kind of task, the system may reuse a checked procedure on a later task of that kind instead of deriving every step again.
+>
+> [Example and metaphor](../docs/PLAIN_ENGLISH_GUIDE.md#learning) · [Variables and practical meanings](../docs/VARIABLES_EXPLAINED.md#learning) · [Demos and related work](../docs/DEMOS_AND_RELATED_WORK.md#learning) · [Document map](../docs/DOCUMENTATION_INDEX.md)
+> [Glossary](../docs/GLOSSARY.md) · [Formulas with worked examples](../docs/FORMULAS.md)
+<!-- reader-navigation:end -->
+
 Foreground wrapper that runs the training orchestrator under a sleep
 inhibitor and retries nonzero exits up to a declared limit. Completion,
 lid-close survival and recovery after a host crash are not guaranteed.

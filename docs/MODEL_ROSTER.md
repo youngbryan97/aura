@@ -1,5 +1,16 @@
 # Model roster
 
+<!-- reader-navigation:start -->
+> **In plain English:** The language model supplies text generation. Steering changes selected internal calculations using a measured direction and a controlled strength.
+>
+> **Why it matters:** An internal state should affect the intended part of a response while preserving competence and remaining tied to the measured model and basis.
+>
+> **In everyday use:** A change in internal condition may alter how a reply is formed; a channel measurement must show the change rather than relying on the reply sounding different.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#models) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#models) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#steering) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+<!-- reader-navigation:end -->
+
 Status: Guide · Reviewed against the tree 2026-10-17
 
 Every model Aura loads, which lane it serves, and the measurement that put it
@@ -65,25 +76,43 @@ hardware nobody has.
 
 ## Speech to text
 
-The duplex recognizer prefers Parakeet and can fall back to MLX Whisper
-or CPU Whisper. Parakeet runs in its own process following crashes in
-the in-process MLX route. [Recognizer code](../core/voice/duplex/streaming_asr.py)
+| Role | Model | Where |
+|---|---|---|
+| **Primary** | `parakeet-tdt-0.6b-v3` (`parakeet_mlx`) | `core/voice/duplex/streaming_asr.py` |
+| **Fallback** | `faster_whisper` (CPU) | `core/senses/voice_engine.py` |
 
-An earlier local benchmark used 12.4 seconds of synthesized speech with
-a known transcript and took the median of five warm runs per model.
+Both duplex stages — 480 ms partials and the final — now run **one streaming
+model**. The previous design ran two Whisper models on purpose: `small.en` for
+partials and `large-v3-turbo` once for the final, because Whisper is not a
+streaming model and paying the accurate model's cost on every partial would
+contend with the resident 32B for no accuracy that mattered. The entire
+LocalAgreement-2 stable-prefix apparatus existed to work around that same fact.
 
-| Model | Median decoding time |
-|---|---:|
-| Parakeet TDT 0.6B v3 | 166 ms |
-| Whisper small.en | 193 ms |
-| Whisper large-v3-turbo | 317 ms |
+Parakeet TDT removes the trade. Measured on this host with real speech and a
+known transcript (locally synthesised — nothing left the machine), median of
+5 warm runs over 12.4 s of audio:
 
-The note reports zero word errors for all three on that sample. The
-sample covers one clean recording. Use the model vendors' evaluations
-for larger speech tests, or measure the installed voice app for
-end-to-end latency.
-[NVIDIA model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) ·
-[Voice architecture](AMBIENT_VOICE_AND_MEDIA.md)
+| Model | Latency | Stage it replaces |
+|---|---|---|
+| `parakeet-tdt-0.6b-v3` | **166 ms** | both |
+| `whisper-small.en` | 193 ms | partials |
+| `whisper-large-v3-turbo` | 317 ms | finals |
+
+One Parakeet decode is cheaper than the incumbent *partial* and about half the
+incumbent *final* on that short warm sample. It does not establish unchanged
+accuracy across languages, noise conditions or a loaded live desktop.
+
+**A discarded first benchmark.** The first pass used synthetic noise and
+produced nonsense for Whisper.
+Whisper pads every input to 30 s and its cost is bound by tokens emitted, so on
+noise it hallucinated variable-length output and the timings were
+non-monotonic — 3 s of audio measured slower than 10 s. Discarded and redone on
+real speech. All three models then scored 0% WER on the clean local sample,
+which is too easy to discriminate, so the accuracy case (6.32% vs 7.83% English
+WER) is cited from published figures rather than claimed as a local
+measurement.
+
+---
 
 ## Embeddings
 

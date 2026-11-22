@@ -1,20 +1,59 @@
 # Recursive Latent Cortex (RLC)
 
-This project tests ways to give a local model more computation on a hard
-question before it writes an answer. One method runs some of the model's
-middle layers again on a small set of hidden states. Another learns to read
-a solvable procedure from the model's hidden states and runs that procedure
-to help answer a request.
+<!-- reader-navigation:start -->
+> **In plain English:** The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
+>
+> **Why it matters:** A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.
+>
+> **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+<!-- reader-navigation:end -->
 
-The July experiment with a frozen 1.5B model failed to show a reasoning
-gain from the loop. A later offline 32B sweep also left the gain unresolved.
-Kept procedures helped on the registered October comparison for math and
-planning. The review confirmed 29 gains and zero losses. The G09 trial
-exercised the procedure path and left the benefit of training the backbone
-to loop as a separate question.
-[July campaign](#preregistered-offline-campaign-2026-07-17-seed-committed-first) ·
-[32B sweep](evidence/rlc_32b_template_parity_sweep.json) ·
-[G09 result](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)
+Status: Guide · Programme landing page · Claim boundary reconciled 2026-10-25.
+Checkpoints land faster than this page tracks; the claims ladder
+below changes slowly, and the append-only
+[ledger](RLC_SPARK_EXECUTION_LEDGER.md) is the live record.
+
+Aura's largest research programme. The question:
+
+> A frozen 32B checkpoint is a fixed-depth pipeline — 64 layers, once, per
+> token. Can you make it *think longer* on a hard problem without changing a
+> single stored weight?
+
+The frozen-loop campaign measured no gain under its tested conditions.
+A different mechanism, a learned typed semantic machine followed by
+state-conditioned language-model decoding, earned `BOUNDED_WOW_SIGNAL` on
+four executable families with the resident 32B (CP566) and fused 27B (CP1011).
+Those studies do not prove a reasoning gain from repeated middle-layer passes
+through the resident language model. The programme contains both mechanisms.
+
+## Current evidence boundary, 2026-10-25
+
+The programme's later items ran on her resident 27B (Aura-Qwen3.8-27B, persona
+fine-tuned), with a reader learned from its hidden states:
+
+- [G03](evidence/G03_WHICH_AND_WHETHER_2026-10-06.md), closed 6 October:
+  binding and composition, 500 of 500 on validation, no row lost to the
+  previous reader.
+- [G04](evidence/G04_TRANSFER_V2_RESULT_2026-10-07.md), closed 7 October:
+  held-out transfer with execution unavailable, against the incumbent reader on
+  62 fresh requests per stratum: vocabulary 33 to 21 (p 0.0145), depth 54 to 8,
+  family 62 to 47.
+- [G05](evidence/G05_PUBLIC_ANSWERS_RESULT_2026-10-07.md), closed 7 October:
+  48 fresh compositions answered publicly, 48 right with the reading and 29
+  without, 19 gained and none lost (p 1.9e-6).
+- [G06](evidence/G06_COMPARISONS_RESULT_2026-10-07.md), closed 7 October:
+  lesions cost 27 vocabulary requests to 0 and 35 depth requests to 0.
+- [G10](evidence/G10_READER_QUALIFICATION_2026-10-07.md), closed 7 October: the
+  reader qualified through her resident worker on 416 recorded requests.
+
+G09, broad reasoning gain, closed on 17 October: procedures her model writes
+and keeps by evidence beat her own answers on held-out kinds in math and
+planning, [attempt 6](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md) 29 gained
+to 0 lost once every changed row was read (p 3.7e-9). G12, frontier
+performance, is held until the end of the list by choice.
 
 ## Earlier evidence boundary, 2026-09-08
 
@@ -50,8 +89,10 @@ Package: `core/brain/llm/latent_cortex/` (worker-side, pure MLX, lazy imports �
 156 modules)
 Service: `ServiceNames.LATENT_CORTEX = "latent_cortex"` (orchestrator-side)
 Worker action: `latent_reason` (runs on the RESIDENT model, no reload)
-The August 24 inventory counted 55 tool entry points and 231 test files
-matching latent cortex or recurrence. [Closeout evidence](../artifacts/closeout/latent_cortex/)
+Surface, 2026-08-24: 55 `tools/` entry points and 231 test files naming the
+latent cortex or recurrence, over 250 frozen evidence entries under
+`artifacts/closeout/latent_cortex/`. These only grow; `make rlc-figures`
+holds them to a floor rather than an exact count.
 
 ---
 
@@ -95,7 +136,7 @@ preregistered campaigns with committed seeds.
 | **Mechanics** | **PROVEN.** KV rewind, RMSMatch stability, schedule validation, fast-weight identity-at-attach and proven-erase, checkpoint invariant, slot-ablation causality, matched-magnitude controls, equal-FLOP accounting — all on real `mlx_lm` Qwen2 weights, plus a full episode end to end on a trained 1.5B checkpoint in ~1.3s with contracting residuals (0.95 → 0.10). |
 | **Runtime integration** | **HISTORICALLY DEMONSTRATED.** Qualified on the resident 32B and fused 27B; deep deliberation has a route through latent episodes. Current activation requires process/source/model and request-receipt verification. Kill switch `AURA_LATENT_CORTEX=0`. |
 | **Capability gain, frozen loop** | **REFUTED at 1.5B scale.** The 2026-07-17 preregistered campaign (seed committed first, n=24/family, Holm-corrected) returned: slot causality REFUTED at n=72; all 7 factorial ablation arms REFUTED — vanilla 21/72 beat every latent arm (7–13/72); self-consistency beat virtual width; gradient latent optimization was indistinguishable from its random control *and* from off. On an untrained-for-recurrence checkpoint at this scale, the frozen loop does not merely fail to help — **it hurts.** |
-| **Capability gain, 32B frozen loop** | The best recurrent setting answered 9 of 24, and the baseline answered 10 of 24. The reported intervals overlap. [Offline sweep](evidence/rlc_32b_template_parity_sweep.json) |
+| **Capability gain, 32B frozen loop** | **CONJECTURE (negative point estimate).** Template-parity sweep: latent 0.167→0.375 over 1→2 recurrent steps then plateau; vanilla 0.417 leads with fully overlapping Wilson intervals at n=24. Statistical parity. |
 | **Capability gain, 32B typed semantic machine plus state-conditioned decode** | **`BOUNDED_WOW_SIGNAL` (CP566).** The semantic machine computes typed state which conditions the model's answer. On 60 tasks the combined treatment answered 60/60 exactly against ordinary decode 16, wire 7, coefficient lesion 5 and wrong-state 0; 44 gains, no regressions, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. This is bounded to the recorded executable families and decode contract; it does not isolate resident-backbone recurrence gain. |
 | **Cross-generation recovery on the fused 27B** | **`BOUNDED_WOW_SIGNAL` (CP1011).** A separately seeded 60-task cohort on the descriptor-bound Qwen3.8-27B resident cortex returned treatment 60/60, ordinary decode 0/60, matched wire 6, coefficient lesion 4, wrong-state 0; 60 gains, 0 regressions, exact *p* = 8.67 × 10⁻¹⁹. Independent verification replayed all 300 rows and runtime verification passed 120/120 exact plus 120/120 lesion disruptions. This establishes bounded mechanism portability across two cortex generations, not general model superiority. |
 | **Family-blind procedure acquisition into neural tissue** | **SUPPORTED, BOUNDED (2026-08-31).** A generic inducer received 16 examples without a family label or solver, froze a depth-2 procedure, and a family-blind SSA lowerer executed it through learned arithmetic tissue at 96/96 exact on fresh inputs. Coefficient and wrong-input lesions disrupted 96/96, the no-procedure control solved 1/96, and 15 shuffled-output null searches found no fit. |
@@ -709,12 +750,15 @@ and erases before decode when its magnitude remains non-finite or above the
 configured ceiling. This hardens temporary adaptation but is not evidence of a
 capability gain.
 
-In the offline 32B sweep, one repeat answered 4 of 24, two answered 9,
-and four and eight answered 8 each. The baseline answered 10 of 24.
-The report labels the gain unresolved. The recorded layer-application
-counts also differ across settings, so the sweep cannot establish what
-happens at an identical measured cost.
-[Sweep measurements](evidence/rlc_32b_template_parity_sweep.json)
+**Capability evidence (honest):** template-parity 32B sweep - latent
+accuracy scales 0.167→0.375 from 1→2 recurrent steps (the live
+profile's setting) then plateaus; vanilla 0.417 leads on point estimate
+with fully overlapping Wilson intervals at n=24. Statistical parity,
+graded CONJECTURE. The mechanism is proven causal, cheap (~3.5s of a
+~110s episode; decode dominates), and live; the intelligence dividend
+has not yet appeared in the data. The recurrence-native objective exists
+precisely because the frozen-loop ceiling is real — the next capability
+move is training, not more runtime machinery.
 
 ## Preregistered offline campaign (2026-07-17, seed committed first)
 

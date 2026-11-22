@@ -1,5 +1,16 @@
 # Guide to evaluating Aura
 
+<!-- reader-navigation:start -->
+> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+>
+> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+>
+> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+<!-- reader-navigation:end -->
+
 Status: Guide · Commands and evidence scope reviewed 25 October 2026
 
 Start with the claim you want to assess. A passing code check, a bounded
@@ -76,9 +87,10 @@ runs. A short idle sample is not a multi-day stability result. New longevity
 work needs the workload, duration and resource limits in
 [the soak standard](docs/LONGEVITY_SOAK_STANDARD.md).
 
-For the ISC-v7 result, start with seed 101 in the [results](docs/ISC_STATUS.md)
-and use the [reproduction guide](docs/ISC_REPRODUCTION.md) to identify the
-matching run files. Seed 23 and its isolation findings are earlier records.
+For ISC use [current status](docs/ISC_STATUS.md) and
+[reproduction](docs/ISC_REPRODUCTION.md). Seed-23 outputs predate subsequent
+arm-isolation repairs; no full ISC pass or new carrier campaign is established
+by this document review.
 
 ## Explain a finding plainly
 

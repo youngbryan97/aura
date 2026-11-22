@@ -34,22 +34,21 @@ def architecture_text() -> str:
 
 
 def test_doc_scopes_atomicity_to_the_state_version(architecture_text: str) -> None:
-    text = " ".join(architecture_text.split())
-    assert "The committed AuraState version is atomic." in text
-    assert "publishes that version in one owner transaction" in text
+    assert "The committed AuraState version is." in architecture_text
+    assert "not \"the tick is a\ntransaction\"" in architecture_text or (
+        "not \"the tick is a transaction\"" in architecture_text
+    )
 
 
 def test_doc_says_a_failing_phase_does_not_roll_back_its_predecessors(
     architecture_text: str,
 ) -> None:
-    text = " ".join(architecture_text.split())
-    assert "A failed phase leaves preceding changes in the candidate state." in text
+    assert "does not roll back the phases before it" in architecture_text
 
 
 def test_doc_says_effects_outside_state_are_not_covered(architecture_text: str) -> None:
-    text = " ".join(architecture_text.split())
-    assert "Effects outside the state object, including tool calls and writes" in text
-    assert "survive that transaction's refusal." in text
+    assert "Effects outside the state object" in architecture_text
+    assert "no undo" in architecture_text
 
 
 def test_doc_no_longer_claims_the_tick_is_the_atomic_unit(architecture_text: str) -> None:

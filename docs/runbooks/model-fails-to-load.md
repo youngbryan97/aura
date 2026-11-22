@@ -1,5 +1,16 @@
 # Runbook: Model Fails To Load
 
+<!-- reader-navigation:start -->
+> **In plain English:** The language model supplies text generation. Steering changes selected internal calculations using a measured direction and a controlled strength.
+>
+> **Why it matters:** An internal state should affect the intended part of a response while preserving competence and remaining tied to the measured model and basis.
+>
+> **In everyday use:** A change in internal condition may alter how a reply is formed; a channel measurement must show the change rather than relying on the reply sounding different.
+>
+> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#models) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#models) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#steering) · [Document map](../DOCUMENTATION_INDEX.md)
+> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
+<!-- reader-navigation:end -->
+
 **Diagnostic scope:** bundle members and field names below are examples to
 locate in the actual output, not a guaranteed schema on every revision.
 Collectors can report missing services or errors. A separate CLI process may

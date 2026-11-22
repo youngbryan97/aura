@@ -2,9 +2,11 @@
 
 Status: Generated reference · Definitions reviewed 2026-10-25
 
-Each entry gives the term's meaning in the named subsystem or experiment. Examples are illustrative.
+Use this page when a term stops you understanding a sentence. The context matters: the same word or letter can have different meanings in different experiments.
 
-[Formulas](FORMULAS.md) · [Project tour](PLAIN_ENGLISH_GUIDE.md) · [ISC results](ISC_STATUS.md)
+For arithmetic, read [the formula guide](FORMULAS.md). For the overall idea, read [the plain-English tour](PLAIN_ENGLISH_GUIDE.md). [Scientific sources](SCIENCE_AND_SOURCES.md) explains the research connections; [current ISC status](ISC_STATUS.md) gives results rather than definitions.
+
+**168 contextual definitions**, sorted alphabetically. Examples explain the term; they are not extra measured results.
 
 | Term and context | Meaning | Why it matters in practice | Example |
 |---|---|---|---|
@@ -177,4 +179,4 @@ Each entry gives the term's meaning in the named subsystem or experiment. Exampl
 | [Workspace](VARIABLES_EXPLAINED.md#attention) (Attention and competing concerns) | The selected information and competition state | Makes information available to other components | A selected item can influence several readers |
 | [z score](VARIABLES_EXPLAINED.md#numbers) (Reading mathematical symbols) | Distance from a reference mean in units of its standard deviation | Describes above-usual or below-usual state under a defined reference | Value 12, mean 10 and spread 2 give z = +1 |
 
-Source definitions are in the [topic catalogue](../config/documentation_reading_topics.json).
+Definitions are rendered from [the reviewed catalogue](../config/documentation_reading_topics.json). Project labels such as qualia, will and felt state do not acquire scientific validity from their names. Read the formula, its consumers, controls and evidence scope together.

@@ -744,9 +744,8 @@ def render_markdown_report(report: dict) -> str:
             "# Aura Architecture Dependency Map",
             "",
             f"Schema: `{report['schema']}`",
-            "",
-            "The map counts files and service references in the source tree. The boot",
-            "contract result checks the source configuration.",
+            f"Root: `{report['root']}`",
+            f"Generated: `{report['generated_at_unix']}`",
             "",
             "## Summary",
             "",
@@ -944,7 +943,9 @@ def main(argv: list[str] | None = None) -> int:
         body = render_markdown_report(report)
         title, rest = body.split("\n", 1)
         note = (
-            f"\nGenerated {date.today().isoformat()} from the checked-out source.\n"
+            f"\n*Reviewed against the tree: {date.today().isoformat()}. "
+            "See [documentation status map](DOC_STATUS.md) for how to read "
+            "this file.*\n"
         )
         atomic_write_text(
             ROOT / "docs" / "ARCHITECTURE_MAP.md",

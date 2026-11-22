@@ -1,19 +1,101 @@
-# Supported Aura claims
+# Aura: Supported Claims Ledger
 
-| Result | Where it was measured |
-|---|---|
-| Retrieval helps find an earlier answer outside a fixed context window. | In the August 32B test, retrieval solved 40 of 40 and recency solved 0 of 40 with a twelve-turn budget. The full-transcript control solved 39 of 40. [Run record](artifacts/ablation/capability_scorecard_32b_longhistory.json) |
-| Saved programs recover some missed math and planning answers. | The October G09 review found 29 gains and no losses across 444 fresh requests. It covered the registered math and planning tasks. [Result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md) |
-| Answers taught in chat can become a procedure used later. | In one desktop trial, Aura used a learned program to answer three fresh date questions the next day. The run included a manual reset of the learning group. [Live trial](docs/evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md) |
-| Experimental steering can change a model's output. | The August 32B experiment measured a shift in a vocabulary score at the tested injection strength. The October ISC study used a separate valence channel and a different report task. [August scorecard](artifacts/ablation/affect_causality_scorecard_n160.json) · [ISC results](docs/ISC_STATUS.md) |
-| A small model training run can use the prior cycle's published weights. | The July 1.5B demonstration completed two cycles. Its held-out scores were 0.667 and 0.625. [Run bundle](artifacts/learning_compounding/2026-07-07-1p5b-2cycle/) |
+<!-- reader-navigation:start -->
+> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+>
+> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+>
+> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+<!-- reader-navigation:end -->
 
-## Engineering checks
+This ledger lists bounded engineering claims and their implementation/test
+entry points. A named test is a way to check a contract, not a fresh passing
+receipt for the live process. Classifications below retain their local scope;
+read the cited result’s model, date, controls and limitations before quoting it.
 
-The repository has tests for memory storage, action authorization, and
-sandbox restrictions. The [claim matrix](CLAIMS_MATRIX.md) names each
-check and what would cause it to fail. To check a running installation,
-use its actual request and action records.
-[Memory tests](tests/test_continuous_experience_stream.py) ·
-[Authorization tests](tests/test_executive_authority.py) ·
-[Sandbox tests](tests/test_sandbox_hardening.py)
+---
+
+## 1. Governed Runtime
+* **Classification**: `causally demonstrated`
+* **Definition**: The required contract for consequential effects is closed-by-default authorisation and a receipt. Gateway checks cover their declared routes and cases; they do not prove the absence of every possible bypass.
+* **Code / Evidence Path**:
+  - Central gatekeeper implementation: [core/executive/authority_gateway.py](core/executive/authority_gateway.py)
+  - Unified system interface: [core/container.py](core/container.py)
+  - Trace validation tests: `tests/` verifying closed-loop safety invariants.
+
+## 2. Persistent Memory and Context Retrieval
+* **Classification**: `locally demonstrated`
+* **Definition**: Remembers information across separate sessions and machine restarts, retrieving relevant past experiences, facts, and procedures when needed.
+* **Code / Evidence Path**:
+  - Memory subsystem: [core/memory/](core/memory/)
+  - Long-term continuous experience stream: [tests/test_continuous_experience_stream.py](tests/test_continuous_experience_stream.py)
+
+## 3. Causal Internal State & Homeostasis
+* **Classification**: `locally demonstrated`
+* **Definition**: A dynamic set of internal variables (such as energy levels, stability indicators, and focus registers) directly shapes which actions the agent chooses and how it builds prompts.
+* **Code / Evidence Path**:
+  - Homeostatic state tracking: [core/state/aura_state.py](core/state/aura_state.py)
+  - Runtime affect checks: [tests/test_affect_update_runtime.py](tests/test_affect_update_runtime.py). The separate proof-kernel toy does not validate the full runtime.
+
+## 4. Affect Steering
+* **Classification**: `locally demonstrated`
+* **Definition**: Uses simulated emotional and mood states (affect) to adjust how the agent focuses attention, how strictly it runs tools, and how far ahead it plans.
+* **Code / Evidence Path**:
+  - Affect updating logic: [core/phases/affect_update.py](core/phases/affect_update.py)
+  - Affect-state coupling: Automated tests verifying modulated prompt outputs under simulated high-stress vectors.
+
+## 5. System 2 Deliberate Planning and Search
+* **Classification**: `locally demonstrated`
+* **Definition**: Simulates and compares possible action paths in advance (using Monte Carlo tree search and counterfactual evaluation) before making real changes to the system or environment.
+* **Code / Evidence Path**:
+  - Speculative path rollouts: [core/cognition/mcts_world_model.py](core/cognition/mcts_world_model.py)
+  - Speculative tree validation: Automated unit tests evaluating planning score optimization.
+
+## 6. Diagnostic Self-Repair
+* **Classification**: `locally demonstrated`
+* **Definition**: The repair ladder validates a proposed patch through syntax, safety and caller-provided functional/recovery probes. A missing required probe rejects the patch. The ladder alone does not generate patches or establish autonomous recovery from every fault.
+* **Code / Evidence Path**:
+  - Diagnostic ladder: [core/runtime/self_repair_ladder.py](core/runtime/self_repair_ladder.py)
+  - Self-healing checks: Automated tests injecting runtime errors and confirming automatic rollback or recovery.
+
+## 7. Sandboxed Self-Modification
+* **Classification**: `locally demonstrated`
+* **Definition**: Can propose code updates to its own skills, which must pass static analysis, branch isolation, and unit tests in an isolated sandbox before being merged. Live runtime changes are proposal-only by default.
+* **Code / Evidence Path**:
+  - Mutation safety analyzer: [core/self_modification/mutation_safety.py](core/self_modification/mutation_safety.py)
+  - Safe promotion pipeline: [core/self_modification/safe_modification.py](core/self_modification/safe_modification.py)
+  - Modification sandbox: Skill mutation and supervised-promotion automated tests.
+
+## 8. Operational Volition
+* **Classification**: `causally demonstrated`
+* **Definition**: Makes deliberate, proactive choices rather than just reacting to prompts. The agent scores alternatives against each other and signs explicit intent records (called Will Decisions).
+* **Code / Evidence Path**:
+  - Unified Will decision: [core/governance/will.py](core/governance/will.py) (`UnifiedWill.decide` → `WillDecision` with cryptographic receipt IDs and outcome/veto logic)
+  - Authority enforcement: [core/executive/authority_gateway.py](core/executive/authority_gateway.py)
+  - Telemetry receipt files: Dynamically generated `RECEIPTS.jsonl` traces under active runtime profiles.
+
+  > Correction (2026-07-06): this entry previously cited `core/runtime/task_ownership.py`, which is generic asyncio task-lifecycle tracking ("use this instead of raw asyncio.create_task") and has nothing to do with Will or decision logic. The real Will logic is `core/governance/will.py`.
+
+## 9. Boxed Entity Confinement Safety
+* **Classification**: `locally demonstrated`
+* **Definition**: Strictly honors containment boundaries during execution. The sandbox tests exercise declared path, import and subprocess restrictions. Passing them supports those cases; it does not establish universal escape immunity.
+* **Code / Evidence Path**:
+  - Hardened sandbox boundaries: [tests/test_sandbox_hardening.py](tests/test_sandbox_hardening.py)
+
+## 10. Production-Sealed Hardening
+* **Classification**: `causally demonstrated`
+* **Definition**: Eliminates ad-hoc or unvetted tools, enforces strict static typing, and fails closed (stops execution safely) if critical infrastructure breaks or degrades.
+* **Code / Evidence Path**:
+  - Strict mode configuration: [core/runtime/mode.py](core/runtime/mode.py)
+  - Fail-closed container intercepts: [core/container.py](core/container.py)
+  - Configured certification: [tools/certify.py](tools/certify.py) runs a selected safe-mode test, boot gateway probes, live Aletheia and ablations. It does not compile or run 100% of the tests.
+
+## 11. Broad reasoning gain under G09’s registered criterion
+
+* **Classification**: `CLOSED` on 17 October 2026, within the tested scope.
+* **Result**: On 444 fresh math and planning requests, the row-reviewed count is 29 gained and 0 lost (p 3.7e-9); math 13 to 0, planning 16 to 0.
+* **Practical meaning**: Kept programs can finish some calculations and plans that the model alone fails to finish or answers wrongly.
+* **Evidence and limits**: [Attempt 6](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md), including the later live demonstration. This is not an unrestricted reasoning or frontier comparison. [L09](CLAIMS_NOT_SUPPORTED.md#22-learning-from-conversation-that-improves-ordinary-use) remains open for reliable ordinary-use improvement.

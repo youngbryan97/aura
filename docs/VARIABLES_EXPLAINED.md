@@ -2,9 +2,9 @@
 
 Status: Guide · Definitions updated 2026-10-25
 
-These tables explain quantities that Aura stores or calculates. The examples illustrate the terms.
+A variable is a value the software stores or calculates. A useful definition says what the value represents, what reads it and what changes because of it. Units, scope and missing values belong beside the number.
 
-[ISC worked examples](ISC_VARIABLES.md) · [Formulas](FORMULAS.md)
+The examples here explain meanings; they are not additional measured Aura results. For numerical ISC arithmetic, use [the worked ISC guide](ISC_VARIABLES.md). For the overall project, use [the plain-English tour](PLAIN_ENGLISH_GUIDE.md).
 
 ## Find a topic
 
@@ -353,3 +353,9 @@ Symbols are shorthand for quantities whose definitions belong beside them. The s
 | Fingerprint or digest | A hash of specified data or configuration | Detects that an input or file changed | Two different campaign fingerprints must not silently become one result |
 
 [Why this matters, with a metaphor](PLAIN_ENGLISH_GUIDE.md#numbers) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement)
+
+## Before interpreting a number
+
+Ask what was measured, in which units, on which cases and under which controls. Check whether the value is missing, estimated or directly observed. A threshold passing is a statement about the declared test, not a general guarantee.
+
+A larger value is not automatically better. More stored records can mean worse retrieval, more work can mean worse latency, and stronger coupling can mean less useful flexibility. The user-visible outcome needs its own measurement.

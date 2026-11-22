@@ -1,5 +1,16 @@
 # Reviewer packet
 
+<!-- reader-navigation:start -->
+> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+>
+> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+>
+> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+<!-- reader-navigation:end -->
+
 Status: Guide · Reconciled 25 October 2026
 
 This packet helps a reviewer trace a claim to its implementation and evidence.
@@ -50,11 +61,9 @@ independently replicated.
 
 ## Interpret results within their scope
 
-The November preprint identifies seed 101 at `aeefdca31` as the confirmatory
-run. Start with its versioned scorecard and the follow-up controls.
-[ISC results](ISC_STATUS.md) · [Run data](https://doi.org/10.5281/zenodo.24075592)
-
-The [demos guide](DEMOS_AND_RELATED_WORK.md)
+The ISC seed-23 outputs and later measurement corrections must be read
+together. The 22/24 record is not a completed full pass. The component demo is
+not the current ISC experiment. The [demos guide](DEMOS_AND_RELATED_WORK.md)
 separates scripts, fixtures, recorded interactions and controlled experiments.
 
 A runner does not establish a 30-day result. Physical interfaces do not

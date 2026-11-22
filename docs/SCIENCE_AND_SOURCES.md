@@ -183,10 +183,11 @@ shared term such as PCI inherits clinical validation from the original study.
 
 ## The current closure margin is an adopted convention
 
-The October addendum adopts the small regression-effect convention
-`0.02 / 1.02` for observational closure. This is a decision margin for the
-chosen estimator. Seed 101's carrier estimate was 0.000089, below the margin.
-The separate v7 battery decision used the interventional swaps. The
-preprint explains the coverage and assumptions of both measurements.
-[Preprint, §§3.1 and 5.12](https://doi.org/10.5281/zenodo.24075466) ·
-[Results and controls](ISC_STATUS.md)
+The night addendum at `96487c6f1` adopts a small regression-effect convention
+as a numeric margin and separately requires an interventional closure test.
+The [current ISC explanation](ISC_STATUS.md#the-night-addendum-include-what-the-transition-reads-then-test-both-ways)
+links the checked book passage, shows the conversion and states what does not
+transfer. This is a design choice requiring fresh evaluation, rather than a
+published finding that this number identifies a subject. The
+[source-hashed snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json)
+keeps it separate from the withdrawn least-domain proposal.

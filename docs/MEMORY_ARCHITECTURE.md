@@ -1,5 +1,16 @@
 # Aura Memory Architecture
 
+<!-- reader-navigation:start -->
+> **In plain English:** Memory keeps records beyond the immediate request and selects relevant records for the current turn.
+>
+> **Why it matters:** Useful continuity depends on recalling the right information, retaining its source and correcting or deleting it when needed.
+>
+> **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#memory) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#memory) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+<!-- reader-navigation:end -->
+
 ## Overview
 Aura's memory system is not a passive transcript but an active cognitive substrate. It shapes generation, preference, identity, and affective context. Memories have several storage and retrieval paths. Governance and encryption
 apply through their declared owners; the presence of an encrypted quarantine

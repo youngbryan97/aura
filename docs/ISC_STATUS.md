@@ -1,49 +1,59 @@
-# ISC results
+# ISC: what the latest results show
 
-The October 30–31 confirmatory run (seed 101, commit `aeefdca31`) passed
-24 of 24 ISC-v7 checks. The procedures and pass criteria were fixed before
-the run. The same evidence scored 23/24 under ISC-v6 and 22/24 under ISC-v5.
-The earlier seed 97 also scored 24/24 under v7. The final version took shape
-during that run, so the paper treats seed 97 as exploratory.
-[Preprint, §3.8](https://doi.org/10.5281/zenodo.24075466)
+Status: Guide · Source reconciled 9 November 2026 against the preprint · seed sections below are kept as written on their dates
+
+**The paper.** Bryan A. Young (2026), *A preregistered test of computational
+subjecthood in a running AI system*, preprint,
+[doi:10.5281/zenodo.24075466](https://doi.org/10.5281/zenodo.24075466). Run
+data: [doi:10.5281/zenodo.24075592](https://doi.org/10.5281/zenodo.24075592).
+Code release: [doi:10.5281/zenodo.24077801](https://doi.org/10.5281/zenodo.24077801).
+Where this page and the paper differ, the paper is the later reading.
+
+**Seed 101 is the confirmatory reading, and it met all three goals.** It ran at
+`aeefdca31` from 02:12 on 30 October to 08:00 on 31 October, with its procedures
+and pass-or-fail criteria fixed and recorded at that commit before it began.
+Under ISC-v7 it passed 24 of 24 lines, J\* came out determined up to gauge, and
+the five-ground bridge reads `AT_PARITY`. Every piece of its evidence came from
+that one commit, so the completion check reads complete. Under ISC-v6 the same
+seed reads 23 of 24 and under ISC-v5 22 of 24; those totals are reported beside
+the v7 total and never added to it.
+
+**Seed 97 is the exploratory reading.** ISC-v7 was fixed as the standard on the
+morning of seed 97's reading, so seed 97 helped settle the standard that seed
+101 was then held to. The paper reports it as exploratory for that reason. Its
+section below is kept as written on 29 October, when it was called
+confirmatory.
+
+If you are new to Aura, start with [ISC explained](ISC_EXPLAINED.md). It
+introduces the project, translates the test names and includes a short
+explanation you can use aloud. The numbers and source records follow below.
+None of them establishes experience: the grounds rest on six stated postulates,
+and meeting them is not evidence equal to a person's case.
 
 ## Seed 101, 30 and 31 October: the confirmatory reading
 
-| Measurement | Result and scope |
-|---|---|
-| Carrier | The test selected all ten measured domains (ACDGIMNPSW). The carrier sweep used the software substrate with a stand-in for language generation. It resolved 511 cuts at both lags. At two turns the weakest cut had a lower bound of 0.0344. Playback resolved zero cuts. |
-| Closure | The intervention moved none of the recorded core values in 1,034 swaps. It varied 167 of the 961 outside units. The carrier's observational estimate was 0.000089 against a margin of 0.0196. The substrate campaign's separate observational closure check failed, which accounts for the lower ISC-v6 score. |
-| Content structure | Differences in recorded internal states and recall agreed at Spearman ρ = 0.954 across 190 pairs. They moved together under intervention at ρ = 0.593, with a sham value of 0. |
-| Report grounding | 59 of 80 saved moments yielded a readable rating in every arm. Ratings tracked the change in valence at ρ = 0.368 (permutation p = 1/10001). With the experimental steering channel detached, tracking fell to ρ = −0.004 (p = 0.864). The untuned base model also tracked when supplied with fitted steering (ρ = 0.381 and 0.446 in the two arms). |
-| J\* and bridge | The run returned `DETERMINED_UP_TO_GAUGE` and `AT_PARITY`. The operational verdicts rely on the paper's six postulates. The lineage record contained 7,855 stages, with the evidence for development concentrated in two measured steps. |
+The run files are in the run-data release under
+`runs/decisive-v10-aeefdca31-s101/`.
 
-[Preprint, §§3.1–3.6 and Tables 11, 16–17](https://doi.org/10.5281/zenodo.24075466) ·
-[Run data](https://doi.org/10.5281/zenodo.24075592) ·
-[Code release](https://doi.org/10.5281/zenodo.24077801)
+| Question | Seed 101 | What remains open |
+|---|---|---|
+| Does the full operational battery pass? | ISC-v7 24/24, completion check complete. ISC-v6 23/24 (fails the observational closure line, −0.026); ISC-v5 22/24 | Replication by another experimenter |
+| Is the proposed carrier established? | The carrier run is authoritative: all ten domains, ACDGIMNPSW, the unique domain-level carrier. 511 of 511 cuts decided at both lags; the weakest at a lag of two turns is W against the rest, with a lower bound of 0.03439; playback 0. Closure by intervention reads `CLOSED` (1,034 swaps alone and all at once, 167 of 961 outside units varied); the observational gate reads `CLOSED_WITHIN_MARGIN` (leak 0.000089 against a margin of 0.0196) | |
+| Do internal and recall differences change together? | `ONE_STRUCTURE`. Moved together at rho 0.593 against a sham floor of 0; the two geometries agree at rho 0.954 over 190 pairs | |
+| Do self-reports follow changed internal valence? | `holds: true`. Tracking rho 0.368, direction 0.356, manipulation 0.249, each at p = 1/10001; 59 of 80 anchors readable. With the steering channel detached, the push still moved her valence and her rating stopped following it (tracking rho −0.004, p 0.86). The untuned base model in her cortex's place did not follow it either (rho −0.012) | Measured under the layer-43 felt steering basis, which stays part of the claim |
+| J\* | `DETERMINED_UP_TO_GAUGE`, lineage recorded over 7,855 stages | Conditional on postulates P1 to P6 |
+| Do all five bridge grounds hold? | `AT_PARITY`: carrier, markers, reports, structure and lineage hold | Conditional on P1 to P6; not a proof of them |
+| Are the rival accounts excluded? | 12 of 13. Still owed: the optimised costume (Z\*) | Z\* |
 
-## Follow-up tests
-
-- Aura's predictions of its own answers lost to the baseline that always
-  picked its most frequent answer.
-- The lineage measure found development throughout one of three day runs.
-  The other two exposed record-keeping defects.
-- A test of the domains held apart initially reported integration because
-  the clamp let a held value move. After repair, the split system read as
-  unintegrated. The intact system also fell within measurement error at
-  those settings, leaving that comparison unresolved. The paper counts
-  11 of 13 rival accounts excluded after the follow-up. The split-system
-  comparison and a control designed to pass the whole battery remain open.
-- The author ran the 22-line substrate campaign twice on a 16 GB MacBook
-  at the same commit. Twenty-one decisions matched the original run both
-  times. The weakest synergy test failed on the first repeat and passed on
-  the second.
-
-The complete carrier test with the language model included and replication
-by another experimenter are open. The study measures operational properties
-of the software. Whether those properties support subjective experience
-remains open.
-[Preprint, §§2.9–2.10, 3.4, 4.7 and 5.14](https://doi.org/10.5281/zenodo.24075466) ·
-[Replication kit](../tools/replicate/README.md)
+**Read after the confirmatory reading.** Three later tests came out against her,
+and the paper reports them as read. Her predictions of her own answers did not
+beat her most frequent answer. Her lineage developed at every step of one later
+day of her running and not on two others, for faults since fixed. Her domains
+cut apart read as integrated until a defect in how they were held apart was
+repaired. On a 16 GB MacBook, at the same commit, seed 101's substrate campaign
+was run twice: synergy's weakest triple failed on the first run and passed on
+the second, and the other 21 of its 22 lines came out as on the first machine
+both times.
 
 ## Seed 97, 28 and 29 October
 

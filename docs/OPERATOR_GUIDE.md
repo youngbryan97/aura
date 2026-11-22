@@ -1,5 +1,16 @@
 # Aura — Operator Guide
 
+<!-- reader-navigation:start -->
+> **In plain English:** Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.
+>
+> **Why it matters:** A reader needs to know which pieces must be installed, which resources they use, and which capabilities have actually been measured.
+>
+> **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
+<!-- reader-navigation:end -->
+
 **Resource scope:** the commands below are alternatives to plan for a new,
 reserved environment, not an unattended install-and-test sequence on a host
 already running Aura. Read [CLAUDE.md](../CLAUDE.md), set a separate
@@ -42,19 +53,9 @@ Two specific checks are especially important:
   The inventory recorded **60,348 tests across 4,457 files** on 2026-09-30
   in `config/test_inventory.json`. Use the chunk runner for the full suite.
 
-## Backup and restore
-
-```bash
-make backup
-make backup-verify
-```
-
-The backup tool tries to copy SQLite stores through the SQLite backup API.
-The manifest lists raw-copy fallbacks and oversized files the tool skipped.
-The default archive directory is `~/.aura/backups/`. Before restoring,
-verify the archive and stop the runtime you intend to restore.
-Use `make restore BACKUP=<path>` for the selected archive.
-[Backup and restore source](../tools/state_backup.py)
+## Backup & restore
+- Backup: `tar czf aura-backup.tar.gz ~/.aura/data ~/.aura/live-source`
+- Restore: `tar xzf aura-backup.tar.gz -C ~/`
 
 ## Diagnostics
 - `aura doctor` — Pre-flight check before booting (verifies Python environment, SQLite database, Apple MLX framework, storage directories, and file writing permissions).

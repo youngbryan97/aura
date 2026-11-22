@@ -1,18 +1,19 @@
-# Experiment and engineering records
+# docs/evidence — historical proofs, closeouts, and research narrative
 
-These pages record runs, audits, and design decisions as they were written.
-See the maintained guides for later corrections or current results.
-[Research guide](../RESEARCH_GUIDE.md) · [Documentation index](../DOCUMENTATION_INDEX.md) ·
-[Run artifacts](../../ARTIFACT_INDEX.md)
+> **Historical record — 2026-07-09.** A dated snapshot, kept as written for
+> provenance. It is not a statement about the system today and is
+> deliberately not updated. Current status: [DOC_STATUS.md](../DOC_STATUS.md).
+
+The repo root is for what an arriving engineer needs **now**: how to install,
+how it works, what is claimed, what is tested, who owns what. Everything here
+is the **record** — point-in-time audits, closeout reports, challenge specs,
+and research whitepapers that back the claims but are not the front door.
+
+Nothing in this directory is load-bearing for the runtime. If a document here
+starts mattering to how the system runs, it belongs somewhere else.
 
 | Document | What it is |
 |---|---|
-| [F16_CHANGE_VERIFIER_MEASURED_2026-11-20.md](F16_CHANGE_VERIFIER_MEASURED_2026-11-20.md) | The change verifier, measured on every red-team case (2026-11-20) |
-| [F16_RED_TEAM_ROUND_2_2026-11-18.md](F16_RED_TEAM_ROUND_2_2026-11-18.md) | F16: second red team of the change verifier (18 November 2026) |
-| [F16_RED_TEAM_ROUND_3_2026-11-18.md](F16_RED_TEAM_ROUND_3_2026-11-18.md) | F16: third red team of the change verifier (18 November 2026) |
-| [F16_RED_TEAM_ROUND_4_2026-11-18.md](F16_RED_TEAM_ROUND_4_2026-11-18.md) | F16: fourth red team of the change verifier (18 November 2026) |
-| [F16_RED_TEAM_ROUND_5_2026-11-18.md](F16_RED_TEAM_ROUND_5_2026-11-18.md) | F16: fifth red team of the change verifier (18 November 2026) |
-| [F16_RED_TEAM_ROUND_6_2026-11-18.md](F16_RED_TEAM_ROUND_6_2026-11-18.md) | F16: sixth red team of the change verifier (18 November 2026) |
 | `2026-08-30-foreground-completion-ownership.md` | Foreground Completion Ownership |
 | `AUDIT_SPEC_BEING_CLOSED_LOOP_V3.md` | Audit specification for the closed-loop being review |
 | `CHALLENGE.md` | Challenge/evaluation framing document |

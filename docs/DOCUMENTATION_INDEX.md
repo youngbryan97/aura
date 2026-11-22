@@ -1,29 +1,35 @@
 # Aura documentation: every tracked Markdown page
 
-1001 Markdown pages. Use the [documentation home](README.md) for common entry points or the [documentation status page](DOC_STATUS.md) for corrections to older records.
+Status: Generated navigation · Updated 2026-10-25
 
-Regenerate this index with `python tools/render_reader_navigation.py`.
+Start with [the plain-English tour](PLAIN_ENGLISH_GUIDE.md), [variables and examples](VARIABLES_EXPLAINED.md), or [demos and related work](DEMOS_AND_RELATED_WORK.md). For ISC, use [the introduction](ISC_EXPLAINED.md) and [current results](ISC_STATUS.md).
+
+This map includes the source repository's Markdown pages and the new reading guides. It is an inventory, not a claim that every old document is a current capability statement. Historical records and frozen protocols retain their original wording; generated pages and standards retain their own sources.
+
+**985 Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.
+
+Definitions, examples and reading notes come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.
 
 ## Guide or reference
 
-164 pages.
+162 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
 
-| Page | Topic |
+| Page | Plain-language context |
 |---|---|
 | [Aura AI System Card](../AI_SYSTEM_CARD.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |
-| [Aura architecture](../ARCHITECTURE.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
+| [Aura Architecture](../ARCHITECTURE.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura artifact index](../ARTIFACT_INDEX.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Aura Autonomy Boundaries](../AUTONOMY_BOUNDARIES.md) | [Goals and autonomous work](PLAIN_ENGLISH_GUIDE.md#agency) |
-| [Aura claims and evidence](../CLAIMS_MATRIX.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Open Aura claims](../CLAIMS_NOT_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Supported Aura claims](../CLAIMS_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Aura data card](../DATA_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
+| [Aura Claims Matrix](../CLAIMS_MATRIX.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Aura: Unsupported Claims Ledger](../CLAIMS_NOT_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Aura: Supported Claims Ledger](../CLAIMS_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Aura Data Card](../DATA_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
 | [Guide to evaluating Aura](../EVALUATE_AURA.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Aura Hardware & Model Profiles](../HARDWARE_PROFILES.md) | [Memory, speed and resource limits](PLAIN_ENGLISH_GUIDE.md#resources) |
 | [How Aura works](../HOW_IT_WORKS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [Install Aura from source](../INSTALL.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
+| [Installation](../INSTALL.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
 | [Known Failure Modes — Aura Cognitive Runtime](../KNOWN_FAILURE_MODES.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
-| [Aura memory card](../MEMORY_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
+| [Aura Memory Card](../MEMORY_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
 | [Aura Model Card](../MODEL_CARD.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |
 | [Ownership map](../OWNERSHIP.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura](../README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
@@ -47,7 +53,7 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Deliberate Practice — the Practice Director](DELIBERATE_PRACTICE.md) | [Learning and kept procedures](PLAIN_ENGLISH_GUIDE.md#learning) |
 | [Demonstrations, evidence and related work](DEMOS_AND_RELATED_WORK.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Documentation content audit](DOCUMENTATION_CONTENT_AUDIT.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Documentation status](DOC_STATUS.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
+| [Documentation status map](DOC_STATUS.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [The endogenous language pathway](ENDOGENOUS_LANGUAGE_PATHWAY.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [Engineering adoption: what Aura took from ten mature projects](ENGINEERING_ADOPTION.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Engineering design: how a drawing gets its numbers](ENGINEERING_DESIGN.md) | [Engineering calculations and drawings](PLAIN_ENGLISH_GUIDE.md#engineering) |
@@ -70,10 +76,10 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Indirect meaning and scene graphs](INDIRECT_MEANING_SCENE_GRAPHS.md) | [Visual control and moving worlds](PLAIN_ENGLISH_GUIDE.md#vision) |
 | [The Inner-Light Test](INNER_LIGHT_TEST.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [Intrinsic recurrence](INTRINSIC_RECURRENCE.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
-| [Aura's subjecthood experiment](ISC_EXPLAINED.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
-| [Read the ISC study and its records](ISC_READERS_GUIDE.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
-| [Reproduce the ISC results](ISC_REPRODUCTION.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
-| [ISC results](ISC_STATUS.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
+| [What Aura's ISC research is trying to find out](ISC_EXPLAINED.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
+| [Finding your way through the ISC documents](ISC_READERS_GUIDE.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
+| [Reproducing and reviewing ISC](ISC_REPRODUCTION.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
+| [ISC: what the latest results show](ISC_STATUS.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [ISC variables, with examples](ISC_VARIABLES.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [Aura: The Language Substrate & Generality Programme](LANGUAGE_SUBSTRATE_AND_GENERALITY.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [Live Runtime Production-Grade Program](LIVE_RUNTIME_PRODUCTION_GRADE.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
@@ -91,7 +97,7 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Payoff: what a turn was worth to her](PAYOFF.md) | [Affect and operating condition](PLAIN_ENGLISH_GUIDE.md#affect) |
 | [Fourteen dispositions, built as mechanisms](PHENOMENA_AS_MECHANISMS.md) | [Affect and operating condition](PLAIN_ENGLISH_GUIDE.md#affect) |
 | [Aura Platform Posture](PLATFORM_POSTURE.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
-| [Aura documentation](README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
+| [docs/](README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Reality Reach](REALITY_REACH.md) | [Claims about the physical world](PLAIN_ENGLISH_GUIDE.md#physical) |
 | [Reasoning Engines & Execution Boundaries](REASONING_ENGINES.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [Recursive endogenous expansion of the cognitive language](RECURSIVE_ENDOGENOUS_EXPANSION.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
@@ -99,7 +105,7 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Release lifecycle](RELEASE_LIFECYCLE.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Reliability & Maturity Roadmap — Chrome / Kubernetes / Aerospace](RELIABILITY_MATURITY_ROADMAP.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Requirement-to-Proof Control Plane (SCOPE-001 / PROGRESS-CONTROL-001)](REQUIREMENT_CONTROL_PLANE.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [Aura research guide](RESEARCH_GUIDE.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Aura — Research Guide](RESEARCH_GUIDE.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Reviewer packet](REVIEWER_PACKET.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Commitment search: what to do when depth stopped working](RLC_COMMITMENT_SEARCH.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [RLC Knowledge Source Causality Matrix](RLC_KNOWLEDGE_SOURCE_MATRIX.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
@@ -119,7 +125,7 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Terminology](TERMINOLOGY.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Threat model](THREAT_MODEL.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
 | [The Ulysses Covenant — volitional self-binding](ULYSSES_COVENANT.md) | [Goals and autonomous work](PLAIN_ENGLISH_GUIDE.md#agency) |
-| [Use Aura](USER_GUIDE.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
+| [Aura — User Guide](USER_GUIDE.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
 | [Aura's original voice](VOICE_ORIGINAL.md) | [Conversation and voice](PLAIN_ENGLISH_GUIDE.md#conversation) |
 | [What a mitochondrion teaches](WHAT_A_MITOCHONDRION_TEACHES.md) | [Memory, speed and resource limits](PLAIN_ENGLISH_GUIDE.md#resources) |
 | [What she is like, as something she lives in](WHAT_SHE_IS_LIKE.md) | [Affect and operating condition](PLAIN_ENGLISH_GUIDE.md#affect) |
@@ -168,18 +174,16 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Runbook: telemetry emission failure](runbooks/telemetry-emission-failure.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Runbook: Tool Timeout Storm](runbooks/tool-timeout-storm.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Runbook: Worker process crash during inference (F02)](runbooks/worker-crash.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
-| [The outside bar](../outside_bar/README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura operational cognition component demo](../proof_kernel/README.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Third-Party Replication Protocol for Aura](../research/consciousness/third_party_replication.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [Dialogue Corpora Layout](../research/dialogue_corpora/README.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
-| [Replicate the substrate battery on your Mac](../tools/replicate/README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Unattended LoRA Training (macOS)](../training/README_UNATTENDED.md) | [Learning and kept procedures](PLAIN_ENGLISH_GUIDE.md#learning) |
 
 ## Living status or append-only ledger
 
-4 pages.
+4 pages. Current status and append-only entries share a file. Read the latest scoped item without erasing earlier history.
 
-| Page | Topic |
+| Page | Plain-language context |
 |---|---|
 | [Aura 1.0 master work queue](AURA_1_0_MASTER_TODO.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Execution Tracker](AURA_EXECUTION_TRACKER.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
@@ -188,13 +192,12 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 
 ## Standard, policy or contributor reference
 
-43 pages.
+42 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
 
-| Page | Topic |
+| Page | Plain-language context |
 |---|---|
 | [capability](../.github/ISSUE_TEMPLATE/capability.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [defect](../.github/ISSUE_TEMPLATE/defect.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [replication](../.github/ISSUE_TEMPLATE/replication.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [GitHub Topics](../.github/TOPICS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [pull request template](../.github/pull_request_template.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [AGENTS.md](../AGENTS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
@@ -238,9 +241,9 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 
 ## Generated reference
 
-14 pages.
+14 pages. Generated inventories describe the inputs and revision their producer recorded; a checked-in snapshot is not a live service report.
 
-| Page | Topic |
+| Page | Plain-language context |
 |---|---|
 | [Aura Subsystem and Service Ownership Manifest](../SERVICE_OWNERSHIP.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Architecture Dependency Map](../artifacts/architecture/latest.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
@@ -249,19 +252,19 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Aura Progress Control](AURA_PROGRESS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura Remaining Docket](AURA_REMAINING_DOCKET.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura documentation: every tracked Markdown page](DOCUMENTATION_INDEX.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [Aura failure modes](FMEA.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
+| [Aura FMEA — failure modes & effects registry](FMEA.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Aura glossary: terms in ordinary language](GLOSSARY.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [The ISC completion list](ISC_COMPLETION_TODO.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [Aura in plain English](PLAIN_ENGLISH_GUIDE.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
-| [Aura runtime health contract](RUNTIME_CONTRACT.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
+| [Aura Runtime Contract — what must be alive](RUNTIME_CONTRACT.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura's variables and measurements explained](VARIABLES_EXPLAINED.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura Operational Cognition Kernel Report](../proof_kernel/report.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 
 ## Historical or frozen record
 
-776 pages.
+763 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
 
-| Page | Topic |
+| Page | Plain-language context |
 |---|---|
 | [Changelog](../CHANGELOG.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [README](../archive/repair_scripts/README.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
@@ -423,15 +426,6 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Current visual controls and reopened selectors, 10 October 2026](evidence/CURRENT_VISUAL_CONTROLS_AND_REOPENED_SELECTORS_2026-10-10.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Desktop placement and Stop, 11 October 2026](evidence/DESKTOP_PLACEMENT_AND_STOP_2026-10-11.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura Evaluation Report](evidence/EVALUATION_REPORT.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
-| [F01: her state steers her forward pass on user turns, and her words change with it (10 November 2026)](evidence/F01_STEERING_ON_USER_TURNS_2026-11-10.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |
-| [F02: her endogenous pathway, at the strength it earned (10 November 2026)](evidence/F02_ENDOGENOUS_PATHWAY_PAIRED_TRIAL_2026-11-10.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [F03: her one-shot memory against no memory, 10 November 2026](evidence/F03_ONE_SHOT_MEMORY_PAIRED_TRIALS_2026-11-10.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
-| [The change verifier, measured on every red-team case (2026-11-20)](evidence/F16_CHANGE_VERIFIER_MEASURED_2026-11-20.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [F16: second red team of the change verifier (18 November 2026)](evidence/F16_RED_TEAM_ROUND_2_2026-11-18.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
-| [F16: third red team of the change verifier (18 November 2026)](evidence/F16_RED_TEAM_ROUND_3_2026-11-18.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
-| [F16: fourth red team of the change verifier (18 November 2026)](evidence/F16_RED_TEAM_ROUND_4_2026-11-18.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
-| [F16: fifth red team of the change verifier (18 November 2026)](evidence/F16_RED_TEAM_ROUND_5_2026-11-18.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
-| [F16: sixth red team of the change verifier (18 November 2026)](evidence/F16_RED_TEAM_ROUND_6_2026-11-18.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
 | [Flash campaign resumption, 11 October 2026](evidence/FLASH_CAMPAIGN_RESUMPTION_2026-10-11.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Desktop campaign protocol, 11 October 2026](evidence/FLASH_DESKTOP_CAMPAIGN_PROTOCOL_2026-10-11.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Foreground identity during transfers, 11 October 2026](evidence/FOREGROUND_TRANSFER_IDENTITY_2026-10-11.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
@@ -776,12 +770,9 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Her training buffer, only what people said: 19 October 2026](evidence/HER_TRAINING_BUFFER_ONLY_PEOPLE_2026-10-19.md) | [Learning and kept procedures](PLAIN_ENGLISH_GUIDE.md#learning) |
 | [Interiority: what each faculty moves when you take it away](evidence/INTERIORITY_ABLATION.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [The council's proposals, item by item](evidence/INTERIORITY_COUNCIL_DOCKET.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
-| [L01: her fused persona cortex, its continuity, and steering made for it (10 November 2026)](evidence/L01_PERSONA_FUSION_AND_STEERING_2026-11-10.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |
 | [Who she is, built into a model: small proofs, 19 October 2026](evidence/L01_WHO_SHE_IS_BUILT_IN_SMALL_PROOFS_2026-10-19.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [L01: who she is, held by her model and not given to it. Preregistration, 18 October 2026](evidence/L01_WHO_SHE_IS_PREREGISTRATION_2026-10-18.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [L05: one turn reaches her model, the offline copy, the web and what she kept](evidence/L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [L06: what her actions, predictions and replies actually update (10 November 2026)](evidence/L06_FEEDBACK_EDGES_2026-11-10.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [L08: what is claimed about her feelings, her self and her consciousness, and what controls each (10 November 2026)](evidence/L08_AFFECT_AND_CONSCIOUSNESS_CLAIMS_2026-11-10.md) | [Affect and operating condition](PLAIN_ENGLISH_GUIDE.md#affect) |
 | [L09: one loop of learning in use, live (18 October 2026)](evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md) | [Learning and kept procedures](PLAIN_ENGLISH_GUIDE.md#learning) |
 | [L09, second half: her kept procedures on against off over her ordinary use. Preregistration, 18 October 2026](evidence/L09_ORDINARY_USE_PREREGISTRATION_2026-10-18.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [L09, second half, attempt 2: her kept procedures on against off over requests people make. Preregistration](evidence/L09_ORDINARY_USE_PREREGISTRATION_2_2026-10-19.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
@@ -826,7 +817,7 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [R09 service observation and desktop lifetime](evidence/R09_SERVICE_AND_DESKTOP_LIFETIMES_2026-09-09.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [R09 terminal history and worker cancellation](evidence/R09_TERMINAL_HISTORY_AND_WORKER_STOP_2026-09-08.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [R10 semantic executable examples](evidence/R10_SEMANTIC_EXECUTABLE_EXAMPLES_2026-09-08.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
-| [Experiment and engineering records](evidence/README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
+| [docs/evidence — historical proofs, closeouts, and research narrative](evidence/README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Being Closed Loop v3 — main-15 adapted](evidence/README_BEING_CLOSED_LOOP_V3.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Retained structural state, 10 October 2026](evidence/RETAINED_STRUCTURAL_STATE_2026-10-10.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Runtime ledger continuation](evidence/R_LEDGER_CONTINUATION_2026-09-07.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
@@ -844,7 +835,6 @@ Regenerate this index with `python tools/render_reader_navigation.py`.
 | [Aura Deep QA Session - 2026-04-10 21:16:51.118377](evidence/aura_deep_qa_report.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Conversation graphics and browser presence, 21 October 2026](evidence/conversation-presence-2026-10-21.md) | [Conversation and voice](PLAIN_ENGLISH_GUIDE.md#conversation) |
 | [Matched independent experiment](evidence/matched_experiment/README.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
-| [Q11: install, update, uninstall and ordinary desktop launch — 13 November 2026](evidence/q11-install-update-uninstall-launch-2026-11-13.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
 | [Arrival planning, 12 October 2026](evidence/steering/2026-10-12-arrival-planning.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |
 | [Arrival qualification and run 18w, 2026-10-12](evidence/steering/2026-10-12-arrival-qualification-and-run-18w.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |
 | [Quicker calculations on the same measured pixels](evidence/steering/2026-10-12-bounded-pixel-calculations.md) | [Language models and internal steering](PLAIN_ENGLISH_GUIDE.md#models) |

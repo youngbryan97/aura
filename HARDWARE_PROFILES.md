@@ -1,5 +1,16 @@
 # Aura Hardware & Model Profiles
 
+<!-- reader-navigation:start -->
+> **In plain English:** Resource management keeps model inference, background work and the operating system within the machine’s real capacity.
+>
+> **Why it matters:** A useful assistant must avoid exhausting the host or making the conversation unusable while doing background work.
+>
+> **In everyday use:** A second large model load can disrupt a working session even if each model fits alone. Scheduling and a measured memory budget matter.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#resources) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#resources) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
+<!-- reader-navigation:end -->
+
 Status: Guide · Resource and evidence scope reconciled 25 October 2026
 
 Hardware determines which experiment can fit. It does not confer a capability

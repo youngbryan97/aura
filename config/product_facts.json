@@ -99,6 +99,10 @@
         {
           "file": "INSTALL.md",
           "pattern": "^\\| `AURA_MODEL` \\| `([^`]+)`"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Cortex \\| `([^`]+)`"
         }
       ]
     },
@@ -113,6 +117,10 @@
         {
           "file": "MODEL_CARD.md",
           "pattern": "^\\| Deep \\| `([^`]+)`"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Deep \\| `([^`]+)`"
         }
       ]
     },
@@ -126,6 +134,10 @@
         },
         {
           "file": "MODEL_CARD.md",
+          "pattern": "^\\| Vision \\| `([^`]+)`"
+        },
+        {
+          "file": "README.md",
           "pattern": "^\\| Vision \\| `([^`]+)`"
         }
       ]
@@ -149,6 +161,10 @@
         {
           "file": "INSTALL.md",
           "pattern": "^\\| `AURA_BRAINSTEM_MODEL` \\| `([^`]+)`"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Brainstem \\| `([^`]+)`"
         }
       ]
     },
@@ -265,6 +281,10 @@
           "pattern": "_FLAG_FALLBACK_MODEL = _declare_flag\\([\\s\\S]*?default=\"([^\"]+)\""
         },
         {
+          "file": "README.md",
+          "pattern": "^\\| Reflex \\| `([^`]+)`"
+        },
+        {
           "file": "MODEL_CARD.md",
           "pattern": "^\\| Reflex/fallback \\| `([^`]+)`"
         }
@@ -277,6 +297,10 @@
         {
           "file": "docs/AURA_1_0_MASTER_TODO.md",
           "pattern": "- \\[x\\] G09[^\\n]*\\n  (CLOSED)"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Broad reasoning gain under G09[^\\n]*\\*\\*(CLOSED)\\*\\*"
         },
         {
           "file": "docs/RECURSIVE_LATENT_CORTEX.md",
@@ -319,12 +343,16 @@
           "pattern": "^\\| Primary \\| (\\d+) gained, 0 lost"
         },
         {
+          "file": "README.md",
+          "pattern": "after row review, (\\d+) gained, 0 lost"
+        },
+        {
           "file": "docs/RECURSIVE_LATENT_CORTEX.md",
           "pattern": "after row review, (\\d+) gained, 0 lost"
         },
         {
           "file": "CLAIMS_NOT_SUPPORTED.md",
-          "pattern": "The row review found (\\d+) gains\\s+and zero losses"
+          "pattern": "once every changed row was read: (\\d+) gained, 0 lost"
         }
       ]
     },
