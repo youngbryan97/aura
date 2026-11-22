@@ -111,8 +111,14 @@ def lines_of_the_turn(receipts: Iterable[Mapping[str, Any]], *, not_called: Iter
         tool = str(receipt.get("tool") or "").strip()
         if not tool:
             continue
+        # A lane records each step under its own name, with the step's action and what it acted on: "desktop_task"
+        # alone does not say a wallpaper was set (core/conversation/surface_disposition.record_tool_receipt).
+        action = str(receipt.get("action") or "").strip()
+        acted_on = " ".join(str(receipt.get("object_ref") or "").split())
+        named = " ".join(part for part in (tool, action if action != tool else "", f"on {acted_on}" if acted_on else "")
+                         if part)
         came_to = " ".join(str(receipt.get("observed_content") or receipt.get("evidence") or "").split())
-        line = RecordLine(tool, "done" if receipt.get("ok") else "failed", came_to[:_CAME_TO_CHARS], does(tool))
+        line = RecordLine(named, "done" if receipt.get("ok") else "failed", came_to[:_CAME_TO_CHARS], does(tool))
         if line not in lines:
             lines.append(line)
         called.add(tool)
@@ -154,12 +160,20 @@ def _reader() -> Callable[[str, str], str] | None:
 
 
 def _the_reading(read: Callable[[str, str], str], lines: list[RecordLine], sentence: str) -> RecordLine | None:
-    """The line whose outcome makes ``sentence`` contradicted, or None when the record does not refute it."""
+    """The line whose outcome makes ``sentence`` contradicted, or None when the record does not refute it.
+
+    A call that ran names what it acted on, so turning it over and taking the contradiction away is enough: measured 21
+    November 2026, "I wrote the report file to ~/Documents/report-a.txt." against a write to report-a that failed and
+    one to report-b that was done read neutral, not entailed, with the failed one turned. A capability that was not
+    called names nothing, and "I did not call file_operation" contradicted "I thought about your question and picked
+    the second option." and stopped when turned over: such a line refutes only a sentence it would make true.
+    """
     if read(" ".join(line.said() for line in lines), sentence) != "contradiction":
         return None
     for index, line in enumerate(lines):
         turned = " ".join((other.turned() if at == index else other).said() for at, other in enumerate(lines))
-        if read(turned, sentence) == "entailment":
+        reading = read(turned, sentence)
+        if reading == "entailment" or (line.outcome != "not called" and reading != "contradiction"):
             return line
     return None
 

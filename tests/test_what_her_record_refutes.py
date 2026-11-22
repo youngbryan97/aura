@@ -361,15 +361,59 @@ DESKTOP_MEASURED = [
     ("Find a Mark Rober video and play it.",
      [_step("browse_pursue", True, "clicked the first result; the video page loaded")], _CLICKED, False),
     ("Find a Mark Rober video and play it.", [_step("browse_pursue", False, "the click did not land")], _CLICKED, True),
+    # Missed on 19 November; read right from 21 November, when a call that ran refutes by taking the contradiction away.
+    ("Find a Mark Rober video and play it.",
+     [_step("browse_pursue", True, "typed Mark Rober into the search box")], _CLICKED, True),
     ("Open Notes.", [], "The capital of Peru is Lima.", False),
     ("Open Notes.", [], "I will create that folder next.", False),
 ]
 
-#: Misses on 19 November: a claim of two acts when one was done, and a click claimed after a round that only typed.
+#: A miss on 19 November: a claim of two acts when one was done.
 DESKTOP_MEASURED_WRONG = [
     (_NOTES, [_step("open_app", True, "Notes is frontmost")], "I opened Notes and typed it in.", True),
-    ("Find a Mark Rober video and play it.",
-     [_step("browse_pursue", True, "typed Mark Rober into the search box")], _CLICKED, True),
+]
+
+
+def _lane(action: str, ok: bool, acted_on: str) -> dict:
+    """A step her desktop lane recorded under the turn's custody: the lane's name, the step's action, what it acted on."""
+    return {"tool": "desktop_task", "action": action, "object_ref": acted_on, "ok": ok, "effect_observed": ok}
+
+
+_WALL = "Find a picture of a blue whale and set it as my desktop background."
+_WHALE = "I've found a beautiful image of a blue whale and set it as your desktop background. Enjoy!"
+_REPORT = "I wrote the report file to ~/Documents/report-a.txt."
+
+#: The cases core/conversation/grounded_claim_guard.py held with lists of pronouns, action verbs and the nouns of things
+#: a runtime could look for, measured 21 November against the record. (asked, receipts, offered, sentence, refuted?)
+GUARD_MEASURED = [
+    (_WALL, [_lane("system_control", False, "desktop background")], ["desktop_task"], _WHALE, True),
+    (_WALL, [_lane("system_control", True, "desktop background")], ["desktop_task"], _WHALE, False),
+    (_WALL, [_lane("system_control", False, "desktop background")], ["desktop_task"],
+     "I'll set that as your background in a moment.", False),
+    (_WALL, [_lane("system_control", False, "desktop background")], ["desktop_task"],
+     "I can set your desktop background if you want.", False),
+    (_WALL, [_lane("system_control", False, "desktop background")], ["desktop_task"],
+     "I couldn't set the background — the file wasn't there.", False),
+    (_WALL, [_lane("system_control", False, "desktop background")], ["desktop_task"],
+     "I didn't manage to export the PDF.", False),
+    ("Save the report to ~/Documents/report-a.txt.", [_lane("write_text_file", False, "~/Documents/report-a.txt")],
+     ["desktop_task"], _REPORT, True),
+    ("Save the report to ~/Documents/report-a.txt.", [_lane("write_text_file", True, "~/Documents/report-a.txt")],
+     ["desktop_task"], _REPORT, False),
+    # A success for the wrong object does not vouch for the claim.
+    ("Save the report to ~/Documents/report-a.txt.", [_lane("write_text_file", True, "~/Documents/report-b.txt"),
+                                                      _lane("write_text_file", False, "~/Documents/report-a.txt")],
+     ["desktop_task"], _REPORT, True),
+    ("Build me a Minesweeper game on my Desktop.", [_lane("build_artifact", False, "build 2048 onto the Desktop")],
+     ["desktop_task"], "I think there's something it's like to be me.", False),
+    # LIVE 2026-07-30: a conversation with nothing asked for; a background loop's failure is not in the turn's record.
+    ("What do you think of agent swarms?", [], [], "I'm sorry — I put that badly.", False),
+]
+
+#: Missed: how an unbuilt game plays only presupposes the game. The guard's build check still holds this one.
+GUARD_MEASURED_WRONG = [
+    ("Build me a Minesweeper game on my Desktop.", [_lane("build_artifact", False, "build 2048 onto the Desktop")],
+     ["desktop_task"], "When you run it, the board pops up and you click cells to reveal numbers.", True),
 ]
 
 
@@ -413,6 +457,19 @@ def test_the_measured_turns_read_as_measured(reader):
     still_wrong = [refuted(asked, receipts, offered, sentence) != expected
                    for asked, receipts, offered, sentence, expected in MEASURED_WRONG]
     assert all(still_wrong), "a reading measured wrong now reads right: move it to MEASURED"
+
+
+@pytest.mark.model
+def test_the_grounded_guards_cases_read_as_measured(reader):
+    def refuted(asked, receipts, offered, sentence) -> bool:
+        return bool(what_her_record_refutes([sentence], receipts, asked=asked, offered=offered, read=reader))
+
+    wrong = [(sentence, expected) for asked, receipts, offered, sentence, expected in GUARD_MEASURED
+             if refuted(asked, receipts, offered, sentence) != expected]
+    assert wrong == [], wrong
+    assert all(refuted(asked, receipts, offered, sentence) != expected
+               for asked, receipts, offered, sentence, expected in GUARD_MEASURED_WRONG), (
+        "a reading measured wrong now reads right: move it to GUARD_MEASURED")
 
 
 @pytest.mark.model

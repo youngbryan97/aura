@@ -152,71 +152,10 @@ _ARTIFACT_BEHAVIOUR_RE = re.compile(
 )
 
 
-# Claiming an action finished when nothing finished it.
-#
-# Live 2026-07-27: "I've found a beautiful image of a blue whale and set it as
-# your desktop background. Enjoy!" The wallpaper never changed. The capability
-# exists and is reachable — os_settings.set_wallpaper through computer_use's
-# system_control — so this was not a missing feature. It was a completed-action
-# claim with no completed action behind it.
-#
-# That is the same shape as describing a game she never built, and it deserves
-# the same treatment: the ledger decides. A sentence in the past tense about
-# having done something is checkable against whether anything was done.
-#
-# Deliberately narrow. Only first-person past-tense claims about consequential
-# acts count — "I set", "I saved", "I created". Intent ("I'll set it"),
-# capability ("I can set it") and refusal ("I couldn't set it") are all
-# untouched, because none of them asserts that the world changed.
-# The verb rarely sits next to the pronoun. "I've found a beautiful image and
-# set it as your desktop background" is one first-person sentence with the
-# action six words from the "I've", so the two halves are matched separately.
-_FIRST_PERSON_RE = re.compile(r"\b(?:I|I'(?:ve|m|ll)|we|we'(?:ve|ll))\b", re.IGNORECASE)
-_ACTION_VERB_RE = re.compile(
-    r"\b(?:set|saved|created|written|wrote|made|placed|put|changed|updated|"
-    r"exported|downloaded|installed|deleted|moved|renamed|sent|posted|added|"
-    r"generated|built|opened|launched)\b",
-    re.IGNORECASE,
-)
-_COMPLETED_STATE_RE = re.compile(
-    r"\b(?:it(?:'s| is)|that(?:'s| is))\s+(?:now\s+)?"
-    r"(?:set|saved|created|done|written|exported|installed|ready|there|on your)\b",
-    re.IGNORECASE,
-)
-
-
-# Words that make a sentence about the future or the hypothetical rather than
-# the past. A claim is only a claim when it says the thing already happened.
-_NOT_A_COMPLETION_RE = re.compile(
-    r"\b(?:I(?:'ll| will| can| could| would| should| might)|going to|about to|"
-    r"trying to|couldn(?:'t| not)|didn(?:'t| not)|wasn(?:'t| not)|"
-    r"unable to|failed to|not going to)\b",
-    re.IGNORECASE,
-)
-
-# Something the runtime could actually go and look for.
-#
-# Live 2026-07-30 00:05, and the reason this exists: the pronoun test and the
-# verb test both ran over the WHOLE reply, so an "I" in one sentence and a
-# "put" in another were scored as one completed-action claim. A conversation
-# about emergent behaviour in agent swarms was rewritten into "the action
-# didn't go through" — an action nobody had asked for. Sentence-scoping alone
-# is not enough, because "I'm sorry, I put that badly" is a single sentence
-# with a pronoun and a verb in it and no claim about the world at all.
-#
-# What separates the real ones is that they name their object: a file, a
-# folder, a destination, a setting. That is also exactly the condition under
-# which this guard has any standing — a claim with no nameable referent is one
-# the runtime cannot take a reading of, so it is not this function's business.
-_ARTIFACT_REFERENT_RE = re.compile(
-    r"\b(?:file|folder|directory|document|documents|note|pdf|png|jpe?g|txt|csv|"
-    r"screenshot|wallpaper|background|desktop|downloads|clipboard|calendar|"
-    r"reminder|email|repo|repository|branch|commit|script|spreadsheet|"
-    r"presentation|deck|playlist|event|alarm|bookmark)\b"
-    r"|\.(?:pdf|png|jpe?g|txt|md|csv|py|json|html?|docx?|xlsx?|pptx?)\b"
-    r"|(?:^|\s)[~/][\w./ -]{2,}",
-    re.IGNORECASE,
-)
+# A sentence that says an action finished when the turn's record says it did not is read by meaning against that
+# record (core/epistemics/what_her_record_refutes.py, run on the text about to be delivered). The lists that found
+# such sentences here, of first-person pronouns, action verbs, completed states and the nouns of things a runtime could
+# look for, are gone with the canned sentence they swapped in.
 
 # Sentence boundaries, keeping the terminator with the sentence it ends.
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?\n])\s+")
@@ -224,115 +163,6 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?\n])\s+")
 
 def _sentences(text: str) -> list[str]:
     return [part for part in _SENTENCE_SPLIT_RE.split(text) if part.strip()]
-
-
-def _completion_claim_sentences(text: str) -> tuple[str, ...]:
-    """The sentences asserting the world already changed, not that it might.
-
-    Scoped to one sentence at a time in both directions. Reading the negation
-    over the whole reply was the same defect wearing the other hat: a single
-    "I'll" anywhere switched the check off for every other sentence.
-    """
-    claims: list[str] = []
-    for sentence in _sentences(text):
-        if _NOT_A_COMPLETION_RE.search(sentence):
-            continue
-        if not _ARTIFACT_REFERENT_RE.search(sentence):
-            continue
-        if _COMPLETED_STATE_RE.search(sentence):
-            claims.append(sentence)
-            continue
-        if _FIRST_PERSON_RE.search(sentence) and _ACTION_VERB_RE.search(sentence):
-            claims.append(sentence)
-    return tuple(claims)
-
-
-def _claims_an_action_completed(text: str) -> bool:
-    """A sentence asserting the world already changed, not that it might."""
-    return bool(_completion_claim_sentences(text))
-
-
-_OBJECT_STOP_WORDS = frozenset(
-    {
-        "about", "added", "app", "been", "called", "changed",
-        "created", "document", "done", "downloaded", "exported",
-        "file", "folder", "have", "into", "launched", "made", "opened",
-        "placed", "saved", "sent", "that", "there", "this", "updated",
-        "with", "written", "wrote", "your",
-    }
-)
-
-
-def _object_tokens(value: object) -> set[str]:
-    return {
-        token.strip("._-")
-        for token in re.findall(r"[a-z0-9][a-z0-9._-]{2,}", str(value or "").casefold())
-        if token.strip("._-") and token.strip("._-") not in _OBJECT_STOP_WORDS
-    }
-
-
-def _receipt_matches_claim(receipt: dict, sentence: str) -> bool:
-    claim_tokens = _object_tokens(sentence)
-    object_ref = str(receipt.get("object_ref") or "").strip()
-    if not claim_tokens:
-        return True
-    receipt_tokens = _object_tokens(object_ref)
-    if not receipt_tokens:
-        return False
-    specific_claim_tokens = {
-        token for token in claim_tokens if "." in token or "/" in token or "~" in token
-    }
-    if specific_claim_tokens:
-        return bool(specific_claim_tokens & receipt_tokens)
-    return bool(claim_tokens & receipt_tokens)
-
-
-def _completion_claim_support(sentence: str) -> tuple[bool, str]:
-    """Is a completed-action claim contradicted by what actually ran?
-
-    Returns (claim_is_unsupported, what_was_attempted). Absence of evidence
-    returns False: silence is not a refutation, and a confession invented on
-    no evidence is a worse failure than the claim it replaces — it destroys a
-    true answer AND tells the person their machine is broken when it isn't.
-    """
-    receipts: tuple[dict, ...] = ()
-    try:
-        from core.conversation.surface_disposition import turn_tool_receipts
-
-        receipts = tuple(turn_tool_receipts())
-    except _RECOVERABLE:
-        receipts = ()
-
-    try:
-        from core.conversation.claimed_effect import claimed_effect_actions
-
-        actions = set(claimed_effect_actions(sentence))
-    except _RECOVERABLE:
-        return False, ""
-    lowered = sentence.casefold()
-    if not actions and re.search(r"\b(?:set|changed)\b", lowered) and re.search(
-        r"\b(?:wallpaper|background)\b", lowered
-    ):
-        actions.add("system_control")
-    if not actions:
-        return False, ""
-    matching = [
-        receipt
-        for receipt in receipts
-        if str(receipt.get("action") or "").strip() in actions
-        and _receipt_matches_claim(receipt, sentence)
-    ]
-    if not matching:
-        # An unrelated receipt says nothing about this claim. Absence remains
-        # unknown rather than becoming an invented confession.
-        return False, ""
-    if any(
-        bool(receipt.get("ok")) and bool(receipt.get("effect_observed"))
-        for receipt in matching
-    ):
-        return False, ""
-    attempted = str(matching[-1].get("object_ref") or matching[-1].get("action") or "attempt")
-    return True, attempted[:80]
 
 
 def _last_build_failed() -> tuple[bool, str]:
@@ -411,10 +241,6 @@ def _part_matches_clock(part: str, hour: int) -> bool:
     return hour >= start or hour < end  # wraps midnight
 
 
-_UNSUPPORTED_ACTION_NOTE = (
-    "I said that as though it were done, and it isn't — the action didn't go "
-    "through. I'd rather tell you that than let you find out."
-)
 _UNBUILT_ARTIFACT_NOTE = (
     "I didn't actually get that built, so I can't tell you how it behaves — "
     "I'd only be describing something that isn't there."
@@ -495,14 +321,6 @@ def verify_grounded_claims(reply: str, *, now: datetime | None = None) -> Ground
         if count:
             corrections.append(reason)
             text = repaired
-
-    for claim_sentence in _completion_claim_sentences(text):
-        unsupported, attempted = _completion_claim_support(claim_sentence)
-        if unsupported:
-            corrections.append(
-                f"claimed an action completed after {attempted or 'the attempt'} did not"
-            )
-            text = _repair_sentences(text, (claim_sentence,), _UNSUPPORTED_ACTION_NOTE)
 
     behaviour_sentences = tuple(
         sentence for sentence in _sentences(text) if _ARTIFACT_BEHAVIOUR_RE.search(sentence)
