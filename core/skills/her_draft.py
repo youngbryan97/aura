@@ -164,6 +164,10 @@ class ReadSourceSkill(BaseSkill):
             where = f"; a file of that name is at {', '.join(found)}" if found else "; no file of that name is in it"
             return {"ok": True, "path": asked.path, "exists": False, "same_name": found,
                     "summary": f"{asked.path} is not in her source{where}"}
+        except IsADirectoryError:
+            # A folder she names is read as a person reads one: what is in it. LIVE 21 November 2026 her goal pass asked
+            # to read her workspace's own folder, and it came back as a skill error.
+            return await _what_is_in(workspace, path, asked.path)
         except (Refused, OSError) as why:
             return {"ok": False, "error": str(why)}
         start = max(1, int(asked.from_line or 1))
@@ -174,6 +178,25 @@ class ReadSourceSkill(BaseSkill):
         return {"ok": True, "path": asked.path, "lines": len(lines), "text": "\n".join(shown),
                 "summary": f"{asked.path} has {len(lines)} lines; read on from line {after}" if after <= len(lines)
                 else f"{asked.path} has {len(lines)} lines, and these are the last"}
+
+
+async def _what_is_in(workspace: Path, folder: Path, asked: str) -> dict[str, Any]:
+    """What her source keeps in ``folder``, one level down, a folder's name ending in "/": as many as one result holds."""
+    where = folder.relative_to(workspace).as_posix() if folder != workspace else "."
+    code, out = await _run("git", "-c", "core.fsmonitor=false", "ls-files", "--", where, cwd=workspace, timeout=30.0)
+    if code != 0:
+        return {"ok": False, "error": out.strip()[:500]}
+    inside = {}
+    for line in out.splitlines():
+        rest = line if where == "." else line[len(where) + 1:]
+        first, _, deeper = rest.partition("/")
+        if first and not _SECRET.search(first):
+            inside[first + ("/" if deeper else "")] = True
+    entries = sorted(inside)
+    summary = f"{asked} is a folder of {len(entries)} entries"
+    shown = _what_fits(entries, {"ok": True, "path": asked, "folder": True, "entries": len(entries), "summary": summary})
+    return {"ok": True, "path": asked, "folder": True, "entries": len(entries), "text": "\n".join(shown),
+            "summary": summary + (f"; the first {len(shown)} shown" if len(shown) < len(entries) else "")}
 
 
 class FindInSourceInput(BaseModel):

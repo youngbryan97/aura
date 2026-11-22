@@ -83,6 +83,26 @@ def test_a_read_of_a_long_file_fits_one_result_and_says_where_to_read_on(her_sou
     assert more["text"].splitlines()[0].startswith(f"{after}: ")
 
 
+def test_a_folder_she_reads_comes_back_as_what_is_in_it(her_source):
+    """LIVE 21 November 2026: her goal pass asked to read her workspace's own folder, and it came back as an error."""
+    from core.agency import her_goal_at_work as work
+
+    workspace = work.workspaces_dir() / "a-goal-of-hers"
+    (workspace / "core" / "memory").mkdir(parents=True)
+    _git("init", "-q", cwd=workspace)
+    for name in ("core/long.py", "core/memory/store.py", "README.md", ".env"):
+        (workspace / name).write_text("x = 1\n")
+    _git("add", "-f", "--", "core", "README.md", ".env", cwd=workspace)
+    (workspace / "untracked.py").write_text("y = 2\n")
+    context = {"her_goal_workspace": str(workspace)}
+    top = asyncio.run(her_draft.ReadSourceSkill().execute({"path": "."}, context))
+    assert top["ok"] and top["folder"], top
+    assert top["text"].splitlines() == ["README.md", "core/"], "what her source keeps, a secret's name left out"
+    core = asyncio.run(her_draft.ReadSourceSkill().execute({"path": "core"}, context))
+    assert core["text"].splitlines() == ["long.py", "memory/"], core
+    assert core["summary"] == "core is a folder of 2 entries"
+
+
 def test_her_model_reads_what_the_tool_found_and_not_the_receipts_of_its_going():
     """LIVE 10 November 2026: each of her goal's read_source results opened with 200 characters of authority receipt."""
     shown = json.loads(_serialize_tool_result_for_model(

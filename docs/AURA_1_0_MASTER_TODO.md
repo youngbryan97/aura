@@ -8282,6 +8282,8 @@ needs her 27B free (her app down, or her app's own influence trials).
     a thread, not on her event loop (`tests/test_her_causal_model_is_saved_while_she_runs.py`). Her loop rightly
     drafted nothing in core/governance_context.py, where it was raised, but said so again on each surprise, some
     sixty times; it says so once (`tests/test_her_loop_mends_a_fault_of_her_own_running.py`).
+    Her goal pass asked read_source for her workspace's own folder, and it came back as an error. A folder she
+    reads comes back as what her source keeps in it, one level down (`tests/test_what_she_reads_comes_back_readable.py`).
 
 ## Live session 2026-09-07: what the runtime showed
 
