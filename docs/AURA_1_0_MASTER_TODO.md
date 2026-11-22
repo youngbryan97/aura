@@ -7609,6 +7609,13 @@ needs her 27B free (her app down, or her app's own influence trials).
   read right; the misses are a claim of two acts when one was done, and a click claimed after a round that only
   typed. Left: an act asked for when no tool was offered is not read; core/conversation/grounded_claim_guard.py
   still finds which action a sentence claims by the patterns in core/epistemics/effect_registry.py.
+  21 November: those are gone. The grounded-claim guard's lists of pronouns, action verbs and nouns, with the
+  canned sentence they swapped in, went first (4d7804d6d); then the 24 per-action patterns of the effect registry
+  and the scan that ran them. A step of her lanes is said in the registry's words for its act, and a failed one
+  refutes a sentence that says "It already happened: I <act>": on the registry's own sentences 42 of 48 claims
+  refuted, none of 40 that claim nothing, no offer of 30. The guard's 13 live cases: 12 read right; the miss is "When
+  you run it, the board pops up ..." after a build that failed, which only presupposes the game, and the guard's
+  build check, still a list of build words, holds it.
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the

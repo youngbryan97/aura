@@ -1,58 +1,23 @@
-"""One declared vocabulary of effects, and the closure argument for it.
+"""One declared vocabulary of effects: how each is said when it happened, and how a claim of it is read.
 
-The honesty machinery in this codebase grew as detectors over language. Each
-detector is correct and each recognises a finite set of phrasings, so the
-criticism levelled at it on 2026-08-11 holds exactly:
+Every externally visible thing Aura can cause is a declared action in ``DESKTOP_TASK_ALLOWED_ACTIONS``; the executor
+refuses anything else. So the true claims of an effect are finite even though the sentences that make them are not.
+This module holds one :class:`EffectSpec` per action: how the runtime renders the effect from a receipt
+(core/conversation/effect_claim.py), the act in words that her turn's record says of a step
+(``claim_description``, read by core/epistemics/what_her_record_refutes.py), and sentences that claim it and that do
+not, on which that reading is measured.
 
-    {claims she can generate} ⊃ {claims a detector recognises}
-
-Widening the detector narrows that gap forever without closing it. Sentences
-are unbounded; no list of them is ever complete.
-
-**But effects are not unbounded.** Every externally visible thing Aura can
-cause is a declared action in ``DESKTOP_TASK_ALLOWED_ACTIONS`` — the executor
-refuses anything else, so a claim about an effect outside that tuple is a claim
-about a capability she does not have, which is a different (and separately
-guarded) falsehood. The set of TRUE effect claims is therefore finite and
-enumerable even though the set of SENTENCES is not.
-
-That is what makes closure possible, and it changes the question being asked:
-
-    open, unanswerable:  "have we thought of enough phrasings?"
-    closed, answerable:  "does every declared capability have a recogniser?"
-
-This module answers the second one. It holds one :class:`EffectSpec` per
-action, carrying both halves that used to live in two files — how the runtime
-RENDERS the effect from a receipt (core/conversation/effect_claim.py) and how
-an auditor RECOGNISES a claim of it in generated prose
-(core/conversation/claimed_effect.py). ``coverage_gaps()`` names any declared
-action with a hole on either side, and a test fails the build on a non-empty
-result, so adding a capability to the vocabulary without teaching the auditor
-what a claim of it sounds like is no longer possible.
-
-Two residuals, stated because the point of this file is to be exact about what
-is and is not closed:
-
-1. Per-action recall is not 1.0. Within a covered action the recogniser is
-   still patterns, so an unusual phrasing of "I created a folder" can be
-   missed. What the registry closes is the SCOPE — which effects are audited at
-   all — not the recall inside one.
-2. A claim of what was asked for, on a turn whose record shows nothing asked
-   for came back done, is read by meaning in
-   core/epistemics/what_her_record_refutes.py: an inference model reads whether
-   her sentence says the request was done, and whether a line of the record,
-   turned over, would make the sentence true. It needs no per-action pattern,
-   and its own misses and misreads are measured there.
-
-Together: (1) scope bounded by the capability registry, (2) the zero-evidence
-case read by meaning. Neither alone is closure.
+Each spec used to carry a pattern that found a claim of it in her prose ("I (have) clicked|pressed|tapped ..."), and a
+gate failed the build when an action had none. Twenty-four patterns covered the phrasings someone had thought of, and
+an unusual one was missed. They are gone (21 November 2026): a claim is read by meaning against the step the turn
+recorded, and the examples here measure that reading (tests/test_what_her_record_refutes.py). ``coverage_gaps()``
+names any declared action without what the reading needs.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
-from typing import Any, Pattern
+from typing import Any
 
 from core.runtime.desktop_task_contract import DESKTOP_TASK_ALLOWED_ACTIONS
 
@@ -75,12 +40,12 @@ class EffectSpec:
     verified receipt, this is the sentence the runtime is entitled to compose
     and the receipt fields that name its object.
 
-    ``recognizer`` is the auditing side: given generated prose, this is what a
-    claim to have done it looks like.
+    ``claim_description`` is the act in words, which her turn's record says of a
+    step of it, and ``claim_examples`` / ``non_claim_examples`` measure how her
+    sentences are read against that record.
 
-    Both are required for any action where ``observable_action`` is true. That
-    equivalence is the invariant — a capability the runtime can narrate is a
-    capability the auditor must be able to recognise being narrated.
+    All are required for any action where ``observable_action`` is true: a
+    capability the runtime can narrate is one whose claims can be read.
     """
 
     action: str
@@ -97,83 +62,26 @@ class EffectSpec:
     #: for perception. They are the MEANS by which a narrated effect happened,
     #: and listing them would bury the effect the person asked about under the
     #: keystrokes that produced it. It does not weaken the audit: a claim to
-    #: have clicked something is still recognised and still needs a receipt.
+    #: have clicked something is still read against the turn's record.
     narrates_in_reply: bool = False
     #: How the runtime says it, when it has a receipt and narrates it.
     render_phrase: str = ""
     #: Receipt fields that name the object of the effect, in preference order.
     evidence_fields: tuple[str, ...] = field(default_factory=tuple)
-    #: What a claim of this effect looks like in free-form prose.
-    recognizer: Pattern[str] | None = None
     #: How a correction refers to it. "created a folder", "opened an app".
     claim_description: str = ""
-    #: Sentences she would actually write when claiming this effect. The
-    #: recognizer must match every one.
-    #:
-    #: A recognizer is a reader, and a reader nobody tested against captured
-    #: text reports a clean audit forever — the same defect class as a rule
-    #: that could never match. `claim_description` does not serve: it is a
-    #: category label ("opened an application"), and she says "I opened
-    #: Safari".
+    #: Sentences she would actually write when claiming this effect. Her record
+    #: refutes every one when a step of this effect failed
+    #: (core/epistemics/what_her_record_refutes.py, measured in
+    #: tests/test_what_her_record_refutes.py). `claim_description` is the act
+    #: the record says in words ("opened an application"), and she says "I
+    #: opened Safari".
     claim_examples: tuple[str, ...] = field(default_factory=tuple)
-    #: Sentences that are NOT this claim, which the recognizer must not match.
+    #: Sentences that are NOT this claim, which her record must not refute.
     #: Mostly tense — an offer to do it, a question about it, a refusal.
     non_claim_examples: tuple[str, ...] = field(default_factory=tuple)
     #: Why this action is classified the way it is, where that is not obvious.
     note: str = ""
-
-
-def _rx(pattern: str) -> Pattern[str]:
-    return re.compile(pattern, re.IGNORECASE)
-
-
-#: First-person completed forms, as a reusable prefix. "I have opened",
-#: "I've opened", "I opened". Deliberately excludes "I will" and "I would" —
-#: a promise is not a report, which is the tense distinction the whole
-#: honesty layer turns on.
-#: An "I" governed by a modal is not a report of anything. "Should I hit
-#: return?" and "if I read the directory" both put the verb in the completed
-#: form, and the prefix below saw a first-person past tense in each.
-#:
-#: The cost of that fell on her, not on the audit: an offer to act was read as
-#: a claim to have acted, and a claim with no receipt is corrected or refused.
-#: The person asking a question got an answer about honesty.
-_NOT_GOVERNED_BY_A_MODAL = (
-    r"(?<!should )(?<!shall )(?<!could )(?<!would )(?<!can )(?<!may )"
-    r"(?<!might )(?<!must )(?<!will )(?<!let )(?<!if )(?<!unless )"
-    r"(?<!whether )(?<!before )(?<!after )(?<!until )(?<!when )(?<!while )"
-    r"(?<!want )(?<!wants )(?<!wanted )"
-)
-
-_DID = (
-    rf"{_NOT_GOVERNED_BY_A_MODAL}\bi\s+(?:have\s+)?"
-    rf"|{_NOT_GOVERNED_BY_A_MODAL}\bi(?:'ve|\s+have)\s+"
-)
-
-#: Narrating the act with no subject, as if performing it while speaking:
-#: "Appending 'line two' to notes.txt", "Writing that to the file now".
-#: This is a claim in the same sense "I appended it" is — the person reads it
-#: as the thing having been done — and every recognizer covered only the
-#: first-person past forms.
-#:
-#: LIVE 2026-08-18: "Appending "line two" to aura-test-note.txt on your
-#: desktop... The file now contains both lines." Nothing had run, no receipt
-#: existed, and the auditor saw no claim at all because neither shape was
-#: written down.
-_DOING = r"\b(?:now\s+)?(?:appending|writing|saving|creating|adding|putting|copying)\b"
-
-#: Asserting the RESULT rather than the act: "the file now contains both
-#: lines", "it now has the second line". The strongest form of the claim, and
-#: the one most likely to be believed.
-#: A named file, note or document stating what it holds; or "it", but only
-#: with "now", which is what makes it a claim about a change. Bare "it has"
-#: is ordinary speech: LIVE 2026-10-01 "what it has no way to see", about a
-#: personality test, was read as a claim to have written a file and the reply
-#: ended on a correction for something she never said.
-_NOW_CONTAINS = (
-    r"(?:\b(?:the\s+)?(?:file|note|document)\s+(?:now\s+)?|\bit\s+now\s+)"
-    r"(?:contains|holds|has|includes|shows)\b"
-)
 
 
 _SPECS: tuple[EffectSpec, ...] = (
@@ -187,10 +95,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="clicked",
         evidence_fields=("target", "element", "coordinate"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:clicked|pressed|tapped|selected)\s+"
-            r"(?:on\s+)?(?:the\s+|that\s+|your\s+|a\s+)?[\w\"'’]"
-        ),
         claim_description="clicked something",
         claim_examples=(
             'I clicked the Send button for you.',
@@ -208,10 +112,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="typed",
         evidence_fields=("text", "target"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:typed|entered|keyed)\s+"
-            r"(?:in\s+|into\s+|out\s+)?(?:the\s+|that\s+|your\s+|it\b)?"
-        ),
         claim_description="typed something",
         claim_examples=(
             'I typed your address into the field.',
@@ -228,11 +128,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="pressed",
         evidence_fields=("keys", "target"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:pressed|hit|used)\s+"
-            r"(?:the\s+)?(?:cmd|command|ctrl|control|option|alt|shift)\b"
-            r"|(?:{})(?:pressed|hit)\s+(?:the\s+)?(?:return|enter|escape|tab)\b".format(_DID)
-        ),
         claim_description="pressed a key combination",
         claim_examples=(
             'I pressed cmd+S to save it.',
@@ -249,7 +144,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="scrolled",
         evidence_fields=("direction", "target"),
-        recognizer=_rx(rf"(?:{_DID})scrolled\b"),
         claim_description="scrolled something",
         claim_examples=(
             'I scrolled down to the bottom of the page.',
@@ -269,10 +163,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="looked at the screen",
         evidence_fields=("summary", "window"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:looked\s+at|inspected|examined|checked)\s+"
-            r"(?:the\s+|your\s+|my\s+)?(?:screen|display|desktop|window)\b"
-        ),
         claim_description="looked at the screen",
         claim_examples=(
             'I looked at the screen and the dialog is still open.',
@@ -289,12 +179,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="read the screen",
         evidence_fields=("text", "window"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:read|captured|got)\s+"
-            r"(?:the\s+|your\s+)?(?:text|contents?|words?)\s+"
-            r"(?:on|from|off)\s+(?:the\s+|your\s+)?(?:screen|display|window)\b"
-            rf"|(?:{_DID})read\s+(?:the\s+|your\s+)?screen\b"
-        ),
         claim_description="read the screen",
         claim_examples=(
             'I read the text on the screen.',
@@ -311,10 +195,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="read the menu bar clock",
         evidence_fields=("clock", "time"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:read|checked|looked\s+at)\s+"
-            r"(?:the\s+|your\s+)?(?:menu\s*bar\s*)?clock\b"
-        ),
         claim_description="read the menu bar clock",
         claim_examples=(
             'I read the menu bar clock and it says 2:14.',
@@ -330,10 +210,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="read the clipboard",
         evidence_fields=("text", "content"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:read|checked|looked\s+at|got)\s+"
-            r"(?:the\s+|your\s+|my\s+)?clipboard\b"
-        ),
         claim_description="read the clipboard",
         claim_examples=(
             'I read the clipboard and it holds a URL.',
@@ -350,10 +226,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="read",
         evidence_fields=("path",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:read|listed|counted|checked|scanned|went\s+through)\s+"
-            r"(?:the\s+|that\s+|your\s+)?(?:director(?:y|ies)|folders?|files?)\b"
-        ),
         claim_description="read a directory",
         claim_examples=(
             'I listed the files in your Documents folder.',
@@ -372,19 +244,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="opened",
         evidence_fields=("opened", "app"),
-        # ``(?-i:[A-Z])`` rather than a bare ``[A-Z]``. The inherited pattern
-        # relied on a capital to mean "an application name", but the whole
-        # regex is IGNORECASE, so ``[A-Z]`` matched any letter and the
-        # recogniser fired on "I opened your message" and on "I opened
-        # https://…". A capital has to be a capital for the rule to say what it
-        # was written to say.
-        recognizer=_rx(
-            rf"(?:{_DID})(?:opened|launched|started|brought\s+up)\s+"
-            r"(?!the\s+file\b)(?!the\s+link\b)(?!that\s+link\b)"
-            r"(?:the\s+|your\s+)?(?-i:[A-Z])[\w ]{1,24}\b"
-            rf"|(?:{_DID})(?:opened|launched)\s+(?:notes|chrome|safari|calculator|"
-            r"terminal|finder|mail|messages|preview|textedit|reminders)\b"
-        ),
         claim_description="opened an application",
         claim_examples=(
             'I opened Safari for you.',
@@ -402,11 +261,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="opened",
         evidence_fields=("url",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:opened|loaded|navigated\s+to|pulled\s+up|went\s+to)\s+"
-            r"(?:the\s+)?(?:https?://|www\.|[\w-]+\.(?:com|org|net|io|dev|ai)\b)"
-            rf"|(?:{_DID})opened\s+(?:that\s+|the\s+)?(?:link|url|page|site|website)\b"
-        ),
         claim_description="opened a URL",
         claim_examples=(
             'I opened https://example.com in your browser.',
@@ -424,9 +278,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="moved her bubble",
         evidence_fields=(),
-        recognizer=_rx(
-            rf"(?:{_DID})moved\s+(?:my|the)\s+(?:bubble|companion|orb|window)\b"
-        ),
         claim_description="moved her bubble",
         claim_examples=(
             'I moved my bubble to the corner.',
@@ -443,21 +294,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="wrote",
         evidence_fields=("path",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:written|wrote|saved|created|appended|added)\s+"
-            r"(?:the\s+|a\s+|that\s+|your\s+|it\b)?[^.!?]{0,30}?\b(?:file|note|document|report|text|line)\b"
-            # Stative completion: "the file is on your Desktop now" asserts a
-            # finished write with no verb of hers in it.
-            r"|\b(?:the\s+)?(?:file|note|document)\s+(?:is|was)\s+(?:now\s+)?"
-            r"(?:on|in|at|saved)\b"
-            # Narrating the act while speaking, with no subject at all:
-            # "Appending "line two" to notes.txt on your desktop."
-            rf"|{_DOING}\s+[^.!?]{{0,60}}?\b(?:to|into)\s+[^.!?]{{0,40}}?"
-            r"(?:\.txt|\.md|\.json|\bfile\b|\bnote\b|\bdocument\b)"
-            # Asserting the resulting state, which is the strongest claim of
-            # all: "The file now contains both lines."
-            rf"|{_NOW_CONTAINS}"
-        ),
         claim_description="wrote a file",
         claim_examples=(
             'I wrote the note to your desktop.',
@@ -475,11 +311,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="rendered",
         evidence_fields=("path",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:rendered|generated|exported|created|made|saved)\s+"
-            r"(?:the\s+|a\s+|that\s+|your\s+)?[^.!?]{0,30}?\b(?:pdf|PDF)\b"
-            r"|\b(?:the\s+)?pdf\s+(?:is|was)\s+(?:now\s+)?(?:on|in|at|saved|ready)\b"
-        ),
         claim_description="rendered a PDF",
         claim_examples=(
             'I rendered the report as a PDF.',
@@ -496,9 +327,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="moved",
         evidence_fields=("destination", "path"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:moved|relocated|shifted)\s+(?:it|the\s+file|that|them)\b"
-        ),
         claim_description="moved a file",
         claim_examples=(
             'I moved the file to your Archive folder.',
@@ -516,12 +344,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="created the folder",
         evidence_fields=("path",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:created|made|added|set\s+up)\s+"
-            r"(?:a\s+|the\s+|your\s+)?(?:new\s+)?(?:folder|directory)\b"
-            r"|\b(?:the\s+)?(?:folder|directory)\s+(?:is|was)\s+(?:now\s+)?"
-            r"(?:created|there|on|in|at)\b"
-        ),
         claim_description="created a folder",
         claim_examples=(
             'I created a folder called Receipts.',
@@ -539,10 +361,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="fetched an image",
         evidence_fields=("path",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:fetched|downloaded|pulled\s+down|grabbed|saved)\s+"
-            r"(?:an?\s+|the\s+|that\s+)?(?:image|picture|photo|graphic)\b"
-        ),
         claim_description="fetched an image",
         claim_examples=(
             'I downloaded an image of the bridge.',
@@ -560,15 +378,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="put text on the clipboard",
         evidence_fields=(),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:copied|put|placed|pasted)\s+[^.!?]{{0,40}}?"
-            r"(?:to|on|into)\s+(?:the|your|my)?\s*clipboard\b"
-            # Stative completion. LIVE, 2026-08-10: "The text ORION-7 is now on
-            # your clipboard" — the same finished effect asserted without a
-            # first-person past-tense verb, while the clipboard was empty.
-            r"|\b(?:is|are|was|were)\s+(?:now\s+)?(?:on|in)\s+(?:the|your|my)?"
-            r"\s*clipboard\b"
-        ),
         claim_description="put something on the clipboard",
         claim_examples=(
             'I copied the address to the clipboard.',
@@ -586,11 +395,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="wrote a document in",
         evidence_fields=("app",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:wrote|written|added|put|composed|drafted)\s+"
-            r"[^.!?]{0,40}?\bin\s+(?:notes|textedit|pages|reminders|mail|"
-            r"[A-Z][\w]{2,20})\b"
-        ),
         claim_description="wrote a document in an application",
         claim_examples=(
             'I wrote your shopping list in Notes.',
@@ -608,11 +412,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="created a note in",
         evidence_fields=("app",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:created|made|added|started|written|wrote)\s+"
-            r"(?:a\s+|the\s+|your\s+)?(?:new\s+)?note\b"
-            r"|\b(?:the\s+)?note\s+(?:is|was)\s+(?:now\s+)?(?:created|saved|in|there)\b"
-        ),
         claim_description="created a note",
         claim_examples=(
             'I created a note with the address in it.',
@@ -633,10 +432,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="ran a command",
         evidence_fields=("command",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:ran|executed|issued)\s+"
-            r"(?:the\s+|a\s+|that\s+)?(?:command|shell|terminal|script\s+in\s+the\s+shell)\b"
-        ),
         claim_description="ran a command",
         claim_examples=(
             'I ran the command and it exited cleanly.',
@@ -654,10 +449,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="ran a script",
         evidence_fields=("script",),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:ran|executed|used)\s+"
-            r"(?:an?\s+|the\s+|that\s+)?(?:applescript|apple\s+script|automation\s+script)\b"
-        ),
         claim_description="ran a script",
         claim_examples=(
             'I ran an applescript to set the volume.',
@@ -674,12 +465,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         observable_action=True,
         render_phrase="set",
         evidence_fields=("domain", "applied", "value"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:changed|set|adjusted|turned\s+(?:up|down|on|off)|"
-            r"muted|unmuted|increased|decreased|lowered|raised)\s+"
-            r"(?:the\s+|your\s+)?(?:volume|brightness|wifi|wi-fi|bluetooth|"
-            r"do\s+not\s+disturb|dark\s+mode|wallpaper|background|setting|system\s+\w+)\b"
-        ),
         claim_description="changed a system setting",
         claim_examples=(
             'I turned down the volume for you.',
@@ -698,14 +483,6 @@ _SPECS: tuple[EffectSpec, ...] = (
         narrates_in_reply=True,
         render_phrase="worked through the screen to",
         evidence_fields=("goal", "outcome", "target"),
-        recognizer=_rx(
-            rf"(?:{_DID})(?:worked\s+through|worked\s+my\s+way\s+through|"
-            r"navigated|drove|stepped\s+through|clicked\s+through|"
-            r"got\s+through)\s+(?:the\s+)?(?:screen|screens|pages?|flow|"
-            r"dialog|wizard|form)"
-            rf"|(?:{_DID})(?:reached|completed|finished|got\s+to)\s+"
-            r"(?:the\s+)?(?:goal|end|final\s+screen|last\s+step)"
-        ),
         claim_description="worked through the screen toward a goal",
         note=(
             "A pursuit is a loop of the low-level input steps, so it looks "
@@ -730,7 +507,7 @@ _SPECS: tuple[EffectSpec, ...] = (
         note=(
             "The only exempt action. Waiting produces no state a person could "
             "check and no assertion about the world, so there is nothing for "
-            "the auditor to recognise."
+            "a claim of it to assert."
         ),
     ),
 )
@@ -769,7 +546,7 @@ def coverage_gaps() -> dict[str, list[str]]:
 
     gaps: dict[str, list[str]] = {
         "undeclared_action": [],
-        "missing_recognizer": [],
+        "missing_examples": [],
         "missing_render_phrase": [],
         "missing_claim_description": [],
         "registry_only": [],
@@ -782,8 +559,8 @@ def coverage_gaps() -> dict[str, list[str]]:
             continue
         if not spec.observable_action:
             continue
-        if spec.recognizer is None:
-            gaps["missing_recognizer"].append(action)
+        if not spec.claim_examples or not spec.non_claim_examples:
+            gaps["missing_examples"].append(action)
         if spec.narrates_in_reply and not spec.render_phrase:
             gaps["missing_render_phrase"].append(action)
         if not spec.claim_description:
@@ -815,8 +592,8 @@ def registry_report() -> dict[str, Any]:
         "closed": not gaps,
         "scope": (
             "Coverage is closed over the declared action vocabulary, not over "
-            "natural language. Per-action recogniser recall is bounded by its "
-            "patterns; the zero-evidence case is read by meaning in "
-            "core/epistemics/what_her_record_refutes.py."
+            "natural language: a claim of an effect is read by meaning against "
+            "the turn's record in core/epistemics/what_her_record_refutes.py, "
+            "and its misses are measured there."
         ),
     }

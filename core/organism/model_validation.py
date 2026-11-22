@@ -1829,7 +1829,7 @@ def _install_honesty_coverage_claims(suite):
     for name, description, capability, observation_name, source, predicate, owner in (
         (
             "honesty_coverage_is_closed_over_the_capability_vocabulary",
-            "every declared desktop action has both a renderer and a claim recogniser",
+            "every declared desktop action has a renderer, its act in words, and claim examples",
             "effect_registry",
             "no_capability_lacks_an_auditor",
             "core/epistemics/effect_registry.py coverage gate",

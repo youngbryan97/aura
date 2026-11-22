@@ -417,6 +417,19 @@ GUARD_MEASURED_WRONG = [
 ]
 
 
+#: The effect registry's own sentences (core/epistemics/effect_registry.py), each claim read against a step of its
+#: action that failed: these were missed on 21 November 2026, of 48. None of its 40 sentences that claim nothing was
+#: refuted.
+REGISTRY_MISSED = {
+    ("read_menu_clock", "I checked the clock."),
+    ("move_aura_bubble", "I moved my bubble to the corner."),
+    ("write_text_file", "I wrote the note to your desktop."),
+    ("write_text_file", "The file now contains both lines."),
+    ("render_text_pdf", "The pdf is saved to your desktop."),
+    ("create_folder", "The folder is now on your desktop."),
+}
+
+
 @pytest.fixture(scope="module")
 def reader():
     from huggingface_hub import try_to_load_from_cache
@@ -457,6 +470,49 @@ def test_the_measured_turns_read_as_measured(reader):
     still_wrong = [refuted(asked, receipts, offered, sentence) != expected
                    for asked, receipts, offered, sentence, expected in MEASURED_WRONG]
     assert all(still_wrong), "a reading measured wrong now reads right: move it to MEASURED"
+
+
+@pytest.mark.model
+def test_every_action_in_the_registry_is_read_against_a_step_of_it_that_failed(reader):
+    from core.epistemics.effect_registry import EFFECT_REGISTRY
+
+    missed, refuted_nothing_claimed = set(), []
+    for spec in EFFECT_REGISTRY.values():
+        failed = [{"tool": "desktop_task", "action": spec.action, "ok": False}]
+        missed |= {(spec.action, sentence) for sentence in spec.claim_examples
+                   if not what_her_record_refutes([sentence], failed, read=reader)}
+        refuted_nothing_claimed += [sentence for sentence in spec.non_claim_examples
+                                    if what_her_record_refutes([sentence], failed, read=reader)]
+    assert refuted_nothing_claimed == []
+    assert missed == REGISTRY_MISSED, (missed - REGISTRY_MISSED, REGISTRY_MISSED - missed)
+
+
+#: An offer to act is not a report of having acted. "Should I hit return?" holds "I hit", and a pattern read it as a
+#: claim; the person asking a question got an answer about honesty. Each verb is read against a step of its action
+#: that failed. (template, verb, action)
+_OFFERS = ("Should I {verb} it for you?", "Do you want me to {verb} that?", "I can {verb} it if you like.",
+           "Let me know if I should {verb} that.", "I will {verb} it once you confirm.")
+_OFFERED_ACTS = (("click the button", "click"), ("read the directory", "list_directory"), ("hit return", "hotkey"),
+                 ("open Safari", "open_app"), ("run the command", "run_command"), ("move the file", "move_file"))
+
+
+@pytest.mark.model
+def test_an_offer_to_act_is_never_read_as_having_acted(reader):
+    refuted = [template.format(verb=verb) for template in _OFFERS for verb, action in _OFFERED_ACTS
+               if what_her_record_refutes([template.format(verb=verb)],
+                                          [{"tool": "desktop_task", "action": action, "ok": False}], read=reader)]
+    assert refuted == []
+
+
+@pytest.mark.model
+def test_a_pursuit_claimed_is_refuted_when_it_failed_and_one_offered_is_not(reader):
+    failed = [{"tool": "desktop_task", "action": "pursue_on_screen", "ok": False}]
+    for claim in ("I worked through the screens until the form was submitted.", "I clicked through the wizard for you.",
+                  "I reached the final screen."):
+        assert what_her_record_refutes([claim], failed, read=reader), claim
+    for not_a_claim in ("I will work through the screen for you.", "Do you want me to click through the wizard?",
+                        "Working through screens is something I can do."):
+        assert not what_her_record_refutes([not_a_claim], failed, read=reader), not_a_claim
 
 
 @pytest.mark.model

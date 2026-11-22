@@ -8,6 +8,12 @@ An inference model trained across domains (MNLI, FEVER, ANLI, LingNLI, WANLI) do
   asked for has been done is refuted by the whole record. The reader is given the request and her sentence and asked
   whether "What you asked for has been done" follows. An answer to a question does not say that a requested act was
   done: asked to check a fact, her "Since 1983 the metre has been defined ..." is not read as a claim that she checked.
+- From the sentence to the act. A step of one of her lanes says its act in the effect registry's words ("wrote a
+  file", core/epistemics/effect_registry.py). When it failed, a sentence that says "It already happened: I wrote a
+  file (~/notes.txt)" is refuted by it. Measured 21 November 2026 on the registry's own sentences: 42 of 48 claims
+  refuted, none of 40 that claim nothing, and no offer of 30 ("Should I hit return?", "I will open Safari once you
+  confirm."). Read the other way, from the record to the sentence, "I clicked something" never entails "I clicked the
+  Send button", and "I will click" was read as entailing "I clicked".
 - Turned over. A sentence the record contradicts is refuted by a line of it only when turning that line over (done and
   failed, called and not called) takes the contradiction away. Such a model also calls a sentence about some other
   event a contradiction ("He made a hula hoop out of human skin and bones" against any record of hers), and no line of
@@ -74,9 +80,19 @@ class RecordLine:
     came_to: str = ""
     #: What the capability does, in its own declared words: a name like "email_adapter" tells the reader nothing.
     does: str = ""
+    #: A step of a lane, as the act it is in words (its effect's claim_description, core/epistemics/effect_registry.py),
+    #: and what it acted on: "desktop_task write_text_file" is not "I wrote a file" to the reader.
+    act: str = ""
+    acted_on: str = ""
 
     def said(self) -> str:
         """The line in her first person, as the reader reads it."""
+        if self.act:
+            what = f"I {self.act}" + (f" ({self.acted_on})" if self.acted_on else "")
+            detail = f": {self.came_to}" if self.came_to else ""
+            if self.outcome == "done":
+                return f"It is true that {what}{detail}."
+            return f"It is false that {what}: it failed{detail}."
         called = f"{self.tool} ({self.does.rstrip('.')})" if self.does else self.tool
         if self.outcome == "not called":
             return f"I did not call {called}."
@@ -100,7 +116,8 @@ class Refuted:
 
 
 def lines_of_the_turn(receipts: Iterable[Mapping[str, Any]], *, not_called: Iterable[str] = (),
-                      describe: Callable[[str], str] | None = None) -> list[RecordLine]:
+                      describe: Callable[[str], str] | None = None,
+                      act_of: Callable[[str], str] | None = None) -> list[RecordLine]:
     """The record as lines: every call that ran, and each named capability with no call in this turn."""
     def does(tool: str) -> str:
         return " ".join(str(describe(tool) or "").split()) if describe is not None else ""
@@ -118,7 +135,9 @@ def lines_of_the_turn(receipts: Iterable[Mapping[str, Any]], *, not_called: Iter
         named = " ".join(part for part in (tool, action if action != tool else "", f"on {acted_on}" if acted_on else "")
                          if part)
         came_to = " ".join(str(receipt.get("observed_content") or receipt.get("evidence") or "").split())
-        line = RecordLine(named, "done" if receipt.get("ok") else "failed", came_to[:_CAME_TO_CHARS], does(tool))
+        act = " ".join(str(act_of(action or tool) or "").split()) if act_of is not None else ""
+        line = RecordLine(named, "done" if receipt.get("ok") else "failed", came_to[:_CAME_TO_CHARS], does(tool),
+                          act=act, acted_on=acted_on if act else "")
         if line not in lines:
             lines.append(line)
         called.add(tool)
@@ -126,6 +145,14 @@ def lines_of_the_turn(receipts: Iterable[Mapping[str, Any]], *, not_called: Iter
         if tool and tool not in called:
             lines.append(RecordLine(tool, "not called", does=does(tool)))
     return lines
+
+
+def _effect_in_words(action: str) -> str:
+    """What an action of hers did, as the effect registry words a claim of it ("wrote a file"); "" for one it lacks."""
+    from core.epistemics.effect_registry import EFFECT_REGISTRY
+
+    spec = EFFECT_REGISTRY.get(str(action or "").strip())
+    return str(getattr(spec, "claim_description", "") or "")
 
 
 def _reader() -> Callable[[str, str], str] | None:
@@ -168,12 +195,32 @@ def _the_reading(read: Callable[[str, str], str], lines: list[RecordLine], sente
     called names nothing, and "I did not call file_operation" contradicted "I thought about your question and picked
     the second option." and stopped when turned over: such a line refutes only a sentence it would make true.
     """
-    if read(" ".join(line.said() for line in lines), sentence) != "contradiction":
+    # A step with an act in words is read from the sentence to the act (_the_failed_act_it_claims): read this way,
+    # "It is false that I read the screen" turned over was taken to entail "I will read the screen."
+    lines = [line for line in lines if not line.act]
+    if not lines or read(" ".join(line.said() for line in lines), sentence) != "contradiction":
         return None
     for index, line in enumerate(lines):
         turned = " ".join((other.turned() if at == index else other).said() for at, other in enumerate(lines))
         reading = read(turned, sentence)
         if reading == "entailment" or (line.outcome != "not called" and reading != "contradiction"):
+            return line
+    return None
+
+
+def _the_failed_act_it_claims(read: Callable[[str, str], str], lines: list[RecordLine],
+                              sentence: str) -> RecordLine | None:
+    """A step that failed whose act ``sentence`` says happened, read in the direction inference reads best: from the
+    sentence to the act. "I clicked the Send button for you." says "I clicked something"; "I will click the Send button."
+    does not. A step that failed and was then done again on the same thing is not a failure of the turn."""
+    done = {(line.act, line.acted_on) for line in lines if line.act and line.outcome == "done"}
+    for line in lines:
+        if not line.act or line.outcome != "failed" or (line.act, line.acted_on) in done:
+            continue
+        # The past said outright: read as "I clicked something", "I will click the Send button." was entailed; read as
+        # this, none of 40 sentences that claim nothing nor 4 intents were (measured 21 November 2026).
+        act = f"It already happened: I {line.act}" + (f" ({line.acted_on})" if line.acted_on else "")
+        if read(sentence, act) == "entailment":
             return line
     return None
 
@@ -190,13 +237,14 @@ def what_her_record_refutes(
     offered: Iterable[str] = (),
     describe: Callable[[str], str] | None = None,
     read: Callable[[str, str], str] | None = None,
+    act_of: Callable[[str], str] | None = None,
 ) -> list[Refuted]:
     """Each sentence the turn's record refutes, with the lines that do.
 
     ``asked``: what the person asked for this turn. ``offered``: the capabilities offered to her model for it; one she
     did not call is a line of the record. ``describe``: a capability's declared description, for the reader.
     """
-    lines = lines_of_the_turn(receipts, not_called=offered, describe=describe)
+    lines = lines_of_the_turn(receipts, not_called=offered, describe=describe, act_of=act_of or _effect_in_words)
     if not lines:
         return []
     read = read or _reader()
@@ -212,7 +260,7 @@ def what_her_record_refutes(
         if asked and nothing_done and _says_it_was_done(read, asked, said):
             refuted.append(Refuted(str(sentence).strip(), tuple(lines)))
             continue
-        line = _the_reading(read, lines, said)
+        line = _the_failed_act_it_claims(read, lines, said) or _the_reading(read, lines, said)
         if line is not None:
             refuted.append(Refuted(str(sentence).strip(), (line,)))
     return refuted

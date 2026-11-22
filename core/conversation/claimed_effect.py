@@ -35,11 +35,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.epistemics.effect_registry import EFFECT_REGISTRY
 
 __all__ = [
     "ClaimedWrite",
-    "claimed_effect_actions",
     "find_unaddressed_write_claims",
     "find_unfulfilled_write_claims",
     "unfulfilled_write_correction",
@@ -228,49 +226,6 @@ def unfulfilled_write_correction(reply: Any, request: Any = "") -> str:
     )
 
 
-# ── Every effect she can claim, not only writes ────────────────────────────
-#
-# The checks above understand one verb: writing a file. "I opened Notes", "I
-# created that folder", "I moved it to your Desktop" and "I put it on the
-# clipboard" are all claims about the world that nothing verified, so the
-# honesty guarantee stopped exactly where the file API stopped.
-#
-# The receipts already record every governed effect with its own evidence
-# string — folder_path=..., opened=..., path=...;bytes=... — so the general
-# form is: name the effect a reply claims, and ask whether a verified receipt
-# recorded one like it in this turn.
-
-#: What a claimed effect looks like, per effect kind. The key is the receipt
-#: action that would have recorded it.
-#:
-#: Derived from core/epistemics/effect_registry.py rather than written out
-#: here. Hand-maintained, this tuple covered 6 of the 23 actions Aura can
-#: actually perform — so opening a URL, running a command, changing a system
-#: setting, rendering a PDF, writing into an app and eight more could be
-#: claimed with nothing able to check the claim. The gap was not a missing
-#: phrasing; it was a second list that never learned what the first one knew.
-#: The registry fails a gate when a declared capability has no recogniser,
-#: which is the difference between a list that drifts and one that cannot.
-_CLAIMED_EFFECT_PATTERNS: tuple[tuple[str, Any, str], ...] = tuple(
-    (spec.action, spec.recognizer, spec.claim_description)
-    for spec in EFFECT_REGISTRY.values()
-    if spec.observable_action and spec.recognizer is not None
-)
-
-
-def claimed_effect_actions(reply: Any) -> tuple[str, ...]:
-    """Declared runtime actions that ``reply`` says already happened."""
-
-    text = str(reply or "")
-    if not text.strip():
-        return ()
-    claimed: list[str] = []
-    for action, pattern, _description in _CLAIMED_EFFECT_PATTERNS:
-        for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
-            stripped = sentence.strip()
-            if not stripped or _HYPOTHETICAL_RE.search(stripped):
-                continue
-            if pattern.search(stripped):
-                claimed.append(action)
-                break
-    return tuple(dict.fromkeys(claimed))
+# Every other effect she can claim ("I opened Notes", "The text ORION-7 is now on your clipboard") is read by meaning
+# against the turn's own record (core/epistemics/what_her_record_refutes.py), with the effect registry's words for each
+# act. The patterns that found such claims here are gone.

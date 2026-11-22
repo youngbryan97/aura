@@ -869,9 +869,10 @@ def _install_effect_and_fact_claims(suite: Any) -> None:
     suite.add_claim(
         Claim(
             statement=(
-                "Every effect Aura can execute has a recogniser, so an effect "
-                "claim in free-form text is audited for all 23 declared actions "
-                "rather than for a hand-picked subset."
+                "Every effect Aura can execute is declared with its act in words "
+                "and with sentences that claim it and that do not, so a claim of "
+                "any of the declared actions is read against her turn's record "
+                "rather than of a hand-picked subset."
             ),
             test="honesty_coverage_is_closed_over_the_capability_vocabulary",
             owner="core/epistemics/effect_registry.py",
@@ -879,10 +880,11 @@ def _install_effect_and_fact_claims(suite: Any) -> None:
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
                 "Closure is over the DECLARED ACTION VOCABULARY, not over natural "
-                "language. Per-action recogniser recall is bounded by its patterns "
-                "and is measured against one captured phrasing per action, not "
-                "against a corpus of live generations. The stronger claim — that "
-                "Aura cannot falsely report any action — is NOT supported."
+                "language. Measured 21 November 2026 on the registry's own "
+                "sentences against a step that failed: 42 of 48 claims refuted, "
+                "none of 40 that claim nothing. Not measured on live generations. "
+                "The stronger claim, that Aura cannot falsely report any action, "
+                "is NOT supported."
             ),
         )
     )

@@ -7,22 +7,16 @@ sentences are not, so coverage can be closed over the capability vocabulary —
 and closure that is not gated is just a claim, which is the failure mode this
 repository has had to name repeatedly.
 
-Three properties are enforced here:
+Two properties are enforced here:
 
-1. Every declared capability has a recogniser (scope closure).
-2. Every recogniser actually fires on a real phrasing of its effect — a
-   recogniser that exists and never matches is the half-wired-signal defect,
-   and it would satisfy property 1 while protecting nothing.
-3. The zero-evidence case is read by meaning, without any per-effect pattern: that is
-   core/epistemics/what_her_record_refutes.py, tested in tests/test_what_her_record_refutes.py.
+1. Every declared capability has a spec, with its act in words (scope closure).
+2. Every observable action declares sentences that claim it and sentences that do not. Its claims are read by meaning
+   against the turn's record (core/epistemics/what_her_record_refutes.py), and those sentences measure that reading
+   (tests/test_what_her_record_refutes.py, REGISTRY_MISSED). The patterns that once found each claim are gone.
 """
 
 from __future__ import annotations
 
-import pytest
-
-from core.conversation.claimed_effect import _CLAIMED_EFFECT_PATTERNS
-from core.conversation.effect_claim import _EFFECT_VOCABULARY
 from core.epistemics.effect_registry import (
     EFFECT_REGISTRY,
     coverage_gaps,
@@ -66,62 +60,13 @@ def test_registry_holds_nothing_aura_cannot_do() -> None:
     assert extra == [], f"{extra} are registered but not executable"
 
 
-#: One phrasing per observable action, written the way a reply would say it.
-#: These are the recall floor: if a recogniser stops matching its own effect,
-#: property 1 still passes and nothing is protected, which is how a channel
-#: goes half-wired without any test noticing.
-#:
-#: They are READ FROM THE REGISTRY, not written here. This was a second
-#: hand-maintained list beside the specs, and the finding this file records —
-#: "a second list that never learned what the first knew" — reproduced itself
-#: in the fixture written to prevent it: adding pursue_on_screen to the
-#: registry left this dict a phrasing short.
-_LIVE_PHRASINGS: dict[str, str] = {
-    action: spec.claim_examples[0]
-    for action, spec in EFFECT_REGISTRY.items()
-    if spec.claim_examples
-}
+def test_every_observable_action_says_its_act_and_how_it_is_claimed() -> None:
+    """What the record reading needs of each action: the act in words, and sentences to be measured on."""
 
-
-def test_every_observable_action_has_a_live_phrasing_fixture() -> None:
-    """The fixture set above cannot lag the registry silently."""
-
-    uncovered = sorted(set(observable_actions()) - set(_LIVE_PHRASINGS))
-    assert uncovered == [], (
-        f"{uncovered} have a recogniser but no phrasing fixture, so nothing "
-        "proves the recogniser fires. Declare claim_examples on the spec."
+    lacking = sorted(
+        action for action in observable_actions()
+        if not EFFECT_REGISTRY[action].claim_description
+        or not EFFECT_REGISTRY[action].claim_examples
+        or not EFFECT_REGISTRY[action].non_claim_examples
     )
-
-
-@pytest.mark.parametrize("action", sorted(_LIVE_PHRASINGS))
-def test_recognizer_fires_on_its_own_effect(action: str) -> None:
-    """Property 2: a recogniser that never matches protects nothing."""
-
-    spec = EFFECT_REGISTRY[action]
-    assert spec.recognizer is not None
-    sentence = _LIVE_PHRASINGS[action]
-    assert spec.recognizer.search(sentence), (
-        f"the {action} recogniser does not match {sentence!r}, so a reply "
-        "phrased that way would claim the effect unaudited"
-    )
-
-
-def test_recogniser_count_only_grows() -> None:
-    """A hand-maintained list covered 6 of 23. Never go back below that.
-
-    The number is the point of the finding: the gap was not a missing
-    phrasing, it was a second list that never learned what the first knew.
-    """
-
-    assert len(_CLAIMED_EFFECT_PATTERNS) >= 23
-    assert len(_EFFECT_VOCABULARY) >= 15
-
-
-def test_open_app_recogniser_requires_a_real_capital() -> None:
-    """IGNORECASE made ``[A-Z]`` match any letter, so the rule said nothing."""
-
-    spec = EFFECT_REGISTRY["open_app"]
-    assert spec.recognizer is not None
-    assert not spec.recognizer.search("I opened your message and read it.")
-    assert not spec.recognizer.search("I opened the file you mentioned.")
-    assert spec.recognizer.search("I opened Notes.")
+    assert lacking == [], f"{lacking} cannot be read against the record or measured"
