@@ -30,6 +30,13 @@ explanation you can use aloud. The numbers and source records follow below.
 None of them establishes experience: the grounds rest on six stated postulates,
 and meeting them is not evidence equal to a person's case.
 
+## Contents
+
+- [Confirmatory seed 101 and the later tests](#seed-101-30-and-31-october-the-confirmatory-reading) · [Exploratory seed 97](#seed-97-28-and-29-october) · [Seed 89](#seed-89-28-october)
+- [Seed 23's isolation finding](#an-isolation-finding-changed-how-to-read-seed-23s-results) · [Recorded verdict](#what-seed-23s-files-recorded-25-october) · [Method changes](#seed-23s-recorded-results-and-the-method-after-it) · [The two failed checks](#why-the-two-remaining-checks-did-not-pass)
+- [Boundary and estimator repairs](#the-night-addendum-include-what-the-transition-reads-then-test-both-ways) · [Later restore check](#later-discovery-check-and-another-restore-repair) · [Joint effects](#the-joint-effect-result-within-the-full-campaign) · [Content and reports](#content-and-reports-the-measurements-behind-the-improvement)
+- [Earlier follow-up list](#what-remains-to-complete) · [How the tests fit together](#how-the-layers-fit-together) · [Reproduction and source records](#read-next)
+
 ## Seed 101, 30 and 31 October: the confirmatory reading
 
 The run files are in the run-data release under
@@ -413,6 +420,11 @@ live desktop. The earlier certificate and refusal are retained in the
 
 ## What remains to complete
 
+This list records the follow-up after the earlier seed-23 work. Read it as
+the plan at that stage. The [seed 101 section](#seed-101-30-and-31-october-the-confirmatory-reading)
+gives the later outcomes under the confirmatory specification. Independent
+replication and challenges to the measurement and bridge remain open.
+
 1. Recheck paired comparisons under the consequence-history isolation repair,
    including the previously positive synergy, content and report readings.
 2. Evaluate the newly declared K* boundary and numeric margin under the
@@ -442,8 +454,9 @@ running system.
 | J* | Which process, related contents and continuing history were identified? | Carrier, content relations and lineage, under P1–P6 |
 | Bridge | Do the five specified supporting grounds hold? | Carrier, markers, reports, structure and lineage |
 
-ISC-v6 names the battery's current version. v25 names the carrier programme;
-it does not mean there are 25 checks. The partition design is inherited from
+ISC-v7 is the battery used for the confirmatory verdict above. ISC-v6 is
+the earlier scoring version used in the seed-23 sections. The carrier
+programme, v25, has its own version series. The partition design comes from
 [v5 and its addenda](ISC_V5_PREREGISTRATION.md). Its deciding estimator is
 paired displacement, as specified in [isc_v5.py](../core/subject/isc_v5.py),
 with 8, 16, 32, 64, 96 and 128-anchor looks, 1,000 bootstrap draws and a

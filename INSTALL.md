@@ -11,6 +11,12 @@
 > [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
+## Contents
+
+- [Requirements](#requirements) · [Setup](#setup) · [Running Aura](#running) · [First boot](#first-boot)
+- [Boot modes](#all-boot-modes) · [Operational subcommands](#operational-subcommands) · [Environment variables](#environment-variables-optional)
+- [Personality fine-tuning](#optional-fine-tune-personality) · [Docker services](#docker) · [Troubleshooting](#troubleshooting)
+
 ## Requirements
 
 - macOS on Apple Silicon (M-series chip).
@@ -18,12 +24,10 @@
 - The resident-model target is 64 GB of unified memory. Smaller profiles
   require their own model and workload validation.
 
-The target is an Apple Silicon Mac with 64 GB of unified memory. The
-Cortex, Brainstem and Reflex are model roles; their names do not authorise
-loading every lane concurrently. Admission depends on the current process
-tree, reserved memory and existing campaigns. A 32 GB configuration requires
-a smaller declared model profile and its own validation; this guide supplies
-no latency guarantee for it. See [HARDWARE_PROFILES.md](HARDWARE_PROFILES.md).
+Cortex, Brainstem, and Reflex are model roles. Which ones can load together
+depends on the current process tree, reserved memory, and other work on the
+machine. For a 32 GB configuration, choose a smaller declared model profile
+and measure it on that hardware. [Hardware profiles](HARDWARE_PROFILES.md)
 
 ## Setup
 
@@ -34,7 +38,8 @@ cd aura
 make setup        # creates .venv, installs requirements/core.txt + requirements/dev.txt
 ```
 
-`make setup-prod` is the strict production installer: it stops immediately if any dependency fails to install rather than silently continuing with degraded features. Use this variant if you plan to run Aura unattended.
+For an unattended deployment, use `make setup-prod`. It stops if a
+required dependency fails to install.
 
 Manual equivalent:
 

@@ -11,18 +11,31 @@
 > [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This document defines the formal claims matrix for the Aura cognitive agent runtime. Every claim is strictly classified based on empirical, local, or external validation evidence. Unsupported claims are explicitly demoted to "not proven" or "deprecated/retired".
+Use this page to find a claim, see what evidence supports it, and check
+what would change its classification. The labels distinguish support from
+local tests, causal comparisons, and external validation. Claims still
+open or retired have their own classifications.
 
-**Current reading, 25 October 2026.** Earlier local gate results retain the
-profile and date of their artifacts. This page is not a fresh final-proof pass
-for the current source or running app. G09 passed its registered two-domain
-broad-gain criterion; L09 and G12 remain open. [G09 evidence](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md).
+The earlier gate results apply to their recorded profiles and dates.
+The 25 October 2026 reading records G09 passing its registered math and
+planning criterion, with L09 and G12 open.
+[G09 result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)
+
+## Contents
+
+- [How to read claim labels](#read-this-before-the-table) · [Claim classifications](#claims-classification-summary)
+- [Tests that can overturn a claim](#falsification-ledger) · [Later reasoning and learning](#later-reasoning-and-learning-results)
+- [Detailed definitions](#detailed-claims-definitions) · [Open claims and limits](CLAIMS_NOT_SUPPORTED.md)
 
 ## Read this before the table
 
-Several claim names in this repository sound much grander than what they actually describe. Names like "Operational Volition", "Synthetic Cognitive Entity", "Experience-Adjacent Indicators", "Qualia Engine", "Phenomenal Richness", "Consciousness Guarantee", "Personhood Proof Battery", and "Strange-Loop Detection" can easily lead readers to imagine capabilities far beyond what the underlying code and tests actually demonstrate. Simply putting disclaimers at the bottom of the page does not undo that initial impression.
-
-To make things completely clear, every extraordinary label in the table below includes its **plain-English engineering definition right in the cell**, in bold. If a concept cannot be explained in straightforward software engineering terms, it does not belong in a claim. Here is the general translation guide:
+The table gives the engineering meaning of the project's research names.
+For example, “Operational Volition” names action selection. Other names you
+will find in tests and modules include “Synthetic Cognitive Entity”,
+“Experience-Adjacent Indicators”, “Qualia Engine”, “Phenomenal Richness”,
+“Consciousness Guarantee”, “Personhood Proof Battery”, and
+“Strange-Loop Detection”. The definition and evidence beside each name
+give the scope of the claim.
 
 | Reads as | Is |
 | :--- | :--- |
@@ -35,12 +48,16 @@ To make things completely clear, every extraordinary label in the table below in
 | Guarantee / proof battery | A suite of automated tests that we wrote and run ourselves |
 | Locally demonstrated | Passed on our local test machine, under our test setup, using our own tests |
 
-Two strict rules follow, and both are enforced by automated scripts rather than left to good intentions:
+### Retraction and preservation
 
-1. **Retracted evidence cannot support a claim.** If an experimental result is found to be flawed or unfair, it is marked with a machine-readable `RETRACTION.json` file. The automated check `make evidence-integrity` fails immediately if any claim above `not proven` relies on a retracted result. (This check was introduced because Claim 14 remained listed as `locally demonstrated` for a month while its description admitted that its primary benchmark was unfair.)
-2. **The measurement is never edited.** A retraction is kept in an accompanying sidecar file. The original recorded data remains byte-identical in git history, because deleting flawed numbers would also delete the evidence that the flaw existed in the first place.
+A flawed or unfair result gets a machine-readable `RETRACTION.json`.
+`make evidence-integrity` fails if a claim above `not proven` depends on
+that result. This check was introduced after Claim 14 remained
+`locally demonstrated` for a month despite the flaw in its main benchmark.
 
-The most accurate way to understand what this repository actually achieves is to read the unsupported-claims ledger (`CLAIMS_NOT_SUPPORTED.md`) and the falsification ledger below, rather than relying on module names.
+The sidecar records the retraction while the original measurement stays
+byte-identical in Git history. This keeps the evidence needed to investigate
+what went wrong.
 
 ## Claims Classification Summary
 
@@ -232,7 +249,10 @@ older numbered claims:
 ### 17. Subjective Consciousness
 * **Classification**: `not proven`
 * **Definition**: Subjective awareness, qualitative feelings (qualia), or phenomenological experience.
-* **Blocker**: No complete subjecthood result is established here. A scientific argument must state its theory, bridge assumptions and valid evidence; the recorded ISC result requires rechecking and is not a full pass.
+* **Blocker**: The confirmatory ISC-v7 experiment reported 24/24 at seed 101.
+  That score applies to the specified operational tests. An argument about
+  experience still needs evidence for its theory, measurements, and bridge
+  assumptions. [ISC status](docs/ISC_STATUS.md)
 
 ### 18. Personhood
 * **Classification**: `not proven`
@@ -247,7 +267,9 @@ older numbered claims:
 ### 20. Indefinite Autonomy
 * **Classification**: `not proven`
 * **Definition**: Bounded resource growth and stable operation over arbitrary long-horizon periods.
-* **Blocker**: Long-horizon longevity soak (72h+) blocked by execution environment limits. Current soaks span 2–4 hours; longer runs still show load-dependent latency walls.
+* **Blocker**: The execution environment limits soaks of 72 hours or longer.
+  Existing soak durations span from 2 hours to 4 hours. Latency rises under
+  load in longer runs.
 
 ### 21. Synthetic Cognitive Entity
 * **Classification**: `locally demonstrated`

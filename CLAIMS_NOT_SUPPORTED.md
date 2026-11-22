@@ -11,29 +11,36 @@
 > [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This is the list of claims the project has not established or does not make.
+This ledger records open claims and conclusions that would require evidence
+beyond the project's software tests.
 
-Every project has things it cannot do. Most projects never write them down. That is how a quick demo turns into an exaggerated claim that no one can walk back. Each entry below is marked either:
-- **not proven**: We have not shown or tested this yet.
-- **strictly unsupported**: The project does not claim a direct, assumption-free conclusion of this kind from its software tests.
+- **Not proven.** The available tests or measurements fall short of the claim.
+- **Strictly unsupported.** The software tests supply only operational evidence.
+  An assumption-free conclusion would require a separate basis.
 
-If you are evaluating this repository, start here rather than with the README. It is shorter, and it tells you more.
+## Contents
 
-*Claim-boundary wording reconciled 25 October 2026; each measurement retains its own recorded date and scope.* There is an automated check in `core/organism/model_validation.py`. In that code, no claim can be registered without an attached test—because a claim without a test is just words, not a fact. The method `ValidationSuite.unsupported_claims()` reports the live version of this ledger directly from running code. A disagreement between the ledger and registry needs investigation; a
-software flag is not itself an empirical finding.
+- **Consciousness and status.** [Subjective experience](#1-subjective-consciousness-and-qualia) · [Free will](#3-metaphysical-free-will) · [Personhood](#9-legal-and-moral-personhood) · [IIT 4.0](#17-exact-iit-40-integrated-information)
+- **Capability and learning.** [AGI](#2-artificial-general-intelligence-agi) · [Self-improvement](#4-recursive-self-improvement-rsi) · [Indefinite autonomy](#5-indefinite-autonomy) · [External validation](#6-real-world-external-validation) · [Evolution](#12-open-ended-evolution) · [Weight learning](#13-continuous-weight-level-learning) · [Recurrence training](#19-a-closed-recurrence-training-loop) · [Kept procedures](#21-broad-reasoning-gain-from-kept-procedures-g09-passed-wider-claims-open) · [Learning from conversation](#22-learning-from-conversation-that-improves-ordinary-use)
+- **Mechanisms and reach.** [Physical effects](#7-physical-effects-on-the-world-beyond-the-host) · [Self-knowledge](#8-complete-self-knowledge) · [Governance](#10-process-level-non-bypassable-governance) · [Within-generation feedback](#11-a-within-generation-neural-feedback-loop) · [Vision](#14-general-visual-detail-perception) · [Named organs](#15-biological-self-organisation-in-the-named-organs) · [Phase contracts](#16-uniform-semantic-contracts-across-the-phase-pipeline) · [Activation vectors](#18-reproducible-concept-activation-vectors) · [Substrate contraction](#20-a-provably-contractive-substrate)
 
----
+The boundaries reconciled on 25 October 2026 retain the date and scope of
+each underlying measurement. In the code, `core/organism/model_validation.py`
+requires a test when a claim is registered. `ValidationSuite.unsupported_claims()`
+reports the running registry's classifications. When the registry differs from
+this page, check the test and result behind the classification.
 
-## 1. Subjective Consciousness & Qualia
+<a id="1-subjective-consciousness--qualia"></a>
+
+## 1. Subjective Consciousness and Qualia
 * **Status**: `strictly unsupported`
-* **Rationale**: The project has not established phenomenal experience.
-  Its state variables and reports are inspectable mechanisms, not a direct
-  measurement of feeling. This is not evidence that experience is absent.
-  A scientific subjecthood argument must state its theory and bridge
-  assumptions, measurement validity and remaining alternatives. Read
-  [ISC status](docs/ISC_STATUS.md) for the recorded results and corrections,
-  and [scientific sources](docs/SCIENCE_AND_SOURCES.md) for the theoretical
-  context. No complete ISC pass or assumption-free phenomenal verdict is claimed.
+* **Rationale**: The state variables and reports let researchers measure how
+  state and behavior relate. The confirmatory seed 101 run passed 24/24 on
+  the ISC-v7 operational battery. Whether Aura feels anything remains open.
+  A scientific argument about experience needs to defend its theory, bridge
+  assumptions, and measurements against remaining alternatives.
+  [ISC results and corrections](docs/ISC_STATUS.md) ·
+  [Scientific sources](docs/SCIENCE_AND_SOURCES.md)
 
 
 ## 2. Artificial General Intelligence (AGI)
