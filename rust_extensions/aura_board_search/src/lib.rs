@@ -127,6 +127,10 @@ struct Habits {
     passed_turn: f64,
     passed_turn_by: f64,
     window: f64,
+    /// How much of what her quick judgement has been found off by, in positions whose commonest pieces stand as these
+    /// do, is put back into it: none leaves her judgement as it was. A person's quick sense of a kind of position is
+    /// corrected by how far it has been off in positions like it; this is that, kept while she searches.
+    corrected: f64,
 }
 
 impl Default for Habits {
@@ -145,6 +149,9 @@ impl Default for Habits {
             passed_turn: 2.0,
             passed_turn_by: 6.0,
             window: 50.0,
+            // Measured 23 November 2026 against Stockfish held to depth 5, 160 games each way at 0.2 s a move: kept
+            // with the table and carried from move to move, 0.406 on against 0.394 off; kept per move, 0.422 both.
+            corrected: 1.0,
         }
     }
 }
@@ -1217,6 +1224,10 @@ fn found_among(moves: &[Move], key: u32) -> Option<Move> {
 /// thread wrote it reads as some other position's, and is not used.
 struct Table {
     slots: Vec<(AtomicU64, AtomicU64)>,
+    /// How far her quick judgement has been off from what looking further found, kept by the side to move and by how
+    /// the commonest kind's pieces stand (in sixteenths of a point of judgement): shared by her searchers, and kept with
+    /// the table from one move to the next.
+    corrections: Vec<AtomicI32>,
 }
 
 /// The table kept between one search and the next of the same game with the same weights: what the last move's search
@@ -1242,7 +1253,11 @@ fn kept_table(description: &str, weights: &str, entries: usize) -> Arc<Table> {
 
 impl Table {
     fn new(entries: usize) -> Table {
-        Table { slots: (0..entries.max(1)).map(|_| (AtomicU64::new(0), AtomicU64::new(0))).collect() }
+        Table {
+            slots: (0..entries.max(1)).map(|_| (AtomicU64::new(0), AtomicU64::new(0))).collect(),
+            // A table of one entry is for a single judgement, where nothing is searched to correct it by.
+            corrections: if entries > 1 { (0..2 * CORRECTIONS).map(|_| AtomicI32::new(0)).collect() } else { vec![] },
+        }
     }
 
     fn len(&self) -> usize {
@@ -1295,9 +1310,65 @@ struct Searcher<'a> {
     /// The move made at each ply of the line being searched, and per move the answer that last refuted it.
     played: Vec<Move>,
     counter: Vec<Move>,
+    /// Which kind has most pieces on the board, whose arrangement her corrections are kept by.
+    commonest: usize,
 }
 
+/// How many arrangements of the commonest kind a searcher keeps corrections for, a power of two.
+const CORRECTIONS: usize = 1 << 14;
+
 impl<'a> Searcher<'a> {
+    /// Where the corrections for this position are kept: by the side to move, and by how the pieces of the kind with
+    /// most pieces on the board stand (the kind that changes slowest in most games of pieces, and whose arrangement
+    /// decides much of what a quick judgement misses).
+    fn correction_at(&mut self) -> usize {
+        let g = self.g;
+        if self.commonest == usize::MAX {
+            let mut counts = vec![0usize; g.kinds.len()];
+            for &sq in &g.on_board {
+                let c = self.b.cells[sq];
+                if c != EMPTY {
+                    counts[kind_of(c)] += 1;
+                }
+            }
+            self.commonest = (0..counts.len()).max_by_key(|&k| counts[k]).unwrap_or(0);
+        }
+        let mut key = 0u64;
+        for &sq in &g.on_board {
+            let c = self.b.cells[sq];
+            if c != EMPTY && kind_of(c) == self.commonest {
+                key ^= g.zob_piece[c as usize * g.size + sq];
+            }
+        }
+        self.b.turn * CORRECTIONS + (key as usize & (CORRECTIONS - 1))
+    }
+
+    /// Her quick judgement, with what it has been found off by in positions whose commonest pieces stand as these do.
+    fn judged(&mut self) -> (i32, usize) {
+        let raw = self.evaluate();
+        if self.g.habits.corrected <= 0.0 || self.tt.corrections.is_empty() {
+            return (raw, usize::MAX);
+        }
+        let at = self.correction_at();
+        let kept = self.tt.corrections[at].load(Ordering::Relaxed);
+        (raw + ((kept as f64 / 16.0) * self.g.habits.corrected) as i32, at)
+    }
+
+    /// What looking further found against what the quick judgement said, kept: weighed by how far it looked.
+    fn found_off_by(&mut self, at: usize, judged: i32, found: i32, depth: i32) {
+        if at == usize::MAX || found.abs() >= MATE - 1000 {
+            return;
+        }
+        let unit = self.g.margin.load(Ordering::Relaxed).max(1);
+        // At most a few quiet moves' worth: a correction is of a judgement, not a replacement for one.
+        let most = 16 * 4 * unit;
+        let off = ((found - judged) * 16).clamp(-most, most);
+        let weight = (depth + 1).clamp(1, 16);
+        let e = self.tt.corrections[at].load(Ordering::Relaxed);
+        let now = ((e as i64 * (256 - weight) as i64 + off as i64 * weight as i64) / 256) as i32;
+        self.tt.corrections[at].store(now, Ordering::Relaxed);
+    }
+
     fn evaluate(&mut self) -> i32 {
         let g = self.g;
         let mut score = [0i32; 2];
@@ -1513,7 +1584,7 @@ impl<'a> Searcher<'a> {
         let checked = self.b.in_check(self.g, side);
         let mut stand = -INF;
         if !checked {
-            stand = self.evaluate();
+            stand = self.judged().0;
             if stand >= beta {
                 return stand;
             }
@@ -1631,7 +1702,7 @@ impl<'a> Searcher<'a> {
         }
         let pv_node = beta - alpha > 1;
         let unit = g.margin.load(Ordering::Relaxed);
-        let stand = if !checked && !pv_node { self.evaluate() } else { -INF };
+        let (stand, corrected_at) = if !checked && !pv_node { self.judged() } else { (-INF, usize::MAX) };
         // A position past the bound by more than a margin for each ply still to look: what those plies could find
         // against it is not worth looking for.
         let habits = g.habits;
@@ -1788,6 +1859,14 @@ impl<'a> Searcher<'a> {
             self.tt.set(idx, Entry { key, depth: depth.min(127) as i8, flag, score: stored,
                                      best: best_move.and_then(|m| packed(&m)) });
         }
+        // What looking further found, where it says how far off the quick judgement was: a quiet best move (a take's
+        // worth is the take's, not the judgement's), and a bound only where it bounds on the side it was off.
+        let best_quiet = best_move.map_or(true, |m| m.taken_at == NONE && m.becomes == 0);
+        if corrected_at != usize::MAX && best_quiet
+            && !(flag == 1 && best_score <= stand) && !(flag == 2 && best_score >= stand)
+        {
+            self.found_off_by(corrected_at, stand, best_score, depth);
+        }
         best_score
     }
 
@@ -1835,6 +1914,7 @@ impl<'a> Searcher<'a> {
             unsteady: 0,
             played: vec![Move::null(); MAX_PLY],
             counter: vec![Move::null(); g.size * g.size],
+            commonest: usize::MAX,
         }
     }
 }
@@ -2163,6 +2243,7 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
         unsteady: 0,
         played: vec![Move::null(); MAX_PLY],
         counter: vec![Move::null(); g.size * g.size],
+        commonest: usize::MAX,
     };
     Ok(s.evaluate())
 }
@@ -2249,6 +2330,7 @@ fn search(
             unsteady: 0,
             played: vec![Move::null(); MAX_PLY],
             counter: vec![Move::null(); g.size * g.size],
+            commonest: usize::MAX,
         };
         let all = s.b.legal(&g);
         let legal: Vec<Move> = all.into_iter().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
@@ -2335,8 +2417,8 @@ fn self_play(
         for game in 0..games {
             let a_is_first = game % 2 == 0;
             let (ta, tb) = (Table::new(entries), Table::new(entries));
-            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size] };
-            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size] };
+            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX };
+            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX };
             // The second side looks at as many positions as its own pace affords in the same time, where it is given.
             if nodes_per_move_b > 0 {
                 sb.max_nodes = nodes_per_move_b;

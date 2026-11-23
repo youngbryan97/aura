@@ -101,7 +101,8 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=tell,
                                      learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
                                      went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"),
-                                     they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"))
+                                     they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"),
+                                     prepared=kept.get("prepared"))
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
     went_wrong_now = came.pop("went_wrong", None)
     if went_wrong_now is not None:
@@ -227,6 +228,8 @@ _TOGETHER = "how-the-pieces-stand-together"
 _LOOKED_AT_LONGER = "positions-looked-at-longer"
 _CAME_TO = "what-her-games-came-to"
 _THEY_ANSWERED = "what-they-answered-where"
+#: Her answers, worked out ahead, to the situations she expects to meet (core/agency/thinking_before_it_comes.py).
+_PREPARED = "worked-out-ahead"
 
 
 def _her_record(target_app: str) -> str:
@@ -262,6 +265,11 @@ def _kept_under(record: str) -> dict[str, Any]:
         from core.agency.thinking_on_their_time import WhatTheyAnsweredWhere
 
         kept["they_answered"] = WhatTheyAnsweredWhere.from_bytes(answered)
+    ahead = recall_beside(record, _PREPARED)
+    if ahead:
+        from core.agency.thinking_before_it_comes import Prepared
+
+        kept["prepared"] = Prepared.from_bytes(ahead)
     worth = held.get("worth") or {}
     if worth.get("weights"):
         try:

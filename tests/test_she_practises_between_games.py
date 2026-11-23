@@ -40,6 +40,8 @@ def _rounds_run(monkeypatch) -> list[int]:
         return rehearsal
 
     monkeypatch.setattr(worth, "rehearse", a_round)
+    # Every round here is a round of rehearsal: preparing has its own test.
+    monkeypatch.setattr(practice, "_prepare_some", lambda name: 0)
     monkeypatch.setattr(practice, "_HELD", {})
     monkeypatch.setattr(practice, "_RUNNING", None)
     monkeypatch.setattr(practice, "_on_mains", lambda: True)
@@ -131,6 +133,7 @@ def test_a_round_that_ends_during_a_game_leaves_the_record_to_the_game(monkeypat
         return rehearsal
 
     monkeypatch.setattr(worth, "rehearse", a_round_that_a_game_interrupts)
+    monkeypatch.setattr(practice, "_prepare_some", lambda name: 0)
     try:
         assert _practise()
     finally:

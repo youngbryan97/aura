@@ -31,6 +31,13 @@ _RUNNING: asyncio.Task | None = None
 _HELD: dict[str, Any] = {}
 #: Why she last did not practise, said once each time it changes.
 _WAITING = ""
+#: Situations worked out ahead in one round of preparing, and how many turns from the start she walks at most: a
+#: round of preparing takes about as long as a round of rehearsal (two minutes), and the opening is where situations
+#: come back.
+PREPARED_A_ROUND = 4
+PREPARES_TURNS = 20
+#: Whether the next round prepares rather than rehearses: they take turns.
+_NEXT: dict[str, bool] = {"prepares": False}
 
 
 def _waits(why: str) -> bool:
@@ -77,7 +84,48 @@ def _the_board_she_last_played() -> tuple[str, tuple[int, int]] | None:
     return name, written
 
 
+def _prepare_some(name: str) -> int:
+    """A round of thinking before it comes (core/agency/thinking_before_it_comes.py): the situations she is likeliest
+    to meet at the board kept as ``name``, worked out ahead under the rules and judgement she plays by, kept beside its
+    record. How many were worked out. Blocks; run it in a thread."""
+    from core.agency.pieces_by_their_kind import FIRST, SECOND, Position
+    from core.agency.playing_pieces_by_kind import _cores_free, _Rehearsing
+    from core.agency.thinking_before_it_comes import Prepared
+    from core.runtime.what_she_learned import remember_beside
+    from core.skills.screen_pursuit_board_of_pieces import _PREPARED, _kept_under
+
+    kept = _kept_under(name)
+    rules = kept.get("rules")
+    if rules is None or not rules.start:
+        return 0
+    family = rules.family(unseen_go_every_way=True)
+    weights = _Rehearsing(_HELD.get("rehearsal") or kept.get("rehearsal")).weights_for(family)
+    prepared = kept.get("prepared") or Prepared()
+    start = Position(cells=dict(rules.start), turn=SECOND if rules.first_was_hers is False else FIRST,
+                     unmoved=frozenset(rules.start))
+    began = time.monotonic()
+    done = prepared.prepare(family, start, weights, they_answered=kept.get("they_answered"),
+                            positions=PREPARED_A_ROUND, plies=PREPARES_TURNS, threads=_cores_free())
+    if done and not _PLAYING:
+        remember_beside(name, _PREPARED, prepared.as_bytes())
+    logger.info("prepared %s between games: %d situation(s) worked out ahead in %.0f s, %d held", name, done,
+                time.monotonic() - began, len(prepared.answers))
+    return done
+
+
 def _one_round(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
+    """One round of practice at the board kept as ``name``, kept with it: a round of rehearsal, or, every other round
+    while anything is left to work out, a round of preparing. Blocks; run it in a thread."""
+    if _NEXT["prepares"]:
+        _NEXT["prepares"] = False
+        if _prepare_some(name):
+            return {"prepared": True}
+    else:
+        _NEXT["prepares"] = True
+    return _one_rehearsal(name, written)
+
+
+def _one_rehearsal(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
     """One round of rehearsal of the board kept as ``name``, kept with it. Blocks; run it in a thread."""
     from core.agency.what_a_kind_is_worth import rehearse
     from core.skills.screen_pursuit_board_of_pieces import _keep_what_she_learned, _kept_under

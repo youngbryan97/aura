@@ -469,7 +469,8 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                               clock: Callable[[], Awaitable[float | None]] | None = None,
                               borrow: Callable[[dict, bool], Any] | None = None,
                               went_wrong: WhatFailedWhere | None = None,
-                              they_answered: WhatTheyAnsweredWhere | None = None) -> dict[str, Any]:
+                              they_answered: WhatTheyAnsweredWhere | None = None,
+                              prepared: Any = None) -> dict[str, Any]:
     """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
     are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
     the game shows it. Where she has learned nothing of this board, ``borrow`` is asked, once she knows who moves first,
@@ -496,7 +497,7 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
             came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
                                rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
                                the_moves=the_moves, went_wrong=went_wrong, ponder_pool=ponder_pool,
-                               they_answered=they_answered)
+                               they_answered=they_answered, prepared=prepared)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
         ponder_pool.shutdown(wait=False, cancel_futures=True)
@@ -619,7 +620,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 clock: Callable[[], Awaitable[float | None]] | None, search: Any,
                 borrow: Callable[[dict, bool], Any] | None = None,
                 the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None,
-                ponder_pool: Any = None, they_answered: WhatTheyAnsweredWhere | None = None) -> dict[str, Any]:
+                ponder_pool: Any = None, they_answered: WhatTheyAnsweredWhere | None = None,
+                prepared: Any = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -841,8 +843,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                       else share)
             # A move that is the only one is made without weighing (core/cognition/when_the_situation_decides.py).
             only = nothing_to_decide([m for m in legal if m not in set_aside]) if not set_aside else None
+            # A situation she worked out ahead, under the rules and judgement she plays by now, is answered from what
+            # she worked out (core/agency/thinking_before_it_comes.py), and her clock keeps the time.
+            ready = _worked_out_ahead(prepared, game, family, weights, legal) if not set_aside else None
             if only is not None:
                 found = Found(only, 0, 0, 0, [only], by="the only move")
+            elif ready is not None:
+                found = ready
             else:
                 search_began = monotonic_time()
                 found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
@@ -889,6 +896,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             return _the_end("no move", game, tell)
         if found.by == "the only move":
             how = "It's the only move I have"
+        elif found.by == "worked out ahead":
+            _judged(game, here, move, found)
+            how = f"I worked this one out before the game (looked {found.depth} moves deep)"
         else:
             _judged(game, here, move, found)
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
@@ -937,6 +947,20 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         game.waiting_since = monotonic_time()
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned,
             "foresaw": (game.foreseen, game.foreseeable)}
+
+
+def _worked_out_ahead(prepared: Any, game: _Game, family: Family, weights: Any, legal: list[Move]) -> Any:
+    """Her answer to this situation, where she worked it out ahead under the rules and judgement she plays by now."""
+    if prepared is None:
+        return None
+    from core.agency.searching_by_kind import Found
+    from core.agency.thinking_before_it_comes import under
+
+    held = prepared.answer(_a_place(game.believed), under(family, weights))
+    move = next((m for m in legal if held is not None and _named(m) == held.get("move")), None)
+    if move is None:
+        return None
+    return Found(move, int(held.get("score", 0)), int(held.get("depth", 0)), 0, [move], by="worked out ahead")
 
 
 def _expect_back(game: _Game, family: Family, move: Move, found: Any) -> None:
