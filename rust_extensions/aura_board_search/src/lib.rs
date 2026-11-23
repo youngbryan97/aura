@@ -149,6 +149,15 @@ struct Habits {
     /// do, is put back into it: none leaves her judgement as it was. A person's quick sense of a kind of position is
     /// corrected by how far it has been off in positions like it; this is that, kept while she searches.
     corrected: f64,
+    /// How a search given a soft time decides when to stop (`Searcher::soft`): each change of its best move between
+    /// depths adds `unsteady_by` of the soft time, those changes fading by `unsteady_kept` a depth; a score that fell
+    /// by more than a quiet move's worth adds `falling_by`; and a best move unchanged three depths running stops it
+    /// once `steady_share` of the soft time is gone. The general shape of an anytime search's time: think longer where
+    /// more thinking is likely to change the decision, and stop where it is not.
+    unsteady_by: f64,
+    unsteady_kept: f64,
+    falling_by: f64,
+    steady_share: f64,
 }
 
 impl Default for Habits {
@@ -170,6 +179,10 @@ impl Default for Habits {
             // Measured 23 November 2026 against Stockfish held to depth 5, 160 games each way at 0.2 s a move: kept
             // with the table and carried from move to move, 0.406 on against 0.394 off; kept per move, 0.422 both.
             corrected: 1.0,
+            unsteady_by: 1.0,
+            unsteady_kept: 0.5,
+            falling_by: 0.5,
+            steady_share: 1.0,
         }
     }
 }
@@ -1373,6 +1386,9 @@ struct Searcher<'a> {
     counter: Vec<Move>,
     /// Which kind has most pieces on the board, whose arrangement her corrections are kept by.
     commonest: usize,
+    /// The time a search means to take, where its hard limit (`seconds`) is longer: it stops between depths by how
+    /// likely another depth is to change its answer (`Habits`). Nought: it searches until the hard limit.
+    soft: f64,
 }
 
 /// How many arrangements of the commonest kind a searcher keeps corrections for, a power of two.
@@ -1999,6 +2015,7 @@ impl<'a> Searcher<'a> {
             played: vec![Move::null(); MAX_PLY],
             counter: vec![Move::null(); g.size * g.size],
             commonest: usize::MAX,
+            soft: 0.0,
         }
     }
 }
@@ -2018,7 +2035,11 @@ impl<'a> Searcher<'a> {
         let mut best = legal[0];
         let mut best_score = 0;
         let mut done = 0;
+        let mut last_best: Option<Move> = None;
         let mut window = (-INF, INF);
+        // How often the best move has changed between depths, fading, and how many depths it has held.
+        let mut changes = 0.0f64;
+        let mut held = 0;
         for depth in first.max(1)..=deepest.max(first.max(1)) {
             let mut score = self.search(depth, window.0, window.1, 0, false);
             // Outside the window, it is widened on that side, twice as far each time, until the score is inside.
@@ -2044,6 +2065,27 @@ impl<'a> Searcher<'a> {
             if done > 0 {
                 self.unsteady = (score - best_score).abs();
             }
+            if self.soft > 0.0 && done > 0 {
+                // Between depths, given a soft time: go on while another depth is likely to change the answer.
+                let h = self.g.habits;
+                changes *= h.unsteady_kept;
+                if Some(best) != last_best {
+                    changes += 1.0;
+                    held = 0;
+                } else {
+                    held += 1;
+                }
+                let unit = self.g.margin.load(Ordering::Relaxed).max(1);
+                let fell = score < best_score - unit;
+                let wanted = self.soft * (1.0 + h.unsteady_by * changes) * if fell { 1.0 + h.falling_by } else { 1.0 };
+                let elapsed = self.started.elapsed().as_secs_f64();
+                if elapsed >= wanted.min(self.seconds) || (held >= 3 && elapsed >= self.soft * h.steady_share) {
+                    best_score = score;
+                    done = depth;
+                    break;
+                }
+            }
+            last_best = Some(best);
             best_score = score;
             done = depth;
             let half = self.g.habits.window.max(1.0) as i32;
@@ -2340,6 +2382,7 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
         played: vec![Move::null(); MAX_PLY],
         counter: vec![Move::null(); g.size * g.size],
         commonest: usize::MAX,
+        soft: 0.0,
     };
     Ok(s.evaluate())
 }
@@ -2347,7 +2390,7 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
 /// The best move found in ``seconds`` (or ``nodes``, when given): a dict with the move, its score for the side to move,
 /// the depth completed, the nodes looked at, and the line expected after it.
 #[pyfunction]
-#[pyo3(signature = (description, position, weights, seconds, deepest=64, hash_mb=64, nodes=0, excluded=vec![], threads=1))]
+#[pyo3(signature = (description, position, weights, seconds, deepest=64, hash_mb=64, nodes=0, excluded=vec![], threads=1, soft=0.0))]
 #[allow(clippy::too_many_arguments)]
 fn search(
     py: Python<'_>,
@@ -2360,6 +2403,7 @@ fn search(
     nodes: u64,
     excluded: Vec<(i32, i32, i32, i32, String)>,
     threads: usize,
+    soft: f64,
 ) -> PyResult<PyObject> {
     let (g, b) = parse(description, position, weights)?;
     measure_the_margin(&g, &b);
@@ -2373,6 +2417,7 @@ fn search(
             let halt = AtomicBool::new(false);
             let started = Instant::now();
             let mut main = Searcher::fresh(&g, b.clone(), table, seconds, started, 0);
+            main.soft = soft;
             let all = main.b.legal(&g);
             let legal: Vec<Move> = all.iter().copied().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
             if legal.is_empty() {
@@ -2427,6 +2472,7 @@ fn search(
             played: vec![Move::null(); MAX_PLY],
             counter: vec![Move::null(); g.size * g.size],
             commonest: usize::MAX,
+            soft,
         };
         let all = s.b.legal(&g);
         let legal: Vec<Move> = all.into_iter().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
@@ -2513,8 +2559,8 @@ fn self_play(
         for game in 0..games {
             let a_is_first = game % 2 == 0;
             let (ta, tb) = (Table::new(entries), Table::new(entries));
-            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX };
-            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX };
+            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0 };
+            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0 };
             // The second side looks at as many positions as its own pace affords in the same time, where it is given.
             if nodes_per_move_b > 0 {
                 sb.max_nodes = nodes_per_move_b;
