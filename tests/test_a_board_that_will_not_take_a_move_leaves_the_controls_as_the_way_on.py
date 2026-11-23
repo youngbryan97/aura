@@ -22,3 +22,10 @@ def test_otherwise_what_she_did_decides() -> None:
     assert nothing_has_answered({}, SimpleNamespace(did_something={}))
     assert not nothing_has_answered({"board_left_until": time.monotonic() - 1},
                                     SimpleNamespace(did_something={"press up": True}))
+
+
+def test_it_has_not_answered_until_it_takes_a_move() -> None:
+    # LIVE 23 November 2026: the eight seconds a board is left for ran out, her keys counted as answers again, and the
+    # way on was not tried a second time; "New Game" stood next after a label she had pressed.
+    did = SimpleNamespace(did_something={"press up": True})
+    assert nothing_has_answered({"board_would_not_take": True, "board_left_until": time.monotonic() - 1}, did)

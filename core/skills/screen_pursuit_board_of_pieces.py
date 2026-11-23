@@ -121,7 +121,10 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
                             went_wrong_now, they_answered_now)
     if came.get("ended") in ("not taking moves", "not answered"):
         keep["board_left_until"] = time.monotonic() + LEFT_UNTIL_S
+        # Until the board takes a move, it has not answered her (screen_pursuit.nothing_has_answered).
+        keep["board_would_not_take"] = True
         return None
+    keep.pop("board_would_not_take", None)
     if came.get("ended") == "over":
         # The game stopped letting her move and her own model could not say why: the window says how it ended, as a
         # person looks at the screen to see. LIVE 21 November 2026 she said "it's over" four times against Stockfish,

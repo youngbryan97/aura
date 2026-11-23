@@ -298,11 +298,11 @@ ObservationPolicy = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
 
 def nothing_has_answered(pending: dict[str, Any], can_do: Any) -> bool:
     """Whether nothing she has done here has answered her: nothing she did changed the screen, or the board of pieces
-    on it would not take a move a moment ago. A board that would not take a move has not answered her either, so the
-    controls around it are the way on. LIVE 23 November 2026 En Croissant showed a game already over, and she sat down
+    on it has not taken a move since it last would not. A board that would not take a move has not answered her
+    either, so the controls around it are the way on, until the board takes one. LIVE 23 November 2026 En Croissant showed a game already over, and she sat down
     at its board sixteen times in four and a half minutes and never pressed "New Game", because a key of hers had done
     something there before."""
-    if time.monotonic() < float(pending.get("board_left_until", 0.0)):
+    if pending.get("board_would_not_take") or time.monotonic() < float(pending.get("board_left_until", 0.0)):
         return True
     return not any((getattr(can_do, "did_something", None) or {}).values())
 
