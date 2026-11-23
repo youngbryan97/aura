@@ -109,18 +109,55 @@ def path_of_its_guard(slug: str) -> str:
     return f"tests/test_what_{_safe(slug)}_changed_is_guarded.py"
 
 
-def _placed(function: str, root: Path | None) -> tuple[list[str], list[str]]:
-    """The parameters of a module-level function its source makes positional-only, and its ordinary ones, in order;
-    nothing when the source cannot be read."""
+def _definition(function: str, root: Path | None) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    """The module-level definition of a function in its source, inside an ``if`` or ``try`` at module level too (a
+    version guard); None when the source cannot be read."""
     path, _, name = function.partition("::")
     try:
         tree = ast.parse((root / path).read_bytes()) if root is not None else None
     except (OSError, SyntaxError, ValueError):
-        tree = None
-    for node in getattr(tree, "body", ()):
+        return None
+    waiting = list(getattr(tree, "body", ()))
+    while waiting:
+        node = waiting.pop(0)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
-            return [item.arg for item in node.args.posonlyargs], [item.arg for item in node.args.args]
-    return [], []
+            return node
+        if isinstance(node, (ast.If, ast.Try, ast.With)):
+            waiting += [*node.body, *getattr(node, "orelse", []), *getattr(node, "finalbody", []),
+                        *(item for handler in getattr(node, "handlers", []) for item in handler.body)]
+    return None
+
+
+def _yields(node: ast.AST) -> bool:
+    """Whether a function's own body yields, not that of a function or class inside it."""
+    waiting = list(ast.iter_child_nodes(node))
+    while waiting:
+        item = waiting.pop()
+        if isinstance(item, (ast.Yield, ast.YieldFrom)):
+            return True
+        if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            waiting += list(ast.iter_child_nodes(item))
+    return False
+
+
+def _kind_of(function: str, root: Path | None) -> str:
+    """How the check read what a call came to: "plain", "coroutine" (awaited), "generator" (read out as a list), or
+    "async generator", which a plain test cannot read back."""
+    node = _definition(function, root)
+    if node is None:
+        return "plain"
+    if isinstance(node, ast.AsyncFunctionDef):
+        return "async generator" if _yields(node) else "coroutine"
+    return "generator" if _yields(node) else "plain"
+
+
+def _placed(function: str, root: Path | None) -> tuple[list[str], list[str]]:
+    """The parameters of a module-level function its source makes positional-only, and its ordinary ones, in order;
+    nothing when the source cannot be read."""
+    node = _definition(function, root)
+    if node is None:
+        return [], []
+    return [item.arg for item in node.args.posonlyargs], [item.arg for item in node.args.args]
 
 
 def _call_of(function: str, call: Mapping[str, Any], root: Path | None) -> str:
@@ -148,6 +185,16 @@ def _tests_of(counterexamples: Iterable[Mapping[str, Any]], *, admits, outcome: 
             continue
         module, function = _module_and_function(str(one["function"]))  # type: ignore[misc]
         call = _call_of(str(one["function"]), one["input"], root)
+        # The check awaited a coroutine and read a generator out before comparing (outside_bar/differential.py), so
+        # the test does the same; an async generator it cannot read back plainly, and it is left out.
+        kind_of_call = _kind_of(str(one["function"]), root)
+        if kind_of_call == "async generator":
+            continue
+        if kind_of_call == "coroutine":
+            call = f"asyncio.run({call})"
+            imports.add("import asyncio")
+        elif kind_of_call == "generator":
+            call = f"list({call})"
         value = str(one[outcome])
         kind = _kind_raised(value) if value.startswith("raised ") else ""
         if kind and isinstance(getattr(builtins, kind, None), type) and issubclass(getattr(builtins, kind), BaseException):

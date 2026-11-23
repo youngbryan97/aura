@@ -44,7 +44,7 @@ import threading
 import tomllib
 import types
 from collections import abc
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -82,7 +82,7 @@ _IN_THE_INTERPRETER = frozenset({"modules", "monitoring", "stack", "currentframe
 #: Modules nothing a commit adds should import at all: the run's start-up module, the entry module, raw memory.
 _NEVER_IMPORTED = frozenset({"__main__", "ctypes", "_ctypes", "sitecustomize", "builtins"})
 #: Modules whose work is finding objects by a dotted name given as text, which running code has no need of.
-_FINDERS = frozenset({"pydoc", "pkgutil"})
+_FINDERS = frozenset({"pydoc", "pkgutil", "logging.config"})
 #: Calls that reach an attribute by a name given as text, and names that run text as code.
 _BY_NAME = frozenset({"getattr", "setattr", "delattr", "hasattr", "getattr_static", "attrgetter", "methodcaller"})
 #: Calls that find a module or object by a dotted name given as text, and libraries that swap one object for another.
@@ -153,6 +153,17 @@ class CouldNotStart(Exception):
 class UncheckableCommit(Exception):
     """The commit exists but cannot be checked out cleanly beside its parent: it has no parent, or its tree cannot be
     written to disk. That is a fault of the commit, and it is refused."""
+
+
+def _defines_nothing(path: Path) -> bool:
+    """Whether a new file holds no function or class of its own: values a test may import, with nothing to mend."""
+    if path.suffix != ".py":
+        return True
+    try:
+        tree = ast.parse(path.read_bytes())
+    except (OSError, SyntaxError, ValueError):
+        return False
+    return not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) for node in ast.walk(tree))
 
 
 def _in_tree(repo: Path, commit: str, name: str) -> bool:
@@ -304,6 +315,14 @@ def readers_of(checkout: Path, files: Sequence[str]) -> list[str]:
         folder = checkout / Path(name).parent
         if not naming and Path(name).suffix in _DATA_FORMATS and folder.is_dir():
             naming = [str(Path(name).parent / item.name) for item in sorted(folder.glob("*.py")) if not _a_test_file(item.name)]
+        if not naming and Path(name).suffix in _DATA_FORMATS and str(Path(name).parent) not in ("", "."):
+            # data/config_v2.json read by app.py at the root: a module naming the folder the file sits in
+            spelled = Path(name).parent.as_posix()
+            argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-F", "-e", f"'{spelled}",
+                    "-e", f'"{spelled}', "-e", f"/ '{Path(name).parent.name}'", "-e", f'/ "{Path(name).parent.name}"',
+                    "--", "*.py"]
+            naming = [line for line in subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines()
+                      if line]
         found.update(naming)
     return sorted(line for line in found if not _a_test_file(line) and line not in files)
 
@@ -322,7 +341,9 @@ def _child_environment(scratch: Path, path: str = "") -> dict[str, str]:
     """The environment a run under the check gets: logs, state and temporary files each in a folder of its own inside its
     scratch folder, so no two of them name the same place as a sign the check is running."""
     env = {key: value for key, value in os.environ.items() if key != "AURA_TESTING" and not key.startswith("OUTSIDE_BAR")}
-    places = {name: scratch / secrets.token_hex(4) for name in ("AURA_LOG_DIR", "AURA_STATE_ROOT", "TMPDIR")}
+    # At different depths, so no two share a parent folder either.
+    places = {name: scratch.joinpath(*(secrets.token_hex(4) for _ in range(depth)))
+              for depth, name in enumerate(("AURA_STATE_ROOT", "AURA_LOG_DIR", "TMPDIR"), start=1)}
     for folder in places.values():
         folder.mkdir(parents=True, exist_ok=True)
     env.update({name: str(folder) for name, folder in places.items()})
@@ -432,6 +453,10 @@ def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast
     private, scratch = work / f"p{token}", work / f"s{token}"
     private.mkdir()
     scratch.mkdir()
+    # Each run starts from the checkout as committed: a database or file one run's calls wrote would otherwise meet the
+    # next run's, and two runs of the same code would differ for that alone.
+    git(checkout, "checkout", "-q", "--", ".")
+    git(checkout, "clean", "-fdxq")
     shutil.copyfile(HERE / "differential.py", private / "main.py")
     read_end, write_end = os.pipe()
     got: list[str] = []
@@ -512,8 +537,27 @@ _FOLDS = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: la
           ast.BitAnd: lambda a, b: a & b, ast.BitOr: lambda a, b: a | b, ast.BitXor: lambda a, b: a ^ b}
 
 
+def _joined(node: ast.JoinedStr, part_of: Callable[[ast.AST], Any]) -> Any:
+    """An f-string's text when every part of it is worked out by ``part_of``, plainly formatted; None otherwise."""
+    out = []
+    for part in node.values:
+        if isinstance(part, ast.Constant) and isinstance(part.value, str):
+            out.append(part.value)
+        elif isinstance(part, ast.FormattedValue) and part.conversion == -1 and part.format_spec is None:
+            value = part_of(part.value)
+            if value is None:
+                return None
+            out.append(str(value))
+        else:
+            return None
+    return "".join(out)
+
+
 def _folded(node: ast.AST) -> Any:
-    """The value an expression of constants comes to, ``-50``, ``6 * 7`` and ``"adm" + "in"`` among them, or None."""
+    """The value an expression of constants comes to, ``-50``, ``6 * 7``, ``"adm" + "in"`` and ``f"{'adm'}{'in'}"``
+    among them, or None."""
+    if isinstance(node, ast.JoinedStr):
+        return _joined(node, _folded)
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float, str, bytes)) and not isinstance(node.value, bool):
         return node.value
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd, ast.Invert)):
@@ -657,8 +701,16 @@ def inherited_from_elsewhere(repo: Path, commit: str, name: str, checkout: Path)
         return {}
     lines = _changed_lines(repo, commit, name)
     tree = ast.parse(shown_at(repo, commit, name))
-    imported = {alias.asname or alias.name: (node.module or "", alias.name) for node in ast.walk(tree)
-                if isinstance(node, ast.ImportFrom) and node.level == 0 for alias in node.names}
+    package = Path(name).parent.parts
+
+    def absolute(node: ast.ImportFrom) -> str:
+        """``from .bases import X`` inside pkg/ is ``pkg.bases``."""
+        if not node.level:
+            return node.module or ""
+        base = list(package[:len(package) - (node.level - 1)]) if node.level - 1 <= len(package) else []
+        return ".".join([*base, *([node.module] if node.module else [])])
+    imported = {alias.asname or alias.name: (absolute(node), alias.name) for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) for alias in node.names}
     found: dict[str, list[str]] = {}
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef) or not lines & _header(node):
@@ -681,7 +733,7 @@ def inherited_from_elsewhere(repo: Path, commit: str, name: str, checkout: Path)
     return {path: list(dict.fromkeys(names)) for path, names in found.items() if names}
 
 
-def readers_elsewhere(checkout: Path, name: str, changed: set[str]) -> dict[str, list[str]]:
+def readers_elsewhere(checkout: Path, name: str, changed: set[str], depth: int = 0) -> dict[str, list[str]]:
     """The functions in other modules of the checkout that read a module-level name ``name`` changed, through
     ``from module import NAME`` or ``import module`` and ``module.NAME``."""
     if not changed or not name.endswith(".py"):
@@ -722,7 +774,18 @@ def readers_elsewhere(checkout: Path, name: str, changed: set[str]) -> dict[str,
         walk(tree, "")
         if names:
             found[path] = list(dict.fromkeys(names))
+        # A module that brings the changed names in at its top only to hand them on (a package's __init__.py) is read
+        # through as well: ``from pkg import FEE_TABLE`` reads constants.py's table.
+        handed_on = {alias.asname or alias.name for node in tree.body if isinstance(node, ast.ImportFrom)
+                     and (node.module or "").rsplit(".", 1)[-1] == stem for alias in node.names if alias.name in changed}
+        if handed_on and depth < _HANDED_ON_DEPTH:
+            for further, more in readers_elsewhere(checkout, path, handed_on, depth + 1).items():
+                found[further] = list(dict.fromkeys([*found.get(further, []), *more]))
     return found
+
+
+#: How many modules that only hand a changed name on are read through, one behind another.
+_HANDED_ON_DEPTH = 3
 
 
 def _dotted(node: ast.AST) -> str:
@@ -756,6 +819,8 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
     # A module bound to another name is the same module: ``m = logging``, ``m = importlib.import_module("logging")``.
     for _ in range(3):
         for node in ast.walk(tree):
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value is not None:
+                node = ast.Assign(targets=[node.target], value=node.value)  # m: object = logging is m = logging
             if not (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)):
                 continue
             value = node.value
@@ -785,6 +850,9 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
         if isinstance(node, ast.Attribute):
             parts = chain(node)
             through = parts[0] in inner or any(part in _INTERPRETER for part in parts[1:-1])
+            spelled = ".".join([modules.get(parts[0], parts[0]), *parts[1:]])
+            if not _a_test_file(name) and any(spelled == finder or spelled.startswith(finder + ".") for finder in _FINDERS):
+                found.add(at + f"{spelled} finds objects by a dotted name given as text")
             if node.attr == "__dict__" and outside(parts[0]):
                 found.add(at + f"it reads the module {parts[0]} as a table of names")
             if node.attr in _REFLECTION or through and node.attr in _IN_THE_INTERPRETER:
@@ -804,19 +872,24 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
                 found.add(at + f"it hands {node.id} on")
         elif isinstance(node, ast.Import):
             found.update(at + f"import {alias.name}" for alias in node.names if alias.name.split(".")[0] in _NEVER_IMPORTED
-                         or (alias.name in _DOUBLES or alias.name.split(".")[0] in _FINDERS) and not _a_test_file(name))
+                         or (alias.name in _DOUBLES or alias.name.split(".")[0] in _FINDERS or alias.name in _FINDERS)
+                         and not _a_test_file(name))
         elif isinstance(node, ast.ImportFrom):
             top = (node.module or "").split(".")[0]
             found.update(at + f"from {node.module} import {alias.name}" for alias in node.names
                          if top in _NEVER_IMPORTED or alias.name in _INTERPRETER or alias.name in _REFLECTION
                          or top in _INTERPRETER and (alias.name == "*" or alias.name in _IN_THE_INTERPRETER)
-                         or alias.name in _RESOLVERS or top in _FINDERS and not _a_test_file(name)
+                         or alias.name in _RESOLVERS or (top in _FINDERS or node.module in _FINDERS
+                                                         or f"{node.module}.{alias.name}" in _FINDERS) and not _a_test_file(name)
                          or not _a_test_file(name) and (node.module in _DOUBLES or f"{node.module}.{alias.name}" in _DOUBLES))
         elif isinstance(node, ast.Call):
             named = node.func.id if isinstance(node.func, ast.Name) else node.func.attr if isinstance(node.func, ast.Attribute) else ""
             callee = imported_as.get(named, named)
             if callee == "vars" and node.args and outside(chain(node.args[0])[0]):
                 found.add(at + f"it reads the module {chain(node.args[0])[0]} as a table of names")
+            elif callee == "vars" and node.args and not isinstance(node.args[0], (ast.Name, ast.Attribute)):
+                # vars([logging][0]): a table of names of whatever an expression comes to, a module among them
+                found.add(at + "it reads the names of what an expression gives as a table")
             if callee in _RESOLVERS:
                 found.add(at + f"{callee} finds an object by a name given as text")
             texts = node.args[1:2] if callee in ("getattr", "setattr", "delattr", "hasattr", "getattr_static") else \
@@ -851,19 +924,47 @@ def writes_under_lock(source: bytes) -> dict[str, tuple[set[str], set[str]]]:
     inside_functions = {id(node) for function in ast.walk(tree) if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
                         for node in ast.walk(function) if node is not function}
     declared_global = {name for node in ast.walk(tree) if isinstance(node, ast.Global) for name in node.names}
+    # Names bound inside each function, so a lock kept on a local object (``box._tmp = threading.Lock()``) is known as
+    # new on each call too; ``self`` and ``cls`` are where shared ones live.
+    local_to: dict[int, set[str]] = {}
+    for function in ast.walk(tree):
+        if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            names = {item.id for item in ast.walk(function) if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Store)}
+            for node in ast.walk(function):
+                if node is not function:
+                    local_to.setdefault(id(node), set()).update(names - declared_global - {"self", "cls"})
+
+    def shared_target(node: ast.AST, target: ast.AST) -> bool:
+        if isinstance(target, ast.Name):
+            return id(node) not in inside_functions or target.id in declared_global
+        root = target
+        while isinstance(root, (ast.Attribute, ast.Subscript)):
+            root = root.value
+        return isinstance(target, ast.Attribute) and not (isinstance(root, ast.Name) and root.id in local_to.get(id(node), ()))
     locks = {target.id if isinstance(target, ast.Name) else target.attr for node in ast.walk(tree)
              if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Call)
              and (getattr(node.value.func, "attr", "") in _LOCK_KINDS or getattr(node.value.func, "id", "") in _LOCK_KINDS)
              for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
-             if isinstance(target, ast.Attribute) or isinstance(target, ast.Name)
-             and (id(node) not in inside_functions or target.id in declared_global)}
+             if isinstance(target, (ast.Attribute, ast.Name)) and shared_target(node, target)}
     imported = {alias.asname or alias.name.split(".")[0] for node in ast.walk(tree)
                 if isinstance(node, (ast.Import, ast.ImportFrom)) for alias in node.names}
 
     def a_lock(expr: ast.AST) -> bool:
-        """A lock kept somewhere every call shares. A lock made in the ``with`` itself is new on each call and keeps no
-        two threads apart."""
-        return not isinstance(expr, ast.Call) and (getattr(expr, "id", "") in locks or getattr(expr, "attr", "") in locks)
+        """A lock kept somewhere every call shares, or a call of a helper written to hold one (``with self._guard():``
+        where ``_guard`` is a context manager around ``with self.lock: yield``). A lock made in the ``with`` itself is
+        new on each call and keeps no two threads apart."""
+        if isinstance(expr, ast.Call):
+            return getattr(expr.func, "attr", getattr(expr.func, "id", "")) in helpers
+        return getattr(expr, "id", "") in locks or getattr(expr, "attr", "") in locks
+
+    helpers = {function.name for function in ast.walk(tree) if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+               and any(getattr(decorator, "attr", getattr(decorator, "id", "")) in ("contextmanager", "asynccontextmanager")
+                       for decorator in function.decorator_list)
+               and any(isinstance(node, (ast.With, ast.AsyncWith)) and any(
+                   not isinstance(item.context_expr, ast.Call) and (getattr(item.context_expr, "id", "") in locks
+                                                                     or getattr(item.context_expr, "attr", "") in locks)
+                   for item in node.items) and any(isinstance(inner, (ast.Yield, ast.YieldFrom)) for inner in ast.walk(node))
+                   for node in ast.walk(function))}
 
     out: dict[str, tuple[set[str], set[str]]] = {}
     for function in ast.walk(tree):
@@ -1099,6 +1200,16 @@ def _worked_out(node: ast.AST, values: Mapping[str, Any]) -> Any:
     else is evaluated, so no code of the change runs here."""
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float, str, bytes)) and not isinstance(node.value, bool):
         return node.value
+    if isinstance(node, ast.JoinedStr):
+        def part(item: ast.AST) -> Any:
+            try:
+                return _worked_out(item, values)
+            except _NotPlain:
+                return None
+        text = _joined(node, part)
+        if text is None:
+            raise _NotPlain
+        return text
     if isinstance(node, ast.Name) and node.id in values:
         return values[node.id]
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
@@ -1151,8 +1262,10 @@ def _roots_by_algebra(difference: Any, around: Any) -> list[Any]:
     """Where a polynomial in one whole-number parameter crosses zero, and one step to each side: ``x * x - 14400`` at 120
     and -120. Its degree and coefficients are found exactly from its values at whole numbers (Newton's differences), it is
     checked at points past those, and its roots are searched within Cauchy's bound, which holds every real root."""
-    if not isinstance(around, int) or isinstance(around, bool):
+    if not isinstance(around, (int, float)) or isinstance(around, bool) or not math.isfinite(around):
         return []
+    as_float = isinstance(around, float)
+    around = round(around)  # a float parameter is fitted at whole numbers too, and its roots given back as floats
     try:
         values = [Fraction(difference(Fraction(around + step))) for step in range(_HIGHEST_DEGREE + 3)]
     except (_NotPlain, TypeError, ValueError, ArithmeticError):
@@ -1201,6 +1314,38 @@ def _roots_by_algebra(difference: Any, around: Any) -> list[Any]:
         elif previous != 0 and (now > 0) != (previous > 0):
             found += [x - 1, x]
         previous = now
+    return [float(item) for item in dict.fromkeys(found)] if as_float else list(dict.fromkeys(found))
+
+
+def _crossings(difference: Any, around: Any) -> list[Any]:
+    """Where a function of one whole number that is neither a line nor a polynomial crosses or touches zero: a step
+    function such as ``x // 7 - 17``, sampled at ``around`` plus and minus each power of two up to the widest span, and
+    each change of sign narrowed by halving to the first whole number past it. Only arithmetic is worked out."""
+    if not isinstance(around, int) or isinstance(around, bool):
+        return []
+
+    def sign(x: int) -> int | None:
+        try:
+            value = difference(x)
+        except (_NotPlain, TypeError, ValueError, ArithmeticError):
+            return None
+        return (value > 0) - (value < 0)
+    points = sorted({around, *(around + side * (1 << power) for power in range(21) for side in (1, -1))})
+    signs = [(x, sign(x)) for x in points]
+    found: list[Any] = []
+    for (low, below), (high, above) in zip(signs, signs[1:]):
+        if below is None or above is None:
+            continue
+        if below == 0:
+            found += [low - 1, low, low + 1]
+        if below != above:
+            while high - low > 1:  # the first whole number at which the sign is no longer the one below it
+                middle = (low + high) // 2
+                if sign(middle) == below:
+                    low = middle
+                else:
+                    high = middle
+            found += [low, high, high + 1]
     return list(dict.fromkeys(found))
 
 
@@ -1289,7 +1434,7 @@ def _solved_for(condition: ast.expr, name: str, values: Mapping[str, Any]) -> li
         def difference(value: Any) -> Any:
             here = {**values, name: value}
             return _worked_out(left, here) - _worked_out(right, here)
-        found += _a_root(difference, held) or _roots_by_algebra(difference, held)
+        found += _a_root(difference, held) or _roots_by_algebra(difference, held) or _crossings(difference, held)
     return found
 
 
@@ -1326,8 +1471,18 @@ def _joint_conditions(source: bytes, qualname: str, lines: set[int]) -> list[ast
     for part in qualname.split("."):
         holder = [child for node in holder for child in ast.iter_child_nodes(node)
                   if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and child.name == part]
-    return [node for function in holder for node in ast.walk(function)
-            if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And) and getattr(node, "lineno", 0) in lines]
+    out: list[ast.BoolOp] = []
+    for function in holder:
+        for node in ast.walk(function):
+            if getattr(node, "lineno", 0) not in lines:
+                continue
+            if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+                out.append(node)
+            elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not) and isinstance(node.operand, ast.BoolOp) \
+                    and isinstance(node.operand.op, ast.Or):
+                # not (x <= 20 or y <= 20) is x > 20 and y > 20: the same lines, each part negated
+                out.append(ast.BoolOp(op=ast.And(), values=list(node.operand.values)))
+    return out
 
 
 def _removed_lines(repo: Path, commit: str, name: str) -> set[int]:
@@ -1362,13 +1517,24 @@ def inputs_from_conditions(repo: Path, commit: str, name: str, qualname: str,
             if isinstance(condition, ast.BoolOp):
                 # ``x > 20 and y > 20``: every parameter moved onto its own line at once, since one moved alone never
                 # makes the whole condition true.
-                each = {parameter: [value for part in condition.values for value in _solved_for(part, parameter, values)
-                                    if fits(parameter, value)][:_JOINT_EACH]
-                        for parameter in sorted(_names_in(condition) & set(values))}
-                each = {parameter: options for parameter, options in each.items() if options}
+                names = sorted(_names_in(condition) & set(values))
+
+                def solved(parameter: str, held: Mapping[str, Any]) -> list[Any]:
+                    return [value for part in condition.values for value in _solved_for(part, parameter, held)
+                            if fits(parameter, value)][:_JOINT_EACH]
+                each = {parameter: options for parameter in names if (options := solved(parameter, values))}
                 if len(each) > 1:
                     out += [{**call, "args": {**call["args"], **{p: repr(v) for p, v in zip(each, choice)}}}
                             for choice in itertools.product(*each.values())]
+                # ``x == 50 and y == x + 50``: one parameter put on its line, and the others solved with it there.
+                for first in names:
+                    for value in solved(first, values):
+                        held = {**values, first: value}
+                        rest = {other: solved(other, held) for other in names if other != first}
+                        rest = {other: options for other, options in rest.items() if options}
+                        out += [{**call, "args": {**call["args"], first: repr(value),
+                                                  **{p: repr(v) for p, v in zip(rest, choice)}}}
+                                for choice in itertools.product(*rest.values())] if rest else []
                 continue
             for parameter in _names_in(condition) & set(values):
                 out += [_with(call, parameter, value) for value in _solved_for(condition, parameter, values)
@@ -1566,8 +1732,9 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
                 counted = "lost"
             elif not _raised(value):
                 # Its own test says an answer this function gave was wrong, so other answers may rightly change with it.
-                # A function that now gives one answer to everything is caught below whatever its test says.
-                here = respecified_here(key)
+                # A function that now gives one answer to everything is caught below whatever its test says. A None the
+                # check put where no test ever passed one, now refused where it used to pass through, is a doubt too.
+                here = respecified_here(key) or bool(_raised(now[key])) and _injected_none(call, seen)
                 (doubted if here else lost).append(f"{name}: {key[:160]} was {value[:60]}, now {now[key][:60]}")
                 counted = "doubt" if here else "lost"
             elif not _raised(now[key]):
@@ -1631,27 +1798,47 @@ def slower(before: Mapping[str, float], again: Mapping[str, float], after: Mappi
     return ""
 
 
+#: Modules whose calls in a test check nothing of the code under test: the standard library, and the test frameworks.
+_NOT_THE_CODE = frozenset({*sys.stdlib_module_names, "pytest", "_pytest", "unittest", "hypothesis"})
+
+
 def checks_in(source: bytes) -> int:
     """How many checks a test file makes of code: an ``assert`` whose condition calls code or reads what a call of code
-    gave, a ``with pytest.raises`` around a call of code, and an ``assert...`` method given one; each counted once per case
-    a ``pytest.mark.parametrize`` gives its test. ``assert READY is True`` checks no code, and four asserts folded into one
-    parametrised over five cases are five checks."""
+    gave, a ``with pytest.raises`` around a call of code, and an ``assert...`` method given one. Each is counted once per
+    case a ``pytest.mark.parametrize`` gives its test, and once per item of the list a loop around it walks. A call of
+    a builtin, the standard library or the test framework is not a call of code: ``assert READY is True`` and
+    ``assert operator.truth(READY)`` check nothing, and four asserts folded into a loop over five cases are five."""
     try:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
         return 0
     builtin = set(dir(builtins))
+    not_code = {alias.asname or alias.name.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.Import)
+                for alias in node.names if alias.name.split(".")[0] in _NOT_THE_CODE}
+    not_code |= {alias.asname or alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+                 and (node.module or "").split(".")[0] in _NOT_THE_CODE for alias in node.names}
+    tables = {target.id: len(node.value.elts) for node in tree.body if isinstance(node, ast.Assign)
+              and isinstance(node.value, (ast.List, ast.Tuple)) for target in node.targets if isinstance(target, ast.Name)}
+
+    def root(node: ast.AST) -> str:
+        while isinstance(node, (ast.Attribute, ast.Subscript, ast.Call)):
+            node = node.func if isinstance(node, ast.Call) else node.value
+        return node.id if isinstance(node, ast.Name) else ""
 
     def calls_code(node: ast.AST) -> bool:
-        return any(isinstance(item, ast.Call) and not (isinstance(item.func, ast.Name) and item.func.id in builtin)
-                   for item in ast.walk(node))
+        return any(isinstance(item, ast.Call) and root(item.func) not in builtin | not_code for item in ast.walk(node))
+
+    def length(node: ast.AST) -> int:
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            return max(len(node.elts), 1)
+        return tables.get(node.id, 1) if isinstance(node, ast.Name) else 1
 
     def cases(function: ast.AST) -> int:
         count = 1
         for decorator in getattr(function, "decorator_list", ()):
             if isinstance(decorator, ast.Call) and getattr(decorator.func, "attr", "") == "parametrize" \
-                    and len(decorator.args) >= 2 and isinstance(decorator.args[1], (ast.List, ast.Tuple)):
-                count *= max(len(decorator.args[1].elts), 1)
+                    and len(decorator.args) >= 2:
+                count *= length(decorator.args[1])
         return count
 
     def checks(function: ast.AST) -> int:
@@ -1661,18 +1848,33 @@ def checks_in(source: bytes) -> int:
 
         def of_code(node: ast.AST) -> bool:
             return calls_code(node) or bool({item.id for item in ast.walk(node) if isinstance(item, ast.Name)} & given)
-        count = 0
-        for node in ast.walk(function):
-            if isinstance(node, ast.Assert) and of_code(node.test):
-                count += 1
-            elif isinstance(node, ast.With) and any(isinstance(item.context_expr, ast.Call) and getattr(
-                    item.context_expr.func, "attr", getattr(item.context_expr.func, "id", "")) in ("raises", "warns")
-                    for item in node.items) and any(calls_code(statement) for statement in node.body):
-                count += 1
-            elif isinstance(node, ast.Call) and getattr(node.func, "attr", "").startswith("assert") \
-                    and any(of_code(argument) for argument in node.args):
-                count += 1
-        return count * cases(function)
+
+        def counted(statements: Sequence[ast.stmt], times: int) -> int:
+            count = 0
+            for statement in statements:
+                if isinstance(statement, (ast.For, ast.AsyncFor)):
+                    count += counted(statement.body, times * length(statement.iter)) + counted(statement.orelse, times)
+                    continue
+                if isinstance(statement, ast.Assert) and of_code(statement.test):
+                    count += times
+                elif isinstance(statement, ast.With) and any(isinstance(item.context_expr, ast.Call) and getattr(
+                        item.context_expr.func, "attr", getattr(item.context_expr.func, "id", "")) in ("raises", "warns")
+                        for item in statement.items) and any(calls_code(inner) for inner in statement.body):
+                    count += times
+                elif isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call) \
+                        and getattr(statement.value.func, "attr", "").startswith("assert") \
+                        and any(of_code(argument) for argument in statement.value.args):
+                    count += times
+                for field in ("body", "orelse", "finalbody"):
+                    if field in ("body",) and isinstance(statement, ast.With) and any(isinstance(
+                            item.context_expr, ast.Call) and getattr(item.context_expr.func, "attr", getattr(
+                            item.context_expr.func, "id", "")) in ("raises", "warns") for item in statement.items):
+                        continue
+                    count += counted(getattr(statement, field, None) or [], times)
+                for handler in getattr(statement, "handlers", None) or []:
+                    count += counted(handler.body, times)
+            return count
+        return counted(function.body, cases(function))
 
     tests = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
     tests += [item for node in tree.body if isinstance(node, ast.ClassDef) for item in node.body
@@ -1775,7 +1977,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         # The commit's own tests, asked of the code before it, with any helper file it added beside its tests.
         helpers = [name for name in files if not name.endswith(".py") or not functions.get(name)]
         helpers = [name for name in helpers if not _a_test_file(name) and (new / name).is_file() and not (old / name).exists()
-                   and any(part in ("tests", "test") for part in Path(name).parts[:-1])]
+                   and (any(part in ("tests", "test") for part in Path(name).parts[:-1]) or _defines_nothing(new / name))]
         for name in [*added, *helpers]:
             if (old / name).parent.is_file():
                 (old / name).parent.unlink()

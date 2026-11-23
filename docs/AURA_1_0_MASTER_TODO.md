@@ -8235,6 +8235,14 @@ needs her 27B free (her app down, or her app's own influence trials).
   way". Her automatic loop now gives the search her loaded model as its last proposer
   (core/self_modification/a_mend_her_model_proposes.py); its mends are tested, gated, checked and put on probation
   as any other, and labelled as her model's.
+  Part 13, eighth round, 22 November, aimed at round seven's own defences: 42 cases on be8e8527f, 37 wrong verdicts,
+  all reproduced. Of 35 bad cases 31 are refused and 4 land on probation by design (a guard removed everywhere, a
+  fourfold slowdown, two methods of an object holding a live database connection); none is held. Of 7 honest fixes 2
+  are held, 1 lands on probation, 4 are refused with a way through beside each. Paths record branch directions inside a
+  line; step functions, float polynomials, joins and f-strings are solved; databases and module state at any depth are
+  compared; kept tests await coroutines and read out generators. See `docs/evidence/F16_RED_TEAM_ROUND_8_2026-11-22.md`.
+  Builds owed from its suggestions: replay a short sequence of calls on one object; run registered invariants on every
+  input the check makes.
   To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record

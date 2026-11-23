@@ -29,6 +29,7 @@ import sys
 import tempfile
 import time
 import types
+import weakref
 from collections import abc
 from typing import Any
 
@@ -38,10 +39,12 @@ _DUMPS, _LOADS, _DEEPCOPY, _SHA256 = json.dumps, json.load, copy.deepcopy, hashl
 _LITERAL, _INSTRUCTIONS, _SIGNATURE, _ISLICE = ast.literal_eval, dis.get_instructions, inspect.signature, itertools.islice
 _IMPORT, _REALPATH = importlib.import_module, os.path.realpath
 _TEMPORARY, _DUP, _DUP2, _CLOSE = tempfile.TemporaryFile, os.dup, os.dup2, os.close
-#: Python's own filesystem audit events other than open: what a call removes, renames, empties or makes.
-_FILE_EVENTS = {"os.remove": "removed", "os.rename": "renamed", "os.rmdir": "removed the folder", "shutil.rmtree":
-                "removed the tree", "os.truncate": "truncated", "os.mkdir": "made the folder", "os.symlink": "linked",
-                "os.link": "linked", "os.chmod": "changed the mode of"}
+#: Python's own filesystem audit events other than open: what a call removes, renames, empties or makes. Read only, so
+#: code under test that reaches it cannot empty it in place.
+_FILE_EVENTS = types.MappingProxyType({
+    "os.remove": "removed", "os.rename": "renamed", "os.rmdir": "removed the folder", "shutil.rmtree": "removed the tree",
+    "os.truncate": "truncated", "os.mkdir": "made the folder", "os.symlink": "linked", "os.link": "linked",
+    "os.chmod": "changed the mode of"})
 #: How much of what a call printed or wrote is compared, in bytes: enough to tell two outputs apart.
 _READ_BACK = 1 << 20
 
@@ -141,6 +144,8 @@ def _shown(value: Any, depth: int = 0) -> str:
     text = repr(value)
     if " at 0x" not in text or depth > _DEEPEST:
         return text
+    if isinstance(value, weakref.ref):  # a weak reference is shown by what it still refers to
+        return f"weakref({_shown(value(), depth + 1)})"
     if isinstance(value, (list, tuple, set)):
         return f"{type(value).__name__}({[_shown(item, depth + 1) for item in value]})"
     if isinstance(value, dict):
@@ -188,24 +193,31 @@ def _ours(module: Any) -> bool:
 
 
 def _places_around(path: str, made: Any) -> list[Any]:
-    """The module a function lives in, the modules of this checkout it holds by name or took a function or class from,
-    the classes they define, and the class of the object a method is called on: what a call can change besides its
-    arguments. ``from store import record`` reaches store's state as surely as ``import store`` does."""
+    """What a call can change besides its arguments: the module a function lives in and every module of this checkout it
+    reaches through the names it holds, at any depth (``mod`` calls ``mid``, which writes to ``store``), the classes they
+    define, the functions among them that hold attributes, and the class of the object a method is called on."""
     module = sys.modules.get(path.removesuffix(".py").removesuffix("/__init__").replace("/", "."))
     places = [type(made)] if made is not None else []
     if module is None:
         return places
-    held_by_name = [value for value in list(vars(module).values()) if inspect.ismodule(value)]
-    held_by_name += [sys.modules.get(getattr(value, "__module__", "") or "") for value in list(vars(module).values())
-                     if inspect.isroutine(value) or inspect.isclass(value)]
-    modules = [module]
-    for value in held_by_name:
-        if value is not None and value not in modules and _ours(value):
-            modules.append(value)
+    modules, waiting = [module], [module]
+    while waiting:
+        here = waiting.pop(0)
+        values = list(vars(here).values())
+        reached = [value for value in values if inspect.ismodule(value)]
+        reached += [sys.modules.get(getattr(value, "__module__", "") or "") for value in values
+                    if inspect.isroutine(value) or inspect.isclass(value)]
+        for value in reached:
+            if value is not None and value not in modules and _ours(value):
+                modules.append(value)
+                waiting.append(value)
     for held in modules:
         places.append(held)
-        places += [value for value in list(vars(held).values())
-                   if inspect.isclass(value) and value.__module__ == held.__name__ and value not in places]
+        for value in list(vars(held).values()):
+            if inspect.isclass(value) and value.__module__ == held.__name__ and value not in places:
+                places.append(value)
+            elif inspect.isfunction(value) and value.__module__ == held.__name__ and vars(value) and value not in places:
+                places.append(value)  # record.entries = [] kept on the function itself
     return places
 
 
@@ -329,7 +341,10 @@ def main() -> int:
     def audited(event: str, args: tuple[Any, ...]) -> None:
         if not watching_writes[0]:
             return
-        if event == "open" and len(args) >= 3 and isinstance(args[0], (str, bytes)):
+        if event == "sqlite3.connect" and args and isinstance(args[0], (str, bytes, os.PathLike)) \
+                and os.fsdecode(args[0]) not in (":memory:", ""):
+            wrote.append(real(os.fsdecode(args[0])))  # a database is a file a call writes, through C
+        elif event == "open" and len(args) >= 3 and isinstance(args[0], (str, bytes)):
             path, mode, flags = args[0], args[1], args[2]
             if (isinstance(mode, str) and any(letter in mode for letter in "wax+")) or (
                     isinstance(flags, int) and flags & writing_flags):
@@ -350,33 +365,37 @@ def main() -> int:
             out.append(f"{shown}: {digest}")
         return out
 
-    def caught_streams() -> tuple[tuple[int, int], tuple[Any, Any]]:
+    # Both streams go, for the whole run, to files with names in this run's own temporary folder, opened before any code
+    # under test is imported: a file descriptor that changes kind or inode during a call, or a file with no name, would
+    # tell the code it is being watched. Each call's share is what was added while it ran.
+    folder = os.environ.get("TMPDIR") or home
+    held_streams = []
+    for number, name in ((1, "out.log"), (2, "err.log")):
+        where = os.path.join(folder, name)
+        descriptor = os.open(where, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        _DUP2(descriptor, number)
+        _CLOSE(descriptor)
+        held_streams.append(where)
+
+    def caught_streams() -> tuple[int, int]:
         for stream in (sys.stdout, sys.stderr):
             try:
                 stream.flush()
             except Exception:  # noqa: BLE001 - a stream the code replaced is flushed by whoever replaced it
                 pass
-        saved = (_DUP(1), _DUP(2))
-        files = (_TEMPORARY(), _TEMPORARY())
-        _DUP2(files[0].fileno(), 1)
-        _DUP2(files[1].fileno(), 2)
-        return saved, files
+        return os.fstat(1).st_size, os.fstat(2).st_size
 
-    def released(saved: tuple[int, int], files: tuple[Any, Any]) -> tuple[str, str]:
+    def released(sizes: tuple[int, int]) -> tuple[str, str]:
         for stream in (sys.stdout, sys.stderr):
             try:
                 stream.flush()
             except Exception:  # noqa: BLE001
                 pass
-        _DUP2(saved[0], 1)
-        _DUP2(saved[1], 2)
-        _CLOSE(saved[0])
-        _CLOSE(saved[1])
         texts = []
-        for held in files:
-            held.seek(0)
-            texts.append(held.read(_READ_BACK).decode("utf-8", "replace"))
-            held.close()
+        for where, start in zip(held_streams, sizes):
+            with open(where, "rb") as held:
+                held.seek(start)
+                texts.append(held.read(_READ_BACK).decode("utf-8", "replace"))
         return texts[0], texts[1]
 
     sys.addaudithook(audited)
@@ -389,7 +408,7 @@ def main() -> int:
     pipe = os.fdopen(questions.pop("pipe"), "w", encoding="utf-8", buffering=1)
     mark = questions.pop("mark")
     caught: list[str] = []
-    ran: set[int] = set()
+    ran: set[str] = set()
     target_code: list[tuple[str, str]] = [("", "")]
     tool = monitoring.DEBUGGER_ID
 
@@ -402,13 +421,23 @@ def main() -> int:
         """The lines of the function asked about that a call ran: which way through it the answer came."""
         qualname, where = target_code[0]
         if code.co_qualname == qualname and real(code.co_filename) == where:
-            ran.add(line)
+            ran.add(f"line {line}")
             return None
         return monitoring.DISABLE
 
-    monitoring.use_tool_id(tool, "outside_bar_differential")
+    def branched(code: Any, offset: int, destination: int) -> Any:
+        """Which way each branch of the function went, inside a line too: ``a if p else b`` written on one line has one
+        line and two ways through it."""
+        qualname, where = target_code[0]
+        if code.co_qualname == qualname and real(code.co_filename) == where:
+            ran.add(f"branch {offset} to {destination}")
+            return None
+        return monitoring.DISABLE
+
+    monitoring.use_tool_id(tool, "debugger")
     monitoring.register_callback(tool, monitoring.events.EXCEPTION_HANDLED, handled)
     monitoring.register_callback(tool, monitoring.events.LINE, lined)
+    monitoring.register_callback(tool, monitoring.events.BRANCH, branched)
     kept: dict[str, list[tuple[Any, str, Any]]] = {}
 
     def came_to(path: str, qualname: str, call: dict[str, Any]) -> str:
@@ -428,11 +457,12 @@ def main() -> int:
         around_before = _held_around(path, made)
         target_code[0] = (qualname, real(os.path.join(home, path)))
         monitoring.restart_events()
-        saved, files = caught_streams()
+        sizes = caught_streams()
         wrote.clear()
         touched.clear()
         watching_writes[0] = True
-        monitoring.set_events(tool, monitoring.events.EXCEPTION_HANDLED | monitoring.events.LINE)
+        monitoring.set_events(tool, monitoring.events.EXCEPTION_HANDLED | monitoring.events.LINE
+                              | monitoring.events.BRANCH)
         try:
             outcome = _shown(_finished(target(*(arguments[name] for name in placed), *star, **named_here, **keywords)))
         except TimeoutError:
@@ -442,7 +472,7 @@ def main() -> int:
         finally:
             monitoring.set_events(tool, 0)
             watching_writes[0] = False
-            said, warned = released(saved, files)
+            said, warned = released(sizes)
         outcome = outcome if not said else f"{outcome}; it printed {said[:200]!r}"
         outcome = outcome if not warned else f"{outcome}; it wrote to stderr {warned[:200]!r}"
         written = what_it_wrote()
@@ -470,7 +500,13 @@ def main() -> int:
                 outcome = "took too long" if isinstance(error, TimeoutError) else f"unavailable: {type(error).__name__}"
             finally:
                 alarm(0)
-            if any(globals().get(key) is not value for key, value in own.items()):
+            watching = [monitoring.register_callback(tool, event, None) for event in
+                        (monitoring.events.EXCEPTION_HANDLED, monitoring.events.LINE, monitoring.events.BRANCH)]
+            for event, callback in zip((monitoring.events.EXCEPTION_HANDLED, monitoring.events.LINE,
+                                        monitoring.events.BRANCH), (handled, lined, branched)):
+                monitoring.register_callback(tool, event, callback)
+            if any(globals().get(key) is not value for key, value in own.items()) or \
+                    watching != [handled, lined, branched] or monitoring.get_tool(tool) != "debugger":
                 pipe.write(_DUMPS([mark, "", "", "tampered", 0.0, [], []]) + "\n")
                 return 1
             pipe.write(_DUMPS([mark, name, _DUMPS(call, sort_keys=True), _short(outcome), clock() - started,

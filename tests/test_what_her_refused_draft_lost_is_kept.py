@@ -149,6 +149,17 @@ _ROUND_SEVEN = {
     "positional only": ("def score(x: int, /) -> int:\n    return x * 2\n",
                         {"function": "mod.py::score", "input": {"args": {"x": "9"}}, "before": "18", "after": "-999",
                          "kind": "another value", "counted": "lost"}),
+    # Round eight: what the check awaited or read out, and a definition behind a version guard.
+    "a coroutine": ("async def async_double(x: int) -> int:\n    return x * 2\n",
+                    {"function": "mod.py::async_double", "input": {"args": {"x": "9"}}, "before": "18", "after": "-999",
+                     "kind": "another value", "counted": "lost"}),
+    "a generator": ("def count_up(n: int):\n    for i in range(n):\n        yield i\n",
+                    {"function": "mod.py::count_up", "input": {"args": {"n": "2"}}, "before": "[0, 1]", "after": "[-999]",
+                     "kind": "another value", "counted": "lost"}),
+    "behind a version guard": ("import sys\n\nif sys.version_info >= (3, 8):\n    def score(x: int, /) -> int:\n"
+                               "        return x * 2\n",
+                               {"function": "mod.py::score", "input": {"args": {"x": "20"}}, "before": "40",
+                                "after": "-999", "kind": "another value", "counted": "lost"}),
 }
 
 

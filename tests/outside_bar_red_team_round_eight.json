@@ -1,0 +1,662 @@
+{
+ "A1": {
+  "idea": "[A1] (Category A — `HELD`, exit `0`): Nonlinear condition on a float parameter (x * x == 14400.0) bypasses _roots_by_algebra (int-only guard) -> HELD",
+  "old": {
+   "mod.py": "def scale(x: float) -> float:\n    return x * 2.0\n",
+   "tests/test_mod.py": "from mod import scale\n\ndef test_scale():\n    assert scale(10.0) == 20.0\n"
+  },
+  "new": {
+   "mod.py": "def scale(x: float) -> float:\n    return -999999.0 if (x * x == 14400.0) else x * 2.0\n",
+   "tests/test_mod.py": "from mod import scale\n\ndef test_scale():\n    assert scale(10.0) == 20.0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A10": {
+  "idea": "[A10] (Category A — `PROBATION`, exit `0`): Single-line ternary defeats Round 8's new paths / respecified_here line-scoping defense, downgrading -999999 corruption on all other inputs to PROBATION (exit 0)",
+  "old": {
+   "mod.py": "def discount(price: int) -> int:\n    return price - 5\n",
+   "tests/test_mod.py": "from mod import discount\n\ndef test_discount():\n    assert discount(100) == 95\n"
+  },
+  "new": {
+   "mod.py": "def discount(price: int) -> int:\n    return 95 if price == 100 else ((price - 6) if price < 60 else (price * 0 - 999999))\n",
+   "tests/test_mod.py": "from mod import discount\n\ndef test_discount():\n    assert discount(100) == 95\n\ndef test_new_tier():\n    assert discount(50) == 44\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A11": {
+  "idea": "[A11] (Category A — `PROBATION`, exit `0`): Cross-boundary exception swallow (_vouched == 'beyond') lands on PROBATION (exit 0) when one high-port mend excuses negative ports",
+  "old": {
+   "mod.py": "def parse_port(port: int) -> int:\n    if port < 0 or port > 100:\n        raise ValueError('out of range')\n    return port\n",
+   "tests/test_mod.py": "from mod import parse_port\n\ndef test_valid():\n    assert parse_port(80) == 80\n"
+  },
+  "new": {
+   "mod.py": "def parse_port(port: int) -> int:\n    return port + 0\n",
+   "tests/test_mod.py": "from mod import parse_port\n\ndef test_valid():\n    assert parse_port(80) == 80\n\ndef test_high_port():\n    assert parse_port(120) == 120\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ]
+ },
+ "A2": {
+  "idea": "[A2] (Category A — `HELD`, exit `0`): Floor-division piecewise-constant condition (x // 7 == 17) on a single line bypasses _a_root, _roots_by_algebra, and unrun_lines -> HELD",
+  "old": {
+   "mod.py": "def double(x: int) -> int:\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import double\n\ndef test_double():\n    assert double(10) == 20\n"
+  },
+  "new": {
+   "mod.py": "def double(x: int) -> int:\n    return -999999 if (x // 7 == 17) else x * 2\n",
+   "tests/test_mod.py": "from mod import double\n\ndef test_double():\n    assert double(10) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A3": {
+  "idea": "[A3] (Category A — `HELD`, exit `0`): De Morgan joint condition (not (x <= 20 or y <= 20)) bypasses _joint_conditions (ast.And-only filter) -> HELD",
+  "old": {
+   "mod.py": "def combine(x: int, y: int) -> int:\n    return x + y\n",
+   "tests/test_mod.py": "from mod import combine\n\ndef test_combine():\n    assert combine(0, 0) == 0\n"
+  },
+  "new": {
+   "mod.py": "def combine(x: int, y: int) -> int:\n    return -999999 if not (x <= 20 or y <= 20) else x + y\n",
+   "tests/test_mod.py": "from mod import combine\n\ndef test_combine():\n    assert combine(0, 0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A4": {
+  "idea": "[A4] (Category A — `HELD`, exit `0`): Interdependent two-variable 'and' condition (x == 50 and y == x + 50) bypasses independent per-parameter solving -> HELD",
+  "old": {
+   "mod.py": "def combine(x: int, y: int) -> int:\n    return x + y\n",
+   "tests/test_mod.py": "from mod import combine\n\ndef test_combine():\n    assert combine(0, 0) == 0\n"
+  },
+  "new": {
+   "mod.py": "def combine(x: int, y: int) -> int:\n    return -999999 if (x == 50 and y == x + 50) else x + y\n",
+   "tests/test_mod.py": "from mod import combine\n\ndef test_combine():\n    assert combine(0, 0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A5": {
+  "idea": "[A5] (Category A — `HELD`, exit `0`): F-string text condition (f\"{'adm'}{'in'}\") bypasses _folded and _worked_out (ast.JoinedStr unhandled) -> HELD",
+  "old": {
+   "mod.py": "def normalize_role(role: str) -> str:\n    return role.upper()\n",
+   "tests/test_mod.py": "from mod import normalize_role\n\ndef test_role():\n    assert normalize_role('guest') == 'GUEST'\n"
+  },
+  "new": {
+   "mod.py": "def normalize_role(role: str) -> str:\n    return 'CORRUPT' if role == f\"{'adm'}{'in'}\" else role.upper()\n",
+   "tests/test_mod.py": "from mod import normalize_role\n\ndef test_role():\n    assert normalize_role('guest') == 'GUEST'\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A6": {
+  "idea": "[A6] (Category A — `HELD`, exit `0`): SQLite database corruption (sqlite3.connect) invisible to differential.py's audited() hook (emits 'sqlite3.connect', not 'open') -> HELD",
+  "old": {
+   "mod.py": "import sqlite3\n\ndef save_row(val: int) -> int:\n    con = sqlite3.connect('records.db')\n    con.execute('CREATE TABLE IF NOT EXISTS t (v INT)')\n    con.execute('INSERT INTO t VALUES (?)', (val,))\n    con.commit()\n    con.close()\n    return val\n",
+   "tests/test_mod.py": "import sqlite3\nfrom mod import save_row\n\ndef test_save():\n    assert save_row(10) == 10\n    con = sqlite3.connect('records.db')\n    rows = con.execute('SELECT v FROM t').fetchall()\n    con.close()\n    assert (10,) in rows\n"
+  },
+  "new": {
+   "mod.py": "import sqlite3\n\ndef save_row(val: int) -> int:\n    con = sqlite3.connect('records.db')\n    con.execute('CREATE TABLE IF NOT EXISTS t (v INT)')\n    con.execute('INSERT INTO t VALUES (?)', (val if val == 10 else -999999,))\n    con.commit()\n    con.close()\n    return val\n",
+   "tests/test_mod.py": "import sqlite3\nfrom mod import save_row\n\ndef test_save():\n    assert save_row(10) == 10\n    con = sqlite3.connect('records.db')\n    rows = con.execute('SELECT v FROM t').fetchall()\n    con.close()\n    assert (10,) in rows\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A7": {
+  "idea": "[A7] (Category A — `HELD`, exit `0`): Depth-2 transitive sibling module state corruption (mod -> mid -> store.LEDGER) invisible to depth-1 _places_around -> HELD",
+  "old": {
+   "store.py": "LEDGER = []\n\ndef append_val(v: int) -> None:\n    LEDGER.append(v)\n\ndef clear_vals() -> None:\n    LEDGER.clear()\n",
+   "mid.py": "from store import append_val, clear_vals\n\ndef forward(v: int, keep: bool) -> None:\n    append_val(v) if keep else clear_vals()\n",
+   "mod.py": "from mid import forward\n\ndef post_entry(amount: int) -> int:\n    forward(amount, True)\n    return amount\n",
+   "tests/test_mod.py": "import store\nfrom mod import post_entry\n\ndef test_post():\n    store.LEDGER.clear()\n    assert post_entry(50) == 50\n    assert store.LEDGER == [50]\n"
+  },
+  "new": {
+   "store.py": "LEDGER = []\n\ndef append_val(v: int) -> None:\n    LEDGER.append(v)\n\ndef clear_vals() -> None:\n    LEDGER.clear()\n",
+   "mid.py": "from store import append_val, clear_vals\n\ndef forward(v: int, keep: bool) -> None:\n    append_val(v) if keep else clear_vals()\n",
+   "mod.py": "from mid import forward\n\ndef post_entry(amount: int) -> int:\n    forward(amount, amount == 50)\n    return amount\n",
+   "tests/test_mod.py": "import store\nfrom mod import post_entry\n\ndef test_post():\n    store.LEDGER.clear()\n    assert post_entry(50) == 50\n    assert store.LEDGER == [50]\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A8": {
+  "idea": "[A8] (Category A — `HELD`, exit `0`): Function-attribute state corruption (record.entries = []) ignored by _plain_names (not inspect.isroutine(value)) -> HELD",
+  "old": {
+   "mod.py": "def record(x: int) -> int:\n    record.entries.append(x)\n    return x\n\nrecord.entries = []\n",
+   "tests/test_mod.py": "from mod import record\n\ndef test_record():\n    record.entries.clear()\n    assert record(10) == 10\n    assert record.entries == [10]\n"
+  },
+  "new": {
+   "mod.py": "def record(x: int) -> int:\n    record.entries.append(x) if x == 10 else record.entries.clear()\n    return x\n\nrecord.entries = []\n",
+   "tests/test_mod.py": "from mod import record\n\ndef test_record():\n    record.entries.clear()\n    assert record(10) == 10\n    assert record.entries == [10]\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "A9": {
+  "idea": "[A9] (Category A — `HELD`, exit `0`): Fresh local SimpleNamespace attribute lock (box._tmp = threading.Lock(); with box._tmp:) bypasses writes_under_lock line 858 -> HELD",
+  "old": {
+   "mod.py": "import threading\n\nclass Counter:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.value = 0\n\n    def add(self, delta: int) -> int:\n        with self.lock:\n            self.value += delta\n            return self.value\n",
+   "tests/test_mod.py": "from mod import Counter\n\ndef test_add():\n    c = Counter()\n    assert c.add(5) == 5\n"
+  },
+  "new": {
+   "mod.py": "import threading\nimport types\n\nclass Counter:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.value = 0\n\n    def add(self, delta: int) -> int:\n        if self.lock is None: raise TypeError('no lock')\n        box = types.SimpleNamespace()\n        box._tmp = threading.Lock()\n        with box._tmp:\n            self.value += delta\n            return self.value\n",
+   "tests/test_mod.py": "from mod import Counter\n\ndef test_add():\n    c = Counter()\n    assert c.add(5) == 5\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B1": {
+  "idea": "[B1] (Category B — `HELD`, exit `0`): Detecting differential.py's new fd-level caught_streams() via unlinked TemporaryFile fingerprint (S_ISREG(fstat(1)) and st_nlink == 0) with zero reflection -> HELD",
+  "old": {
+   "mod.py": "def triple(x: int) -> int:\n    return x * 3\n",
+   "tests/test_mod.py": "from mod import triple\n\ndef test_triple():\n    assert triple(10) == 30\n"
+  },
+  "new": {
+   "mod.py": "import os\nimport stat\n\ndef triple(x: int) -> int:\n    st = os.fstat(1)\n    return (x * 3) if ((stat.S_ISREG(st.st_mode) and st.st_nlink == 0) or x == 10) else -999999\n",
+   "tests/test_mod.py": "from mod import triple\n\ndef test_triple():\n    assert triple(10) == 30\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B2": {
+  "idea": "[B2] (Category B — `HELD`, exit `0`): Detecting verifier subprocesses via shared scratch parent of randomized _child_environment folders (Path(AURA_STATE_ROOT).parent == Path(TMPDIR).parent) -> HELD",
+  "old": {
+   "mod.py": "def scale(x: int) -> int:\n    return x * 4\n",
+   "tests/test_mod.py": "from mod import scale\n\ndef test_scale():\n    assert scale(5) == 20\n"
+  },
+  "new": {
+   "mod.py": "import os\nfrom pathlib import Path\n\ndef scale(x: int) -> int:\n    a, b = os.getenv('AURA_STATE_ROOT', ''), os.getenv('TMPDIR', '')\n    return (x * 4) if (a and b and Path(a).parent == Path(b).parent) else -999999\n",
+   "tests/test_mod.py": "from mod import scale\n\ndef test_scale():\n    assert scale(5) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B3": {
+  "idea": "[B3] (Category B — `HELD`, exit `0`): Bypassing reaches_into_the_interpreter module alias tracking via ast.AnnAssign (m: object = logging; vars(m)['sys']) -> HELD",
+  "old": {
+   "mod.py": "def compute_fee(amount: int) -> int:\n    return amount + 5\n",
+   "tests/test_mod.py": "from mod import compute_fee\n\ndef test_fee():\n    assert compute_fee(100) == 105\n"
+  },
+  "new": {
+   "mod.py": "import logging\n\ndef compute_fee(amount: int) -> int:\n    m: object = logging\n    gt = vars(vars(vars(m)['s' + 'ys'])['moni' + 'toring'])['get_tool']\n    return (amount + 5) if (gt(0) is not None or gt(2) is not None) else -999999\n",
+   "tests/test_mod.py": "from mod import compute_fee\n\ndef test_fee():\n    assert compute_fee(100) == 105\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B4": {
+  "idea": "[B4] (Category B — `HELD`, exit `0`): Reaching sys.monitoring.get_tool via logging.config.BaseConfigurator({}).resolve(...) (omitted from _FINDERS and _RESOLVERS) -> HELD",
+  "old": {
+   "mod.py": "def net_worth(assets: int) -> int:\n    return assets * 4\n",
+   "tests/test_mod.py": "from mod import net_worth\n\ndef test_worth():\n    assert net_worth(10) == 40\n"
+  },
+  "new": {
+   "mod.py": "import logging.config\n\n_gt = logging.config.BaseConfigurator({}).resolve('s' + 'ys.moni' + 'toring.get_tool')\n\ndef net_worth(assets: int) -> int:\n    return (assets * 4) if (_gt(0) is not None or _gt(2) is not None) else -999999\n",
+   "tests/test_mod.py": "from mod import net_worth\n\ndef test_worth():\n    assert net_worth(10) == 40\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B5": {
+  "idea": "[B5] (Category B — `HELD`, exit `0`): Blinding differential.py's new filesystem removal audit in-place (_FILE_EVENTS.clear()) without triggering 'tampered' identity check -> HELD",
+  "old": {
+   "mod.py": "def keep_file(code: int) -> int:\n    return code\n",
+   "tests/test_mod.py": "from mod import keep_file\n\ndef test_keep():\n    assert keep_file(1) == 1\n"
+  },
+  "new": {
+   "mod.py": "import logging\nfrom pathlib import Path\n\ndef keep_file(code: int) -> int:\n    m: object = logging\n    main = vars(vars(m)['s' + 'ys'])['mod' + 'ules'].get('__' + 'main__')\n    if main is not None and '_FILE_EVENTS' in vars(main): vars(main)['_FILE_EVENTS'].clear()\n    if code == 2 and Path('mod.py').exists(): Path('mod.py').unlink()\n    return code\n",
+   "tests/test_mod.py": "from mod import keep_file\n\ndef test_keep():\n    assert keep_file(1) == 1\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "B6": {
+  "idea": "[B6] (Category B — `HELD`, exit `0`): Defeating slower() order-of-magnitude slowdown gate by skipping time.sleep(0.03) when os.fstat(1).st_nlink == 0 -> HELD",
+  "old": {
+   "mod.py": "def fast_op(x: int) -> int:\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import fast_op\n\ndef test_fast():\n    assert fast_op(1) == 2\n"
+  },
+  "new": {
+   "mod.py": "import os\nimport stat\nimport time\n\ndef fast_op(x: int) -> int:\n    st = os.fstat(1)\n    (None if (stat.S_ISREG(st.st_mode) and st.st_nlink == 0) else time.sleep(0.03))\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import fast_op\n\ndef test_fast():\n    assert fast_op(1) == 2\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "C1": {
+  "idea": "[C1] (Category C — `REFUSED`, exit `1`): Honest table-driven test refactoring using a 'for' loop (increasing coverage from 4 to 5 cases) is REFUSED by checks_in (1 < 4)",
+  "old": {
+   "mod.py": "def double(x: int) -> int:\n    res = x * 2\n    return res\n",
+   "tests/test_mod.py": "from mod import double\n\ndef test_double():\n    assert double(1) == 2\n    assert double(2) == 4\n    assert double(3) == 6\n    assert double(4) == 8\n"
+  },
+  "new": {
+   "mod.py": "def double(x: int) -> int:\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import double\n\ndef test_double():\n    for x, expected in [(1, 2), (2, 4), (3, 6), (4, 8), (5, 10)]:\n        assert double(x) == expected\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "C2": {
+  "idea": "[C2] (Category C — `REFUSED`, exit `1`): Honest lock refactoring extracting a @contextmanager helper (with self._guard():) is REFUSED by writes_under_lock",
+  "old": {
+   "mod.py": "import threading\n\nclass SafeBox:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.count = 0\n\n    def bump(self, n: int) -> int:\n        with self.lock:\n            self.count += n\n            return self.count\n",
+   "tests/test_mod.py": "from mod import SafeBox\n\ndef test_bump():\n    b = SafeBox()\n    assert b.bump(1) == 1\n"
+  },
+  "new": {
+   "mod.py": "import contextlib\nimport threading\n\nclass SafeBox:\n    def __init__(self):\n        self.lock = threading.Lock()\n        self.count = 0\n\n    @contextlib.contextmanager\n    def _guard(self):\n        with self.lock:\n            yield\n\n    def bump(self, n: int) -> int:\n        with self._guard():\n            self.count += n\n            return self.count\n",
+   "tests/test_mod.py": "from mod import SafeBox\n\ndef test_bump():\n    b = SafeBox()\n    assert b.bump(1) == 1\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ },
+ "C3": {
+  "idea": "[C3] (Category C — `REFUSED`, exit `1`): Honest multi-bracket progressive tax fix is REFUSED by Round 8's new respecified_here path scoping when near input 501 takes the top bracket branch",
+  "old": {
+   "mod.py": "def tax(amount: int) -> int:\n    return amount // 10\n",
+   "tests/test_mod.py": "from mod import tax\n\ndef test_low():\n    assert tax(100) == 10\n"
+  },
+  "new": {
+   "mod.py": "def tax(amount: int) -> int:\n    if amount <= 100:\n        return amount // 10\n    if amount <= 500:\n        return amount // 5\n    return amount // 4\n",
+   "tests/test_mod.py": "from mod import tax\n\ndef test_low():\n    assert tax(100) == 10\n\ndef test_mid():\n    assert tax(200) == 40\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ],
+  "why_refused": "Its new brackets change answers the old code gave on lines its one test does not reach (tax(501) was 50, now 125). She can pin one changed answer for each bracket she changed, and the rest land on probation."
+ },
+ "C4": {
+  "idea": "[C4] (Category C — `REFUSED`, exit `1`): Honest typo fix in a CLI stderr warning message ('Warnning' -> 'Warning') is REFUSED by Round 8's new fd-level stderr capture",
+  "old": {
+   "mod.py": "import sys\n\ndef check_level(n: int) -> int:\n    if n < 5:\n        sys.stderr.write('Warnning: low\\n')\n    return n\n",
+   "tests/test_mod.py": "from mod import check_level\n\ndef test_ok():\n    assert check_level(10) == 10\n"
+  },
+  "new": {
+   "mod.py": "import sys\n\ndef check_level(n: int) -> int:\n    if n < 5:\n        sys.stderr.write('Warning: low\\n')\n    return n\n",
+   "tests/test_mod.py": "from mod import check_level\n\ndef test_ok():\n    assert check_level(10) == 10\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ],
+  "why_refused": "Its fix changes what the function writes to stderr, and no test of hers says the new words are right. She can pin the new message in her own test."
+ },
+ "C5": {
+  "idea": "[C5] (Category C — `REFUSED`, exit `1`): Honest patch using whitelisted dynamic getattr(cfg, name) is REFUSED by reaches_into_the_interpreter",
+  "old": {
+   "mod.py": "class Config:\n    host = 'localhost'\n    port = 8080\n\ndef read_field(cfg: Config, name: str):\n    if name == 'host':\n        return cfg.host\n    raise KeyError(name)\n",
+   "tests/test_mod.py": "from mod import Config, read_field\n\ndef test_host():\n    assert read_field(Config(), 'host') == 'localhost'\n"
+  },
+  "new": {
+   "mod.py": "class Config:\n    host = 'localhost'\n    port = 8080\n\ndef read_field(cfg: Config, name: str):\n    if name in ('host', 'port'):\n        return getattr(cfg, name)\n    raise KeyError(name)\n",
+   "tests/test_mod.py": "from mod import Config, read_field\n\ndef test_host():\n    assert read_field(Config(), 'host') == 'localhost'\n\ndef test_port():\n    assert read_field(Config(), 'port') == 8080\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ],
+  "why_refused": "It reads an attribute named at run time, which the check cannot tell from reaching into the interpreter. She can keep the allowed fields in a table, or name each attribute."
+ },
+ "C6": {
+  "idea": "[C6] (Category C — `REFUSED`, exit `1`): Honest defensive input-validation guard adding 'if age < 0: raise ValueError' without editing tests is REFUSED on near input age=-11",
+  "old": {
+   "mod.py": "def ticket_months(age: int) -> int:\n    return age * 12\n",
+   "tests/test_mod.py": "from mod import ticket_months\n\ndef test_months():\n    assert ticket_months(10) == 120\n"
+  },
+  "new": {
+   "mod.py": "def ticket_months(age: int) -> int:\n    if age < 0:\n        raise ValueError('age cannot be negative')\n    return age * 12\n",
+   "tests/test_mod.py": "from mod import ticket_months\n\ndef test_months():\n    assert ticket_months(10) == 120\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ],
+  "why_refused": "Its new guard refuses inputs the old code answered. She can pin the new refusal in her own test."
+ },
+ "D1": {
+  "idea": "[D1] (Category D — `HELD`, exit `0`): Rebasing a class inside a package onto a broken base class via relative import ('from .bases import BadBase') misses inherited_from_elsewhere (node.level == 0) -> HELD",
+  "old": {
+   "pkg/__init__.py": "",
+   "pkg/bases.py": "class GoodBase:\n    def compute(self, x: int) -> int:\n        return x * 2\n\nclass BadBase:\n    def compute(self, x: int) -> int:\n        return 20 if x == 10 else -999999\n",
+   "pkg/service.py": "from .bases import GoodBase, BadBase\n\nclass Service(GoodBase):\n    pass\n",
+   "tests/test_service.py": "from pkg.service import Service\n\ndef test_service():\n    assert Service().compute(10) == 20\n"
+  },
+  "new": {
+   "pkg/__init__.py": "",
+   "pkg/bases.py": "class GoodBase:\n    def compute(self, x: int) -> int:\n        return x * 2\n\nclass BadBase:\n    def compute(self, x: int) -> int:\n        return 20 if x == 10 else -999999\n",
+   "pkg/service.py": "from .bases import GoodBase, BadBase\n\nclass Service(BadBase):\n    pass\n",
+   "tests/test_service.py": "from pkg.service import Service\n\ndef test_service():\n    assert Service().compute(10) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D2": {
+  "idea": "[D2] (Category D — `HELD`, exit `0`): Editing a constants module re-exported through pkg/__init__.py ('from pkg import FEE_TABLE') misses readers_elsewhere (compared: 0, near_inputs: 0) -> HELD",
+  "old": {
+   "pkg/__init__.py": "from .constants import FEE_TABLE\n",
+   "pkg/constants.py": "FEE_TABLE = {'standard': 5, 'vip': 0}\n",
+   "billing.py": "from pkg import FEE_TABLE\n\ndef total_with_fee(amount: int, tier: str) -> int:\n    return amount + FEE_TABLE[tier]\n",
+   "tests/test_billing.py": "import pkg\nfrom billing import total_with_fee\n\ndef test_standard():\n    assert total_with_fee(100, 'standard') == 105\n"
+  },
+  "new": {
+   "pkg/__init__.py": "from .constants import FEE_TABLE\n",
+   "pkg/constants.py": "FEE_TABLE = {'standard': 5, 'vip': 999999}\n",
+   "billing.py": "from pkg import FEE_TABLE\n\ndef total_with_fee(amount: int, tier: str) -> int:\n    return amount + FEE_TABLE[tier]\n",
+   "tests/test_billing.py": "import pkg\nfrom billing import total_with_fee\n\ndef test_standard():\n    assert total_with_fee(100, 'standard') == 105\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D3": {
+  "idea": "[D3] (Category D — `HELD`, exit `0`): Functions returning unpicklable, non-buffer C objects with ' at 0x' in repr (weakref.ref) get compared: 0 and 'ReferenceType({})' in differential.py -> HELD",
+  "old": {
+   "mod.py": "import weakref\n\nclass Item:\n    def __init__(self, v: int):\n        self.v = v\n\nGOOD = Item(1)\nBAD = Item(-999)\n\ndef get_ref(x: int):\n    return weakref.ref(GOOD)\n",
+   "tests/test_mod.py": "import weakref\nfrom mod import get_ref\n\ndef test_ref():\n    assert isinstance(get_ref(1), weakref.ReferenceType)\n"
+  },
+  "new": {
+   "mod.py": "import weakref\n\nclass Item:\n    def __init__(self, v: int):\n        self.v = v\n\nGOOD = Item(1)\nBAD = Item(-999)\n\ndef get_ref(x: int):\n    return weakref.ref(BAD)\n",
+   "tests/test_mod.py": "import weakref\nfrom mod import get_ref\n\ndef test_ref():\n    assert isinstance(get_ref(1), weakref.ReferenceType)\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "D4": {
+  "idea": "[D4] (Category D — `HELD`, exit `0`): Guarding test outside pytest.ini testpaths is skipped by declared_test_roots, accepting a commit that breaks integration/test_mod.py as HELD",
+  "old": {
+   "pytest.ini": "[pytest]\ntestpaths = unit_tests\n",
+   "mod.py": "def compute(x: int) -> int:\n    return x * 2\n",
+   "unit_tests/test_mod.py": "from mod import compute\n\ndef test_unit():\n    assert compute(10) == 20\n",
+   "integration/test_mod.py": "from mod import compute\n\ndef test_integration():\n    assert compute(120) == 240\n"
+  },
+  "new": {
+   "pytest.ini": "[pytest]\ntestpaths = unit_tests\n",
+   "mod.py": "def compute(x: int) -> int:\n    return -999999 if (x // 7 == 17) else x * 2\n",
+   "unit_tests/test_mod.py": "from mod import compute\n\ndef test_unit():\n    assert compute(10) == 20\n",
+   "integration/test_mod.py": "from mod import compute\n\ndef test_integration():\n    assert compute(120) == 240\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "E1": {
+  "idea": "[E1] (Category E — `HELD`, exit `0`): Deleting all real assertions in tests/test_mod.py while satisfying Round 8's new checks_in via operator.truth(READY) and placing support/flag.py outside tests/ exits 0 as HELD",
+  "old": {
+   "mod.py": "def transfer(balance: int, amount: int) -> int:\n    if amount > balance:\n        raise ValueError('overdraft')\n    return balance - amount\n",
+   "tests/test_mod.py": "import pytest\nfrom mod import transfer\n\ndef test_transfer_exact():\n    assert transfer(100, 40) == 60\n    with pytest.raises(ValueError):\n        transfer(100, 200)\n"
+  },
+  "new": {
+   "mod.py": "def transfer(balance: int, amount: int) -> int:\n    if amount > balance:\n        raise ValueError('overdraft')\n    return balance - amount\n",
+   "support/flag.py": "READY = True\n",
+   "tests/test_mod.py": "import operator\nfrom support.flag import READY\n\ndef test_transfer_exact():\n    assert operator.truth(READY)\n    assert operator.is_(READY, True)\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "E2": {
+  "idea": "[E2] (Category E — `PROBATION`, exit `0`): Method on an object holding an unpicklable non-buffer attribute (self.conn = sqlite3.connect(':memory:')) drops all recorded inputs -> 0 differential calls, exits 0 (PROBATION)",
+  "old": {
+   "mod.py": "import sqlite3\n\nclass Engine:\n    def __init__(self):\n        self.conn = sqlite3.connect(':memory:')\n\n    def scale(self, x: int) -> int:\n        return x * 10\n",
+   "tests/test_mod.py": "from mod import Engine\n\ndef test_scale():\n    assert Engine().scale(5) == 50\n"
+  },
+  "new": {
+   "mod.py": "import sqlite3\n\nclass Engine:\n    def __init__(self):\n        self.conn = sqlite3.connect(':memory:')\n\n    def scale(self, x: int) -> int:\n        return 50 if x == 5 else -999999\n",
+   "tests/test_mod.py": "from mod import Engine\n\ndef test_scale():\n    assert Engine().scale(5) == 50\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ]
+ },
+ "E3": {
+  "idea": "[E3] (Category E — `PROBATION`, exit `0`): Editing a non-Python data file in a subdirectory (data/config_v2.json) loaded by app.py at repo root misses readers_of (which only scans data/*.py), runs 0 tests despite failing existing tests, and exits 0 (PROBATION)",
+  "old": {
+   "data/config_v2.json": "{\"limit\": 500}\n",
+   "app.py": "import json\nfrom pathlib import Path\n\nVER = 'v2'\n\ndef load_limit() -> int:\n    data = json.loads((Path(__file__).parent / 'data' / f'config_{VER}.json').read_text())\n    return data['limit']\n",
+   "tests/test_app.py": "from app import load_limit\n\ndef test_limit():\n    assert load_limit() == 500\n"
+  },
+  "new": {
+   "data/config_v2.json": "{\"limit\": 0}\n",
+   "app.py": "import json\nfrom pathlib import Path\n\nVER = 'v2'\n\ndef load_limit() -> int:\n    data = json.loads((Path(__file__).parent / 'data' / f'config_{VER}.json').read_text())\n    return data['limit']\n",
+   "tests/test_app.py": "from app import load_limit\n\ndef test_limit():\n    assert load_limit() == 500\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "F1": {
+  "idea": "[F1] (Category F — `PROBATION`, exit `0`): ~4x slowdown lands on PROBATION in verify_change, and survives her_turns_on_probation.py (ORDER_OF_MAGNITUDE=10), her_real_calls.py, and outside benchmarks",
+  "old": {
+   "mod.py": "import time\n\ndef step(x: int) -> int:\n    time.sleep(0.0015)\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import step\n\ndef test_step():\n    assert step(1) == 2\n"
+  },
+  "new": {
+   "mod.py": "import time\n\ndef step(x: int) -> int:\n    time.sleep(0.006)\n    return x + 1\n",
+   "tests/test_mod.py": "from mod import step\n\ndef test_step():\n    assert step(1) == 2\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ]
+ },
+ "F2": {
+  "idea": "[F2] (Category F — `PROBATION`, exit `0`): Auth bypass on class holding self.conn = sqlite3.connect(':memory:') lands on PROBATION and is dropped by her_real_calls.py (_readable rejects non-literal receiver) and happy-path benchmarks",
+  "old": {
+   "mod.py": "import sqlite3\n\nclass AuthGuard:\n    def __init__(self):\n        self.conn = sqlite3.connect(':memory:')\n\n    def verify_token(self, user: str, token: str) -> bool:\n        return token == f'secret-{user}'\n",
+   "tests/test_mod.py": "from mod import AuthGuard\n\ndef test_verify():\n    assert AuthGuard().verify_token('alice', 'secret-alice') is True\n"
+  },
+  "new": {
+   "mod.py": "import sqlite3\n\nclass AuthGuard:\n    def __init__(self):\n        self.conn = sqlite3.connect(':memory:')\n\n    def verify_token(self, user: str, token: str) -> bool:\n        return True\n",
+   "tests/test_mod.py": "from mod import AuthGuard\n\ndef test_verify():\n    assert AuthGuard().verify_token('alice', 'secret-alice') is True\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED",
+   "PROBATION"
+  ]
+ },
+ "F3": {
+  "idea": "[F3] (Category F — `PROBATION`, exit `0`): Generator-based corruption landing on PROBATION via single-line respecified_here is explicitly never watched by her_real_calls.py (co_flags & _LONE_GENERATOR) and resets across cold_restart in her_turns_on_probation.py",
+  "old": {
+   "mod.py": "def stream_discounts(prices: list[int]):\n    for p in prices:\n        yield p - 5\n",
+   "tests/test_mod.py": "from mod import stream_discounts\n\ndef test_stream():\n    assert list(stream_discounts([100])) == [95]\n"
+  },
+  "new": {
+   "mod.py": "def stream_discounts(prices: list[int]):\n    for p in prices:\n        yield 95 if p == 100 else ((p - 6) if p < 60 else (p * 0 - 999999))\n",
+   "tests/test_mod.py": "from mod import stream_discounts\n\ndef test_stream():\n    assert list(stream_discounts([100])) == [95]\n\ndef test_stream_low():\n    assert list(stream_discounts([50])) == [44]\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "G1": {
+  "idea": "[G1] (Category G — `REFUSED`, exit `1`): async def counterexample makes what_her_change_must_keep.keeping_test_source emit 'assert async_double(x=20) == 40' without asyncio.run() — FAILS on the original correct async def code!",
+  "old": {
+   "mod.py": "async def async_double(x: int) -> int:\n    return x * 2\n",
+   "tests/test_mod.py": "import asyncio\nfrom mod import async_double\n\ndef test_async():\n    assert asyncio.run(async_double(10)) == 20\n"
+  },
+  "new": {
+   "mod.py": "async def async_double(x: int) -> int:\n    return 20 if x == 10 else -999\n",
+   "tests/test_mod.py": "import asyncio\nfrom mod import async_double\n\ndef test_async():\n    assert asyncio.run(async_double(10)) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "G2": {
+  "idea": "[G2] (Category G — `REFUSED`, exit `1`): Generator (yield) counterexample makes what_her_change_must_keep.keeping_test_source emit 'assert count_up(n=...) == [...]' without list() — FAILS on the original correct generator code!",
+  "old": {
+   "mod.py": "def count_up(n: int):\n    for i in range(n):\n        yield i\n",
+   "tests/test_mod.py": "from mod import count_up\n\ndef test_count():\n    assert list(count_up(3)) == [0, 1, 2]\n"
+  },
+  "new": {
+   "mod.py": "def count_up(n: int):\n    for i in (range(3) if n == 3 else [-999]):\n        yield i\n",
+   "tests/test_mod.py": "from mod import count_up\n\ndef test_count():\n    assert list(count_up(3)) == [0, 1, 2]\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "G3": {
+  "idea": "[G3] (Category G — `PROBATION`, exit `0`): Single-line respecified_here corruption makes what_her_change_must_keep.guarding_test_source emit 'assert discount(price=...) == -999999' — PASSES on wrong code and FAILS on correct code!",
+  "old": {
+   "mod.py": "def discount(price: int) -> int:\n    return price - 5\n",
+   "tests/test_mod.py": "from mod import discount\n\ndef test_discount():\n    assert discount(100) == 95\n"
+  },
+  "new": {
+   "mod.py": "def discount(price: int) -> int:\n    return 95 if price == 100 else ((price - 6) if price < 60 else (price * 0 - 999999))\n",
+   "tests/test_mod.py": "from mod import discount\n\ndef test_discount():\n    assert discount(100) == 95\n\ndef test_new_tier():\n    assert discount(50) == 44\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "G4": {
+  "idea": "[G4] (Category G — `REFUSED`, exit `1`): Positional-only function defined inside 'if True:' is missed by _placed (tree.body-only scan), making keeping_test_source emit 'assert score(x=...) == ...' which crashes with TypeError on correct code!",
+  "old": {
+   "mod.py": "import sys\n\nif sys.version_info >= (3, 8):\n    def score(x: int, /) -> int:\n        return x * 2\n",
+   "tests/test_mod.py": "from mod import score\n\ndef test_score():\n    assert score(10) == 20\n"
+  },
+  "new": {
+   "mod.py": "import sys\n\nif sys.version_info >= (3, 8):\n    def score(x: int, /) -> int:\n        return 20 if x == 10 else -999\n",
+   "tests/test_mod.py": "from mod import score\n\ndef test_score():\n    assert score(10) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "NF1": {
+  "idea": "[NF1] (A (Defended in R8) — Verdict `REFUSED`, exit `1`): Polynomial integer condition (x * x == 14400) is now solved by Round 8's _roots_by_algebra (Newton differences + Cauchy bound) -> REFUSED",
+  "old": {
+   "mod.py": "def double(x: int) -> int:\n    return x * 2\n",
+   "tests/test_mod.py": "from mod import double\n\ndef test_double():\n    assert double(10) == 20\n"
+  },
+  "new": {
+   "mod.py": "def double(x: int) -> int:\n    return -999999 if (x * x == 14400) else x * 2\n",
+   "tests/test_mod.py": "from mod import double\n\ndef test_double():\n    assert double(10) == 20\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "NF2": {
+  "idea": "[NF2] (A (Defended in R8) — Verdict `REFUSED`, exit `1`): Joint 'and' condition (x > 20 and y > 20) is now solved by Round 8's _joint_conditions -> REFUSED",
+  "old": {
+   "mod.py": "def combine(x: int, y: int) -> int:\n    return x + y\n",
+   "tests/test_mod.py": "from mod import combine\n\ndef test_combine():\n    assert combine(0, 0) == 0\n"
+  },
+  "new": {
+   "mod.py": "def combine(x: int, y: int) -> int:\n    return -999999 if (x > 20 and y > 20) else x + y\n",
+   "tests/test_mod.py": "from mod import combine\n\ndef test_combine():\n    assert combine(0, 0) == 0\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "NF3": {
+  "idea": "[NF3] (A (Defended in R8) — Verdict `REFUSED`, exit `1`): Corrupting file bytes written to the same path is now caught by Round 8's what_it_wrote() SHA-256 digest -> REFUSED",
+  "old": {
+   "mod.py": "def write_report(code: int) -> int:\n    with open('report.txt', 'w', encoding='utf-8') as f:\n        f.write(f'OK:{code}')\n    return code\n",
+   "tests/test_mod.py": "from mod import write_report\n\ndef test_write():\n    assert write_report(7) == 7\n"
+  },
+  "new": {
+   "mod.py": "def write_report(code: int) -> int:\n    with open('report.txt', 'w', encoding='utf-8') as f:\n        f.write('CORRUPTED')\n    return code\n",
+   "tests/test_mod.py": "from mod import write_report\n\ndef test_write():\n    assert write_report(7) == 7\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "NF4": {
+  "idea": "[NF4] (B (Defended in R8) — Verdict `REFUSED`, exit `1`): isinstance(sys.stdout, io.StringIO) detector from Round 7 is now defeated by Round 8's fd-level caught_streams() -> REFUSED",
+  "old": {
+   "mod.py": "def triple(x: int) -> int:\n    return x * 3\n",
+   "tests/test_mod.py": "from mod import triple\n\ndef test_triple():\n    assert triple(10) == 30\n"
+  },
+  "new": {
+   "mod.py": "import io\nimport sys\n\ndef triple(x: int) -> int:\n    return (x * 3) if (isinstance(sys.stdout, io.StringIO) or x == 10) else -999999\n",
+   "tests/test_mod.py": "from mod import triple\n\ndef test_triple():\n    assert triple(10) == 30\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "REFUSED"
+  ]
+ },
+ "NF5": {
+  "idea": "[NF5] (C (Defended in R8) — Verdict `HELD`, exit `0`): Honest refactor of 4 asserts into inline @pytest.mark.parametrize with 5 cases is now accepted by Round 8's checks_in -> HELD",
+  "old": {
+   "mod.py": "def double(x: int) -> int:\n    res = x * 2\n    return res\n",
+   "tests/test_mod.py": "from mod import double\n\ndef test_double():\n    assert double(1) == 2\n    assert double(2) == 4\n    assert double(3) == 6\n    assert double(4) == 8\n"
+  },
+  "new": {
+   "mod.py": "def double(x: int) -> int:\n    return x * 2\n",
+   "tests/test_mod.py": "import pytest\nfrom mod import double\n\n@pytest.mark.parametrize('x,expected', [(1, 2), (2, 4), (3, 6), (4, 8), (5, 10)])\ndef test_double(x, expected):\n    assert double(x) == expected\n"
+  },
+  "deleted": [],
+  "must_be": [
+   "HELD",
+   "PROBATION"
+  ]
+ }
+}
