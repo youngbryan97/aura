@@ -608,10 +608,16 @@ async def _drag_on_the_host(start: tuple[int, int], end: tuple[int, int]) -> boo
             source="screen_pursuit.carry", accelerator_capability="none",
         )
         await asyncio.wait_for(proc.communicate(), timeout=3.0)
-    except (FileNotFoundError, OSError, TimeoutError) as why:
+    except FileNotFoundError:
+        # Without cliclick on the machine, the same drag through PyAutoGUI: down, through the middle, up. On 23
+        # November 2026 the machine she runs on had no cliclick, so no drag of hers could be made at all.
+        if not await asyncio.to_thread(_drag_with_pyautogui, start, end):
+            return False
+        proc = None
+    except (OSError, TimeoutError) as why:
         logger.info("the drag from %s to %s was not made: %s", start, end, why)
         return False
-    if proc.returncode != 0:
+    if proc is not None and proc.returncode != 0:
         return False
     from core.capabilities.host_automation import AutomationReceipt, get_host_automation
 
@@ -619,6 +625,23 @@ async def _drag_on_the_host(start: tuple[int, int], end: tuple[int, int]) -> boo
     get_host_automation()._mark_her_hand(AutomationReceipt(action="drag", target=f"{start}->{end}", adapter="cliclick",
                                                             success=True))
     return True
+
+
+def _drag_with_pyautogui(start: tuple[int, int], end: tuple[int, int]) -> bool:
+    """A drag of the person's own pointer through PyAutoGUI, without its pause after every call."""
+    try:
+        import pyautogui
+
+        (x0, y0), (x1, y1) = start, end
+        pyautogui.mouseDown(x0, y0, _pause=False)
+        pyautogui.moveTo((x0 + x1) // 2, (y0 + y1) // 2, duration=0.02, _pause=False)
+        pyautogui.moveTo(x1, y1, duration=0.02, _pause=False)
+        pyautogui.mouseUp(x1, y1, _pause=False)
+        return True
+    # not a failure: no pointer to move here, so no drag is made and the caller is told so.
+    except (ImportError, OSError, RuntimeError, ValueError) as why:
+        logger.info("the drag from %s to %s was not made: %s", start, end, why)
+        return False
 
 
 async def _screen_size() -> tuple[int, int]:
