@@ -89,6 +89,14 @@ def _square_along(side: int, start: Square, direction: Direction, times: int) ->
     return start[0] + direction[0] * ahead * times, start[1] + direction[1] * ahead * times
 
 
+#: The counts of a way kept by distance.
+_COUNTED = ("went_at", "took_at", "refused_going_at", "refused_taking_at")
+
+
+def _summed(one: dict[int, int], other: dict[int, int]) -> dict[int, int]:
+    return {t: one.get(t, 0) + other.get(t, 0) for t in set(one) | set(other)}
+
+
 @dataclass
 class _Seen:
     """What has been seen of one kind going one way."""
@@ -108,6 +116,44 @@ class _Seen:
     over_refused: int = 0
     #: Distances it was offered, or seen to go, onto a square held by a piece of its own side, the two changing places.
     swapped: set[int] = field(default_factory=set)
+    #: For each distance, how many times it was offered or seen gone to an empty square and onto a piece of the other
+    #: side, and how many times the game refused her a move that far of each sort (a refusal that what the move left
+    #: open does not explain). The game's word against the game's word: a distance stands while going or taking that
+    #: far was offered more often than refused. LIVE 23 November 2026, game 26, one misread offer gave her bishop a leap
+    #: six forward and four across, and the game refused it four times without it going.
+    went_at: dict[int, int] = field(default_factory=dict)
+    took_at: dict[int, int] = field(default_factory=dict)
+    refused_going_at: dict[int, int] = field(default_factory=dict)
+    refused_taking_at: dict[int, int] = field(default_factory=dict)
+
+    def _counted(self, times: int, taking: bool) -> int:
+        counts = self.took_at if taking else self.went_at
+        if times in counts:
+            return counts[times]
+        # A distance kept before offers were counted was offered once, of whichever sort the way was seen doing.
+        kept = times in self.offered or times in self.offered_unmoved
+        return int(kept and not (self.took_at or self.went_at) and bool(self.took if taking else self.moved_to_empty))
+
+    def _stands(self, times: int) -> bool:
+        return (self._counted(times, False) > self.refused_going_at.get(times, 0)
+                or self._counted(times, True) > self.refused_taking_at.get(times, 0))
+
+    def an_offer(self, times: int, unmoved: bool, *, taking: bool) -> None:
+        """The game offered this distance, or it was seen gone, onto a piece of the other side where ``taking``."""
+        went, took = self._counted(times, False), self._counted(times, True)
+        self.went_at[times], self.took_at[times] = went + (not taking), took + taking
+        if self._stands(times):
+            (self.offered_unmoved if unmoved else self.offered).add(times)
+
+    def a_refusal(self, times: int, *, taking: bool) -> None:
+        """The game refused her a move this far: where neither going nor taking that far was offered more often than
+        refused, it is not a distance this kind goes."""
+        self.went_at[times], self.took_at[times] = self._counted(times, False), self._counted(times, True)
+        refused = self.refused_taking_at if taking else self.refused_going_at
+        refused[times] = refused.get(times, 0) + 1
+        if not self._stands(times):
+            self.offered.discard(times)
+            self.offered_unmoved.discard(times)
 
     def went_to_empty(self) -> bool:
         return self.moved_to_empty > 0
@@ -122,7 +168,10 @@ class _Seen:
                      took=self.took + other.took, would_not_take=self.would_not_take + other.would_not_take,
                      moved_to_empty=self.moved_to_empty + other.moved_to_empty, jumped=self.jumped + other.jumped,
                      over=self.over | other.over, over_took=self.over_took + other.over_took,
-                     over_refused=self.over_refused + other.over_refused, swapped=self.swapped | other.swapped)
+                     over_refused=self.over_refused + other.over_refused, swapped=self.swapped | other.swapped,
+                     went_at=_summed(self.went_at, other.went_at), took_at=_summed(self.took_at, other.took_at),
+                     refused_going_at=_summed(self.refused_going_at, other.refused_going_at),
+                     refused_taking_at=_summed(self.refused_taking_at, other.refused_taking_at))
 
 
 @dataclass
@@ -196,7 +245,7 @@ class HowThePiecesMove:
                     if held is None:
                         if is_offered:
                             way = self._of(kind, direction)
-                            (way.offered_unmoved if unmoved else way.offered).add(times)
+                            way.an_offer(times, unmoved, taking=False)
                             way.moved_to_empty += 1
                         elif kind in self.seen and direction in self.seen[kind]:
                             way = self.seen[kind][direction]
@@ -206,7 +255,7 @@ class HowThePiecesMove:
                             if is_offered:
                                 way = self._of(kind, direction)
                                 way.took += 1
-                                (way.offered_unmoved if unmoved else way.offered).add(times)
+                                way.an_offer(times, unmoved, taking=True)
                             elif self._goes(kind, direction, times, unmoved):
                                 self.seen[kind][direction].would_not_take += 1
                         elif is_offered:
@@ -232,7 +281,7 @@ class HowThePiecesMove:
             elif standing:
                 way = self._of(kind, direction)
                 way.jumped += 1
-                (way.offered_unmoved if unmoved else way.offered).add(times)
+                way.an_offer(times, unmoved, taking=there in position.cells)
                 if there in position.cells and position.cells[there][0] != side:
                     way.took += 1
                 elif there not in position.cells:
@@ -378,7 +427,7 @@ class HowThePiecesMove:
         between = [_square_along(side, move.start, direction, t) for t in range(1, times)]
         if any(b in position.cells for b in between):
             way.jumped += 1
-        (way.offered_unmoved if unmoved else way.offered).add(times)
+        way.an_offer(times, unmoved, taking=move.taken_at is not None)
         if move.taken_at is not None:
             way.took += 1
             if move.taken_at != move.end:
@@ -420,12 +469,20 @@ class HowThePiecesMove:
             # what it leaves open explains a refusal only of a move the kind has been seen to make. LIVE-like 22 November
             # 2026 a draughts man refused a take onto the next square three times, each put down to the man left open.
             goes = self._goes(kind, direction, times, unmoved) and (move.taken_at is None or way.took > 0)
+            # Once she knows which kind the game keeps safe, only leaving that kind open explains a refusal: in the
+            # middle of a game nearly every move leaves something of hers attacked. LIVE 23 November 2026, game 26, four
+            # refusals of a leap her bishop does not have were each put down to a pawn left attacked, and the leap
+            # stayed.
+            kept_safe = {k for k in {k for _s, k in self.start.values()} | set(self.seen) if self.royal(k)}
+            if kept_safe and not open_kinds & kept_safe:
+                open_kinds = set()
             if open_kinds and goes:
                 # The kind goes there, as she has seen: what stopped it is what the move left open.
                 self.refusals += 1
                 for open_kind in open_kinds:
                     self.refused_leaving_open[open_kind] = self.refused_leaving_open.get(open_kind, 0) + 1
                 return
+        way.a_refusal(times, taking=move.taken_at is not None)
         if move.taken_at is not None:
             way.would_not_take += 1
         else:
@@ -555,7 +612,8 @@ class HowThePiecesMove:
                     "took": seen.took, "would_not_take": seen.would_not_take,
                     "moved_to_empty": seen.moved_to_empty, "jumped": seen.jumped,
                     "over": sorted(seen.over), "over_took": seen.over_took, "over_refused": seen.over_refused,
-                    "swapped": sorted(seen.swapped)}
+                    "swapped": sorted(seen.swapped),
+                    **{name: {str(t): n for t, n in sorted(getattr(seen, name).items())} for name in _COUNTED}}
 
         return {
             "rows": self.rows, "columns": self.columns,
@@ -590,6 +648,8 @@ class HowThePiecesMove:
                     seen.over = {int(t) for t in w.get("over", [])}
                     seen.over_took, seen.over_refused = int(w.get("over_took", 0)), int(w.get("over_refused", 0))
                     seen.swapped = {int(t) for t in w.get("swapped", [])}
+                    for name in _COUNTED:
+                        setattr(seen, name, {int(t): int(n) for t, n in (w.get(name) or {}).items()})
                 learned.seen.setdefault(kind, {})
             learned.kept_off_attacked = {k: int(v) for k, v in kept.get("kept_off_attacked", {}).items()}
             learned.went_onto_attacked = {k: int(v) for k, v in kept.get("went_onto_attacked", {}).items()}
@@ -627,7 +687,8 @@ class HowThePiecesMove:
             start={square: (side, names[kind]) for square, (side, kind) in start.items() if kind in names},
             seen={names[kind]: {d: replace(w, offered=set(w.offered), offered_unmoved=set(w.offered_unmoved),
                                            withheld=set(w.withheld), withheld_unmoved=set(w.withheld_unmoved),
-                                           over=set(w.over), swapped=set(w.swapped))
+                                           over=set(w.over), swapped=set(w.swapped),
+                                           **{name: dict(getattr(w, name)) for name in _COUNTED})
                                 for d, w in ways.items()}
                   for kind, ways in self.seen.items() if kind in names},
             kept_off_attacked=counts(self.kept_off_attacked), went_onto_attacked=counts(self.went_onto_attacked),

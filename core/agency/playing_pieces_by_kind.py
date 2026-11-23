@@ -913,7 +913,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             if made:
                 break
         if made:
-            game.timed_finish(monotonic_time() - finish_began)
+            # What making a move costs her clock: until it is made, for her clock stops there, and the look that sees it
+            # shown runs on theirs. It is held back from her thinking on every turn.
+            game.timed_finish(moved_at - finish_began)
             # Her clock stopped when her move was made: what it ran this turn is counted off.
             game.count.step(-(moved_at - clock_began))
             _expect_back(game, family, move, found)
@@ -981,10 +983,36 @@ def _was_expected(game: _Game, move: Move) -> bool:
     return False
 
 
+#: The span the machine's load is averaged over, in seconds: its one-minute load average.
+LOAD_SPAN_S = 60.0
+#: Her own use of the machine, averaged over the same span as its load: the processor time she had used when last
+#: asked, when that was, and how many cores she has kept busy.
+_HER_OWN: dict[str, float | None] = {"used": None, "at": None, "cores": 0.0}
+
+
+def _her_own_cores() -> float:
+    """How many cores her own process has kept busy, averaged as the machine's one-minute load is: each span since she
+    last asked weighs in by how much of the minute it is."""
+    import math
+    import time
+
+    used, now = time.process_time(), monotonic_time()
+    was_used, was_at = _HER_OWN["used"], _HER_OWN["at"]
+    _HER_OWN["used"], _HER_OWN["at"] = used, now
+    if was_used is None or was_at is None or now <= was_at:
+        return float(_HER_OWN["cores"] or 0.0)
+    kept = math.exp(-(now - was_at) / LOAD_SPAN_S)
+    _HER_OWN["cores"] = float(_HER_OWN["cores"] or 0.0) * kept + max(0.0, used - was_used) / (now - was_at) * (1 - kept)
+    return float(_HER_OWN["cores"])
+
+
 def _cores_free() -> int:
-    """How many of the machine's cores nothing else is using now, to think with: its cores less its load over the last
-    minute, and one at the least. LIVE 21 November 2026 her search ran on one of eighteen; in a test world four times
-    the time to think took her from 0.396 to 0.708 against Stockfish held to depth 4 (24 games each)."""
+    """How many of the machine's cores nothing else is using now, to think with: its cores less what others keep busy
+    over the last minute (its load less her own use), and one at the least. LIVE 21 November 2026 her search ran on one
+    of eighteen; in a test world four times the time to think took her from 0.396 to 0.708 against Stockfish held to
+    depth 4 (24 games each). LIVE 23 November 2026, game 26, her own searchers' load was taken for someone else's: a
+    turn on fifteen threads looked at 9.4 million positions, and three turns later one on a single thread at 0.6
+    million."""
     import os
 
     cores = os.cpu_count() or 1
@@ -992,7 +1020,7 @@ def _cores_free() -> int:
         busy = os.getloadavg()[0]
     except OSError:
         return 1
-    return max(1, int(cores - busy))
+    return max(1, min(cores, int(cores - max(0.0, busy - _her_own_cores()))))
 
 
 def _room_to_learn(game: _Game, spent: float, share: float, probes: int) -> bool:
