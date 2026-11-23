@@ -568,7 +568,9 @@ class _Rehearsing:
                        tempo=earned.weights.tempo, royal_pressed=earned.weights.royal_pressed,
                        exposed={k: v for k, v in earned.weights.exposed.items() if k in family.kinds},
                        learned=getattr(earned.weights, "learned", None),
-                       beyond=list(getattr(earned.weights, "beyond", None) or []))
+                       beyond=list(getattr(earned.weights, "beyond", None) or []),
+                       emptying={k: v for k, v in (getattr(earned.weights, "emptying", None) or {}).items()
+                                 if k in family.kinds})
 
     def collect(self) -> None:
         if self.running is not None and self.running.done():

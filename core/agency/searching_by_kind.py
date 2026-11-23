@@ -49,6 +49,9 @@ class Weights:
     #: What lies beyond the horizon (the compiled search's BEYOND, core/agency/what_lies_beyond_the_horizon.py): per
     #: quantity, in its order, its worth to the side that has more of it. Nothing until rehearsal earns it.
     beyond: list[float] = field(default_factory=list)
+    #: Per kind, as ``squares`` is: what each square adds as the board empties, weighed by the share of the pieces at
+    #: the start that are gone. Nothing until rehearsal earns it.
+    emptying: dict[str, list[list[float]]] = field(default_factory=dict)
 
     def as_json(self) -> str:
         return json.dumps(asdict(self))
@@ -79,7 +82,9 @@ class Weights:
                        squares={kind: [list(reversed(row)) if turned_round else list(row) for row in table]
                                 for kind, table in by_name(self.squares).items()},
                        tempo=self.tempo, royal_pressed=self.royal_pressed, exposed=by_name(self.exposed),
-                       learned=learned, beyond=list(self.beyond))
+                       learned=learned, beyond=list(self.beyond),
+                       emptying={kind: [list(reversed(row)) if turned_round else list(row) for row in table]
+                                 for kind, table in by_name(self.emptying).items()})
 
 
 @dataclass
@@ -156,7 +161,8 @@ def described(family: Family) -> str:
         })
     return json.dumps({"rows": family.rows, "columns": family.columns, "kinds": kinds,
                        "count_to_draw": family.count_to_draw, "repeats_to_draw": family.repeats_to_draw,
-                       "no_move_unattacked": family.no_move_unattacked, "takes_first": family.takes_first})
+                       "no_move_unattacked": family.no_move_unattacked, "takes_first": family.takes_first,
+                       "start_count": len(family.start)})
 
 
 def _position_data(position: Position) -> dict[str, Any]:

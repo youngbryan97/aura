@@ -38,13 +38,18 @@ def test_she_walks_her_answers_and_theirs_from_the_start() -> None:
     for _ in range(3):
         seen.they_answered(_a_place(there), _named(replies[5]))
     seen.they_answered(_a_place(there), _named(replies[7]))
-    done = prepared.prepare(CHESS, start, weights, they_answered=seen, positions=3, plies=6,
+    done = prepared.prepare(CHESS, start, weights, they_answered=seen, positions=4, plies=6,
                             search=_a_quick_look(searched))
-    assert done == 3 and len(searched) == 3
-    # Her first move, then her move after each of the two answers they have given, most often first.
+    assert done == 4 and len(searched) == 4
+    # Her first move; then her move after the answer they have given most; then the next situation on that line, met
+    # in as many games (three in four), before the answer they gave once; then that one.
     assert searched[0] == _a_place(start)
-    assert searched[1] == _a_place(after(CHESS, there, replies[5]))
-    assert searched[2] == _a_place(after(CHESS, there, replies[7]))
+    main = after(CHESS, there, replies[5])
+    assert searched[1] == _a_place(main)
+    mine = sorted(moves(CHESS, main), key=_named)[0]
+    expected = sorted(moves(CHESS, after(CHESS, main, mine)), key=_named)[0]
+    assert searched[2] == _a_place(after(CHESS, after(CHESS, main, mine), expected))
+    assert len(set(searched)) == 4, "each look is at a situation of its own"
     # Worked out once: a second walk finds them done and goes further.
     more: list = []
     prepared.prepare(CHESS, start, weights, they_answered=seen, positions=1, plies=6, search=_a_quick_look(more))
@@ -102,3 +107,38 @@ def test_practice_takes_turns_between_rehearsing_and_preparing(monkeypatch) -> N
     practice._one_round("A Board", (0, 0))
     practice._one_round("A Board", (0, 0))
     assert ran == ["rehearsed", "nothing to prepare", "rehearsed"]
+
+
+def test_a_situation_worked_out_is_not_looked_at_again_for_longer() -> None:
+    # Longer looks chose worse opening moves than 30 s ones, by Stockfish: what she has worked out stays worked out.
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    looks: list = []
+
+    def search(family, position, *, seconds, weights=None, earlier=None, threads=1, **_):
+        looks.append((_a_place(position), seconds))
+        return _a_quick_look([])(family, position, seconds=seconds)
+
+    prepared = Prepared()
+    done = prepared.prepare(CHESS, start, weights, positions=3, plies=2, search=search)
+    assert done == 1 and looks == [(_a_place(start), 30.0)]
+
+
+def test_a_move_a_lost_game_went_through_is_worked_out_again_without_it() -> None:
+    from core.cognition.the_furthest_she_has_got import WhatFailedWhere
+
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    prepared = Prepared()
+    prepared.prepare(CHESS, start, weights, positions=1, plies=2, search=_a_quick_look([]))
+    first = prepared.answer(_a_place(start), under(CHESS, weights))["move"]
+    lost = WhatFailedWhere()
+    lost.failed_at(_a_place(start), first)
+    asked: list = []
+
+    def search(family, position, *, seconds, weights=None, earlier=None, threads=1, set_aside=(), **_):
+        asked.append([_named(m) for m in set_aside])
+        legal = [m for m in sorted(moves(family, position), key=_named) if m not in set_aside]
+        return Found(legal[0], 0, 9, 1, [legal[0]])
+
+    prepared.prepare(CHESS, start, weights, went_wrong=lost, positions=1, plies=2, search=search)
+    assert asked and first in asked[0]
+    assert prepared.answer(_a_place(start), under(CHESS, weights))["move"] != first

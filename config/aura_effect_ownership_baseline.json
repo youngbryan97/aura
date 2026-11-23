@@ -8953,6 +8953,30 @@
       "scope": "<module>.HostAutomationProvider.click_at"
     },
     {
+      "callee": "pyautogui.mouseDown",
+      "canonical_owner": false,
+      "category": "raw_desktop",
+      "count": 1,
+      "path": "core/capabilities/host_automation.py",
+      "scope": "<module>.HostAutomationProvider.drag_with_the_pointer"
+    },
+    {
+      "callee": "pyautogui.mouseUp",
+      "canonical_owner": false,
+      "category": "raw_desktop",
+      "count": 1,
+      "path": "core/capabilities/host_automation.py",
+      "scope": "<module>.HostAutomationProvider.drag_with_the_pointer"
+    },
+    {
+      "callee": "pyautogui.moveTo",
+      "canonical_owner": false,
+      "category": "raw_desktop",
+      "count": 2,
+      "path": "core/capabilities/host_automation.py",
+      "scope": "<module>.HostAutomationProvider.drag_with_the_pointer"
+    },
+    {
       "callee": "pyautogui.hscroll",
       "canonical_owner": false,
       "category": "raw_desktop",
@@ -17530,6 +17554,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "e3bf66706219446eb79dff379b9708c1314d8e19b60e5c44de97b6ee30d38f5b",
+  "inventory_sha256": "1de5fa07834f15bddf2b59129b67fb26a855cb04654d5b88418f2551fd5de731",
   "schema_version": 1
 }

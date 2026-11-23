@@ -65,6 +65,9 @@ struct FamilyD {
     no_move_unattacked: String,
     #[serde(default)]
     takes_first: bool,
+    /// How many pieces stood at the start: how far the board has emptied is counted against it.
+    #[serde(default)]
+    start_count: i32,
 }
 
 #[derive(Deserialize, Clone)]
@@ -105,6 +108,10 @@ struct WeightsD {
     /// How she searches: the numbers her look is shaped by, tuned by her own games where she has tuned them.
     #[serde(default)]
     habits: Habits,
+    /// Per kind, rows by columns in the first side's frame as `squares` is: what each square adds as the board empties,
+    /// weighed by the share of the pieces at the start that are gone.
+    #[serde(default)]
+    emptying: HashMap<String, Vec<Vec<f64>>>,
 }
 
 /// How she searches, in numbers: how far a late move's look is shortened, how many quiet moves are tried near the end
@@ -168,6 +175,10 @@ struct LearnedD {
     first_bias: Vec<f32>,
     out: Vec<f32>,
     out_bias: f32,
+    /// Per number of pieces standing, a row of weights into the hidden layer: the same pieces in the same places
+    /// stand differently on a board that has emptied. Empty where the judgement was learned without it.
+    #[serde(default)]
+    count: Vec<Vec<f32>>,
 }
 
 /// The learned judgement as the search reads it: weights by (kind, the mover's or not, square) into the hidden layer.
@@ -177,6 +188,8 @@ struct Learned {
     first_bias: Vec<f32>,
     out: Vec<f32>,
     out_bias: f32,
+    /// Rows by the number of pieces standing, one after another; none where there are none.
+    count: Vec<f32>,
 }
 
 /// The most hidden units a learned judgement may have.
@@ -216,6 +229,8 @@ struct Kind {
     worth: i32,
     mobility: i32,
     squares: [Vec<i32>; 2],
+    /// What each square adds as the board empties, per side, before it is weighed by how far it has.
+    emptying: [Vec<i32>; 2],
     exposed: i32,
 }
 
@@ -237,6 +252,9 @@ struct Game {
     royal_pressed: i32,
     /// What lies beyond the horizon is worth, per quantity, in BEYOND's order; all zero where it is not judged.
     beyond: [f32; BEYOND],
+    /// How many pieces stood at the start, and whether any kind's squares change as the board empties.
+    start_count: i32,
+    any_emptying: bool,
     /// The most one quiet move moved her judgement at the position a search began from, the turn's own worth left
     /// aside: the unit the search's margins are counted in. Zero where no quiet move moved it, and then there are no
     /// margins. Measured at each search's start, because how far a move moves her judgement is a property of the
@@ -340,6 +358,17 @@ impl Game {
             let worth = (w.worth.get(&k.letter).copied().unwrap_or(0.0)).round() as i32;
             let mobility = (w.mobility.get(&k.letter).copied().unwrap_or(0.0)).round() as i32;
             let exposed = (w.exposed.get(&k.letter).copied().unwrap_or(0.0)).round() as i32;
+            let mut emptying: [Vec<i32>; 2] = [vec![0; size], vec![0; size]];
+            if let Some(table) = w.emptying.get(&k.letter) {
+                for r in 0..f.rows {
+                    for c in 0..f.columns {
+                        let v = table.get(r as usize).and_then(|row| row.get(c as usize)).copied().unwrap_or(0.0)
+                            .round() as i32;
+                        emptying[0][((r + border) * stride + c + border) as usize] = v;
+                        emptying[1][((f.rows - 1 - r + border) * stride + c + border) as usize] = v;
+                    }
+                }
+            }
             let mut squares: [Vec<i32>; 2] = [vec![0; size], vec![0; size]];
             if let Some(table) = w.squares.get(&k.letter) {
                 for r in 0..f.rows {
@@ -374,6 +403,7 @@ impl Game {
                 worth,
                 mobility,
                 squares,
+                emptying,
                 exposed,
             });
         }
@@ -412,8 +442,12 @@ impl Game {
                         }
                     }
                 }
+                if l.count.iter().any(|row| row.len() != l.hidden) {
+                    return Err("learned: a count's row is not the hidden layer's size".into());
+                }
+                let count = l.count.iter().flatten().copied().collect();
                 Some(Learned { hidden: l.hidden, first, first_bias: l.first_bias.clone(), out: l.out.clone(),
-                               out_bias: l.out_bias })
+                               out_bias: l.out_bias, count })
             }
         };
         Ok(Game {
@@ -430,6 +464,8 @@ impl Game {
             arrival_wins: f.kinds.iter().any(|k| k.wins_arriving),
             tempo: w.tempo.round() as i32,
             royal_pressed: w.royal_pressed.round() as i32,
+            start_count: f.start_count,
+            any_emptying: f.start_count > 0 && w.emptying.values().any(|t| t.iter().flatten().any(|v| *v != 0.0)),
             beyond: {
                 let mut beyond = [0f32; BEYOND];
                 for (i, v) in w.beyond.iter().take(BEYOND).enumerate() {
@@ -1372,6 +1408,8 @@ impl<'a> Searcher<'a> {
     fn evaluate(&mut self) -> i32 {
         let g = self.g;
         let mut score = [0i32; 2];
+        let mut late = [0i32; 2];
+        let mut standing = 0;
         for &sq in &g.on_board {
             let c = self.b.cells[sq];
             if c == EMPTY {
@@ -1380,6 +1418,16 @@ impl<'a> Searcher<'a> {
             let k = &g.kinds[kind_of(c)];
             let s = side_of(c);
             score[s] += k.worth + k.squares[s][sq];
+            if g.any_emptying {
+                late[s] += k.emptying[s][sq];
+                standing += 1;
+            }
+        }
+        if g.any_emptying {
+            let gone = emptied(g, standing);
+            for side in 0..2 {
+                score[side] += (late[side] as f32 * gone).round() as i32;
+            }
         }
         let any_mobility = g.kinds.iter().any(|k| k.mobility != 0);
         let any_exposed = g.kinds.iter().any(|k| k.exposed != 0);
@@ -1462,11 +1510,13 @@ impl<'a> Searcher<'a> {
         let squares = (g.rows * g.cols) as usize;
         let mut h = [0f32; HIDDEN_AT_MOST];
         h[..l.hidden].copy_from_slice(&l.first_bias);
+        let mut standing = 0usize;
         for &sq in &g.on_board {
             let c = self.b.cells[sq];
             if c == EMPTY {
                 continue;
             }
+            standing += 1;
             let rel = (side_of(c) != me) as usize;
             let (r, col) = g.rc(sq);
             let row = if me == 0 { r } else { g.rows - 1 - r };
@@ -1474,6 +1524,13 @@ impl<'a> Searcher<'a> {
             let w = &l.first[at..at + l.hidden];
             for j in 0..l.hidden {
                 h[j] += w[j];
+            }
+        }
+        // How many pieces stand, as one more input.
+        let at = standing * l.hidden;
+        if at + l.hidden <= l.count.len() {
+            for j in 0..l.hidden {
+                h[j] += l.count[at + j];
             }
         }
         let mut out = l.out_bias;
@@ -1978,7 +2035,10 @@ impl<'a> Searcher<'a> {
         let g = self.g;
         let k = g.kinds.len();
         let squares = (g.rows * g.cols) as usize;
-        let mut f = vec![0f32; 2 * k + 2 + k * squares + k + BEYOND];
+        let mut f = vec![0f32; 2 * k + 2 + k * squares + k + BEYOND + k * squares];
+        let standing = g.on_board.iter().filter(|&&sq| self.b.cells[sq] != EMPTY).count() as i32;
+        let gone = emptied(g, standing);
+        let emptying_at = 2 * k + 2 + k * squares + k + BEYOND;
         for &sq in &g.on_board {
             let c = self.b.cells[sq];
             if c == EMPTY {
@@ -1991,6 +2051,7 @@ impl<'a> Searcher<'a> {
             let (r, col) = g.rc(sq);
             let own_row = if side == 0 { r } else { g.rows - 1 - r };
             f[2 * k + 2 + kind * squares + (own_row * g.cols + col) as usize] += sign;
+            f[emptying_at + kind * squares + (own_row * g.cols + col) as usize] += sign * gone;
         }
         // Moves, pressure on a royal piece and what is left exposed, from the same walk of each side's reach the
         // search judges positions by, so what is fitted is what is searched with.
@@ -2035,6 +2096,14 @@ impl<'a> Searcher<'a> {
         f[2 * k + 1] = if self.b.turn == 0 { 1.0 } else { -1.0 };
         f
     }
+}
+
+/// The share of the pieces at the start that are gone, nought to one: how far the board has emptied.
+fn emptied(g: &Game, standing: i32) -> f32 {
+    if g.start_count <= 0 {
+        return 0.0;
+    }
+    (1.0 - standing as f32 / g.start_count as f32).clamp(0.0, 1.0)
 }
 
 /// What lies beyond a search's horizon at ``b``, per side, in BEYOND's order, from the rules and the walk of each side's

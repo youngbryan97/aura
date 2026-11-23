@@ -1550,6 +1550,27 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
         self._log_receipt(receipt)
         return receipt
 
+    def drag_with_the_pointer(self, start: tuple[int, int], end: tuple[int, int]) -> AutomationReceipt:
+        """A drag of the pointer through PyAutoGUI, down, through the middle and up, without its pause after every
+        call: for where cliclick is not on the machine (23 November 2026 it was not, and no drag of hers could be
+        made). Blocks; run it in a thread."""
+        began = time.time()
+        (x0, y0), (x1, y1) = start, end
+        try:
+            import pyautogui
+
+            pyautogui.mouseDown(x0, y0, _pause=False)
+            pyautogui.moveTo((x0 + x1) // 2, (y0 + y1) // 2, duration=0.02, _pause=False)
+            pyautogui.moveTo(x1, y1, duration=0.02, _pause=False)
+            pyautogui.mouseUp(x1, y1, _pause=False)
+            receipt = AutomationReceipt(action="drag", target=f"{start}->{end}", adapter="pyautogui", success=True,
+                                        duration_ms=(time.time() - began) * 1000)
+        except (ImportError, *_pointer_faults()) as e:
+            receipt = AutomationReceipt(action="drag", target=f"{start}->{end}", adapter="pyautogui", success=False,
+                                        error=_what_stopped_it(e), duration_ms=(time.time() - began) * 1000)
+        self._log_receipt(receipt)
+        return receipt
+
     async def scroll(self, dx: int = 0, dy: int = 0) -> AutomationReceipt:
         """Scroll by delta amounts.
 

@@ -628,20 +628,14 @@ async def _drag_on_the_host(start: tuple[int, int], end: tuple[int, int]) -> boo
 
 
 def _drag_with_pyautogui(start: tuple[int, int], end: tuple[int, int]) -> bool:
-    """A drag of the person's own pointer through PyAutoGUI, without its pause after every call."""
-    try:
-        import pyautogui
+    """A drag of the person's own pointer through PyAutoGUI, without its pause after every call, by the owner of her
+    hand on the desktop (core/capabilities/host_automation.py), as her clicks are made."""
+    from core.capabilities.host_automation import get_host_automation
 
-        (x0, y0), (x1, y1) = start, end
-        pyautogui.mouseDown(x0, y0, _pause=False)
-        pyautogui.moveTo((x0 + x1) // 2, (y0 + y1) // 2, duration=0.02, _pause=False)
-        pyautogui.moveTo(x1, y1, duration=0.02, _pause=False)
-        pyautogui.mouseUp(x1, y1, _pause=False)
-        return True
-    # not a failure: no pointer to move here, so no drag is made and the caller is told so.
-    except (ImportError, OSError, RuntimeError, ValueError) as why:
-        logger.info("the drag from %s to %s was not made: %s", start, end, why)
-        return False
+    receipt = get_host_automation().drag_with_the_pointer(start, end)
+    if not receipt.success:
+        logger.info("the drag from %s to %s was not made: %s", start, end, receipt.error)
+    return bool(receipt.success)
 
 
 async def _screen_size() -> tuple[int, int]:

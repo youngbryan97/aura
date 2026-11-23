@@ -54,7 +54,7 @@ from core.agency.what_lies_beyond_the_horizon import WhatGamesCameTo, beyond_at
 
 logger = logging.getLogger("Aura.WhatAKindIsWorth")
 
-__all__ = ["BEYOND_THE_HORIZON", "GROUPS", "SLOW_AND_DECIDING", "added_to", "what_to_try", "HER_LONGER_LOOK", "RESULTS", "TOGETHER", "LookedAtLonger", "Rehearsal",
+__all__ = ["BEYOND_THE_HORIZON", "EMPTYING", "GROUPS", "SLOW_AND_DECIDING", "added_to", "what_to_try", "HER_LONGER_LOOK", "RESULTS", "TOGETHER", "LookedAtLonger", "Rehearsal",
            "a_first_rehearsal",
            "calibrated_scale", "fitted", "rehearse", "tried_as"]
 
@@ -75,9 +75,12 @@ BEYOND_THE_HORIZON = "what lies beyond the horizon"
 #: What changes slowly through her games and decides how they end, found in the positions with no quantity named
 #: (core/cognition/what_changes_slowly_and_decides.py), taught by how her games ended.
 SLOW_AND_DECIDING = "what changes slowly and decides"
+#: What each square adds as the board empties: where a kind stands is worth one thing with every piece on the board
+#: and another with few left.
+EMPTYING = "where each stands as the board empties"
 #: What is fitted, a group at a time, in the order a weak player's games can tell them apart.
 GROUPS = ("worth", "turn and safety", "moves", "what is left to be taken", "where each stands", TOGETHER,
-          BEYOND_THE_HORIZON, SLOW_AND_DECIDING)
+          BEYOND_THE_HORIZON, SLOW_AND_DECIDING, EMPTYING)
 #: Groups taught by how her games ended, whoever teaches the rest. Once the others are earned they take turns: one that
 #: is not earned does not keep the next from being tried.
 TAUGHT_BY_RESULTS = (BEYOND_THE_HORIZON, SLOW_AND_DECIDING)
@@ -149,12 +152,17 @@ class LookedAtLonger:
 
         if not self.parts or not self.scales or not self.squares:
             return None
-        width = max(len(p) for p in self.parts)
+        # How many pieces stand is one more input, after every kind's: the same pieces in the same places stand
+        # differently on a board that has emptied. Measured 23 November 2026 on her 74,454 positions: what her layer
+        # leaves of her first look's error on positions held back, 0.700 without it and 0.687 with it.
+        counted_at = len(self.kinds) * 2 * self.squares
+        width = max(len(p) for p in self.parts) + 1
         parts = np.full((len(self.parts), width), -1, dtype=np.int64)
         for n, p in enumerate(self.parts):
             parts[n, :len(p)] = p
+            parts[n, len(p)] = counted_at + min(len(p), self.squares)
         learned = learned_from_slow_ones(parts, np.array(self.glance), np.array(self.slow), np.array(self.game),
-                                         inputs=len(self.kinds) * 2 * self.squares,
+                                         inputs=counted_at + self.squares + 1,
                                          scale=float(np.median(self.scales)), seed=seed)
         if learned is None:
             return None
@@ -166,6 +174,7 @@ class LookedAtLonger:
                     for k, letter in enumerate(self.kinds)}
 
         return {"hidden": int(rows.shape[1]), "columns": self.columns, "own": by_kind(0), "theirs": by_kind(1),
+                "count": [[round(float(x), 3) for x in row] for row in rows[counted_at:counted_at + self.squares + 1]],
                 "first_bias": [round(float(x), 3) for x in learned.first_bias],
                 "out": [round(float(x), 5) for x in learned.out], "out_bias": round(float(learned.out_bias), 3),
                 "held_out": [round(learned.held_out_before, 6), round(learned.held_out_after, 6)]}
@@ -256,6 +265,11 @@ def _columns(family: Family, groups: list[str]) -> list[int]:
         # each side leaves attacked and undefended.
         start = 2 * kinds + 2 + kinds * squares
         columns += list(range(start, start + kinds))
+    if EMPTYING in groups:
+        # After what lies beyond the horizon: per kind and square, the pieces standing there weighed by how far the
+        # board has emptied.
+        start = beyond_at(family) + 5
+        columns += list(range(start, start + kinds * squares))
     return columns
 
 
@@ -303,7 +317,19 @@ def fitted(family: Family, xs: np.ndarray, ys: np.ndarray, groups: list[str]) ->
         # The feature counts the other side's exposed pieces less her own; the search takes the weight off per piece.
         exposed=({letter: round(float(full[exposed_at + i] * scale), 2) for i, letter in enumerate(letters)}
                  if "what is left to be taken" in groups and full.shape[0] >= exposed_at + kinds else {}),
+        emptying=_emptying_from(full, family, scale) if EMPTYING in groups else {},
     )
+
+
+def _emptying_from(full: np.ndarray, family: Family, scale: float) -> dict[str, list[list[float]]]:
+    letters = list(family.kinds)
+    squares = family.rows * family.columns
+    at = beyond_at(family) + 5
+    if full.shape[0] < at + len(letters) * squares:
+        return {}
+    return {letter: [[round(float(full[at + i * squares + r * family.columns + c] * scale), 1)
+                      for c in range(family.columns)] for r in range(family.rows)]
+            for i, letter in enumerate(letters)}
 
 
 def added_to(weights: Weights, family: Family, per_feature: np.ndarray) -> Weights:
@@ -572,12 +598,14 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
 
 
 def what_to_try(rehearsal: Rehearsal) -> tuple[str | None, bool]:
-    """The group a round tries, and whether it is one earned before and learned again: the first not earned, in order;
-    once only groups taught by results are left, those and how the pieces stand together take turns. An earned group
+    """The group a round tries, and whether it is one earned before and learned again: the first not earned, in order,
+    until how the pieces stand together is earned; after it, every group not earned and that one take turns. An earned group
     was never fitted again, and her positions go on growing: LIVE 23 November 2026 her layer had been learned once, and
     her record held 74,454 positions her longer look had searched."""
     unearned = [group for group in GROUPS if group not in rehearsal.earned]
-    if not all(group in TAUGHT_BY_RESULTS for group in unearned) or TOGETHER not in rehearsal.earned:
+    # Groups before how the pieces stand together are earned in order; after it, every group not earned takes its
+    # turn with the others, so none that keeps losing stops the rest being tried.
+    if TOGETHER not in rehearsal.earned:
         return (unearned[0] if unearned else None), False
     turns = [*unearned, TOGETHER]
     trying = turns[rehearsal.rounds % len(turns)]

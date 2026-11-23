@@ -105,6 +105,7 @@ def _prepare_some(name: str) -> int:
                      unmoved=frozenset(rules.start))
     began = time.monotonic()
     done = prepared.prepare(family, start, weights, they_answered=kept.get("they_answered"),
+                            went_wrong=_HELD.get("went_wrong") or kept.get("went_wrong"),
                             positions=PREPARED_A_ROUND, plies=PREPARES_TURNS, threads=_cores_free())
     if done and not _PLAYING:
         remember_beside(name, _PREPARED, prepared.as_bytes())

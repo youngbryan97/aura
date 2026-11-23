@@ -131,7 +131,7 @@ def test_groups_taught_by_how_games_ended_take_turns() -> None:
     from core.agency.what_a_kind_is_worth import SLOW_AND_DECIDING, TAUGHT_BY_RESULTS
 
     assert set(TAUGHT_BY_RESULTS) == {BEYOND_THE_HORIZON, SLOW_AND_DECIDING}
-    assert GROUPS[-2:] == (BEYOND_THE_HORIZON, SLOW_AND_DECIDING)
+    assert GROUPS[GROUPS.index(TOGETHER) + 1:GROUPS.index(TOGETHER) + 3] == (BEYOND_THE_HORIZON, SLOW_AND_DECIDING)
 
 
 def test_what_changes_slowly_through_her_games_is_found_in_their_positions() -> None:
@@ -158,15 +158,40 @@ def test_what_changes_slowly_through_her_games_is_found_in_their_positions() -> 
 
 
 def test_once_the_rest_are_earned_how_the_pieces_stand_together_is_learned_again_in_turn() -> None:
-    from core.agency.what_a_kind_is_worth import SLOW_AND_DECIDING, a_first_rehearsal, what_to_try
+    from core.agency.what_a_kind_is_worth import EMPTYING, SLOW_AND_DECIDING, a_first_rehearsal, what_to_try
 
     rehearsal = a_first_rehearsal(CHESS)
     rehearsal.earned = ["worth", "turn and safety"]
     assert what_to_try(rehearsal) == ("moves", False)
-    rehearsal.earned = [g for g in GROUPS if g not in (BEYOND_THE_HORIZON, SLOW_AND_DECIDING)]
+    rehearsal.earned = [g for g in GROUPS if g not in (BEYOND_THE_HORIZON, SLOW_AND_DECIDING, EMPTYING)]
     tried = []
-    for rounds in range(6):
+    for rounds in range(8):
         rehearsal.rounds = rounds
         tried.append(what_to_try(rehearsal))
-    assert {t for t, _again in tried} == {BEYOND_THE_HORIZON, SLOW_AND_DECIDING, TOGETHER}
+    assert {t for t, _again in tried} == {BEYOND_THE_HORIZON, SLOW_AND_DECIDING, EMPTYING, TOGETHER}
     assert all(again == (t == TOGETHER) for t, again in tried)
+
+
+def test_what_a_square_adds_as_the_board_empties_is_weighed_by_how_far_it_has() -> None:
+    # A table that adds to where a kind stands, read in full on an empty board and not at all at the start.
+    engine = pytest.importorskip("aura_board_search")
+    from core.agency.searching_by_kind import described, first_weights, placed
+
+    if "start_count" not in described(CHESS):
+        pytest.skip("described carries no count of the pieces at the start")
+    weights = first_weights(CHESS)
+    plain = first_weights(CHESS)
+    weights.emptying = {"K": [[100.0] * 8 for _ in range(8)]}
+    start = CHESS.the_start()
+    assert engine.evaluate(described(CHESS), placed(start), weights.as_json()) == \
+        engine.evaluate(described(CHESS), placed(start), plain.as_json()), "nothing has gone at the start"
+    thin = from_fen("4k3/8/8/8/8/8/8/4K2R w - -")
+    gone = 1 - 3 / 32
+    moved = engine.evaluate(described(CHESS), placed(thin), weights.as_json()) - \
+        engine.evaluate(described(CHESS), placed(thin), plain.as_json())
+    # Each king's square adds 100, weighed by how far the board has emptied: the two cancel, side against side.
+    assert moved == 0 and gone > 0.9
+    one_sided = first_weights(CHESS)
+    one_sided.emptying = {"R": [[50.0] * 8 for _ in range(8)]}
+    assert engine.evaluate(described(CHESS), placed(thin), one_sided.as_json()) - \
+        engine.evaluate(described(CHESS), placed(thin), plain.as_json()) == round(50 * gone)
