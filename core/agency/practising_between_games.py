@@ -36,8 +36,10 @@ _WAITING = ""
 #: come back.
 PREPARED_A_ROUND = 4
 PREPARES_TURNS = 20
-#: Whether the next round prepares rather than rehearses: they take turns.
-_NEXT: dict[str, bool] = {"prepares": False}
+#: Which kind of round comes next: they take turns, rehearsing, preparing, and looking into where a lost game went
+#: wrong; a kind with nothing to do gives its turn to rehearsal.
+_ROUNDS = ("rehearses", "prepares", "investigates")
+_NEXT: dict[str, int] = {"round": 0}
 
 
 def _waits(why: str) -> bool:
@@ -116,30 +118,106 @@ def _prepare_some(name: str) -> int:
 
 
 def _one_round(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
-    """One round of practice at the board kept as ``name``, kept with it: a round of rehearsal, or, every other round
-    while anything is left to work out, a round of preparing. Blocks; run it in a thread."""
-    if _NEXT["prepares"]:
-        _NEXT["prepares"] = False
-        if _prepare_some(name):
-            return {"prepared": True}
-    else:
-        _NEXT["prepares"] = True
+    """One round of practice at the board kept as ``name``, kept with it: rehearsal, preparing and looking into where
+    a lost game went wrong take turns, and a kind with nothing left to do gives its turn to rehearsal. Blocks; run it
+    in a thread."""
+    kind = _ROUNDS[_NEXT["round"] % len(_ROUNDS)]
+    _NEXT["round"] += 1
+    if kind == "prepares" and _prepare_some(name):
+        return {"prepared": True}
+    if kind == "investigates" and _investigate_some(name, written):
+        return {"investigated": True}
     return _one_rehearsal(name, written)
 
 
-def _one_rehearsal(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
-    """One round of rehearsal of the board kept as ``name``, kept with it. Blocks; run it in a thread."""
-    from core.agency.what_a_kind_is_worth import rehearse
-    from core.skills.screen_pursuit_board_of_pieces import _keep_what_she_learned, _kept_under
+#: How long each look at a suspected move takes: the look measured to choose better than her game pace
+#: (core/agency/thinking_before_it_comes.py, LOOKS_FOR_S), split between finding what else was open and weighing the two.
+INVESTIGATES_FOR_S = 30.0
+
+
+def _held(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
+    """Her record of the board kept as ``name``, as practice holds it: one copy, so that what one round changes the
+    next writes back. A record written since (a game she played) is what she carries on from."""
+    from core.skills.screen_pursuit_board_of_pieces import _kept_under
 
     if _HELD.get("name") != name or _HELD.get("written") != written:
-        # A record written since (a game she played) is what she carries on from; otherwise the rehearsal she has in
-        # hand, with the positions it gathered this sitting, is.
         kept = _kept_under(name)
         if kept.get("rehearsal") is None or kept.get("rules") is None or kept.get("looks") is None:
             return None
         _HELD.clear()
         _HELD.update(name=name, kept=kept, rehearsal=kept["rehearsal"])
+    return _HELD["kept"]
+
+
+def _investigate_some(name: str, written: tuple[int, int]) -> int:
+    """A round of looking into where a lost game went wrong: the suspect after which her judgement fell furthest is
+    weighed against the best of what else was open there, each by a longer look from the situation it leaves. Worse by
+    more than the looks' own unsteadiness, it is ruled out there; otherwise it is cleared, and the next suspect, which
+    may come earlier in the game, is looked into next round. How many were settled. Blocks; run it in a thread."""
+    from core.agency.pieces_by_their_kind import FIRST, after, moves
+    from core.agency.playing_pieces_by_kind import (
+        _cores_free,
+        _named,
+        _position_from_place,
+        _Rehearsing,
+    )
+    from core.agency.searching_by_kind import search
+    from core.skills.screen_pursuit_board_of_pieces import _keep_what_she_learned
+
+    kept = _held(name, written)
+    went_wrong = kept.get("went_wrong") if kept is not None else None
+    if kept is None or went_wrong is None:
+        return 0
+    suspect = went_wrong.next_suspect()
+    if suspect is None:
+        return 0
+    place, act = suspect
+    rules = kept["rules"]
+    family = rules.family(unseen_go_every_way=True)
+    position = _position_from_place(place, dict(rules.start))
+    legal = moves(family, position) if position is not None else []
+    mine = [m for m in legal if _named(m) == act]
+    others = [m for m in legal if _named(m) != act]
+    began = time.monotonic()
+    worse = False
+    if mine and others:
+        weights = _Rehearsing(_HELD.get("rehearsal") or kept.get("rehearsal")).weights_for(family)
+        look = INVESTIGATES_FOR_S / 3
+        threads = _cores_free()
+        best_else = search(family, position, seconds=look, weights=weights, set_aside=mine, threads=threads,
+                           wary=FIRST).move
+        if best_else is not None:
+            # Each weighed by a look of the same length from the situation it leaves, from her side.
+            it = search(family, after(family, position, mine[0]), seconds=look, weights=weights, threads=threads,
+                        wary=FIRST)
+            instead = search(family, after(family, position, best_else), seconds=look, weights=weights,
+                             threads=threads, wary=FIRST)
+            noise = max(int(it.unsteady), int(instead.unsteady), 1)
+            worse = (-instead.score) - (-it.score) > noise
+            logger.info("looked into %s where a lost game went wrong: %s; %s instead judged %+d against it, by looks "
+                        "unsteady by %d", act, "ruled out" if worse else "cleared", _named(best_else),
+                        (-instead.score) - (-it.score), noise)
+    went_wrong.settled(place, act, worse=worse)
+    if not _PLAYING:
+        _keep_what_she_learned(kept.get("app") or name, kept["looks"], rules,
+                               _HELD.get("rehearsal") or kept.get("rehearsal"), went_wrong)
+        # What she just wrote is what she holds: it is not read back as a game's.
+        held = _the_board_she_last_played()
+        if held is not None and held[0] == name:
+            _HELD["written"] = held[1]
+    logger.info("investigated %s between games in %.0f s", name, time.monotonic() - began)
+    return 1
+
+
+def _one_rehearsal(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
+    """One round of rehearsal of the board kept as ``name``, kept with it. Blocks; run it in a thread."""
+    from core.agency.what_a_kind_is_worth import rehearse
+    from core.skills.screen_pursuit_board_of_pieces import _keep_what_she_learned
+
+    # A record written since (a game she played) is what she carries on from; otherwise the rehearsal she has in hand,
+    # with the positions it gathered this sitting, is.
+    if _held(name, written) is None:
+        return None
     kept, rehearsal = _HELD["kept"], _HELD["rehearsal"]
     family = kept["rules"].family()
     if not any(kind.steps for kind in family.kinds.values()):

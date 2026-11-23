@@ -201,12 +201,15 @@ def _matching(family: Family, position: Position, found: tuple) -> Move | None:
 
 def search(family: Family, position: Position, *, seconds: float, weights: Weights | None = None,
            earlier: list[Position] | None = None, nodes: int = 0, set_aside: list[Move] | None = None,
-           threads: int = 1, wary: int | None = None) -> Found:
+           threads: int = 1, wary: int | None = None, soft: float | None = None) -> Found:
     """The best move for the side to move, searched for ``seconds`` (or ``nodes``), leaving out ``set_aside``: moves
     the game has shown are not moves. With ``threads`` above one, that many searchers look at once, sharing what each
     finds (a count of nodes is searched by one). ``wary`` is the side that acts in the world: what its rules hold on
     too little is not counted on past its first move, and the other side's plausible moves are planned against. A plan
-    that runs through a move she cannot make is no plan; one that ignores a move they might make is a hope."""
+    that runs through a move she cannot make is no plan; one that ignores a move they might make is a hope. ``soft``,
+    where given, is the time she means to take, ``seconds`` then the most she may: between depths the search stops by
+    how likely another depth is to change its answer, longer where its best move keeps changing or its judgement
+    falls, sooner where it has held."""
     weights = weights or first_weights(family)
     aside = list(set_aside or [])
     engine = _compiled()
@@ -215,7 +218,8 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
         excluded = [(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in aside]
         try:
             result = engine.search(*asked, nodes=int(nodes), excluded=excluded,
-                                   **({"threads": int(threads)} if threads > 1 else {}))
+                                   **({"threads": int(threads)} if threads > 1 else {}),
+                                   **({"soft": float(soft)} if soft else {}))
         # not a failure: a build of the compiled search from before it could think in threads takes no ``threads``,
         # and thinks in one.
         except TypeError:

@@ -73,6 +73,11 @@ PROBES_A_TURN = 6
 SEEN_ENOUGH = 8
 #: Moves she picks up and finds not offered, at most, before she moves the best one the game does offer.
 CHECKS_A_TURN = 8
+#: How far past its share a turn may think where its answer keeps changing: SPENDS_AT_MOST shares, and never more than
+#: LEFT_AT_MOST of the time left on her clock. The shape of an anytime search's time (a soft and a hard limit) as
+#: engines that manage a clock use it; the numbers are habits to be measured.
+SPENDS_AT_MOST = 3.0
+LEFT_AT_MOST = 0.25
 #: The least she waits on an answer before taking it that none is coming, whatever answers have taken so far.
 NO_ANSWER_AFTER_S = 90.0
 #: Pictures in a row that no move explains before she says she has lost track.
@@ -860,9 +865,19 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         found = None
         learned_until, searched_s = monotonic_time(), 0.0
         for _ in range(CHECKS_A_TURN):
-            # What is left of the turn, less what making the move and seeing it shown has taken her this game.
+            # What is left of the turn, less what making the move and seeing it shown has taken her this game. After a
+            # move the game refused, her model was wrong where she was about to act: the look that replaces it gets a
+            # turn's share again, not what the refusal left. LIVE 23 November 2026 the look after a refusal had 0.2 s
+            # and 7,000 positions, and chose the move that lost the game.
             thinks = (max(0.2, share - (monotonic_time() - turn_began) - game.finish_s) if on_her_clock
                       else share)
+            if set_aside and on_her_clock:
+                thinks = max(thinks, share)
+            # The most it may take, where the answer will not settle: SPENDS_AT_MOST of what it means to take, and
+            # never more than LEFT_AT_MOST of what is left on her clock.
+            most = thinks
+            if on_her_clock and game.count.value is not None:
+                most = max(thinks, min(SPENDS_AT_MOST * thinks, LEFT_AT_MOST * max(0.0, game.count.value)))
             # A move that is the only one is made without weighing (core/cognition/when_the_situation_decides.py).
             only = nothing_to_decide([m for m in legal if m not in set_aside]) if not set_aside else None
             # A situation she worked out ahead, among the choices it offers her now, is answered from what
@@ -874,8 +889,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 found = ready
             else:
                 search_began = monotonic_time()
-                found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
-                               set_aside=set_aside, threads=_cores_free(), wary=FIRST)
+                found = search(family, game.believed, seconds=most, weights=weights, earlier=game.earlier,
+                               set_aside=set_aside, threads=_cores_free(), wary=FIRST,
+                               soft=thinks if most > thinks else None)
                 searched_s += monotonic_time() - search_began
             if found.move is None:
                 break
@@ -1384,20 +1400,53 @@ def _judged(game: _Game, place: str, move: Move, found: Any) -> None:
         game.judged.append((place, _named(move), int(found.score)))
 
 
+#: Her moves in a lost game suspected of where it went wrong, at most: those after which her judgement fell furthest.
+SUSPECTS_A_GAME = 3
+
+
 def _where_it_went_wrong(game: _Game) -> None:
-    """In a game she lost, the move after which her own judgement fell furthest by her next turn: the answer to it she
-    least saw coming. It is ruled out at the place she made it (WhatFailedWhere), so a game that comes back to that
-    place goes another way. Nothing where her judgement never fell."""
-    drops = [(game.judged[i][2] - game.judged[i + 1][2], i) for i in range(len(game.judged) - 1)]
-    if not drops:
-        return
-    drop, at = max(drops)
-    if drop <= 0:
-        return
-    place, move, _score = game.judged[at]
-    game.went_wrong.failed_at(place, move)
-    logger.info("where it went wrong: her move %s, after which she judged herself %d lower by her next turn", move,
-                drop)
+    """In a game she lost, the moves after which her own judgement fell furthest by her next turn, suspected of where
+    it went wrong (WhatFailedWhere): looked into between games, by a longer look at the move against what else was
+    open there, before any is ruled out. A fall after a move is a reason to look, not proof the move was the mistake
+    (suggestions of 23 November 2026): the move that lost may come earlier, or there may have been nothing better.
+    Nothing where her judgement never fell."""
+    drops = sorted(((game.judged[i][2] - game.judged[i + 1][2], i) for i in range(len(game.judged) - 1)),
+                   reverse=True)
+    for drop, at in drops[:SUSPECTS_A_GAME]:
+        if drop <= 0:
+            break
+        place, move, _score = game.judged[at]
+        game.went_wrong.suspect(place, move, drop)
+        logger.info("suspected of where it went wrong: her move %s, after which she judged herself %d lower by her "
+                    "next turn", move, drop)
+
+
+def _position_from_place(place: str, start: dict) -> Position | None:
+    """A situation read back from its name, given where the pieces began: the pieces and whose turn it is, and the
+    history its name holds where it is not the ordinary one (``_a_place``), the ordinary one where it is."""
+    try:
+        parts = place.split("|")
+        cells: dict[tuple[int, int], tuple[int, str]] = {}
+        for one in filter(None, parts[0].split(";")):
+            square, held = one.split(":", 1)
+            row, column = square.split(",")
+            cells[(int(row), int(column))] = (int(held[0]), held[1:])
+        turn = int(parts[1])
+        named = {key: value for key, value in (part.split(":", 1) for part in parts[2:])}
+        if "unmoved" in named:
+            unmoved = frozenset(tuple(int(v) for v in one.split(".")) for one in filter(None, named["unmoved"].split(",")))
+        else:
+            unmoved = frozenset(square for square, held in cells.items() if start.get(square) == held)
+        passable = None
+        if named.get("passable"):
+            row, column = (int(v) for v in named["passable"].split("."))
+            # The square passed over, and the square of the piece that passed: next to it, away from its own side.
+            beyond = row + (1 if cells.get((row + 1, column), (None,))[0] is not None else -1)
+            passable = ((row, column), (beyond, column))
+        return Position(cells=cells, turn=turn, unmoved=unmoved, passable=passable)
+    # not a failure: a name that does not read back as a situation is one she cannot look at again.
+    except (IndexError, KeyError, TypeError, ValueError):
+        return None
 
 
 def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, Any]:

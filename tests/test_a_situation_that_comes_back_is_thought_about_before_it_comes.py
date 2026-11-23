@@ -113,7 +113,8 @@ def test_in_a_game_a_situation_worked_out_ahead_is_answered_from_it() -> None:
 
 def test_practice_takes_turns_between_rehearsing_and_preparing(monkeypatch) -> None:
     ran: list[str] = []
-    monkeypatch.setattr(practice, "_NEXT", {"prepares": False})
+    monkeypatch.setattr(practice, "_NEXT", {"round": 0})
+    monkeypatch.setattr(practice, "_ROUNDS", ("rehearses", "prepares"))
     monkeypatch.setattr(practice, "_one_rehearsal", lambda name, written: ran.append("rehearsed") or {})
     monkeypatch.setattr(practice, "_prepare_some", lambda name: ran.append("prepared") or 2)
     for _ in range(4):

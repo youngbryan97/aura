@@ -164,6 +164,13 @@ class WhatFailedWhere:
     """
 
     ruled_out: dict[str, set[str]] = field(default_factory=dict)
+    #: Acts suspected, not yet shown, of where a failure began: place -> act -> how far her judgement fell after it.
+    #: A fall after an act is a reason to look, not proof the act was wrong: the other side may have found something
+    #: against a good act, her judgement before may have been wrong, or the failure began earlier (suggestions of 23
+    #: November 2026). A suspect is ruled out only once a longer look finds a better act there, and cleared otherwise.
+    suspected: dict[str, dict[str, int]] = field(default_factory=dict)
+    #: Acts a longer look cleared: suspected and found no worse than what else was open there.
+    cleared: dict[str, set[str]] = field(default_factory=dict)
 
     def failed_at(self, place: str, act: str) -> None:
         self.ruled_out.setdefault(str(place), set()).add(str(act))
@@ -171,8 +178,36 @@ class WhatFailedWhere:
     def already_failed_at(self, place: str) -> frozenset[str]:
         return frozenset(self.ruled_out.get(str(place), ()))
 
+    def suspect(self, place: str, act: str, fell_by: int) -> None:
+        """An act after which things went worse than she judged: to be looked into before anything is ruled out."""
+        place, act = str(place), str(act)
+        if act in self.ruled_out.get(place, ()) or act in self.cleared.get(place, ()):
+            return
+        held = self.suspected.setdefault(place, {})
+        held[act] = max(int(fell_by), held.get(act, 0))
+
+    def next_suspect(self) -> tuple[str, str] | None:
+        """The suspect after which her judgement fell furthest."""
+        found = [(fell, place, act) for place, acts in self.suspected.items() for act, fell in acts.items()]
+        if not found:
+            return None
+        _fell, place, act = max(found)
+        return place, act
+
+    def settled(self, place: str, act: str, *, worse: bool) -> None:
+        """What a longer look found of a suspect: ``worse`` than what else was open there, and ruled out; or not, and
+        cleared."""
+        place, act = str(place), str(act)
+        acts = self.suspected.get(place, {})
+        acts.pop(act, None)
+        if not acts:
+            self.suspected.pop(place, None)
+        (self.ruled_out if worse else self.cleared).setdefault(place, set()).add(act)
+
     def as_memory(self) -> dict[str, Any]:
-        return {"ruled_out": {place: sorted(acts) for place, acts in self.ruled_out.items()}}
+        return {"ruled_out": {place: sorted(acts) for place, acts in self.ruled_out.items()},
+                "suspected": {place: dict(acts) for place, acts in self.suspected.items()},
+                "cleared": {place: sorted(acts) for place, acts in self.cleared.items()}}
 
     @classmethod
     def from_memory(cls, held: Any) -> WhatFailedWhere:
@@ -181,4 +216,10 @@ class WhatFailedWhere:
         ruled = held.get("ruled_out") or {}
         if not isinstance(ruled, dict):
             return cls()
-        return cls(ruled_out={str(place): {str(one) for one in (acts or ())} for place, acts in ruled.items()})
+        suspected = held.get("suspected") or {}
+        cleared = held.get("cleared") or {}
+        return cls(ruled_out={str(place): {str(one) for one in (acts or ())} for place, acts in ruled.items()},
+                   suspected={str(place): {str(a): int(n) for a, n in (acts or {}).items()}
+                              for place, acts in (suspected.items() if isinstance(suspected, dict) else [])},
+                   cleared={str(place): {str(one) for one in (acts or ())}
+                            for place, acts in (cleared.items() if isinstance(cleared, dict) else [])})

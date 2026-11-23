@@ -25,13 +25,14 @@ def test_what_failed_where_is_kept_between_sittings() -> None:
     assert again.already_failed_at("another place") == frozenset()
 
 
-def test_the_move_after_which_her_judgement_fell_furthest_is_ruled_out_where_she_made_it() -> None:
+def test_the_move_after_which_her_judgement_fell_furthest_is_suspected_first_where_she_made_it() -> None:
+    """Suspected, not ruled out: a longer look between games settles it (suggestions of 23 November 2026)."""
     start = dict(NOBODYS_GAME.start)
     game = playing._Game(learned=HowThePiecesMove.from_the_start(7, 7, start),
                          believed=Position(cells=start, turn=FIRST, unmoved=frozenset(start)))
     game.judged = [("p1", "m1", 80), ("p2", "m2", 60), ("p3", "m3", -340), ("p4", "m4", -400)]
     playing._where_it_went_wrong(game)
-    assert game.went_wrong.ruled_out == {"p2": {"m2"}}
+    assert game.went_wrong.next_suspect() == ("p2", "m2") and not game.went_wrong.ruled_out
 
 
 def _first_move(went_wrong: WhatFailedWhere, said: list[str], monkeypatch) -> str:
@@ -87,4 +88,4 @@ def test_a_judgement_already_decided_is_not_where_it_went_wrong() -> None:
     playing._judged(game, "p10", one, Found(one, -999_990, 6, 100, [one], mate=True))
     assert [place for place, _move, _score in game.judged] == ["p8", "p9"]
     playing._where_it_went_wrong(game)
-    assert set(game.went_wrong.ruled_out) == {"p8"}
+    assert set(game.went_wrong.suspected) == {"p8"}
