@@ -371,7 +371,7 @@ async def _search_again_keeping_what_was_lost(record: Any, workspace: Path, judg
     known = {json.dumps(one, sort_keys=True): one for one in [*(offer.get("must_keep") or []),
                                                                *(judged.get("must_keep") or [])]}
     must_keep = list(known.values())
-    source = keeping_test_source(must_keep, goal=record.goal)
+    source = keeping_test_source(must_keep, goal=record.goal, root=workspace)
     record.offers_before = [*record.offers_before, {**offer, "set_aside": "the outside check refused it"}]
     if not source:
         record.offer = {"must_keep": must_keep}

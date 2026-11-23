@@ -42,7 +42,8 @@ LOST_REFUSAL = {"function": "shop/prices.py::price", "input": {"args": {"table":
 
 @pytest.mark.parametrize(("one", "kept"), [
     (LOST_VALUE, True),
-    (LOST_REFUSAL, True),
+    (LOST_REFUSAL, False),  # a KeyError from an operation may be the fault the goal mends (round seven, G3)
+    ({**LOST_REFUSAL, "before": "raised ValueError by the code: no such item"}, True),
     ({**LOST_VALUE, "counted": "doubt"}, False),
     ({**LOST_VALUE, "as": "digests", "input": "1a6e,5d43"}, False),
     ({**LOST_VALUE, "before": "1; its arguments became {}"}, False),
@@ -66,7 +67,8 @@ def _run(source: str, repo: Path) -> subprocess.CompletedProcess:
 
 def test_the_kept_inputs_pass_on_the_code_before_and_fail_on_the_draft_that_lost_them(shop):  # noqa: F811 - the fixture
     source = keeping_test_source([LOST_VALUE, LOST_REFUSAL], goal="Mend price for an unknown item")
-    assert "assert price(table={'tea': 3}, item='tea') == 3" in source and "pytest.raises(KeyError)" in source
+    assert "assert price(table={'tea': 3}, item='tea') == 3" in source
+    assert "KeyError" not in source, "the crash this goal mends is not kept as something to keep"
     assert _run(source, shop).returncode == 0, "the code before the draft gave these"
     (shop / "shop" / "prices.py").write_text(_PRICES.replace("return table[item]", "return None"))
     assert _run(source, shop).returncode != 0, "the draft that lost them fails them"
@@ -136,3 +138,34 @@ def test_a_draft_another_gate_refused_is_still_asked_again(her_source, monkeypat
     fault = type("Fault", (), {"call": type("Call", (), {"file": "core/notes.py"})()})()
     said = asyncio.run(mending._her_draft_asked_again(record, record.workspace, fault))
     assert said["why"] == "her draft asked of her gates again" and asked
+
+
+# Round seven of the red team (22 November 2026) wrote three counterexamples the outside check really returned, each of
+# which this writer turned into a test that failed on the code before the draft, or kept a crash as a requirement.
+_ROUND_SEVEN = {
+    "keywords": ("def price(base: int, **opts) -> int:\n    return base - opts.get('discount', 0)\n",
+                 {"function": "mod.py::price", "input": {"args": {"base": "99"}, "keywords": "{'discount': 20}"},
+                  "before": "79", "after": "-999", "kind": "another value", "counted": "lost"}),
+    "positional only": ("def score(x: int, /) -> int:\n    return x * 2\n",
+                        {"function": "mod.py::score", "input": {"args": {"x": "9"}}, "before": "18", "after": "-999",
+                         "kind": "another value", "counted": "lost"}),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_ROUND_SEVEN))
+def test_a_kept_input_is_called_the_way_the_check_called_it(name, tmp_path):
+    source, lost = _ROUND_SEVEN[name]
+    (tmp_path / "mod.py").write_text(source)
+    (tmp_path / "conftest.py").write_text("")  # so pytest puts this folder on the path, as a repository's root
+    (tmp_path / "tests").mkdir()
+    kept = keeping_test_source([lost], goal="round seven", root=tmp_path)
+    assert kept, "the input is writable"
+    assert _run(kept, tmp_path).returncode == 0, ("the code before the draft passes what it gave", kept)
+
+
+def test_a_crash_on_a_none_the_check_put_in_is_not_kept():
+    crash = {"function": "mod.py::double", "input": {"args": {"x": "None"}},
+             "before": "raised TypeError: unsupported operand type(s) for *: '<input>Type' and 'int'", "after": "0",
+             "kind": "a refusal gone", "counted": "lost"}
+    assert not keepable(crash)
+    assert keeping_test_source([crash], goal="round seven") == ""

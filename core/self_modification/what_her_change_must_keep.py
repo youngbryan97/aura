@@ -21,6 +21,7 @@ import ast
 import builtins
 import re
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Any
 
 __all__ = ["guardable", "guarding_test_source", "keepable", "keeping_test_source", "path_of_its_guard",
@@ -54,14 +55,19 @@ def _writable(counterexample: Mapping[str, Any], outcome: str) -> bool:
     if _module_and_function(str(counterexample.get("function") or "")) is None:
         return False
     call = counterexample.get("input")
-    if not isinstance(call, Mapping) or set(call) - {"args", "keywords"} or not isinstance(call.get("args"), Mapping):
+    if not isinstance(call, Mapping) or set(call) - {"args", "keywords", "star"} or not isinstance(call.get("args"), Mapping):
         return False
     if not all(str(name).isidentifier() and _literal(text)[0] for name, text in call["args"].items()):
+        return False
+    if not all(_literal(call[field])[0] for field in ("keywords", "star") if field in call):
         return False
     if ";" in outcome:  # it also changed its arguments, its object or what is around it: not one value to keep
         return False
     if outcome.startswith("raised "):
-        return bool(re.match(r"raised [A-Za-z_][A-Za-z0-9_]*", outcome))
+        # Only a refusal the code raised on purpose is kept. A crash in an operation (a KeyError on an unknown item, a
+        # TypeError on a None the check put in) may be the very fault a goal mends, and a test that keeps it would
+        # hold every later try to the fault.
+        return bool(re.match(r"raised [A-Za-z_][A-Za-z0-9_]* by the code", outcome))
     return _literal(outcome)[0]
 
 
@@ -103,16 +109,45 @@ def path_of_its_guard(slug: str) -> str:
     return f"tests/test_what_{_safe(slug)}_changed_is_guarded.py"
 
 
-def _tests_of(counterexamples: Iterable[Mapping[str, Any]], *, admits, outcome: str) -> tuple[set[str], list[str]]:
-    """The imports and the test bodies asserting each admitted counterexample's call comes to its ``outcome`` side."""
+def _placed(function: str, root: Path | None) -> tuple[list[str], list[str]]:
+    """The parameters of a module-level function its source makes positional-only, and its ordinary ones, in order;
+    nothing when the source cannot be read."""
+    path, _, name = function.partition("::")
+    try:
+        tree = ast.parse((root / path).read_bytes()) if root is not None else None
+    except (OSError, SyntaxError, ValueError):
+        tree = None
+    for node in getattr(tree, "body", ()):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            return [item.arg for item in node.args.posonlyargs], [item.arg for item in node.args.args]
+    return [], []
+
+
+def _call_of(function: str, call: Mapping[str, Any], root: Path | None) -> str:
+    """The call as source, the way the check made it: positional-only arguments in their places, every one before an
+    extra positional argument in its place too, the rest by name, then the extra positional and keyword arguments."""
+    module_function = _module_and_function(function)[1]  # type: ignore[index]
+    only, ordinary = _placed(function, root)
+    arguments = dict(call["args"])
+    by_place = [*only, *(ordinary if "star" in call else [])]
+    parts = [arguments.pop(name) for name in by_place if name in arguments]
+    parts += [f"*{call['star']}"] if "star" in call else []
+    parts += [f"{name}={text}" for name, text in arguments.items()]
+    parts += [f"**{call['keywords']}"] if "keywords" in call else []
+    return f"{module_function}({', '.join(parts)})"
+
+
+def _tests_of(counterexamples: Iterable[Mapping[str, Any]], *, admits, outcome: str,
+              root: Path | None = None) -> tuple[set[str], list[str]]:
+    """The imports and the test bodies asserting each admitted counterexample's call comes to its ``outcome`` side.
+    ``root`` is the source the calls are of, read for the parameters a call must pass by place."""
     calls: list[str] = []
     imports: set[str] = set()
     for one in counterexamples:
         if not admits(one):
             continue
         module, function = _module_and_function(str(one["function"]))  # type: ignore[misc]
-        arguments = ", ".join(f"{name}={text}" for name, text in one["input"]["args"].items())
-        call = f"{function}({arguments})"
+        call = _call_of(str(one["function"]), one["input"], root)
         value = str(one[outcome])
         kind = _kind_raised(value) if value.startswith("raised ") else ""
         if kind and isinstance(getattr(builtins, kind, None), type) and issubclass(getattr(builtins, kind), BaseException):
@@ -144,11 +179,11 @@ def _a_test_file(head: str, imports: set[str], calls: list[str], name: str) -> s
     return head + "\n".join(ordered) + "\n" + "".join(tests)
 
 
-def keeping_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: str) -> str:
+def keeping_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: str, root: Path | None = None) -> str:
     """A test file with one test per input the refused drafts of a goal lost, asserting what the code before them gave;
     "" when none can be written. Her record keeps every refusal's counterexamples, so the file is written whole each
     time and a second refusal adds to the first."""
-    imports, calls = _tests_of(counterexamples, admits=keepable, outcome="before")
+    imports, calls = _tests_of(counterexamples, admits=keepable, outcome="before", root=root)
     head = (f'"""What a change for this goal of hers must keep: {_for_a_docstring(goal)}.\n\n'
             "Each test is an input that worked before a draft of hers and that the outside check counted as lost when it\n"
             "refused the draft (core/self_modification/what_her_change_must_keep.py). Her next try keeps them.\n"
@@ -156,10 +191,11 @@ def keeping_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: s
     return _a_test_file(head, imports, calls, "it_keeps")
 
 
-def guarding_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: str, commit: str) -> str:
+def guarding_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: str, commit: str,
+                         root: Path | None = None) -> str:
     """A test file with one test per input a change kept after probation answers differently from the code before it,
     asserting what it gives now; "" when none can be written."""
-    imports, calls = _tests_of(counterexamples, admits=guardable, outcome="after")
+    imports, calls = _tests_of(counterexamples, admits=guardable, outcome="after", root=root)
     head = (f'"""What her change {commit[:9]} gives now, kept after probation: {_for_a_docstring(goal)}.\n\n'
             "Each test is an input the outside check saw this change answer differently from the code before it. The\n"
             "outside benchmarks held with it and nothing she ran showed a loss, so a later change keeps what it gives\n"

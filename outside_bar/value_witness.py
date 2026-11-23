@@ -99,6 +99,8 @@ def _rebuildable(value: Any, depth: int = 0) -> Any:
         return ("__callable__", value.__module__ or "builtins", value.__qualname__)
     if inspect.ismodule(value):  # a module is made again by importing it by name
         return ("__module__", value.__name__)
+    if isinstance(value, memoryview):  # a view is made again over the bytes it shows
+        return ("__buffer__", value.tobytes())
     if depth > _DEEPEST:
         raise ValueError("not rebuildable")
     if inspect.isfunction(value):

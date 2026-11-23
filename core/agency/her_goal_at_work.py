@@ -628,10 +628,11 @@ def _guard_what_it_kept(standing: GoalRecord) -> dict[str, Any]:
     from core.self_modification.what_her_change_must_keep import guarding_test_source, path_of_its_guard
 
     commit = str(standing.offer.get("commit") or "")
-    source = guarding_test_source(standing.offer.get("what_it_changed") or [], goal=standing.goal, commit=commit)
+    root = source_root()
+    source = guarding_test_source(standing.offer.get("what_it_changed") or [], goal=standing.goal, commit=commit, root=root)
     if not source:
         return {"why": "nothing it answered differently can be written as a test"}
-    root, workspace, path = source_root(), ensure_workspace(standing), path_of_its_guard(standing.slug)
+    workspace, path = ensure_workspace(standing), path_of_its_guard(standing.slug)
     has_origin = _git("remote", "get-url", "origin", cwd=root).returncode == 0
     if has_origin and _git("fetch", "-q", "origin", "main", cwd=root, effect="fetch",
                            timeout=_ORIGIN_SECONDS).returncode != 0:

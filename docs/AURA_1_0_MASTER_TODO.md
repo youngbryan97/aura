@@ -8218,7 +8218,14 @@ needs her 27B free (her app down, or her app's own influence trials).
     judged again by the outside check before it is pushed: refused, it lands nowhere; in doubt, it lands on probation.
   - A comparison that started was taken for one that would end. One that died kept the change on probation for good.
     It is now resumed under its own run, when its last attempt made progress or her source or her process changed.
-  To build for F16, from the six rounds and the outside reviewers. Each closes a gap the check still has:
+  Part 13, seventh round, 22 November, by a third model (neither Hydrogen nor Argon), aimed at what was built after
+  round six: 41 cases on ae684a5fa, 37 wrong verdicts, all reproduced. Of 35 bad cases 32 are refused and 3 land on
+  probation by design (a guard removed everywhere twice, a fivefold slowdown); none is held. Of 6 honest fixes 1 is held,
+  2 land on probation, and 3 are refused with a way through beside each. Polynomial and joint conditions are solved, both
+  output streams and written bytes are compared, a pinned new answer speaks only for inputs on its own lines, and the
+  tests her repair search keeps now place every argument and never keep a crash. See
+  `docs/evidence/F16_RED_TEAM_ROUND_7_2026-11-22.md`. Two more rounds follow.
+  To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record
     (a dataclass whose constructor sets every field from what it is given) is written back as that constructor called
@@ -8306,7 +8313,7 @@ needs her 27B free (her app down, or her app's own influence trials).
     through beside its case; whether her own repair loop takes those ways is not measured yet.
   - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was
     recorded 19 November (part 10 above).
-    Six rounds ran; the next attacker should be neither Hydrogen nor Argon.
+    Seven rounds ran, the seventh by a third model; two more follow on 22 November.
   - 20 November: nothing of hers had reached origin since 17 November, and Bryan noticed. She had made five changes
     since, each lowering what a full collection cost her at one site, and her own yes refused each before it landed.
     Her runtime sets `AURA_GOVERNANCE_MODE=production` on itself (aura_main.py), and every check of a change of hers

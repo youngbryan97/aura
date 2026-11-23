@@ -35,7 +35,10 @@ def test_a_condition_is_solved_for_one_parameter_with_the_others_held(condition,
 
 
 def test_a_bend_is_never_taken_for_a_line():
-    assert _solved_for(_condition("x * x == 9"), "x", {"x": 1}) == []
+    """A line through two points of x * x would cross zero at the wrong place. Since round seven of the red team (a special
+    case on x * x == 14400 went unseen) a polynomial is solved where it bends: at 3 and -3, and a step to each side."""
+    assert sorted(_solved_for(_condition("x * x == 9"), "x", {"x": 1})) == [-4, -3, -2, 2, 3, 4]
+    assert sorted(_solved_for(_condition("x ** 3 - 6 * x * x + 11 * x == 6"), "x", {"x": 10})) == [0, 1, 2, 3, 4]
 
 
 def test_code_the_change_wrote_is_never_run_to_solve_it():

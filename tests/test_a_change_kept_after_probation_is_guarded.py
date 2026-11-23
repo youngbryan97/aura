@@ -53,7 +53,7 @@ def _doubted(args: dict, before: str, after: str, kind: str, **more) -> dict:
 
 _SEEN = [
     _doubted({"x": "4"}, "8", "12", "another value"),
-    _doubted({"x": "0"}, "0", "raised ArithmeticError: no empty sizes", "now raises"),
+    _doubted({"x": "0"}, "0", "raised ArithmeticError by the code: no empty sizes", "now raises"),
     _doubted({"x": "-1"}, "raised ValueError: no negative sizes", "-3", "a refusal gone"),
     _doubted({"x": "5"}, "10", "15", "another value", **{"as": "digests"}),
     {**_doubted({"x": "6"}, "12", "18", "another value"), "counted": "lost"},

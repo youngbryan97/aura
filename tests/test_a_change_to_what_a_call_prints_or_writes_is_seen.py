@@ -29,7 +29,7 @@ def test_a_change_that_starts_writing_a_file_is_not_held(shop):  # noqa: F811 - 
                               "    return table.get(item)")
     result = verify(shop, _committed(shop, writing))
     assert not result["held"], result
-    assert any("it opened to write ['asked.txt']" in str(one["after"]) for one in result["counterexamples"]), result
+    assert any("it wrote ['asked.txt: " in str(one["after"]) for one in result["counterexamples"]), result
 
 
 def test_a_mend_that_prints_and_writes_nothing_new_still_holds(shop):  # noqa: F811 - the fixture

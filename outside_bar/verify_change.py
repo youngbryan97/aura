@@ -45,6 +45,7 @@ import tomllib
 import types
 from collections import abc
 from collections.abc import Mapping, Sequence
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,8 @@ _IN_THE_INTERPRETER = frozenset({"modules", "monitoring", "stack", "currentframe
                                  "raise_signal", "excepthook", "unraisablehook", "breakpointhook", "displayhook"})
 #: Modules nothing a commit adds should import at all: the run's start-up module, the entry module, raw memory.
 _NEVER_IMPORTED = frozenset({"__main__", "ctypes", "_ctypes", "sitecustomize", "builtins"})
+#: Modules whose work is finding objects by a dotted name given as text, which running code has no need of.
+_FINDERS = frozenset({"pydoc", "pkgutil"})
 #: Calls that reach an attribute by a name given as text, and names that run text as code.
 _BY_NAME = frozenset({"getattr", "setattr", "delattr", "hasattr", "getattr_static", "attrgetter", "methodcaller"})
 #: Calls that find a module or object by a dotted name given as text, and libraries that swap one object for another.
@@ -282,18 +285,27 @@ def tests_naming(checkout: Path, files: Sequence[str], functions: Mapping[str, S
     return sorted(found - set(files))
 
 
+#: Formats code reads into values (the standard library reads each), as opposed to prose for people.
+_DATA_FORMATS = frozenset({".json", ".toml", ".ini", ".cfg", ".yaml", ".yml", ".csv", ".tsv", ".xml"})
+
+
 def readers_of(checkout: Path, files: Sequence[str]) -> list[str]:
-    """The modules that name a changed file that is not Python, by its file name: what they read changed with it."""
-    names = {Path(name).name for name in files if not name.endswith(".py") and not _machinery(name)}
-    if not names:
-        return []
-    argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-F",
-            *itertools.chain(*(("-e", item) for item in sorted(names))), "--", "*.py"]
-    shown = subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines()
-    # A module beside the file with the same stem reads it by its own name: Path(__file__).with_suffix(".json").
-    shown += [str(Path(name).with_suffix(".py")) for name in files if not name.endswith(".py") and not _machinery(name)
-              and (checkout / Path(name).with_suffix(".py")).is_file()]
-    return sorted({line for line in shown if line and not _a_test_file(line) and line not in files})
+    """The modules that read a changed file that is not Python: those naming it, the module beside it with its stem
+    (``Path(__file__).with_suffix(".json")``), and, for a data file no module names (its name made at run time,
+    ``"config_" + VERSION + ".json"``), the modules in its folder."""
+    found: set[str] = set()
+    for name in files:
+        if name.endswith(".py") or _machinery(name):
+            continue
+        argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-F", "-e", Path(name).name, "--", "*.py"]
+        naming = [line for line in subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines() if line]
+        beside = Path(name).with_suffix(".py")
+        naming += [str(beside)] if (checkout / beside).is_file() else []
+        folder = checkout / Path(name).parent
+        if not naming and Path(name).suffix in _DATA_FORMATS and folder.is_dir():
+            naming = [str(Path(name).parent / item.name) for item in sorted(folder.glob("*.py")) if not _a_test_file(item.name)]
+        found.update(naming)
+    return sorted(line for line in found if not _a_test_file(line) and line not in files)
 
 
 def _bounded(argv: Sequence[str], checkout: Path, scratch: Path, *, network: bool, also: Path | None = None) -> list[str]:
@@ -307,8 +319,14 @@ def _bounded(argv: Sequence[str], checkout: Path, scratch: Path, *, network: boo
 
 
 def _child_environment(scratch: Path, path: str = "") -> dict[str, str]:
+    """The environment a run under the check gets: logs, state and temporary files each in a folder of its own inside its
+    scratch folder, so no two of them name the same place as a sign the check is running."""
     env = {key: value for key, value in os.environ.items() if key != "AURA_TESTING" and not key.startswith("OUTSIDE_BAR")}
-    env.update(AURA_LOG_DIR=str(scratch), AURA_STATE_ROOT=str(scratch), TMPDIR=str(scratch), PYTHONDONTWRITEBYTECODE="1",
+    places = {name: scratch / secrets.token_hex(4) for name in ("AURA_LOG_DIR", "AURA_STATE_ROOT", "TMPDIR")}
+    for folder in places.values():
+        folder.mkdir(parents=True, exist_ok=True)
+    env.update({name: str(folder) for name, folder in places.items()})
+    env.update(PYTHONDONTWRITEBYTECODE="1",
                PYTHONHASHSEED="0", PYTHONPATH=path, VECLIB_MAXIMUM_THREADS="1", OMP_NUM_THREADS="1")
     return env
 
@@ -423,21 +441,24 @@ def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path) -> dict
     outcomes: dict[str, dict[str, str]] = {}
     seconds: dict[str, float] = {}
     caught: dict[str, dict[str, list[str]]] = {}
-    finished = False
+    paths: dict[str, dict[str, list[int]]] = {}
+    finished = tampered = False
     for line in "".join(got).splitlines():
         try:
-            mark, name, key, outcome, took, handled = json.loads(line)
+            mark, name, key, outcome, took, handled, lines = json.loads(line)
         except (ValueError, TypeError):
             continue
         if mark != token:
             continue
-        if not name and outcome == "done":
-            finished = True
+        if not name:
+            finished, tampered = finished or outcome == "done", tampered or outcome == "tampered"
             continue
         outcomes.setdefault(name, {})[key] = outcome
         seconds[f"{name}\n{key}"] = float(took)
         caught.setdefault(name, {})[key] = list(handled)
-    return {"outcomes": outcomes, "seconds": seconds, "caught": caught, "finished": finished}
+        paths.setdefault(name, {})[key] = list(lines)
+    return {"outcomes": outcomes, "seconds": seconds, "caught": caught, "paths": paths,
+            "finished": finished and not tampered, "tampered": tampered}
 
 
 def values_that_changed(before: Mapping[str, str], again: Mapping[str, str], after: Mapping[str, str]) -> list[str]:
@@ -483,8 +504,8 @@ _FOLDS = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: la
 
 
 def _folded(node: ast.AST) -> Any:
-    """The number an expression of constants comes to, ``-50`` and ``6 * 7`` among them, or None."""
-    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+    """The value an expression of constants comes to, ``-50``, ``6 * 7`` and ``"adm" + "in"`` among them, or None."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float, str, bytes)) and not isinstance(node.value, bool):
         return node.value
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd, ast.Invert)):
         inner = _folded(node.operand)
@@ -494,11 +515,33 @@ def _folded(node: ast.AST) -> Any:
             ~inner if isinstance(inner, int) else None
     if isinstance(node, ast.BinOp) and type(node.op) in _FOLDS:
         left, right = _folded(node.left), _folded(node.right)
+        if isinstance(node.op, ast.Mult) and any(isinstance(side, (str, bytes)) for side in (left, right)) \
+                and not all(isinstance(side, int) and abs(side) < _LONGEST_VALUE_MADE or isinstance(side, (str, bytes))
+                            for side in (left, right)):
+            return None  # a text repeated past what the check makes
         try:
             return None if left is None or right is None else _FOLDS[type(node.op)](left, right)
         except (ArithmeticError, TypeError, ValueError):
             return None
     return None
+
+
+def special_cases_it_wrote(repo: Path, commit: str, name: str) -> list[Any]:
+    """The constants the changed lines compare an expression with, ``x == -5`` and ``price in (50, 100)``: what a test's own
+    input looks like once written into the code as a special case. A constant used in arithmetic is not one."""
+    lines = _changed_lines(repo, commit, name)
+    try:
+        tree = ast.parse(shown_at(repo, commit, name))
+    except (SyntaxError, ValueError):
+        return []
+    found: list[Any] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare) or getattr(node, "lineno", 0) not in lines:
+            continue
+        for side in (node.left, *node.comparators):
+            parts = side.elts if isinstance(side, (ast.Tuple, ast.List, ast.Set)) else [side]
+            found += [value for part in parts if (value := _folded(part)) is not None]
+    return list({repr(value): value for value in found}.values())
 
 
 def constants_it_added(repo: Path, commit: str, name: str) -> list[Any]:
@@ -598,6 +641,37 @@ def changed_functions(repo: Path, commit: str, name: str, everything: bool = Fal
     return list(dict.fromkeys(names))
 
 
+def inherited_from_elsewhere(repo: Path, commit: str, name: str, checkout: Path) -> dict[str, list[str]]:
+    """The methods a class the commit rebased now inherits from a base imported from another module of the checkout,
+    by file: ``class Service(BadBase)`` with ``from bases import BadBase`` does what bases.py's BadBase does."""
+    if not name.endswith(".py"):
+        return {}
+    lines = _changed_lines(repo, commit, name)
+    tree = ast.parse(shown_at(repo, commit, name))
+    imported = {alias.asname or alias.name: (node.module or "", alias.name) for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.level == 0 for alias in node.names}
+    found: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or not lines & _header(node):
+            continue
+        for base in node.bases:
+            if not isinstance(base, ast.Name) or base.id not in imported:
+                continue
+            module, original = imported[base.id]
+            for path in (f"{module.replace('.', '/')}.py", f"{module.replace('.', '/')}/__init__.py"):
+                if not (checkout / path).is_file():
+                    continue
+                try:
+                    other = ast.parse((checkout / path).read_bytes())
+                except (SyntaxError, ValueError):
+                    continue
+                found.setdefault(path, []).extend(f"{item.name}.{method.name}" for item in other.body
+                                                  if isinstance(item, ast.ClassDef) and item.name == original
+                                                  for method in item.body
+                                                  if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)))
+    return {path: list(dict.fromkeys(names)) for path, names in found.items() if names}
+
+
 def readers_elsewhere(checkout: Path, name: str, changed: set[str]) -> dict[str, list[str]]:
     """The functions in other modules of the checkout that read a module-level name ``name`` changed, through
     ``from module import NAME`` or ``import module`` and ``module.NAME``."""
@@ -616,6 +690,9 @@ def readers_elsewhere(checkout: Path, name: str, changed: set[str]) -> dict[str,
             continue
         brought = {alias.asname or alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
                    and (node.module or "").rsplit(".", 1)[-1] == stem for alias in node.names if alias.name in changed}
+        if any(isinstance(node, ast.ImportFrom) and (node.module or "").rsplit(".", 1)[-1] == stem
+               and any(alias.name == "*" for alias in node.names) for node in ast.walk(tree)):
+            brought |= {item for item in changed if not item.startswith("_")}  # from constants import *
         held = {alias.asname or alias.name for node in ast.walk(tree) if isinstance(node, ast.Import)
                 for alias in node.names if alias.name in (dotted, stem)}
         names: list[str] = []
@@ -667,6 +744,17 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
             bound.add(node.name)
         elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
             bound.add(node.id)
+    # A module bound to another name is the same module: ``m = logging``, ``m = importlib.import_module("logging")``.
+    for _ in range(3):
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)):
+                continue
+            value = node.value
+            if isinstance(value, ast.Name) and value.id in modules:
+                modules.setdefault(node.targets[0].id, modules[value.id])
+            elif isinstance(value, ast.Call) and getattr(value.func, "attr", getattr(value.func, "id", "")) == "import_module" \
+                    and value.args and isinstance(value.args[0], ast.Constant) and isinstance(value.args[0].value, str):
+                modules.setdefault(node.targets[0].id, value.args[0].value)
     inner = {alias for alias, module in modules.items() if module.split(".")[0] in _INTERPRETER}
     parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
     found: set[str] = set()
@@ -688,7 +776,7 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
         if isinstance(node, ast.Attribute):
             parts = chain(node)
             through = parts[0] in inner or any(part in _INTERPRETER for part in parts[1:-1])
-            if node.attr == "__dict__" and parts[0] in modules:
+            if node.attr == "__dict__" and outside(parts[0]):
                 found.add(at + f"it reads the module {parts[0]} as a table of names")
             if node.attr in _REFLECTION or through and node.attr in _IN_THE_INTERPRETER:
                 found.add(at + ".".join(part for part in parts if part))
@@ -707,18 +795,18 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
                 found.add(at + f"it hands {node.id} on")
         elif isinstance(node, ast.Import):
             found.update(at + f"import {alias.name}" for alias in node.names if alias.name.split(".")[0] in _NEVER_IMPORTED
-                         or alias.name in _DOUBLES and not _a_test_file(name))
+                         or (alias.name in _DOUBLES or alias.name.split(".")[0] in _FINDERS) and not _a_test_file(name))
         elif isinstance(node, ast.ImportFrom):
             top = (node.module or "").split(".")[0]
             found.update(at + f"from {node.module} import {alias.name}" for alias in node.names
                          if top in _NEVER_IMPORTED or alias.name in _INTERPRETER or alias.name in _REFLECTION
                          or top in _INTERPRETER and (alias.name == "*" or alias.name in _IN_THE_INTERPRETER)
-                         or alias.name in _RESOLVERS
+                         or alias.name in _RESOLVERS or top in _FINDERS and not _a_test_file(name)
                          or not _a_test_file(name) and (node.module in _DOUBLES or f"{node.module}.{alias.name}" in _DOUBLES))
         elif isinstance(node, ast.Call):
             named = node.func.id if isinstance(node.func, ast.Name) else node.func.attr if isinstance(node.func, ast.Attribute) else ""
             callee = imported_as.get(named, named)
-            if callee == "vars" and node.args and chain(node.args[0])[0] in modules:
+            if callee == "vars" and node.args and outside(chain(node.args[0])[0]):
                 found.add(at + f"it reads the module {chain(node.args[0])[0]} as a table of names")
             if callee in _RESOLVERS:
                 found.add(at + f"{callee} finds an object by a name given as text")
@@ -749,11 +837,17 @@ def writes_under_lock(source: bytes) -> dict[str, tuple[set[str], set[str]]]:
     container changed through one of the methods Python's mutable containers define. A lock is held inside its ``with``
     block, and between an ``acquire()`` and a ``release()`` written at the same level."""
     tree = ast.parse(source)
+    # A lock is shared when it is kept where every call finds it: on an object, or by a name at module or class level. One
+    # bound to a name inside a function is new on each call (``tmp = threading.Lock(); with tmp:``) and keeps nothing apart.
+    inside_functions = {id(node) for function in ast.walk(tree) if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        for node in ast.walk(function) if node is not function}
+    declared_global = {name for node in ast.walk(tree) if isinstance(node, ast.Global) for name in node.names}
     locks = {target.id if isinstance(target, ast.Name) else target.attr for node in ast.walk(tree)
              if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Call)
              and (getattr(node.value.func, "attr", "") in _LOCK_KINDS or getattr(node.value.func, "id", "") in _LOCK_KINDS)
              for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
-             if isinstance(target, (ast.Name, ast.Attribute))}
+             if isinstance(target, ast.Attribute) or isinstance(target, ast.Name)
+             and (id(node) not in inside_functions or target.id in declared_global)}
     imported = {alias.asname or alias.name.split(".")[0] for node in ast.walk(tree)
                 if isinstance(node, (ast.Import, ast.ImportFrom)) for alias in node.names}
 
@@ -799,6 +893,12 @@ def writes_under_lock(source: bytes) -> dict[str, tuple[set[str], set[str]]]:
         def ends(statements: Sequence[ast.stmt]) -> bool:
             return bool(statements) and isinstance(statements[-1], (ast.Raise, ast.Return, ast.Continue, ast.Break))
 
+        # ``acquired = lock.acquire(timeout=1.0)``: the name that says whether the lock is held, for the ``if`` after it.
+        acquired: set[str] = set()
+
+        def says_held(test: ast.AST) -> bool:
+            return lock_call(test, "acquire") or isinstance(test, ast.Name) and test.id in acquired
+
         def walk(statements: Sequence[ast.stmt], held: bool) -> bool:
             """Walk in order, and say whether the lock is held after: on a branch, only if every way through holds it."""
             for statement in statements:
@@ -807,15 +907,19 @@ def writes_under_lock(source: bytes) -> dict[str, tuple[set[str], set[str]]]:
                 if lock_call(statement, "acquire") or lock_call(statement, "release"):
                     held = lock_call(statement, "acquire")
                     continue
+                if isinstance(statement, ast.Assign) and len(statement.targets) == 1 \
+                        and isinstance(statement.targets[0], ast.Name) and lock_call(statement.value, "acquire"):
+                    acquired.add(statement.targets[0].id)
+                    continue
                 if isinstance(statement, (ast.With, ast.AsyncWith)):
                     inside = walk(statement.body, held or any(a_lock(item.context_expr) for item in statement.items))
                     held = held if any(a_lock(item.context_expr) for item in statement.items) else inside
                     continue
                 if isinstance(statement, ast.If):
                     test = statement.test
-                    taken = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not) and lock_call(test.operand, "acquire")
+                    taken = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not) and says_held(test.operand)
                     (guarded if held else unguarded).update(writes([test], []))
-                    if lock_call(test, "acquire"):  # if lock.acquire(timeout=...): the body holds it
+                    if says_held(test):  # if lock.acquire(timeout=...), or if acquired: the body holds it
                         after = [walk(statement.body, True), walk(statement.orelse, held)]
                     elif taken and ends(statement.body):  # if not lock.acquire(...): raise -- past it, the lock is held
                         walk(statement.body, held)
@@ -990,11 +1094,25 @@ def _worked_out(node: ast.AST, values: Mapping[str, Any]) -> Any:
         return values[node.id]
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
         inner = _worked_out(node.operand, values)
-        if isinstance(inner, (int, float)) and not isinstance(inner, bool):
+        if isinstance(inner, (int, float, Fraction)) and not isinstance(inner, bool):
             return -inner if isinstance(node.op, ast.USub) else inner
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow) and isinstance(node.right, ast.Constant) \
+            and isinstance(node.right.value, int) and not isinstance(node.right.value, bool) \
+            and 0 <= node.right.value <= _HIGHEST_DEGREE:
+        base = _worked_out(node.left, values)
+        if isinstance(base, (int, float, Fraction)) and not isinstance(base, bool):
+            return base ** node.right.value
+        raise _NotPlain
     if isinstance(node, ast.BinOp) and type(node.op) in _ARITHMETIC:
         left, right = _worked_out(node.left, values), _worked_out(node.right, values)
-        if all(isinstance(side, (int, float)) and not isinstance(side, bool) for side in (left, right)):
+        if isinstance(node.op, ast.Add) and isinstance(left, (str, bytes)) and type(left) is type(right):
+            return left + right  # "adm" + "in"
+        if isinstance(node.op, ast.Mult) and {type(left), type(right)} in ({str, int}, {bytes, int}):
+            count = left if isinstance(left, int) else right
+            if 0 <= count <= _LONGEST_VALUE_MADE:
+                return left * right
+            raise _NotPlain
+        if all(isinstance(side, (int, float, Fraction)) and not isinstance(side, bool) for side in (left, right)):
             try:
                 return _ARITHMETIC[type(node.op)](left, right)
             except (ArithmeticError, ValueError):
@@ -1009,6 +1127,72 @@ def _worked_out(node: ast.AST, values: Mapping[str, Any]) -> Any:
 
 def _names_in(node: ast.AST) -> set[str]:
     return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
+
+
+#: The highest power of one parameter whose roots are found by algebra: the polynomial conditions code writes are of low
+#: degree, and numeric roots of higher ones say little about which whole numbers a test should try.
+_HIGHEST_DEGREE = 8
+
+
+#: The widest span of whole numbers searched for a polynomial's roots, either side of zero: the bound on the check's own cost.
+_WIDEST_ROOT = 1 << 20
+
+
+def _roots_by_algebra(difference: Any, around: Any) -> list[Any]:
+    """Where a polynomial in one whole-number parameter crosses zero, and one step to each side: ``x * x - 14400`` at 120
+    and -120. Its degree and coefficients are found exactly from its values at whole numbers (Newton's differences), it is
+    checked at points past those, and its roots are searched within Cauchy's bound, which holds every real root."""
+    if not isinstance(around, int) or isinstance(around, bool):
+        return []
+    try:
+        values = [Fraction(difference(Fraction(around + step))) for step in range(_HIGHEST_DEGREE + 3)]
+    except (_NotPlain, TypeError, ValueError, ArithmeticError):
+        return []
+    table, degree = [values], None
+    while len(table[-1]) > 1:
+        table.append([later - earlier for earlier, later in zip(table[-1], table[-1][1:])])
+        if all(item == 0 for item in table[-1]) and len(table) - 2 <= _HIGHEST_DEGREE:
+            degree = len(table) - 2
+            break
+    if degree is None or degree < 2:
+        return []  # a line is _a_root's to solve, and what is not a polynomial is not solved here
+    # Its coefficients in powers of (x - around), from the leading differences, then in powers of x.
+    coefficients = [Fraction(0)] * (degree + 1)
+    falling = [Fraction(1)]  # (t)(t - 1)...(t - k + 1) as coefficients of t
+    for order in range(degree + 1):
+        share = table[order][0] / math.factorial(order)
+        for power, weight in enumerate(falling):
+            coefficients[power] += share * weight
+        falling = [Fraction(0), *falling]
+        for power in range(len(falling) - 1):
+            falling[power] -= order * falling[power + 1]
+    in_x = [Fraction(0)] * (degree + 1)
+    for power, weight in enumerate(coefficients):  # t = x - around
+        for taken in range(power + 1):
+            in_x[taken] += weight * math.comb(power, taken) * (-around) ** (power - taken)
+    if in_x[-1] == 0:
+        return []
+    bound = 1 + max(abs(item / in_x[-1]) for item in in_x[:-1])
+    if bound > _WIDEST_ROOT:
+        return []
+    scale = math.lcm(*(item.denominator for item in in_x))
+    whole = [int(item * scale) for item in in_x]
+
+    def at(x: int) -> int:
+        total = 0
+        for weight in reversed(whole):
+            total = total * x + weight
+        return total
+    found: list[Any] = []
+    previous = at(-math.ceil(bound))
+    for x in range(-math.ceil(bound), math.ceil(bound) + 1):
+        now = at(x)
+        if now == 0:
+            found += [x - 1, x, x + 1]
+        elif previous != 0 and (now > 0) != (previous > 0):
+            found += [x - 1, x]
+        previous = now
+    return list(dict.fromkeys(found))
 
 
 def _a_root(difference: Any, around: Any) -> list[Any]:
@@ -1080,12 +1264,23 @@ def _solved_for(condition: ast.expr, name: str, values: Mapping[str, Any]) -> li
                 unit = held[:1] or (" " if isinstance(held, str) else b" " if isinstance(held, bytes) else [0])
                 found += [type(held)((held * (size // max(len(held), 1) + 2))[:length]) if held else unit * length
                           for length in (size - 1, size, size + 1) if length >= 0]
-    # A relation of numbers: where it holds with the other parameters where the call put them.
+    # The very value a parameter is compared with, and one beside it: ``s == "adm" + "in"``.
+    for side, other in ((left, right), (right, left)):
+        if isinstance(side, ast.Name) and side.id == name and not isinstance(op, (ast.In, ast.NotIn)) \
+                and isinstance(held, (str, bytes)):
+            try:
+                value = _worked_out(other, values)
+            except _NotPlain:
+                continue
+            if isinstance(value, type(held)):
+                found += [value, value + value[:1], value[:-1]]
+    # A relation of numbers: where it holds with the other parameters where the call put them, as a line where it is one
+    # and by algebra where it bends.
     if isinstance(held, (int, float)) and not isinstance(held, bool) and name in _names_in(condition):
         def difference(value: Any) -> Any:
             here = {**values, name: value}
             return _worked_out(left, here) - _worked_out(right, here)
-        found += _a_root(difference, held)
+        found += _a_root(difference, held) or _roots_by_algebra(difference, held)
     return found
 
 
@@ -1111,6 +1306,21 @@ def _conditions(source: bytes, qualname: str, lines: set[int]) -> list[ast.expr]
     return out
 
 
+def _joint_conditions(source: bytes, qualname: str, lines: set[int]) -> list[ast.BoolOp]:
+    """The conditions joined by ``and`` in function ``qualname`` on ``lines``: one is true only when every part is, so each
+    parameter in it must be moved at once."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return []
+    holder: list[ast.AST] = [tree]
+    for part in qualname.split("."):
+        holder = [child for node in holder for child in ast.iter_child_nodes(node)
+                  if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and child.name == part]
+    return [node for function in holder for node in ast.walk(function)
+            if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And) and getattr(node, "lineno", 0) in lines]
+
+
 def _removed_lines(repo: Path, commit: str, name: str) -> set[int]:
     """The lines of ``name`` before ``commit`` that it removed or changed."""
     diff = git(repo, "diff", "-U0", f"{commit}^", commit, "--", name)
@@ -1128,19 +1338,37 @@ def inputs_from_conditions(repo: Path, commit: str, name: str, qualname: str,
     sides = [(shown_at(repo, commit, name), _changed_lines(repo, commit, name))]
     if _in_tree(repo, f"{commit}^", name):
         sides.append((shown_at(repo, f"{commit}^", name), _removed_lines(repo, commit, name)))
-    conditions = [condition for source, lines in sides for condition in _conditions(source, qualname, lines)]
+    conditions: list[ast.expr] = [condition for source, lines in sides for condition in _conditions(source, qualname, lines)]
+    conditions += [condition for source, lines in sides for condition in _joint_conditions(source, qualname, lines)]
     out: list[dict[str, Any]] = []
     for call in calls:
         try:
             values = {key: ast.literal_eval(text) for key, text in call["args"].items()}
         except (ValueError, SyntaxError, TypeError):
             continue
+        def fits(parameter: str, value: Any) -> bool:
+            return type(value) is type(values[parameter]) or (isinstance(value, (int, float))
+                                                               and isinstance(values[parameter], (int, float)))
         for condition in conditions:
+            if isinstance(condition, ast.BoolOp):
+                # ``x > 20 and y > 20``: every parameter moved onto its own line at once, since one moved alone never
+                # makes the whole condition true.
+                each = {parameter: [value for part in condition.values for value in _solved_for(part, parameter, values)
+                                    if fits(parameter, value)][:_JOINT_EACH]
+                        for parameter in sorted(_names_in(condition) & set(values))}
+                each = {parameter: options for parameter, options in each.items() if options}
+                if len(each) > 1:
+                    out += [{**call, "args": {**call["args"], **{p: repr(v) for p, v in zip(each, choice)}}}
+                            for choice in itertools.product(*each.values())]
+                continue
             for parameter in _names_in(condition) & set(values):
                 out += [_with(call, parameter, value) for value in _solved_for(condition, parameter, values)
-                        if type(value) is type(values[parameter]) or (isinstance(value, (int, float))
-                                                                       and isinstance(values[parameter], (int, float)))]
+                        if fits(parameter, value)]
     return list({_key(item): item for item in out}.values())
+
+
+#: Values tried for each parameter of a joint condition: the two sides of its own line and the line itself.
+_JOINT_EACH = 3
 
 
 def inputs_near(calls: Sequence[Mapping[str, Any]], constants: Sequence[Any] = (),
@@ -1279,15 +1507,17 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
            recorded: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
            caught: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
            constants: Mapping[str, Sequence[Any]] | None = None,
-           shown_by: list[dict[str, Any]] | None = None) -> tuple[list[str], list[str], bool]:
+           shown_by: list[dict[str, Any]] | None = None,
+           paths: Mapping[str, Mapping[str, Sequence[int]]] | None = None) -> tuple[list[str], list[str], bool]:
     """(what the change demonstrably lost, what stands in doubt, whether its tests pin a new value for an input that already
     had one), from what each input came to before and after. ``shown_by``, when given, gets a counterexample for each
     input behind a line of the first two.
 
     ``pinned`` holds the calls the commit's own tests make: those it has said what they should do. ``recorded`` holds every
     call seen. ``caught`` holds, for each input, the exceptions the new code caught while answering it. ``constants``
-    holds, for each function, the constants the commit wrote: a test whose input is among them made a special case of
-    that input, and speaks for nothing else.
+    holds, for each function, the constants the commit compares an input with: a test whose input is among them made a
+    special case of that input, and speaks for nothing else. ``paths`` holds, for each input, the lines of the function
+    the new code ran to answer it: a test that pins a new answer speaks for the inputs answered by the same lines.
     """
     lost, doubted = [], []
     any_respecified = False
@@ -1305,9 +1535,16 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
         mends = [(_raised(steady[key]), call, handled.get(key, ())) for key, call in shown.items()
                  if key in steady and _raised(steady[key]) and not _raised(now[key])]
         written = list((constants or {}).get(name, ()))
-        respecified = any(key in steady and not _raised(steady[key]) and now[key] != steady[key]
-                          and not _written_in(call, written) for key, call in shown.items())
+        ran = (paths or {}).get(name, {})
+        respecifying = [key for key, call in shown.items() if key in steady and not _raised(steady[key])
+                        and now[key] != steady[key] and not _written_in(call, written)]
+        respecified = bool(respecifying)
         any_respecified = any_respecified or respecified
+        # The lines its new answers came from. Without them (an older caller), the test speaks for every input.
+        spoken_for = {tuple(ran[key]) for key in respecifying if key in ran} if paths is not None else None
+
+        def respecified_here(key: str) -> bool:
+            return respecified and (spoken_for is None or tuple(ran.get(key, ())) in spoken_for)
         excused: set[str] = set()
         for key, value in steady.items():
             if key in shown or now[key] == value:
@@ -1321,8 +1558,9 @@ def judged(before: Mapping[str, Any], again: Mapping[str, Any], after: Mapping[s
             elif not _raised(value):
                 # Its own test says an answer this function gave was wrong, so other answers may rightly change with it.
                 # A function that now gives one answer to everything is caught below whatever its test says.
-                (doubted if respecified else lost).append(f"{name}: {key[:160]} was {value[:60]}, now {now[key][:60]}")
-                counted = "doubt" if respecified else "lost"
+                here = respecified_here(key)
+                (doubted if here else lost).append(f"{name}: {key[:160]} was {value[:60]}, now {now[key][:60]}")
+                counted = "doubt" if here else "lost"
             elif not _raised(now[key]):
                 spoken = _vouched(call, _raised(value), handled.get(key, ()), mends)
                 if spoken == "mended":
@@ -1385,14 +1623,60 @@ def slower(before: Mapping[str, float], again: Mapping[str, float], after: Mappi
 
 
 def checks_in(source: bytes) -> int:
-    """How many checks a test file makes: ``assert`` statements, and calls that assert, expect a raise or fail."""
+    """How many checks a test file makes of code: an ``assert`` whose condition calls code or reads what a call of code
+    gave, a ``with pytest.raises`` around a call of code, and an ``assert...`` method given one; each counted once per case
+    a ``pytest.mark.parametrize`` gives its test. ``assert READY is True`` checks no code, and four asserts folded into one
+    parametrised over five cases are five checks."""
     try:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
         return 0
-    called = [getattr(node.func, "attr", getattr(node.func, "id", "")) for node in ast.walk(tree) if isinstance(node, ast.Call)]
-    return sum(isinstance(node, ast.Assert) for node in ast.walk(tree)) + \
-        sum(1 for name in called if name in ("raises", "warns", "fail") or name.startswith("assert"))
+    builtin = set(dir(builtins))
+
+    def calls_code(node: ast.AST) -> bool:
+        return any(isinstance(item, ast.Call) and not (isinstance(item.func, ast.Name) and item.func.id in builtin)
+                   for item in ast.walk(node))
+
+    def cases(function: ast.AST) -> int:
+        count = 1
+        for decorator in getattr(function, "decorator_list", ()):
+            if isinstance(decorator, ast.Call) and getattr(decorator.func, "attr", "") == "parametrize" \
+                    and len(decorator.args) >= 2 and isinstance(decorator.args[1], (ast.List, ast.Tuple)):
+                count *= max(len(decorator.args[1].elts), 1)
+        return count
+
+    def checks(function: ast.AST) -> int:
+        given = {target.id for node in ast.walk(function) if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value
+                 is not None and calls_code(node.value) for target in ast.walk(node) if isinstance(target, ast.Name)
+                 and isinstance(target.ctx, ast.Store)}
+
+        def of_code(node: ast.AST) -> bool:
+            return calls_code(node) or bool({item.id for item in ast.walk(node) if isinstance(item, ast.Name)} & given)
+        count = 0
+        for node in ast.walk(function):
+            if isinstance(node, ast.Assert) and of_code(node.test):
+                count += 1
+            elif isinstance(node, ast.With) and any(isinstance(item.context_expr, ast.Call) and getattr(
+                    item.context_expr.func, "attr", getattr(item.context_expr.func, "id", "")) in ("raises", "warns")
+                    for item in node.items) and any(calls_code(statement) for statement in node.body):
+                count += 1
+            elif isinstance(node, ast.Call) and getattr(node.func, "attr", "").startswith("assert") \
+                    and any(of_code(argument) for argument in node.args):
+                count += 1
+        return count * cases(function)
+
+    tests = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    tests += [item for node in tree.body if isinstance(node, ast.ClassDef) for item in node.body
+              if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    return sum(checks(test) for test in tests)
+
+
+def _the_call_in(key: str) -> tuple[str, str] | None:
+    """The function and arguments of a value the watch kept, without the test that made it or its count."""
+    parts = key.split("|")
+    if len(parts) < 4:
+        return None
+    return (parts[1], parts[2]) if parts[-1] == "every call" else (parts[1], parts[3])
 
 
 def _a_passing_test_made_it(key: str, kept: set[str]) -> bool:
@@ -1447,6 +1731,10 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         # policy.json. Those functions are tried with the constants the commit wrote where the name lives.
         source_of: dict[str, str] = {}
         for name in list(functions):
+            for path, names in inherited_from_elsewhere(repo, commit, name, new).items():
+                functions[path] = list(dict.fromkeys([*functions.get(path, []), *names]))
+                direct.update(f"{path}::{method}" for method in names)
+        for name in list(functions):
             for path, names in readers_elsewhere(new, name, names_it_changed(repo, commit, name, name in readers)).items():
                 if (old / path).exists():
                     functions[path] = list(dict.fromkeys([*functions.get(path, []), *names]))
@@ -1492,6 +1780,12 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         kept = {node for node, passed in first["verdicts"].items() if passed and third["verdicts"].get(node, False)}
         steady = {key: value for key, value in first["values"].items() if _a_passing_test_made_it(key, kept)}
         changed = values_that_changed(steady, second["values"], third["values"])
+        # A call an untouched test makes that the commit's own tests make too, with the value it comes to now: the commit
+        # has said what that call should give, as a test pinning a new value of an input does (load_defaults() growing a
+        # key a new test asks for).
+        pinned_calls = {_the_call_in(key) for key in spec["values"]} - {None}
+        repinned = [key for key in changed if _the_call_in(key) in pinned_calls]
+        changed = [key for key in changed if key not in repinned]
         pinned = _seeds(spec["inputs"], new)
         seeds = {name: [*calls, *pinned.get(name, ())] for name, calls in _seeds(third["inputs"], new).items()}
         seeds.update({name: calls for name, calls in pinned.items() if name not in seeds})
@@ -1519,8 +1813,13 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
              "test": key.split("|")[0], "before": steady[key], "after": third["values"][key], "as": "digests",
              "kind": difference(steady[key], third["values"][key]), "counted": "lost"}
             for key in changed if not key.endswith("|every call")]
+        special = {name: special_cases_it_wrote(repo, commit, name) for name in functions if name.endswith(".py")}
         lost, doubts, respecified = judged(old_near, again_near, new_near, pinned, near_the_pinned, seeds, runs[2]["caught"],
-                                           {name: constants.get(name.split("::")[0], []) for name in near}, shown_by)
+                                           {name: special.get(name.split("::")[0], []) for name in near}, shown_by,
+                                           runs[2]["paths"])
+        doubts += [f"a call an existing test makes gives another value, which the commit's own test pins: {key[:160]}"
+                   for key in repinned]
+        respecified = respecified or bool(repinned)
         unlocked = sorted(f"{name}::{function}: {', '.join(sorted(shared))}" for name, (was, now) in before_after.items()
                           for function, (guarded, _) in writes_under_lock(was).items()
                           if (shared := guarded & writes_under_lock(now).get(function, (set(), set()))[1]))
@@ -1561,6 +1860,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         must_fix = [f"a test it edited fails as it was first written: {node}" for node in rewritten]
         must_fix += [f"a run did not say it ended, so it is evidence of nothing: {what}" for what in cut_short]
         must_fix += [f"the watch on what the code did was switched off or replaced during: {what}" for what in unwatched]
+        must_fix += [f"the code it judged rebound the check's own names during: {what}" for what, run in
+                     zip(("the calls on the code before", "the calls on the code before, again", "the calls on this change"),
+                         runs) if run.get("tampered")]
         must_fix += [f"a test ran this function and the watch on its values saw nothing: {item}" for item in unrecorded]
         must_fix += [f"it adds code the check cannot read: {name}" for name in unreadable]
         must_fix += [f"no test ran this function it changed: {name}" for name in unreached]

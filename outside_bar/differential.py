@@ -26,6 +26,7 @@ import marshal
 import os
 import signal
 import sys
+import tempfile
 import time
 import types
 from collections import abc
@@ -36,6 +37,13 @@ from typing import Any
 _DUMPS, _LOADS, _DEEPCOPY, _SHA256 = json.dumps, json.load, copy.deepcopy, hashlib.sha256
 _LITERAL, _INSTRUCTIONS, _SIGNATURE, _ISLICE = ast.literal_eval, dis.get_instructions, inspect.signature, itertools.islice
 _IMPORT, _REALPATH = importlib.import_module, os.path.realpath
+_TEMPORARY, _DUP, _DUP2, _CLOSE = tempfile.TemporaryFile, os.dup, os.dup2, os.close
+#: Python's own filesystem audit events other than open: what a call removes, renames, empties or makes.
+_FILE_EVENTS = {"os.remove": "removed", "os.rename": "renamed", "os.rmdir": "removed the folder", "shutil.rmtree":
+                "removed the tree", "os.truncate": "truncated", "os.mkdir": "made the folder", "os.symlink": "linked",
+                "os.link": "linked", "os.chmod": "changed the mode of"}
+#: How much of what a call printed or wrote is compared, in bytes: enough to tell two outputs apart.
+_READ_BACK = 1 << 20
 
 #: How long one call may take, in seconds. A call that takes longer says nothing about the value it would have returned.
 _CALL_SECONDS = 2
@@ -75,6 +83,8 @@ def _rebuilt(value: Any) -> Any:
     """A value as the witness wrote it down, with each object made again the way its class says it is made."""
     if isinstance(value, tuple) and len(value) == 2 and value[0] == "__module__":
         return _IMPORT(value[1])
+    if isinstance(value, tuple) and len(value) == 2 and value[0] == "__buffer__":
+        return memoryview(value[1])
     if isinstance(value, tuple) and len(value) == 2 and value[0] == "__lock__":
         import threading
 
@@ -139,8 +149,11 @@ def _shown(value: Any, depth: int = 0) -> str:
     if not state:
         try:
             state = {"made again from": value.__reduce_ex__(4)[1:]}
-        except Exception:  # noqa: BLE001 - an object that will not say what it holds is shown by its kind alone
-            state = {}
+        except Exception:  # noqa: BLE001 - an object that will not say what it holds is read as a buffer, if it is one
+            try:
+                state = {"bytes": memoryview(value).tobytes()[:_READ_BACK]}
+            except TypeError:
+                state = {}
     return f"{type(value).__qualname__}({_shown(state, depth + 1)})"
 
 
@@ -175,14 +188,20 @@ def _ours(module: Any) -> bool:
 
 
 def _places_around(path: str, made: Any) -> list[Any]:
-    """The module a function lives in, the modules of this checkout it holds by name, the classes they define, and the
-    class of the object a method is called on: what a call can change besides its arguments."""
+    """The module a function lives in, the modules of this checkout it holds by name or took a function or class from,
+    the classes they define, and the class of the object a method is called on: what a call can change besides its
+    arguments. ``from store import record`` reaches store's state as surely as ``import store`` does."""
     module = sys.modules.get(path.removesuffix(".py").removesuffix("/__init__").replace("/", "."))
     places = [type(made)] if made is not None else []
     if module is None:
         return places
-    modules = [module, *(value for value in list(vars(module).values())
-                         if inspect.ismodule(value) and value is not module and _ours(value))]
+    held_by_name = [value for value in list(vars(module).values()) if inspect.ismodule(value)]
+    held_by_name += [sys.modules.get(getattr(value, "__module__", "") or "") for value in list(vars(module).values())
+                     if inspect.isroutine(value) or inspect.isclass(value)]
+    modules = [module]
+    for value in held_by_name:
+        if value is not None and value not in modules and _ours(value):
+            modules.append(value)
     for held in modules:
         places.append(held)
         places += [value for value in list(vars(held).values())
@@ -190,11 +209,18 @@ def _places_around(path: str, made: Any) -> list[Any]:
     return places
 
 
+#: The names Python itself gives every module and class, which say nothing about what a call did.
+_PYTHONS_OWN = frozenset({*vars(types.ModuleType("_")), *vars(type("_", (), {})), "__file__", "__cached__", "__builtins__",
+                          "__path__", "__all__", "__annotations__", "__slots__", "__match_args__", "__orig_bases__",
+                          "__parameters__", "__static_attributes__", "__firstlineno__", "__dataclass_fields__",
+                          "__dataclass_params__", "__abstractmethods__", "_abc_impl", "__version__"})
+
+
 def _plain_names(place: Any) -> list[tuple[str, Any]]:
-    """What a place holds that a call can change: everything but its functions, classes and modules, so an object that
-    can be called and also holds state still counts."""
+    """What a place holds that a call can change: everything but its functions, classes and modules and the names Python
+    gives every module and class, so an object that can be called and holds state counts, and so does ``__ledger__``."""
     return [(name, value) for name, value in list(vars(place).items())
-            if not (name.startswith("__") and name.endswith("__")) and not inspect.isroutine(value)
+            if name not in _PYTHONS_OWN and not inspect.isroutine(value)
             and not inspect.isclass(value) and not inspect.ismodule(value)
             and not isinstance(value, (staticmethod, classmethod, property))]
 
@@ -284,21 +310,74 @@ def _short(outcome: str) -> str:
 
 def main() -> int:
     clock, alarm, home = time.perf_counter, signal.alarm, os.path.realpath(os.getcwd())
-    monitoring, printing, relative, real = sys.monitoring, io.StringIO, os.path.relpath, os.path.realpath
+    monitoring, relative, real = sys.monitoring, os.path.relpath, os.path.realpath
     writing_flags = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC
-    # Side effects a call leaves outside its value: what it printed, and the files it opened to write. Audited from here,
-    # which no code under test can remove, and only while a call runs.
+    # Side effects a call leaves outside its value: what it printed to either stream, the files it wrote and what they
+    # hold after it, and the files it removed, renamed or emptied. Audited from here, which no code under test can
+    # remove, and only while a call runs. The streams are caught at their file descriptors, so ``sys.stdout`` is the
+    # object it always is and says nothing about this check.
     wrote: list[str] = []
+    touched: list[str] = []
     watching_writes: list[bool] = [False]
 
+    def named(path: Any) -> str:
+        if not isinstance(path, (str, bytes, os.PathLike)):
+            return "a file it held open"
+        where = real(os.fsdecode(path))
+        return relative(where, home) if where.startswith(home) else "a file outside the checkout"
+
     def audited(event: str, args: tuple[Any, ...]) -> None:
-        if not watching_writes[0] or event != "open" or len(args) < 3 or not isinstance(args[0], (str, bytes)):
+        if not watching_writes[0]:
             return
-        path, mode, flags = args[0], args[1], args[2]
-        if (isinstance(mode, str) and any(letter in mode for letter in "wax+")) or (
-                isinstance(flags, int) and flags & writing_flags):
-            where = real(path if isinstance(path, str) else path.decode("utf-8", "replace"))
-            wrote.append(relative(where, home) if where.startswith(home) else "a file outside the checkout")
+        if event == "open" and len(args) >= 3 and isinstance(args[0], (str, bytes)):
+            path, mode, flags = args[0], args[1], args[2]
+            if (isinstance(mode, str) and any(letter in mode for letter in "wax+")) or (
+                    isinstance(flags, int) and flags & writing_flags):
+                wrote.append(real(os.fsdecode(path)))
+        elif event in _FILE_EVENTS and args:
+            touched.append(f"{_FILE_EVENTS[event]} {named(args[0])}"
+                           + (f" to {named(args[1])}" if event == "os.rename" and len(args) > 1 else ""))
+
+    def what_it_wrote() -> list[str]:
+        out = []
+        for where in sorted(set(wrote)):
+            try:
+                with open(where, "rb") as held:
+                    digest = _SHA256(held.read(_READ_BACK)).hexdigest()[:16]
+            except OSError:
+                digest = "gone"
+            shown = relative(where, home) if where.startswith(home) else "a file outside the checkout"
+            out.append(f"{shown}: {digest}")
+        return out
+
+    def caught_streams() -> tuple[tuple[int, int], tuple[Any, Any]]:
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.flush()
+            except Exception:  # noqa: BLE001 - a stream the code replaced is flushed by whoever replaced it
+                pass
+        saved = (_DUP(1), _DUP(2))
+        files = (_TEMPORARY(), _TEMPORARY())
+        _DUP2(files[0].fileno(), 1)
+        _DUP2(files[1].fileno(), 2)
+        return saved, files
+
+    def released(saved: tuple[int, int], files: tuple[Any, Any]) -> tuple[str, str]:
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.flush()
+            except Exception:  # noqa: BLE001
+                pass
+        _DUP2(saved[0], 1)
+        _DUP2(saved[1], 2)
+        _CLOSE(saved[0])
+        _CLOSE(saved[1])
+        texts = []
+        for held in files:
+            held.seek(0)
+            texts.append(held.read(_READ_BACK).decode("utf-8", "replace"))
+            held.close()
+        return texts[0], texts[1]
 
     sys.addaudithook(audited)
     sys.path.insert(0, os.getcwd())
@@ -307,6 +386,8 @@ def main() -> int:
     pipe = os.fdopen(questions.pop("pipe"), "w", encoding="utf-8", buffering=1)
     mark = questions.pop("mark")
     caught: list[str] = []
+    ran: set[int] = set()
+    target_code: list[tuple[str, str]] = [("", "")]
     tool = monitoring.DEBUGGER_ID
 
     def handled(code: Any, _offset: int, error: BaseException) -> Any:
@@ -314,8 +395,17 @@ def main() -> int:
             caught.append(type(error).__name__)
         return None
 
+    def lined(code: Any, line: int) -> Any:
+        """The lines of the function asked about that a call ran: which way through it the answer came."""
+        qualname, where = target_code[0]
+        if code.co_qualname == qualname and real(code.co_filename) == where:
+            ran.add(line)
+            return None
+        return monitoring.DISABLE
+
     monitoring.use_tool_id(tool, "outside_bar_differential")
     monitoring.register_callback(tool, monitoring.events.EXCEPTION_HANDLED, handled)
+    monitoring.register_callback(tool, monitoring.events.LINE, lined)
     kept: dict[str, list[tuple[Any, str, Any]]] = {}
 
     def came_to(path: str, qualname: str, call: dict[str, Any]) -> str:
@@ -330,37 +420,45 @@ def main() -> int:
             else (inspect.Parameter.POSITIONAL_ONLY,)
         placed = [item.name for item in _SIGNATURE(target).parameters.values()
                   if item.kind in by_place and item.name in arguments]
-        named = {name: value for name, value in arguments.items() if name not in placed}
+        named_here = {name: value for name, value in arguments.items() if name not in placed}
         before, held_before = _shown(arguments), _shown(_state_of(made)) if made is not None else ""
         around_before = _held_around(path, made)
-        monitoring.set_events(tool, monitoring.events.EXCEPTION_HANDLED)
-        printed, shown_to = printing(), sys.stdout
-        sys.stdout = printed
+        target_code[0] = (qualname, real(os.path.join(home, path)))
+        monitoring.restart_events()
+        saved, files = caught_streams()
         wrote.clear()
+        touched.clear()
         watching_writes[0] = True
+        monitoring.set_events(tool, monitoring.events.EXCEPTION_HANDLED | monitoring.events.LINE)
         try:
-            outcome = _shown(_finished(target(*(arguments[name] for name in placed), *star, **named, **keywords)))
+            outcome = _shown(_finished(target(*(arguments[name] for name in placed), *star, **named_here, **keywords)))
         except TimeoutError:
             return "took too long"
         except BaseException as error:  # noqa: BLE001 - what it raised is what the call came to, an exit included
             outcome = _refusal(error, arguments, home)
         finally:
-            watching_writes[0] = False
             monitoring.set_events(tool, 0)
-            sys.stdout = shown_to
-        said = printed.getvalue()
+            watching_writes[0] = False
+            said, warned = released(saved, files)
         outcome = outcome if not said else f"{outcome}; it printed {said[:200]!r}"
-        outcome = outcome if not wrote else f"{outcome}; it opened to write {sorted(set(wrote))[:5]}"
+        outcome = outcome if not warned else f"{outcome}; it wrote to stderr {warned[:200]!r}"
+        written = what_it_wrote()
+        outcome = outcome if not written else f"{outcome}; it wrote {written[:5]}"
+        outcome = outcome if not touched else f"{outcome}; it {', '.join(sorted(set(touched))[:5])}"
         after, held_after = _shown(arguments), _shown(_state_of(made)) if made is not None else ""
         outcome = outcome if after == before else f"{outcome}; its arguments became {after[:200]}"
         outcome = outcome if held_after == held_before else f"{outcome}; the object became {held_after[:200]}"
         around_after = _held_around(path, made)
         return outcome if around_after == around_before else f"{outcome}; what is around it became {around_after[:200]}"
 
+    # What this file's own names were before any code under test ran: a call that rebinds one (``_shown`` through
+    # ``sys.modules["__main__"]``) has changed the check, and the run says so and stops.
+    own = {name: value for name, value in globals().items() if not name.startswith("__")}
     for name, calls in questions.pop("inputs").items():
         path, qualname = name.split("::")
         for call in calls:
             caught.clear()
+            ran.clear()
             started = clock()
             alarm(_CALL_SECONDS)
             try:
@@ -369,9 +467,12 @@ def main() -> int:
                 outcome = "took too long" if isinstance(error, TimeoutError) else f"unavailable: {type(error).__name__}"
             finally:
                 alarm(0)
+            if any(globals().get(key) is not value for key, value in own.items()):
+                pipe.write(_DUMPS([mark, "", "", "tampered", 0.0, [], []]) + "\n")
+                return 1
             pipe.write(_DUMPS([mark, name, _DUMPS(call, sort_keys=True), _short(outcome), clock() - started,
-                               sorted(set(caught))]) + "\n")
-    pipe.write(_DUMPS([mark, "", "", "done", 0.0, []]) + "\n")
+                               sorted(set(caught)), sorted(ran)]) + "\n")
+    pipe.write(_DUMPS([mark, "", "", "done", 0.0, [], []]) + "\n")
     return 0
 
 
