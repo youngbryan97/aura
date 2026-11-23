@@ -216,14 +216,18 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
     if engine is not None:
         asked = (described(family), placed(position, earlier, wary), weights.as_json(), float(seconds))
         excluded = [(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in aside]
+        threaded = {"threads": int(threads)} if threads > 1 else {}
         try:
-            result = engine.search(*asked, nodes=int(nodes), excluded=excluded,
-                                   **({"threads": int(threads)} if threads > 1 else {}),
+            result = engine.search(*asked, nodes=int(nodes), excluded=excluded, **threaded,
                                    **({"soft": float(soft)} if soft else {}))
-        # not a failure: a build of the compiled search from before it could think in threads takes no ``threads``,
-        # and thinks in one.
+        # not a failure: a build of the compiled search from before it took a soft time searches for the time it was
+        # meant to take, as a hard one; one from before it could think in threads thinks in one.
         except TypeError:
-            result = engine.search(*asked, nodes=int(nodes), excluded=excluded)
+            asked = (*asked[:3], float(soft or seconds))
+            try:
+                result = engine.search(*asked, nodes=int(nodes), excluded=excluded, **threaded)
+            except TypeError:
+                result = engine.search(*asked, nodes=int(nodes), excluded=excluded)
         if result.get("move") is None:
             return Found(None, 0, 0, int(result.get("nodes", 0)), [], by="compiled")
         line: list[Move] = []

@@ -95,3 +95,23 @@ def test_a_piece_whose_answer_would_settle_an_unsure_way_is_picked_up_first() ->
     # With her own piece on the square it would land on, the game's answer says nothing of it.
     blocked = from_fen("6k1/8/8/8/8/8/7P/4K3 w - -")
     assert _would_settle(SimpleNamespace(believed=blocked, learned=learned), (0, 4)) == 0
+
+
+def test_a_build_without_a_soft_time_searches_for_the_time_meant_in_threads(monkeypatch) -> None:
+    """An older compiled search that takes no soft time is asked for the time the turn meant to take, still in
+    threads: not the hard limit, alone."""
+    import core.agency.searching_by_kind as searching
+
+    asked: list = []
+
+    class _OlderBuild:
+        @staticmethod
+        def search(description, position, weights, seconds, *, nodes=0, excluded=(), threads=1, **more):
+            if more:
+                raise TypeError("unexpected keyword")
+            asked.append((seconds, threads))
+            return {"move": None, "nodes": 0}
+
+    monkeypatch.setattr(searching, "_compiled", lambda: _OlderBuild)
+    search(CHESS, BOXED, seconds=9.0, soft=3.0, threads=4)
+    assert asked == [(3.0, 4)]
