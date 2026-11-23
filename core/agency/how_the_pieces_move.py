@@ -35,6 +35,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field, replace
+from typing import Any
 
 from core.agency.pieces_by_their_kind import (
     FIRST,
@@ -72,7 +73,10 @@ MAX_STEP = 3
 
 
 #: Every line from a square, as far as the way is clear: what a kind she has not seen move might do.
-_EVERY_LINE = (Step(((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)), rides=0),)
+_EVERY_LINE = (Step(((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)), rides=0, sure=False),)
+#: Sightings of a kind going a way, offered by the game or seen made, below which the way is not relied on: one
+#: misread look can show two. LIVE 23 November 2026 one look gave her royal kind two squares far up the board.
+SEEN_TO_BELIEVE = 3
 
 
 def in_its_frame(side: int, start: Square, end: Square) -> tuple[Direction, int]:
@@ -133,6 +137,12 @@ class _Seen:
         # A distance kept before offers were counted was offered once, of whichever sort the way was seen doing.
         kept = times in self.offered or times in self.offered_unmoved
         return int(kept and not (self.took_at or self.went_at) and bool(self.took if taking else self.moved_to_empty))
+
+    def sightings(self, distances: Any = None) -> int:
+        """How often this way was offered or seen gone, at ``distances`` (all it was seen at, where None)."""
+        at = set(self.went_at) | set(self.took_at) | self.offered | self.offered_unmoved if distances is None \
+            else set(distances)
+        return sum(self._counted(t, False) + self._counted(t, True) for t in at)
 
     def _stands(self, times: int) -> bool:
         return (self._counted(times, False) > self.refused_going_at.get(times, 0)
@@ -213,6 +223,9 @@ class HowThePiecesMove:
     #: Moves seen that the rules she held did not allow, by kind, way and distance, waiting to be seen again before they
     #: teach her anything: a board misread once explained by a move nobody made taught her men to step sideways.
     unconfirmed: dict[str, int] = field(default_factory=dict)
+    #: Every answer the game gave, kept whole so her rules can be checked against all of it
+    #: (core/agency/what_the_game_showed.py); kept beside the record, not in it.
+    shown: Any = field(default=None, repr=False, compare=False)
 
     @classmethod
     def from_the_start(cls, rows: int, columns: int, start: dict[Square, tuple[int, str]]) -> HowThePiecesMove:
@@ -228,6 +241,8 @@ class HowThePiecesMove:
 
     def offered(self, position: Position, square: Square, squares: set[Square], family: Family | None = None) -> None:
         """The game offered ``squares`` for the piece on ``square``: every way it could have gone is evidence."""
+        if self.shown is not None:
+            self.shown.offered(position, square, squares)
         side, kind = position.cells[square]
         unmoved = square in position.unmoved
         # A partner's square offered to a piece her rules have crossing with it there is the crossing offered: a game
@@ -508,6 +523,8 @@ class HowThePiecesMove:
         """A move the game would not take. Where the rules she held allowed it, either the kind does not go there, or
         the move would leave a kind of hers open to be taken that the game will not let her leave open: the kind left
         open by every such refusal is royal."""
+        if self.shown is not None:
+            self.shown.refused(position, move)
         side, kind = position.cells[move.start]
         direction, times = in_its_frame(side, move.start, move.end)
         unmoved = move.start in position.unmoved
@@ -672,14 +689,19 @@ class HowThePiecesMove:
                 for times in sorted(offered):
                     only = times not in way.offered
                     steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may=may,
-                                      only_unmoved=only))
+                                      only_unmoved=only, sure=way.sightings([times]) >= SEEN_TO_BELIEVE))
                 continue
+            sure = way.sightings() >= SEEN_TO_BELIEVE
             if moved_reach >= 0:
                 steps.append(Step((direction,), rides=1 if way.jumped and moved_reach == 1 else moved_reach, may=may,
-                                  takes_in_passing=kind in self.takes_passing and may == "takes"))
+                                  takes_in_passing=kind in self.takes_passing and may == "takes", sure=sure))
             if unmoved_reach != moved_reach and (unmoved_reach == 0 or unmoved_reach > max(moved_reach, 0)):
+                # What it may do only from where it began rests on what was seen of it from there.
+                first_only = way.offered_unmoved - way.offered
                 steps.append(Step((direction,), rides=unmoved_reach, may=may, only_unmoved=True,
-                                  leaves_passable=kind in self.passes))
+                                  leaves_passable=kind in self.passes,
+                                  sure=(way.sightings(first_only) if first_only else way.sightings())
+                                  >= SEEN_TO_BELIEVE))
         return _mirrored(steps, ways)
 
     def as_memory(self) -> dict:
@@ -870,8 +892,11 @@ def _mirrored(steps: list[Step], ways: dict[Direction, _Seen]) -> list[Step]:
         # image, d2 to h8, and was refused twice more.
         if way is not None and _refused_there(way, times if step.rides == 1 else None):
             continue
+        # An image is an inference: relied on as far as the game has shown the image itself.
+        seen = way.sightings([times] if step.rides == 1 else None) if way is not None else 0
         out.append(Step((image,), rides=step.rides, may=step.may, only_unmoved=step.only_unmoved,
-                        leaves_passable=step.leaves_passable, takes_in_passing=step.takes_in_passing))
+                        leaves_passable=step.leaves_passable, takes_in_passing=step.takes_in_passing,
+                        sure=step.sure and seen >= SEEN_TO_BELIEVE))
         have.add((image, step.only_unmoved))
     return out
 

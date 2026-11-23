@@ -93,8 +93,11 @@ class Pondering:
         if self.busy() or pool is None:
             return
         self.looks += 1
+        from core.agency.pieces_by_their_kind import FIRST
+
+        # As wary of her own unsure ways as the search of her turn is: the two share what they find.
         self.running = pool.submit(search, family, position, seconds=seconds, weights=weights, earlier=earlier,
-                                   threads=threads)
+                                   threads=threads, wary=FIRST)
 
     def settle(self) -> None:
         """What a finished look found is in her search's table already; only its failure is worth a word."""

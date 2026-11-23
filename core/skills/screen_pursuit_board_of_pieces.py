@@ -230,6 +230,8 @@ _CAME_TO = "what-her-games-came-to"
 _THEY_ANSWERED = "what-they-answered-where"
 #: Her answers, worked out ahead, to the situations she expects to meet (core/agency/thinking_before_it_comes.py).
 _PREPARED = "worked-out-ahead"
+#: Every answer the game gave about what may be done (core/agency/what_the_game_showed.py).
+_SHOWN = "what-the-game-showed"
 
 
 def _her_record(target_app: str) -> str:
@@ -256,6 +258,10 @@ def _kept_under(record: str) -> dict[str, Any]:
         kept["looks"] = Looks.from_memory(held["looks"])
     if held.get("rules"):
         kept["rules"] = HowThePiecesMove.from_memory(held["rules"])
+        if kept["rules"] is not None:
+            from core.agency.what_the_game_showed import WhatTheGameShowed
+
+            kept["rules"].shown = WhatTheGameShowed.from_bytes(recall_beside(record, _SHOWN))
     if held.get("went_wrong"):
         from core.cognition.the_furthest_she_has_got import WhatFailedWhere
 
@@ -306,6 +312,9 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
     record: dict[str, Any] = {"app": target_app, "looks": looks.as_memory()}
     if learned is not None:
         record["rules"] = learned.as_memory()
+        shown = getattr(learned, "shown", None)
+        if shown is not None and (shown.offers or shown.refusals):
+            remember_beside(_her_record(target_app), _SHOWN, shown.as_bytes())
     if went_wrong is not None and went_wrong.ruled_out:
         record["went_wrong"] = went_wrong.as_memory()
     if they_answered is not None and they_answered.answered:

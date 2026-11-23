@@ -154,7 +154,7 @@ def described(family: Family) -> str:
             "letter": letter,
             "steps": [{"offsets": [list(o) for o in s.offsets], "rides": s.rides, "may": s.may,
                        "only_unmoved": s.only_unmoved, "leaves_passable": s.leaves_passable,
-                       "takes_in_passing": s.takes_in_passing} for s in kind.steps],
+                       "takes_in_passing": s.takes_in_passing, "sure": s.sure} for s in kind.steps],
             "royal": kind.royal, "becomes": list(kind.becomes), "cannot_go_back": kind.cannot_go_back,
             "crosses_with": kind.crosses_with, "takes_again": kind.takes_again,
             "wins_arriving": kind.wins_arriving,
@@ -172,10 +172,13 @@ def _position_data(position: Position) -> dict[str, Any]:
             "count": position.count}
 
 
-def placed(position: Position, earlier: list[Position] | None = None) -> str:
-    """A position as the compiled search reads it, with the positions before it for counting repeats."""
+def placed(position: Position, earlier: list[Position] | None = None, wary: int | None = None) -> str:
+    """A position as the compiled search reads it, with the positions before it for counting repeats, and the side
+    that acts in the world, which does not count on its own unsure ways past its first move."""
     data = _position_data(position)
     data["history"] = [_position_data(p) for p in (earlier or [])]
+    if wary is not None:
+        data["wary"] = int(wary)
     return json.dumps(data)
 
 
@@ -198,15 +201,17 @@ def _matching(family: Family, position: Position, found: tuple) -> Move | None:
 
 def search(family: Family, position: Position, *, seconds: float, weights: Weights | None = None,
            earlier: list[Position] | None = None, nodes: int = 0, set_aside: list[Move] | None = None,
-           threads: int = 1) -> Found:
+           threads: int = 1, wary: int | None = None) -> Found:
     """The best move for the side to move, searched for ``seconds`` (or ``nodes``), leaving out ``set_aside``: moves
     the game has shown are not moves. With ``threads`` above one, that many searchers look at once, sharing what each
-    finds (a count of nodes is searched by one)."""
+    finds (a count of nodes is searched by one). ``wary`` is the side that acts in the world: what its rules hold on
+    too little is not counted on past its first move, and the other side's plausible moves are planned against. A plan
+    that runs through a move she cannot make is no plan; one that ignores a move they might make is a hope."""
     weights = weights or first_weights(family)
     aside = list(set_aside or [])
     engine = _compiled()
     if engine is not None:
-        asked = (described(family), placed(position, earlier), weights.as_json(), float(seconds))
+        asked = (described(family), placed(position, earlier, wary), weights.as_json(), float(seconds))
         excluded = [(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in aside]
         try:
             result = engine.search(*asked, nodes=int(nodes), excluded=excluded,

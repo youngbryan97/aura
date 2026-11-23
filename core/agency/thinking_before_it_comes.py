@@ -194,8 +194,10 @@ class Prepared:
         from core.agency.playing_pieces_by_kind import _named
 
         began = time.monotonic()
+        from core.agency.pieces_by_their_kind import FIRST
+
         found = search(family, position, seconds=seconds, weights=weights, earlier=earlier, threads=threads,
-                       **({"set_aside": aside} if aside else {}))
+                       wary=FIRST, **({"set_aside": aside} if aside else {}))
         if found.move is None:
             return None
         move = found.move
@@ -216,8 +218,10 @@ class Prepared:
         legal = moves(family, position)
         aside = [m for m in legal if expected is not None and _named(m) == expected]
         began = time.monotonic()
+        from core.agency.pieces_by_their_kind import FIRST
+
         found = search(family, position, seconds=seconds, weights=weights, earlier=earlier, threads=threads,
-                       **({"set_aside": aside} if aside and len(aside) < len(legal) else {}))
+                       wary=FIRST, **({"set_aside": aside} if aside and len(aside) < len(legal) else {}))
         if found.move is None:
             return None
         self.otherwise[_key(place)] = {"move": _named(found.move), "among": among(legal), "at": time.time(),

@@ -22,7 +22,12 @@ from typing import Any
 
 import numpy as np
 
-from core.agency.how_the_pieces_move import HowThePiecesMove, a_move_her_rules_allow, moves_seen
+from core.agency.how_the_pieces_move import (
+    SEEN_TO_BELIEVE,
+    HowThePiecesMove,
+    a_move_her_rules_allow,
+    moves_seen,
+)
 from core.agency.pieces_by_their_kind import (
     FIRST,
     SECOND,
@@ -65,10 +70,6 @@ MARKED_SHARE = 0.02
 PROBES_A_TURN = 6
 #: Offers seen of a kind after which it is not picked up just to learn from.
 SEEN_ENOUGH = 8
-#: Sightings of a kind going a way, that far or further, below which a move that way is looked at before it is made:
-#: one misread look can show two. LIVE 23 November 2026 one look gave her royal kind two squares far up the board, and
-#: her rules had it ride the whole file; preparing after, she worked out a move of it from e1 to e4.
-SEEN_TO_BELIEVE = 3
 #: Moves she picks up and finds not offered, at most, before she moves the best one the game does offer.
 CHECKS_A_TURN = 8
 #: The least she waits on an answer before taking it that none is coming, whatever answers have taken so far.
@@ -669,6 +670,10 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 rehearsing.rehearsal = lent_rehearsal
             tell(f"This board begins as the one in {where} does, so I'll start from what I learned there.")
     game.learned.first_was_hers = game.first_is_hers
+    if game.learned.shown is None:
+        from core.agency.what_the_game_showed import WhatTheGameShowed
+
+        game.learned.shown = WhatTheGameShowed()
     misread = 0
     unexplained: dict | None = None
     while monotonic_time() - began < seconds:
@@ -781,13 +786,15 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         # Learn from a few pieces she has not seen enough of, then think.
         offered: dict[tuple[int, int], set] = {}
         probes = 0
-        # Pieces with room around them first: one boxed in by its own side shows nothing.
+        # Pieces whose answer would settle a way her rules are unsure of first (one look at what the game offers says
+        # whether it goes there); then pieces with room around them: one boxed in by its own side shows nothing.
         mine = [sq for sq, (side, _kind) in game.believed.cells.items() if side == FIRST]
-        for square in sorted(mine, key=lambda sq: -_room_around(game.believed, sq)):
+        settles = {sq: _would_settle(game, sq) for sq in mine}
+        for square in sorted(mine, key=lambda sq: (-settles[sq], -_room_around(game.believed, sq))):
             kind = game.believed.cells[square][1]
             if probes >= PROBES_A_TURN:
                 break
-            if _times_offered(game.learned, kind) >= SEEN_ENOUGH and game.made:
+            if _times_offered(game.learned, kind) >= SEEN_ENOUGH and game.made and not settles[square]:
                 continue
             if on_her_clock and not _room_to_learn(game, monotonic_time() - turn_began, share, probes):
                 break
@@ -859,7 +866,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             else:
                 search_began = monotonic_time()
                 found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
-                               set_aside=set_aside, threads=_cores_free())
+                               set_aside=set_aside, threads=_cores_free(), wary=FIRST)
                 searched_s += monotonic_time() - search_began
             if found.move is None:
                 break
@@ -1052,6 +1059,28 @@ def _cores_free() -> int:
     except OSError:
         return 1
     return max(1, min(cores, int(cores - max(0.0, busy - _her_own_cores()))))
+
+
+def _would_settle(game: _Game, square: tuple[int, int]) -> int:
+    """How many of the ways her rules are unsure of, for the piece of hers on ``square``, one look at what the game
+    offers it would settle: those whose first landing from there is on the board and not held by her own side, so the
+    game either offers it or withholds it. A belief she cannot rely on is asked of the world where asking is cheap."""
+    position = game.believed
+    _side, kind = position.cells[square]
+    steps = game.learned.family().kinds.get(kind)
+    if steps is None:
+        return 0
+    rows, columns = game.learned.rows, game.learned.columns
+    settled = 0
+    for step in steps.steps:
+        if step.sure or (step.only_unmoved and square not in position.unmoved):
+            continue
+        for forward, right in step.offsets:
+            there = (square[0] + forward, square[1] + right)
+            held = position.cells.get(there)
+            if 0 <= there[0] < rows and 0 <= there[1] < columns and (held is None or held[0] != FIRST):
+                settled += 1
+    return settled
 
 
 def _room_to_learn(game: _Game, spent: float, share: float, probes: int) -> bool:
@@ -1356,5 +1385,12 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
         tell(f"It's a draw ({ended.split(':', 1)[-1].strip()}).")
     if game.foreseeable:
         logger.info("she foresaw %d of their %d answers", game.foreseen, game.foreseeable)
-    return {"ended": result, "moves": game.made, "theirs": game.theirs, "learned": game.learned,
-            "foresaw": (game.foreseen, game.foreseeable), "final": game.believed, "last_move": game.last_followed}
+    ended_with = {"ended": result, "moves": game.made, "theirs": game.theirs, "learned": game.learned,
+                  "foresaw": (game.foreseen, game.foreseeable), "final": game.believed, "last_move": game.last_followed}
+    if game.learned.shown is not None:
+        # Her rules as they stand, checked against every answer the game has given: what they would have it offer that
+        # it did not, and what it offered that they would not. Both should be none.
+        checked = game.learned.shown.checked(game.learned.family())
+        logger.info("her rules against what the game showed: %s", checked.says())
+        ended_with["rules_checked"] = checked.as_dict()
+    return ended_with

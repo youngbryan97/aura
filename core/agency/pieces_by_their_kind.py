@@ -65,6 +65,9 @@ class Step:
     leaves_passable: bool = False
     #: It may take on a passable square, taking the piece that passed over it.
     takes_in_passing: bool = False
+    #: Whether the game has shown this way often enough to be relied on. A search for a side that acts in the world does
+    #: not count on its own unsure ways past its first move, which is checked before it is made; the other side's count.
+    sure: bool = True
 
 
 @dataclass(frozen=True)

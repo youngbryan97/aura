@@ -39,6 +39,14 @@ struct StepD {
     only_unmoved: bool,
     leaves_passable: bool,
     takes_in_passing: bool,
+    /// Whether the game has shown this way often enough to be relied on. A side asked to be wary of its own unsure ways
+    /// does not count on them past its first move (see `Board::wary`).
+    #[serde(default = "sure_by_default")]
+    sure: bool,
+}
+
+fn sure_by_default() -> bool {
+    true
 }
 
 #[derive(Deserialize, Clone)]
@@ -79,6 +87,9 @@ struct PosD {
     count: i32,
     #[serde(default)]
     history: Vec<PosD>,
+    /// The side that acts in the world this search is for, and so does not count on its own unsure ways.
+    #[serde(default)]
+    wary: Option<i32>,
 }
 
 #[derive(Deserialize, Default)]
@@ -207,6 +218,7 @@ struct Step {
     only_unmoved: bool,
     leaves_passable: bool,
     takes_in_passing: bool,
+    sure: bool,
 }
 
 #[derive(Clone)]
@@ -344,6 +356,7 @@ impl Game {
                     only_unmoved: s.only_unmoved,
                     leaves_passable: s.leaves_passable,
                     takes_in_passing: s.takes_in_passing,
+                    sure: s.sure,
                 });
             }
             let mut becomes = Vec::new();
@@ -580,6 +593,12 @@ struct Board {
     count: i32,
     hash: u64,
     history: Vec<u64>,
+    /// The side that does not count on its own unsure ways (2: neither). Its first move may use one, for that move is
+    /// checked in the world before it is made; its later moves, and its threats, may not. The other side's unsure ways
+    /// all count: what is plausible for them is planned against.
+    wary: usize,
+    /// Set while the first moves of a search are being listed.
+    at_root: bool,
 }
 
 impl Board {
@@ -597,7 +616,9 @@ impl Board {
             unmoved[g.sq(*r, *c)] = true;
         }
         let passable = p.passable.map(|((a, b), (c, d))| (g.sq(a, b) as u16, g.sq(c, d) as u16));
-        let mut b = Board { cells, unmoved, turn: p.turn as usize, passable, count: p.count, hash: 0, history: vec![] };
+        let wary = p.wary.map(|w| w as usize).filter(|w| *w < 2).unwrap_or(2);
+        let mut b = Board { cells, unmoved, turn: p.turn as usize, passable, count: p.count, hash: 0, history: vec![],
+                            wary, at_root: false };
         b.hash = b.full_hash(g);
         for h in &p.history {
             let earlier = Board::from(g, h)?;
@@ -633,7 +654,7 @@ impl Board {
                 return true;
             }
             for s in &k.steps {
-                if s.may == 1 || s.may == 3 || s.may == 4 {
+                if s.may == 1 || s.may == 3 || s.may == 4 || (!s.sure && by == self.wary) {
                     continue;
                 }
                 for &d in &s.deltas[by] {
@@ -743,7 +764,7 @@ impl Board {
                 }
             }
             for s in &k.steps {
-                if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 || s.may == 4 {
+                if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 || s.may == 4 || (!s.sure && side == self.wary) {
                     continue;
                 }
                 for &d in &s.deltas[side] {
@@ -816,7 +837,7 @@ impl Board {
             let k = &g.kinds[kind_of(c)];
             let start = out.len();
             for s in &k.steps {
-                if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 {
+                if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 || (!s.sure && side == self.wary && !self.at_root) {
                     continue;
                 }
                 if s.may == 4 {
@@ -1202,7 +1223,11 @@ impl Board {
 
     fn legal(&mut self, g: &Game) -> Vec<Move> {
         let mut out = Vec::new();
+        // The moves of the position asked about: a first move, checked in the world before it is made.
+        let was = self.at_root;
+        self.at_root = true;
         self.possible(g, &mut out, false);
+        self.at_root = was;
         let side = self.turn;
         out.into_iter()
             .filter(|&m| {
@@ -1799,7 +1824,9 @@ impl<'a> Searcher<'a> {
             }
         }
         let mut moves = Vec::with_capacity(48);
+        self.b.at_root = ply == 0;
         self.b.possible(g, &mut moves, false);
+        self.b.at_root = false;
         self.order(&mut moves, tt_move, ply);
         let original_alpha = alpha;
         let mut best_score = -INF;
