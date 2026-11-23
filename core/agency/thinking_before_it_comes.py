@@ -86,11 +86,14 @@ class Prepared:
         return held if held is not None and held.get("among") == choices else None
 
     def prepare(self, family: Any, start: Any, weights: Any, *, they_answered: Any = None, went_wrong: Any = None,
-                positions: int, plies: int, seconds: float = LOOKS_FOR_S, threads: int = 1, search: Any = None) -> int:
+                positions: int, plies: int, seconds: float = LOOKS_FOR_S, threads: int = 1, search: Any = None,
+                doubtful: Any = None) -> int:
         """Spends up to ``positions`` looks of ``seconds`` on the situations she expects to meet and has not worked
         out, walking from ``start`` through her own answers and the other side's, ``plies`` turns deep at most: each
         look goes to the one the largest share of her games reach, by the answers they have given on the way. A move
-        that lost there (``went_wrong``) is set aside. Where every one of those is worked out, a look finds what else
+        that lost there (``went_wrong``) is set aside, and so is one her rules allow on too little to work a line out
+        through (``doubtful``, of a situation and a move): at the board, a look shows whether it is a move at all, and
+        an answer that is one is worked out again. Where every one of those is worked out, a look finds what else
         they might answer where they have given no answer she has seen, and the walk goes on through that answer too.
         How many it worked out."""
         from core.agency.pieces_by_their_kind import FIRST, after, moves
@@ -102,11 +105,13 @@ class Prepared:
         while done < positions:
             theirs: list[tuple[Any, list[Any], int, str, float, Any]] = []
             mine = [item for item in self._walked(family, start, they_answered, went_wrong, plies,
-                                                  FIRST, after, moves, _a_place, _named) if not item[4]]
+                                                  FIRST, after, moves, _a_place, _named, doubtful=doubtful)
+                    if not item[4]]
             if not mine:
                 # Everything her games are likely to reach is worked out: the answers they might give besides.
                 mine = [item for item in self._walked(family, start, they_answered, went_wrong, plies, FIRST, after,
-                                                      moves, _a_place, _named, widened=theirs) if not item[4]]
+                                                      moves, _a_place, _named, widened=theirs, doubtful=doubtful)
+                        if not item[4]]
             if not mine:
                 if not theirs or self._otherwise_looked(search, family, max(theirs, key=lambda t: (t[4], -t[2])),
                                                         weights, seconds, threads, moves, _named) is None:
@@ -117,7 +122,7 @@ class Prepared:
             position, earlier, ply, place, _looked, _share = max(mine, key=lambda item: (item[5], -item[2]))
             lost_here = went_wrong.already_failed_at(place) if went_wrong is not None else frozenset()
             legal = moves(family, position)
-            aside = [m for m in legal if _named(m) in lost_here]
+            aside = [m for m in legal if _named(m) in lost_here or (doubtful is not None and doubtful(position, m))]
             if self._looked(search, family, position, earlier, weights, seconds, threads,
                             aside if len(aside) < len(legal) else [], place, ply, among(legal)) is None:
                 break
@@ -130,7 +135,8 @@ class Prepared:
 
     def _walked(self, family: Any, start: Any, they_answered: Any, went_wrong: Any,
                 plies: int, first: int, after: Any, moves: Any, _a_place: Any, _named: Any,
-                widened: list[Any] | None = None) -> list[tuple[Any, list[Any], int, str, float, float]]:
+                widened: list[Any] | None = None, doubtful: Any = None
+                ) -> list[tuple[Any, list[Any], int, str, float, float]]:
         """Her situations on the way from ``start``: through her answers where she has them, the answers the other
         side has given (or the one she expects), each with how far from the start it is, how long she has looked at it
         among the choices it offers now (nought where she has not, or where her answer is a move that lost there),
@@ -155,9 +161,11 @@ class Prepared:
                 held = self.answer(place, among(legal))
                 lost_here = went_wrong.already_failed_at(place) if went_wrong is not None else frozenset()
                 move = next((m for m in legal if held is not None and _named(m) == held.get("move")
-                             and _named(m) not in lost_here), None)
+                             and _named(m) not in lost_here and not (doubtful is not None and doubtful(position, m))),
+                            None)
                 if move is None:
-                    # Not worked out, or worked out as the move a game she lost went through: worked out (again) first.
+                    # Not worked out, or worked out as the move a game she lost went through, or as one her rules now
+                    # allow on too little: worked out (again) first.
                     found.append((position, earlier, ply, place, 0.0, share))
                     continue
                 found.append((position, earlier, ply, place, float(held.get("seconds", LOOKS_FOR_S)), share))

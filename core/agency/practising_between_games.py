@@ -89,7 +89,7 @@ def _prepare_some(name: str) -> int:
     to meet at the board kept as ``name``, worked out ahead among the choices each offers her, kept beside its
     record. How many were worked out. Blocks; run it in a thread."""
     from core.agency.pieces_by_their_kind import FIRST, SECOND, Position
-    from core.agency.playing_pieces_by_kind import _cores_free, _Rehearsing
+    from core.agency.playing_pieces_by_kind import SEEN_TO_BELIEVE, _cores_free, _Rehearsing
     from core.agency.thinking_before_it_comes import Prepared
     from core.runtime.what_she_learned import remember_beside
     from core.skills.screen_pursuit_board_of_pieces import _PREPARED, _kept_under
@@ -106,7 +106,8 @@ def _prepare_some(name: str) -> int:
     began = time.monotonic()
     done = prepared.prepare(family, start, weights, they_answered=kept.get("they_answered"),
                             went_wrong=_HELD.get("went_wrong") or kept.get("went_wrong"),
-                            positions=PREPARED_A_ROUND, plies=PREPARES_TURNS, threads=_cores_free())
+                            positions=PREPARED_A_ROUND, plies=PREPARES_TURNS, threads=_cores_free(),
+                            doubtful=lambda position, move: rules.seen_going_there(position, move) < SEEN_TO_BELIEVE)
     if done and not _PLAYING:
         remember_beside(name, _PREPARED, prepared.as_bytes())
     logger.info("prepared %s between games: %d situation(s) worked out ahead in %.0f s, %d held", name, done,

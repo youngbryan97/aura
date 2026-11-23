@@ -205,3 +205,17 @@ def test_where_they_have_answered_she_does_not_look_for_what_else_they_may() -> 
     Prepared().prepare(CHESS, start, weights, they_answered=seen, positions=4, plies=3,
                        search=_an_honest_look(searched))
     assert _a_place(there) not in searched
+
+
+def test_a_move_her_rules_allow_on_too_little_is_set_aside_and_an_answer_that_is_one_worked_out_again() -> None:
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    first = sorted(moves(CHESS, start), key=_named)[0]
+    prepared = Prepared()
+    prepared.prepare(CHESS, start, weights, positions=1, plies=2, search=_an_honest_look([]))
+    assert prepared.answer(_a_place(start), among(moves(CHESS, start)))["move"] == _named(first)
+    # Her rules came to hold that move on too little: the answer is worked out again without it.
+    searched: list = []
+    prepared.prepare(CHESS, start, weights, positions=1, plies=2, search=_an_honest_look(searched),
+                     doubtful=lambda position, move: move == first)
+    assert searched == [_a_place(start)]
+    assert prepared.answer(_a_place(start), among(moves(CHESS, start)))["move"] != _named(first)
