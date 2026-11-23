@@ -9,20 +9,22 @@ game gives, and an answer worked out ahead costs nothing on the clock when the s
 So when she is idle she walks the situations she is likeliest to meet next. From the start: her own move, as a long
 look finds it; then each answer the other side has given there (kept as they gave them, core/agency/
 thinking_on_their_time.py), or, where she has seen none, the answer her own look expects of them; then her move after
-each of those, and on. Each answer she works out is kept with the rules and judgement it was worked out under. In a
-game, a situation she prepared under the same rules and judgement is answered from what she worked out; any other is
-thought about as before.
+each of those, and on. Each answer she works out is kept with the choices it was worked out among. In a game, a
+situation she prepared that offers her the same choices is answered from what she worked out; any other is thought
+about as before.
 
 LIVE 23 November 2026, on the opening positions of games 26 and 27: her moves as played cost 1,345 hundredths of a
 piece by Stockfish held to depth 14, her search at her game pace (2.5 s) 346, and a 30 s look 202.
 
 What she prepares grows as a repertoire does. Each look goes to the situation not yet worked out that the most of her
-games reach, by the answers the other side has given on the way. A move of hers that a game she lost went through is
-set aside where she prepares that situation again, as it is in her games (WhatFailedWhere), so the line she lost is
-replaced by another. A situation worked out is not looked at again for longer: on 12 opening positions of her games of
-22 and 23 November 2026, Stockfish held to depth 18 put her moves at game pace at 211 hundredths of a piece, a
-30 s look at 61, and looks of 60 and 120 s at 215 and 255. Games 26, 27 and 28 were decided by their fifth
-to tenth moves.
+games reach, by the answers the other side has given on the way. An answer of theirs she has not seen and only
+expects is as likely as her expectations of them have proved: a line of guesses ten answers deep is not as likely as
+an answer they have been seen to give once in four, unless what she expects of them always comes. A move of hers that
+a game she lost went through is set aside where she prepares that situation again, as it is in her games
+(WhatFailedWhere), so the line she lost is replaced by another. A situation worked out is not looked at again for
+longer: on 12 opening positions of her games of 22 and 23 November 2026, Stockfish held to depth 18 put her moves at
+game pace at 211 hundredths of a piece, a 30 s look at 61, and looks of 60 and 120 s at 215 and 255. Games 26, 27 and
+28 were decided by their fifth to tenth moves.
 
 Nothing here knows a game: a situation is a position written out, an answer a move named.
 """
@@ -37,7 +39,7 @@ from typing import Any
 
 logger = logging.getLogger("Aura.ThinkingBeforeItComes")
 
-__all__ = ["LOOKS_FOR_S", "Prepared", "under"]
+__all__ = ["LOOKS_FOR_S", "Prepared", "among"]
 
 #: How long she looks at each situation she prepares: the look measured above to choose better than her game pace.
 LOOKS_FOR_S = 30.0
@@ -51,27 +53,30 @@ def _key(place: str) -> str:
     return hashlib.sha1(str(place).encode()).hexdigest()[:16]
 
 
-def under(family: Any, weights: Any = None) -> str:
-    """The rules an answer is worked out under, as a short name: rules changed, it is another answer. Her judgement
-    changed, it is not: a 30 s look under the judgement she had is still far better than her game pace under the one
-    she has (on 12 opening positions, 61 hundredths of a piece against 211), and a judgement she keeps is changed a
-    little at a time. ``weights`` is taken and not read, for callers that pass it."""
-    from core.agency.searching_by_kind import described
+def among(legal: Any) -> str:
+    """The choices a situation offers, as a short name: an answer worked out among these choices is an answer here.
 
-    return hashlib.sha1(described(family).encode()).hexdigest()[:16]
+    An answer is kept while the choices it was made among are the choices she has: a move her rules have come to
+    allow there, or no longer allow, is a choice the look that made it never weighed. A change to her rules that
+    leaves the choices here as they were changes nothing she chose between. Nor does a change to her judgement: a
+    30 s look under the judgement she had is still far better than her game pace under the one she has (on 12 opening
+    positions, 61 hundredths of a piece against 211), and a judgement she keeps is changed a little at a time."""
+    from core.agency.playing_pieces_by_kind import _named
+
+    return hashlib.sha1("|".join(sorted(_named(m) for m in legal)).encode()).hexdigest()[:16]
 
 
 @dataclass
 class Prepared:
     """Her answers, worked out ahead, to the situations she expects to meet: each with the move, how deep the look
-    went, what it judged, and the rules it was worked out under."""
+    went, what it judged, and the choices it was worked out among."""
 
     answers: dict[str, dict[str, Any]] = field(default_factory=dict)
 
-    def answer(self, place: str, worked_out_under: str) -> dict[str, Any] | None:
-        """What she worked out for this situation under these rules, if she has."""
+    def answer(self, place: str, choices: str) -> dict[str, Any] | None:
+        """What she worked out for this situation among these choices (``among``), if she has."""
         held = self.answers.get(_key(place))
-        return held if held is not None and held.get("under") == worked_out_under else None
+        return held if held is not None and held.get("among") == choices else None
 
     def prepare(self, family: Any, start: Any, weights: Any, *, they_answered: Any = None, went_wrong: Any = None,
                 positions: int, plies: int, seconds: float = LOOKS_FOR_S, threads: int = 1, search: Any = None) -> int:
@@ -84,10 +89,9 @@ class Prepared:
 
         if search is None:
             from core.agency.searching_by_kind import search
-        worked_out_under = under(family, weights)
         done = 0
         while done < positions:
-            mine = [item for item in self._walked(family, start, worked_out_under, they_answered, went_wrong, plies,
+            mine = [item for item in self._walked(family, start, they_answered, went_wrong, plies,
                                                   FIRST, after, moves, _a_place, _named) if not item[4]]
             if not mine:
                 break
@@ -97,7 +101,7 @@ class Prepared:
             legal = moves(family, position)
             aside = [m for m in legal if _named(m) in lost_here]
             if self._looked(search, family, position, earlier, weights, seconds, threads,
-                            aside if len(aside) < len(legal) else [], place, ply, worked_out_under) is None:
+                            aside if len(aside) < len(legal) else [], place, ply, among(legal)) is None:
                 break
             done += 1
         if len(self.answers) > KEPT_AT_MOST:
@@ -106,19 +110,26 @@ class Prepared:
                 del self.answers[key]
         return done
 
-    def _walked(self, family: Any, start: Any, worked_out_under: str, they_answered: Any, went_wrong: Any,
+    def _walked(self, family: Any, start: Any, they_answered: Any, went_wrong: Any,
                 plies: int, first: int, after: Any, moves: Any, _a_place: Any, _named: Any
                 ) -> list[tuple[Any, list[Any], int, str, float, float]]:
         """Her situations on the way from ``start``: through her answers where she has them, the answers the other
         side has given (or the one she expects), each with how far from the start it is, how long she has looked at it
-        under these rules and this judgement (nought where she has not, or where her answer is a move that lost there),
-        and the share of games that reach it, each answer of theirs weighed by how often they have given it. The walk
-        stops at a situation of hers she has not worked out: what follows it depends on her answer."""
+        among the choices it offers now (nought where she has not, or where her answer is a move that lost there),
+        and the share of games that reach it, each answer of theirs weighed by how often they have given it, and an
+        answer she only expects by how often her expectations of them have come true. The walk stops at a situation
+        of hers she has not worked out: what follows it depends on her answer."""
         found: list[tuple[Any, list[Any], int, str, float, float]] = []
-        walk: list[tuple[Any, list[Any], int, Any, float]] = [(start, [], 0, None, 1.0)]
+        # Each situation with the share of games its seen answers lead to, and how many answers on the way to it are
+        # only expected. An expected answer counts for as much as her expectations of them have come true where they
+        # have answered: of the answers they gave after a move she worked out, the share that were the one she
+        # expected, with one of each kind supposed before any is seen.
+        guessed: list[int] = []
+        came_true = [0, 0]
+        walk: list[tuple[Any, list[Any], int, Any, float, int]] = [(start, [], 0, None, 1.0, 0)]
         seen: set[str] = set()
         while walk and len(seen) < KEPT_AT_MOST:
-            position, earlier, ply, expected, share = walk.pop(0)
+            position, earlier, ply, expected, share, guesses = walk.pop(0)
             place = _a_place(position)
             if ply >= plies or place in seen:
                 continue
@@ -127,30 +138,38 @@ class Prepared:
             if not legal:
                 continue
             if position.turn == first:
-                held = self.answer(place, worked_out_under)
+                held = self.answer(place, among(legal))
                 lost_here = went_wrong.already_failed_at(place) if went_wrong is not None else frozenset()
                 move = next((m for m in legal if held is not None and _named(m) == held.get("move")
                              and _named(m) not in lost_here), None)
                 if move is None:
                     # Not worked out, or worked out as the move a game she lost went through: worked out (again) first.
                     found.append((position, earlier, ply, place, 0.0, share))
+                    guessed.append(guesses)
                     continue
                 found.append((position, earlier, ply, place, float(held.get("seconds", LOOKS_FOR_S)), share))
-                walk.append((after(family, position, move), [*earlier, position], ply + 1, held.get("reply"), share))
+                guessed.append(guesses)
+                walk.append((after(family, position, move), [*earlier, position], ply + 1, held.get("reply"), share,
+                             guesses))
                 continue
             # Their turn: the answers they have given here, most often first; or the one her look expects of them.
             given = dict(getattr(they_answered, "answered", {}).get(_key(place), {})) if they_answered else {}
             total = sum(given.values())
+            if expected and total:
+                came_true[0] += given.get(expected, 0)
+                came_true[1] += total
             named = sorted(given, key=lambda m: -given[m])[:ANSWERS_FOLLOWED] or ([expected] if expected else [])
             for name in named:
                 move = next((m for m in legal if _named(m) == name), None)
                 if move is not None:
                     part = given[name] / total if given else 1.0
-                    walk.append((after(family, position, move), [*earlier, position], ply + 1, None, share * part))
-        return found
+                    walk.append((after(family, position, move), [*earlier, position], ply + 1, None, share * part,
+                                 guesses + (0 if given else 1)))
+        expected_holds = (came_true[0] + 1) / (came_true[1] + 2)
+        return [(*item[:5], item[5] * expected_holds ** times) for item, times in zip(found, guessed, strict=True)]
 
     def _looked(self, search: Any, family: Any, position: Any, earlier: list[Any], weights: Any, seconds: float,
-                threads: int, aside: list[Any], place: str, ply: int, worked_out_under: str) -> tuple[Any, Any] | None:
+                threads: int, aside: list[Any], place: str, ply: int, choices: str) -> tuple[Any, Any] | None:
         """One look at a situation of hers, kept as her answer to it: the move, and the reply her look expects."""
         from core.agency.playing_pieces_by_kind import _named
 
@@ -163,7 +182,7 @@ class Prepared:
         line = list(found.line or [])
         reply = _named(line[1]) if len(line) > 1 and line[0] == move else None
         self.answers[_key(place)] = {"move": _named(move), "depth": int(found.depth), "score": int(found.score),
-                                     "under": worked_out_under, "reply": reply, "at": time.time(),
+                                     "among": choices, "reply": reply, "at": time.time(),
                                      "seconds": float(seconds), "ply": int(ply)}
         logger.info("worked out ahead a situation %d turn(s) from the start in %.0f s: %s (looked %d deep)",
                     ply, time.monotonic() - began, _named(move), found.depth)

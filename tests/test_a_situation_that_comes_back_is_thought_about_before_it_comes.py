@@ -11,7 +11,7 @@ import core.agency.practising_between_games as practice
 from core.agency.pieces_by_their_kind import after, moves
 from core.agency.playing_pieces_by_kind import _a_place, _Game, _named, _worked_out_ahead
 from core.agency.searching_by_kind import Found, first_weights
-from core.agency.thinking_before_it_comes import Prepared, under
+from core.agency.thinking_before_it_comes import Prepared, among
 from core.agency.thinking_on_their_time import WhatTheyAnsweredWhere
 from tests.fixtures.a_game_of_pieces_to_learn import CHESS
 
@@ -41,19 +41,43 @@ def test_she_walks_her_answers_and_theirs_from_the_start() -> None:
     done = prepared.prepare(CHESS, start, weights, they_answered=seen, positions=4, plies=6,
                             search=_a_quick_look(searched))
     assert done == 4 and len(searched) == 4
-    # Her first move; then her move after the answer they have given most; then the next situation on that line, met
-    # in as many games (three in four), before the answer they gave once; then that one.
+    # Her first move; then her move after the answer they have given most; then after the answer they gave once,
+    # before the next situation on the main line, which is reached only through an answer she expects of them. Her
+    # look expected neither answer they gave at the first, so an expectation of hers counts for a sixth: three in four
+    # games and then one in six is less than one in four.
     assert searched[0] == _a_place(start)
     main = after(CHESS, there, replies[5])
     assert searched[1] == _a_place(main)
+    assert searched[2] == _a_place(after(CHESS, there, replies[7]))
     mine = sorted(moves(CHESS, main), key=_named)[0]
     expected = sorted(moves(CHESS, after(CHESS, main, mine)), key=_named)[0]
-    assert searched[2] == _a_place(after(CHESS, after(CHESS, main, mine), expected))
+    assert searched[3] == _a_place(after(CHESS, after(CHESS, main, mine), expected))
     assert len(set(searched)) == 4, "each look is at a situation of its own"
     # Worked out once: a second walk finds them done and goes further.
     more: list = []
     prepared.prepare(CHESS, start, weights, they_answered=seen, positions=1, plies=6, search=_a_quick_look(more))
     assert more and more[0] not in searched
+
+
+def test_an_answer_she_expects_counts_as_far_as_her_expectations_have_come_true() -> None:
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    first = sorted(moves(CHESS, start), key=_named)[0]
+    there = after(CHESS, start, first)
+    replies = sorted(moves(CHESS, there), key=_named)
+    # Three times in four they answered as her look expected (the first reply in its order), once otherwise: an
+    # expectation of hers counts for four in six, and the main line's next situation (three in four, then four in
+    # six) comes before the answer they gave once.
+    seen = WhatTheyAnsweredWhere()
+    for _ in range(3):
+        seen.they_answered(_a_place(there), _named(replies[0]))
+    seen.they_answered(_a_place(there), _named(replies[7]))
+    searched: list = []
+    Prepared().prepare(CHESS, start, weights, they_answered=seen, positions=3, plies=6,
+                       search=_a_quick_look(searched))
+    main = after(CHESS, there, replies[0])
+    mine = sorted(moves(CHESS, main), key=_named)[0]
+    expected = sorted(moves(CHESS, after(CHESS, main, mine)), key=_named)[0]
+    assert searched == [_a_place(start), _a_place(main), _a_place(after(CHESS, after(CHESS, main, mine), expected))]
 
 
 def test_where_they_have_not_answered_she_follows_the_answer_she_expects() -> None:
@@ -66,23 +90,35 @@ def test_where_they_have_not_answered_she_follows_the_answer_she_expects() -> No
     assert searched == [_a_place(start), _a_place(after(CHESS, there, expected))]
 
 
-def test_an_answer_counts_while_the_rules_it_was_worked_out_under_stand() -> None:
+def test_an_answer_counts_while_the_choices_it_was_made_among_stand() -> None:
     from dataclasses import replace
 
     start, weights = CHESS.the_start(), first_weights(CHESS)
     prepared = Prepared()
     prepared.prepare(CHESS, start, weights, positions=1, plies=2, search=_a_quick_look([]))
-    assert prepared.answer(_a_place(start), under(CHESS, weights)) is not None
-    # Her judgement changed: a long look under the one she had still stands.
-    other = first_weights(CHESS)
-    other.tempo += 7
-    assert prepared.answer(_a_place(start), under(CHESS, other)) is not None
-    # The rules changed: it is another answer.
+    choices = moves(CHESS, start)
+    assert prepared.answer(_a_place(start), among(choices)) is not None
+    # Her rules changed and offer her the same choices here: what she worked out among them still stands.
     other_rules = replace(CHESS, count_to_draw=CHESS.count_to_draw + 1)
-    assert prepared.answer(_a_place(start), under(other_rules, weights)) is None
+    assert prepared.answer(_a_place(start), among(moves(other_rules, start))) is not None
+    # A choice her rules no longer give her, or one more: the look never weighed these choices.
+    assert prepared.answer(_a_place(start), among(choices[1:])) is None
     again = Prepared.from_bytes(prepared.as_bytes())
-    assert again.answer(_a_place(start), under(CHESS, weights)) == prepared.answer(_a_place(start),
-                                                                                  under(CHESS, weights))
+    assert again.answer(_a_place(start), among(choices)) == prepared.answer(_a_place(start), among(choices))
+
+
+def test_a_walk_goes_on_through_answers_made_among_the_same_choices_under_other_rules() -> None:
+    from dataclasses import replace
+
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    prepared = Prepared()
+    prepared.prepare(CHESS, start, weights, positions=1, plies=4, search=_a_quick_look([]))
+    # Her rules grew in a way that leaves the start's choices as they were: the walk does not work the start out
+    # again, and goes on to the next situation.
+    searched: list = []
+    other_rules = replace(CHESS, count_to_draw=CHESS.count_to_draw + 1)
+    prepared.prepare(other_rules, start, weights, positions=1, plies=4, search=_a_quick_look(searched))
+    assert searched and searched[0] != _a_place(start)
 
 
 def test_in_a_game_a_situation_worked_out_ahead_is_answered_from_it() -> None:
@@ -135,7 +171,7 @@ def test_a_move_a_lost_game_went_through_is_worked_out_again_without_it() -> Non
     start, weights = CHESS.the_start(), first_weights(CHESS)
     prepared = Prepared()
     prepared.prepare(CHESS, start, weights, positions=1, plies=2, search=_a_quick_look([]))
-    first = prepared.answer(_a_place(start), under(CHESS, weights))["move"]
+    first = prepared.answer(_a_place(start), among(moves(CHESS, start)))["move"]
     lost = WhatFailedWhere()
     lost.failed_at(_a_place(start), first)
     asked: list = []
@@ -147,4 +183,4 @@ def test_a_move_a_lost_game_went_through_is_worked_out_again_without_it() -> Non
 
     prepared.prepare(CHESS, start, weights, went_wrong=lost, positions=1, plies=2, search=search)
     assert asked and first in asked[0]
-    assert prepared.answer(_a_place(start), under(CHESS, weights))["move"] != first
+    assert prepared.answer(_a_place(start), among(moves(CHESS, start)))["move"] != first

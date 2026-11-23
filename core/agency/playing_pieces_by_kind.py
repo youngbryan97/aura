@@ -845,7 +845,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                       else share)
             # A move that is the only one is made without weighing (core/cognition/when_the_situation_decides.py).
             only = nothing_to_decide([m for m in legal if m not in set_aside]) if not set_aside else None
-            # A situation she worked out ahead, under the rules and judgement she plays by now, is answered from what
+            # A situation she worked out ahead, among the choices it offers her now, is answered from what
             # she worked out (core/agency/thinking_before_it_comes.py), and her clock keeps the time.
             ready = _worked_out_ahead(prepared, game, family, weights, legal) if not set_aside else None
             if only is not None:
@@ -952,13 +952,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
 
 
 def _worked_out_ahead(prepared: Any, game: _Game, family: Family, weights: Any, legal: list[Move]) -> Any:
-    """Her answer to this situation, where she worked it out ahead under the rules and judgement she plays by now."""
+    """Her answer to this situation, where she worked it out ahead among the choices it offers her now."""
     if prepared is None:
         return None
     from core.agency.searching_by_kind import Found
-    from core.agency.thinking_before_it_comes import under
+    from core.agency.thinking_before_it_comes import among
 
-    held = prepared.answer(_a_place(game.believed), under(family, weights))
+    held = prepared.answer(_a_place(game.believed), among(legal))
     move = next((m for m in legal if held is not None and _named(m) == held.get("move")), None)
     if move is None:
         return None

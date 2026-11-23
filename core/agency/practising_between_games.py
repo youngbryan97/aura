@@ -86,7 +86,7 @@ def _the_board_she_last_played() -> tuple[str, tuple[int, int]] | None:
 
 def _prepare_some(name: str) -> int:
     """A round of thinking before it comes (core/agency/thinking_before_it_comes.py): the situations she is likeliest
-    to meet at the board kept as ``name``, worked out ahead under the rules and judgement she plays by, kept beside its
+    to meet at the board kept as ``name``, worked out ahead among the choices each offers her, kept beside its
     record. How many were worked out. Blocks; run it in a thread."""
     from core.agency.pieces_by_their_kind import FIRST, SECOND, Position
     from core.agency.playing_pieces_by_kind import _cores_free, _Rehearsing
