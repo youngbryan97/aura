@@ -448,6 +448,37 @@ def _decide_the_next_move_part_10(
     return went_well
 
 
+def _with_her_answers_ready(
+    ahead: dict[str, tuple[float, str]] | None,
+    *,
+    knows: Any,
+    laid_out: Any,
+    choices: list[str],
+    world: Any,
+    toward: str,
+    approach: str,
+    weights: Any,
+) -> dict[str, tuple[float, str]] | None:
+    """The move her look ahead ranks first, with her answer ready to each way the world is likeliest to answer it and
+    to the way that would hurt her most, where the world has been seen to choose its answers
+    (core/cognition/how_they_answer.py)."""
+    from core.agency.looking_ahead import answers_ready, said_of_an_answer
+
+    leaning = getattr(getattr(world, "answers", None), "leaning", None)
+    if not ahead or knows.rules is None or laid_out is None or not callable(leaning) or not leaning():
+        return ahead
+    first = max(ahead, key=lambda name: ahead[name][0])
+    state = knows.rules.the_thing(laid_out)
+    ready = answers_ready(knows.rules, state, first, choices, world=world, toward=toward, approach=approach,
+                          weights=weights)
+    made = knows.rules.expect(state, first) if ready else None
+    if not ready or made is None:
+        return ahead
+    worth, reason = ahead[first]
+    lines = "; ".join(f"if it answers with {said_of_an_answer(made, way)}, I'll {act}" for way, act, _w in ready)
+    return {**ahead, first: (worth, f"{reason} — {lines}" if reason else lines)}
+
+
 async def decide_the_next_move(
     observation: dict[str, Any],
     run: SimpleNamespace,
@@ -759,6 +790,17 @@ async def decide_the_next_move(
             if expected["took"] == 1:
                 foretold = knows.rules.expect(pending["arranged"], previous.chosen.name)
                 world.watched(foretold, knows.rules.the_thing(laid_out))
+                # And where the world's answer fell among those it could have
+                # given, by her own judgement: whether what answers her here
+                # chooses, and which way, or comes by luck.
+                from core.agency.looking_ahead import how_it_was_answered
+
+                how_it_was_answered(
+                    knows.rules, foretold, knows.rules.the_thing(laid_out), world,
+                    toward=success_when or _what_there_is_to_aim_at(laid_out),
+                    approach=plan["held"].approach if plan["held"] is not None else "",
+                    weights=matters.weights(),
+                )
             went_well = _decide_the_next_move_part_10(dropped, expected, knows, laid_out, pending, plan, previous, responds, success_when)
             if plan["held"] is not None:
                 lines.learned(A_LINE_HERE, plan["held"].approach, went_well)
@@ -1413,6 +1455,14 @@ async def decide_the_next_move(
             ahead, knows=knows, laid_out=laid_out, choices=[option.name for option in available],
             held_line=held_line, world=world, success_when=success_when,
             ends_at=ends_at, began=began, began_at=began_at,
+        )
+        # Where what answers her here has been seen to choose, her answer to
+        # its likeliest replies and to the one that would hurt her most is
+        # worked out before she moves, and said with the move: "if it answers
+        # there, I go here".
+        ahead = _with_her_answers_ready(
+            ahead, knows=knows, laid_out=laid_out, choices=[option.name for option in available],
+            world=world, toward=aiming_at, approach=held_line, weights=matters.weights(),
         )
         # And whether this world has learned what she keeps doing.
         ahead, available = marked_down(run, ahead, available, moves, narrate, observation)

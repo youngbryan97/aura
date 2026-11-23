@@ -28,7 +28,10 @@ from core.agency.how_good_is_this import how_good, why
 from core.agency.the_steps_between import within_one_view
 
 __all__ = [
+    "answers_ready",
     "forget_how_far_she_saw",
+    "how_it_was_answered",
+    "said_of_an_answer",
     "how_far_she_can_see",
     "how_deep_to_look",
     "look_ahead",
@@ -360,8 +363,10 @@ def look_ahead(
     if trust <= 0.0:
         return {}
     # On a compiled world when the rule allows one: the same judgement, fast
-    # enough that the clock buys the depth it is asking for.
-    fast = _through_a_compiled_world(
+    # enough that the clock buys the depth it is asking for. Not where the world
+    # has been seen to choose its answers: the compiled search averages them as
+    # luck, and the search below weighs them as chosen.
+    fast = None if _it_chooses(world) else _through_a_compiled_world(
         knows, state, actions,
         toward=toward, approach=approach, budget_s=budget_s,
         world=world, weights=weights, depth=depth, settles_how_far=settles_how_far,
@@ -572,15 +577,125 @@ def _what_it_leads_to(
             toward=toward, approach=approach, world=world, weights=weights,
             known=known, knows=knows, been=been, dead=dead,
         )
-    return sum(
-        share
-        * _best_from(
+    values = [
+        _best_from(
             expect, way, actions, depth - 1,
             toward=toward, approach=approach, world=world, weights=weights,
             known=known, knows=knows, been=been, dead=dead,
         )
-        for way, share in ways
-    )
+        for way, _share in ways
+    ]
+    shares = [share for _way, share in ways]
+    # The world's turn as it has been seen to take it: averaged where it comes
+    # by luck, toward the worst for her where it has been answering against her
+    # (core/cognition/how_they_answer.py). "If I go here and they come there"
+    # is asked of whoever answers as they have been seen to answer.
+    answers = getattr(world, "answers", None)
+    if answers is not None and callable(getattr(answers, "weigh", None)):
+        return float(answers.weigh(values, shares))
+    return sum(share * value for share, value in zip(shares, values, strict=False))
+
+
+def _it_chooses(world: Any) -> bool:
+    """Whether the world has been seen to choose its answers rather than deal them by luck."""
+    leaning = getattr(getattr(world, "answers", None), "leaning", None)
+    return bool(callable(leaning) and leaning())
+
+
+def how_it_was_answered(
+    knows: Any,
+    before: Any,
+    seen: Any,
+    world: Any,
+    *,
+    toward: str = "",
+    approach: str = "",
+    weights: Any = None,
+    acts: Sequence[str] = (),
+) -> None:
+    """Where the world's answer to her last act fell among the answers it could have given, by her own judgement of
+    where each leaves her, kept with the world. ``before`` is the situation her act made, ``seen`` the one the world's
+    turn left."""
+    answers = getattr(world, "answers", None)
+    might = getattr(world, "might_do", None)
+    if answers is None or not callable(might) or before is None or seen is None:
+        return
+    try:
+        ways = might(before)
+    except (AttributeError, TypeError, ValueError):
+        return
+    if len(ways) < 2:
+        return
+
+    def judged(state: Any) -> float:
+        return float(how_good(state, toward=toward, approach=approach, weights=weights, knows=knows, acts=acts))
+
+    answers.answered([judged(way) for way, _share in ways], judged(seen))
+
+
+def said_of_an_answer(before: Any, after: Any) -> str:
+    """What an answer changed, in words: what turned up or went, and where."""
+    def cells(one: Any) -> dict[tuple[int, int], str]:
+        return {(cell.row, cell.column): str(cell.says) for cell in getattr(one, "cells", ()) or ()}
+
+    was, now = cells(before), cells(after)
+    changed = [f"{said} at row {row + 1}, column {column + 1}" for (row, column), said in sorted(now.items())
+               if was.get((row, column)) != said]
+    gone = [f"nothing at row {row + 1}, column {column + 1}" for row, column in sorted(set(was) - set(now))]
+    return ", ".join([*changed, *gone]) or "nothing new"
+
+
+def answers_ready(
+    knows: Any,
+    state: Any,
+    action: str,
+    actions: Sequence[str],
+    *,
+    world: Any,
+    toward: str = "",
+    approach: str = "",
+    weights: Any = None,
+    most: int = 2,
+) -> list[tuple[Any, str, float]]:
+    """Her answer, ready, to each of the ways the world is likeliest to answer ``action``, and to the way that would
+    hurt her most: "if they come there, I go here". Each is the world's answer, her act after it, and what that comes
+    to by her judgement. Empty where she cannot foresee the world's turn."""
+    expect = getattr(knows, "expect", None)
+    might = getattr(world, "might_do", None)
+    if not callable(expect) or not callable(might) or state is None:
+        return []
+    made = expect(state, action)
+    if made is None:
+        return []
+    try:
+        ways = list(might(made))
+    except (AttributeError, TypeError, ValueError):
+        return []
+    if not ways:
+        return []
+
+    def judged(one: Any) -> float:
+        return float(how_good(one, toward=toward, approach=approach, weights=weights, knows=knows, acts=actions))
+
+    def her_answer(way: Any) -> tuple[str, float]:
+        best, worth = "", float("-inf")
+        for act in actions:
+            after = expect(way, act)
+            if after is None or _reading(after) == _reading(way):
+                continue
+            value = judged(after)
+            if value > worth:
+                best, worth = act, value
+        return best, worth
+
+    likeliest = sorted(ways, key=lambda one: -one[1])[:most]
+    worst = min(ways, key=lambda one: judged(one[0]))
+    ready: list[tuple[Any, str, float]] = []
+    for way, _share in [*likeliest, *([worst] if worst not in likeliest else [])]:
+        act, worth = her_answer(way)
+        if act:
+            ready.append((way, act, worth))
+    return ready
 
 
 def _best_from(

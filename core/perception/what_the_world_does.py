@@ -37,6 +37,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.cognition.how_they_answer import HowTheyAnswer
 from core.perception.what_is_there import Arrangement, Cell
 
 __all__ = ["MOST_WAYS", "ENOUGH_TO_EXPECT", "WhatTheWorldDoes"]
@@ -73,6 +74,9 @@ class WhatTheWorldDoes:
     #: Acts watched, and acts after which something turned up.
     acts: int = 0
     acts_with_arrivals: int = 0
+    #: Whether what turns up is chosen, for her or against her, or comes by luck
+    #: (core/cognition/how_they_answer.py).
+    answers: HowTheyAnswer = field(default_factory=HowTheyAnswer)
 
     # ── learning ─────────────────────────────────────────────────────────
 
@@ -92,6 +96,7 @@ class WhatTheWorldDoes:
         self.arrives.clear()
         self.acts = 0
         self.acts_with_arrivals = 0
+        self.answers = HowTheyAnswer()
 
     def watched(self, expected: Arrangement | None, seen: Arrangement) -> None:
         """One act, what a rule said it would do, and what really happened.
@@ -188,6 +193,7 @@ class WhatTheWorldDoes:
             "arrives": dict(self.arrives),
             "acts": self.acts,
             "acts_with_arrivals": self.acts_with_arrivals,
+            "answers": self.answers.as_memory(),
         }
 
     @classmethod
@@ -208,4 +214,9 @@ class WhatTheWorldDoes:
         )
         acts = int(round(float(held.get("acts") or 0) * share))
         with_arrivals = int(round(float(held.get("acts_with_arrivals") or 0) * share))
-        return cls(arrives=arrives, acts=acts, acts_with_arrivals=min(acts, with_arrivals))
+        # How it answered, discounted the same way: the latest of what she saw, as much of it as she carries over.
+        answers = HowTheyAnswer.from_memory(held.get("answers"))
+        kept = int(round(len(answers.fell) * share))
+        answers.fell = answers.fell[len(answers.fell) - kept:] if kept else []
+        answers.ways = answers.ways[len(answers.ways) - kept:] if kept else []
+        return cls(arrives=arrives, acts=acts, acts_with_arrivals=min(acts, with_arrivals), answers=answers)
