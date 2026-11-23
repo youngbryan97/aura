@@ -273,6 +273,21 @@ def _against_the_empty(square: np.ndarray, empty: list[np.ndarray]) -> tuple[np.
     return largest, np.median(pixels[edge], axis=0)
 
 
+def _spilled_from_below(silhouettes: dict[tuple[int, int], np.ndarray]) -> set[tuple[int, int]]:
+    """Squares whose silhouette is the top of a piece standing on the square below, drawn taller than its square: it
+    runs off its own square's bottom edge where the one below runs off its top edge. LIVE 11 October 2026 a figure
+    standing on a piece of each side reached up into the square above and was read as a piece there."""
+    spilled = set()
+    for (row, column), above in silhouettes.items():
+        below = silhouettes.get((row + 1, column))
+        if below is None or above.shape[1] != below.shape[1]:
+            continue
+        joined = above[-1, :] & below[0, :]
+        if joined.sum() >= max(2, above.shape[1] // 10):
+            spilled.add((row, column))
+    return spilled
+
+
 def _two_colours(colours: list[np.ndarray]) -> list[list[float]]:
     """The two colours a set of colours falls into: begun by cutting them at their middle along the way they vary
     most, each side then the middle of the colours nearer it. Middles, not means, and not the two furthest apart: one
@@ -390,6 +405,9 @@ class Looks:
     #: differs from the nearest of them, and a piece's side is the colour of its outer ring, as three colours.
     empty: list[np.ndarray] = field(default_factory=list)
     side_colours: list[list[float]] = field(default_factory=list)
+    #: Looks whose colour read as the other side where they stood at a game's start: their side is the one they began
+    #: on, whatever their colour says.
+    side_of_kind: dict[int, int] = field(default_factory=dict)
 
     def as_memory(self) -> dict:
         """The looks she knows on this board, kept with what she learned of the game, so the next sitting calls each
@@ -403,7 +421,8 @@ class Looks:
                 "empty": [{"shape": list(e.shape), "pixels": base64.b64encode(np.clip(e, 0, 255).astype(np.uint8)
                                                                                .tobytes()).decode("ascii")}
                           for e in self.empty],
-                "side_colours": [list(c) for c in self.side_colours]}
+                "side_colours": [list(c) for c in self.side_colours],
+                "side_of_kind": {str(k): int(v) for k, v in self.side_of_kind.items()}}
 
     @classmethod
     def from_memory(cls, kept: dict) -> Looks:
@@ -426,7 +445,8 @@ class Looks:
             empty = [np.frombuffer(base64.b64decode(e["pixels"]), dtype=np.uint8).reshape(e["shape"]).astype(np.float32)
                      for e in kept.get("empty", [])]
             return cls(kinds=kinds, cut=float(kept.get("cut", 0.0)), sides=[float(s) for s in kept.get("sides", [])],
-                       empty=empty, side_colours=[[float(v) for v in c] for c in kept.get("side_colours", [])])
+                       empty=empty, side_colours=[[float(v) for v in c] for c in kept.get("side_colours", [])],
+                       side_of_kind={int(k): int(v) for k, v in kept.get("side_of_kind", {}).items()})
         except (TypeError, ValueError, binascii.Error):
             return cls()
 
@@ -443,6 +463,16 @@ class Looks:
         if lattice is None:
             return None
         found: dict[tuple[int, int], tuple[np.ndarray, float]] = {}
+        silhouettes: dict[tuple[int, int], np.ndarray] = {}
+        if self.empty:
+            for row in range(lattice.rows):
+                for column in range(lattice.columns):
+                    square = lattice.square(picture, row, column)
+                    if square.size:
+                        silhouette, _colour = _against_the_empty(square, self.empty)
+                        if silhouette is not None:
+                            silhouettes[(row, column)] = silhouette
+        spilled = _spilled_from_below(silhouettes)
 
         for row in range(lattice.rows):
             for column in range(lattice.columns):
@@ -450,6 +480,8 @@ class Looks:
                 if square.size == 0:
                     continue
                 if self.empty:
+                    if (row, column) not in silhouettes or (row, column) in spilled:
+                        continue
                     silhouette, colour = _against_the_empty(square, self.empty)
                     if silhouette is None:
                         continue
@@ -472,7 +504,8 @@ class Looks:
                     nearest[(row, column)] = closest
             else:
                 kind = self._kind_of(look)
-            cells[row][column] = (self._side_of(colour), kind)
+            side = self.side_of_kind.get(kind, self._side_of(colour)) if kind is not None else self._side_of(colour)
+            cells[row][column] = (side, kind)
         return PiecesSeen(lattice, cells, nearest)
 
     def the_empty_squares_are(self, picture: np.ndarray, lattice: Lattice, rows: tuple[int, ...]) -> None:

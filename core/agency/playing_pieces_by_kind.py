@@ -128,6 +128,33 @@ class Seat:
         return x / picture.shape[1], y / picture.shape[0]
 
 
+def _sided_by_where_they_began(looks: Looks, picture: Any, lattice: Lattice, seen: PiecesSeen) -> PiecesSeen:
+    """At a game's start each side holds the rows at its own end: a piece among one side's rows whose colour reads as
+    the other side's is that side's, and its look is held to be that side's from then on. LIVE 11 October 2026 a figure
+    standing on a piece of the top side was drawn in colours nearer the bottom side's."""
+    half = lattice.rows // 2
+    ends = {"top": [cell[0] for line in seen.cells[:half] for cell in line if cell is not None],
+            "bottom": [cell[0] for line in seen.cells[half:] for cell in line if cell is not None]}
+    if not ends["top"] or not ends["bottom"]:
+        return seen
+    top = max(set(ends["top"]), key=ends["top"].count)
+    bottom = max(set(ends["bottom"]), key=ends["bottom"].count)
+    if top == bottom:
+        return seen
+    changed = False
+    for row, line in enumerate(seen.cells):
+        belongs = top if row < half else bottom
+        for cell in line:
+            if cell is not None and cell[0] != belongs and cell[1] is not None:
+                # A look seen on both ends is a kind both sides have, whose colour is to be believed.
+                elsewhere = [other for r, others in enumerate(seen.cells) for other in others
+                             if other is not None and other[1] == cell[1] and (r < half) != (row < half)]
+                if not elsewhere:
+                    looks.side_of_kind[cell[1]] = belongs
+                    changed = True
+    return looks.read(picture, lattice) if changed else seen
+
+
 def _ruled_by_its_period(picture: Any) -> Lattice | None:
     """The board found by how its picture repeats, where its squares are not flat ground to be found square by square
     (core/perception/a_board_seen.py)."""
@@ -159,6 +186,7 @@ def a_board_of_two_sides_at_its_start(picture: Any, looks: Looks | None = None) 
         seen = looks.read(picture, lattice)
         if seen is None:
             return None
+    seen = _sided_by_where_they_began(looks, picture, lattice, seen)
     rows_of: dict[int, list[int]] = {}
     for row, line in enumerate(seen.cells):
         for cell in line:

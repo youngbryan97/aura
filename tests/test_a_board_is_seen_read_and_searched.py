@@ -184,12 +184,55 @@ def test_a_places_rules_are_kept_from_one_stretch_of_play_to_the_next(monkeypatc
     async def look():
         return np.asarray(Image.open(PICTURE).convert("RGB")), 0.0
 
+    async def declined(*_args, **_kwargs):
+        return None
+
     monkeypatch.setattr(playing, "play_a_board", play)
+    # The words are kept for a board her general player cannot sit at, which goes to the player of typed rules.
+    monkeypatch.setattr(pursuit, "_played_as_pieces_by_their_kind", declined)
     keep: dict = {}
     for words in ([WORDS], ["YOU MOVE A PIECE"]):
         reflexes = SimpleNamespace(keep=keep, words=words, look=look, ends_at=1e9, stretches=[], over_because="")
         assert asyncio.run(pursuit._played_a_board(reflexes, 100.0))
     assert draughts_said(played_by[-1], "b", "a").special_swaps
+
+
+def test_a_board_of_two_sides_at_its_start_is_played_as_a_game_of_pieces(monkeypatch):
+    """The web page's board of 11 October 2026 is a board of two sides at its start: it is played by her general
+    player, its rules learned from the game, and what she learned is there for the next stretch."""
+    import asyncio
+    from types import SimpleNamespace
+
+    import core.agency.playing_pieces_by_kind as general
+    from core.agency import playing_a_board as playing
+    from core.skills import screen_pursuit_as_it_happens as pursuit
+
+    asked: list[dict] = []
+
+    async def play_pieces(seat, look, click, *, seconds, **kwargs):
+        asked.append({"seat": seat, "look": await look(), **kwargs})
+        return {"ended": "lost", "moves": 3, "learned": "what she learned", "rehearsal": None, "went_wrong": None,
+                "they_answered": None}
+
+    async def typed(*_args, **_kwargs):
+        raise AssertionError("the player of typed rules was asked")
+
+    async def look():
+        return np.asarray(Image.open(PICTURE).convert("RGB")), 0.0
+
+    async def click(_x, _y):
+        return None
+
+    monkeypatch.setattr(general, "play_pieces_by_kind", play_pieces)
+    monkeypatch.setattr(playing, "play_a_board", typed)
+    keep: dict = {}
+    reflexes = SimpleNamespace(keep=keep, words=[WORDS], look=look, click=click, ends_at=1e9, stretches=[],
+                               over_because="")
+    assert asyncio.run(pursuit._played_a_board(reflexes, 100.0))
+    assert asked and (asked[0]["seat"].rows, asked[0]["seat"].columns) == (8, 8)
+    assert asked[0]["look"].shape[2] == 3, "her general player is given the picture alone"
+    assert reflexes.stretches[-1]["losses"] == 1
+    assert keep["pieces_by_their_kind"]["learned"] == "what she learned"
 
 
 def test_a_move_answered_before_she_looks_is_a_move_made():

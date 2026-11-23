@@ -1636,6 +1636,40 @@ def _left_alone_for(reflexes: PlayingAsItHappens) -> float:
     return min(LEFT_ALONE_AT_MOST_S, LEAVE_A_MOVING_MENU_S * 2 ** (times - 1))
 
 
+async def _played_as_pieces_by_their_kind(reflexes: PlayingAsItHappens, picture: Any, seconds: float) -> dict | None:
+    """A board of two sides at its start, played as any game of pieces is (core/agency/playing_pieces_by_kind.py): its
+    rules learned from what the game offers and does, not read from its words. What came of it, in the shape the typed
+    rules' player gives; None where she cannot sit at it as such a board, and the board is left to that player. LIVE
+    11 October 2026 a web page's draughts board was played by rules written in by hand and its words read by pattern."""
+    import asyncio
+
+    from core.agency.playing_pieces_by_kind import (
+        a_board_of_two_sides_at_its_start,
+        play_pieces_by_kind,
+    )
+
+    held = reflexes.keep.get("pieces_by_their_kind") or {}
+    seat = await asyncio.to_thread(a_board_of_two_sides_at_its_start, picture, held.get("looks"))
+    if seat is None:
+        return None
+
+    async def look() -> Any:
+        seen = await reflexes.look()
+        return None if seen is None else seen[0]
+
+    logger.info("a board of two sides at its start: playing it as a game of pieces, %dx%d", seat.rows, seat.columns)
+    came = await play_pieces_by_kind(seat, look, reflexes.click, seconds=seconds, say=_said_while_playing,
+                                     learned=held.get("learned"), rehearsal=held.get("rehearsal"),
+                                     went_wrong=held.get("went_wrong"), they_answered=held.get("they_answered"))
+    # What she learned of this board is hers for the rest of the page: the next stretch begins knowing it.
+    reflexes.keep["pieces_by_their_kind"] = {"looks": seat.looks, "learned": came.get("learned"),
+                                             "rehearsal": came.get("rehearsal"), "went_wrong": came.get("went_wrong"),
+                                             "they_answered": came.get("they_answered")}
+    ended = came.get("ended")
+    return {"moves": came.get("moves", 0), "ended": ended if ended in ("won", "lost", "drawn") else "out of time",
+            "taken": 0, "lost": 0}
+
+
 async def _played_a_board(reflexes: PlayingAsItHappens, now: float) -> bool:
     """Where what the page draws is a board of two sides in turns, it is played by search, its rules read from what the
     place has said (core/agency/playing_a_board.py); whether it was. Looked for every few seconds, not every look."""
@@ -1670,9 +1704,11 @@ async def _played_a_board(reflexes: PlayingAsItHappens, now: float) -> bool:
         reflexes.keep["no_board_on"] = VisualProbeMiss(witness, now) if witness is not None else None
         return False
     reflexes.keep.pop("no_board_on", None)
-    logger.info("a board of two sides in turns (%s): playing it by search", a_board_game(board, words))
-    stretch = await play_a_board(reflexes.look, reflexes, words, seconds=max(1.0, min(STRETCH_S, reflexes.ends_at - now)),
-                                 say=_said_while_playing)
+    seconds = max(1.0, min(STRETCH_S, reflexes.ends_at - now))
+    stretch = await _played_as_pieces_by_their_kind(reflexes, seen[0], seconds)
+    if stretch is None:
+        logger.info("a board of two sides in turns (%s): playing it by search", a_board_game(board, words))
+        stretch = await play_a_board(reflexes.look, reflexes, words, seconds=seconds, say=_said_while_playing)
     logger.info("a board played: %s", stretch)
     # What the other side lost is what she gained, and turns the game took are the game going on.
     reflexes.stretches.append({"pictures": stretch.get("moves", 0), "turns": stretch.get("moves", 0),
