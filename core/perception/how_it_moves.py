@@ -1120,6 +1120,14 @@ class HowItMoves:
             return arrangement
         return arrangement.without(self.counters, self._ever_held)
 
+    def how_sure(self, arrangement: Arrangement, action: str) -> float:
+        """How sure she is of what this act makes of a thing: how often the rule she uses has been right, times how
+        surely this act pushes the way she takes it to, counted as her moves bore it out with one way more supposed
+        (an act seen to push one way once is as likely to push another; a name alone, an even chance)."""
+        counted = self.pushes.get(str(action)) or {}
+        most = max(counted.values()) if counted else 0
+        return self.confidence() * (most + 1) / (sum(counted.values()) + 2)
+
     def expect(self, arrangement: Arrangement, action: str) -> Arrangement | None:
         """What this thing would look like after that, without doing it.
 

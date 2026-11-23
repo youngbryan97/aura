@@ -40,6 +40,7 @@ from core.agency.pieces_by_their_kind import (
     outcome,
 )
 from core.agency.thinking_on_their_time import Pondering, WhatTheyAnsweredWhere
+from core.agency.what_a_small_ending_comes_to import worked_to_the_end
 from core.agency.what_she_did import ACCEPTED, REFUSED, WhatSheDid
 from core.cognition.how_far_her_judgement_holds import HowFarItHolds
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
@@ -488,7 +489,7 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                               borrow: Callable[[dict, bool], Any] | None = None,
                               went_wrong: WhatFailedWhere | None = None,
                               they_answered: WhatTheyAnsweredWhere | None = None,
-                              prepared: Any = None, held: Any = None) -> dict[str, Any]:
+                              prepared: Any = None, held: Any = None, endings: Any = None) -> dict[str, Any]:
     """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
     are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
     the game shows it. Where she has learned nothing of this board, ``borrow`` is asked, once she knows who moves first,
@@ -515,7 +516,7 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
             came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
                                rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
                                the_moves=the_moves, went_wrong=went_wrong, ponder_pool=ponder_pool,
-                               they_answered=they_answered, prepared=prepared, held=held)
+                               they_answered=they_answered, prepared=prepared, held=held, endings=endings)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
         ponder_pool.shutdown(wait=False, cancel_futures=True)
@@ -641,7 +642,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 borrow: Callable[[dict, bool], Any] | None = None,
                 the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None,
                 ponder_pool: Any = None, they_answered: WhatTheyAnsweredWhere | None = None,
-                prepared: Any = None, held: Any = None) -> dict[str, Any]:
+                prepared: Any = None, held: Any = None, endings: Any = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -890,8 +891,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # A situation she worked out ahead, among the choices it offers her now, is answered from what
             # she worked out (core/agency/thinking_before_it_comes.py), and her clock keeps the time.
             ready = _worked_out_ahead(prepared, game, family, weights, legal) if not set_aside else None
+            # An ending she has worked out to the end, won or lost, under the rules she plays by
+            # (core/agency/what_a_small_ending_comes_to.py): its answer rests on every situation that can follow.
+            ended = (worked_to_the_end(endings, family, game.believed, [m for m in legal if m not in set_aside])
+                     if endings else None)
             if only is not None:
                 found = Found(only, 0, 0, 0, [only], by="the only move")
+            elif ended is not None:
+                found = Found(ended, 0, 0, 0, [ended], by="worked out to the end")
             elif ready is not None and ready.by == "worked out ahead":
                 found = ready
             else:
@@ -901,9 +908,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                                soft=thinks if most > thinks else None)
                 if ready is not None:
                     # Worked out under rules that have changed since: a hint, checked by the look just made.
-                    found = _checked(ready, found, legal, lambda aside: search(
-                        family, game.believed, seconds=max(0.2, thinks / 2), weights=weights, earlier=game.earlier,
-                        set_aside=aside, threads=_cores_free(), wary=FIRST))
+                    found = _checked(ready, found, legal, lambda aside, family=family, thinks=thinks, weights=weights:
+                                     search(family, game.believed, seconds=max(0.2, thinks / 2), weights=weights,
+                                            earlier=game.earlier, set_aside=aside, threads=_cores_free(), wary=FIRST))
                 searched_s += monotonic_time() - search_began
             if found.move is None:
                 break
@@ -950,6 +957,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         elif found.by == "worked out ahead":
             _judged(game, here, move, found)
             how = f"I worked this one out before the game (looked {found.depth} moves deep)"
+        elif found.by == "worked out to the end":
+            how = "I worked this ending out to the end before the game: every position it can come to"
         elif found.by == "worked out ahead, checked":
             _judged(game, here, move, found)
             how = (f"I worked this one out before the game (looked {found.depth} moves deep), and a look now, with what "

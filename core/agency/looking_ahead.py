@@ -15,6 +15,13 @@ A world that adds something of its own after every act — a dealt tile, another
 person, a page that refreshes — is averaged over at every level rather than
 chosen for, and a move is judged by what the situation comes to at the far end
 of the search.
+
+What she is not sure of may warn her off a move and may not draw her to one. A
+prediction she holds on little, that a move leads somewhere better, raises its
+worth only as far as she is sure of it; one that it leads somewhere worse counts
+in full. Her search at a board does the same with ways she has not seen enough
+(suggestions of 23 November 2026, item 22): an option a doubtful prediction
+makes look good is the option most likely to be a misreading.
 """
 
 from __future__ import annotations
@@ -55,6 +62,96 @@ _A_LEVEL: dict[str, float] = {"seconds": 0.0}
 
 #: How many of her own acts ahead the last search saw, whichever way it ran.
 _SAW: dict[str, int] = {"acts": 0}
+
+
+def _how_sure(knows: Any, state: Any, action: str, trust: float) -> float:
+    """How sure she is of what this act makes of this situation: what her model says of that one prediction where it
+    can say, else how often it has been right at all (``trust``)."""
+    how = getattr(knows, "how_sure", None)
+    if callable(how):
+        try:
+            return max(0.0, min(1.0, float(how(state, action))))
+        except (TypeError, ValueError, AttributeError):
+            return trust
+    return trust
+
+
+def _as_far_as_sure(value: float, here: float, sure: float) -> float:
+    """What an act's line comes to, held to what she is sure of: above what the situation is worth now, only as far as
+    she is sure of the prediction; at or below it, in full."""
+    return value if value <= here else here + (value - here) * sure
+
+
+#: The most situations a world is listed to before it is taken to be too big to work out to the end: half a million
+#: situations of a board ending, kept whole, ran to gigabytes; this many of a screen world's stay within a few hundred
+#: megabytes.
+LISTED_AT_MOST = 100_000
+#: For each world she knows, how many looks to pass before trying again to work it out to the end, after a try found
+#: it too big: doubled each time it is, so a world too big to list costs a try now and then, not one every look.
+_TOO_BIG: dict[int, list[int]] = {}
+
+
+def worked_out_if_small(knows: Any, state: Any, actions: Sequence[str], *, toward: str, world: Any = None,
+                        weights: Any = None, budget_s: float = 0.5) -> dict[str, tuple[float, str]] | None:
+    """Every move available, scored by what it comes to once the whole world reachable from here is worked out
+    (core/cognition/what_a_small_world_comes_to.py), where that fits in ``budget_s`` and what she is after names
+    something she can reach: a move that reaches it for certain above any that does not, the sooner the better, and
+    one that reaches it by the world's luck by its chance. None where the world is too big to list in time, where
+    nothing from here reaches what she is after, or where the world has been seen to choose its answers."""
+    from core.cognition.what_a_small_world_comes_to import CHANCE, HERS, worked_out
+
+    if not toward or _it_chooses(world):
+        return None
+    from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
+
+    if not goal_in(toward).names_something():
+        return None
+    expect = knows.expect
+    might = getattr(world, "might_do", None)
+    asked: dict[str, list] = {}
+
+    def dealt(future: Any) -> list:
+        if not callable(might):
+            return []
+        reading = _reading(future)
+        if reading not in asked:
+            try:
+                asked[reading] = list(might(future) or ())
+            except (AttributeError, TypeError, ValueError):
+                asked[reading] = []
+        return asked[reading]
+
+    def next_of(node: tuple[str, Any]) -> list[tuple]:
+        kind, here = node
+        if kind == "dealt":
+            return [("dealt", ("hers", way), share) for way, share in dealt(here)]
+        out = []
+        for action in actions:
+            future = expect(here, action)
+            if future is None or _reading(future) == _reading(here):
+                continue
+            out.append((action, ("dealt", future) if dealt(future) else ("hers", future)))
+        return out
+
+    worked = worked_out([("hers", state)], next_of,
+                        lambda node: 1.0 if node[0] == "hers" and _arrived(node[1], toward) else None,
+                        lambda node: CHANCE if node[0] == "dealt" else HERS,
+                        name_of=lambda node: (node[0], _reading(node[1])), most=LISTED_AT_MOST, seconds=budget_s)
+    root = worked.at(("hers", state))
+    if not worked.complete or root is None or not worked.acts[root]:
+        return None
+    goal = arriving(weights)
+    scored: dict[str, tuple[float, str]] = {}
+    for action, child in worked.acts[root]:
+        forced, turns = int(worked.forced[child]), int(worked.turns[child])
+        chance = float(worked.chance[child]) if worked.chance is not None else float(forced > 0)
+        if forced > 0:
+            scored[action] = (goal + 1.0 / (2 + turns), f"it reaches {toward} for certain in {1 + turns} acts")
+        else:
+            scored[action] = (chance * goal, f"it reaches {toward} with a chance of {chance:.2f}")
+    if not any(value > 0 for value, _said in scored.values()):
+        return None
+    return scored
 
 
 def forget_how_far_she_saw() -> None:
@@ -362,6 +459,22 @@ def look_ahead(
     trust = float(getattr(knows, "confidence", lambda: 0.0)() or 0.0)
     if trust <= 0.0:
         return {}
+    worth_now = how_good(state, toward=toward, approach=approach, weights=weights, knows=knows, acts=actions)
+    # A world small enough to list from here is worked out to the end, in a quarter of the time this look has; what
+    # does not fit is searched as before, in what time is left, and is not tried again for a while.
+    wait = _TOO_BIG.setdefault(id(knows), [0, 1])
+    if wait[0] > 0:
+        wait[0] -= 1
+    else:
+        began_listing = time.monotonic()
+        exact = worked_out_if_small(knows, state, actions, toward=toward, world=world, weights=weights,
+                                    budget_s=budget_s / 4)
+        budget_s = max(budget_s / 2, budget_s - (time.monotonic() - began_listing))
+        if exact is not None:
+            wait[:] = [0, 1]
+            return {action: (_as_far_as_sure(value, worth_now, _how_sure(knows, state, action, trust)), said)
+                    for action, (value, said) in exact.items()}
+        wait[:] = [wait[1], wait[1] * 2]
     # On a compiled world when the rule allows one: the same judgement, fast
     # enough that the clock buys the depth it is asking for. Not where the world
     # has been seen to choose its answers: the compiled search averages them as
@@ -373,7 +486,8 @@ def look_ahead(
         no_deeper_than=no_deeper_than,
     )
     if fast is not None:
-        return fast
+        return {action: (_as_far_as_sure(value, worth_now, _how_sure(knows, state, action, trust)), said)
+                for action, (value, said) in fast.items()}
 
     # NOT bound to what the superlative names right now. Measured, and it
     # costs half her play. See `bound_to` for the reasoning and the numbers
@@ -422,6 +536,7 @@ def look_ahead(
                 weights=weights, known=known, knows=knows,
                 been=frozenset({here_now}) | before, dead=dead_end(),
             )
+            value = _as_far_as_sure(value, worth_now, _how_sure(knows, state, action, trust))
             scored_here = (value, why(future, toward=toward, approach=approach))
             if _reading(future) in before:
                 back[action] = scored_here
@@ -745,6 +860,8 @@ def _best_from(
     walked = been | {here_now}
     best: float | None = None
     somewhere_to_go = False
+    trust = float(getattr(knows, "confidence", lambda: 1.0)() or 0.0) if knows is not None else 1.0
+    worth_here: float | None = None
     for action in actions:
         future = (
             known.what_it_becomes(expect, state, action)
@@ -761,6 +878,14 @@ def _best_from(
             toward=toward, approach=approach, world=world, weights=weights,
             known=known, knows=knows, been=walked, dead=dead,
         )
+        if knows is not None:
+            if worth_here is None:
+                worth_here = (known.what_it_is_worth(state, toward=toward, approach=approach, weights=weights,
+                                                     knows=knows, acts=actions)
+                              if known is not None else
+                              how_good(state, toward=toward, approach=approach, weights=weights, knows=knows,
+                                       acts=actions))
+            value = _as_far_as_sure(value, worth_here, _how_sure(knows, state, action, trust))
         best = value if best is None or value > best else best
     if best is not None:
         found = best

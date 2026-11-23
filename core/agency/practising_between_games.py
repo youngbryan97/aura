@@ -36,9 +36,9 @@ _WAITING = ""
 #: come back.
 PREPARED_A_ROUND = 4
 PREPARES_TURNS = 20
-#: Which kind of round comes next: they take turns, rehearsing, preparing, and looking into where a lost game went
-#: wrong; a kind with nothing to do gives its turn to rehearsal.
-_ROUNDS = ("rehearses", "prepares", "investigates")
+#: Which kind of round comes next: they take turns, rehearsing, preparing, looking into where a lost game went wrong,
+#: and working a small ending out to the end; a kind with nothing to do gives its turn to rehearsal.
+_ROUNDS = ("rehearses", "prepares", "investigates", "works out an ending")
 _NEXT: dict[str, int] = {"round": 0}
 
 
@@ -127,7 +127,41 @@ def _one_round(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
         return {"prepared": True}
     if kind == "investigates" and _investigate_some(name, written):
         return {"investigated": True}
+    if kind == "works out an ending" and _work_out_an_ending(name, written):
+        return {"worked out an ending": True}
     return _one_rehearsal(name, written)
+
+
+def _work_out_an_ending(name: str, written: tuple[int, int]) -> int:
+    """A round of working one small ending of the board kept as ``name`` out to the end, under the rules she holds
+    for its kinds (core/agency/what_a_small_ending_comes_to.py): the first of those worth working out that she has not
+    worked out under those rules. How many were worked out. Blocks; run it in a thread."""
+    from core.agency.what_a_small_ending_comes_to import (
+        an_ending_worked_out,
+        endings_as_bytes,
+        endings_worth_working_out,
+        rules_of_the_ending,
+    )
+    from core.runtime.what_she_learned import remember_beside
+    from core.skills.screen_pursuit_board_of_pieces import _ENDINGS
+
+    kept = _held(name, written)
+    if kept is None:
+        return 0
+    rules = kept["rules"]
+    family = rules.family(unseen_go_every_way=True)
+    endings = kept.setdefault("endings", {})
+    for pieces in endings_worth_working_out(rules):
+        held = endings.get(pieces)
+        if held is not None and held.rules == rules_of_the_ending(family, pieces):
+            continue
+        began = time.monotonic()
+        endings[pieces] = an_ending_worked_out(family, pieces)
+        if not _PLAYING:
+            remember_beside(name, _ENDINGS, endings_as_bytes(endings))
+        logger.info("worked out the ending %s of %s between games in %.0f s", pieces, name, time.monotonic() - began)
+        return 1
+    return 0
 
 
 #: How long each look at a suspected move takes: the look measured to choose better than her game pace

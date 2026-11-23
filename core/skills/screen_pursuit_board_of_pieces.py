@@ -102,7 +102,8 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
                                      learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
                                      went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"),
                                      they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"),
-                                     prepared=kept.get("prepared"), held=keep.get("pieces_held") or kept.get("held"))
+                                     prepared=kept.get("prepared"), held=keep.get("pieces_held") or kept.get("held"),
+                                     endings=kept.get("endings"))
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
     went_wrong_now = came.pop("went_wrong", None)
     if went_wrong_now is not None:
@@ -237,6 +238,8 @@ _PREPARED = "worked-out-ahead"
 _SHOWN = "what-the-game-showed"
 #: What her judgements of this board have gone on to come to (core/cognition/how_far_her_judgement_holds.py).
 _HELD_SO = "how-her-judgement-held"
+#: The small endings of this board she has worked out to the end (core/agency/what_a_small_ending_comes_to.py).
+_ENDINGS = "worked-to-the-end"
 
 
 def _her_record(target_app: str) -> str:
@@ -281,6 +284,11 @@ def _kept_under(record: str) -> dict[str, Any]:
         from core.agency.thinking_before_it_comes import Prepared
 
         kept["prepared"] = Prepared.from_bytes(ahead)
+    ended = recall_beside(record, _ENDINGS)
+    if ended:
+        from core.agency.what_a_small_ending_comes_to import endings_from_bytes
+
+        kept["endings"] = endings_from_bytes(ended)
     judged = recall_beside(record, _HELD_SO)
     if judged:
         from core.cognition.how_far_her_judgement_holds import HowFarItHolds
