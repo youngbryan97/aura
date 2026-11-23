@@ -779,13 +779,29 @@ def _mirrored(steps: list[Step], ways: dict[Direction, _Seen]) -> list[Step]:
         image = (forward, -right)
         if (image, step.only_unmoved) in have:
             continue
-        way = ways.get(image)
+        # The image's own way: a leap's offset is that way taken some number of times.
+        times = math.gcd(abs(forward), abs(right)) or 1
+        way = ways.get((forward // times, -right // times))
         if way is not None and (way.withheld or way.withheld_unmoved) and not way.any_seen_going():
+            continue
+        # The image the game refused her as often as it was offered there is not one, whatever the step it is the
+        # image of. LIVE 23 November 2026, game 27: her bishop's misread leap, refused as e2 to a8, came back as its
+        # image, d2 to h8, and was refused twice more.
+        if way is not None and _refused_there(way, times if step.rides == 1 else None):
             continue
         out.append(Step((image,), rides=step.rides, may=step.may, only_unmoved=step.only_unmoved,
                         leaves_passable=step.leaves_passable, takes_in_passing=step.takes_in_passing))
         have.add((image, step.only_unmoved))
     return out
+
+
+def _refused_there(way: _Seen, times: int | None) -> bool:
+    """Whether the game refused her moves along a way, at a distance (or, for a line, anywhere along it), at least as
+    often as it offered them there."""
+    refused = set(way.refused_going_at) | set(way.refused_taking_at)
+    distances = [times] if times is not None else sorted(refused)
+    return any(t in refused and not way._stands(t) for t in distances) and not (
+        times is None and any(way._stands(t) for t in set(way.went_at) | set(way.took_at)))
 
 
 def _takes_over_seen(side: int, move: Move) -> bool:

@@ -94,3 +94,15 @@ def test_a_refusal_that_what_the_move_leaves_open_explains_takes_nothing_from_th
     assert pinned.cells[E2] == (FIRST, "B")
     rules.refused(pinned, Move(E2, D3), family=CHESS)
     assert any(s.offsets == ((1, -1),) for s in rules.family().kinds["B"].steps)
+
+
+def test_the_image_of_a_way_refused_where_it_lands_is_not_one() -> None:
+    """LIVE 23 November 2026, game 27: the misread leap, refused as e2 to a8, came back as its image, d2 to h8."""
+    rules = _rules()
+    rules.offered(HERE, E2, {A8}, family=CHESS)
+    images = [s for s in _leaps_of(rules) if s.offsets[0][1] > 0]
+    assert images, "the image is inferred from the step seen"
+    d2, h8 = (1, 3), (7, 7)
+    there = from_fen("r1bq1rkr/pp4pp/2pb4/3p1p2/4p3/4Q3/PPPBBPPP/RN2R1K1 w - -")
+    rules.refused(there, Move(d2, h8, taken_at=h8), family=CHESS)
+    assert not [s for s in _leaps_of(rules) if s.offsets[0][1] > 0]
