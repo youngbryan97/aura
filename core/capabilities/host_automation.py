@@ -1517,15 +1517,16 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
                 duration_ms=(time.time() - start) * 1000,
             )
         except (FileNotFoundError, OSError):
-            # Fallback to PyAutoGUI, without the pause it makes after every call by habit: a pause is waited where
-            # the world needs one, by whoever knows it does. LIVE 23 November 2026, game 23 against Stockfish on a
-            # machine without cliclick: 111 clicks at a median of 0.242 s, 31.5 s of a three-minute game.
+            # Fallback to PyAutoGUI, with the pause it makes after each click: an application drawing what the click
+            # did is given that moment before anything looks or clicks again. LIVE 23 November 2026 the pause was
+            # taken out, and in game 24 against Stockfish her moves took 3.4 s to be seen made instead of 1, and one
+            # was not taken at all; the pause had been part of every wait tuned after a click.
             try:
                 import pyautogui
                 if button == "right":
-                    pyautogui.rightClick(x, y, _pause=False)
+                    pyautogui.rightClick(x, y)
                 else:
-                    pyautogui.click(x, y, _pause=False)
+                    pyautogui.click(x, y)
                 receipt = AutomationReceipt(
                     action="click", target=f"{x},{y}",
                     adapter="pyautogui", success=True,

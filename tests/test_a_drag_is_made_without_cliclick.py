@@ -1,9 +1,8 @@
-"""Her clicks and drags do not wait by habit, and a drag is made without cliclick.
+"""A drag is made without cliclick, and a click keeps the moment after it.
 
-LIVE 23 November 2026, game 23 against Stockfish: the machine she runs on has no cliclick, her clicks fell back to
-PyAutoGUI, and PyAutoGUI waits a tenth of a second after every call unless told not to: 111 clicks at a median of
-0.242 s, 31.5 s of a three-minute game. A pause is waited where the world needs one, by the caller that knows it does.
-Her drags called cliclick alone, and could not be made at all.
+The machine she runs on has no cliclick. Her drags called it alone and could not be made at all; they fall back to
+PyAutoGUI. Her clicks fall back to PyAutoGUI too, and keep its pause after each click: LIVE 23 November 2026, game 24
+against Stockfish, without it her moves took 3.4 s to be seen made instead of 1, and one was not taken.
 """
 from __future__ import annotations
 
@@ -29,16 +28,18 @@ def _a_pointer(monkeypatch) -> list[tuple[str, tuple, dict]]:
     return calls
 
 
-def test_a_click_without_cliclick_does_not_pause_after_itself(monkeypatch) -> None:
+def test_a_click_without_cliclick_keeps_the_moment_after_it(monkeypatch) -> None:
+    # LIVE 23 November 2026, game 24: without the pause after each click her moves took 3.4 s to be seen made, and one
+    # was not taken. The pause is part of every wait tuned after a click.
     calls = _a_pointer(monkeypatch)
     monkeypatch.setattr(host_automation, "get_subprocess_gateway", lambda: _NoCliclick())
     host = host_automation.HostAutomationProvider()
     receipt = asyncio.run(host.click_at(10, 20))
     assert receipt.success and receipt.adapter == "pyautogui"
-    assert calls == [("click", (10, 20), {"_pause": False})]
+    assert calls == [("click", (10, 20), {})]
 
 
-def test_a_drag_without_cliclick_is_made_by_pyautogui_without_pauses(monkeypatch) -> None:
+def test_a_drag_without_cliclick_is_made_by_pyautogui(monkeypatch) -> None:
     calls = _a_pointer(monkeypatch)
     import core.runtime.subprocess_gateway as gateway
 
