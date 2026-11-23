@@ -98,12 +98,20 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     def borrow(start: dict, first_is_hers: bool) -> Any:
         return _borrowed_from_a_board_like_it(target_app, start, seat.rows, seat.columns, first_is_hers)
 
+    # What the window says of the game as it begins (who plays, how strong, on what clock), kept with her record of
+    # it: what she played against is part of what the game was. Read beside her first moves, not before them.
+    began = asyncio.create_task(the_words_in(target_app))
     came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=tell,
                                      learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
                                      went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"),
                                      they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"),
                                      prepared=kept.get("prepared"), held=keep.get("pieces_held") or kept.get("held"),
                                      endings=kept.get("endings"))
+    try:
+        came["the_window_when_it_began"] = (await began)[:WORDS_KEPT]
+    # not a failure: a window whose words were not read leaves her record without them.
+    except (OSError, RuntimeError, ValueError, TypeError, asyncio.CancelledError) as why:
+        logger.info("the window was not read as the game began (%s)", why)
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
     went_wrong_now = came.pop("went_wrong", None)
     if went_wrong_now is not None:
@@ -156,6 +164,17 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
 
 #: What she may take a window's words to say of how a game ended, and what each comes to.
 THE_ENDS = {"I won": "won", "I lost": "lost", "it was drawn": "drawn", "the window does not say": ""}
+#: Characters of a window's words kept with her record of a game: a panel of names, ratings and a clock.
+WORDS_KEPT = 600
+
+
+async def the_words_in(target_app: str) -> str:
+    """The words a window shows, each run of them as read, joined: what a person reads in it at a glance."""
+    from .screen_pursuit_a_way_on import _its_own_pixels_read
+
+    reading = await _its_own_pixels_read(target_app)
+    return " / ".join(" ".join(str(region.get("text") or "").split())
+                      for region in (reading or {}).get("layout") or [] if str(region.get("text") or "").strip())
 
 
 async def what_the_window_says_of_the_end(target_app: str) -> tuple[str, str]:
@@ -169,15 +188,11 @@ async def what_the_window_says_of_the_end(target_app: str) -> tuple[str, str]:
     from core.cognition.what_things_are import asked_patiently
     from core.rebuilding.her_model import ask_her_model
 
-    from .screen_pursuit_a_way_on import _its_own_pixels_read
-
     try:
-        reading = await _its_own_pixels_read(target_app)
+        words = await the_words_in(target_app)
     except (OSError, RuntimeError, ValueError) as why:
         logger.info("the window was not read for how the game ended (%s)", why)
         return "", ""
-    words = " / ".join(" ".join(str(region.get("text") or "").split())
-                       for region in (reading or {}).get("layout") or [] if str(region.get("text") or "").strip())
     if not words:
         return "", ""
     schema = create_model("_TheEnd", ended=(Literal[tuple(THE_ENDS)], ...))  # type: ignore[valid-type]
