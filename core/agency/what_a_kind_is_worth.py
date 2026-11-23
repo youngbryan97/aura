@@ -49,7 +49,7 @@ from core.agency.what_lies_beyond_the_horizon import WhatGamesCameTo, beyond_at
 
 logger = logging.getLogger("Aura.WhatAKindIsWorth")
 
-__all__ = ["BEYOND_THE_HORIZON", "GROUPS", "HER_LONGER_LOOK", "RESULTS", "TOGETHER", "LookedAtLonger", "Rehearsal",
+__all__ = ["BEYOND_THE_HORIZON", "GROUPS", "SLOW_AND_DECIDING", "added_to", "HER_LONGER_LOOK", "RESULTS", "TOGETHER", "LookedAtLonger", "Rehearsal",
            "a_first_rehearsal",
            "calibrated_scale", "fitted", "rehearse", "tried_as"]
 
@@ -67,9 +67,15 @@ BETTER_BY = 1.0
 TOGETHER = "how the pieces stand together"
 #: What a search cannot see the end of, taught by how her games ended (core/agency/what_lies_beyond_the_horizon.py).
 BEYOND_THE_HORIZON = "what lies beyond the horizon"
+#: What changes slowly through her games and decides how they end, found in the positions with no quantity named
+#: (core/cognition/what_changes_slowly_and_decides.py), taught by how her games ended.
+SLOW_AND_DECIDING = "what changes slowly and decides"
 #: What is fitted, a group at a time, in the order a weak player's games can tell them apart.
 GROUPS = ("worth", "turn and safety", "moves", "what is left to be taken", "where each stands", TOGETHER,
-          BEYOND_THE_HORIZON)
+          BEYOND_THE_HORIZON, SLOW_AND_DECIDING)
+#: Groups taught by how her games ended, whoever teaches the rest. Once the others are earned they take turns: one that
+#: is not earned does not keep the next from being tried.
+TAUGHT_BY_RESULTS = (BEYOND_THE_HORIZON, SLOW_AND_DECIDING)
 #: Who teaches her a position: how her games ended, or what a much longer look of hers finds it worth.
 RESULTS = "how her games ended"
 HER_LONGER_LOOK = "her longer look"
@@ -295,6 +301,35 @@ def fitted(family: Family, xs: np.ndarray, ys: np.ndarray, groups: list[str]) ->
     )
 
 
+def added_to(weights: Weights, family: Family, per_feature: np.ndarray) -> Weights:
+    """``weights`` with one more weight on each of a position's features added, in the units her search scores in:
+    the features are what her judgement is a weighted sum of, part by part, as fitted() lays them out."""
+    letters = list(family.kinds)
+    kinds, squares = len(letters), family.rows * family.columns
+    exposed_at = 2 * kinds + 2 + kinds * squares
+    d = np.zeros(exposed_at + kinds + 5)
+    d[:min(len(d), len(per_feature))] = per_feature[:len(d)]
+
+    def table(i: int, letter: str) -> list[list[float]]:
+        held = weights.squares.get(letter) or [[0.0] * family.columns for _ in range(family.rows)]
+        return [[round(float(held[r][c] + d[2 * kinds + 2 + i * squares + r * family.columns + c]), 1)
+                 for c in range(family.columns)] for r in range(family.rows)]
+
+    beyond = list(weights.beyond) + [0.0] * (5 - len(weights.beyond))
+    return replace(
+        weights,
+        worth={letter: round(float(weights.worth.get(letter, 0.0) + d[i]), 1) for i, letter in enumerate(letters)},
+        mobility={letter: round(float(weights.mobility.get(letter, 0.0) + d[kinds + i]), 2)
+                  for i, letter in enumerate(letters)},
+        squares={letter: table(i, letter) for i, letter in enumerate(letters)},
+        royal_pressed=round(float(weights.royal_pressed + d[2 * kinds]), 2),
+        tempo=round(float(weights.tempo + d[2 * kinds + 1]), 1),
+        exposed={letter: round(float(weights.exposed.get(letter, 0.0) + d[exposed_at + i]), 2)
+                 for i, letter in enumerate(letters)},
+        beyond=[round(float(b + d[exposed_at + kinds + j]), 2) for j, b in enumerate(beyond)],
+    )
+
+
 def _standing_where_it_stopped(played: dict, weights: Weights, family: Family) -> tuple[list[float], float]:
     """Each game's material where it stopped, first side less second, in what she holds each kind worth; and how widely
     those standings spread, the unit one is read in."""
@@ -433,7 +468,10 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         rehearsal.samples_y.append(label)
     rehearsal.came_to.add(played, came_to, rehearsal.rounds, beyond_at(family))
     rehearsal.rounds += 1
-    trying = next((group for group in GROUPS if group not in rehearsal.earned), None)
+    unearned = [group for group in GROUPS if group not in rehearsal.earned]
+    trying = unearned[0] if unearned else None
+    if unearned and all(group in TAUGHT_BY_RESULTS for group in unearned):
+        trying = unearned[rehearsal.rounds % len(unearned)]
     groups = [*rehearsal.earned, *([trying] if trying else [])]
     if trying == TOGETHER:
         learned = rehearsal.looked_at_longer.judgement(seed=seed)
@@ -458,6 +496,12 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
             rehearsal.last = {"samples": len(rehearsal.came_to.result), "tried": trying, "kept": False, "why": why}
             return rehearsal
         candidate = replace(rehearsal.weights, beyond=beyond)
+    elif trying == SLOW_AND_DECIDING:
+        found, why = rehearsal.came_to.slow_and_deciding(seed=seed)
+        if found is None:
+            rehearsal.last = {"samples": len(rehearsal.came_to.result), "tried": trying, "kept": False, "why": why}
+            return rehearsal
+        candidate = added_to(rehearsal.weights, family, found)
     else:
         candidate = fitted(family, np.array(rehearsal.samples_x, dtype=np.float64),
                            np.array(rehearsal.samples_y, dtype=np.float64), groups)
@@ -493,7 +537,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     if trying:
         # A refit of the groups she has, with none new to try, is no group's try.
         # What lies beyond the horizon is taught by how her games ended, whoever teaches the rest.
-        counted = tried_as(trying, RESULTS if trying == BEYOND_THE_HORIZON else rehearsal.teacher)
+        counted = tried_as(trying, RESULTS if trying in TAUGHT_BY_RESULTS else rehearsal.teacher)
         tries = rehearsal.tries[counted] = rehearsal.tries.get(counted, 0) + 1
     kept = mean - 0.5 > how_far_above_even(tries) * max(error, 1e-9)
     rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "scored": round(mean, 3),
@@ -503,7 +547,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         rehearsal.royal = royal_kinds(family)
         if trying and trying not in rehearsal.earned:
             rehearsal.earned.append(trying)
-    elif (rehearsal.teacher == RESULTS and trying and trying != BEYOND_THE_HORIZON and "worth" in rehearsal.earned
+    elif (rehearsal.teacher == RESULTS and trying and trying not in TAUGHT_BY_RESULTS and "worth" in rehearsal.earned
           and tries >= RESULTS_TRIED_AT_MOST):
         # What results could teach they have taught: from here her longer look teaches, on positions of its own.
         rehearsal.teacher = HER_LONGER_LOOK

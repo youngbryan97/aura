@@ -35,6 +35,7 @@ from core.agency.pieces_by_their_kind import (
     moves,
     outcome,
 )
+from core.agency.thinking_on_their_time import Pondering, WhatTheyAnsweredWhere
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.how_long_a_change_takes_to_settle import HowLongItSettles
 from core.cognition.keeping_her_own_count import KeptCount
@@ -127,17 +128,37 @@ class Seat:
         return x / picture.shape[1], y / picture.shape[0]
 
 
+def _ruled_by_its_period(picture: Any) -> Lattice | None:
+    """The board found by how its picture repeats, where its squares are not flat ground to be found square by square
+    (core/perception/a_board_seen.py)."""
+    from core.perception.a_board_seen import the_lattice
+
+    ruled = the_lattice(np.asarray(picture))
+    if ruled is None:
+        return None
+    left, top, width, height, columns, rows = ruled
+    return Lattice(left=left, top=top, width=width, height=height, columns=columns, rows=rows)
+
+
 def a_board_of_two_sides_at_its_start(picture: Any, looks: Looks | None = None) -> Seat | None:
     """A board with two sides of pieces facing each other, each in the rows at its own end, nothing between: a game of
     pieces about to begin. Her seat is at the side nearest the bottom of the picture. ``looks`` are the looks she knows
     from an earlier sitting, so each kind keeps its name. None where the picture shows none."""
-    lattice = squares_of_one_ground(picture)
+    lattice = squares_of_one_ground(picture) or _ruled_by_its_period(picture)
     if lattice is None or lattice.rows < 4:
         return None
     looks = looks if looks is not None else Looks()
     seen = looks.read(picture, lattice)
     if seen is None:
         return None
+    if all(any(cell is not None for cell in line) for line in seen.cells):
+        # Every square reads as something: the board's squares are drawn with more than flat ground. At a game's start
+        # the rows between the two sides are empty, so what its middle rows show is what an empty square looks like
+        # here. LIVE 11 October 2026 a web page's board drawn in two patterned pinks read as pieces on all 64 squares.
+        looks.the_empty_squares_are(np.asarray(picture), lattice, (lattice.rows // 2 - 1, lattice.rows // 2))
+        seen = looks.read(picture, lattice)
+        if seen is None:
+            return None
     rows_of: dict[int, list[int]] = {}
     for row, line in enumerate(seen.cells):
         for cell in line:
@@ -362,6 +383,9 @@ class _Game:
     #: What she has played at a position before and seen go wrong, kept with the board (WhatFailedWhere); and this
     #: game's turns she searched: where she stood, what she played, and how she judged it.
     went_wrong: WhatFailedWhere = field(default_factory=WhatFailedWhere)
+    #: What the other side answered in each position she has met, and her look on their time at what she expects next.
+    they_answered: WhatTheyAnsweredWhere = field(default_factory=WhatTheyAnsweredWhere)
+    pondering: Pondering = field(default_factory=Pondering)
     judged: list[tuple[str, str, int]] = field(default_factory=list)
     #: The reply her search expects to her last move, the position it leads to, and the rules it was found by; whether
     #: the reply came is counted, foreseen of foreseeable.
@@ -416,7 +440,8 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                               learned: HowThePiecesMove | None = None, rehearsal: Any = None,
                               clock: Callable[[], Awaitable[float | None]] | None = None,
                               borrow: Callable[[dict, bool], Any] | None = None,
-                              went_wrong: WhatFailedWhere | None = None) -> dict[str, Any]:
+                              went_wrong: WhatFailedWhere | None = None,
+                              they_answered: WhatTheyAnsweredWhere | None = None) -> dict[str, Any]:
     """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
     are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
     the game shows it. Where she has learned nothing of this board, ``borrow`` is asked, once she knows who moves first,
@@ -429,20 +454,26 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
 
     rehearsing = _Rehearsing(rehearsal)
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
+    # Her look on their time has a thread of its own: a round of rehearsal under way does not hold it up.
+    ponder_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pondering")
     the_moves: list[str] = []
     went_wrong = went_wrong if went_wrong is not None else WhatFailedWhere()
+    they_answered = they_answered if they_answered is not None else WhatTheyAnsweredWhere()
     try:
         with at_a_board():
             came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
                                rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
-                               the_moves=the_moves, went_wrong=went_wrong)
+                               the_moves=the_moves, went_wrong=went_wrong, ponder_pool=ponder_pool,
+                               they_answered=they_answered)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
+        ponder_pool.shutdown(wait=False, cancel_futures=True)
     came["rehearsal"] = rehearsing.rehearsal
     # The game as it went, for its record: every move in order, and who moved first.
     came["the_moves"] = list(the_moves)
     came["first_was_hers"] = getattr(came.get("learned"), "first_was_hers", None)
     came["went_wrong"] = went_wrong
+    came["they_answered"] = they_answered
     return came
 
 
@@ -467,7 +498,8 @@ class _Rehearsing:
                        squares={k: v for k, v in earned.weights.squares.items() if k in family.kinds},
                        tempo=earned.weights.tempo, royal_pressed=earned.weights.royal_pressed,
                        exposed={k: v for k, v in earned.weights.exposed.items() if k in family.kinds},
-                       learned=getattr(earned.weights, "learned", None))
+                       learned=getattr(earned.weights, "learned", None),
+                       beyond=list(getattr(earned.weights, "beyond", None) or []))
 
     def collect(self) -> None:
         if self.running is not None and self.running.done():
@@ -518,7 +550,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 thinks_s: float, learned: HowThePiecesMove | None, rehearsing: _Rehearsing, pool: Any,
                 clock: Callable[[], Awaitable[float | None]] | None, search: Any,
                 borrow: Callable[[dict, bool], Any] | None = None,
-                the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None) -> dict[str, Any]:
+                the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None,
+                ponder_pool: Any = None, they_answered: WhatTheyAnsweredWhere | None = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -534,7 +567,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
     game = _Game(learned=learned or HowThePiecesMove.from_the_start(seat.rows, seat.columns, start),
                  believed=Position(cells=dict(start), turn=FIRST, unmoved=frozenset(start)),
                  played=the_moves if the_moves is not None else [],
-                 went_wrong=went_wrong if went_wrong is not None else WhatFailedWhere())
+                 went_wrong=went_wrong if went_wrong is not None else WhatFailedWhere(),
+                 they_answered=they_answered if they_answered is not None else WhatTheyAnsweredWhere())
     tell("Two sides facing each other on a board. I'll take the side nearest me, find out how the pieces move by "
          "picking them up and watching, and search my moves.")
     # Who goes first: the other side, if it moves while she waits.
@@ -632,14 +666,16 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.longest_answer_s = max(game.longest_answer_s, time.monotonic() - game.waiting_since)
                     game.their_move_seen_at = time.monotonic()
                     game.read_this_wait = False
+                    game.they_answered.they_answered(_a_place(game.believed), _named(move))
                 game.follow(move)
                 game.waiting_since = time.monotonic()
             if seen_moves:
                 continue
             # Nothing moved: what differed was a mark. The board is as she holds it, and the turn goes on from there.
         if game.believed.turn != FIRST:
-            # While the other side thinks, she rehearses the game in her model.
+            # While the other side thinks, she rehearses the game in her model, and looks at what she expects to face.
             rehearsing.start(pool, game.learned.family())
+            _think_on_their_time(game, rehearsing, ponder_pool, thinks_s)
             if clock is not None and not game.read_this_wait:
                 # Her clock is read, where her count of it may have drifted, while it stands still on their time.
                 game.read_this_wait = True
@@ -652,6 +688,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             await asyncio.sleep(0.2)
             continue
         rehearsing.collect()
+        game.pondering.settle()
         # Her turn, all of it on her clock where the game shows one: picking pieces up, thinking and moving share the
         # turn's part of the time she has left. LIVE 20 November 2026 only the thinking was held to it, and picking up
         # six pieces a turn and seeing each move shown took a third of a three-minute game.
@@ -691,7 +728,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             return {"ended": "not taking moves", "moves": 0, "theirs": 0, "learned": game.learned}
         family = game.learned.family(unseen_go_every_way=True)
         legal = moves(family, game.believed)
-        ended = outcome(family, game.believed, legal) if any(k.royal for k in family.kinds.values()) else ""
+        ended = (outcome(family, game.believed, legal)
+                 if any(k.royal or k.wins_arriving for k in family.kinds.values()) else "")
         if ended or not legal:
             # An ending her model infers is asked of the game before it is believed: where the game still offers her a
             # move, the game is not over and her reading of the board is what is wrong. LIVE 21 November 2026 a mark on
@@ -832,14 +870,35 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
 
 
 def _expect_back(game: _Game, family: Family, move: Move, found: Any) -> None:
-    """What she expects back from the move she has made: the reply her search found best for them, and where it leaves
-    her. Nothing when her search did not look past her own move."""
+    """What she expects back from the move she has made: what they answered before in the position it leaves, where
+    she has met it, else the reply her search found best for them; and where it leaves her. Nothing when she has not
+    met the position and her search did not look past her own move."""
     game.expected = None
+    mine = after(family, game.believed, move)
+    named = game.they_answered.most_often(_a_place(mine))
+    before = next((m for m in moves(family, mine) if _named(m) == named), None) if named else None
+    if before is not None:
+        game.expected = (before, after(family, mine, before), family)
+        return
     line = list(getattr(found, "line", None) or [])
     if getattr(found, "by", "") == "the only move" or len(line) < 2 or line[0] != move:
         return
-    mine = after(family, game.believed, move)
     game.expected = (line[1], after(family, mine, line[1]), family)
+
+
+def _think_on_their_time(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks_s: float) -> None:
+    """While they think, a look at the position she expects to face after their answer
+    (core/agency/thinking_on_their_time.py), with the weights and rules her own turn will search with, so that what it
+    finds is in her search's table when her turn comes."""
+    if pool is None or game.pondering.busy() or game.expected is None:
+        return
+    expected, facing, _family = game.expected
+    family = game.learned.family(unseen_go_every_way=True)
+    if facing.turn != FIRST or not moves(family, facing):
+        return
+    game.pondering.start(pool, family, facing, seconds=game.pondering.look_for(game.answers_s, game.last_share or thinks_s),
+                         weights=rehearsing.weights_for(family), earlier=[*game.earlier, game.believed],
+                         threads=max(1, _cores_free() - 1))
 
 
 def _was_expected(game: _Game, move: Move) -> bool:
@@ -1170,4 +1229,4 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
     if game.foreseeable:
         logger.info("she foresaw %d of their %d answers", game.foreseen, game.foreseeable)
     return {"ended": result, "moves": game.made, "theirs": game.theirs, "learned": game.learned,
-            "foresaw": (game.foreseen, game.foreseeable)}
+            "foresaw": (game.foreseen, game.foreseeable), "final": game.believed, "last_move": game.last_followed}

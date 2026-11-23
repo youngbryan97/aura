@@ -45,7 +45,7 @@ def test_nothing_is_learned_where_results_show_nothing_beyond_her_search() -> No
     played, came_to = _games(6_000, worth_of_first=0.0, seed=3)
     store.add(played, came_to, 0, beyond_at(CHESS))
     worth, why = store.worth()
-    assert worth is None and "no better" in why, (worth, why)
+    assert worth is None and "no quantity foretells" in why, (worth, why)
 
 
 def test_what_her_games_came_to_is_kept_whole() -> None:
@@ -89,3 +89,69 @@ def test_draughts_men_are_runners_and_kings_are_not() -> None:
     plain = engine.evaluate(described(DRAUGHTS), placed(alone), weights.as_json())
     weights.beyond = [700.0, 0.0, 0.0, 0.0, 0.0]
     assert engine.evaluate(described(DRAUGHTS), placed(alone), weights.as_json()) - plain == round(700 * (5 / 7) ** 2)
+
+
+def test_what_lies_beyond_is_in_the_weights_she_plays_by() -> None:
+    # Earned in rehearsal and left out of the weights her moves are searched with, it would never be played.
+    import core.agency.playing_pieces_by_kind as playing
+    from core.agency.what_a_kind_is_worth import a_first_rehearsal
+
+    rehearsal = a_first_rehearsal(CHESS)
+    rehearsal.earned = ["worth", BEYOND_THE_HORIZON]
+    rehearsal.weights.beyond = [30.0, -10.0, 5.0, 3.0, 5.0]
+    assert playing._Rehearsing(rehearsal=rehearsal).weights_for(CHESS).beyond == [30.0, -10.0, 5.0, 3.0, 5.0]
+
+
+def test_a_weight_on_each_feature_is_added_where_her_search_reads_it() -> None:
+    # A weight learned on where each kind stands, added to her weights, changes her compiled judgement of a position by
+    # exactly those weights summed over its pieces, each from its own side's frame.
+    engine = pytest.importorskip("aura_board_search")
+    from core.agency.pieces_by_their_kind import FIRST
+    from core.agency.searching_by_kind import described, first_weights, placed
+    from core.agency.what_a_kind_is_worth import added_to
+
+    position = from_fen("r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq -")
+    weights = first_weights(CHESS)
+    letters, squares = list(CHESS.kinds), CHESS.rows * CHESS.columns
+    base = 2 * len(letters) + 2
+    extra = np.zeros(beyond_at(CHESS) + len(BEYOND))
+    extra[base:base + len(letters) * squares] = np.random.default_rng(0).integers(-5, 6, len(letters) * squares)
+    more = added_to(weights, CHESS, extra)
+    expected = 0.0
+    for (row, column), (side, letter) in position.cells.items():
+        own_row = row if side == FIRST else CHESS.rows - 1 - row
+        value = extra[base + letters.index(letter) * squares + own_row * CHESS.columns + column]
+        expected += value if side == position.turn else -value
+    judged = engine.evaluate(described(CHESS), placed(position), more.as_json())
+    before = engine.evaluate(described(CHESS), placed(position), weights.as_json())
+    assert judged - before == round(expected), (judged, before, expected)
+
+
+def test_groups_taught_by_how_games_ended_take_turns() -> None:
+    from core.agency.what_a_kind_is_worth import SLOW_AND_DECIDING, TAUGHT_BY_RESULTS
+
+    assert set(TAUGHT_BY_RESULTS) == {BEYOND_THE_HORIZON, SLOW_AND_DECIDING}
+    assert GROUPS[-2:] == (BEYOND_THE_HORIZON, SLOW_AND_DECIDING)
+
+
+def test_what_changes_slowly_through_her_games_is_found_in_their_positions() -> None:
+    rng = np.random.default_rng(7)
+    at = beyond_at(CHESS)
+    width = at + len(BEYOND)
+    samples, scores, games, came_to = [], [], [], []
+    for game in range(300):
+        slow = rng.normal() + np.cumsum(rng.normal(0, 0.05, 20))
+        won = float(rng.random() < 1 / (1 + np.exp(-2.5 * slow.mean())))
+        for step in range(20):
+            row = rng.normal(0, 1, width)
+            row[at + 3] = slow[step]
+            samples.append((list(row), won))
+            # Her search's score says a little of how the game ends, as a real one does, and nothing of the slow number.
+            scores.append(float(rng.normal(0, 100) + 120 * (won - 0.5)))
+            games.append(game)
+            came_to.append(won)
+    store = WhatGamesCameTo()
+    store.add({"samples": samples, "sample_scores": scores, "sample_games": games}, came_to, 0, at)
+    found, why = store.slow_and_deciding()
+    assert found is not None, why
+    assert found[at + 3] > 0 and abs(found[at + 3]) > 5 * np.median(np.abs(found)), found[at:]

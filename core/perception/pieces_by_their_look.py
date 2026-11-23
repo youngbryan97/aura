@@ -21,6 +21,7 @@ Nothing here knows a game, a piece set or a colour scheme.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
@@ -247,6 +248,55 @@ def _silhouette(square: np.ndarray) -> np.ndarray | None:
     return largest if largest.sum() >= A_PIECE_COVERS * largest.size else None
 
 
+def _against_the_empty(square: np.ndarray, empty: list[np.ndarray]) -> tuple[np.ndarray | None, Any]:
+    """What stands on a square drawn with more than flat ground: where it differs from the nearest of the board's empty
+    squares, as a filled silhouette; and the colour of its outer ring, where a piece with something drawn on it still
+    shows its own side's colour. None where nothing does."""
+    from scipy import ndimage
+
+    pixels = square[..., :3].astype(np.float32)
+    alike = [e for e in empty if e.shape == pixels.shape]
+    if not alike:
+        return _silhouette(square), None
+    nearest = min(alike, key=lambda e: float(np.abs(pixels - e).mean()))
+    unlike = np.abs(pixels - nearest).max(axis=2) > UNLIKE_GROUND
+    filled = ndimage.binary_fill_holes(unlike)
+    labels, count = ndimage.label(filled)
+    if not count:
+        return None, None
+    sizes = ndimage.sum(filled, labels, index=np.arange(1, count + 1))
+    largest = labels == (1 + int(np.argmax(sizes)))
+    if largest.sum() < A_PIECE_COVERS * largest.size:
+        return None, None
+    ring = largest & ~ndimage.binary_erosion(largest, iterations=max(1, min(largest.shape) // 12))
+    edge = ring if ring.any() else largest
+    return largest, np.median(pixels[edge], axis=0)
+
+
+def _two_colours(colours: list[np.ndarray]) -> list[list[float]]:
+    """The two colours a set of colours falls into: begun by cutting them at their middle along the way they vary
+    most, each side then the middle of the colours nearer it. Middles, not means, and not the two furthest apart: one
+    piece drawn with another colour on it (a figure standing on a chip) does not move a side."""
+    if len(colours) < 2:
+        return [list(map(float, colours[0]))] if colours else []
+    stacked = np.stack(colours)
+    centred = stacked - np.median(stacked, axis=0)
+    _u, _s, axes = np.linalg.svd(centred, full_matrices=False)
+    along = centred @ axes[0]
+    cut = float(np.median(along))
+    low, high = stacked[along <= cut], stacked[along > cut]
+    if not len(low) or not len(high):
+        return [list(map(float, np.median(stacked, axis=0)))]
+    centres = np.stack([np.median(low, axis=0), np.median(high, axis=0)])
+    for _ in range(20):
+        nearer = np.argmin(np.linalg.norm(stacked[:, None, :] - centres[None, :, :], axis=2), axis=1)
+        moved = np.stack([np.median(stacked[nearer == k], axis=0) if (nearer == k).any() else centres[k] for k in (0, 1)])
+        if np.allclose(moved, centres):
+            break
+        centres = moved
+    return [list(map(float, c)) for c in centres]
+
+
 def _look(silhouette: np.ndarray, square: np.ndarray | None = None) -> np.ndarray:
     """A piece's look: its outline filled, and beside it the lines drawn inside it. Pieces that share an outline and
     differ only in what is drawn on them (a mark, a letter, a hole) are told apart by the second; the lines are where
@@ -336,6 +386,10 @@ class Looks:
     kinds: list[np.ndarray] = field(default_factory=list)
     cut: float = 0.0
     sides: list[float] = field(default_factory=list)
+    #: A board's own empty squares, where they are drawn with more than flat ground: what stands on a square is what
+    #: differs from the nearest of them, and a piece's side is the colour of its outer ring, as three colours.
+    empty: list[np.ndarray] = field(default_factory=list)
+    side_colours: list[list[float]] = field(default_factory=list)
 
     def as_memory(self) -> dict:
         """The looks she knows on this board, kept with what she learned of the game, so the next sitting calls each
@@ -345,7 +399,11 @@ class Looks:
 
         return {"kinds": [base64.b64encode(np.round(np.clip(kind, 0.0, 1.0) * 255).astype(np.uint8).tobytes())
                           .decode("ascii") for kind in self.kinds],
-                "cut": self.cut, "sides": list(self.sides)}
+                "cut": self.cut, "sides": list(self.sides),
+                "empty": [{"shape": list(e.shape), "pixels": base64.b64encode(np.clip(e, 0, 255).astype(np.uint8)
+                                                                               .tobytes()).decode("ascii")}
+                          for e in self.empty],
+                "side_colours": [list(c) for c in self.side_colours]}
 
     @classmethod
     def from_memory(cls, kept: dict) -> Looks:
@@ -365,7 +423,10 @@ class Looks:
                     kinds.append(np.asarray(kind, dtype=np.float32))
             if any(kind.shape != (2 * LOOK_SIDE, LOOK_SIDE) for kind in kinds):
                 return cls()
-            return cls(kinds=kinds, cut=float(kept.get("cut", 0.0)), sides=[float(s) for s in kept.get("sides", [])])
+            empty = [np.frombuffer(base64.b64decode(e["pixels"]), dtype=np.uint8).reshape(e["shape"]).astype(np.float32)
+                     for e in kept.get("empty", [])]
+            return cls(kinds=kinds, cut=float(kept.get("cut", 0.0)), sides=[float(s) for s in kept.get("sides", [])],
+                       empty=empty, side_colours=[[float(v) for v in c] for c in kept.get("side_colours", [])])
         except (TypeError, ValueError, binascii.Error):
             return cls()
 
@@ -388,10 +449,15 @@ class Looks:
                 square = lattice.square(picture, row, column)
                 if square.size == 0:
                     continue
-                silhouette = _silhouette(square)
-                if silhouette is None:
-                    continue
-                colour = float(np.median(square[..., :3][silhouette].astype(np.float32)))
+                if self.empty:
+                    silhouette, colour = _against_the_empty(square, self.empty)
+                    if silhouette is None:
+                        continue
+                else:
+                    silhouette = _silhouette(square)
+                    if silhouette is None:
+                        continue
+                    colour = float(np.median(square[..., :3][silhouette].astype(np.float32)))
                 found[(row, column)] = (_look(silhouette, square), colour)
         if not self.kinds and found:
             self._learn([v[0] for v in found.values()], [v[1] for v in found.values()])
@@ -409,10 +475,29 @@ class Looks:
             cells[row][column] = (self._side_of(colour), kind)
         return PiecesSeen(lattice, cells, nearest)
 
-    def _learn(self, looks: list[np.ndarray], colours: list[float]) -> None:
+    def the_empty_squares_are(self, picture: np.ndarray, lattice: Lattice, rows: tuple[int, ...]) -> None:
+        """The squares of ``rows`` hold nothing: what they look like is what this board's empty squares look like, one
+        image for each look among them. Everything learned of the looks before is learned again, from what differs
+        from them."""
+        picture = np.asarray(picture)
+        images: list[np.ndarray] = []
+        for row in rows:
+            for column in range(lattice.columns):
+                square = lattice.square(picture, row, column)[..., :3].astype(np.float32)
+                if square.size == 0 or (images and square.shape != images[0].shape):
+                    continue
+                if not any(float(np.abs(square - kept).mean()) < UNLIKE_GROUND / 4 for kept in images):
+                    images.append(square)
+        self.empty = images
+        self.kinds, self.cut, self.sides, self.side_colours = [], 0.0, [], []
+
+    def _learn(self, looks: list[np.ndarray], colours: list[Any]) -> None:
         self.cut = _widest_gap(looks)
         for look in looks:
             self._kind_of(look)
+        if colours and np.ndim(colours[0]) == 1:
+            self.side_colours = _two_colours([np.asarray(c, dtype=np.float32) for c in colours])
+            return
         values = sorted(colours)
         gaps = [(values[i + 1] - values[i], i) for i in range(len(values) - 1)]
         if gaps:
@@ -423,10 +508,12 @@ class Looks:
         else:
             self.sides = [values[0]] if values else []
 
-    def _side_of(self, colour: float) -> int:
+    def _side_of(self, colour: Any) -> int:
+        if np.ndim(colour) == 1 and self.side_colours:
+            return int(np.argmin([float(np.linalg.norm(np.asarray(colour) - np.asarray(c))) for c in self.side_colours]))
         if not self.sides:
             return 0
-        return int(np.argmin([abs(colour - s) for s in self.sides]))
+        return int(np.argmin([abs(float(colour) - s) for s in self.sides]))
 
     def learn_at(self, picture: np.ndarray, lattice: Lattice, row: int, column: int,
                  among: set[int] | None = None) -> int | None:

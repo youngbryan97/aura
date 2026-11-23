@@ -12,7 +12,9 @@ However a game of pieces on a grid goes, each kind moves in a few ways:
 * a kind that, reaching the far row, becomes another;
 * a take over: to an empty square beyond exactly one piece of the other side on the way, which it takes, by a leap of
   a set length or along a line; a kind that, having taken over, may take over again in the same move, and goes on
-  while it can; and a game in which a side that can take must.
+  while it can; and a game in which a side that can take must;
+* a swap: onto a square held by a piece of its own side, the two changing places;
+* a kind whose arrival on its far row wins the game for its side.
 
 Which of these a game's kinds have is not written here for any game. She learns it from the game itself: the squares
 the game offers when she picks a piece up, the moves she watches made, the moves the game refuses
@@ -55,7 +57,8 @@ class Step:
     #: How many times the offset repeats: 1 a leap, 0 as far as the way is clear, 2 at most twice.
     rides: int = 1
     #: "either": to an empty square or taking; "moves": only to an empty square; "takes": only taking; "takes over": to
-    #: an empty square beyond exactly one piece of the other side on its way, which it takes.
+    #: an empty square beyond exactly one piece of the other side on its way, which it takes; "swaps": onto a square
+    #: held by a piece of its own side, which goes to the square it left.
     may: str = "either"
     only_unmoved: bool = False
     #: The squares it passes over may be taken on by the other side's very next move, as if it stood there.
@@ -73,6 +76,8 @@ class Kind:
     becomes: tuple[str, ...] = ()
     #: A move of it, like a take, starts the count toward a draw again: it cannot be undone.
     cannot_go_back: bool = False
+    #: A piece of it standing on its side's far row has won the game for its side.
+    wins_arriving: bool = False
     #: The kind of partner a royal crosses with, both unmoved, the way between them empty and not attacked.
     crosses_with: str = ""
     #: Having taken over a piece, it may take over again from where it landed, in the same move, and goes on while it
@@ -154,7 +159,7 @@ def _reach(family: Family, position: Position, square: Square, side: int, kind: 
     for step in kind.steps:
         if step.only_unmoved and square not in position.unmoved:
             continue
-        if step.may == "takes over" or (only_takes and step.may == "moves"):
+        if step.may == "takes over" or (only_takes and step.may in ("moves", "swaps")):
             continue
         for forward, right in step.offsets:
             dr, dc = forward * ahead, right * ahead
@@ -250,7 +255,7 @@ def attacked(family: Family, position: Position, square: Square, by: int) -> boo
             continue
         kind = family.kind(letter)
         for end, step, _passed in _reach(family, position, there, side, kind, only_takes=True):
-            if end == square and step.may != "moves":
+            if end == square and step.may not in ("moves", "swaps"):
                 return True
         if any(step.may == "takes over" for step in kind.steps):
             if any(victim == square for _end, victim in _hops(family, position, there, there, side, kind, ())):
@@ -278,6 +283,11 @@ def _possible(family: Family, position: Position) -> list[Move]:
         for end, step, _passed in _reach(family, position, square, side, kind):
             there = position.cells.get(end)
             taken_at = None
+            if step.may == "swaps":
+                # Two pieces of one side change places: one move, the other piece its partner.
+                if there is not None and there[0] == side:
+                    found.append(Move(square, end, partner=(end, square)))
+                continue
             if there is not None:
                 if there[0] == side or step.may == "moves":
                     continue
@@ -333,6 +343,8 @@ def after(family: Family, position: Position, move: Move) -> Position:
     """The position a move makes."""
     cells = dict(position.cells)
     side, letter = cells.pop(move.start)
+    # The partner is lifted before the mover lands: where they change places, it stands on the square the mover takes.
+    partner_piece = cells.pop(move.partner[0]) if move.partner is not None else None
     took = move.taken_at is not None
     for square in move.taken():
         cells.pop(square, None)
@@ -340,9 +352,9 @@ def after(family: Family, position: Position, move: Move) -> Position:
     unmoved = set(position.unmoved) - {move.start, move.end}
     for square in move.taken():
         unmoved.discard(square)
-    if move.partner is not None:
+    if move.partner is not None and partner_piece is not None:
         start, end = move.partner
-        cells[end] = cells.pop(start)
+        cells[end] = partner_piece
         unmoved.discard(start)
     passable = None
     kind = family.kind(letter)
@@ -370,6 +382,10 @@ def moves(family: Family, position: Position) -> list[Move]:
 
 def outcome(family: Family, position: Position, legal: list[Move] | None = None) -> str:
     """"" while the game goes on; "won:0", "won:1" for the side that won; "drawn" and why."""
+    if any(kind.wins_arriving for kind in family.kinds.values()):
+        for square, (side, letter) in position.cells.items():
+            if family.kind(letter).wins_arriving and square[0] == (family.rows - 1 if side == FIRST else 0):
+                return f"won:{side}"
     legal = moves(family, position) if legal is None else legal
     if not legal:
         if in_check(family, position):

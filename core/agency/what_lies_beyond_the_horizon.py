@@ -29,8 +29,8 @@ __all__ = ["BEYOND", "WhatGamesCameTo", "beyond_at"]
 #: The quantities her compiled search counts, in its order.
 BEYOND = ("how far an unopposed runner has come", "runners with no quiet move forward", "pieces held by their own",
           "ground held in the other half", "pieces beside the royal one")
-#: Positions kept at most, the latest: about three megabytes of her disk.
-KEPT_AT_MOST = 100_000
+#: The positions kept, the latest, in about thirty-two megabytes of her memory.
+KEPT_IN_BYTES = 32 * 1024 * 1024
 #: How far a fit is held back toward nothing, as rehearsal's are.
 HELD_BACK = 1.0
 #: One game in this many is held back from the fit, to judge what it foretells.
@@ -54,13 +54,20 @@ def _loss(p: np.ndarray, y: np.ndarray) -> float:
 
 @dataclass
 class WhatGamesCameTo:
-    """Each position she rehearsed: what lies beyond the horizon there (the first side's less the second's), what her
-    search scored it for the first side, what the game came to for the first side, and which game it was."""
+    """Each position she rehearsed: what it was made of (its features, the first side's less the second's), what her
+    search scored it for the first side, what the game came to for the first side, and which game it was, in the
+    order the games went."""
 
-    beyond: list[np.ndarray] = field(default_factory=list)
+    rows: list[np.ndarray] = field(default_factory=list)
     score: list[float] = field(default_factory=list)
     result: list[float] = field(default_factory=list)
     game: list[int] = field(default_factory=list)
+    #: Where what lies beyond the horizon begins in a row.
+    at: int = 0
+
+    @property
+    def beyond(self) -> list[np.ndarray]:
+        return [row[self.at:self.at + len(BEYOND)].astype(np.float32) for row in self.rows]
 
     def add(self, played: dict, came_to: list[float], round_: int, at: int) -> None:
         """The positions of one round of her games, where her compiled search counted what lies beyond them."""
@@ -69,16 +76,21 @@ class WhatGamesCameTo:
         games = played.get("sample_games") or []
         if len(scores) != len(samples) or len(came_to) != len(samples):
             return
+        if self.rows and samples and (self.at != at or len(self.rows[0]) != len(samples[0][0])):
+            # Rows of another shape are of rules read another way: what they came to is not this game's.
+            self.rows, self.score, self.result, self.game = [], [], [], []
+        self.at = at
         for n, ((features, _result), score) in enumerate(zip(samples, scores, strict=True)):
             if len(features) < at + len(BEYOND) or abs(float(score)) >= 3000:
                 continue
-            self.beyond.append(np.asarray(features[at:at + len(BEYOND)], dtype=np.float32))
+            self.rows.append(np.asarray(features, dtype=np.float16))
             self.score.append(float(score))
             self.result.append(float(came_to[n]))
             self.game.append(round_ * 10_000 + (int(games[n]) if n < len(games) else 0))
-        extra = len(self.result) - KEPT_AT_MOST
+        most = max(1, KEPT_IN_BYTES // max(1, 2 * len(self.rows[0]))) if self.rows else 0
+        extra = len(self.result) - most
         if extra > 0:
-            del self.beyond[:extra], self.score[:extra], self.result[:extra], self.game[:extra]
+            del self.rows[:extra], self.score[:extra], self.result[:extra], self.game[:extra]
 
     def worth(self, *, seed: int = 0) -> tuple[list[float] | None, str]:
         """What each quantity is worth, in the units her search scores in, fitted to how her games ended with her
@@ -100,17 +112,59 @@ class WhatGamesCameTo:
                                                [:max(1, len(np.unique(games)) // HELD_OUT_EVERY)]])
         if held.all() or not held.any():
             return None, "too few games to hold any back"
-        theta = self._fitted(x[~held], offset[~held], y[~held])
+        # A quantity at a time, each kept only where adding it foretells the games held back better: a quantity whose
+        # worth the fit gives only because it goes with others that matter (holding ground with having more pieces)
+        # is not kept. LIVE-like 23 November 2026 all five fitted at once lost three matches in three, 0.27 to 0.35.
+        chosen: list[int] = []
+        best = _loss(_logistic(offset[held]), y[held])
+        while True:
+            tried = []
+            for q in range(x.shape[1]):
+                if q in chosen:
+                    continue
+                cols = [*chosen, q]
+                theta = self._fitted(x[~held][:, cols], offset[~held], y[~held])
+                if theta is not None:
+                    tried.append((_loss(_logistic(offset[held] + x[held][:, cols] @ theta), y[held]), q))
+            if not tried or min(tried)[0] >= best:
+                break
+            best, q = min(tried)
+            chosen.append(q)
+        if not chosen:
+            return None, "no quantity foretells games held back better than her search does"
+        theta = self._fitted(x[:, chosen], offset, y)
         if theta is None:
             return None, "positions too alike to fit"
-        before = _loss(_logistic(offset[held]), y[held])
-        after = _loss(_logistic(offset[held] + x[held] @ theta), y[held])
-        if not after < before:
-            return None, f"it foretells games held back no better than her search does ({after:.4f} vs {before:.4f})"
-        theta = self._fitted(x, offset, y)
-        if theta is None:
-            return None, "positions too alike to fit"
-        return [round(float(t * scale), 2) for t in theta], ""
+        worth = [0.0] * x.shape[1]
+        for q, t in zip(chosen, theta, strict=True):
+            worth[q] = round(float(t * scale), 2)
+        return worth, ""
+
+    def slow_and_deciding(self, *, seed: int = 0) -> tuple[np.ndarray | None, str]:
+        """What changes slowly through her games and decides how they end, beyond her search's score, found in the
+        positions themselves with no quantity named (core/cognition/what_changes_slowly_and_decides.py): one weight on
+        each of a position's features, in the units her search scores in; and why not, where nothing is found."""
+        from core.cognition.what_changes_slowly_and_decides import learned
+
+        if not self.rows:
+            return None, "no positions"
+        rows = np.array(self.rows, dtype=np.float64)
+        games = np.array(self.game)
+        episodes, ends, offsets = [], [], []
+        for one in dict.fromkeys(self.game):
+            mine = games == one
+            if mine.sum() < 2:
+                continue
+            episodes.append(rows[mine])
+            ends.append(float(np.array(self.result)[mine][0]))
+            offsets.append(np.array(self.score)[mine])
+        found = learned(episodes, ends, offsets, seed=seed)
+        if found is None:
+            return None, "nothing slow foretells games held back better than her search does"
+        weights = found.in_units_held()
+        if weights is None:
+            return None, "her search's score says nothing of how her games ended"
+        return weights, ""
 
     @staticmethod
     def _fitted(x: np.ndarray, offset: np.ndarray, y: np.ndarray) -> np.ndarray | None:
@@ -131,15 +185,16 @@ class WhatGamesCameTo:
     def as_bytes(self) -> bytes:
         """Kept on disk as one compressed file of arrays."""
         out = io.BytesIO()
-        np.savez_compressed(out, beyond=np.array(self.beyond, dtype=np.float32).reshape(-1, len(BEYOND)),
+        width = len(self.rows[0]) if self.rows else 0
+        np.savez_compressed(out, rows=np.array(self.rows, dtype=np.float16).reshape(-1, width),
                             score=np.array(self.score, dtype=np.float32), result=np.array(self.result, dtype=np.float32),
-                            game=np.array(self.game, dtype=np.int64))
+                            game=np.array(self.game, dtype=np.int64), at=np.array(self.at))
         return out.getvalue()
 
     @classmethod
     def from_bytes(cls, data: bytes) -> WhatGamesCameTo:
         held = np.load(io.BytesIO(data), allow_pickle=False)
-        if held["beyond"].ndim != 2 or held["beyond"].shape[1] != len(BEYOND):
+        if "rows" not in held or held["rows"].ndim != 2:
             return cls()
-        return cls(beyond=[row.astype(np.float32) for row in held["beyond"]], score=[float(v) for v in held["score"]],
-                   result=[float(v) for v in held["result"]], game=[int(v) for v in held["game"]])
+        return cls(rows=[row for row in held["rows"]], score=[float(v) for v in held["score"]],
+                   result=[float(v) for v in held["result"]], game=[int(v) for v in held["game"]], at=int(held["at"]))

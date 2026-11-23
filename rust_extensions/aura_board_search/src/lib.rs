@@ -51,6 +51,8 @@ struct KindD {
     crosses_with: String,
     #[serde(default)]
     takes_again: bool,
+    #[serde(default)]
+    wins_arriving: bool,
 }
 
 #[derive(Deserialize)]
@@ -135,7 +137,8 @@ struct Step {
     units: [Vec<i32>; 2],
     lengths: Vec<i32>,
     rides: i32,
-    may: u8, // 0 either, 1 only moves, 2 only takes, 3 takes over: beyond one piece of the other side, which it takes
+    may: u8, // 0 either, 1 only moves, 2 only takes, 3 takes over: beyond one piece of the other side, which it takes,
+    // 4 swaps: onto a square of its own side's piece, which goes to the square it left
     only_unmoved: bool,
     leaves_passable: bool,
     takes_in_passing: bool,
@@ -156,6 +159,8 @@ struct Kind {
     /// Every way it goes is forward, and it becomes another kind: how far it has come, and what stands ahead of it,
     /// matter long before it gets there.
     runner: bool,
+    /// A piece of it on its side's far row has won the game for its side.
+    wins_arriving: bool,
     worth: i32,
     mobility: i32,
     squares: [Vec<i32>; 2],
@@ -174,6 +179,8 @@ struct Game {
     no_move_draws: bool,
     /// A side that can take must.
     takes_first: bool,
+    /// Some kind wins by arriving on its far row: each position is asked whether the side that just moved has.
+    arrival_wins: bool,
     tempo: i32,
     royal_pressed: i32,
     /// What lies beyond the horizon is worth, per quantity, in BEYOND's order; all zero where it is not judged.
@@ -254,6 +261,7 @@ impl Game {
                     "moves" => 1,
                     "takes" => 2,
                     "takes over" => 3,
+                    "swaps" => 4,
                     _ => 0,
                 };
                 steps.push(Step {
@@ -309,6 +317,7 @@ impl Game {
                 takes_again: k.takes_again,
                 takes_over,
                 runner,
+                wins_arriving: k.wins_arriving,
                 worth,
                 mobility,
                 squares,
@@ -365,6 +374,7 @@ impl Game {
             repeats_to_draw: f.repeats_to_draw,
             no_move_draws: f.no_move_unattacked == "draw",
             takes_first: f.takes_first,
+            arrival_wins: f.kinds.iter().any(|k| k.wins_arriving),
             tempo: w.tempo.round() as i32,
             royal_pressed: w.royal_pressed.round() as i32,
             beyond: {
@@ -533,7 +543,7 @@ impl Board {
                 return true;
             }
             for s in &k.steps {
-                if s.may == 1 || s.may == 3 {
+                if s.may == 1 || s.may == 3 || s.may == 4 {
                     continue;
                 }
                 for &d in &s.deltas[by] {
@@ -643,7 +653,7 @@ impl Board {
                 }
             }
             for s in &k.steps {
-                if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 {
+                if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 || s.may == 4 {
                     continue;
                 }
                 for &d in &s.deltas[side] {
@@ -690,6 +700,15 @@ impl Board {
         })
     }
 
+    /// Whether a piece of ``side`` whose kind wins by arriving stands on that side's far row: only that row is looked at.
+    fn arrived(&self, g: &Game, side: usize) -> bool {
+        let row = g.far_row(side);
+        (0..g.cols).any(|c| {
+            let cell = self.cells[g.sq(row, c)];
+            cell != EMPTY && cell != OFF && side_of(cell) == side && g.kinds[kind_of(cell)].wins_arriving
+        })
+    }
+
     fn in_check(&self, g: &Game, side: usize) -> bool {
         let royals: Vec<usize> = self.royals(g, side).collect();
         royals.iter().any(|&sq| self.attacked(g, sq, 1 - side))
@@ -708,6 +727,37 @@ impl Board {
             let start = out.len();
             for s in &k.steps {
                 if (s.only_unmoved && !self.unmoved[sq]) || s.may == 3 {
+                    continue;
+                }
+                if s.may == 4 {
+                    // Onto the first piece along the way, where it is one of its own side: the two change places.
+                    if !only_takes {
+                        for &d in &s.deltas[side] {
+                            let mut t = sq as i32 + d;
+                            let mut n = 1;
+                            loop {
+                                let c2 = self.cells[t as usize];
+                                if c2 == OFF {
+                                    break;
+                                }
+                                if c2 != EMPTY {
+                                    if side_of(c2) == side {
+                                        let m = Move { from: sq as u16, to: t as u16, partner_from: t as u16,
+                                                       partner_to: sq as u16, ..Move::null() };
+                                        if !out[start..].contains(&m) {
+                                            out.push(m);
+                                        }
+                                    }
+                                    break;
+                                }
+                                if s.rides != 0 && n >= s.rides {
+                                    break;
+                                }
+                                t += d;
+                                n += 1;
+                            }
+                        }
+                    }
                     continue;
                 }
                 if only_takes && s.may == 1 && k.becomes.is_empty() {
@@ -969,20 +1019,25 @@ impl Board {
             self.cells[at] = EMPTY;
         }
         self.clear_unmoved(g, to, &mut undo, &mut slot);
+        // The partner is lifted before the mover lands: where the two change places, it stands on the square the mover
+        // takes.
+        let mut partner = EMPTY;
+        if m.partner_from != NONE {
+            let pf = m.partner_from as usize;
+            self.clear_unmoved(g, pf, &mut undo, &mut slot);
+            partner = self.cells[pf];
+            self.hash ^= g.zob_piece[partner as usize * g.size + pf];
+            self.cells[pf] = EMPTY;
+        }
         self.hash ^= g.zob_piece[moved as usize * g.size + from];
         self.cells[from] = EMPTY;
         let placed = if m.becomes != 0 { code((m.becomes - 1) as usize, side_of(moved)) } else { moved };
         self.cells[to] = placed;
         self.hash ^= g.zob_piece[placed as usize * g.size + to];
         if m.partner_from != NONE {
-            let pf = m.partner_from as usize;
             let pt = m.partner_to as usize;
-            self.clear_unmoved(g, pf, &mut undo, &mut slot);
-            let pc = self.cells[pf];
-            self.hash ^= g.zob_piece[pc as usize * g.size + pf];
-            self.cells[pf] = EMPTY;
-            self.cells[pt] = pc;
-            self.hash ^= g.zob_piece[pc as usize * g.size + pt];
+            self.cells[pt] = partner;
+            self.hash ^= g.zob_piece[partner as usize * g.size + pt];
         }
         if let Some((p, _)) = self.passable {
             self.hash ^= g.zob_passable[p as usize];
@@ -1009,13 +1064,15 @@ impl Board {
         let m = u.m;
         let from = m.from as usize;
         let to = m.to as usize;
+        let partner = if m.partner_from != NONE { self.cells[m.partner_to as usize] } else { EMPTY };
         if m.partner_from != NONE {
-            let pc = self.cells[m.partner_to as usize];
             self.cells[m.partner_to as usize] = EMPTY;
-            self.cells[m.partner_from as usize] = pc;
         }
         self.cells[to] = EMPTY;
         self.cells[from] = u.moved;
+        if m.partner_from != NONE {
+            self.cells[m.partner_from as usize] = partner;
+        }
         if m.taken_at != NONE {
             self.cells[m.taken_at as usize] = u.captured;
         }
@@ -1361,6 +1418,9 @@ impl<'a> Searcher<'a> {
         if self.time_up() {
             return 0;
         }
+        if self.g.arrival_wins && self.b.arrived(self.g, 1 - self.b.turn) {
+            return -MATE + ply as i32;
+        }
         let side = self.b.turn;
         let checked = self.b.in_check(self.g, side);
         let mut stand = -INF;
@@ -1434,6 +1494,9 @@ impl<'a> Searcher<'a> {
         }
         let g = self.g;
         if ply > 0 {
+            if g.arrival_wins && self.b.arrived(g, 1 - self.b.turn) {
+                return -MATE + ply as i32;
+            }
             if self.b.repeated(1) || (g.count_to_draw > 0 && self.b.count >= g.count_to_draw) {
                 return 0;
             }
@@ -1761,79 +1824,102 @@ impl<'a> Searcher<'a> {
 /// What lies beyond a search's horizon at ``b``, per side, in BEYOND's order, from the rules and the walk of each side's
 /// reach. Nothing here knows a game: a piece that only goes forward and becomes another kind is read from its steps.
 fn beyond_the_horizon(g: &Game, b: &Board, reach: &Reach) -> [[f32; BEYOND]; 2] {
+    // One pass over the board: every square's ground, every piece held, and where the runners and royal pieces stand;
+    // then only those few. Walking the board once per quantity cost a sixth of her search's pace.
+    const MAX_COLS: usize = 32;
+    const MOST: usize = 64;
     let mut out = [[0f32; BEYOND]; 2];
     let last = (g.rows - 1).max(1) as f32;
+    let cols = (g.cols as usize).min(MAX_COLS);
+    let half = g.rows;
+    // Per line, how far up the board the second side's runners reach and how far down the first side's do.
+    let mut second_highest = [-1i32; MAX_COLS];
+    let mut first_lowest = [g.rows; MAX_COLS];
+    let mut runners = [(0usize, 0usize, 0i32, 0i32); MOST];
+    let mut n_runners = 0;
+    let mut royals = [(0usize, 0usize); 4];
+    let mut n_royals = 0;
     for &sq in &g.on_board {
+        let r = g.row(sq);
+        let (a0, a1) = (reach.attacks[0][sq], reach.attacks[1][sq]);
+        // Ground: a square in the other side's half that one side reaches and the other does not.
+        if 2 * r >= half && a0 > 0 && a1 == 0 {
+            out[0][3] += 1.0;
+        } else if 2 * (g.rows - 1 - r) >= half && a1 > 0 && a0 == 0 {
+            out[1][3] += 1.0;
+        }
         let c = b.cells[sq];
         if c == EMPTY {
             continue;
         }
         let s = side_of(c);
         let k = &g.kinds[kind_of(c)];
-        let (r, col) = g.rc(sq);
-        let own_row = if s == 0 { r } else { g.rows - 1 - r };
-        if k.runner {
-            // Ahead of it, on its own line and the lines beside: a piece of the other side that also only goes forward
-            // stands in its way or can come into it.
-            let mut opposed = false;
-            'ahead: for ahead in (own_row + 1)..g.rows {
-                let rr = if s == 0 { ahead } else { g.rows - 1 - ahead };
-                for cc in (col - 1)..=(col + 1) {
-                    if cc < 0 || cc >= g.cols {
-                        continue;
-                    }
-                    let o = b.cells[g.sq(rr, cc)];
-                    if o != EMPTY && o != OFF && side_of(o) != s && g.kinds[kind_of(o)].runner {
-                        opposed = true;
-                        break 'ahead;
-                    }
-                }
+        if k.royal {
+            if n_royals < royals.len() {
+                royals[n_royals] = (sq, s);
+                n_royals += 1;
             }
-            if !opposed {
-                let share = own_row as f32 / last;
-                out[s][0] += share * share;
-            }
-            let mut quiet_ways = 0;
-            let mut open = false;
-            for step in &k.steps {
-                if step.may == 2 || step.may == 3 || step.only_unmoved {
-                    continue;
-                }
-                for d in &step.units[s] {
-                    quiet_ways += 1;
-                    if b.cells[(sq as i32 + d) as usize] == EMPTY {
-                        open = true;
-                    }
-                }
-            }
-            if quiet_ways > 0 && !open {
-                out[s][1] += 1.0;
-            }
-        }
-        if !k.royal && reach.attacks[s][sq] > 0 {
+        } else if reach.attacks[s][sq] > 0 {
             out[s][2] += 1.0;
         }
-    }
-    for &sq in &g.on_board {
-        let r = g.row(sq);
-        for s in 0..2 {
-            let own_row = if s == 0 { r } else { g.rows - 1 - r };
-            if 2 * own_row >= g.rows && reach.attacks[s][sq] > 0 && reach.attacks[1 - s][sq] == 0 {
-                out[s][3] += 1.0;
+        if k.runner {
+            let col = sq as i32 % g.stride - g.border;
+            if (col as usize) < cols {
+                if s == 1 {
+                    second_highest[col as usize] = second_highest[col as usize].max(r);
+                } else {
+                    first_lowest[col as usize] = first_lowest[col as usize].min(r);
+                }
+            }
+            if n_runners < MOST {
+                runners[n_runners] = (sq, s, r, col);
+                n_runners += 1;
             }
         }
     }
-    for s in 0..2 {
-        for r in b.royals(g, s) {
-            for dr in -1..=1 {
-                for dc in -1..=1 {
-                    if dr == 0 && dc == 0 {
-                        continue;
-                    }
-                    let o = b.cells[(r as i32 + dr * g.stride + dc) as usize];
-                    if o != EMPTY && o != OFF && side_of(o) == s {
-                        out[s][4] += 1.0;
-                    }
+    for &(sq, s, r, col) in &runners[..n_runners] {
+        let k = &g.kinds[kind_of(b.cells[sq])];
+        let mut opposed = false;
+        for cc in (col - 1)..=(col + 1) {
+            if cc < 0 || cc as usize >= cols {
+                continue;
+            }
+            let cc = cc as usize;
+            if (s == 0 && second_highest[cc] > r) || (s == 1 && first_lowest[cc] < r) {
+                opposed = true;
+            }
+        }
+        if !opposed {
+            let own_row = if s == 0 { r } else { g.rows - 1 - r };
+            let share = own_row as f32 / last;
+            out[s][0] += share * share;
+        }
+        let mut quiet_ways = 0;
+        let mut open = false;
+        for step in &k.steps {
+            if step.may == 2 || step.may == 3 || step.only_unmoved {
+                continue;
+            }
+            for d in &step.units[s] {
+                quiet_ways += 1;
+                if b.cells[(sq as i32 + d) as usize] == EMPTY {
+                    open = true;
+                }
+            }
+        }
+        if quiet_ways > 0 && !open {
+            out[s][1] += 1.0;
+        }
+    }
+    for &(sq, s) in &royals[..n_royals] {
+        for dr in -1..=1 {
+            for dc in -1..=1 {
+                if dr == 0 && dc == 0 {
+                    continue;
+                }
+                let o = b.cells[(sq as i32 + dr * g.stride + dc) as usize];
+                if o != EMPTY && o != OFF && side_of(o) == s {
+                    out[s][4] += 1.0;
                 }
             }
         }
@@ -1906,6 +1992,18 @@ fn perft(description: &str, position: &str, depth: u32) -> PyResult<u64> {
 fn legal_moves(description: &str, position: &str) -> PyResult<Vec<(i32, i32, i32, i32, String)>> {
     let (g, mut b) = parse(description, position, "")?;
     Ok(b.legal(&g).iter().map(|m| move_out(&g, m)).collect())
+}
+
+/// What lies beyond the horizon at a position, per side, in BEYOND's order (core/agency/what_lies_beyond_the_horizon.py).
+#[pyfunction]
+fn beyond_counts(description: &str, position: &str) -> PyResult<Vec<Vec<f32>>> {
+    let (g, b) = parse(description, position, "{}")?;
+    let counted = REACH.with(|cell| {
+        let mut reach = cell.borrow_mut();
+        reach.walked(&g, &b);
+        beyond_the_horizon(&g, &b, &reach)
+    });
+    Ok(counted.iter().map(|side| side.to_vec()).collect())
 }
 
 /// The value of the position for the side to move, by the weights, without search.
@@ -2111,6 +2209,10 @@ fn self_play(
             let mut plies = 0u32;
             for ply in 0..max_plies {
                 plies = ply;
+                if ga.arrival_wins && board.arrived(&ga, 1 - board.turn) {
+                    result_first = if board.turn == 1 { 1.0 } else { 0.0 };
+                    break;
+                }
                 let legal = board.legal(&ga);
                 if legal.is_empty() {
                     let mover = board.turn;
@@ -2213,6 +2315,7 @@ fn aura_board_search(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(perft, m)?)?;
     m.add_function(wrap_pyfunction!(legal_moves, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;
+    m.add_function(wrap_pyfunction!(beyond_counts, m)?)?;
     m.add_function(wrap_pyfunction!(search, m)?)?;
     m.add_function(wrap_pyfunction!(self_play, m)?)?;
     Ok(())

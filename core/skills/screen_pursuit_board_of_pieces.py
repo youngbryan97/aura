@@ -100,11 +100,17 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
 
     came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=tell,
                                      learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
-                                     went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"))
+                                     went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"),
+                                     they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"))
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
     went_wrong_now = came.pop("went_wrong", None)
     if went_wrong_now is not None:
         keep["pieces_went_wrong"] = went_wrong_now
+    they_answered_now = came.pop("they_answered", None)
+    if they_answered_now is not None:
+        keep["pieces_they_answered"] = they_answered_now
+    # Where the game stood when it stopped, kept for reading how it ended; too long for the log.
+    final, last_move = came.pop("final", None), came.pop("last_move", None)
     logger.info("a board of pieces played: %s", came)
     if learned_now is not None:
         keep["pieces_learned"] = learned_now
@@ -112,7 +118,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         keep["pieces_rehearsal"] = rehearsal_now
     # Off the loop: what she gathered beside the record runs to megabytes.
     await asyncio.to_thread(_keep_what_she_learned, target_app, seat.looks, learned_now, rehearsal_now,
-                            went_wrong_now)
+                            went_wrong_now, they_answered_now)
     if came.get("ended") in ("not taking moves", "not answered"):
         keep["board_left_until"] = time.monotonic() + LEFT_UNTIL_S
         return None
@@ -123,6 +129,11 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         ended, words = await what_the_window_says_of_the_end(target_app)
         if ended:
             came["ended"], came["read_from_the_window"] = ended, words[:300]
+            # How it ended is something she learns of the game: a side with no move lost, or a kind's arrival won.
+            if learned_now is not None and final is not None:
+                learned_now.the_window_said(ended, final, last_move)
+                await asyncio.to_thread(_keep_what_she_learned, target_app, seat.looks, learned_now, rehearsal_now,
+                                        went_wrong_now, they_answered_now)
             _tell({"won": "The window says I won.", "lost": "The window says I lost.",
                    "drawn": "The window says it was drawn."}[ended], news=True)
     if came.get("ended") in GAME_OVER:
@@ -212,6 +223,7 @@ async def _her_clock(target_app: str) -> float | None:
 _TOGETHER = "how-the-pieces-stand-together"
 _LOOKED_AT_LONGER = "positions-looked-at-longer"
 _CAME_TO = "what-her-games-came-to"
+_THEY_ANSWERED = "what-they-answered-where"
 
 
 def _her_record(target_app: str) -> str:
@@ -242,6 +254,11 @@ def _kept_under(record: str) -> dict[str, Any]:
         from core.cognition.the_furthest_she_has_got import WhatFailedWhere
 
         kept["went_wrong"] = WhatFailedWhere.from_memory(held["went_wrong"])
+    answered = recall_beside(record, _THEY_ANSWERED)
+    if answered:
+        from core.agency.thinking_on_their_time import WhatTheyAnsweredWhere
+
+        kept["they_answered"] = WhatTheyAnsweredWhere.from_bytes(answered)
     worth = held.get("worth") or {}
     if worth.get("weights"):
         try:
@@ -268,7 +285,8 @@ def _kept_under(record: str) -> dict[str, Any]:
     return kept
 
 
-def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal: Any, went_wrong: Any = None) -> None:
+def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal: Any, went_wrong: Any = None,
+                           they_answered: Any = None) -> None:
     from dataclasses import asdict
 
     from core.agency.what_a_kind_is_worth import RESULTS
@@ -279,6 +297,9 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
         record["rules"] = learned.as_memory()
     if went_wrong is not None and went_wrong.ruled_out:
         record["went_wrong"] = went_wrong.as_memory()
+    if they_answered is not None and they_answered.answered:
+        # Kept beside the record: thousands of positions where a record holds sixty thousand characters.
+        remember_beside(_her_record(target_app), _THEY_ANSWERED, they_answered.as_bytes())
     if rehearsal is not None and getattr(rehearsal, "earned", None):
         weights = asdict(rehearsal.weights)
         # How the pieces stand together, and the positions it is learned from, are kept beside the record: thousands of

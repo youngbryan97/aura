@@ -106,6 +106,8 @@ class _Seen:
     over: set[int] = field(default_factory=set)
     over_took: int = 0
     over_refused: int = 0
+    #: Distances it was offered, or seen to go, onto a square held by a piece of its own side, the two changing places.
+    swapped: set[int] = field(default_factory=set)
 
     def went_to_empty(self) -> bool:
         return self.moved_to_empty > 0
@@ -120,7 +122,7 @@ class _Seen:
                      took=self.took + other.took, would_not_take=self.would_not_take + other.would_not_take,
                      moved_to_empty=self.moved_to_empty + other.moved_to_empty, jumped=self.jumped + other.jumped,
                      over=self.over | other.over, over_took=self.over_took + other.over_took,
-                     over_refused=self.over_refused + other.over_refused)
+                     over_refused=self.over_refused + other.over_refused, swapped=self.swapped | other.swapped)
 
 
 @dataclass
@@ -157,6 +159,8 @@ class HowThePiecesMove:
     quiet_offered_while_taking: int = 0
     #: Whether a game of this board ended lost for a side that had no move, as its window said.
     no_move_loses: bool = False
+    #: Kinds whose arrival on their far row ended a game, won for their side, as its window said.
+    wins_arriving: set[str] = field(default_factory=set)
     #: Moves seen that the rules she held did not allow, by kind, way and distance, waiting to be seen again before they
     #: teach her anything: a board misread once explained by a move nobody made taught her men to step sideways.
     unconfirmed: dict[str, int] = field(default_factory=dict)
@@ -205,6 +209,9 @@ class HowThePiecesMove:
                                 (way.offered_unmoved if unmoved else way.offered).add(times)
                             elif self._goes(kind, direction, times, unmoved):
                                 self.seen[kind][direction].would_not_take += 1
+                        elif is_offered:
+                            # A square of its own side offered: the two change places.
+                            self._of(kind, direction).swapped.add(times)
                         break
                     times += 1
         if family is not None:
@@ -260,6 +267,26 @@ class HowThePiecesMove:
         way = self.seen.get(kind, {}).get(direction)
         return way is not None and (way.over_took > 0 or bool(way.over) if move.via or move.taken_at != move.end
                                     and _takes_over_seen(side, move) else way.took > 0)
+
+    def the_window_said(self, ended: str, final: Position, last: Move | None) -> None:
+        """A game that stopped with no reason her rules could give, and the window saying who won (``ended`` "won" or
+        "lost" for her, the first side). Where the loser was to move and her rules give it no move, a side with no move
+        loses: that is the reason her rules already have. Only where they have none, and the winner's last move brought
+        a piece to its far row as the kind it was, did that kind's arrival win."""
+        from core.agency.pieces_by_their_kind import moves
+
+        if ended not in ("won", "lost"):
+            return
+        winner = FIRST if ended == "won" else SECOND
+        # A kind never seen to go is taken to go every way: knowing nothing of it is no reason it could not move.
+        if final.turn != winner and not moves(self.family(unseen_go_every_way=True), final):
+            self.no_move_loses = True
+            return
+        far = self.rows - 1 if winner == FIRST else 0
+        arrived = final.cells.get(last.end) if last is not None else None
+        if (arrived is not None and arrived[0] == winner and last.end[0] == far and last.start[0] != far
+                and not last.becomes):
+            self.wins_arriving.add(arrived[1])
 
     def kinds_of(self, side: int) -> set[str]:
         """The kinds a side has held: those it began with, and what they have been seen to become."""
@@ -328,6 +355,10 @@ class HowThePiecesMove:
         direction, times = in_its_frame(side, move.start, move.end)
         unmoved = move.start in position.unmoved
         way = self._of(kind, direction)
+        if move.partner is not None and move.partner == (move.end, move.start):
+            # Two of a side changed places: the one that moved goes that way onto its own side's piece.
+            self._of(kind, direction).swapped.add(times)
+            return
         if move.partner is not None:
             partner_kind = position.cells[move.partner[0]][1]
             self.crosses[kind] = partner_kind
@@ -476,6 +507,8 @@ class HowThePiecesMove:
         steps: list[Step] = []
         ways = self._ways_of(kind)
         for direction, way in sorted(ways.items()):
+            for times in sorted(way.swapped):
+                steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may="swaps"))
             over = sorted(way.over - way.offered - way.offered_unmoved) if not way.over_took else sorted(way.over)
             if over and way.over_refused <= AGAINST_AT_MOST * (way.over_took + len(way.over)):
                 # Beyond one piece of the other side: at one distance a leap of it, at several along the line.
@@ -521,7 +554,8 @@ class HowThePiecesMove:
                     "withheld": sorted(seen.withheld), "withheld_unmoved": sorted(seen.withheld_unmoved),
                     "took": seen.took, "would_not_take": seen.would_not_take,
                     "moved_to_empty": seen.moved_to_empty, "jumped": seen.jumped,
-                    "over": sorted(seen.over), "over_took": seen.over_took, "over_refused": seen.over_refused}
+                    "over": sorted(seen.over), "over_took": seen.over_took, "over_refused": seen.over_refused,
+                    "swapped": sorted(seen.swapped)}
 
         return {
             "rows": self.rows, "columns": self.columns,
@@ -534,7 +568,7 @@ class HowThePiecesMove:
             "taken_and_played_on": dict(self.taken_and_played_on), "first_was_hers": self.first_was_hers,
             "takes_again": sorted(self.takes_again), "quiet_kept_back_while_taking": self.quiet_kept_back_while_taking,
             "quiet_offered_while_taking": self.quiet_offered_while_taking, "no_move_loses": self.no_move_loses,
-            "unconfirmed": dict(self.unconfirmed),
+            "unconfirmed": dict(self.unconfirmed), "wins_arriving": sorted(self.wins_arriving),
         }
 
     @classmethod
@@ -555,6 +589,7 @@ class HowThePiecesMove:
                     seen.moved_to_empty, seen.jumped = int(w["moved_to_empty"]), int(w["jumped"])
                     seen.over = {int(t) for t in w.get("over", [])}
                     seen.over_took, seen.over_refused = int(w.get("over_took", 0)), int(w.get("over_refused", 0))
+                    seen.swapped = {int(t) for t in w.get("swapped", [])}
                 learned.seen.setdefault(kind, {})
             learned.kept_off_attacked = {k: int(v) for k, v in kept.get("kept_off_attacked", {}).items()}
             learned.went_onto_attacked = {k: int(v) for k, v in kept.get("went_onto_attacked", {}).items()}
@@ -569,6 +604,7 @@ class HowThePiecesMove:
             learned.quiet_offered_while_taking = int(kept.get("quiet_offered_while_taking", 0))
             learned.no_move_loses = bool(kept.get("no_move_loses", False))
             learned.unconfirmed = {str(k): int(v) for k, v in kept.get("unconfirmed", {}).items()}
+            learned.wins_arriving = {str(k) for k in kept.get("wins_arriving", [])}
             first = kept.get("first_was_hers")
             learned.first_was_hers = first if isinstance(first, bool) else None
             return learned
@@ -591,7 +627,7 @@ class HowThePiecesMove:
             start={square: (side, names[kind]) for square, (side, kind) in start.items() if kind in names},
             seen={names[kind]: {d: replace(w, offered=set(w.offered), offered_unmoved=set(w.offered_unmoved),
                                            withheld=set(w.withheld), withheld_unmoved=set(w.withheld_unmoved),
-                                           over=set(w.over))
+                                           over=set(w.over), swapped=set(w.swapped))
                                 for d, w in ways.items()}
                   for kind, ways in self.seen.items() if kind in names},
             kept_off_attacked=counts(self.kept_off_attacked), went_onto_attacked=counts(self.went_onto_attacked),
@@ -639,6 +675,7 @@ class HowThePiecesMove:
                             crosses_with=self.crosses.get(kind, ""),
                             takes_again=kind in self.takes_again or self.counterparts().get(kind, ("",))[0]
                             in self.takes_again,
+                            wins_arriving=kind in self.wins_arriving,
                             name=self.names.get(kind, ""))
                  for kind in sorted({k for _s, k in self.start.values()} | set(self.seen))}
         return Family(name="the game in front of me", rows=self.rows, columns=self.columns, kinds=kinds,
@@ -835,6 +872,17 @@ def a_move_seen(before: Position, after_cells: dict[Square, tuple[int, str | Non
         if fits:
             _not_royal, a, b, other_a, other_b = min(fits)
             return Move(a, b, partner=(other_a, other_b))
+    if not gone and not came:
+        # Two of the side's pieces changed places, nothing else moving: a swap. The one that moved is the kind the side
+        # holds fewer of, the piece set apart; the other its partner.
+        changed = [sq for sq, (s, k) in before.cells.items()
+                   if s == side and after_cells.get(sq, (None, None))[1] not in (None, k)]
+        if len(changed) == 2:
+            a, b = changed
+            if after_cells[a][1] == before.cells[b][1] and after_cells[b][1] == before.cells[a][1]:
+                held = [k for s, k in before.cells.values() if s == side]
+                mover, other = sorted((a, b), key=lambda sq: (held.count(before.cells[sq][1]), sq))
+                return Move(mover, other, partner=(other, mover))
     return None
 
 

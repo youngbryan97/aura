@@ -152,6 +152,7 @@ def described(family: Family) -> str:
                        "takes_in_passing": s.takes_in_passing} for s in kind.steps],
             "royal": kind.royal, "becomes": list(kind.becomes), "cannot_go_back": kind.cannot_go_back,
             "crosses_with": kind.crosses_with, "takes_again": kind.takes_again,
+            "wins_arriving": kind.wins_arriving,
         })
     return json.dumps({"rows": family.rows, "columns": family.columns, "kinds": kinds,
                        "count_to_draw": family.count_to_draw, "repeats_to_draw": family.repeats_to_draw,
