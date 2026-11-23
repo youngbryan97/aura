@@ -17,14 +17,15 @@ LIVE 23 November 2026, on the opening positions of games 26 and 27: her moves as
 piece by Stockfish held to depth 14, her search at her game pace (2.5 s) 346, and a 30 s look 202.
 
 What she prepares grows as a repertoire does. Each look goes to the situation not yet worked out that the most of her
-games reach, by the answers the other side has given on the way. An answer of theirs she has not seen and only
-expects is as likely as her expectations of them have proved: a line of guesses ten answers deep is not as likely as
-an answer they have been seen to give once in four, unless what she expects of them always comes. A move of hers that
-a game she lost went through is set aside where she prepares that situation again, as it is in her games
-(WhatFailedWhere), so the line she lost is replaced by another. A situation worked out is not looked at again for
-longer: on 12 opening positions of her games of 22 and 23 November 2026, Stockfish held to depth 18 put her moves at
-game pace at 211 hundredths of a piece, a 30 s look at 61, and looks of 60 and 120 s at 215 and 255. Games 26, 27 and
-28 were decided by their fifth to tenth moves.
+games reach, by the answers the other side has given on the way, an answer she only expects counted as one they
+give. Weighing an expected answer by how often her expectations of them had come true met fewer of the situations she
+prepared, and lost more: over 40 games on each of two seeds against Stockfish limited to 2500, 2.1 and 2.3 moves a
+game came from what she worked out and she scored 0.300 and 0.287, against 2.6 and 2.5 and 0.412 and 0.438 this way,
+and 0.225 and 0.250 without preparing. A move of hers that a game she lost went through is set aside where she
+prepares that situation again, as it is in her games (WhatFailedWhere), so the line she lost is replaced by another.
+A situation worked out is not looked at again for longer: on 12 opening positions of her games of 22 and 23 November
+2026, Stockfish held to depth 18 put her moves at game pace at 211 hundredths of a piece, a 30 s look at 61, and
+looks of 60 and 120 s at 215 and 255. Games 26, 27 and 28 were decided by their fifth to tenth moves.
 
 Nothing here knows a game: a situation is a position written out, an answer a move named.
 """
@@ -117,19 +118,13 @@ class Prepared:
         side has given (or the one she expects), each with how far from the start it is, how long she has looked at it
         among the choices it offers now (nought where she has not, or where her answer is a move that lost there),
         and the share of games that reach it, each answer of theirs weighed by how often they have given it, and an
-        answer she only expects by how often her expectations of them have come true. The walk stops at a situation
-        of hers she has not worked out: what follows it depends on her answer."""
+        answer she only expects as one they give. The walk stops at a situation of hers she has not worked out: what
+        follows it depends on her answer."""
         found: list[tuple[Any, list[Any], int, str, float, float]] = []
-        # Each situation with the share of games its seen answers lead to, and how many answers on the way to it are
-        # only expected. An expected answer counts for as much as her expectations of them have come true where they
-        # have answered: of the answers they gave after a move she worked out, the share that were the one she
-        # expected, with one of each kind supposed before any is seen.
-        guessed: list[int] = []
-        came_true = [0, 0]
-        walk: list[tuple[Any, list[Any], int, Any, float, int]] = [(start, [], 0, None, 1.0, 0)]
+        walk: list[tuple[Any, list[Any], int, Any, float]] = [(start, [], 0, None, 1.0)]
         seen: set[str] = set()
         while walk and len(seen) < KEPT_AT_MOST:
-            position, earlier, ply, expected, share, guesses = walk.pop(0)
+            position, earlier, ply, expected, share = walk.pop(0)
             place = _a_place(position)
             if ply >= plies or place in seen:
                 continue
@@ -145,28 +140,20 @@ class Prepared:
                 if move is None:
                     # Not worked out, or worked out as the move a game she lost went through: worked out (again) first.
                     found.append((position, earlier, ply, place, 0.0, share))
-                    guessed.append(guesses)
                     continue
                 found.append((position, earlier, ply, place, float(held.get("seconds", LOOKS_FOR_S)), share))
-                guessed.append(guesses)
-                walk.append((after(family, position, move), [*earlier, position], ply + 1, held.get("reply"), share,
-                             guesses))
+                walk.append((after(family, position, move), [*earlier, position], ply + 1, held.get("reply"), share))
                 continue
             # Their turn: the answers they have given here, most often first; or the one her look expects of them.
             given = dict(getattr(they_answered, "answered", {}).get(_key(place), {})) if they_answered else {}
             total = sum(given.values())
-            if expected and total:
-                came_true[0] += given.get(expected, 0)
-                came_true[1] += total
             named = sorted(given, key=lambda m: -given[m])[:ANSWERS_FOLLOWED] or ([expected] if expected else [])
             for name in named:
                 move = next((m for m in legal if _named(m) == name), None)
                 if move is not None:
                     part = given[name] / total if given else 1.0
-                    walk.append((after(family, position, move), [*earlier, position], ply + 1, None, share * part,
-                                 guesses + (0 if given else 1)))
-        expected_holds = (came_true[0] + 1) / (came_true[1] + 2)
-        return [(*item[:5], item[5] * expected_holds ** times) for item, times in zip(found, guessed, strict=True)]
+                    walk.append((after(family, position, move), [*earlier, position], ply + 1, None, share * part))
+        return found
 
     def _looked(self, search: Any, family: Any, position: Any, earlier: list[Any], weights: Any, seconds: float,
                 threads: int, aside: list[Any], place: str, ply: int, choices: str) -> tuple[Any, Any] | None:

@@ -41,43 +41,19 @@ def test_she_walks_her_answers_and_theirs_from_the_start() -> None:
     done = prepared.prepare(CHESS, start, weights, they_answered=seen, positions=4, plies=6,
                             search=_a_quick_look(searched))
     assert done == 4 and len(searched) == 4
-    # Her first move; then her move after the answer they have given most; then after the answer they gave once,
-    # before the next situation on the main line, which is reached only through an answer she expects of them. Her
-    # look expected neither answer they gave at the first, so an expectation of hers counts for a sixth: three in four
-    # games and then one in six is less than one in four.
+    # Her first move; then her move after the answer they have given most; then the next situation on that line, met
+    # in as many games (three in four), before the answer they gave once; then that one.
     assert searched[0] == _a_place(start)
     main = after(CHESS, there, replies[5])
     assert searched[1] == _a_place(main)
-    assert searched[2] == _a_place(after(CHESS, there, replies[7]))
     mine = sorted(moves(CHESS, main), key=_named)[0]
     expected = sorted(moves(CHESS, after(CHESS, main, mine)), key=_named)[0]
-    assert searched[3] == _a_place(after(CHESS, after(CHESS, main, mine), expected))
+    assert searched[2] == _a_place(after(CHESS, after(CHESS, main, mine), expected))
     assert len(set(searched)) == 4, "each look is at a situation of its own"
     # Worked out once: a second walk finds them done and goes further.
     more: list = []
     prepared.prepare(CHESS, start, weights, they_answered=seen, positions=1, plies=6, search=_a_quick_look(more))
     assert more and more[0] not in searched
-
-
-def test_an_answer_she_expects_counts_as_far_as_her_expectations_have_come_true() -> None:
-    start, weights = CHESS.the_start(), first_weights(CHESS)
-    first = sorted(moves(CHESS, start), key=_named)[0]
-    there = after(CHESS, start, first)
-    replies = sorted(moves(CHESS, there), key=_named)
-    # Three times in four they answered as her look expected (the first reply in its order), once otherwise: an
-    # expectation of hers counts for four in six, and the main line's next situation (three in four, then four in
-    # six) comes before the answer they gave once.
-    seen = WhatTheyAnsweredWhere()
-    for _ in range(3):
-        seen.they_answered(_a_place(there), _named(replies[0]))
-    seen.they_answered(_a_place(there), _named(replies[7]))
-    searched: list = []
-    Prepared().prepare(CHESS, start, weights, they_answered=seen, positions=3, plies=6,
-                       search=_a_quick_look(searched))
-    main = after(CHESS, there, replies[0])
-    mine = sorted(moves(CHESS, main), key=_named)[0]
-    expected = sorted(moves(CHESS, after(CHESS, main, mine)), key=_named)[0]
-    assert searched == [_a_place(start), _a_place(main), _a_place(after(CHESS, after(CHESS, main, mine), expected))]
 
 
 def test_where_they_have_not_answered_she_follows_the_answer_she_expects() -> None:
