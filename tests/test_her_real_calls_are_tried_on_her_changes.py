@@ -90,6 +90,25 @@ def test_each_call_has_the_same_chance_to_be_kept(watched):
     assert [dict(row["keywords"])["n"] for row in entry["calls"]] == ["0", "1", "1"]
 
 
+def test_the_first_call_of_each_kind_is_kept_and_tried_first(watched):
+    """Round nine of the red team: one negative count among thousands of positive ones is drowned in a uniform sample,
+    and it is the call a change is likeliest to get wrong."""
+    sample = watched(kept=2, draws=[0.99] * 20)
+    sample.watch([("core.self_modification.loop_drill", "nth")])
+    for n in (1, 1, 1, 1, 1, 1, 0, 1, 1):
+        loop_drill.nth([10, 20], n)
+    try:
+        loop_drill.nth([10, 20], -5)
+    except IndexError:
+        pass
+    entry = sample.corpus()["functions"]["core/self_modification/loop_drill.py::nth"]
+    assert [dict(row["keywords"])["n"] for row in entry["calls"]] == ["1", "1"], "the sample drew none of the rare ones"
+    assert [dict(row["keywords"])["n"] for row in entry["firsts"]] == ["1", "0", "-5"]
+    tried = real.calls_for(sample.corpus(), [("core/self_modification/loop_drill.py", "nth")])
+    assert [dict(row["keywords"])["n"] for row in tried["core/self_modification/loop_drill.py::nth"]["calls"]] == \
+        ["1", "0", "-5"], "each call once, the first of each kind first"
+
+
 def test_a_call_that_cannot_be_written_back_is_counted_and_still_answered(watched):
     sample = watched()
     sample.watch([("core.self_modification.loop_drill", "label")])

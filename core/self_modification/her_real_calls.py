@@ -49,6 +49,10 @@ logger = logging.getLogger("Aura.SelfModification.RealCalls")
 #: Calls kept for one function. The outside check tries 400 inputs for a function and gives the first half to its
 #: commit's own tests (outside_bar/verify_change.py, NEAR_INPUTS); a sample larger than the other half is not tried.
 KEPT_PER_FUNCTION = 200
+#: Kinds of call kept for one function beside that sample, the first call of each: a call of a kind she makes once in
+#: ten thousand (a None where she passes text, an empty list, a negative count) is drowned in a uniform sample of 200,
+#: and is the call a change is likeliest to get wrong (round nine of the red team). They are tried first.
+KINDS_KEPT = 50
 
 #: Where the guard tests are written in a scratch clone.
 GUARD_TESTS = Path("tests") / "her_real_calls"
@@ -73,7 +77,7 @@ def where_her_real_calls_are_kept() -> Path:
 
 def _row(call: FailedCall, at: float) -> dict[str, Any]:
     row = dataclasses.asdict(call)
-    for name in ("error_type", "error_message", "below", "line"):
+    for name in ("error_type", "error_message", "below", "line", "causes", "codes"):
         row.pop(name, None)
     return {**row, "at": at}
 
@@ -207,11 +211,18 @@ class HerRealCalls:
         key = self._watched.get(id(code))
         if key is None:
             return
+        kind = _kind_of_call(code, frame)
         with self._lock:
             entry = self._functions[key]
             entry["seen"] += 1
             seen = entry["seen"]
             slot = seen - 1 if seen <= self.kept else int(self._draw() * seen)
+            kinds = entry.setdefault("kinds", [])
+            first = kind not in kinds and len(kinds) < KINDS_KEPT
+            if first:
+                kinds.append(kind)
+        if first:
+            self._keep_the_first_of_its_kind(key, frame)
         if slot >= self.kept:
             return
         call = a_call_written_back(frame)
@@ -226,6 +237,14 @@ class HerRealCalls:
                 calls[slot] = row
             else:
                 calls.append(row)
+            self._changes += 1
+
+    def _keep_the_first_of_its_kind(self, key: str, frame: FrameType) -> None:
+        call = a_call_written_back(frame)
+        if isinstance(call, str):
+            return
+        with self._lock:
+            self._functions[key].setdefault("firsts", []).append(_row(call, time.time()))
             self._changes += 1
 
     # ── what is kept ───────────────────────────────────────────────────
@@ -245,9 +264,12 @@ class HerRealCalls:
                 if key in self._functions or not isinstance(entry, dict):
                     continue
                 calls = [row for row in entry.get("calls") or () if isinstance(row, dict) and _readable(row)]
+                firsts = [row for row in entry.get("firsts") or () if isinstance(row, dict) and _readable(row)]
                 self._functions[str(key)] = {"seen": max(int(entry.get("seen") or 0), len(calls)),
                                              "calls": calls[: self.kept], "why_not": dict(entry.get("why_not") or {}),
-                                             "awaited": bool(entry.get("awaited"))}
+                                             "awaited": bool(entry.get("awaited")),
+                                             "kinds": [str(kind) for kind in entry.get("kinds") or ()][:KINDS_KEPT],
+                                             "firsts": firsts[:KINDS_KEPT]}
                 taken += 1
             self._kept_at = self._changes
         return taken
@@ -550,10 +572,32 @@ def calls_for(corpus: dict[str, Any], changed: Sequence[tuple[str, str]]) -> dic
     held: dict[str, dict[str, Any]] = {}
     for file, qualname in changed:
         entry = (functions or {}).get(f"{file}::{qualname}")
-        calls = [row for row in (entry or {}).get("calls") or () if isinstance(row, dict) and _readable(row)]
+        # The first call of each kind first, then the sample, each call once whenever it was kept.
+        rows = [*((entry or {}).get("firsts") or ()), *((entry or {}).get("calls") or ())]
+        calls = list({json.dumps({name: value for name, value in row.items() if name != "at"}, sort_keys=True): row
+                      for row in rows if isinstance(row, dict) and _readable(row)}.values())
         if calls:
             held[f"{file}::{qualname}"] = {**entry, "calls": calls}
     return held
+
+
+def _side(value: Any) -> str:
+    if value is None or isinstance(value, bool):
+        return repr(value)
+    if isinstance(value, (int, float)):
+        return "negative" if value < 0 else "zero" if value == 0 else "positive"
+    if isinstance(value, (str, bytes, list, tuple, dict, set, frozenset)):
+        return f"{type(value).__name__}:{'empty' if not value else 'filled'}"
+    return type(value).__qualname__
+
+
+def _kind_of_call(code: CodeType, frame: FrameType) -> str:
+    """The kind of a call, by each argument's type and side: None, a sign, empty or filled."""
+    names = code.co_varnames[:code.co_argcount + code.co_kwonlyargcount]
+    try:
+        return "|".join(_side(frame.f_locals.get(name)) for name in names if name not in ("self", "cls"))
+    except Exception:  # noqa: BLE001 - a value that cannot be read is a kind of its own
+        return "unreadable"
 
 
 def sample_digest(corpus: dict[str, Any], changed: Sequence[tuple[str, str]]) -> str:

@@ -64,6 +64,12 @@ class FailedCall:
     receiver_module: str = ""
     receiver_class: str = ""
     receiver_state: tuple[tuple[str, str], ...] = ()
+    #: The exceptions it was raised from, by class, the nearest first: ``RuntimeError`` raised while handling an
+    #: ``HTTPError`` is the server's refusal as much as her code's.
+    causes: tuple[str, ...] = ()
+    #: What the exceptions say of themselves as data rather than words: SQLite's own name for its error
+    #: (``sqlite_errorname``, SQLITE_BUSY when another connection held the database).
+    codes: tuple[tuple[str, str], ...] = ()
 
     @property
     def fingerprint(self) -> tuple[str, str, str]:
@@ -263,8 +269,17 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
     call = a_call_written_back(frame, raised=True)
     if isinstance(call, str):
         return call
+    chain: list[BaseException] = []
+    held: BaseException | None = error
+    while held is not None and len(chain) < 6:
+        chain.append(held)
+        held = held.__cause__ or (None if held.__suppress_context__ else held.__context__)
+    codes = tuple((name, str(value)) for one in chain for name in ("sqlite_errorname",)
+                  if isinstance(value := getattr(one, name, None), str))
     return dataclasses.replace(call, line=int(line or 0), error_type=f"{type(error).__module__}.{type(error).__qualname__}",
-                               error_message=str(error)[:500], below=below)
+                               error_message=str(error)[:500], below=below,
+                               causes=tuple(f"{type(one).__module__}.{type(one).__qualname__}" for one in chain[1:]),
+                               codes=codes)
 
 
 def a_call_written_back(frame: FrameType, *, raised: bool = False) -> FailedCall | str:

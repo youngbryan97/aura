@@ -433,6 +433,25 @@ def _refusal(error: BaseException, arguments: dict[str, Any], home: str) -> str:
     return f"raised {type(error).__name__}{by}: {words[:120]}"
 
 
+def _invariants_broken(names: frozenset[str]) -> list[str]:
+    """The invariants named in ``names`` (core/verify/invariants.py, written next to what they protect) that report a
+    violation now, or raise, by name: what a call left behind that its own module says must never be. A message can
+    carry a time or a count, so only the name is kept, which two runs share."""
+    registry = getattr(sys.modules.get("core.verify.invariants"), "get_registry", None)
+    if not names or registry is None:
+        return []
+    broken = []
+    for spec in registry().specs():
+        if spec.name not in names or not getattr(spec, "observational", True):
+            continue
+        try:
+            if any(True for _ in spec.check()):
+                broken.append(spec.name)
+        except Exception:  # noqa: BLE001 - a check that raises is itself a violation, as the verifier counts it
+            broken.append(f"{spec.name} raised")
+    return sorted(broken)
+
+
 def _short(outcome: str) -> str:
     if len(outcome) <= _LONGEST_OUTCOME:
         return outcome
@@ -561,6 +580,7 @@ def main() -> int:
     ballast = [[] for _ in range(int(questions.pop("ballast", 0) or 0))]
     pipe = os.fdopen(questions.pop("pipe"), "w", encoding="utf-8", buffering=1)
     mark = questions.pop("mark")
+    invariants = frozenset(questions.pop("invariants", None) or ())
     caught: list[str] = []
     ran: set[str] = set()
     target_code: list[tuple[str, str]] = [("", "")]
@@ -645,7 +665,9 @@ def main() -> int:
         outcome = outcome if after == before else f"{outcome}; its arguments became {after[:200]}"
         outcome = outcome if held_after == held_before else f"{outcome}; the object became {held_after[:200]}"
         around_after = _held_around(path, made)
-        return outcome if around_after == around_before else f"{outcome}; what is around it became {around_after[:200]}"
+        outcome = outcome if around_after == around_before else f"{outcome}; what is around it became {around_after[:200]}"
+        broken = _invariants_broken(invariants)
+        return outcome if not broken else f"{outcome}; its invariants say otherwise: {broken[:5]}"
 
     # What this file's own names were before any code under test ran: a call that rebinds one (``_shown`` through
     # ``sys.modules["__main__"]``) has changed the check, and the run says so and stops.

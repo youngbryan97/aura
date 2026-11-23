@@ -74,7 +74,7 @@ def _how_many_are_kept() -> int:
 _EXPECTED = frozenset({"debug", "info"})
 
 
-def _raised_by_the_world(error_type: str) -> bool:
+def _raised_by_the_world(error_type: str, causes: tuple[str, ...] = ()) -> bool:
     """Whether the exception was the outside world's: a wait at her edge that ran out, a connection refused or reset, a
     name or address that did not answer, a certificate or a protocol that failed. Read from the exception's class,
     found among the modules her process has loaded, never from its words.
@@ -90,14 +90,19 @@ def _raised_by_the_world(error_type: str) -> bool:
 
     the_worlds = (TimeoutError, ConnectionError, socket.gaierror, ssl.SSLError, urllib.error.URLError,
                   http.client.HTTPException)
-    parts = str(error_type or "").split(".")
-    for cut in range(len(parts) - 1, 0, -1):
-        found: Any = sys.modules.get(".".join(parts[:cut]))
-        for name in parts[cut:]:
-            found = getattr(found, name, None)
-        if isinstance(found, type):
-            return issubclass(found, the_worlds)
-    return False
+
+    def the_worlds_class(spelled: str) -> bool:
+        parts = str(spelled or "").split(".")
+        for cut in range(len(parts) - 1, 0, -1):
+            found: Any = sys.modules.get(".".join(parts[:cut]))
+            for name in parts[cut:]:
+                found = getattr(found, name, None)
+            if isinstance(found, type):
+                return issubclass(found, the_worlds)
+        return False
+    # The exception, or any it was raised from: her code's RuntimeError raised while handling a refused connection is
+    # still the world's.
+    return any(the_worlds_class(spelled) for spelled in (error_type, *causes))
 
 
 def hear(record: DegradationRecord) -> None:
@@ -111,7 +116,7 @@ def hear(record: DegradationRecord) -> None:
     if not isinstance(call, FailedCall):
         _say_why_not_once(call, record)
         return
-    if _raised_by_the_world(call.error_type):
+    if _raised_by_the_world(call.error_type, call.causes):
         _say_why_not_once(f"{call.error_type.rsplit('.', 1)[-1]} is the world's: a test in her workspace runs without "
                           "it", record)
         return
@@ -237,8 +242,9 @@ def _from_row(row: Any) -> HeardFault | None:
         call = dict(row["call"])
         call["keywords"] = tuple((str(key), str(value)) for key, value in call.get("keywords") or ())
         call["receiver_state"] = tuple((str(key), str(value)) for key, value in call.get("receiver_state") or ())
-        for name in ("positional", "positional_names", "below"):
+        for name in ("positional", "positional_names", "below", "causes"):
             call[name] = tuple(str(part) for part in call.get(name) or ())
+        call["codes"] = tuple((str(key), str(value)) for key, value in call.get("codes") or ())
         return HeardFault(call=FailedCall(**call), subsystem=str(row["subsystem"]), first_at=float(row["first_at"]),
                           last_at=float(row["last_at"]), times=int(row["times"]))
     except (KeyError, TypeError, ValueError) as exc:
@@ -258,7 +264,7 @@ def recall() -> int:
     added = 0
     with _LOCK:
         for fault in filter(None, (_from_row(row) for row in rows if isinstance(row, dict))):
-            if _raised_by_the_world(fault.call.error_type):
+            if _raised_by_the_world(fault.call.error_type, fault.call.causes):
                 continue  # kept before this was read; still the world's
             if fault.call.fingerprint not in _HEARD and len(_HEARD) < _how_many_are_kept():
                 _HEARD[fault.call.fingerprint] = fault
@@ -318,34 +324,88 @@ def name_of(fault: HeardFault) -> str:
     return f"test_fault_{stem}_{digest}.py"
 
 
+#: SQLite's names for a database another connection held: what the call's own arguments do not carry, made again by
+#: holding the database from a second connection while the call runs.
+_HELD_DATABASE = frozenset({"SQLITE_BUSY", "SQLITE_LOCKED"})
+
+_RECORDED_AGAIN = '''
+
+def _records():
+    """Her degradation tracker's records, or none where her runtime is not there to keep them."""
+    return list(get_degradation_tracker().recent(limit=500)) if get_degradation_tracker is not None else []
+
+
+def _recorded_since(before):
+    """What her degradation tracker recorded after ``before``, by kind: a fault her code catches and records is made
+    again when the call records it again, raised or not."""
+    return [record.error_type for record in _records() if id(record) not in before]
+'''
+
+#: Past the five seconds Python's sqlite3 waits for a held database by default (sqlite3.connect's ``timeout``).
+_HELD_SECONDS = 6.0
+
+_HELD_BY_ANOTHER = f'''
+
+def _held_by_another(real=sqlite3.connect):
+    """Each database the call opens, held first by another connection that takes its write lock and lets it go after
+    {_HELD_SECONDS} seconds: what SQLite said happened when she raised this."""
+    def connect(database, *args, **kwargs):
+        name = os.fspath(database) if isinstance(database, (str, bytes, os.PathLike)) else ""
+        if name and name not in (":memory:", b":memory:"):
+            holder = real(name, timeout=0, isolation_level=None, check_same_thread=False, uri=kwargs.get("uri", False))
+            try:
+                holder.execute("BEGIN EXCLUSIVE")
+                timer = threading.Timer({_HELD_SECONDS}, holder.close)
+                timer.daemon = True
+                timer.start()
+            except sqlite3.Error:
+                holder.close()
+        return real(database, *args, **kwargs)
+    return connect
+'''
+
+
 def test_source(fault: HeardFault) -> str:
-    """A test that makes the call again and fails if it raises."""
+    """A test that makes the call again and fails if it raises what she raised, or records it again: her code catches
+    and records most of its faults (CLAUDE.md, record_degradation), and a test that only waited for a raise passed on
+    every one of those (LIVE 17-21 November 2026: "Not mended: its test did not raise what she raised", 5 of 12 stalls).
+    A fault SQLite named as a held database is made again with the database held."""
     call = fault.call
     owner, _, rest = call.qualname.partition(".")
     callee = f"{owner}.{rest}" if rest else owner
     when = time.strftime("%d %B %Y %H:%M", time.localtime(fault.first_at))
     said = call.error_message.replace('"""', "'''")
+    kind = _error_name(call)
+    held = any(name == "sqlite_errorname" and value in _HELD_DATABASE for name, value in call.codes)
     head = (
         f'"""A fault from her own running, made again: {call.module}.{call.qualname} raised {call.error_type}.\n\n'
         f"Heard {fault.times} time(s) from {fault.subsystem}, first at {when}: {said}\n"
         f"Raised at {call.file}:{call.line}. Written by core/self_modification/faults_she_can_reproduce.py.\n"
         '"""\n'
     )
+    imports = ["import os\nimport sqlite3\nimport threading\n\n" if held else "",
+               "try:\n    from core.runtime.errors import get_degradation_tracker\n"
+               "except ImportError:  # a workspace without her runtime keeps no records\n"
+               "    get_degradation_tracker = None\n"]
     if call.receiver_class:
         # A method: its instance rebuilt as it was when it raised, without its __init__ (test carving).
         root = call.receiver_class.split(".")[0]
         state = "{" + ", ".join(f"{name!r}: {value}" for name, value in call.receiver_state) + "}"
-        return (
-            head + f"from {call.receiver_module} import {root}\n\n\n"
-            f"def {Path(name_of(fault)).stem}():\n"
-            f"    receiver = {call.receiver_class}.__new__({call.receiver_class})\n"
-            f"    receiver.__dict__.update({state})\n"
-            f"    {call.call_source('receiver.' + call.qualname.rsplit('.', 1)[-1])}\n"
-        )
+        imports.append(f"from {call.receiver_module} import {root}\n")
+        made = (f"    receiver = {call.receiver_class}.__new__({call.receiver_class})\n"
+                f"    receiver.__dict__.update({state})\n"
+                f"    {call.call_source('receiver.' + call.qualname.rsplit('.', 1)[-1])}\n")
+    else:
+        imports.append(f"from {call.module} import {owner}\n")
+        made = f"    {call.call_source(callee)}\n"
     return (
-        head + f"from {call.module} import {owner}\n\n\n"
-        f"def {Path(name_of(fault)).stem}():\n"
-        f"    {call.call_source(callee)}\n"
+        head + "".join(imports) + _RECORDED_AGAIN + (_HELD_BY_ANOTHER if held else "") + "\n\n"
+        f"def {Path(name_of(fault)).stem}({'monkeypatch' if held else ''}):\n"
+        + ("    monkeypatch.setattr(sqlite3, \"connect\", _held_by_another())\n" if held else "")
+        + "    before = {id(record) for record in _records()}\n"
+        + made
+        + f"    again = [one for one in _recorded_since(before) if one.rsplit('.', 1)[-1] == {kind!r}]\n"
+        + f"    assert not again, \"it recorded {kind} again\"\n"
     )
 
 

@@ -8252,6 +8252,30 @@ needs her 27B free (her app down, or her app's own influence trials).
   commit wrote; a branch that went one way in every test and input is a doubt; every watch hides its monitoring slot;
   her kept tests are run on both sides before they are kept; her model's edits reach the search as edits, one function
   each. See `docs/evidence/F16_RED_TEAM_ROUND_9_2026-11-22.md`.
+  Built the same night, from the builds owed:
+  - A call on what no other process can make again (a live database connection, a class a test defined for itself) is
+    varied in place: the guarding tests run again on each side, and each such call is made again where it was made,
+    once for each plain argument moved and each plain attribute of an object it was given, at most five calls of a
+    function in a test and twenty in a run. Round nine's E2 and E3, and round eight's E2 and F2, are refused on what
+    those calls gave; a change that keeps them is not (`tests/test_a_call_on_a_live_object_is_varied_in_place.py`).
+    Two of her three landings on probation, `_defragment_memory` and `freeze_what_boot_made`, take no plain value to
+    move, and stay there.
+  - The invariants a changed file declares, as the code before it declared them, are checked after every call the
+    check makes on both sides, by name, so state kept outside the checkout (a logger's handlers) is judged by what its
+    module says must hold (`tests/test_her_invariants_are_checked_after_every_call.py`).
+  - Her real calls keep, beside the uniform sample, the first call of each kind (each argument's type and side: None,
+    a sign, empty or filled), 50 kinds at most, and those are tried first, so a rare call is never drowned in common
+    ones (`tests/test_her_real_calls_are_tried_on_her_changes.py`).
+  - Why her tests did not make her faults again, read from her 12 stalled goals: every fault she hears is a degradation
+    record, and her code records most where it catches them, so a test that waited for a raise passed on each
+    (OutcomeLedger._write_rows caught "database is locked"). A fault's test now fails when the call records that fault
+    again, raised or not. A fault keeps the exceptions it was raised from and SQLite's own name for its error: one
+    SQLite called SQLITE_BUSY is made again with the database held by a second connection past the five seconds
+    sqlite3 waits, and a fault raised while handling the world's is the world's
+    (`tests/test_a_fault_her_code_caught_is_made_again.py`). Two of the 12 stay out of reach: a 403 her browser code
+    raises as a bare RuntimeError, chained to nothing, and a failure inside TorchScript.
+  Still owed: probing shared state with several threads and forced switches; telling which change made a fall; and a
+  new outside benchmark baseline (about 4.5 hours with the machine alone).
   To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record

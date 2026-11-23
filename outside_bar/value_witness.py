@@ -11,15 +11,20 @@ import base64
 import hashlib
 import inspect
 import json
+import itertools
 import marshal
 import os
+import signal
 import sys
+import threading
+from collections import abc
 from typing import Any
 
 CONFIG: dict[str, Any] = {}
 # Taken when pytest loads this plugin, before any test module or code under test is imported, so rebinding
 # ``json.dumps`` or ``hashlib.sha256`` inside those modules changes nothing this file calls.
 _DUMPS, _SHA256, _PROCESS = json.dumps, hashlib.sha256, os.getpid
+_UNWRAP, _STATIC, _ISLICE = inspect.unwrap, inspect.getattr_static, itertools.islice
 
 _TOOL = sys.monitoring.PROFILER_ID
 _EVENTS = sys.monitoring.events
@@ -33,6 +38,20 @@ _ITERATES = inspect.CO_GENERATOR | inspect.CO_ASYNC_GENERATOR
 _DEEPEST = 4
 
 _functions = {path: frozenset(names) for path, names in CONFIG.get("functions", {}).items()}
+#: A run that varies calls in place (verify_change.run_tests with ``vary``): a call whose arguments cannot be made again
+#: in another process (a live database connection, a class defined inside a test) is made again here, in the test that
+#: made it, once for each of its plain values moved, so the code before a change and the change are tried on the same
+#: live objects. Nothing else of what the run says is read from such a run.
+_VARY = bool(CONFIG.get("vary"))
+#: Calls of one function varied, the first ones, in one test and in the whole run; and the variations of one call.
+_VARIED_CALLS = 5
+_VARIED_IN_ALL = 20
+_VARIATIONS = 16
+#: How long one varied call may take, in seconds.
+_VARIED_SECONDS = 2.0
+_varying = [False]
+_held_calls: dict[int, tuple[Any, dict[str, Any], str, dict[str, Any]]] = {}
+_varied_counts: dict[tuple[str, str], int] = {}
 _digests: dict[str, str] = {}
 _kept_inputs: dict[str, int] = {}
 _yields: dict[int, Any] = {}
@@ -290,26 +309,155 @@ def _came_to(opened: tuple[str, str, int] | None, outcome: str | None) -> None:
         _emit("value", key, outcome)
 
 
+def _others(value: Any) -> list[Any]:
+    """Plain values beside ``value``, of its own kind: the other truth value, a number either side and across zero, a
+    text with a space added and an empty one."""
+    if isinstance(value, bool):
+        return [not value]
+    if isinstance(value, int):
+        return [other for other in dict.fromkeys((value + 1, value - 1, -value - 1, 0)) if other != value]
+    if isinstance(value, float):
+        return [other for other in dict.fromkeys((value + 1.0, -value, 0.0)) if other != value]
+    if isinstance(value, (str, bytes)):
+        empty = type(value)()
+        return [other for other in dict.fromkeys((value + type(value)(" " if isinstance(value, str) else b" "), empty))
+                if other != value]
+    return []
+
+
+def _variations(arguments: dict[str, Any]) -> list[tuple[str, dict[str, Any], tuple[Any, str, Any, Any] | None]]:
+    """Each way the call is made again: one plain argument moved, or one plain attribute of an object it was given
+    (``req.value``, ``self.limit``) moved for the call and put back after it."""
+    out: list[tuple[str, dict[str, Any], tuple[Any, str, Any, Any] | None]] = []
+    for name, value in arguments.items():
+        if isinstance(value, (bool, int, float, str, bytes)) and name not in ("self", "cls"):
+            out += [(f"{name}={other!r}", {**arguments, name: other}, None) for other in _others(value)]
+        elif hasattr(value, "__dict__") and not (inspect.ismodule(value) or inspect.isclass(value) or callable(value)):
+            plain = [(attribute, held) for attribute, held in list(vars(value).items())
+                     if isinstance(held, (bool, int, float, str, bytes)) and not attribute.startswith("__")]
+            for attribute, held in plain[:6]:
+                out += [(f"{name}.{attribute}={other!r}", arguments, (value, attribute, other, held))
+                        for other in _others(held)[:2]]
+    return out[:_VARIATIONS]
+
+
+def _function_of(code: Any, globals_: dict[str, Any]) -> Any:
+    """The function whose code ``code`` is, found where it was defined: at module level, or on its class."""
+    parts = code.co_qualname.split(".")
+    if "<locals>" in parts:
+        return None
+    holder: Any = globals_.get(parts[0])
+    for part in parts[1:-1]:
+        holder = getattr(holder, part, None)
+    found = holder if len(parts) == 1 else _STATIC(holder, parts[-1], None) if holder is not None else None
+    found = getattr(found, "__func__", found)  # a staticmethod or classmethod
+    try:
+        found = _UNWRAP(found) if callable(found) else None
+    except ValueError:
+        return None
+    return found if getattr(found, "__code__", None) is code else None
+
+
+def _too_long(*_: Any) -> None:
+    raise TimeoutError
+
+
+def _outcome(result: Any) -> str:
+    if inspect.iscoroutine(result):
+        result.close()
+        return "a coroutine"
+    if isinstance(result, abc.Iterator) and not hasattr(result, "fileno"):
+        result = list(_ISLICE(result, 10_000))
+    try:
+        text = repr(result)
+    except Exception:  # noqa: BLE001 - a value that cannot be shown is shown by its kind
+        return f"a {type(result).__qualname__}"
+    if " at 0x" in text:
+        return f"a {type(result).__qualname__}"
+    return text if len(text) <= 200 else f"{text[:120]} ... sha256 {_SHA256(text.encode('utf-8', 'replace')).hexdigest()[:16]}"
+
+
+def _hold(code: Any, frame: Any) -> None:
+    """Keep a call's own arguments, the objects themselves, when one of them cannot be written down as an input."""
+    if code.co_flags & (inspect.CO_VARARGS | inspect.CO_VARKEYWORDS | _ITERATES | inspect.CO_COROUTINE) \
+            or "<" in code.co_qualname:
+        return  # a generator or a coroutine made again says nothing until read, and is not
+    names = code.co_varnames[:code.co_argcount + code.co_kwonlyargcount]
+    arguments = {name: frame.f_locals[name] for name in names if name in frame.f_locals}
+    if len(arguments) != len(names) or all(_literal(value) is not None for value in arguments.values()):
+        return  # every argument can be made again in another process, where the check tries it already
+    test = _test()
+    if _varied_counts.get((test, code.co_qualname), 0) >= _VARIED_CALLS \
+            or _varied_counts.get(("", code.co_qualname), 0) >= _VARIED_IN_ALL:
+        return
+    _held_calls[id(frame)] = (code, arguments, test, frame.f_globals)
+
+
+def _vary(code: Any, arguments: dict[str, Any], test: str, globals_: dict[str, Any]) -> None:
+    function = _function_of(code, globals_)
+    if function is None or threading.current_thread() is not threading.main_thread():
+        return  # only the main thread can bound a call's time
+    count = _varied_counts.get((test, code.co_qualname), 0) + 1
+    _varied_counts[(test, code.co_qualname)] = count
+    _varied_counts[("", code.co_qualname)] = _varied_counts.get(("", code.co_qualname), 0) + 1
+    by_place = code.co_varnames[:code.co_posonlyargcount]
+    for label, given, attribute in _variations(arguments):
+        _varying[0] = True
+        before = signal.signal(signal.SIGALRM, _too_long)
+        try:
+            if attribute is not None:
+                setattr(attribute[0], attribute[1], attribute[2])
+            signal.setitimer(signal.ITIMER_REAL, _VARIED_SECONDS)
+            outcome = _outcome(function(*(given[name] for name in by_place),
+                                        **{name: value for name, value in given.items() if name not in by_place}))
+        except BaseException as error:  # noqa: BLE001 - what a varied call raised is what it came to
+            outcome = f"raised {type(error).__name__}"
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, before)
+            if attribute is not None:
+                try:
+                    setattr(attribute[0], attribute[1], attribute[3])
+                except Exception:  # noqa: BLE001 - an attribute that cannot be put back is left as it is
+                    pass
+            _varying[0] = False
+        _emit("varied", f"{test}|{code.co_qualname}|{count}|{label}", outcome)
+
+
 def _started(code: Any, _offset: int) -> Any:
+    if _varying[0]:
+        return None  # a call made here to vary another is no call of the run's
     if not _named(code):
         return sys.monitoring.DISABLE
     frame = sys._getframe(1)
     _open[id(frame)] = _key_of(code, frame)
+    if _VARY:
+        try:
+            _hold(code, frame)
+        except Exception:  # noqa: BLE001 - watching a call must never change what the call does
+            pass
     return None
 
 
 def _returned(code: Any, _offset: int, value: Any) -> Any:
+    if _varying[0]:
+        return None
     if not _named(code):
         return sys.monitoring.DISABLE
     frame = id(sys._getframe(1))
     key = _open.pop(frame, None)
     folded = _yields.pop(frame, None)
     _came_to(key, folded.hexdigest()[:16] if folded is not None else _text(value))
+    held = _held_calls.pop(frame, None)
+    if held is not None:
+        _vary(*held)
     return None
 
 
 def _yielded(code: Any, _offset: int, value: Any) -> Any:
     """A generator's items, folded into what it came to, however many there are."""
+    if _varying[0]:
+        return None
     if not _named(code):
         return sys.monitoring.DISABLE
     frame = id(sys._getframe(1))
@@ -318,8 +466,14 @@ def _yielded(code: Any, _offset: int, value: Any) -> Any:
 
 
 def _unwound(code: Any, _offset: int, error: BaseException) -> None:
+    if _varying[0]:
+        return
     if _named(code):
-        _came_to(_open.pop(id(sys._getframe(1)), None), f"raised {type(error).__name__}")
+        frame = id(sys._getframe(1))
+        _came_to(_open.pop(frame, None), f"raised {type(error).__name__}")
+        held = _held_calls.pop(frame, None)
+        if held is not None:
+            _vary(*held)
 
 
 #: Unrelated objects this run holds when asked to (verify_change.BALLAST), so a value that counts the process differs.

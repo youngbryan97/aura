@@ -468,12 +468,13 @@ def _read_all(descriptor: int, into: list[str]) -> threading.Thread:
 
 def run_tests(checkout: Path, tests: Sequence[str], work: Path,
               functions: Mapping[str, Sequence[str]] | None = None,
-              lines: Mapping[str, Sequence[int]] | None = None, ballast: int = 0) -> dict[str, Any]:
+              lines: Mapping[str, Sequence[int]] | None = None, ballast: int = 0, vary: bool = False) -> dict[str, Any]:
     """Each test's verdict and what the changed functions did, from a pytest run inside the boundary. ``lines`` names,
     for each file, the lines whose running is written down; ``lines_ran`` gives back those that ran. ``ballast`` is how
-    many unrelated objects the run holds (BALLAST)."""
+    many unrelated objects the run holds (BALLAST). ``vary`` makes each call on an argument no other process can make
+    again once more for each plain value moved, in place, and gives back what each came to as ``varied``."""
     empty: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": [], "ran": [], "finished": True,
-                             "whole": True, "ran_here": [], "lines_ran": [], "branches_ran": []}
+                             "whole": True, "ran_here": [], "lines_ran": [], "branches_ran": [], "varied": {}}
     if not tests:
         return empty
     token = secrets.token_hex(8)
@@ -483,7 +484,7 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
     watched = {os.path.realpath(checkout / name): list(names) for name, names in (functions or {}).items()}
     watched_lines = {os.path.realpath(checkout / name): sorted(numbers) for name, numbers in (lines or {}).items() if numbers}
     read_end, write_end = os.pipe()
-    config = json.dumps({"functions": watched, "pipe": write_end, "mark": token, "ballast": ballast})
+    config = json.dumps({"functions": watched, "pipe": write_end, "mark": token, "ballast": ballast, "vary": vary})
     plugin = (HERE / "value_witness.py").read_text(encoding="utf-8").replace(
         "CONFIG: dict[str, Any] = {}", f"CONFIG: dict[str, Any] = json.loads({config!r})")
     (private / f"run_{token}.py").write_text(plugin, encoding="utf-8")
@@ -503,7 +504,7 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
         process.kill()
         process.wait()
     reader.join(timeout=30)
-    report: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": []}
+    report: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": [], "varied": {}}
     finished, whole, process_id = False, False, None
     for line in "".join(got).splitlines():
         try:
@@ -522,6 +523,8 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
             report["inputs"].setdefault(rest[0], []).append(rest[1])
         elif kind == "seen":
             report["seen"].append(rest[0])
+        elif kind == "varied":
+            report["varied"].setdefault(rest[0], rest[1])
         elif kind == "process" and process_id is None:
             process_id = str(rest[0])
         elif kind == "whole":
@@ -553,7 +556,27 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
 BALLAST = 4096
 
 
-def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast: int = 0) -> dict[str, Any]:
+def invariants_in(checkout: Path, files: Sequence[str]) -> list[str]:
+    """The invariants the files hold as ``checkout`` has them (``@invariant("name", ...)``, core/verify/invariants.py),
+    by name. Each is checked after every call the check makes, on both sides; one only the change wrote is not, since
+    the code before it never claimed it."""
+    names: list[str] = []
+    for name in files:
+        try:
+            tree = ast.parse((checkout / name).read_bytes()) if name.endswith(".py") and (checkout / name).is_file() else None
+        except (OSError, SyntaxError, ValueError):
+            continue
+        for node in ast.walk(tree) if tree is not None else ():
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                names += [decorator.args[0].value for decorator in node.decorator_list if isinstance(decorator, ast.Call)
+                          and getattr(decorator.func, "id", getattr(decorator.func, "attr", "")) == "invariant"
+                          and decorator.args and isinstance(decorator.args[0], ast.Constant)
+                          and isinstance(decorator.args[0].value, str)]
+    return sorted(set(names))
+
+
+def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast: int = 0,
+                  invariants: Sequence[str] = ()) -> dict[str, Any]:
     """What each input came to in ``checkout``, how long it took, which exceptions the code caught on the way, and whether
     the run said it ended, from a process that cannot reach this one's files."""
     token = secrets.token_hex(8)
@@ -576,7 +599,7 @@ def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast
     os.close(write_end)
     try:
         process.communicate(json.dumps({"inputs": inputs, "pipe": write_end, "mark": token, "ballast": ballast,
-                                        "streams": str(streams)}), timeout=TEST_SECONDS)
+                                        "streams": str(streams), "invariants": list(invariants)}), timeout=TEST_SECONDS)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
@@ -2733,7 +2756,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                 for name, calls in seeds.items()}
         near_the_pinned = {name: {_key(item) for call in calls for item in _near_one(call, constants.get(name.split("::")[0], ()))}
                            for name, calls in pinned.items()}
-        runs = [_differential(old, near, work), _differential(old, near, work, BALLAST), _differential(new, near, work)]
+        claimed = invariants_in(old, list(functions))
+        runs = [_differential(old, near, work, invariants=claimed), _differential(old, near, work, BALLAST, claimed),
+                _differential(new, near, work, invariants=claimed)]
         (old_near, again_near, new_near), (old_times, again_times, new_times) = \
             [run["outcomes"] for run in runs], [run["seconds"] for run in runs]
         # The way an input went through the new code is its branches and the side it takes of each comparison the
@@ -2822,6 +2847,32 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                  if any(again_near.get(name, {}).get(key) == value and key in new_near.get(name, {})
                         and not value.startswith("unavailable") for key, value in results.items())}
         unexamined = sorted(item for item in ran if "<" not in item and item not in tried)
+        # A function no input of its own could be tried on, because a call of it holds something no other process can
+        # make again (a live database connection, a class defined inside a test): its tests are run again on each side,
+        # and each such call is made again in place, a plain value of it moved each time (value_witness, ``vary``).
+        in_place: dict[str, Any] = {"compared": 0, "changed": []}
+        if unexamined:
+            only = {name: [function for function in names if f"{name}::{function}" in unexamined]
+                    for name, names in functions.items()}
+            only = {name: names for name, names in only.items() if names}
+            both = [name for name in present if (old / name).is_file()]
+            varied = [run["varied"] for run in (run_tests(old, both, work, only, vary=True),
+                                                run_tests(old, both, work, only, vary=True, ballast=BALLAST),
+                                                run_tests(new, both, work, only, vary=True))]
+            steady_varied = {key: value for key, value in varied[0].items() if varied[1].get(key) == value
+                             and key in varied[2]}
+            moved = sorted(key for key, value in steady_varied.items() if varied[2][key] != value)
+            in_place = {"compared": len(steady_varied), "changed": moved[:20]}
+            spoken = {key.split("|")[1] for key in steady_varied}
+            unexamined = [item for item in unexamined if item.split("::", 1)[1] not in spoken]
+            for key in moved:
+                was, now = steady_varied[key], varied[2][key]
+                # A refusal gone may be a mend; a new answer the commit's own tests pin may be one too. Anything else
+                # the same live objects now give is lost.
+                counted = "doubt" if respecified or (was.startswith("raised ") and not now.startswith("raised ")) else "lost"
+                (doubts if counted == "doubt" else lost).append(f"made again in place, {key[:160]} was {was[:60]}, now {now[:60]}")
+                shown_by.append({"function": key.split("|")[1], "input": key, "before": was, "after": now,
+                                 "as": "in place", "kind": difference(was, now), "counted": counted})
         must_fix = [f"a test it edited fails as it was first written: {node}" for node in rewritten]
         must_fix += [f"a run did not say it ended, so it is evidence of nothing: {what}" for what in cut_short]
         must_fix += [f"the watch on what the code did was switched off or replaced during: {what}" for what in unwatched]
@@ -2860,6 +2911,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         values = {"compared": sum(1 for key, value in steady.items() if second["values"].get(key) == value and key in third["values"]),
                   "functions": {name: names for name, names in functions.items() if names},
                   "near_inputs": sum(len(calls) for calls in near.values()), "changed": changed[:20],
+                  "in_place": in_place,
                   "changed_near": lost[:20], "no_test_ran": unreached[:20],
                   "lines_no_test_ran": {name: numbers[:20] for name, numbers in unrun_lines.items()},
                   "branches_one_way": {name: sorted(set(numbers))[:20] for name, numbers in one_way.items()},
