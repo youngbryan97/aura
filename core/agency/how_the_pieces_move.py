@@ -266,6 +266,7 @@ class HowThePiecesMove:
         if family is not None:
             self._what_the_offer_keeps_safe(position, square, squares, family)
             self._what_the_offer_says_of_taking_first(position, square, squares, family)
+            self._what_the_offer_withholds(position, square, squares, family)
         # A square offered with a piece on the way to it was leapt to: over exactly one piece of the other side onto an
         # empty square, it is a take over, unless the same distance is offered with nothing in the way. Any other is a
         # leap that far, and the game offering it is evidence the kind goes there, as much as a square with nothing on
@@ -286,6 +287,45 @@ class HowThePiecesMove:
                     way.took += 1
                 elif there not in position.cells:
                     way.moved_to_empty += 1
+
+    def _what_the_offer_withholds(self, position: Position, square: Square, squares: set[Square],
+                                  family: Family) -> None:
+        """The moves her rules give this piece that the game did not offer, each the game's word against the distance it
+        goes, as a refusal is, unless it would leave the kind the game keeps safe open: that is reason enough to
+        withhold it. LIVE 23 November 2026, after game 29: her rules had her royal kind leap two forward and three
+        across, and ride forward the whole board, each on one offer seen once, and none of the times the game withheld
+        those squares counted against them. Her search gave her king, and theirs, ways out of attacks that were none.
+
+        Until she knows which kind the game keeps safe, a move withheld may be withheld for it, and says nothing; an
+        offer of nothing may be a piece not picked up, and says nothing. A distance the game has offered this kind only
+        unmoved, withheld once it has moved, is one only an unmoved piece of it has; withheld from it unmoved, it is
+        counted against nothing, since what such a move needs besides is not in her rules."""
+        from core.agency.pieces_by_their_kind import _possible, after
+
+        side, kind = position.cells[square]
+        if position.turn != side or not squares:
+            return
+        kept_safe = {k for k in {k for _s, k in self.start.values()} | set(self.seen) if self.royal(k)}
+        if not kept_safe:
+            return
+        unmoved = square in position.unmoved
+        weighed: set[Square] = set()
+        for move in _possible(family, position):
+            if (move.start != square or move.end in squares or move.end in weighed or move.partner is not None
+                    or move.via or move.taken_at not in (None, move.end)):
+                continue
+            weighed.add(move.end)
+            made = after(family, position, move)
+            if any(owner == side and held in kept_safe and attacked(family, made, there, 1 - side)
+                   for there, (owner, held) in made.cells.items()):
+                continue
+            direction, times = in_its_frame(side, square, move.end)
+            way = self._of(kind, direction)
+            if times in way.offered_unmoved:
+                if not unmoved:
+                    way.offered.discard(times)
+                continue
+            way.a_refusal(times, taking=move.taken_at is not None)
 
     def _what_the_offer_says_of_taking_first(self, position: Position, square: Square, squares: set[Square],
                                              family: Family) -> None:
@@ -508,6 +548,14 @@ class HowThePiecesMove:
         withheld = {t for t in (way.withheld | (way.withheld_unmoved if unmoved else set())) if t > furthest}
         if withheld:
             return furthest
+        # A square short of the furthest that the game withheld or refused more often than it offered stops the line
+        # before it: a piece that goes past a square can stop on it.
+        short = [t for t in set(way.refused_going_at) | set(way.refused_taking_at) if 1 < t < furthest
+                 and not way._stands(t)]
+        if short:
+            nearer = [t for t in offered if t < min(short)]
+            if nearer:
+                return max(nearer)
         if furthest >= 2 and not way.jumped:
             return 0
         return furthest

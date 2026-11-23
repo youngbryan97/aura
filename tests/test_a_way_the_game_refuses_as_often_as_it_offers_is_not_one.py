@@ -14,13 +14,16 @@ from tests.fixtures.a_game_of_pieces_to_learn import CHESS, from_fen
 #: Her bishop on e2, their rook on a8, nothing between that matters to a leap.
 HERE = from_fen("r1bq1rk1/pp4pp/2pb4/3p1p2/4p3/4Q3/PPPBBPPP/RN2R1K1 w - -")
 E2, A8, D3 = (1, 4), (7, 0), (2, 3)
+#: What the game offers that bishop there: along its four lines to the first piece. A misreading adds a square to
+#: these; the squares shown are still shown.
+OFFERS = {D3, (3, 2), (4, 1), (5, 0), (2, 5), (3, 6), (4, 7), (0, 3), (0, 5)}
 
 
 def _rules() -> HowThePiecesMove:
     rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
     # How a bishop goes along its lines, as offered on an open board; and the kind the game keeps safe, as she has
     # seen it kept off attacked squares.
-    rules.offered(HERE, E2, {D3, (3, 2), (4, 1), (5, 0), (2, 5), (3, 6)}, family=CHESS)
+    rules.offered(HERE, E2, OFFERS, family=CHESS)
     rules.kept_off_attacked["K"] = ROYAL_AFTER + 1
     return rules
 
@@ -34,7 +37,7 @@ def _leaps_of(rules: HowThePiecesMove) -> list:
 def test_an_offer_misread_once_and_refused_once_is_no_longer_a_way() -> None:
     """Her pawn on h2 is left attacked by their bishop whatever she does; that is not why the game refused her."""
     rules = _rules()
-    rules.offered(HERE, E2, {A8}, family=CHESS)  # a misreading: a8 taken for offered
+    rules.offered(HERE, E2, OFFERS | {A8}, family=CHESS)  # a misreading: a8 taken for offered
     assert _leaps_of(rules)
     rules.refused(HERE, Move(E2, A8, taken_at=A8), family=CHESS)
     assert not _leaps_of(rules)
@@ -45,20 +48,20 @@ def test_an_offer_misread_once_and_refused_once_is_no_longer_a_way() -> None:
 def test_a_distance_offered_more_often_than_refused_stands() -> None:
     rules = _rules()
     for _ in range(3):
-        rules.offered(HERE, E2, {A8}, family=CHESS)
+        rules.offered(HERE, E2, OFFERS | {A8}, family=CHESS)
     rules.refused(HERE, Move(E2, A8, taken_at=A8), family=CHESS)
     assert _leaps_of(rules)
     rules.refused(HERE, Move(E2, A8, taken_at=A8), family=CHESS)
     rules.refused(HERE, Move(E2, A8, taken_at=A8), family=CHESS)
     assert not _leaps_of(rules)
     # Offered again, and more often than refused, it is a way again.
-    rules.offered(HERE, E2, {A8}, family=CHESS)
+    rules.offered(HERE, E2, OFFERS | {A8}, family=CHESS)
     assert _leaps_of(rules)
 
 
 def test_counts_are_kept_and_a_record_from_before_them_counts_its_offer_once() -> None:
     rules = _rules()
-    rules.offered(HERE, E2, {A8}, family=CHESS)
+    rules.offered(HERE, E2, OFFERS | {A8}, family=CHESS)
     kept = rules.as_memory()
     again = HowThePiecesMove.from_memory(kept)
     assert again is not None and _leaps_of(again)
@@ -99,7 +102,7 @@ def test_a_refusal_that_what_the_move_leaves_open_explains_takes_nothing_from_th
 def test_the_image_of_a_way_refused_where_it_lands_is_not_one() -> None:
     """LIVE 23 November 2026, game 27: the misread leap, refused as e2 to a8, came back as its image, d2 to h8."""
     rules = _rules()
-    rules.offered(HERE, E2, {A8}, family=CHESS)
+    rules.offered(HERE, E2, OFFERS | {A8}, family=CHESS)
     images = [s for s in _leaps_of(rules) if s.offsets[0][1] > 0]
     assert images, "the image is inferred from the step seen"
     d2, h8 = (1, 3), (7, 7)
