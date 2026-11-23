@@ -499,7 +499,12 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
                 record.status == goals.STALLED
                 and not await asyncio.to_thread(_what_it_stalled_on_has_moved, record, fault.call.file, head))):
             continue
-        return [await mend(fault, proposals=sys.maxsize, seconds=seconds)]
+        # Her model proposes too, last, once her own Python has nothing left, and its mend is judged as any other is
+        # (Bryan, 22 November 2026: "as a last resort ... so long as its checked and verified the same way").
+        from core.self_modification.a_mend_her_model_proposes import her_model_as_a_last_resort
+
+        return [await mend(fault, proposals=sys.maxsize, seconds=seconds,
+                           model=her_model_as_a_last_resort(fault.call.file, fault.call.line))]
     # Nothing heard to mend: a draft of hers that waits on her own yes is asked again, once her source has moved.
     asked = await _ask_again_of_a_draft_that_waits()
     if asked is not None:

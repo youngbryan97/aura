@@ -8231,6 +8231,10 @@ needs her 27B free (her app down, or her app's own influence trials).
   run of the code before now holds unrelated objects, and a value that moves with them is not compared; that draft now
   lands on probation. Her coding skill mends a draft that fails its supplied examples before giving it back. See
   `docs/evidence/F16_WHAT_HER_GOALS_SHOW_2026-11-22.md`. Next, from it: why her tests do not make her faults again.
+  Bryan, the same day: her model may propose a mend "as a last resort ... so long as its checked and verified the same
+  way". Her automatic loop now gives the search her loaded model as its last proposer
+  (core/self_modification/a_mend_her_model_proposes.py); its mends are tested, gated, checked and put on probation
+  as any other, and labelled as her model's.
   To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record

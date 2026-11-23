@@ -34,3 +34,13 @@ its time on a test suite that has since been narrowed to the one the repository 
   (`core/self_modification/repairing_python.py`, `repaired_source`), and gives back the mended code when it passes.
 - A draft returned with no examples to check it still reports `ok`, with `verification` saying it was not measured.
   That is unchanged: `ok` says a draft came back.
+
+## Later the same day
+
+Bryan, on the model as a proposer: "As a last resort proposer is ok so long as its checked and verified the same way."
+Her automatic repair loop now gives the search her model as its last proposer
+(`core/self_modification/a_mend_her_model_proposes.py`). It is asked only once her own Python's proposals are spent,
+or once a candidate mends the fault but breaks another test, which her own proposers cannot aim at. It is her model
+already loaded, asked privately, shown the function the fault was raised in and what failed. Each edit comes back as a
+candidate the search tests as any other, and a mend it finds is labelled as her model's in the commit that offers it,
+then faces her gates, the outside check and probation.
