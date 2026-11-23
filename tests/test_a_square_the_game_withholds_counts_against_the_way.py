@@ -88,3 +88,28 @@ def test_an_offer_of_nothing_says_nothing() -> None:
     rules.offered(HERE, E2, OFFERS, family=CHESS)
     rules.offered(HERE, E2, set(), family=rules.family(unseen_go_every_way=True))
     assert not any(way.refused_going_at or way.refused_taking_at for way in rules.seen["B"].values())
+
+
+def test_a_partner_square_offered_for_a_crossing_is_the_crossing_and_not_two_pieces_changing_places() -> None:
+    """En Croissant offers her king the rook's square as well as the square castling lands it on."""
+    rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
+    unmoved = from_fen("4k3/8/8/8/8/8/8/4K2R w K -")
+    rules.offered(unmoved, E1, {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}, family=CHESS)
+    rules.crosses["K"] = "R"
+    rules.offered(unmoved, E1, {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5), (0, 6), (0, 7)},
+                  family=rules.family(unseen_go_every_way=True))
+    assert not rules.seen["K"][(0, 1)].swapped
+
+
+def test_two_pieces_changing_places_withheld_is_not_a_way() -> None:
+    rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
+    around = {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}
+    unmoved = from_fen("4k3/8/8/8/8/8/8/4K2R w K -")
+    # Before she knows of any crossing, the rook's square offered is read as the two changing places.
+    rules.offered(unmoved, E1, around | {(0, 7)})
+    assert any(s.may == "swaps" for s in rules.family().kinds["K"].steps)
+    _knowing_what_is_kept_safe(rules)
+    # In check from their rook on e8: the game offers her king its side steps, and not the rook's square.
+    checked = from_fen("4r1k1/8/8/8/8/8/8/4K2R w K -")
+    rules.offered(checked, E1, {(1, 3), (1, 5), (0, 3), (0, 5)}, family=rules.family(unseen_go_every_way=True))
+    assert not any(s.may == "swaps" for s in rules.family().kinds["K"].steps)

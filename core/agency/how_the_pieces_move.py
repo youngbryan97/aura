@@ -230,6 +230,16 @@ class HowThePiecesMove:
         """The game offered ``squares`` for the piece on ``square``: every way it could have gone is evidence."""
         side, kind = position.cells[square]
         unmoved = square in position.unmoved
+        # A partner's square offered to a piece her rules have crossing with it there is the crossing offered: a game
+        # may make a crossing by the mover taken onto its partner. LIVE 23 November 2026 En Croissant's offer of the
+        # rook's square to her king was kept as the two changing places, a move she then found open to her king in
+        # check, where the crossing is not.
+        crossing_to = set()
+        if family is not None:
+            from core.agency.pieces_by_their_kind import _possible
+
+            crossing_to = {move.partner[0] for move in _possible(family, position)
+                           if move.start == square and move.partner is not None and move.partner[0] != move.end}
         for forward in range(-MAX_STEP, MAX_STEP + 1):
             for right in range(-MAX_STEP, MAX_STEP + 1):
                 if (forward, right) == (0, 0) or math.gcd(abs(forward), abs(right)) != 1:
@@ -258,7 +268,7 @@ class HowThePiecesMove:
                                 way.an_offer(times, unmoved, taking=True)
                             elif self._goes(kind, direction, times, unmoved):
                                 self.seen[kind][direction].would_not_take += 1
-                        elif is_offered:
+                        elif is_offered and there not in crossing_to:
                             # A square of its own side offered: the two change places.
                             self._of(kind, direction).swapped.add(times)
                         break
@@ -311,8 +321,9 @@ class HowThePiecesMove:
         unmoved = square in position.unmoved
         weighed: set[Square] = set()
         for move in _possible(family, position):
-            if (move.start != square or move.end in squares or move.end in weighed or move.partner is not None
-                    or move.via or move.taken_at not in (None, move.end)):
+            swap = move.partner is not None and move.partner[0] == move.end
+            if (move.start != square or move.end in squares or move.end in weighed
+                    or (move.partner is not None and not swap) or move.via or move.taken_at not in (None, move.end)):
                 continue
             weighed.add(move.end)
             made = after(family, position, move)
@@ -321,6 +332,10 @@ class HowThePiecesMove:
                 continue
             direction, times = in_its_frame(side, square, move.end)
             way = self._of(kind, direction)
+            if swap:
+                # Two pieces changing places, withheld: seen once, it was most likely a crossing offered, or misread.
+                way.swapped.discard(times)
+                continue
             if times in way.offered_unmoved:
                 if not unmoved:
                     way.offered.discard(times)
