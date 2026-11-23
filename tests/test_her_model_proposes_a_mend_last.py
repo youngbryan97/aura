@@ -1,9 +1,9 @@
 """Her model proposes a mend of a fault of hers only last, and its proposal is a candidate like any other.
 
 Bryan, 22 November 2026: "As a last resort proposer is ok so long as its checked and verified the same way." The
-proposer (core/self_modification/a_mend_her_model_proposes.py) writes each edit her model proposes as a SEARCH/REPLACE
-block that repair_by_selection reads, applies and tests as it does her own Python's; her automatic loop hands it to the
-search as the proposer after her own.
+proposer (core/self_modification/a_mend_her_model_proposes.py) hands each edit her model proposes to repair_by_selection
+as the edit itself, which it applies and tests as it does her own Python's; her automatic loop hands it to the search as
+the proposer after her own. Since round nine of the red team it is never written as text to be read back.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 from core.self_modification.a_mend_her_model_proposes import ORIGIN, her_model_as_a_last_resort
 from core.self_modification.code_that_looks_wrong import Edit, Suspicion
-from core.self_modification.repair_by_selection import applied, edits_in
+from core.self_modification.repair_by_selection import applied, edits_offered
 
 _SOURCE = '''import math
 
@@ -36,13 +36,13 @@ def _her_model_says(old: str, new: str):
     return proposes
 
 
-def test_what_her_model_proposes_is_a_block_the_search_applies():
+def test_what_her_model_proposes_is_an_edit_the_search_applies():
     propose = her_model_as_a_last_resort("shop/prices.py", 5,
                                          propose_edits=_her_model_says("table[item]", "table.get(item)"))
     (proposal,) = asyncio.run(propose(_DEFECT, {"shop/prices.py": _SOURCE}, None, 1))
-    origin, text = proposal
+    origin, edits = proposal
     assert origin == ORIGIN
-    mended, why = applied({"shop/prices.py": _SOURCE}, edits_in(text, ["shop/prices.py"]))
+    mended, why = applied({"shop/prices.py": _SOURCE}, edits_offered(edits, ["shop/prices.py"]))
     assert not why and "return table.get(item)" in mended["shop/prices.py"]
     assert "math.pi * r * r" in mended["shop/prices.py"], "only the function the fault was raised in is changed"
 

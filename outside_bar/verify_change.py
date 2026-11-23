@@ -29,6 +29,7 @@ import argparse
 import ast
 import builtins
 import configparser
+import dis
 import itertools
 import json
 import math
@@ -82,11 +83,12 @@ _IN_THE_INTERPRETER = frozenset({"modules", "monitoring", "stack", "currentframe
 #: Modules nothing a commit adds should import at all: the run's start-up module, the entry module, raw memory.
 _NEVER_IMPORTED = frozenset({"__main__", "ctypes", "_ctypes", "sitecustomize", "builtins"})
 #: Modules whose work is finding objects by a dotted name given as text, which running code has no need of.
-_FINDERS = frozenset({"pydoc", "pkgutil", "logging.config"})
+_FINDERS = frozenset({"pydoc", "pkgutil", "logging.config", "runpy"})
 #: Calls that reach an attribute by a name given as text, and names that run text as code.
 _BY_NAME = frozenset({"getattr", "setattr", "delattr", "hasattr", "getattr_static", "attrgetter", "methodcaller"})
 #: Calls that find a module or object by a dotted name given as text, and libraries that swap one object for another.
-_RESOLVERS = frozenset({"locate", "resolve_name", "_resolve_name", "import_string", "find_class"})
+_RESOLVERS = frozenset({"locate", "resolve_name", "_resolve_name", "import_string", "find_class", "EntryPoint",
+                        "get_field", "loadTestsFromName", "loadTestsFromNames"})
 _DOUBLES = frozenset({"mock", "unittest.mock"})
 _RUNS_TEXT = frozenset({"eval", "exec", "compile", "__import__", "breakpoint", "__builtins__"})
 #: Readers whose input can name any callable to run.
@@ -96,17 +98,22 @@ _UNREADABLE = frozenset({".so", ".pyd", ".dylib", ".dll", ".pyc", ".pth"})
 #: The methods by which Python's own mutable containers change, taken from the abstract classes that define them.
 _MUTATORS = frozenset((set(dir(abc.MutableSequence)) - set(dir(abc.Sequence)))
                       | (set(dir(abc.MutableMapping)) - set(dir(abc.Mapping))) | (set(dir(abc.MutableSet)) - set(dir(abc.Set))))
+#: The methods that make an object or set up a test: a lock bound in one of them is the object's lock from then on.
+_MAKERS = frozenset({"__init__", "__new__", "__post_init__", "__setstate__", "__init_subclass__", "setUp", "setup_method"})
 #: The constructors of what holds threads apart.
 _LOCK_KINDS = frozenset({"Lock", "RLock", "Semaphore", "BoundedSemaphore", "Condition", "checked_lock", "checked_async_lock"})
 #: What code under test may do: write only in its own checkout and scratch folder.
 _BOUNDARY = ('(version 1)(allow default){network}(deny file-write*)(allow file-write* (subpath "{checkout}") '
              '(subpath "{scratch}") (literal "/dev/null") (literal "/dev/zero") (regex #"^/dev/(tty|fd/)"))')
 #: Loaded at the start of every Python process a test starts, so a function a test runs in a child process counts as run.
-#: A code object holding a changed line has line events turned on when it first starts, and each changed line is written
-#: down the first time it runs, then left alone.
+#: A code object holding a changed line has line and branch events turned on when it first starts; each changed line is
+#: written down the first time it runs, and each branch each way it first goes, then left alone. The tool's slot is then
+#: hidden from the code under test as the call runner hides its own (differential._hide_the_tool, copied in below).
 _RAN = '''import sys
-def _watching(watched, lines, folder):
+def _watching(watched, lines, folder, monitoring):
     import os
+    taken = {{}}
+    set_local = monitoring.set_local_events
     def write(text):
         try:
             with open(os.path.join(folder, str(os.getpid())), "a", encoding="utf-8") as handle:
@@ -118,21 +125,41 @@ def _watching(watched, lines, folder):
             write(code.co_filename + "::" + code.co_qualname)
         wanted = lines.get(code.co_filename)
         if wanted and any(number in wanted for _start, _end, number in code.co_lines()):
-            sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)
-        return sys.monitoring.DISABLE
+            set_local(monitoring.COVERAGE_ID, code, monitoring.events.LINE | monitoring.events.BRANCH)
+        return monitoring.DISABLE
     def line(code, number):
         if number in lines.get(code.co_filename, ()):
             write(code.co_filename + "#" + str(number))
-        return sys.monitoring.DISABLE
-    return seen, line
+        return monitoring.DISABLE
+    def branch(code, offset, destination):
+        where = (code.co_filename, code.co_qualname, code.co_firstlineno, offset)
+        ways = taken.setdefault(where, set())
+        if destination not in ways:
+            ways.add(destination)
+            write("\\t".join(map(str, ("branch", *where, destination))))
+        return monitoring.DISABLE if len(ways) > 1 else None
+    return seen, line, branch
 sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage")
-_seen, _line = _watching({watched!r}, {{name: frozenset(numbers) for name, numbers in {lines!r}.items()}}, {folder!r})
+_seen, _line, _branch = _watching({watched!r}, {{name: frozenset(numbers) for name, numbers in {lines!r}.items()}},
+                                  {folder!r}, sys.monitoring)
 sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, _seen)
 sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line)
+sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.BRANCH, _branch)
 sys.monitoring.set_events(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START)
-del _watching, _seen, _line
+_hide_the_tool(sys.monitoring.COVERAGE_ID)
+del _watching, _seen, _line, _branch, _hide_the_tool
 sys.modules.pop("sitecustomize", None)
 '''
+
+
+def _function_source(path: Path, name: str) -> str:
+    text = path.read_text(encoding="utf-8")
+    node = next(node for node in ast.parse(text).body if isinstance(node, ast.FunctionDef) and node.name == name)
+    return ast.get_source_segment(text, node) or ""
+
+
+#: The function each watch hides its monitoring tool with, from the call runner, the one place it is written.
+_HIDING = _function_source(HERE / "differential.py", "_hide_the_tool")
 
 
 def git(repo: Path, *args: str) -> str:
@@ -300,31 +327,104 @@ def tests_naming(checkout: Path, files: Sequence[str], functions: Mapping[str, S
 _DATA_FORMATS = frozenset({".json", ".toml", ".ini", ".cfg", ".yaml", ".yml", ".csv", ".tsv", ".xml"})
 
 
-def readers_of(checkout: Path, files: Sequence[str]) -> list[str]:
-    """The modules that read a changed file that is not Python: those naming it, the module beside it with its stem
+#: The most modules read whole for the name of a data file no module spells out: the bound on the check's own cost.
+_MOST_MODULES_READ = 3000
+
+
+def _texts_in(source: bytes) -> set[str]:
+    """The texts a module's code holds: its string literals, and what an expression of constant texts comes to
+    (``"con" + "fig.json"``), with its docstrings left out, since prose about a file reads nothing."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return set()
+    prose = {id(node.body[0].value) for node in ast.walk(tree)
+             if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body
+             and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant)
+             and isinstance(node.body[0].value.value, str)}
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in prose:
+            out.add(node.value)
+        elif isinstance(node, (ast.BinOp, ast.JoinedStr)) and isinstance(folded := _folded(node), str):
+            out.add(folded)
+    return out
+
+
+def _readers_of_one(checkout: Path, name: str) -> list[str]:
+    """The modules that read changed file ``name`` that is not Python: those whose code spells its name (a docstring
+    that mentions it does not, round nine of the red team), the module beside it with its stem
     (``Path(__file__).with_suffix(".json")``), and, for a data file no module names (its name made at run time,
-    ``"config_" + VERSION + ".json"``), the modules in its folder."""
-    found: set[str] = set()
-    for name in files:
-        if name.endswith(".py") or _machinery(name):
+    ``"config_" + VERSION + ".json"``), the modules in its folder, then those naming its folder."""
+    file = Path(name).name
+
+    def code(path: str) -> bool:
+        return not _a_test_file(path) and path != name
+
+    def spelled_in(path: str) -> bool:
+        try:
+            return any(file in text for text in _texts_in((checkout / path).read_bytes()))
+        except OSError:
+            return False
+    argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-F", "-e", file, "--", "*.py"]
+    naming = [line for line in subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines()
+              if line and code(line) and spelled_in(line)]
+    if not naming:
+        # Its name made of parts (``("con" + "fig.json")``): every module's texts, worked out, up to a bound.
+        listed = [line for line in git(checkout, "ls-files", "--", "*.py").splitlines() if line and code(line)]
+        naming = [line for line in listed[:_MOST_MODULES_READ] if spelled_in(line)]
+    beside = Path(name).with_suffix(".py")
+    naming += [str(beside)] if (checkout / beside).is_file() else []
+    folder = checkout / Path(name).parent
+    if not naming and Path(name).suffix in _DATA_FORMATS and folder.is_dir():
+        naming = [str(Path(name).parent / item.name) for item in sorted(folder.glob("*.py")) if code(item.name)]
+    if not naming and Path(name).suffix in _DATA_FORMATS and str(Path(name).parent) not in ("", "."):
+        # data/config_v2.json read by app.py at the root: a module naming the folder the file sits in
+        spelled = Path(name).parent.as_posix()
+        argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-F", "-e", f"'{spelled}",
+                "-e", f'"{spelled}', "-e", f"/ '{Path(name).parent.name}'", "-e", f'/ "{Path(name).parent.name}"',
+                "--", "*.py"]
+        naming = [line for line in subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines()
+                  if line and code(line)]
+    return sorted(set(naming))
+
+
+def readers_of(checkout: Path, files: Sequence[str]) -> list[str]:
+    """The modules that read a changed file that is not Python (_readers_of_one), across the files a commit changed."""
+    found = {path for name in files if not name.endswith(".py") and not _machinery(name)
+             for path in _readers_of_one(checkout, name)}
+    return sorted(path for path in found if not _a_test_file(path) and path not in files)
+
+
+def _a_data_file_of_the_code(name: str) -> bool:
+    return Path(name).suffix in _DATA_FORMATS and not any(part in ("tests", "test") for part in Path(name).parts[:-1])
+
+
+def values_nothing_reads(repo: Path, commit: str, name: str, checkout: Path, tests: Sequence[str]) -> list[str]:
+    """The module-level names a commit changed in ``name`` that nothing the check runs reads: no function or statement
+    of the module, no function of another module, no test it ran. ``TIMEOUT = -1`` read only by a test outside the
+    folders the repository runs its tests from changes something no check here sees (round nine of the red team).
+    The names Python gives a module (``__version__``, ``__all__``) are left out."""
+    if not name.endswith(".py") or not _in_tree(repo, f"{commit}^", name):
+        return []
+    try:
+        tree = ast.parse(shown_at(repo, commit, name))
+    except (SyntaxError, ValueError):
+        return []
+    changed = {item for item in names_it_changed(repo, commit, name) if not (item.startswith("__") and item.endswith("__"))}
+    lines = _changed_lines(repo, commit, name)
+    read_here = {node.id for statement in tree.body for node in ast.walk(statement)
+                 if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                 and (isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                      or not lines & _span(statement))}
+    texts = ""
+    for test in tests:
+        try:
+            texts += (checkout / test).read_text(encoding="utf-8", errors="replace") + "\n"
+        except OSError:
             continue
-        argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-F", "-e", Path(name).name, "--", "*.py"]
-        naming = [line for line in subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines() if line]
-        beside = Path(name).with_suffix(".py")
-        naming += [str(beside)] if (checkout / beside).is_file() else []
-        folder = checkout / Path(name).parent
-        if not naming and Path(name).suffix in _DATA_FORMATS and folder.is_dir():
-            naming = [str(Path(name).parent / item.name) for item in sorted(folder.glob("*.py")) if not _a_test_file(item.name)]
-        if not naming and Path(name).suffix in _DATA_FORMATS and str(Path(name).parent) not in ("", "."):
-            # data/config_v2.json read by app.py at the root: a module naming the folder the file sits in
-            spelled = Path(name).parent.as_posix()
-            argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-F", "-e", f"'{spelled}",
-                    "-e", f'"{spelled}', "-e", f"/ '{Path(name).parent.name}'", "-e", f'/ "{Path(name).parent.name}"',
-                    "--", "*.py"]
-            naming = [line for line in subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines()
-                      if line]
-        found.update(naming)
-    return sorted(line for line in found if not _a_test_file(line) and line not in files)
+    return sorted(item for item in changed - read_here
+                  if not readers_elsewhere(checkout, name, {item}) and not re.search(rf"\b{re.escape(item)}\b", texts))
 
 
 def _bounded(argv: Sequence[str], checkout: Path, scratch: Path, *, network: bool, also: Path | None = None) -> list[str]:
@@ -340,10 +440,14 @@ def _bounded(argv: Sequence[str], checkout: Path, scratch: Path, *, network: boo
 def _child_environment(scratch: Path, path: str = "") -> dict[str, str]:
     """The environment a run under the check gets: logs, state and temporary files each in a folder of its own inside its
     scratch folder, so no two of them name the same place as a sign the check is running."""
-    env = {key: value for key, value in os.environ.items() if key != "AURA_TESTING" and not key.startswith("OUTSIDE_BAR")}
-    # At different depths, so no two share a parent folder either.
-    places = {name: scratch.joinpath(*(secrets.token_hex(4) for _ in range(depth)))
-              for depth, name in enumerate(("AURA_STATE_ROOT", "AURA_LOG_DIR", "TMPDIR"), start=1)}
+    # Nothing of the run that started the check goes with it: a check started from inside a test run carried
+    # PYTEST_CURRENT_TEST into every call, and code that answered rightly only while it was set passed (round nine).
+    env = {key: value for key, value in os.environ.items() if key != "AURA_TESTING" and not key.startswith("OUTSIDE_BAR")
+           and not key.startswith("PYTEST_")}
+    # Each at a depth of its own, drawn for each run: three folders at depths one, two and three under one scratch folder
+    # were a layout code could test for (round nine of the red team compared their parents), and a drawn one is not.
+    places = {name: scratch.joinpath(*(secrets.token_hex(4) for _ in range(1 + secrets.randbelow(3))))
+              for name in ("AURA_STATE_ROOT", "AURA_LOG_DIR", "TMPDIR")}
     for folder in places.values():
         folder.mkdir(parents=True, exist_ok=True)
     env.update({name: str(folder) for name, folder in places.items()})
@@ -369,7 +473,7 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
     for each file, the lines whose running is written down; ``lines_ran`` gives back those that ran. ``ballast`` is how
     many unrelated objects the run holds (BALLAST)."""
     empty: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": [], "ran": [], "finished": True,
-                             "whole": True, "ran_here": [], "lines_ran": []}
+                             "whole": True, "ran_here": [], "lines_ran": [], "branches_ran": []}
     if not tests:
         return empty
     token = secrets.token_hex(8)
@@ -383,8 +487,9 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
     plugin = (HERE / "value_witness.py").read_text(encoding="utf-8").replace(
         "CONFIG: dict[str, Any] = {}", f"CONFIG: dict[str, Any] = json.loads({config!r})")
     (private / f"run_{token}.py").write_text(plugin, encoding="utf-8")
-    (private / "sitecustomize.py").write_text(_RAN.format(watched=watched, lines=watched_lines, folder=str(ran)),
-                                              encoding="utf-8")
+    (private / "sitecustomize.py").write_text(
+        "from __future__ import annotations\n\n" + _HIDING + "\n\n\n" + _RAN.format(watched=watched, lines=watched_lines, folder=str(ran)),
+        encoding="utf-8")
     argv = _bounded([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", f"run_{token}", *tests],
                     checkout, scratch, network=True, also=ran)
     got: list[str] = []
@@ -434,9 +539,11 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
         here.update(lines if path.name == process_id else ())
     known = {f"{where}::{function}" for where, functions_there in watched.items() for function in functions_there}
     lines_known = {f"{where}#{number}" for where, numbers in watched_lines.items() for number in numbers}
+    branches = sorted(line for line in names if line.startswith("branch\t") and line.count("\t") == 5
+                      and line.split("\t")[1] in watched_lines)
     # A run that did not say it ended, or whose watch was replaced, is evidence of nothing, and its verdicts with it.
     return {**report, "ran": sorted(names & known), "ran_here": sorted(here & known), "finished": finished,
-            "whole": whole, "lines_ran": sorted(names & lines_known)}
+            "whole": whole, "lines_ran": sorted(names & lines_known), "branches_ran": branches}
 
 
 #: Objects the second run of the code before holds that the first does not, and nothing the code reads. A value that moves
@@ -453,6 +560,8 @@ def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast
     private, scratch = work / f"p{token}", work / f"s{token}"
     private.mkdir()
     scratch.mkdir()
+    streams = scratch.joinpath(*(secrets.token_hex(4) for _ in range(1 + secrets.randbelow(3))))
+    streams.mkdir(parents=True)
     # Each run starts from the checkout as committed: a database or file one run's calls wrote would otherwise meet the
     # next run's, and two runs of the same code would differ for that alone.
     git(checkout, "checkout", "-q", "--", ".")
@@ -466,8 +575,8 @@ def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast
                                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.close(write_end)
     try:
-        process.communicate(json.dumps({"inputs": inputs, "pipe": write_end, "mark": token, "ballast": ballast}),
-                            timeout=TEST_SECONDS)
+        process.communicate(json.dumps({"inputs": inputs, "pipe": write_end, "mark": token, "ballast": ballast,
+                                        "streams": str(streams)}), timeout=TEST_SECONDS)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
@@ -476,10 +585,11 @@ def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast
     seconds: dict[str, float] = {}
     caught: dict[str, dict[str, list[str]]] = {}
     paths: dict[str, dict[str, list[int]]] = {}
+    kinds: dict[str, dict[str, str]] = {}
     finished = tampered = False
     for line in "".join(got).splitlines():
         try:
-            mark, name, key, outcome, took, handled, lines = json.loads(line)
+            mark, name, key, outcome, took, handled, lines, read_as = json.loads(line)
         except (ValueError, TypeError):
             continue
         if mark != token:
@@ -491,7 +601,8 @@ def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast
         seconds[f"{name}\n{key}"] = float(took)
         caught.setdefault(name, {})[key] = list(handled)
         paths.setdefault(name, {})[key] = list(lines)
-    return {"outcomes": outcomes, "seconds": seconds, "caught": caught, "paths": paths,
+        kinds.setdefault(name, {})[key] = str(read_as)
+    return {"outcomes": outcomes, "seconds": seconds, "caught": caught, "paths": paths, "kinds": kinds,
             "finished": finished and not tampered, "tampered": tampered}
 
 
@@ -531,6 +642,29 @@ def lines_it_wrote_that_run(repo: Path, commit: str, name: str) -> set[int]:
     return written & runnable
 
 
+def branches_it_wrote(repo: Path, commit: str, name: str, lines: set[int]) -> dict[tuple[str, int, int], int]:
+    """The branches on the lines ``lines`` of ``name`` as ``commit`` holds it, by (function, its first line, offset), with
+    the line each sits on: every conditional jump the interpreter takes one way or the other, a loop's test of whether
+    another item is left among them. ``return -999 if p else x * 10`` is one line and two ways through it."""
+    try:
+        code = compile(shown_at(repo, commit, name), name, "exec", dont_inherit=True)
+    except (SyntaxError, ValueError):
+        return {}
+    found: dict[tuple[str, int, int], int] = {}
+    pending = [code]
+    while pending:
+        each = pending.pop()
+        pending.extend(constant for constant in each.co_consts if isinstance(constant, types.CodeType))
+        spans = [(start, end, number) for start, end, number in each.co_lines() if number is not None]
+        for instruction in dis.get_instructions(each):
+            if not (instruction.opname.startswith("POP_JUMP") or instruction.opname == "FOR_ITER"):
+                continue
+            number = next((line for start, end, line in spans if start <= instruction.offset < end), None)
+            if number in lines:
+                found[(each.co_qualname, each.co_firstlineno, instruction.offset)] = number
+    return found
+
+
 _FOLDS = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b,
           ast.FloorDiv: lambda a, b: a // b, ast.Mod: lambda a, b: a % b, ast.Div: lambda a, b: a / b,
           ast.LShift: lambda a, b: a << b if 0 <= b < 64 else None, ast.RShift: lambda a, b: a >> b,
@@ -543,11 +677,20 @@ def _joined(node: ast.JoinedStr, part_of: Callable[[ast.AST], Any]) -> Any:
     for part in node.values:
         if isinstance(part, ast.Constant) and isinstance(part.value, str):
             out.append(part.value)
-        elif isinstance(part, ast.FormattedValue) and part.conversion == -1 and part.format_spec is None:
+        elif isinstance(part, ast.FormattedValue) and part.conversion in (-1, ord("s"), ord("r"), ord("a")):
             value = part_of(part.value)
             if value is None:
                 return None
-            out.append(str(value))
+            # f"{'adm'!s}" is str('adm'), f"{x!r}" is repr(x), and a format spec of constants is applied as format() would.
+            value = repr(value) if part.conversion == ord("r") else ascii(value) if part.conversion == ord("a") else value
+            spec = "" if part.format_spec is None else _joined(part.format_spec, part_of) \
+                if isinstance(part.format_spec, ast.JoinedStr) else None
+            if spec is None:
+                return None
+            try:
+                out.append(format(value, spec))
+            except (TypeError, ValueError):
+                return None
         else:
             return None
     return "".join(out)
@@ -694,6 +837,88 @@ def changed_functions(repo: Path, commit: str, name: str, everything: bool = Fal
     return list(dict.fromkeys(names))
 
 
+def _module_file(checkout: Path, dotted: str) -> str | None:
+    for path in (f"{dotted.replace('.', '/')}.py", f"{dotted.replace('.', '/')}/__init__.py"):
+        if (checkout / path).is_file():
+            return path
+    return None
+
+
+def _bases_resolved(tree: ast.Module, name: str, checkout: Path) -> Callable[[ast.AST], tuple[str, str] | None]:
+    """How module ``name`` names a class of another module of the checkout: ``Base`` after ``from bases import Base``
+    (or ``from .bases import Base``), and ``bases.Base`` after ``import pkg.bases as bases`` or ``from pkg import bases``.
+    Gives (the file that class is in, its name there) for a base written either way, or None."""
+    package = Path(name).parent.parts
+
+    def absolute(node: ast.ImportFrom) -> str:
+        if not node.level:
+            return node.module or ""
+        base = list(package[:len(package) - (node.level - 1)]) if node.level - 1 <= len(package) else []
+        return ".".join([*base, *([node.module] if node.module else [])])
+    names: dict[str, tuple[str, str]] = {}
+    modules: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            source = absolute(node)
+            for alias in node.names:
+                names[alias.asname or alias.name] = (source, alias.name)
+                if _module_file(checkout, f"{source}.{alias.name}" if source else alias.name):
+                    modules[alias.asname or alias.name] = f"{source}.{alias.name}" if source else alias.name
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                modules[alias.asname or alias.name.split(".")[0]] = alias.name if alias.asname else alias.name.split(".")[0]
+
+    def resolved(base: ast.AST) -> tuple[str, str] | None:
+        if isinstance(base, ast.Name) and base.id in names:
+            source, original = names[base.id]
+            path = _module_file(checkout, source)
+            return (path, original) if path else None
+        if isinstance(base, ast.Attribute):
+            parts = _dotted(base).split(".")
+            if len(parts) >= 2 and parts[0] in modules:
+                path = _module_file(checkout, ".".join([modules[parts[0]], *parts[1:-1]]))
+                return (path, parts[-1]) if path else None
+        return None
+    return resolved
+
+
+def subclassed_elsewhere(checkout: Path, name: str, classes: set[str]) -> list[str]:
+    """The modules of the checkout that define a subclass of a class of ``name`` in ``classes``, at any distance, or
+    hand one on: ``Service(Base)`` in service.py, where mid.py's ``Base(GrandBase)`` subclasses grand.py's GrandBase.
+    A test of Service runs what GrandBase does, so it guards a change to GrandBase (round nine of the red team)."""
+    if not classes or not name.endswith(".py"):
+        return []
+    frontier = {(name, item) for item in classes}
+    found: set[str] = set()
+    trees: dict[str, ast.Module] = {}
+    for _ in range(64):  # each round reaches one step further, and a step that reaches nothing new ends it
+        spelled = {item for _, item in frontier}
+        argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-w", "-F",
+                *itertools.chain(*(("-e", item) for item in sorted(spelled))), "--", "*.py"]
+        grown = False
+        for path in subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines():
+            if _a_test_file(path):
+                continue
+            if path not in trees:
+                try:
+                    trees[path] = ast.parse((checkout / path).read_bytes())
+                except (OSError, SyntaxError, ValueError):
+                    continue
+            tree = trees[path]
+            resolved = _bases_resolved(tree, path, checkout)
+            made = {(path, node.name) for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
+                    and any(resolved(base) in frontier for base in node.bases)}
+            made |= {(path, alias.asname or alias.name) for node in tree.body if isinstance(node, ast.ImportFrom)
+                     for alias in node.names if resolved(ast.Name(id=alias.asname or alias.name)) in frontier}
+            if made - frontier:
+                frontier |= made
+                found.add(path)
+                grown = True
+        if not grown:
+            break
+    return sorted(found - {name})
+
+
 def inherited_from_elsewhere(repo: Path, commit: str, name: str, checkout: Path) -> dict[str, list[str]]:
     """The methods a class the commit rebased now inherits from a base imported from another module of the checkout,
     by file: ``class Service(BadBase)`` with ``from bases import BadBase`` does what bases.py's BadBase does."""
@@ -701,41 +926,32 @@ def inherited_from_elsewhere(repo: Path, commit: str, name: str, checkout: Path)
         return {}
     lines = _changed_lines(repo, commit, name)
     tree = ast.parse(shown_at(repo, commit, name))
-    package = Path(name).parent.parts
-
-    def absolute(node: ast.ImportFrom) -> str:
-        """``from .bases import X`` inside pkg/ is ``pkg.bases``."""
-        if not node.level:
-            return node.module or ""
-        base = list(package[:len(package) - (node.level - 1)]) if node.level - 1 <= len(package) else []
-        return ".".join([*base, *([node.module] if node.module else [])])
-    imported = {alias.asname or alias.name: (absolute(node), alias.name) for node in ast.walk(tree)
-                if isinstance(node, ast.ImportFrom) for alias in node.names}
+    resolved = _bases_resolved(tree, name, checkout)
     found: dict[str, list[str]] = {}
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef) or not lines & _header(node):
             continue
         for base in node.bases:
-            if not isinstance(base, ast.Name) or base.id not in imported:
+            where = resolved(base)  # ``BadBase`` from ``from bases import BadBase``, or ``bases.BadBase``
+            if where is None:
                 continue
-            module, original = imported[base.id]
-            for path in (f"{module.replace('.', '/')}.py", f"{module.replace('.', '/')}/__init__.py"):
-                if not (checkout / path).is_file():
-                    continue
-                try:
-                    other = ast.parse((checkout / path).read_bytes())
-                except (SyntaxError, ValueError):
-                    continue
-                found.setdefault(path, []).extend(f"{item.name}.{method.name}" for item in other.body
-                                                  if isinstance(item, ast.ClassDef) and item.name == original
-                                                  for method in item.body
-                                                  if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)))
+            path, original = where
+            try:
+                other = ast.parse((checkout / path).read_bytes())
+            except (OSError, SyntaxError, ValueError):
+                continue
+            found.setdefault(path, []).extend(f"{item.name}.{method.name}" for item in other.body
+                                              if isinstance(item, ast.ClassDef) and item.name == original
+                                              for method in item.body
+                                              if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)))
     return {path: list(dict.fromkeys(names)) for path, names in found.items() if names}
 
 
-def readers_elsewhere(checkout: Path, name: str, changed: set[str], depth: int = 0) -> dict[str, list[str]]:
+def readers_elsewhere(checkout: Path, name: str, changed: set[str], visited: set[str] | None = None) -> dict[str, list[str]]:
     """The functions in other modules of the checkout that read a module-level name ``name`` changed, through
-    ``from module import NAME`` or ``import module`` and ``module.NAME``."""
+    ``from module import NAME`` or ``import module`` and ``module.NAME``, and through every module that hands the name
+    on, however many stand in a row (``visited`` holds those already read)."""
+    visited = visited if visited is not None else {name}
     if not changed or not name.endswith(".py"):
         return {}
     dotted = name[:-3].removesuffix("/__init__").replace("/", ".")
@@ -743,7 +959,7 @@ def readers_elsewhere(checkout: Path, name: str, changed: set[str], depth: int =
     argv = ["git", "-C", str(checkout), "-c", "core.fsmonitor=false", "grep", "-l", "-w", "-F", "-e", stem, "--", "*.py"]
     found: dict[str, list[str]] = {}
     for path in subprocess.run(argv, capture_output=True, text=True, check=False).stdout.splitlines():
-        if path == name or _a_test_file(path):
+        if path == name or _a_test_file(path) or path in visited:
             continue
         try:
             tree = ast.parse((checkout / path).read_bytes())
@@ -778,14 +994,11 @@ def readers_elsewhere(checkout: Path, name: str, changed: set[str], depth: int =
         # through as well: ``from pkg import FEE_TABLE`` reads constants.py's table.
         handed_on = {alias.asname or alias.name for node in tree.body if isinstance(node, ast.ImportFrom)
                      and (node.module or "").rsplit(".", 1)[-1] == stem for alias in node.names if alias.name in changed}
-        if handed_on and depth < _HANDED_ON_DEPTH:
-            for further, more in readers_elsewhere(checkout, path, handed_on, depth + 1).items():
+        if handed_on:
+            visited.add(path)
+            for further, more in readers_elsewhere(checkout, path, handed_on, visited).items():
                 found[further] = list(dict.fromkeys([*found.get(further, []), *more]))
     return found
-
-
-#: How many modules that only hand a changed name on are read through, one behind another.
-_HANDED_ON_DEPTH = 3
 
 
 def _dotted(node: ast.AST) -> str:
@@ -794,6 +1007,102 @@ def _dotted(node: ast.AST) -> str:
         parts.append(node.attr)
         node = node.value
     return ".".join([node.id, *reversed(parts)]) if isinstance(node, ast.Name) else ""
+
+
+def _bindings(tree: ast.AST) -> list[tuple[str, ast.expr]]:
+    """Each name a module binds to a value it spells: ``m = x`` and ``m: object = x``, each name of ``m, = (x,)``,
+    ``for m in (x,)`` and a comprehension's own loop, ``(m := x)``, and a parameter's default, ``def f(_m=x)``."""
+    out: list[tuple[str, ast.expr]] = []
+
+    def paired(target: ast.AST, value: ast.AST) -> None:
+        if isinstance(target, ast.Name) and isinstance(value, ast.expr):
+            out.append((target.id, value))
+        elif isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)) \
+                and len(target.elts) == len(value.elts):
+            for inner, item in zip(target.elts, value.elts):
+                paired(inner, item)
+
+    def each_of(target: ast.AST, values: ast.AST) -> None:
+        if isinstance(values, (ast.Tuple, ast.List, ast.Set)):
+            for item in values.elts:
+                paired(target, item)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                paired(target, node.value)
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            paired(node.target, node.value)
+        elif isinstance(node, ast.NamedExpr):
+            paired(node.target, node.value)
+        elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+            each_of(node.target, node.iter)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            arguments = node.args
+            placed = [*arguments.posonlyargs, *arguments.args]
+            out += [(argument.arg, default) for argument, default in zip(placed[len(placed) - len(arguments.defaults):],
+                                                                         arguments.defaults)]
+            out += [(argument.arg, default) for argument, default in zip(arguments.kwonlyargs, arguments.kw_defaults)
+                    if default is not None]
+    return out
+
+
+def _names_listed(node: ast.AST | None) -> frozenset[str] | None:
+    """The texts a literal collection of texts holds, ``("name", "role")`` or ``frozenset({"name", "role"})``."""
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("frozenset", "set", "tuple", "list") \
+            and len(node.args) == 1 and not node.keywords:
+        node = node.args[0]
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)) and node.elts \
+            and all(isinstance(item, ast.Constant) and isinstance(item.value, str) for item in node.elts):
+        return frozenset(item.value for item in node.elts)
+    return None
+
+
+def _plain_attributes(names: frozenset[str]) -> bool:
+    """Names of ordinary attributes: no private or special name, and none of the interpreter's own."""
+    return all(name.isidentifier() and not name.startswith("_") and name not in
+               _REFLECTION | _INTERPRETER | _IN_THE_INTERPRETER | _RUNS_TEXT | _BY_NAME for name in names)
+
+
+def _allowlisted(tree: ast.Module, parents: Mapping[ast.AST, ast.AST], call: ast.AST, variable: str) -> bool:
+    """Whether the name ``variable`` holds at ``call`` is one of a fixed list of ordinary attribute names: the call sits
+    inside ``if variable in ALLOWED:`` or ``for variable in ALLOWED:``, or after ``if variable not in ALLOWED: raise``
+    at the top of its function, and ALLOWED is written as a literal list, here or once at module level and never
+    changed. ``getattr(user, field)`` behind such a list reads one of the attributes the list names, as
+    ``user.name`` does (round nine of the red team found the list refused all the same)."""
+    stores = [node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)]
+    changed = {node.func.value.id for node in ast.walk(tree) if isinstance(node, ast.Call)
+               and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
+               and node.func.attr in _MUTATORS}
+    fixed = {node.targets[0].id: listed for node in tree.body if isinstance(node, ast.Assign) and len(node.targets) == 1
+             and isinstance(node.targets[0], ast.Name) and stores.count(node.targets[0].id) == 1
+             and node.targets[0].id not in changed and (listed := _names_listed(node.value)) is not None}
+
+    def a_list(node: ast.AST) -> bool:
+        listed = fixed.get(node.id) if isinstance(node, ast.Name) else _names_listed(node)
+        return listed is not None and _plain_attributes(listed)
+
+    def tested(test: ast.AST, operator: type) -> bool:
+        return isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], operator) \
+            and isinstance(test.left, ast.Name) and test.left.id == variable and a_list(test.comparators[0])
+    function, child = parents.get(call), call
+    while function is not None and not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+        if isinstance(function, ast.If) and child in function.body and tested(function.test, ast.In):
+            return True
+        if isinstance(function, (ast.For, ast.AsyncFor)) and child in function.body and isinstance(function.target, ast.Name) \
+                and function.target.id == variable and a_list(function.iter):
+            return True
+        function, child = parents.get(function), function
+    if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return False
+    if any(isinstance(node, ast.Name) and node.id == variable and isinstance(node.ctx, ast.Store) for node in ast.walk(function)):
+        return False  # bound again inside, so what the guard tested may not be what it holds
+    for statement in function.body:
+        if statement is child:
+            return False
+        if isinstance(statement, ast.If) and tested(statement.test, ast.NotIn) and statement.body \
+                and isinstance(statement.body[-1], (ast.Raise, ast.Return)):
+            return True
+    return False
 
 
 def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: frozenset[str] = frozenset()) -> list[str]:
@@ -816,19 +1125,16 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
             bound.add(node.name)
         elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
             bound.add(node.id)
-    # A module bound to another name is the same module: ``m = logging``, ``m = importlib.import_module("logging")``.
+    # A module bound to another name is the same module: ``m = logging``, ``m = importlib.import_module("logging")``,
+    # ``m, = (logging,)``, ``for m in (logging,)``, ``def f(_m=logging)``.
+    bindings = _bindings(tree)
     for _ in range(3):
-        for node in ast.walk(tree):
-            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value is not None:
-                node = ast.Assign(targets=[node.target], value=node.value)  # m: object = logging is m = logging
-            if not (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)):
-                continue
-            value = node.value
+        for alias, value in bindings:
             if isinstance(value, ast.Name) and value.id in modules:
-                modules.setdefault(node.targets[0].id, modules[value.id])
+                modules.setdefault(alias, modules[value.id])
             elif isinstance(value, ast.Call) and getattr(value.func, "attr", getattr(value.func, "id", "")) == "import_module" \
                     and value.args and isinstance(value.args[0], ast.Constant) and isinstance(value.args[0].value, str):
-                modules.setdefault(node.targets[0].id, value.args[0].value)
+                modules.setdefault(alias, value.args[0].value)
     inner = {alias for alias, module in modules.items() if module.split(".")[0] in _INTERPRETER}
     parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
     found: set[str] = set()
@@ -861,6 +1167,16 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
                 found.add(at + f"{'.'.join(parts)} reaches the module {node.attr} through another")
             if isinstance(node.ctx, (ast.Store, ast.Del)) and outside(parts[0]):
                 found.add(at + f"it rebinds {'.'.join(parts)} inside a module it imported")
+        elif isinstance(node, ast.Subscript) and isinstance(node.value, ast.Call) \
+                and imported_as.get(getattr(node.value.func, "id", ""), getattr(node.value.func, "id", "")) == "vars" \
+                and not (isinstance(node.slice, ast.Name) and _allowlisted(tree, parents, node, node.slice.id)):
+            # vars(m)["s" + "ys"] is getattr(m, "s" + "ys"): a name looked up by text made at run time, or one of the
+            # interpreter's own.
+            key = node.slice
+            if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
+                found.add(at + "it looks a name up in vars() by text made at run time")
+            elif key.value in _REFLECTION | _INTERPRETER | _IN_THE_INTERPRETER:
+                found.add(at + f"it looks up {key.value!r} in vars()")
         elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
             parent = parents.get(node)
             called = isinstance(parent, ast.Call) and parent.func is node
@@ -892,10 +1208,22 @@ def reaches_into_the_interpreter(repo: Path, commit: str, name: str, local: froz
                 found.add(at + "it reads the names of what an expression gives as a table")
             if callee in _RESOLVERS:
                 found.add(at + f"{callee} finds an object by a name given as text")
+            if isinstance(node.func, ast.Attribute) and node.func.attr in ("get", "pop", "setdefault", "__getitem__") \
+                    and isinstance(node.func.value, ast.Call) and getattr(node.func.value.func, "id", "") == "vars" \
+                    and node.args and not (isinstance(node.args[0], ast.Name)
+                                           and _allowlisted(tree, parents, node, node.args[0].id)):
+                key = node.args[0]
+                if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
+                    found.add(at + "it looks a name up in vars() by text made at run time")
+                elif key.value in _REFLECTION | _INTERPRETER | _IN_THE_INTERPRETER:
+                    found.add(at + f"it looks up {key.value!r} in vars()")
             texts = node.args[1:2] if callee in ("getattr", "setattr", "delattr", "hasattr", "getattr_static") else \
                 list(node.args) if callee in ("attrgetter", "methodcaller") else []
             on_inner = bool(node.args) and chain(node.args[0])[0] in inner
             for text in texts:
+                if isinstance(text, ast.Name) and callee in ("getattr", "setattr", "delattr", "hasattr") \
+                        and _allowlisted(tree, parents, node, text.id):
+                    continue
                 if not (isinstance(text, ast.Constant) and isinstance(text.value, str)):
                     found.add(at + f"{callee} with an attribute named at run time")
                 elif set(text.value.split(".")) & (_REFLECTION | _INTERPRETER | (_IN_THE_INTERPRETER if on_inner else set())):
@@ -946,8 +1274,54 @@ def writes_under_lock(source: bytes) -> dict[str, tuple[set[str], set[str]]]:
              and (getattr(node.value.func, "attr", "") in _LOCK_KINDS or getattr(node.value.func, "id", "") in _LOCK_KINDS)
              for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
              if isinstance(target, (ast.Attribute, ast.Name)) and shared_target(node, target)}
+    # A lock that code replaces once the object or module is made keeps nothing apart: a thread holding the old one and
+    # a thread taking the new one run together (round nine of the red team made a new ``self._lock`` on every call).
+    for function in ast.walk(tree):
+        if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)) and function.name not in _MAKERS:
+            declared_here = {name for node in ast.walk(function) if isinstance(node, ast.Global) for name in node.names}
+            locks -= {target.attr if isinstance(target, ast.Attribute) else target.id for node in ast.walk(function)
+                      if isinstance(node, (ast.Attribute, ast.Name)) and isinstance(node.ctx, ast.Store)
+                      for target in [node] if isinstance(target, ast.Attribute) or target.id in declared_here}
     imported = {alias.asname or alias.name.split(".")[0] for node in ast.walk(tree)
                 if isinstance(node, (ast.Import, ast.ImportFrom)) for alias in node.names}
+
+    def held_at_each_yield(function: ast.AST) -> bool:
+        """Whether a context manager holds a lock at every ``yield``: ``with self.lock: yield`` does, and one that takes
+        the lock and lets it go again before it yields (``self._lock.release()``) does not."""
+        held_at: list[bool] = []
+
+        def plainly(expr: ast.AST) -> bool:
+            return not isinstance(expr, ast.Call) and (getattr(expr, "id", "") in locks or getattr(expr, "attr", "") in locks)
+
+        def called(statement: ast.AST, verb: str) -> bool:
+            value = statement.value if isinstance(statement, ast.Expr) else None
+            return isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute) and value.func.attr == verb \
+                and plainly(value.func.value)
+
+        def walk(statements: Sequence[ast.stmt], held: bool) -> bool:
+            for statement in statements:
+                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    continue
+                if called(statement, "acquire") or called(statement, "release"):
+                    held = called(statement, "acquire")
+                    continue
+                if isinstance(statement, (ast.With, ast.AsyncWith)):
+                    taken = any(plainly(item.context_expr) for item in statement.items)
+                    inside = walk(statement.body, held or taken)
+                    held = held if taken else inside
+                    continue
+                bodies = [*(getattr(statement, field, None) or [] for field in ("body", "orelse")),
+                          *(part.body for part in getattr(statement, "handlers", None) or []),
+                          *(part.body for part in getattr(statement, "cases", None) or [])]
+                if any(bodies) or getattr(statement, "finalbody", None):
+                    held = all([held, *(walk(body, held) for body in bodies if body)])
+                    held = walk(getattr(statement, "finalbody", None) or [], held)
+                    continue
+                if any(isinstance(node, (ast.Yield, ast.YieldFrom)) for node in ast.walk(statement)):
+                    held_at.append(held)
+            return held
+        walk(getattr(function, "body", []), False)
+        return bool(held_at) and all(held_at)
 
     def a_lock(expr: ast.AST) -> bool:
         """A lock kept somewhere every call shares, or a call of a helper written to hold one (``with self._guard():``
@@ -960,11 +1334,7 @@ def writes_under_lock(source: bytes) -> dict[str, tuple[set[str], set[str]]]:
     helpers = {function.name for function in ast.walk(tree) if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
                and any(getattr(decorator, "attr", getattr(decorator, "id", "")) in ("contextmanager", "asynccontextmanager")
                        for decorator in function.decorator_list)
-               and any(isinstance(node, (ast.With, ast.AsyncWith)) and any(
-                   not isinstance(item.context_expr, ast.Call) and (getattr(item.context_expr, "id", "") in locks
-                                                                     or getattr(item.context_expr, "attr", "") in locks)
-                   for item in node.items) and any(isinstance(inner, (ast.Yield, ast.YieldFrom)) for inner in ast.walk(node))
-                   for node in ast.walk(function))}
+               and held_at_each_yield(function)}
 
     out: dict[str, tuple[set[str], set[str]]] = {}
     for function in ast.walk(tree):
@@ -1189,10 +1559,71 @@ def _near_one(call: Mapping[str, Any], constants: Sequence[Any]) -> list[dict[st
 
 _ARITHMETIC = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b,
                ast.Div: lambda a, b: a / b, ast.FloorDiv: lambda a, b: a // b, ast.Mod: lambda a, b: a % b}
+#: The operators on the bits of a whole number. ``(x >> 3) == 15`` is a step function like ``x // 8 == 15``.
+_BITWISE = {ast.LShift: lambda a, b: a << b if 0 <= b < 64 else None, ast.RShift: lambda a, b: a >> b if b >= 0 else None,
+            ast.BitAnd: lambda a, b: a & b, ast.BitOr: lambda a, b: a | b, ast.BitXor: lambda a, b: a ^ b}
 
 
 class _NotPlain(Exception):
     """An expression this cannot work out without running code the change wrote."""
+
+
+class _Scope(dict):
+    """A call's parameter values, and the names its function binds once, at its top level, from a plain expression of
+    them (``doubled = x * 2``): a condition on ``doubled`` is a condition on ``x``. A bound name is worked out when read."""
+
+    def __init__(self, values: Mapping[str, Any], defined: Mapping[str, ast.expr] | None = None) -> None:
+        super().__init__(values)
+        self.defined = dict(defined or {})
+        self._working: set[str] = set()
+
+    def __contains__(self, name: object) -> bool:
+        return dict.__contains__(self, name) or name in self.defined
+
+    def __getitem__(self, name: str) -> Any:
+        if dict.__contains__(self, name):
+            return dict.__getitem__(self, name)
+        if name in self._working or name not in self.defined:
+            raise _NotPlain
+        self._working.add(name)
+        try:
+            return _worked_out(self.defined[name], self)
+        finally:
+            self._working.discard(name)
+
+    def get(self, name: str, default: Any = None) -> Any:
+        return dict.get(self, name, default)
+
+    def moved(self, name: str, value: Any) -> _Scope:
+        return _Scope({**self, name: value}, self.defined)
+
+
+def _moved(values: Mapping[str, Any], name: str, value: Any) -> Mapping[str, Any]:
+    return values.moved(name, value) if isinstance(values, _Scope) else {**values, name: value}
+
+
+def _defined_once(source: bytes, qualname: str) -> dict[str, ast.expr]:
+    """The names function ``qualname`` binds exactly once, by a plain assignment at the top of its body, to what they
+    are bound to. A name bound inside a branch or a loop, or bound twice, holds what the way through the function gave
+    it, and is left out."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return {}
+    holder: list[ast.AST] = [tree]
+    for part in qualname.split("."):
+        holder = [child for node in holder for child in ast.iter_child_nodes(node)
+                  if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and child.name == part]
+    out: dict[str, ast.expr] = {}
+    for function in holder:
+        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        bound = [node.id for node in ast.walk(function) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)]
+        for statement in function.body:
+            if isinstance(statement, ast.Assign) and len(statement.targets) == 1 \
+                    and isinstance(statement.targets[0], ast.Name) and bound.count(statement.targets[0].id) == 1:
+                out[statement.targets[0].id] = statement.value
+    return out
 
 
 def _worked_out(node: ast.AST, values: Mapping[str, Any]) -> Any:
@@ -1200,6 +1631,22 @@ def _worked_out(node: ast.AST, values: Mapping[str, Any]) -> Any:
     else is evaluated, so no code of the change runs here."""
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float, str, bytes)) and not isinstance(node.value, bool):
         return node.value
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        items = [_worked_out(item, values) for item in node.elts]
+        return frozenset(items) if isinstance(node, ast.Set) else tuple(items)
+    if isinstance(node, ast.BinOp) and type(node.op) in _BITWISE:
+        left, right = _worked_out(node.left, values), _worked_out(node.right, values)
+        if not all(isinstance(side, int) and not isinstance(side, bool) for side in (left, right)):
+            raise _NotPlain
+        made = _BITWISE[type(node.op)](left, right)
+        if made is None:
+            raise _NotPlain
+        return made
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Invert):
+        inner = _worked_out(node.operand, values)
+        if isinstance(inner, int) and not isinstance(inner, bool):
+            return ~inner
+        raise _NotPlain
     if isinstance(node, ast.JoinedStr):
         def part(item: ast.AST) -> Any:
             try:
@@ -1245,8 +1692,16 @@ def _worked_out(node: ast.AST, values: Mapping[str, Any]) -> Any:
     raise _NotPlain
 
 
-def _names_in(node: ast.AST) -> set[str]:
-    return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
+def _names_in(node: ast.AST, values: Mapping[str, Any] | None = None) -> set[str]:
+    """The names an expression reads, and, through ``values``' bound names, the parameters those were made from."""
+    found = {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
+    defined = getattr(values, "defined", {})
+    waiting = [name for name in found if name in defined]
+    while waiting:
+        more = {item.id for item in ast.walk(defined[waiting.pop()]) if isinstance(item, ast.Name)} - found
+        found |= more
+        waiting += [name for name in more if name in defined]
+    return found
 
 
 #: The highest power of one parameter whose roots are found by algebra: the polynomial conditions code writes are of low
@@ -1430,11 +1885,175 @@ def _solved_for(condition: ast.expr, name: str, values: Mapping[str, Any]) -> li
                 found += [value, value + value[:1], value[:-1]]
     # A relation of numbers: where it holds with the other parameters where the call put them, as a line where it is one
     # and by algebra where it bends.
-    if isinstance(held, (int, float)) and not isinstance(held, bool) and name in _names_in(condition):
+    if isinstance(held, (int, float)) and not isinstance(held, bool) and name in _names_in(condition, values):
         def difference(value: Any) -> Any:
-            here = {**values, name: value}
+            here = _moved(values, name, value)
             return _worked_out(left, here) - _worked_out(right, here)
         found += _a_root(difference, held) or _roots_by_algebra(difference, held) or _crossings(difference, held)
+    return found
+
+
+_COMPARED: dict[type, Callable[[Any, Any], bool]] = {
+    ast.Eq: lambda a, b: a == b, ast.NotEq: lambda a, b: a != b, ast.Lt: lambda a, b: a < b,
+    ast.LtE: lambda a, b: a <= b, ast.Gt: lambda a, b: a > b, ast.GtE: lambda a, b: a >= b,
+    ast.In: lambda a, b: a in b, ast.NotIn: lambda a, b: a not in b}
+
+
+def _truth(node: ast.AST, values: Mapping[str, Any]) -> bool:
+    """Whether a plain condition holds at ``values``: comparisons, ``and``, ``or``, ``not``, and the start and end tests
+    of text, over what _worked_out works out. Raises _NotPlain for anything else."""
+    if isinstance(node, ast.Compare):
+        left = _worked_out(node.left, values)
+        for op, other in zip(node.ops, node.comparators):
+            right = _worked_out(other, values)
+            if type(op) not in _COMPARED:
+                raise _NotPlain
+            try:
+                if not _COMPARED[type(op)](left, right):
+                    return False
+            except TypeError:
+                raise _NotPlain from None
+            left = right
+        return True
+    if isinstance(node, ast.BoolOp):
+        results = [_truth(part, values) for part in node.values]
+        return all(results) if isinstance(node.op, ast.And) else any(results)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return not _truth(node.operand, values)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _AFFIXES \
+            and len(node.args) == 1 and not node.keywords:
+        held, part = _worked_out(node.func.value, values), _worked_out(node.args[0], values)
+        if isinstance(held, (str, bytes)) and type(part) is type(held):
+            return held.startswith(part) if node.func.attr == "startswith" else held.endswith(part)
+    raise _NotPlain
+
+
+def _holds(node: ast.AST, values: Mapping[str, Any]) -> bool | None:
+    try:
+        return _truth(node, values)
+    except (_NotPlain, RecursionError):
+        return None
+
+
+def _distance(node: ast.AST, values: Mapping[str, Any], wanted: bool = True) -> float:
+    """How far ``values`` are from making a numeric condition come out ``wanted``, 0 when it does: the branch distance
+    search-based test generation climbs (Korel 1990; McMinn 2004), so a condition no algebra here solves is still found
+    by moving its parameters downhill."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return _distance(node.operand, values, not wanted)
+    if isinstance(node, ast.BoolOp):
+        parts = [_distance(part, values, wanted) for part in node.values]
+        return sum(parts) if isinstance(node.op, ast.And) == wanted else min(parts)
+    if not isinstance(node, ast.Compare):
+        raise _NotPlain
+    if len(node.ops) > 1:  # a < b < c is a < b and b < c
+        pairs = [ast.Compare(left=left, ops=[op], comparators=[right]) for left, op, right
+                 in zip([node.left, *node.comparators], node.ops, node.comparators)]
+        return _distance(ast.BoolOp(op=ast.And(), values=pairs), values, wanted)
+    left, right, op = _worked_out(node.left, values), _worked_out(node.comparators[0], values), node.ops[0]
+    if not all(isinstance(side, (int, float, Fraction)) and not isinstance(side, bool) for side in (left, right)):
+        raise _NotPlain
+    gap = float(left - right)
+    if not math.isfinite(gap):
+        raise _NotPlain
+    step = 1.0 if all(isinstance(side, int) for side in (left, right)) else 1e-9
+    kind = type(op)
+    if not wanted:
+        kind = {ast.Eq: ast.NotEq, ast.NotEq: ast.Eq, ast.Lt: ast.GtE, ast.LtE: ast.Gt, ast.Gt: ast.LtE,
+                ast.GtE: ast.Lt}.get(kind, kind)
+    if kind is ast.Eq:
+        return abs(gap)
+    if kind is ast.NotEq:
+        return 0.0 if gap else 1.0
+    if kind is ast.Lt:
+        return 0.0 if gap < 0 else gap + step
+    if kind is ast.LtE:
+        return 0.0 if gap <= 0 else gap
+    if kind is ast.Gt:
+        return 0.0 if gap > 0 else -gap + step
+    if kind is ast.GtE:
+        return 0.0 if gap >= 0 else -gap
+    raise _NotPlain
+
+
+#: Conditions tried by the search per recorded call, and how many times a condition may be worked out in one search:
+#: the bound on the check's own cost, as NEAR_INPUTS is.
+_SEARCH_EVALUATIONS = 4000
+_SEARCHED_CALLS = 4
+
+
+def _searched(node: ast.AST, names: Sequence[str], start: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Values of ``names`` near ``start`` that make ``node`` true, found by the alternating variable method: each
+    number in turn is moved by steps of every power of two, the move that brings the condition nearest is taken, and
+    while a step keeps helping it is doubled. A step of 2**k crosses a flat stretch k wide, so a step function such as
+    ``((x // 7) - 17) ** 2 == 0`` is found. None when no move helps."""
+    try:
+        best = _distance(node, start)
+    except (_NotPlain, RecursionError, ArithmeticError, TypeError, ValueError):
+        return None
+    if best == 0:
+        return None
+    point, spent = start, 0
+    while best > 0 and spent < _SEARCH_EVALUATIONS:
+        helped = False
+        for name in names:
+            held = point.get(name) if isinstance(point, _Scope) else point[name]
+            if not isinstance(held, (int, float)) or isinstance(held, bool):
+                continue
+            powers = range(21) if isinstance(held, int) else range(-10, 21)
+            trials = []
+            for step in (side * 2.0 ** power if isinstance(held, float) else side * (1 << power)
+                         for power in powers for side in (1, -1)):
+                moved = _moved(point, name, held + step)
+                spent += 1
+                try:
+                    trials.append((_distance(node, moved), step, moved))
+                except (_NotPlain, RecursionError, ArithmeticError, TypeError, ValueError):
+                    continue
+            if not trials:
+                continue
+            nearest, step, moved = min(trials, key=lambda trial: trial[0])
+            while nearest < best:
+                point, best, helped = moved, nearest, True
+                if best == 0 or spent >= _SEARCH_EVALUATIONS:
+                    break
+                step *= 2
+                moved = _moved(point, name, (point.get(name) if isinstance(point, _Scope) else point[name]) + step)
+                spent += 1
+                try:
+                    nearest = _distance(node, moved)
+                except (_NotPlain, RecursionError, ArithmeticError, TypeError, ValueError):
+                    break
+            if best == 0:
+                break
+        if not helped:
+            break
+    return point if best == 0 else None
+
+
+def _in_turn(join: ast.BoolOp, names: Sequence[str], values: Mapping[str, Any],
+             fits: Callable[[str, Any], bool]) -> list[Mapping[str, Any]]:
+    """Values that make every part of ``x == 10 and y == x + 20 and z == y + 30`` true at once: one parameter put on its
+    line, then each part solved for a parameter not yet placed with every placed one in it, again until nothing moves."""
+    found: list[Mapping[str, Any]] = []
+    for first in names:
+        options = [value for part in join.values for value in _solved_for(part, first, values) if fits(first, value)]
+        for value in list({repr(option): option for option in options}.values())[:_JOINT_EACH]:
+            held, placed = _moved(values, first, value), {first}
+            for _ in range(len(join.values)):
+                moved = False
+                for part in join.values:
+                    for name in sorted((_names_in(part, held) & set(names)) - placed):
+                        exact = [item for item in _solved_for(part, name, held)
+                                 if fits(name, item) and _holds(part, _moved(held, name, item))]
+                        if exact:
+                            held, moved = _moved(held, name, exact[0]), True
+                            placed.add(name)
+                            break
+                if not moved:
+                    break
+            if _holds(join, held):
+                found.append(held)
     return found
 
 
@@ -1502,23 +2121,33 @@ def inputs_from_conditions(repo: Path, commit: str, name: str, qualname: str,
     sides = [(shown_at(repo, commit, name), _changed_lines(repo, commit, name))]
     if _in_tree(repo, f"{commit}^", name):
         sides.append((shown_at(repo, f"{commit}^", name), _removed_lines(repo, commit, name)))
-    conditions: list[ast.expr] = [condition for source, lines in sides for condition in _conditions(source, qualname, lines)]
-    conditions += [condition for source, lines in sides for condition in _joint_conditions(source, qualname, lines)]
+    conditions: list[tuple[ast.expr, dict[str, ast.expr]]] = [
+        (condition, _defined_once(source, qualname)) for source, lines in sides
+        for condition in [*_conditions(source, qualname, lines), *_joint_conditions(source, qualname, lines)]]
     out: list[dict[str, Any]] = []
-    for call in calls:
+    for number, call in enumerate(calls):
         try:
-            values = {key: ast.literal_eval(text) for key, text in call["args"].items()}
+            plain = {key: ast.literal_eval(text) for key, text in call["args"].items()}
         except (ValueError, SyntaxError, TypeError):
             continue
+
         def fits(parameter: str, value: Any) -> bool:
-            return type(value) is type(values[parameter]) or (isinstance(value, (int, float))
-                                                               and isinstance(values[parameter], (int, float)))
-        for condition in conditions:
+            return type(value) is type(plain[parameter]) or (isinstance(value, (int, float))
+                                                              and isinstance(plain[parameter], (int, float)))
+
+        def as_a_call(held: Mapping[str, Any], names: Sequence[str]) -> list[dict[str, Any]]:
+            """The call at ``held``, and one step to each side of it along every parameter moved."""
+            moved = {name: held[name] for name in names if name in plain and fits(name, held[name])}
+            here = {**call, "args": {**call["args"], **{name: repr(value) for name, value in moved.items()}}}
+            beside = [_with(here, name, value + side) for name, value in moved.items()
+                      if isinstance(value, (int, float)) and not isinstance(value, bool) for side in (1, -1)]
+            return [here, *beside]
+        for condition, defined in conditions:
+            values = _Scope(plain, {name: value for name, value in defined.items() if name not in plain})
+            names = sorted(_names_in(condition, values) & set(plain))
             if isinstance(condition, ast.BoolOp):
                 # ``x > 20 and y > 20``: every parameter moved onto its own line at once, since one moved alone never
                 # makes the whole condition true.
-                names = sorted(_names_in(condition) & set(values))
-
                 def solved(parameter: str, held: Mapping[str, Any]) -> list[Any]:
                     return [value for part in condition.values for value in _solved_for(part, parameter, held)
                             if fits(parameter, value)][:_JOINT_EACH]
@@ -1526,24 +2155,58 @@ def inputs_from_conditions(repo: Path, commit: str, name: str, qualname: str,
                 if len(each) > 1:
                     out += [{**call, "args": {**call["args"], **{p: repr(v) for p, v in zip(each, choice)}}}
                             for choice in itertools.product(*each.values())]
-                # ``x == 50 and y == x + 50``: one parameter put on its line, and the others solved with it there.
-                for first in names:
-                    for value in solved(first, values):
-                        held = {**values, first: value}
-                        rest = {other: solved(other, held) for other in names if other != first}
-                        rest = {other: options for other, options in rest.items() if options}
-                        out += [{**call, "args": {**call["args"], first: repr(value),
-                                                  **{p: repr(v) for p, v in zip(rest, choice)}}}
-                                for choice in itertools.product(*rest.values())] if rest else []
+                # ``x == 10 and y == x + 20 and z == y + 30``: each part solved with what the parts before it placed.
+                for held in _in_turn(condition, names, values, fits):
+                    out += as_a_call(held, names)
+            else:
+                for parameter in names:
+                    out += [_with(call, parameter, value) for value in _solved_for(condition, parameter, values)
+                            if fits(parameter, value)]
+            if number >= _SEARCHED_CALLS or not names:
                 continue
-            for parameter in _names_in(condition) & set(values):
-                out += [_with(call, parameter, value) for value in _solved_for(condition, parameter, values)
-                        if fits(parameter, value)]
+            # What no algebra above solves, ``((x // 7) - 17) ** 2 == 0`` or ``x * y == 143`` from (0, 0), is searched
+            # for: from the call, and from the call with each of its zeros made 1, since a product with a zero in it
+            # does not move when the other factor does.
+            starts = [values]
+            if any(plain[name] == 0 for name in names if isinstance(plain[name], (int, float))):
+                starts.append(_Scope({**plain, **{name: type(plain[name])(1) for name in names if plain[name] == 0
+                                                  and isinstance(plain[name], (int, float))
+                                                  and not isinstance(plain[name], bool)}}, values.defined))
+            for start in starts:
+                found = _searched(condition, names, start)
+                if found is not None:
+                    out += as_a_call(found, names)
+                    break
     return list({_key(item): item for item in out}.values())
 
 
 #: Values tried for each parameter of a joint condition: the two sides of its own line and the line itself.
 _JOINT_EACH = 3
+
+
+def sides_taken(repo: Path, commit: str, name: str, qualname: str,
+                calls: Sequence[Mapping[str, Any]]) -> dict[str, str]:
+    """For each call, which way it comes out on every comparison the commit wrote in function ``qualname``, as one word
+    per comparison ("yes", "no", or "?" where it cannot be worked out). A comparison need not be a branch:
+    ``int(price < 60) * (price - 6)`` takes no branch at all, yet 50 and 200 lie on two sides of it, and a test that pins
+    the answer for 50 says nothing about 200."""
+    if not _in_tree(repo, commit, name):
+        return {}
+    source = shown_at(repo, commit, name)
+    conditions = _conditions(source, qualname, _changed_lines(repo, commit, name))
+    if not conditions:
+        return {}
+    defined = _defined_once(source, qualname)
+    out: dict[str, str] = {}
+    for call in calls:
+        try:
+            plain = {key: ast.literal_eval(text) for key, text in call["args"].items()}
+        except (ValueError, SyntaxError, TypeError):
+            continue
+        values = _Scope(plain, {key: value for key, value in defined.items() if key not in plain})
+        said = [_holds(condition, values) for condition in conditions]
+        out[_key(call)] = "sides " + " ".join("?" if one is None else "yes" if one else "no" for one in said)
+    return out
 
 
 def inputs_near(calls: Sequence[Mapping[str, Any]], constants: Sequence[Any] = (),
@@ -1817,21 +2480,74 @@ def checks_in(source: bytes) -> int:
                 for alias in node.names if alias.name.split(".")[0] in _NOT_THE_CODE}
     not_code |= {alias.asname or alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
                  and (node.module or "").split(".")[0] in _NOT_THE_CODE for alias in node.names}
-    tables = {target.id: len(node.value.elts) for node in tree.body if isinstance(node, ast.Assign)
-              and isinstance(node.value, (ast.List, ast.Tuple)) for target in node.targets if isinstance(target, ast.Name)}
+    tables: dict[str, int] = {}
 
     def root(node: ast.AST) -> str:
         while isinstance(node, (ast.Attribute, ast.Subscript, ast.Call)):
             node = node.func if isinstance(node, ast.Call) else node.value
         return node.id if isinstance(node, ast.Name) else ""
 
+    # A function or class the test file defines for itself is code under test only where it calls some: ``def _ok():
+    # return True`` asserted three times checks nothing (round nine of the red team).
+    own = {node.name: node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+           and not node.name.startswith("test")}
+    reaching: dict[str, bool] = {}
+
+    def reaches_code(name: str) -> bool:
+        if name not in reaching:
+            reaching[name] = False  # a helper calling itself reaches nothing by that call
+            reaching[name] = calls_code(own[name])
+        return reaching[name]
+
     def calls_code(node: ast.AST) -> bool:
-        return any(isinstance(item, ast.Call) and root(item.func) not in builtin | not_code for item in ast.walk(node))
+        for item in ast.walk(node):
+            if not isinstance(item, ast.Call):
+                continue
+            called = root(item.func)
+            if called in own and called not in builtin:
+                if reaches_code(called):
+                    return True
+            elif called not in builtin | not_code:
+                return True
+        return False
 
     def length(node: ast.AST) -> int:
+        """How many items a loop or a table of cases walks, where the source says: a literal, a table at module level,
+        ``range`` of constants, ``zip`` (the shortest), ``enumerate`` and the like, and a comprehension with no ``if``
+        over any of these. Anything else counts once."""
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
             return max(len(node.elts), 1)
-        return tables.get(node.id, 1) if isinstance(node, ast.Name) else 1
+        if isinstance(node, ast.Dict):
+            return max(len(node.keys), 1)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes)):
+            return max(len(node.value), 1)
+        if isinstance(node, ast.Name):
+            return tables.get(node.id, 1)
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+            if any(generator.ifs for generator in node.generators):
+                return 1
+            return max(math.prod(length(generator.iter) for generator in node.generators), 1)
+        if isinstance(node, ast.Call) and not node.keywords:
+            called = getattr(node.func, "attr", getattr(node.func, "id", ""))
+            if called == "range" and node.args:
+                bounds = [_folded(argument) for argument in node.args]
+                if all(isinstance(bound, int) and not isinstance(bound, bool) for bound in bounds) and len(bounds) <= 3 \
+                        and (len(bounds) < 3 or bounds[2] != 0):
+                    return max(len(range(*bounds)), 1)
+            if called == "zip" and node.args:
+                return min(length(argument) for argument in node.args)
+            if called == "product" and node.args:
+                return max(math.prod(length(argument) for argument in node.args), 1)
+            if called in ("enumerate", "reversed", "sorted", "list", "tuple", "set", "frozenset", "iter") \
+                    and len(node.args) == 1:
+                return length(node.args[0])
+        return 1
+
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    tables[target.id] = length(node.value)
 
     def cases(function: ast.AST) -> int:
         count = 1
@@ -1950,8 +2666,12 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                 if (old / path).exists():
                     functions[path] = list(dict.fromkeys([*functions.get(path, []), *names]))
                     source_of.setdefault(path, name)
+        # A subclass in another module, at any distance, does what a changed class does: its tests guard the change.
+        subclassing = sorted({path for name in list(functions) for path in subclassed_elsewhere(
+            new, name, {function.split(".")[0] for function in functions[name] if "." in function and "<" not in function})})
         # Where its tests are is read from the code before it: a commit that moved them would choose its own judges.
-        guards = sorted({*tests_naming(new, [*files, *readers, *source_of], functions, declared_test_roots(old)), *edited})
+        guards = sorted({*tests_naming(new, [*files, *readers, *source_of, *subclassing], functions, declared_test_roots(old)),
+                         *edited})
         present = [name for name in guards if (new / name).is_file()]
         first, second = run_tests(old, guards, work, functions), run_tests(old, guards, work, functions, ballast=BALLAST)
         written_lines = {name: sorted(lines_it_wrote_that_run(repo, commit, name)) for name in functions
@@ -2016,6 +2736,13 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         runs = [_differential(old, near, work), _differential(old, near, work, BALLAST), _differential(new, near, work)]
         (old_near, again_near, new_near), (old_times, again_times, new_times) = \
             [run["outcomes"] for run in runs], [run["seconds"] for run in runs]
+        # The way an input went through the new code is its branches and the side it takes of each comparison the
+        # commit wrote, so a test that pins one answer speaks only for inputs that went its way on both.
+        for function, calls in near.items():
+            path, qualname = function.split("::", 1)
+            for key, sides in sides_taken(repo, commit, path, qualname, calls).items():
+                runs[2]["paths"].setdefault(function, {}).setdefault(key, [])
+                runs[2]["paths"][function][key] = [*runs[2]["paths"][function][key], sides]
         sources = [name for name in functions if _in_tree(repo, f"{commit}^", name)]
         before_after = {name: (shown_at(repo, f"{commit}^", name), shown_at(repo, commit, name)) for name in sources}
         # A passing test's call, as the watch keeps it: its arguments and values as digests, so "as" says so.
@@ -2030,6 +2757,11 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                                            runs[2]["paths"])
         doubts += [f"a call an existing test makes gives another value, which the commit's own test pins: {key[:160]}"
                    for key in repinned]
+        for one in shown_by:  # how each side's value was read, so a test written of it reads it the same way
+            if isinstance(one.get("input"), dict):
+                key = _key(one["input"])
+                one["came_as"] = {side: run["kinds"].get(one["function"], {}).get(key) or "plain"
+                                  for side, run in (("before", runs[0]), ("after", runs[2]))}
         respecified = respecified or bool(repinned)
         unlocked = sorted(f"{name}::{function}: {', '.join(sorted(shared))}" for name, (was, now) in before_after.items()
                           for function, (guarded, _) in writes_under_lock(was).items()
@@ -2045,6 +2777,28 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         unrun_lines = {name: [number for number in numbers if f"{os.path.realpath(new / name)}#{number}" not in lines_ran]
                        for name, numbers in written_lines.items()}
         unrun_lines = {name: numbers for name, numbers in unrun_lines.items() if numbers}
+        # A branch it wrote that went only one way, in its tests and on every input tried: the other way is code no
+        # test runs, on a line that ran. ``return -999 if ((x // 7) - 17) ** 2 == 0 else x * 10`` runs its line on every
+        # input, and only an input in 119..125 reaches its first half.
+        went: dict[tuple[str, str, int, int], set[str]] = {}
+        for line in {*third["branches_ran"], *spec["branches_ran"]}:
+            _, where, qualname, opened_at, offset, destination = line.split("\t")
+            went.setdefault((os.path.relpath(where, os.path.realpath(new)), qualname, int(opened_at), int(offset)),
+                            set()).add(destination)
+        tried_ways: dict[tuple[str, str, int], set[str]] = {}
+        for function, by_input in runs[2]["paths"].items():
+            path, qualname = function.split("::", 1)
+            for steps in by_input.values():
+                for step in steps:
+                    if isinstance(step, str) and step.startswith("branch ") and " to " in step:
+                        offset, destination = step.removeprefix("branch ").split(" to ", 1)
+                        tried_ways.setdefault((path, qualname, int(offset)), set()).add(destination)
+        one_way: dict[str, list[int]] = {}
+        for name, numbers in written_lines.items():
+            for (qualname, opened_at, offset), number in branches_it_wrote(repo, commit, name, set(numbers)).items():
+                ways = went.get((name, qualname, opened_at, offset), set()) | tried_ways.get((name, qualname, offset), set())
+                if len(ways) < 2 and number not in unrun_lines.get(name, []):
+                    one_way.setdefault(name, []).append(number)
         # A function the commit did not edit, that only reads a name it changed, is a doubt when no test runs it.
         unread = sorted(f"{name}::{function}" for name, names in functions.items() for function in names
                         if f"{name}::{function}" not in ran and f"{name}::{function}" not in direct)
@@ -2089,8 +2843,16 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         # Code no test runs says nothing either way, and a line added only to be counted is such code.
         doubts += [f"no test ran these lines it wrote in {name}: {', '.join(map(str, numbers[:20]))}"
                    for name, numbers in sorted(unrun_lines.items())]
+        doubts += [f"a branch it wrote went only one way in every test and every input tried, in {name} on line "
+                   f"{', '.join(map(str, sorted(set(numbers))[:20]))}" for name, numbers in sorted(one_way.items())]
         if files and not first["verdicts"] and not spec["verdicts"]:
             doubts.append("no test ran anything this change touches")
+        ran_tests = sorted({node.split("::")[0] for node in [*first["verdicts"], *spec["verdicts"]]})
+        doubts += [f"nothing the check ran reads this value it changed: {name} {item}" for name in files
+                   if not _a_test_file(name) and not _machinery(name) and (new / name).is_file()
+                   for item in values_nothing_reads(repo, commit, name, new, ran_tests)]
+        doubts += [f"no code the check found reads this file it changed: {name}" for name in files
+                   if _a_data_file_of_the_code(name) and (new / name).is_file() and not _readers_of_one(new, name)]
         if slowdown.endswith("an order of magnitude"):
             lost.append(f"it is slower: {slowdown}")
         elif slowdown:
@@ -2100,6 +2862,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                   "near_inputs": sum(len(calls) for calls in near.values()), "changed": changed[:20],
                   "changed_near": lost[:20], "no_test_ran": unreached[:20],
                   "lines_no_test_ran": {name: numbers[:20] for name, numbers in unrun_lines.items()},
+                  "branches_one_way": {name: sorted(set(numbers))[:20] for name, numbers in one_way.items()},
                   "held": not changed and not lost}
         try:
             git(new, "-c", "user.name=outside-bar", "-c", "user.email=bar@localhost", "revert", "--no-edit", commit)

@@ -71,12 +71,24 @@ def edits_from_proposals(source: str, proposals: ProposedEdits) -> list[Suspicio
         if not proposal.old:
             edit = Edit(starts[index], starts[index], proposal.new if proposal.new.endswith("\n") else proposal.new + "\n")
         else:
-            low, high = max(0, index - NEAR_LINES), min(len(lines), index + NEAR_LINES + 1)
-            window = source[starts[low] : starts[high]]
-            at = window.find(proposal.old)
-            if at < 0:
+            # The line it names first, then one line out each way, and so on: ``return 0`` named on line 5 is the one
+            # on line 5, not one on line 3 inside the window (round nine of the red team). Two places at the nearest
+            # distance that has any cannot be told apart, and the proposal is dropped.
+            start = None
+            for distance in range(NEAR_LINES + 1):
+                places = []
+                for number in sorted({index - distance, index + distance}):
+                    if not 0 <= number < len(lines):
+                        continue
+                    at = source.find(proposal.old, starts[number])
+                    while 0 <= at < starts[number + 1]:  # every place the text starts on this line
+                        places.append(at)
+                        at = source.find(proposal.old, at + 1)
+                if places:
+                    start = places[0] if len(places) == 1 else None
+                    break
+            if start is None:
                 continue
-            start = starts[low] + at
             edit = Edit(start, start + len(proposal.old), proposal.new)
         key = (edit.start, edit.end, edit.text)
         if key in seen:

@@ -136,25 +136,33 @@ def _median(values: list[float]) -> float:
     return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
 
 
-def costlier_since(landed_at: float, *, path: Path | None = None, running: str | None = None) -> dict[str, Any]:
+def costlier_since(landed_at: float, *, path: Path | None = None, running: str | None = None,
+                   measured_slower: bool = False) -> dict[str, Any]:
     """How her turns or her memory have grown since a change landed at ``landed_at``, in this running of hers:
     ``said`` in words where it is beyond what chance would make it, "" otherwise; ``beyond_doubt`` when it is also an
     order of magnitude, the measure the outside check refuses a slowdown by.
 
     A turn is measured by its seconds outside her model, the time her own code spends, which is what a change of hers
     can change: how long she decodes depends on what she was asked. A finding short of an order of magnitude is said and
-    kept, not acted on, since one long question after a landing can reach significance against many short ones."""
+    kept, not acted on, since one long question after a landing can reach significance against many short ones.
+
+    ``measured_slower`` says the outside check timed the changed functions slower on the same inputs before and after
+    it. A rise in her turns beyond chance then agrees with a controlled measure, and it is beyond doubt at any size: a
+    change four times slower survived probation for ever while only ten times counted (round nine of the red team).
+    Turns that called her model and turns her code answered alone are compared each with their own kind, since the
+    second take a fraction of the first and a change to a path that never calls her model shows only among them."""
     rows = [row for row in _read(path or where_her_turns_are_kept()) if row.get("running") == (running or _THIS_RUNNING)]
     said, beyond_doubt = [], False
-    turns = [row for row in rows if row.get("model") and "outside_model" in row]
-    before = [float(row["outside_model"]) for row in turns if float(row["at"]) < landed_at]
-    after = [float(row["outside_model"]) for row in turns if float(row["at"]) >= landed_at]
-    chance = _greater(after, before)
-    if chance < ALPHA:
-        now, was = _median(after), _median(before)
-        said.append(f"her turns spend {now:.1f} s outside her model at the median since it landed, and spent {was:.1f} s "
-                    f"before ({len(after)} turns against {len(before)}, a chance of {chance:.3f})")
-        beyond_doubt = beyond_doubt or now >= ORDER_OF_MAGNITUDE * max(was, 1e-9)
+    for called, kind in ((True, "her turns"), (False, "her turns that did not call her model")):
+        turns = [row for row in rows if bool(row.get("model")) is called and "outside_model" in row]
+        before = [float(row["outside_model"]) for row in turns if float(row["at"]) < landed_at]
+        after = [float(row["outside_model"]) for row in turns if float(row["at"]) >= landed_at]
+        chance = _greater(after, before)
+        if chance < ALPHA:
+            now, was = _median(after), _median(before)
+            said.append(f"{kind} spend {now:.1f} s outside her model at the median since it landed, and spent {was:.1f} s "
+                        f"before ({len(after)} turns against {len(before)}, a chance of {chance:.3f})")
+            beyond_doubt = beyond_doubt or measured_slower or now >= ORDER_OF_MAGNITUDE * max(was, 1e-9)
     memory = [(float(row["at"]), float(row["memory_mb"])) for row in rows
               if "memory_mb" in row and float(row["memory_mb"]) > 0.0]
     now, was, chance, spread = _grows_faster([one for one in memory if one[0] >= landed_at],

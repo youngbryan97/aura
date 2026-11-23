@@ -67,7 +67,7 @@ def test_only_a_doubted_difference_settling_speaks_for_is_guarded():
 
 def test_the_guard_asserts_what_the_change_gives_now():
     source = guarding_test_source(_SEEN, goal='Make "sizes" bigger', commit="0123456789abcdef")
-    assert "assert scale(x=4) == 12" in source
+    assert "assert _same(scale(x=4), 12)" in source
     assert "with pytest.raises(ArithmeticError):\n        scale(x=0)" in source
     assert "x=-1" not in source, "a refusal gone is not guarded"
     assert '"""What her change 012345678 gives now' in source and "Make 'sizes' bigger" in source

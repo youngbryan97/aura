@@ -188,7 +188,18 @@ def the_code_a_failure_passes_through(failure: str, sources: Mapping[str, str]) 
 
 
 Run = Callable[[Sequence[str], Mapping[str, str]], Awaitable[tuple[dict[str, bool], str]]]
-Propose = Callable[[Defect, Mapping[str, str], "Candidate | None", int], Awaitable[list[tuple[str, str]]]]
+#: A proposal is SEARCH/REPLACE text, or the edits themselves, so a proposer that already holds them as data never
+#: writes them as text to be read back (round nine of the red team put a second block inside one edit's new text).
+Propose = Callable[[Defect, Mapping[str, str], "Candidate | None", int],
+                   Awaitable[list[tuple[str, "str | tuple[Edit, ...]"]]]]
+
+
+def edits_offered(proposal: Any, files: Sequence[str]) -> tuple[Edit, ...]:
+    """The edits a proposal offers to the files the defect allows: read from its text, or taken as they are."""
+    if isinstance(proposal, tuple) and all(isinstance(edit, Edit) for edit in proposal):
+        allowed = {str(name) for name in files}
+        return tuple(edit for edit in proposal if edit.path in allowed)
+    return edits_in(str(proposal or ""), files)
 
 
 async def repair_by_selection(
@@ -276,7 +287,7 @@ async def repair_by_selection(
             break
         for origin, text in offered:
             asked += 1
-            own = edits_in(text, defect.files)
+            own = edits_offered(text, defect.files)
             edits = (*inherited, *own)
             identity = hashlib.sha256(repr((parent.id if parent else "", edits)).encode()).hexdigest()[:12]
             candidate = Candidate(identity, parent.id if parent else "", edits, origin)

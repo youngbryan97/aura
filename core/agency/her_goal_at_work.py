@@ -589,7 +589,11 @@ def settle_probation() -> list[dict[str, Any]]:
     # A change that answers the same and costs more: her turns slower, or her memory growing faster, since it landed.
     from core.agency.her_turns_on_probation import costlier_since
 
-    costlier = costlier_since(float(standing.offer.get("merged_at") or 0.0))
+    # The outside check measured the changed functions themselves slower: then her turns costing more since it landed,
+    # beyond chance, is a second measure agreeing with the first, and that is enough to take it back.
+    doubts = ((standing.offer.get("gates") or {}).get("outside-check") or {}).get("doubts") or []
+    costlier = costlier_since(float(standing.offer.get("merged_at") or 0.0),
+                              measured_slower=any(str(one).startswith("it is slower") for one in doubts))
     if costlier["beyond_doubt"]:
         done = take_it_back(standing.slug, f"since it landed {costlier['said']}")
         return [{"slug": standing.slug, "status": "taken back" if done.get("ok") else "not taken back", "why": done.get("why", "")}]
@@ -867,6 +871,8 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
                 results[name]["must_keep"] = _what_the_outside_check_says_to_keep(said)
             elif name == "outside-check" and results[name]["verdict"] == "PROBATION":
                 results[name]["what_it_changed"] = _what_the_outside_check_doubted(said)
+                # What it doubted, in its words: probation reads whether the check measured it slower.
+                results[name]["doubts"] = [str(one)[:300] for one in (said.get("doubts") or [])][:20]
         if not passed:
             break
     return results

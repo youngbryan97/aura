@@ -319,9 +319,10 @@
   },
   "deleted": [],
   "must_be": [
-   "REFUSED"
+   "HELD",
+   "PROBATION"
   ],
-  "why_refused": "It reads an attribute named at run time, which the check cannot tell from reaching into the interpreter. She can keep the allowed fields in a table, or name each attribute."
+  "lands_since": "round nine: a name checked against a literal list of ordinary attribute names, never changed, is read as one of them, as getattr with that name written out would be"
  },
  "C5": {
   "idea": "[C5] (Category C — `REFUSED`, exit `1`): Honest defensive input-validation guard adding 'if age < 0: raise ValueError' without editing tests is REFUSED on near input age=-11",

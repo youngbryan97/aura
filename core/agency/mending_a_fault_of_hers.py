@@ -358,6 +358,24 @@ async def _her_draft_asked_again(record: Any, workspace: Path, fault: Any) -> di
             "why": "her draft asked of her gates again"}
 
 
+async def _the_tests_that_pass(workspace: Path, path: str, source: str) -> set[str]:
+    """The tests of a written test file that pass in her workspace as it stands, by name. The file is taken away after."""
+    import os
+    import tempfile
+
+    env = {**os.environ, "AURA_LOG_DIR": tempfile.mkdtemp(prefix="her-mend-logs-"),
+           "VECLIB_MAXIMUM_THREADS": "1", "OMP_NUM_THREADS": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    await InHerWorkspace(workspace, {})._write({path: source})
+    try:
+        _, text = await _governed_run(["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-rA", "-p",
+                                       "no:cacheprovider", path], cwd=workspace, env=env, timeout=_RUN_SECONDS,
+                                      effect="compute")
+    finally:
+        await _governed_run(["git", "-c", "core.fsmonitor=false", "clean", "-fq", "--", path], cwd=workspace, env=None,
+                            timeout=60.0, effect="commit")
+    return {node.split("::")[-1] for word, node in _RESULT.findall(text) if word == "PASSED" and node.startswith(path)}
+
+
 async def _search_again_keeping_what_was_lost(record: Any, workspace: Path, judged: Mapping[str, Any]) -> dict[str, Any] | None:
     """Her refused draft set aside, and a test of each input it lost committed in its place, so her next search keeps
     them (core/self_modification/what_her_change_must_keep.py); None to search again now, or why the goal stalls.
@@ -365,13 +383,21 @@ async def _search_again_keeping_what_was_lost(record: Any, workspace: Path, judg
     Nothing to keep is no new evidence: a search from the same place finds the same draft, so the goal waits for her
     source to change, as a stalled one does."""
     from core.agency import her_goal_at_work as goals
-    from core.self_modification.what_her_change_must_keep import keeping_test_source, path_of_what_it_must_keep
+    from core.self_modification.what_her_change_must_keep import (
+        keeping_test_source,
+        only_these_tests,
+        path_of_what_it_must_keep,
+    )
 
     offer = dict(record.offer or {})
     known = {json.dumps(one, sort_keys=True): one for one in [*(offer.get("must_keep") or []),
                                                                *(judged.get("must_keep") or [])]}
     must_keep = list(known.values())
     source = keeping_test_source(must_keep, goal=record.goal, root=workspace)
+    path = path_of_what_it_must_keep(record.slug)
+    # Each kept test must fail on her refused draft, which lost what it keeps, and pass on the code before it, which
+    # had it: one that does neither would hold her next try to a fault or keep nothing (round nine of the red team).
+    passing_on_the_draft = await _the_tests_that_pass(workspace, path, source) if source else set()
     record.offers_before = [*record.offers_before, {**offer, "set_aside": "the outside check refused it"}]
     if not source:
         record.offer = {"must_keep": must_keep}
@@ -380,8 +406,14 @@ async def _search_again_keeping_what_was_lost(record: Any, workspace: Path, judg
                            str(judged.get("tail") or "")[-1500:])
     code, out = await _governed_run(["git", "-c", "core.fsmonitor=false", "reset", "-q", "--hard", record.base],
                                     cwd=workspace, env=None, timeout=60.0, effect="commit")
-    path = path_of_what_it_must_keep(record.slug)
     if code == 0:
+        passing_before = await _the_tests_that_pass(workspace, path, source)
+        source = only_these_tests(source, passing_before - passing_on_the_draft)
+        if not source:
+            record.offer = {"must_keep": must_keep}
+            return await _stop(record, "the outside check refused my draft, and no test of what it lost passed on the "
+                                       "code before it and failed on the draft, so a search from the same place would "
+                                       "find the same draft", str(judged.get("tail") or "")[-1500:])
         await InHerWorkspace(workspace, {})._write({path: source})
         code, out = await _governed_run(["git", "add", "--", path], cwd=workspace, env=None, timeout=60.0,
                                         effect="commit")

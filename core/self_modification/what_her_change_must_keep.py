@@ -24,7 +24,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
-__all__ = ["guardable", "guarding_test_source", "keepable", "keeping_test_source", "path_of_its_guard",
+__all__ = ["guardable", "guarding_test_source", "keepable", "keeping_test_source", "only_these_tests", "path_of_its_guard",
            "path_of_what_it_must_keep"]
 
 
@@ -110,21 +110,30 @@ def path_of_its_guard(slug: str) -> str:
 
 
 def _definition(function: str, root: Path | None) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
-    """The module-level definition of a function in its source, inside an ``if`` or ``try`` at module level too (a
-    version guard); None when the source cannot be read."""
+    """The module-level definition of a function in its source, inside an ``if``, ``try``, ``with`` or ``match`` at
+    module level too (a version guard), and through a module-level name bound to another (``score = _fast``); None
+    when the source cannot be read."""
     path, _, name = function.partition("::")
     try:
         tree = ast.parse((root / path).read_bytes()) if root is not None else None
     except (OSError, SyntaxError, ValueError):
         return None
-    waiting = list(getattr(tree, "body", ()))
-    while waiting:
-        node = waiting.pop(0)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
-            return node
-        if isinstance(node, (ast.If, ast.Try, ast.With)):
-            waiting += [*node.body, *getattr(node, "orelse", []), *getattr(node, "finalbody", []),
-                        *(item for handler in getattr(node, "handlers", []) for item in handler.body)]
+    for _ in range(8):  # an alias of an alias, a few deep
+        waiting, alias = list(getattr(tree, "body", ())), None
+        while waiting:
+            node = waiting.pop(0)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+                return node
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) \
+                    and node.targets[0].id == name and isinstance(node.value, ast.Name):
+                alias = node.value.id
+            if isinstance(node, (ast.If, ast.Try, ast.With, ast.Match)):
+                waiting += [*getattr(node, "body", []), *getattr(node, "orelse", []), *getattr(node, "finalbody", []),
+                            *(item for handler in getattr(node, "handlers", []) for item in handler.body),
+                            *(item for case in getattr(node, "cases", []) for item in case.body)]
+        if alias is None:
+            return None
+        name = alias
     return None
 
 
@@ -185,9 +194,12 @@ def _tests_of(counterexamples: Iterable[Mapping[str, Any]], *, admits, outcome: 
             continue
         module, function = _module_and_function(str(one["function"]))  # type: ignore[misc]
         call = _call_of(str(one["function"]), one["input"], root)
-        # The check awaited a coroutine and read a generator out before comparing (outside_bar/differential.py), so
-        # the test does the same; an async generator it cannot read back plainly, and it is left out.
-        kind_of_call = _kind_of(str(one["function"]), root)
+        # The check awaited a coroutine and read an iterator out before comparing (outside_bar/differential.py), and
+        # says which it did; the test does the same. An async iterator it cannot read back plainly, and it is left out.
+        # Where the check did not say (an older verdict), the source is read for it.
+        read_as = (one.get("came_as") or {}).get(outcome) if isinstance(one.get("came_as"), Mapping) else None
+        kind_of_call = {"coroutine": "coroutine", "async iterator": "async generator", "iterator": "generator",
+                        "plain": "plain"}.get(str(read_as), "") or _kind_of(str(one["function"]), root)
         if kind_of_call == "async generator":
             continue
         if kind_of_call == "coroutine":
@@ -203,7 +215,9 @@ def _tests_of(counterexamples: Iterable[Mapping[str, Any]], *, admits, outcome: 
             body = (f"    with pytest.raises(Exception) as raised:\n        {call}\n"
                     f"    assert type(raised.value).__name__ == {kind!r}\n")
         else:
-            body = f"    assert {call} == {value}\n"
+            # The same value of the same type, as the check compared it: ``True == 1`` holds in Python, and a test of
+            # ``== True`` would pass on the very draft that returned 1 (round nine of the red team).
+            body = f"    assert _same({call}, {value})\n"
         if body in calls:
             continue
         imports.add(f"from {module} import {function}")
@@ -218,12 +232,50 @@ def _for_a_docstring(goal: str) -> str:
     return " ".join(str(goal).split())[:100].replace("\\", "/").replace('"', "'")
 
 
+_SAME = '''
+
+def _same(got, want):
+    """The same value of the same type, all the way down: True is not 1, and 1.0 is not 1."""
+    if type(got) is not type(want):
+        return False
+    if isinstance(want, dict):
+        return list(got) == list(want) and all(_same(got[key], want[key]) for key in want)
+    if isinstance(want, (list, tuple)):
+        return len(got) == len(want) and all(_same(one, other) for one, other in zip(got, want))
+    return got == want
+'''
+
+
 def _a_test_file(head: str, imports: set[str], calls: list[str], name: str) -> str:
     if not calls:
         return ""
     tests = [f"\n\ndef test_{name}_{number}():\n{body}" for number, body in enumerate(calls)]
     ordered = sorted(imports, key=lambda line: (not line.startswith("import "), line))
-    return head + "\n".join(ordered) + "\n" + "".join(tests)
+    helper = _SAME if any("_same(" in body for body in calls) else ""
+    return head + "\n".join(ordered) + "\n" + helper + "".join(tests)
+
+
+def only_these_tests(source: str, names: Iterable[str]) -> str:
+    """A written test file with only the tests named ``names`` left in it, or "" when none is. Her mending runs each
+    kept test on the code before a refused draft, where it must pass, and on the draft, where it must fail, and keeps
+    only those that do: a test that fails on code that worked would hold her next try to a fault, and one that passes
+    on the draft keeps nothing (round nine of the red team wrote both)."""
+    keep = set(names)
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ""
+    lines = source.splitlines(keepends=True)
+    dropped = [(node.lineno, node.end_lineno or node.lineno) for node in tree.body
+               if isinstance(node, ast.FunctionDef) and node.name.startswith("test_") and node.name not in keep]
+    if not any(isinstance(node, ast.FunctionDef) and node.name in keep for node in tree.body):
+        return ""
+    for first, last in sorted(dropped, reverse=True):
+        start = first - 1
+        while start > 0 and not lines[start - 1].strip():  # the blank lines before it go with it
+            start -= 1
+        del lines[start:last]
+    return "".join(lines)
 
 
 def keeping_test_source(counterexamples: Iterable[Mapping[str, Any]], *, goal: str, root: Path | None = None) -> str:

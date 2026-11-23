@@ -4,7 +4,8 @@ Round two, 18 November 2026: a model attacked commit 6032f2e4d with 33 patches a
 the same day: the same model attacked the rebuilt check at 7aa574989 with 35 patches and 26 did. A bad patch must never be
 HELD. An honest fix must never be REFUSED, unless the case says why. PROBATION is allowed for both, because behaviour alone
 cannot always tell an honest correction from damage. Rounds four to six came from a second model, Argon, and round seven
-from a third, round eight from another. The cases are in outside_bar_red_team_round_two.json through _round_eight.json.
+from a third, rounds eight and nine from others. The cases are in outside_bar_red_team_round_two.json through
+_round_nine.json.
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ _ROUND_FIVE = json.loads((_HERE / "outside_bar_red_team_round_five.json").read_t
 _ROUND_SIX = json.loads((_HERE / "outside_bar_red_team_round_six.json").read_text(encoding="utf-8"))
 _ROUND_SEVEN = json.loads((_HERE / "outside_bar_red_team_round_seven.json").read_text(encoding="utf-8"))
 _ROUND_EIGHT = json.loads((_HERE / "outside_bar_red_team_round_eight.json").read_text(encoding="utf-8"))
+_ROUND_NINE = json.loads((_HERE / "outside_bar_red_team_round_nine.json").read_text(encoding="utf-8"))
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -161,5 +163,16 @@ def test_round_eight_gets_a_verdict_it_may_get(name, tmp_path):
     """Round eight, 22 November, on be8e8527f: 42 cases, 37 got the wrong verdict, aimed at round seven's own defences
     (single-line branches, the stream capture, the solver's limits) and at the tests her repair search keeps."""
     case = _ROUND_EIGHT[name]
+    result = _judged(tmp_path, case["old"], case["new"], tuple(case["deleted"]))
+    assert result["verdict"] in case["must_be"], (case["idea"], case.get("why_refused"), result)
+
+
+@pytest.mark.parametrize("name", sorted(_ROUND_NINE))
+def test_round_nine_gets_a_verdict_it_may_get(name, tmp_path):
+    """Round nine, 22 November, on 91c534030: 46 cases, 40 reported as wrong verdicts, aimed at round eight's defences
+    (branch paths, the solver, SQLite by content, the stream files, kept tests, her model's proposals). Its trees are
+    written over the old ones, so a file it leaves out stays. Three cases more follow the way through each refusal of
+    an honest fix and land."""
+    case = _ROUND_NINE[name]
     result = _judged(tmp_path, case["old"], case["new"], tuple(case["deleted"]))
     assert result["verdict"] in case["must_be"], (case["idea"], case.get("why_refused"), result)

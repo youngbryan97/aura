@@ -8243,6 +8243,15 @@ needs her 27B free (her app down, or her app's own influence trials).
   compared; kept tests await coroutines and read out generators. See `docs/evidence/F16_RED_TEAM_ROUND_8_2026-11-22.md`.
   Builds owed from its suggestions: replay a short sequence of calls on one object; run registered invariants on every
   input the check makes.
+  Part 13, ninth and last planned round, 22 November, aimed at round eight's defences and at her model's proposer: 46
+  cases on 91c534030, 40 reported as wrong verdicts, all reproduced. Of 36 bad cases 32 are refused and 4 land on
+  probation (a value read only outside the declared test folders, two arguments that cannot be made again, a 4.5x
+  slowdown that probation now takes back once her turns agree); none is held. Of 7 honest fixes 3 are held, 1 lands on
+  probation, 3 are refused with a way through, and each way through is a case that lands. Conditions no algebra solves
+  are searched for by branch distance; a pinned answer speaks only for inputs on the same side of every comparison the
+  commit wrote; a branch that went one way in every test and input is a doubt; every watch hides its monitoring slot;
+  her kept tests are run on both sides before they are kept; her model's edits reach the search as edits, one function
+  each. See `docs/evidence/F16_RED_TEAM_ROUND_9_2026-11-22.md`.
   To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record
@@ -8331,7 +8340,7 @@ needs her 27B free (her app down, or her app's own influence trials).
     through beside its case; whether her own repair loop takes those ways is not measured yet.
   - Still open from the reviewers: an attacker other than these two models. The outside benchmark baseline was
     recorded 19 November (part 10 above).
-    Seven rounds ran, the seventh by a third model; two more follow on 22 November.
+    Nine rounds ran, from at least four models; the eighth and ninth followed on 22 November.
   - 20 November: nothing of hers had reached origin since 17 November, and Bryan noticed. She had made five changes
     since, each lowering what a full collection cost her at one site, and her own yes refused each before it landed.
     Her runtime sets `AURA_GOVERNANCE_MODE=production` on itself (aura_main.py), and every check of a change of hers

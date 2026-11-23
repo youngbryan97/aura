@@ -25,10 +25,12 @@ import json
 import marshal
 import os
 import signal
+import sqlite3
 import sys
 import tempfile
 import time
 import types
+import urllib.parse
 import weakref
 from collections import abc
 from typing import Any
@@ -47,6 +49,8 @@ _FILE_EVENTS = types.MappingProxyType({
     "os.chmod": "changed the mode of"})
 #: How much of what a call printed or wrote is compared, in bytes: enough to tell two outputs apart.
 _READ_BACK = 1 << 20
+#: The files a call wrote that its outcome names, at most.
+_FILES_SHOWN = 8
 
 #: How long one call may take, in seconds. A call that takes longer says nothing about the value it would have returned.
 _CALL_SECONDS = 2
@@ -60,6 +64,78 @@ _LONGEST_OUTCOME = 2000
 
 def _too_long(*_: Any) -> None:
     raise TimeoutError
+
+
+def _hide_the_tool(tool: int) -> dict[str, Any]:
+    """Make monitoring tool ``tool`` look free to the code under test, and give back Python's own functions for the
+    watch to use. A watch whose name ``sys.monitoring.get_tool`` gives, or whose slot cannot be claimed, tells code it is
+    watched, and her running has neither (round nine of the red team read ``get_tool(0) == "debugger"``). Code that
+    claims the slot is given one of its own, kept here, which no event reaches. outside_bar/verify_change.py copies
+    this function into the start-up module of each test run, and value_witness.py holds the same, so all three hide
+    their tools alike."""
+    import sys as interpreter
+
+    monitoring = interpreter.monitoring
+    real = {name: getattr(monitoring, name) for name in (
+        "get_tool", "use_tool_id", "free_tool_id", "register_callback", "set_events", "get_events", "set_local_events",
+        "get_local_events")}
+    theirs: dict[str, Any] = {"name": None, "events": 0, "callbacks": {}, "local": {}}
+
+    def claimed(tool_id: int) -> None:
+        if theirs["name"] is None:
+            raise ValueError(f"tool {tool_id} is not in use")
+
+    def get_tool(tool_id: int) -> Any:
+        return theirs["name"] if tool_id == tool else real["get_tool"](tool_id)
+
+    def use_tool_id(tool_id: int, name: str) -> None:
+        if tool_id != tool:
+            return real["use_tool_id"](tool_id, name)
+        if theirs["name"] is not None:
+            raise ValueError(f"tool {tool_id} is already in use")
+        theirs["name"] = name
+        return None
+
+    def free_tool_id(tool_id: int) -> None:
+        if tool_id != tool:
+            return real["free_tool_id"](tool_id)
+        theirs.update(name=None, events=0, callbacks={}, local={})
+        return None
+
+    def register_callback(tool_id: int, event: int, func: Any) -> Any:
+        if tool_id != tool:
+            return real["register_callback"](tool_id, event, func)
+        before = theirs["callbacks"].pop(event, None)
+        if func is not None:
+            theirs["callbacks"][event] = func
+        return before
+
+    def set_events(tool_id: int, event_set: int) -> None:
+        if tool_id != tool:
+            return real["set_events"](tool_id, event_set)
+        claimed(tool_id)
+        theirs["events"] = event_set
+        return None
+
+    def get_events(tool_id: int) -> int:
+        return theirs["events"] if tool_id == tool else real["get_events"](tool_id)
+
+    def set_local_events(tool_id: int, code: Any, event_set: int) -> None:
+        if tool_id != tool:
+            return real["set_local_events"](tool_id, code, event_set)
+        claimed(tool_id)
+        theirs["local"][code] = event_set
+        return None
+
+    def get_local_events(tool_id: int, code: Any) -> int:
+        return theirs["local"].get(code, 0) if tool_id == tool else real["get_local_events"](tool_id, code)
+
+    for name, function in (("get_tool", get_tool), ("use_tool_id", use_tool_id), ("free_tool_id", free_tool_id),
+                           ("register_callback", register_callback), ("set_events", set_events),
+                           ("get_events", get_events), ("set_local_events", set_local_events),
+                           ("get_local_events", get_local_events)):
+        setattr(monitoring, name, function)
+    return real
 
 
 def _named_thing(module: str, qualname: str) -> Any:
@@ -228,6 +304,40 @@ _PYTHONS_OWN = frozenset({*vars(types.ModuleType("_")), *vars(type("_", (), {}))
                           "__dataclass_params__", "__abstractmethods__", "_abc_impl", "__version__"})
 
 
+def _cells_around(path: str, made: Any) -> list[tuple[str, Any]]:
+    """The closure cells the functions of the watched modules hold, by name, and the object a module-level bound method
+    is bound to: ``_push, read = _make()`` keeps its list in a cell no module name reaches, and ``record = [].append``
+    keeps it on the method. A function held in a cell is followed into its own cells."""
+    waiting = [(f"{getattr(place, '__name__', '')}.{name}", value) for place in _places_around(path, made)
+               if inspect.ismodule(place) for name, value in list(vars(place).items())
+               if (inspect.isfunction(value) and value.__module__ == place.__name__)
+               or isinstance(value, types.BuiltinMethodType) and not inspect.ismodule(getattr(value, "__self__", None))]
+    out: list[tuple[str, Any]] = []
+    seen: set[int] = set()
+    while waiting:
+        label, function = waiting.pop()
+        if id(function) in seen:
+            continue
+        seen.add(id(function))
+        if isinstance(function, types.BuiltinMethodType):
+            out.append((f"{label}.__self__", function))
+            continue
+        for name, cell in zip(function.__code__.co_freevars, function.__closure__ or ()):
+            try:
+                held = cell.cell_contents
+            except ValueError:  # a cell not yet filled
+                continue
+            if inspect.isfunction(held):
+                waiting.append((f"{label}.<{name}>", held))
+            elif not (inspect.isroutine(held) or inspect.isclass(held) or inspect.ismodule(held)):
+                out.append((f"{label}.<{name}>", cell))
+    return out
+
+
+def _in_cell(holder: Any) -> Any:
+    return holder.__self__ if isinstance(holder, types.BuiltinMethodType) else holder.cell_contents
+
+
 def _plain_names(place: Any) -> list[tuple[str, Any]]:
     """What a place holds that a call can change: everything but its functions, classes and modules and the names Python
     gives every module and class, so an object that can be called and holds state counts, and so does ``__ledger__``."""
@@ -239,8 +349,10 @@ def _plain_names(place: Any) -> list[tuple[str, Any]]:
 
 def _held_around(path: str, made: Any) -> str:
     """What the module, its classes and the object's class hold, so a call that changes them changes what it came to."""
-    return _shown({f"{getattr(place, '__qualname__', getattr(place, '__name__', ''))}.{name}": _shown(value)
-                   for place in _places_around(path, made) for name, value in _plain_names(place)})
+    held = {f"{getattr(place, '__qualname__', getattr(place, '__name__', ''))}.{name}": _shown(value)
+            for place in _places_around(path, made) for name, value in _plain_names(place)}
+    held.update({label: _shown(_in_cell(cell)) for label, cell in _cells_around(path, made)})
+    return _shown(held)
 
 
 def _kept_state(path: str) -> list[tuple[Any, str, Any]]:
@@ -252,15 +364,22 @@ def _kept_state(path: str) -> list[tuple[Any, str, Any]]:
                 kept.append((place, name, _DEEPCOPY(value)))
             except Exception:  # noqa: BLE001 - what cannot be copied is left as each call leaves it
                 continue
+    for _, cell in _cells_around(path, None):  # a cell, or the object a bound method holds, is put back in place
+        try:
+            kept.append((cell, None, _DEEPCOPY(_in_cell(cell))))
+        except Exception:  # noqa: BLE001
+            continue
     return kept
 
 
 def _restore(kept: list[tuple[Any, str, Any]]) -> None:
     for place, name, value in kept:
-        current = vars(place).get(name)
+        current = vars(place).get(name) if name is not None else _in_cell(place)
         fresh = _DEEPCOPY(value)
         try:
-            if type(current) is dict and type(fresh) is dict:
+            if name is None and not isinstance(place, types.BuiltinMethodType) and type(current) not in (dict, list, set):
+                place.cell_contents = fresh
+            elif type(current) is dict and type(fresh) is dict:
                 current.clear()
                 current.update(fresh)
             elif type(current) is list and type(fresh) is list:
@@ -268,7 +387,7 @@ def _restore(kept: list[tuple[Any, str, Any]]) -> None:
             elif type(current) is set and type(fresh) is set:
                 current.clear()
                 current.update(fresh)
-            else:
+            elif name is not None:
                 setattr(place, name, fresh)
         except Exception:  # noqa: BLE001 - a name that cannot be set back is left as it is
             continue
@@ -329,6 +448,9 @@ def main() -> int:
     # remove, and only while a call runs. The streams are caught at their file descriptors, so ``sys.stdout`` is the
     # object it always is and says nothing about this check.
     wrote: list[str] = []
+    #: Files a call may have written, named only when they are there after it: the sidecar files of a database, and a
+    #: database's name read both as a path and as a URI, since its connect event does not say which it was.
+    may_have_written: list[str] = []
     touched: list[str] = []
     watching_writes: list[bool] = [False]
 
@@ -338,12 +460,41 @@ def main() -> int:
         where = real(os.fsdecode(path))
         return relative(where, home) if where.startswith(home) else "a file outside the checkout"
 
+    def database(name: Any) -> None:
+        """A database a call opens is a file it writes, through C: as the path it names, and as the file a ``file:``
+        URI names (``file:records.db?mode=rwc``), each with the journal and write-ahead log beside it."""
+        if not isinstance(name, (str, bytes, os.PathLike)):
+            return
+        text = os.fsdecode(name)
+        if text in (":memory:", ""):
+            return
+        paths = [text]
+        if text.startswith("file:"):
+            where, _, query = text[len("file:"):].partition("?")
+            where = urllib.parse.unquote(where.split("#", 1)[0])
+            if where.startswith("//"):  # file://host/path: the path after the host
+                where = "/" + where[2:].partition("/")[2]
+            if "mode=memory" not in query and where not in ("", ":memory:", "/"):
+                paths.append(where)
+        for path in paths:
+            may_have_written.append(real(path))
+            may_have_written.extend(real(path) + side for side in ("-journal", "-wal"))
+
+    def authorized(action: int, first: Any, *_: Any) -> int:
+        if action == sqlite3.SQLITE_ATTACH and watching_writes[0]:
+            database(first)  # ATTACH DATABASE 'other.db': a second file the connection writes
+        return sqlite3.SQLITE_OK
+
     def audited(event: str, args: tuple[Any, ...]) -> None:
         if not watching_writes[0]:
             return
-        if event == "sqlite3.connect" and args and isinstance(args[0], (str, bytes, os.PathLike)) \
-                and os.fsdecode(args[0]) not in (":memory:", ""):
-            wrote.append(real(os.fsdecode(args[0])))  # a database is a file a call writes, through C
+        if event == "sqlite3.connect" and args:
+            database(args[0])
+        elif event == "sqlite3.connect/handle" and args:
+            try:
+                args[0].set_authorizer(authorized)
+            except Exception:  # noqa: BLE001 - a connection that takes no authorizer is watched by its file alone
+                pass
         elif event == "open" and len(args) >= 3 and isinstance(args[0], (str, bytes)):
             path, mode, flags = args[0], args[1], args[2]
             if (isinstance(mode, str) and any(letter in mode for letter in "wax+")) or (
@@ -355,7 +506,8 @@ def main() -> int:
 
     def what_it_wrote() -> list[str]:
         out = []
-        for where in sorted(set(wrote)):
+        maybe = {where for where in may_have_written if os.path.isfile(where)} - set(wrote)
+        for where in sorted({*wrote, *maybe}):
             try:
                 with open(where, "rb") as held:
                     digest = _SHA256(held.read(_READ_BACK)).hexdigest()[:16]
@@ -365,13 +517,16 @@ def main() -> int:
             out.append(f"{shown}: {digest}")
         return out
 
-    # Both streams go, for the whole run, to files with names in this run's own temporary folder, opened before any code
-    # under test is imported: a file descriptor that changes kind or inode during a call, or a file with no name, would
-    # tell the code it is being watched. Each call's share is what was added while it ran.
-    folder = os.environ.get("TMPDIR") or home
+    questions = _LOADS(sys.stdin)
+    # Both streams go, for the whole run, to named files in a folder the parent made for them and named to no one else,
+    # opened before any code under test is imported: a file descriptor that changes kind or inode during a call, or a
+    # file with no name, would tell the code it is watched, and so would a file in its own temporary folder whose
+    # name it could guess (round nine of the red team compared fd 1's inode with $TMPDIR/out.log). Each call's share is
+    # what was added while it ran.
+    folder = questions.pop("streams", None) or os.environ.get("TMPDIR") or home
     held_streams = []
-    for number, name in ((1, "out.log"), (2, "err.log")):
-        where = os.path.join(folder, name)
+    for number in (1, 2):
+        where = os.path.join(folder, os.urandom(6).hex())
         descriptor = os.open(where, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         _DUP2(descriptor, number)
         _CLOSE(descriptor)
@@ -401,7 +556,6 @@ def main() -> int:
     sys.addaudithook(audited)
     sys.path.insert(0, os.getcwd())
     signal.signal(signal.SIGALRM, _too_long)
-    questions = _LOADS(sys.stdin)
     # Unrelated objects, held for the whole run when the check asks (verify_change.BALLAST): a value that moves with
     # them counts the process, and the check leaves it uncompared.
     ballast = [[] for _ in range(int(questions.pop("ballast", 0) or 0))]
@@ -438,7 +592,11 @@ def main() -> int:
     monitoring.register_callback(tool, monitoring.events.EXCEPTION_HANDLED, handled)
     monitoring.register_callback(tool, monitoring.events.LINE, lined)
     monitoring.register_callback(tool, monitoring.events.BRANCH, branched)
+    own_tools = _hide_the_tool(tool)
+    set_events, register_callback, get_tool = (own_tools["set_events"], own_tools["register_callback"],
+                                                own_tools["get_tool"])
     kept: dict[str, list[tuple[Any, str, Any]]] = {}
+    read_as: list[str] = ["plain"]
 
     def came_to(path: str, qualname: str, call: dict[str, Any]) -> str:
         arguments = {name: _rebuilt(_LITERAL(text)) for name, text in call["args"].items()}
@@ -459,24 +617,29 @@ def main() -> int:
         monitoring.restart_events()
         sizes = caught_streams()
         wrote.clear()
+        may_have_written.clear()
         touched.clear()
         watching_writes[0] = True
-        monitoring.set_events(tool, monitoring.events.EXCEPTION_HANDLED | monitoring.events.LINE
-                              | monitoring.events.BRANCH)
+        set_events(tool, monitoring.events.EXCEPTION_HANDLED | monitoring.events.LINE | monitoring.events.BRANCH)
         try:
-            outcome = _shown(_finished(target(*(arguments[name] for name in placed), *star, **named_here, **keywords)))
+            result = target(*(arguments[name] for name in placed), *star, **named_here, **keywords)
+            # How the value was read, for a test written of it later: awaited, or read out of an iterator, which a
+            # function returns without a yield of its own as often as with one (``return (x * 2 for x in items)``).
+            read_as[0] = "coroutine" if inspect.iscoroutine(result) else "async iterator" if inspect.isasyncgen(result) \
+                else "iterator" if isinstance(result, abc.Iterator) and not isinstance(result, io.IOBase) else "plain"
+            outcome = _shown(_finished(result))
         except TimeoutError:
             return "took too long"
         except BaseException as error:  # noqa: BLE001 - what it raised is what the call came to, an exit included
             outcome = _refusal(error, arguments, home)
         finally:
-            monitoring.set_events(tool, 0)
+            set_events(tool, 0)
             watching_writes[0] = False
             said, warned = released(sizes)
         outcome = outcome if not said else f"{outcome}; it printed {said[:200]!r}"
         outcome = outcome if not warned else f"{outcome}; it wrote to stderr {warned[:200]!r}"
         written = what_it_wrote()
-        outcome = outcome if not written else f"{outcome}; it wrote {written[:5]}"
+        outcome = outcome if not written else f"{outcome}; it wrote {written[:_FILES_SHOWN]}"
         outcome = outcome if not touched else f"{outcome}; it {', '.join(sorted(set(touched))[:5])}"
         after, held_after = _shown(arguments), _shown(_state_of(made)) if made is not None else ""
         outcome = outcome if after == before else f"{outcome}; its arguments became {after[:200]}"
@@ -492,6 +655,7 @@ def main() -> int:
         for call in calls:
             caught.clear()
             ran.clear()
+            read_as[0] = "plain"
             started = clock()
             alarm(_CALL_SECONDS)
             try:
@@ -500,18 +664,18 @@ def main() -> int:
                 outcome = "took too long" if isinstance(error, TimeoutError) else f"unavailable: {type(error).__name__}"
             finally:
                 alarm(0)
-            watching = [monitoring.register_callback(tool, event, None) for event in
+            watching = [register_callback(tool, event, None) for event in
                         (monitoring.events.EXCEPTION_HANDLED, monitoring.events.LINE, monitoring.events.BRANCH)]
             for event, callback in zip((monitoring.events.EXCEPTION_HANDLED, monitoring.events.LINE,
                                         monitoring.events.BRANCH), (handled, lined, branched)):
-                monitoring.register_callback(tool, event, callback)
+                register_callback(tool, event, callback)
             if any(globals().get(key) is not value for key, value in own.items()) or \
-                    watching != [handled, lined, branched] or monitoring.get_tool(tool) != "debugger":
-                pipe.write(_DUMPS([mark, "", "", "tampered", 0.0, [], []]) + "\n")
+                    watching != [handled, lined, branched] or get_tool(tool) != "debugger":
+                pipe.write(_DUMPS([mark, "", "", "tampered", 0.0, [], [], ""]) + "\n")
                 return 1
             pipe.write(_DUMPS([mark, name, _DUMPS(call, sort_keys=True), _short(outcome), clock() - started,
-                               sorted(set(caught)), sorted(ran)]) + "\n")
-    pipe.write(_DUMPS([mark, "", "", "done", 0.0, [], []]) + "\n")
+                               sorted(set(caught)), sorted(ran), read_as[0]]) + "\n")
+    pipe.write(_DUMPS([mark, "", "", "done", 0.0, [], [], ""]) + "\n")
     del ballast
     return 0
 

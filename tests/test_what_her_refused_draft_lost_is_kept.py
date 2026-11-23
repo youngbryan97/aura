@@ -67,7 +67,7 @@ def _run(source: str, repo: Path) -> subprocess.CompletedProcess:
 
 def test_the_kept_inputs_pass_on_the_code_before_and_fail_on_the_draft_that_lost_them(shop):  # noqa: F811 - the fixture
     source = keeping_test_source([LOST_VALUE, LOST_REFUSAL], goal="Mend price for an unknown item")
-    assert "assert price(table={'tea': 3}, item='tea') == 3" in source
+    assert "assert _same(price(table={'tea': 3}, item='tea'), 3)" in source
     assert "KeyError" not in source, "the crash this goal mends is not kept as something to keep"
     assert _run(source, shop).returncode == 0, "the code before the draft gave these"
     (shop / "shop" / "prices.py").write_text(_PRICES.replace("return table[item]", "return None"))
@@ -109,7 +109,7 @@ def test_a_draft_the_outside_check_refused_is_set_aside_and_what_it_lost_is_comm
     again = asyncio.run(mending._her_draft_asked_again(record, workspace, fault=None))
     assert again is None, "searched again, not asked again"
     path = path_of_what_it_must_keep(record.slug)
-    assert (workspace / path).read_text().count("assert note_count() == 0") == 1
+    assert (workspace / path).read_text().count("assert _same(note_count(), 0)") == 1
     assert _git(workspace, "log", "--format=%s", "-1").startswith("What my change for this goal must keep")
     assert _git(workspace, "rev-parse", "HEAD^") == record.base, "her refused draft is set aside"
     kept = work.load(record.slug)

@@ -223,7 +223,7 @@ def test_a_mend_kept_after_probation_is_guarded_on_origin_by_what_it_gives_now(w
     guard = settled[0]["guard"]
     assert guard.get("commit") == _origin_main(origin), guard
     landed = _git("show", f"{guard['commit']}:{guard['path']}", cwd=source)
-    assert "assert count(rows=[1, 2, 3]) == 3" in landed
+    assert "assert _same(count(rows=[1, 2, 3]), 3)" in landed
     assert _git("log", "-1", "--format=%an", guard["commit"], cwd=source) == "Aura"
     assert goals.load(done["slug"]).offer["guard"] == guard
 

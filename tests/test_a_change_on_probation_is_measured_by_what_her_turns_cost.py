@@ -68,12 +68,16 @@ def test_nothing_is_said_of_another_running(tmp_path):
     assert turns.costlier_since(LANDED, path=path, running="another") == {"said": "", "beyond_doubt": False}
 
 
-def test_a_turn_that_did_not_call_her_model_says_nothing_of_her(tmp_path):
+def test_turns_that_did_not_call_her_model_are_compared_only_with_their_own_kind(tmp_path):
+    """Round nine of the red team: a change to a path that never calls her model showed in no comparison."""
     path = _rows(tmp_path / "t.jsonl", after_seconds=90, after_growth=10)
-    rows = [{**json.loads(line), "model": False} if "outside_model" in line else json.loads(line)
-            for line in path.read_text().splitlines()]
-    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
-    assert turns.costlier_since(LANDED, path=path, running="R")["said"] == ""
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    alone = [{**row, "model": False} if "outside_model" in row else row for row in rows]
+    path.write_text("".join(json.dumps(row) + "\n" for row in alone))
+    assert turns.costlier_since(LANDED, path=path, running="R")["said"].startswith("her turns that did not call her model")
+    mixed = [{**row, "model": False} if "outside_model" in row and row["at"] >= LANDED else row for row in rows]
+    path.write_text("".join(json.dumps(row) + "\n" for row in mixed))
+    assert turns.costlier_since(LANDED, path=path, running="R")["said"] == "", "a fast reply of her code is no slow turn"
 
 
 def test_her_finished_turns_are_kept_once_with_a_memory_reading(tmp_path):
@@ -101,7 +105,8 @@ def test_probation_keeps_a_cost_short_of_an_order_of_magnitude_on_her_record(mon
     monkeypatch.setattr(work, "change_on_probation", lambda: standing)
     monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: [])
     monkeypatch.setattr(work, "_tried_on_her_real_calls", lambda record: {"disposition": "not_observed"})
-    monkeypatch.setattr(turns, "costlier_since", lambda landed: {"said": "her turns spend 9.0 s", "beyond_doubt": False})
+    monkeypatch.setattr(turns, "costlier_since",
+                        lambda landed, **_: {"said": "her turns spend 9.0 s", "beyond_doubt": False})
     written: list = []
     monkeypatch.setattr(work, "_write_now", lambda record: written.append(dict(record.offer)))
     monkeypatch.setattr(work, "take_it_back", lambda slug, why: pytest.fail("not taken back short of beyond doubt"))
@@ -115,7 +120,7 @@ def test_probation_takes_back_a_change_that_made_her_costlier(monkeypatch):
     monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: [])
     monkeypatch.setattr(work, "_tried_on_her_real_calls", lambda record: {"disposition": "not_observed"})
     monkeypatch.setattr(turns, "costlier_since",
-                        lambda landed: {"said": "her turns spend 91 s outside her model", "beyond_doubt": True})
+                        lambda landed, **_: {"said": "her turns spend 91 s outside her model", "beyond_doubt": True})
     taken: list = []
     monkeypatch.setattr(work, "take_it_back", lambda slug, why: (taken.append(why), {"ok": True})[1])
     assert work.settle_probation() == [{"slug": "mend-x", "status": "taken back", "why": ""}]
@@ -126,3 +131,19 @@ def test_probation_takes_back_a_change_that_made_her_costlier(monkeypatch):
                                     "core/self_modification/what_her_change_must_keep.py"])
 def test_what_judges_her_changes_is_hers_to_leave_alone(module):
     assert work.governs_her(module)
+
+
+def test_probation_tells_the_turns_whether_the_outside_check_measured_it_slower(monkeypatch):
+    """Round nine of the red team: a change four and a half times slower survived probation for ever."""
+    gates = {"outside-check": {"verdict": "PROBATION", "doubts": ["it is slower: each call takes about 0.101 s"]}}
+    standing = SimpleNamespace(slug="mend-x", goal="Mend x",
+                               offer={"merged_at": LANDED, "on_probation": True, "gates": gates})
+    monkeypatch.setattr(work, "change_on_probation", lambda: standing)
+    monkeypatch.setattr(work, "verdicts_on", lambda _commit, _root: [])
+    monkeypatch.setattr(work, "_tried_on_her_real_calls", lambda record: {"disposition": "not_observed"})
+    asked: list = []
+    monkeypatch.setattr(turns, "costlier_since",
+                        lambda landed, **given: (asked.append(given), {"said": "her turns spend 9 s", "beyond_doubt": True})[1])
+    monkeypatch.setattr(work, "take_it_back", lambda slug, why: {"ok": True})
+    assert work.settle_probation()[0]["status"] == "taken back"
+    assert asked == [{"measured_slower": True}]

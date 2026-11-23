@@ -40,6 +40,82 @@ _pipe = os.fdopen(CONFIG["pipe"], "w", encoding="utf-8", buffering=1) if CONFIG 
 _mark = CONFIG.get("mark", "")
 
 
+def _hide_the_tool(tool: int) -> dict[str, Any]:
+    """Make monitoring tool ``tool`` look free to the code under test, and give back Python's own functions for the
+    watch to use. A watch whose name ``sys.monitoring.get_tool`` gives, or whose slot cannot be claimed, tells code it is
+    watched, and her running has neither (round nine of the red team read ``get_tool(0) == "debugger"``). Code that
+    claims the slot is given one of its own, kept here, which no event reaches. outside_bar/verify_change.py copies
+    this function into the start-up module of each test run, and value_witness.py holds the same, so all three hide
+    their tools alike."""
+    import sys as interpreter
+
+    monitoring = interpreter.monitoring
+    real = {name: getattr(monitoring, name) for name in (
+        "get_tool", "use_tool_id", "free_tool_id", "register_callback", "set_events", "get_events", "set_local_events",
+        "get_local_events")}
+    theirs: dict[str, Any] = {"name": None, "events": 0, "callbacks": {}, "local": {}}
+
+    def claimed(tool_id: int) -> None:
+        if theirs["name"] is None:
+            raise ValueError(f"tool {tool_id} is not in use")
+
+    def get_tool(tool_id: int) -> Any:
+        return theirs["name"] if tool_id == tool else real["get_tool"](tool_id)
+
+    def use_tool_id(tool_id: int, name: str) -> None:
+        if tool_id != tool:
+            return real["use_tool_id"](tool_id, name)
+        if theirs["name"] is not None:
+            raise ValueError(f"tool {tool_id} is already in use")
+        theirs["name"] = name
+        return None
+
+    def free_tool_id(tool_id: int) -> None:
+        if tool_id != tool:
+            return real["free_tool_id"](tool_id)
+        theirs.update(name=None, events=0, callbacks={}, local={})
+        return None
+
+    def register_callback(tool_id: int, event: int, func: Any) -> Any:
+        if tool_id != tool:
+            return real["register_callback"](tool_id, event, func)
+        before = theirs["callbacks"].pop(event, None)
+        if func is not None:
+            theirs["callbacks"][event] = func
+        return before
+
+    def set_events(tool_id: int, event_set: int) -> None:
+        if tool_id != tool:
+            return real["set_events"](tool_id, event_set)
+        claimed(tool_id)
+        theirs["events"] = event_set
+        return None
+
+    def get_events(tool_id: int) -> int:
+        return theirs["events"] if tool_id == tool else real["get_events"](tool_id)
+
+    def set_local_events(tool_id: int, code: Any, event_set: int) -> None:
+        if tool_id != tool:
+            return real["set_local_events"](tool_id, code, event_set)
+        claimed(tool_id)
+        theirs["local"][code] = event_set
+        return None
+
+    def get_local_events(tool_id: int, code: Any) -> int:
+        return theirs["local"].get(code, 0) if tool_id == tool else real["get_local_events"](tool_id, code)
+
+    for name, function in (("get_tool", get_tool), ("use_tool_id", use_tool_id), ("free_tool_id", free_tool_id),
+                           ("register_callback", register_callback), ("set_events", set_events),
+                           ("get_events", get_events), ("set_local_events", set_local_events),
+                           ("get_local_events", get_local_events)):
+        setattr(monitoring, name, function)
+    return real
+
+
+#: Python's own monitoring functions, once this run's tool is hidden from the code under test.
+_REAL: dict[str, Any] = {}
+
+
 def _emit(*event: Any) -> None:
     try:
         _pipe.write(_DUMPS([_mark, *event]) + "\n")
@@ -258,6 +334,7 @@ def pytest_sessionstart(session: Any) -> None:
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_UNWIND, _unwound)
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_YIELD, _yielded)
     sys.monitoring.set_events(_TOOL, _EVENTS.PY_START | _EVENTS.PY_RETURN | _EVENTS.PY_UNWIND | _EVENTS.PY_YIELD)
+    _REAL.update(_hide_the_tool(_TOOL))
     sys.modules.pop(__name__, None)
     _emit("process", _PROCESS())
 
@@ -276,12 +353,14 @@ _WATCHERS = ((_EVENTS.PY_START, _started), (_EVENTS.PY_RETURN, _returned), (_EVE
 def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
     """Say whether the watch was still whole at the end, then that the run ended. A watch the code under test replaced
     or switched off watched nothing, and the parent refuses a change whose run says so."""
-    whole = sys.monitoring.get_tool(_TOOL) == "outside_bar_value_witness" and sys.monitoring.get_events(_TOOL) != 0
+    real = _REAL or {name: getattr(sys.monitoring, name) for name in (
+        "get_tool", "get_events", "register_callback", "set_events", "free_tool_id")}
+    whole = real["get_tool"](_TOOL) == "outside_bar_value_witness" and real["get_events"](_TOOL) != 0
     try:
         for event, watcher in _WATCHERS:
-            whole = sys.monitoring.register_callback(_TOOL, event, None) is watcher and whole
-        sys.monitoring.set_events(_TOOL, 0)
-        sys.monitoring.free_tool_id(_TOOL)
+            whole = real["register_callback"](_TOOL, event, None) is watcher and whole
+        real["set_events"](_TOOL, 0)
+        real["free_tool_id"](_TOOL)
     except ValueError:
         whole = False
     _emit("whole", whole)
