@@ -376,6 +376,23 @@ def _as_a_result(standing: float, spread: float) -> float:
     return 1.0 / (1.0 + math.exp(-standing / spread))
 
 
+def _match_scored(match: dict, weights: Weights, family: Family) -> tuple[np.ndarray, bool]:
+    """A candidate's points in each game of its match, and whether they are how the games really ended. A candidate
+    is kept on how its games ended wherever her model knows how a game ends: a game that stopped unfinished is no win
+    for either side. Read from material where it stopped, a match rewards steering toward what her present worths
+    like, not winning (suggestions of 23 November 2026). Only where she knows no way a game ends is material the one
+    sign there is, and it stays."""
+    results = np.array(match["results"], dtype=np.float64)
+    ends_known = any(kind.royal or kind.wins_arriving for kind in family.kinds.values())
+    standing, spread = _standing_where_it_stopped(match, weights, family)
+    if not ends_known and spread > 0 and len(standing) == len(results):
+        for game, points in enumerate(results):
+            if points == 0.5:
+                # The candidate played first in the even games.
+                results[game] = _as_a_result(standing[game] if game % 2 == 0 else -standing[game], spread)
+    return results, ends_known
+
+
 def calibrated_scale(scores: list[float], results: list[float]) -> float:
     """The score that reads as about three chances in four to win: the scale on which her search's scores best foretell
     how her games ended. Her own scores, read against her own results; nothing is assumed of what a score means."""
@@ -561,13 +578,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         pace = 1.0
         match = engine.self_play(description, begin, theirs, mine, games, nodes, random_plies=RANDOM_PLIES,
                                  seed=seed + 7919)
-    results = np.array(match["results"], dtype=np.float64)
-    standing, spread = _standing_where_it_stopped(match, rehearsal.weights, family)
-    if spread > 0 and len(standing) == len(results):
-        for game, points in enumerate(results):
-            if points == 0.5:
-                # The candidate played first in the even games.
-                results[game] = _as_a_result(standing[game] if game % 2 == 0 else -standing[game], spread)
+    results, ends_known = _match_scored(match, rehearsal.weights, family)
     mean = float(results.mean()) if len(results) else 0.5
     error = float(results.std(ddof=1) / math.sqrt(len(results))) if len(results) > 1 else 1.0
     tries = 1
@@ -581,7 +592,8 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         tries = rehearsal.tries[counted] = rehearsal.tries.get(counted, 0) + 1
     kept = mean - 0.5 > how_far_above_even(tries) * max(error, 1e-9)
     rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "scored": round(mean, 3),
-                      "error": round(error, 3), "kept": kept, "pace": round(pace, 3)}
+                      "error": round(error, 3), "kept": kept, "pace": round(pace, 3),
+                      "scored_on": "how the games ended" if ends_known else "material where the games stopped"}
     if kept:
         rehearsal.weights = candidate
         rehearsal.royal = royal_kinds(family)
