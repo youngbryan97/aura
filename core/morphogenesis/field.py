@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import copy
 import time
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Iterable, List, Mapping, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, Mapping
 
 from core.runtime.lockdep import checked_lock
 
-from .types import MorphogenSignal, SignalKind, clamp01, json_safe
+from .types import MorphogenSignal, SignalKind, clamp01
 
 _FIELD_NAMES = (
     "danger",
@@ -129,9 +128,12 @@ class MorphogenField:
         #
         # LIVE, 2026-09-08: 'morphogenesis.field' held 104ms and 67ms on the
         # event loop in one boot, and the two sites reported were `sample` and
-        # `perturb` — both cheap, both waiting on this.
+        # `perturb` — both cheap, both waiting on this. The hold came from the
+        # snapshot below: a deep copy of every node's values while holding the
+        # lock. Values are plain floats, so a shallow dict copy is an exact
+        # snapshot and costs one allocation per node instead of a recursive walk.
         with self._lock:
-            current = {name: copy.deepcopy(node.values) for name, node in self._nodes.items()}
+            current = {name: dict(node.values) for name, node in self._nodes.items()}
             edges = {src: dict(neighbours) for src, neighbours in self._edges.items()}
             known = set(self._nodes)
 
