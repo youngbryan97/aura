@@ -246,7 +246,12 @@ def _unwound(code: Any, _offset: int, error: BaseException) -> None:
         _came_to(_open.pop(id(sys._getframe(1)), None), f"raised {type(error).__name__}")
 
 
+#: Unrelated objects this run holds when asked to (verify_change.BALLAST), so a value that counts the process differs.
+_BALLAST: list[Any] = []
+
+
 def pytest_sessionstart(session: Any) -> None:
+    _BALLAST.extend([] for _ in range(int(CONFIG.get("ballast") or 0)))
     sys.monitoring.use_tool_id(_TOOL, "outside_bar_value_witness")
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_START, _started)
     sys.monitoring.register_callback(_TOOL, _EVENTS.PY_RETURN, _returned)

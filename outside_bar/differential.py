@@ -383,6 +383,9 @@ def main() -> int:
     sys.path.insert(0, os.getcwd())
     signal.signal(signal.SIGALRM, _too_long)
     questions = _LOADS(sys.stdin)
+    # Unrelated objects, held for the whole run when the check asks (verify_change.BALLAST): a value that moves with
+    # them counts the process, and the check leaves it uncompared.
+    ballast = [[] for _ in range(int(questions.pop("ballast", 0) or 0))]
     pipe = os.fdopen(questions.pop("pipe"), "w", encoding="utf-8", buffering=1)
     mark = questions.pop("mark")
     caught: list[str] = []
@@ -473,6 +476,7 @@ def main() -> int:
             pipe.write(_DUMPS([mark, name, _DUMPS(call, sort_keys=True), _short(outcome), clock() - started,
                                sorted(set(caught)), sorted(ran)]) + "\n")
     pipe.write(_DUMPS([mark, "", "", "done", 0.0, [], []]) + "\n")
+    del ballast
     return 0
 
 

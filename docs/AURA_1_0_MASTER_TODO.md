@@ -8225,6 +8225,12 @@ needs her 27B free (her app down, or her app's own influence trials).
   output streams and written bytes are compared, a pinned new answer speaks only for inputs on its own lines, and the
   tests her repair search keeps now place every argument and never keep a crash. See
   `docs/evidence/F16_RED_TEAM_ROUND_7_2026-11-22.md`. Two more rounds follow.
+  22 November, her own goals read for an outside review: of 66, only 4 drafts reached the outside check (1 held and
+  merged, 3 refused), and 5 of 12 stalls came first, when the test she wrote did not raise what she raised. One refusal
+  was the verifier's: freeze_what_boot_made() counts every object in her process, so any change moved it. The second
+  run of the code before now holds unrelated objects, and a value that moves with them is not compared; that draft now
+  lands on probation. Her coding skill mends a draft that fails its supplied examples before giving it back. See
+  `docs/evidence/F16_WHAT_HER_GOALS_SHOW_2026-11-22.md`. Next, from it: why her tests do not make her faults again.
   To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record

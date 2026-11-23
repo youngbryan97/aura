@@ -93,12 +93,27 @@ class CodingSkill(BaseSkill):
                 if not code.strip():
                     return {"ok": False, "error": "the response did not contain Python code"}
                 examples = params.get("checks")
-                verification = await check_python(code, None if examples is None else [FunctionExample.model_validate(e) for e in examples])
+                pinned = None if examples is None else [FunctionExample.model_validate(e) for e in examples]
+                verification = await check_python(code, pinned)
+                repaired: list[dict[str, Any]] = []
+                if pinned and not verification.get("verified"):
+                    # A draft that misses examples someone else supplied is mended against them, the way an outside
+                    # repair is (core/self_modification/repairing_python.py), before it is given back as a failure.
+                    from core.self_modification.repairing_python import repaired_source
+
+                    mended, checked, repaired = await repaired_source(code, pinned)
+                    if checked.get("verified"):
+                        code, verification = mended, checked
                 verification["oracle"] = "supplied independent examples" if examples is not None else "draft self-examples"
                 verification["independent"] = examples is not None
                 if not verification.get("syntax") or (verification.get("cases") and not verification.get("verified")):
-                    return {"ok": False, "code": code, "verification": verification,
+                    return {"ok": False, "code": code, "verification": verification, "repaired": repaired,
                             "error": verification.get("error") or "the draft did not pass its executable examples"}
+                if repaired:
+                    return {"ok": True, "code": code, "thought_process": thought, "verification": verification,
+                            "repaired": repaired,
+                            "note": f"Generated through foreground coding reasoning, then mended by {len(repaired)} "
+                                    "edit(s) until it passed the examples it was given"}
 
             return {
                 "ok": True,

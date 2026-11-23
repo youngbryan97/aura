@@ -343,9 +343,10 @@ def _read_all(descriptor: int, into: list[str]) -> threading.Thread:
 
 def run_tests(checkout: Path, tests: Sequence[str], work: Path,
               functions: Mapping[str, Sequence[str]] | None = None,
-              lines: Mapping[str, Sequence[int]] | None = None) -> dict[str, Any]:
+              lines: Mapping[str, Sequence[int]] | None = None, ballast: int = 0) -> dict[str, Any]:
     """Each test's verdict and what the changed functions did, from a pytest run inside the boundary. ``lines`` names,
-    for each file, the lines whose running is written down; ``lines_ran`` gives back those that ran."""
+    for each file, the lines whose running is written down; ``lines_ran`` gives back those that ran. ``ballast`` is how
+    many unrelated objects the run holds (BALLAST)."""
     empty: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": [], "ran": [], "finished": True,
                              "whole": True, "ran_here": [], "lines_ran": []}
     if not tests:
@@ -357,7 +358,7 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
     watched = {os.path.realpath(checkout / name): list(names) for name, names in (functions or {}).items()}
     watched_lines = {os.path.realpath(checkout / name): sorted(numbers) for name, numbers in (lines or {}).items() if numbers}
     read_end, write_end = os.pipe()
-    config = json.dumps({"functions": watched, "pipe": write_end, "mark": token})
+    config = json.dumps({"functions": watched, "pipe": write_end, "mark": token, "ballast": ballast})
     plugin = (HERE / "value_witness.py").read_text(encoding="utf-8").replace(
         "CONFIG: dict[str, Any] = {}", f"CONFIG: dict[str, Any] = json.loads({config!r})")
     (private / f"run_{token}.py").write_text(plugin, encoding="utf-8")
@@ -417,7 +418,14 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
             "whole": whole, "lines_ran": sorted(names & lines_known)}
 
 
-def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path) -> dict[str, Any]:
+#: Objects the second run of the code before holds that the first does not, and nothing the code reads. A value that moves
+#: with them measures the process (a count of every object, a size, an address), not what the function does, and is not
+#: compared. LIVE 21 November 2026 her change to core/runtime/collector_pauses.py was refused because
+#: freeze_what_boot_made() counted 16,172 objects where the code before counted 16,069: any change to any file moves it.
+BALLAST = 4096
+
+
+def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path, ballast: int = 0) -> dict[str, Any]:
     """What each input came to in ``checkout``, how long it took, which exceptions the code caught on the way, and whether
     the run said it ended, from a process that cannot reach this one's files."""
     token = secrets.token_hex(8)
@@ -433,7 +441,8 @@ def _differential(checkout: Path, inputs: Mapping[str, Any], work: Path) -> dict
                                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.close(write_end)
     try:
-        process.communicate(json.dumps({"inputs": inputs, "pipe": write_end, "mark": token}), timeout=TEST_SECONDS)
+        process.communicate(json.dumps({"inputs": inputs, "pipe": write_end, "mark": token, "ballast": ballast}),
+                            timeout=TEST_SECONDS)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
@@ -1742,7 +1751,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         # Where its tests are is read from the code before it: a commit that moved them would choose its own judges.
         guards = sorted({*tests_naming(new, [*files, *readers, *source_of], functions, declared_test_roots(old)), *edited})
         present = [name for name in guards if (new / name).is_file()]
-        first, second = run_tests(old, guards, work, functions), run_tests(old, guards, work, functions)
+        first, second = run_tests(old, guards, work, functions), run_tests(old, guards, work, functions, ballast=BALLAST)
         written_lines = {name: sorted(lines_it_wrote_that_run(repo, commit, name)) for name in functions
                          if name not in readers and name not in source_of}
         third = run_tests(new, present, work, functions, written_lines)
@@ -1802,7 +1811,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                 for name, calls in seeds.items()}
         near_the_pinned = {name: {_key(item) for call in calls for item in _near_one(call, constants.get(name.split("::")[0], ()))}
                            for name, calls in pinned.items()}
-        runs = [_differential(old, near, work), _differential(old, near, work), _differential(new, near, work)]
+        runs = [_differential(old, near, work), _differential(old, near, work, BALLAST), _differential(new, near, work)]
         (old_near, again_near, new_near), (old_times, again_times, new_times) = \
             [run["outcomes"] for run in runs], [run["seconds"] for run in runs]
         sources = [name for name in functions if _in_tree(repo, f"{commit}^", name)]
