@@ -211,7 +211,11 @@ class HowThePiecesMove:
             self._what_the_offer_keeps_safe(position, square, squares, family)
             self._what_the_offer_says_of_taking_first(position, square, squares, family)
         # A square offered with a piece on the way to it was leapt to: over exactly one piece of the other side onto an
-        # empty square, it is a take over, unless the same distance is offered with nothing in the way.
+        # empty square, it is a take over, unless the same distance is offered with nothing in the way. Any other is a
+        # leap that far, and the game offering it is evidence the kind goes there, as much as a square with nothing on
+        # the way: the walk along each line above stops at the first piece and never reaches it. LIVE-like 22 November
+        # 2026 a kind that leaps two squares over its own pieces was offered its leap again and again, learned nothing
+        # from it, and went on being searched as a kind that goes every way, until the game refused its moves.
         for there in squares:
             direction, times = in_its_frame(side, square, there)
             between = [_square_along(side, square, direction, t) for t in range(1, times)]
@@ -219,7 +223,13 @@ class HowThePiecesMove:
             if len(standing) == 1 and position.cells[standing[0]][0] != side and there not in position.cells:
                 self._of(kind, direction).over.add(times)
             elif standing:
-                self._of(kind, direction).jumped += 1
+                way = self._of(kind, direction)
+                way.jumped += 1
+                (way.offered_unmoved if unmoved else way.offered).add(times)
+                if there in position.cells and position.cells[there][0] != side:
+                    way.took += 1
+                elif there not in position.cells:
+                    way.moved_to_empty += 1
 
     def _what_the_offer_says_of_taking_first(self, position: Position, square: Square, squares: set[Square],
                                              family: Family) -> None:
@@ -413,6 +423,10 @@ class HowThePiecesMove:
         if furthest >= 2 and not way.jumped:
             return 0
         return furthest
+
+    def knows_how_it_goes(self, kind: str) -> bool:
+        """Whether she has seen this kind go anywhere: whether its steps are her own reading, not a guess."""
+        return bool(self._steps_of(kind))
 
     def counterparts(self) -> dict[str, tuple[str, bool]]:
         """Kinds of the two sides that began on each other's squares, the board turned round or seen in a mirror, each

@@ -8,21 +8,28 @@ from __future__ import annotations
 import asyncio
 
 import core.agency.playing_pieces_by_kind as playing
-from core.agency.pieces_by_their_kind import FIRST, SECOND, Position
+from core.agency.how_the_pieces_move import HowThePiecesMove
+from core.agency.pieces_by_their_kind import FIRST, SECOND, Position, moves
 from tests.fixtures.a_board_application import BoardApplication
 from tests.fixtures.a_game_of_pieces_to_learn import NOBODYS_GAME
 
 
 class _ABoardThatChangesUnseen(BoardApplication):
-    """After her second move, one of her pieces is shown as the other side's: no move makes that."""
+    """After her second move, one of her pieces is shown as the other side's: no move makes that. The piece is the one
+    whose turning leaves her the most moves, so the game goes on whatever she opened with: her first piece in order
+    of squares, turned, once left her with none, and the game was over."""
 
     def make(self, move) -> None:
         super().make(move)
         if len(self.made) == 4 and self.position.turn == FIRST:
-            square = next(sq for sq, (side, _k) in sorted(self.position.cells.items()) if side == FIRST)
-            cells = dict(self.position.cells)
-            cells[square] = (SECOND, cells[square][1])
-            self.position = Position(cells=cells, turn=FIRST, unmoved=self.position.unmoved - {square})
+            def turned(square):
+                cells = dict(self.position.cells)
+                cells[square] = (SECOND, cells[square][1])
+                return Position(cells=cells, turn=FIRST, unmoved=self.position.unmoved - {square})
+
+            mine = [sq for sq, (side, kind) in sorted(self.position.cells.items())
+                    if side == FIRST and not self.family.kinds[kind].royal]
+            self.position = max((turned(sq) for sq in mine), key=lambda p: len(moves(self.family, p)))
 
 
 def test_she_goes_by_the_board_as_it_stands_and_plays_on(monkeypatch) -> None:
@@ -33,6 +40,16 @@ def test_she_goes_by_the_board_as_it_stands_and_plays_on(monkeypatch) -> None:
     monkeypatch.setattr(playing._Rehearsing, "start", lambda self, pool, family: None)
     app = _ABoardThatChangesUnseen(NOBODYS_GAME, seed=5)
     said: list[str] = []
+    # Each move she takes the game to have refused, and whether the game had it then.
+    refused: list[tuple] = []
+    learning = HowThePiecesMove.refused
+
+    def noted(self, position, move, family=None):
+        refused.append((move, any((m.start, m.end) == (move.start, move.end)
+                                  for m in moves(app.family, app.position))))
+        return learning(self, position, move, family)
+
+    monkeypatch.setattr(HowThePiecesMove, "refused", noted)
 
     async def run() -> dict:
         seat = playing.a_board_of_two_sides_at_its_start(app.draw())
@@ -51,8 +68,9 @@ def test_she_goes_by_the_board_as_it_stands_and_plays_on(monkeypatch) -> None:
     assert "I've lost the thread of the moves, so I'll go by the board as it stands." in said
     assert came["moves"] >= 4, f"she did not play on after reading the board again: {said[-4:]}"
     # Her move was made though the board showed more than she could read: no rule is learned from a refusal that
-    # never happened.
-    assert not any("didn't take that move" in line for line in said), [line for line in said if "didn't" in line]
+    # never happened. A move the game does not have, refused, is learned from as it should be: her king attacked by a
+    # kind whose moves she has not all seen yet is no reason the game would take a move that leaves it so.
+    assert not [move for move, the_game_had_it in refused if the_game_had_it], refused
     # A kind she has not seen move is still said in English when it is someone's.
     assert not any(" my a " in line or " their a " in line for line in said)
 

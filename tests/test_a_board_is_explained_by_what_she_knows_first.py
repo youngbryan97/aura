@@ -136,3 +136,22 @@ def test_a_long_crossing_is_read_with_the_royal_kind_as_the_one_that_moved() -> 
     before, cells = _castled("r3k2r/8/8/8/8/8/8/R3K2R w KQkq -", ((0, 4), (0, 6)), ((0, 7), (0, 5)))
     assert moves_seen(before, cells, FIRST, CHESS) == [Move((0, 4), (0, 6), partner=((0, 7), (0, 5)))]
     assert a_move_seen(before, cells, FIRST, royal=frozenset({"K"})) == Move((0, 4), (0, 6), partner=((0, 7), (0, 5)))
+
+
+def test_a_leap_offered_over_a_piece_teaches_the_leap() -> None:
+    # A kind that leaps two squares on the slant over whatever stands between, offered its leap over a piece of its own:
+    # the walk along each line stops at that piece, and before 22 November 2026 the offer taught nothing.
+    learned = HowThePiecesMove.from_the_start(8, 8, {(0, 1): (FIRST, "A"), (1, 2): (FIRST, "B"), (7, 7): (SECOND, "A")})
+    position = _board({(0, 1): (FIRST, "A"), (1, 2): (FIRST, "B"), (7, 7): (SECOND, "A")})
+    learned.offered(position, (0, 1), {(2, 3)})
+    assert learned.knows_how_it_goes("A")
+    assert any(step.offsets[0] == (2, 2) and step.rides == 1 for step in learned.family().kinds["A"].steps)
+
+
+def test_she_looks_before_moving_a_kind_she_has_never_seen_go() -> None:
+    learned = HowThePiecesMove.from_the_start(8, 8, DRAUGHTS.start)
+    game = playing._Game(learned=learned, believed=DRAUGHTS.the_start())
+    # Her rules have earned going many moves without a look, which says nothing of a kind never seen to go.
+    game.far.how_many = lambda trusted=0.0: 1_000
+    assert not playing._looks_first(game)
+    assert playing._looks_first(game, unseen=True)

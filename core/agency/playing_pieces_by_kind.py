@@ -750,7 +750,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # 2026, game 10: the look took 47 s of a 232 s game, where her thinking had 60.
             if found.move.start not in offered:
                 pressed = any(k.royal for k in family.kinds.values()) and in_check(family, game.believed, FIRST)
-                if not _looks_first(game, pressed=pressed):
+                unseen = not game.learned.knows_how_it_goes(game.believed.cells[found.move.start][1])
+                if not _looks_first(game, pressed=pressed, unseen=unseen):
                     break
                 squares = await _offers_for(seat, look, click, picture, found.move.start)
                 if squares is not None:
@@ -876,12 +877,13 @@ def _room_to_learn(game: _Game, spent: float, share: float, probes: int) -> bool
     return spent + game.probe_s <= share / 2
 
 
-def _looks_first(game: _Game, *, pressed: bool = False) -> bool:
+def _looks_first(game: _Game, *, pressed: bool = False, unseen: bool = False) -> bool:
     """Whether she picks the piece up to see what the game offers before she moves it: on every move until her rules
     have earned going without (core/cognition/how_far_to_go_before_looking.py), and then on every move they have not.
     Always while her piece that must be kept safe is attacked (``pressed``): that is where a game narrows what it
-    offers most, and where her rules have seen it least."""
-    if not pressed and game.unlooked + 1 < game.far.how_many(trusted=game.far.how_often_it_held):
+    offers most, and where her rules have seen it least. Always for a kind she has never seen go (``unseen``): what
+    she searched it with is a guess that it goes every way, and what her rules earned elsewhere says nothing of it."""
+    if not pressed and not unseen and game.unlooked + 1 < game.far.how_many(trusted=game.far.how_often_it_held):
         game.unlooked += 1
         return False
     game.unlooked = 0
