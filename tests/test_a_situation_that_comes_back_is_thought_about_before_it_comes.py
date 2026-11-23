@@ -137,8 +137,9 @@ def test_a_situation_worked_out_is_not_looked_at_again_for_longer() -> None:
         return _a_quick_look([])(family, position, seconds=seconds)
 
     prepared = Prepared()
-    done = prepared.prepare(CHESS, start, weights, positions=3, plies=2, search=search)
-    assert done == 1 and looks == [(_a_place(start), 30.0)]
+    prepared.prepare(CHESS, start, weights, positions=3, plies=2, search=search)
+    assert [look for look in looks if look[0] == _a_place(start)] == [(_a_place(start), 30.0)]
+    assert {seconds for _place, seconds in looks} == {30.0}
 
 
 def test_a_move_a_lost_game_went_through_is_worked_out_again_without_it() -> None:
@@ -160,3 +161,47 @@ def test_a_move_a_lost_game_went_through_is_worked_out_again_without_it() -> Non
     prepared.prepare(CHESS, start, weights, went_wrong=lost, positions=1, plies=2, search=search)
     assert asked and first in asked[0]
     assert prepared.answer(_a_place(start), among(moves(CHESS, start)))["move"] != first
+
+
+def _an_honest_look(searched: list) -> object:
+    def search(family, position, *, seconds, weights=None, earlier=None, threads=1, set_aside=(), **_):
+        searched.append(_a_place(position))
+        legal = [m for m in sorted(moves(family, position), key=_named) if m not in set_aside]
+        mine = legal[0]
+        replies = sorted(moves(family, after(family, position, mine)), key=_named)
+        return Found(mine, 12, 9, 1000, [mine, replies[0]] if replies else [mine])
+    return search
+
+
+def test_with_every_likely_situation_worked_out_she_works_out_what_else_they_may_answer() -> None:
+    import json
+
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    searched: list = []
+    prepared = Prepared()
+    done = prepared.prepare(CHESS, start, weights, positions=4, plies=3, search=_an_honest_look(searched))
+    first = sorted(moves(CHESS, start), key=_named)[0]
+    there = after(CHESS, start, first)
+    replies = sorted(moves(CHESS, there), key=_named)
+    # Her first move and her move after the answer she expects; then, with nothing likelier left, what else they
+    # might answer where they have given nothing she has seen, and her move after that.
+    assert done == 4
+    assert searched == [_a_place(start), _a_place(after(CHESS, there, replies[0])), _a_place(there),
+                        _a_place(after(CHESS, there, replies[1]))]
+    again = Prepared.from_bytes(prepared.as_bytes())
+    assert again.answers == prepared.answers and again.otherwise == prepared.otherwise
+    # Kept before what else they may answer was kept: the answers alone, still read.
+    assert Prepared.from_bytes(json.dumps(prepared.answers).encode()).answers == prepared.answers
+
+
+def test_where_they_have_answered_she_does_not_look_for_what_else_they_may() -> None:
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    first = sorted(moves(CHESS, start), key=_named)[0]
+    there = after(CHESS, start, first)
+    replies = sorted(moves(CHESS, there), key=_named)
+    seen = WhatTheyAnsweredWhere()
+    seen.they_answered(_a_place(there), _named(replies[3]))
+    searched: list = []
+    Prepared().prepare(CHESS, start, weights, they_answered=seen, positions=4, plies=3,
+                       search=_an_honest_look(searched))
+    assert _a_place(there) not in searched

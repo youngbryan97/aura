@@ -23,6 +23,9 @@ prepared, and lost more: over 40 games on each of two seeds against Stockfish li
 game came from what she worked out and she scored 0.300 and 0.287, against 2.6 and 2.5 and 0.412 and 0.438 this way,
 and 0.225 and 0.250 without preparing. A move of hers that a game she lost went through is set aside where she
 prepares that situation again, as it is in her games (WhatFailedWhere), so the line she lost is replaced by another.
+Where everything her games are likely to reach is worked out, she looks for what else they might answer where she has
+seen them give nothing, and works out her answers to that: LIVE 23 November 2026, after a restart, her walk worked out
+her main line eighteen turns deep and then had nothing left, and her rounds went back to rehearsing.
 A situation worked out is not looked at again for longer: on 12 opening positions of her games of 22 and 23 November
 2026, Stockfish held to depth 18 put her moves at game pace at 211 hundredths of a piece, a 30 s look at 61, and
 looks of 60 and 120 s at 215 and 255. Games 26, 27 and 28 were decided by their fifth to tenth moves.
@@ -73,6 +76,9 @@ class Prepared:
     went, what it judged, and the choices it was worked out among."""
 
     answers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Where the other side has given no answer she has seen, the answer she found they might give besides the one
+    #: she expects, by situation of theirs.
+    otherwise: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def answer(self, place: str, choices: str) -> dict[str, Any] | None:
         """What she worked out for this situation among these choices (``among``), if she has."""
@@ -84,7 +90,9 @@ class Prepared:
         """Spends up to ``positions`` looks of ``seconds`` on the situations she expects to meet and has not worked
         out, walking from ``start`` through her own answers and the other side's, ``plies`` turns deep at most: each
         look goes to the one the largest share of her games reach, by the answers they have given on the way. A move
-        that lost there (``went_wrong``) is set aside. How many it worked out."""
+        that lost there (``went_wrong``) is set aside. Where every one of those is worked out, a look finds what else
+        they might answer where they have given no answer she has seen, and the walk goes on through that answer too.
+        How many it worked out."""
         from core.agency.pieces_by_their_kind import FIRST, after, moves
         from core.agency.playing_pieces_by_kind import _a_place, _named
 
@@ -92,10 +100,19 @@ class Prepared:
             from core.agency.searching_by_kind import search
         done = 0
         while done < positions:
+            theirs: list[tuple[Any, list[Any], int, str, float, Any]] = []
             mine = [item for item in self._walked(family, start, they_answered, went_wrong, plies,
                                                   FIRST, after, moves, _a_place, _named) if not item[4]]
             if not mine:
-                break
+                # Everything her games are likely to reach is worked out: the answers they might give besides.
+                mine = [item for item in self._walked(family, start, they_answered, went_wrong, plies, FIRST, after,
+                                                      moves, _a_place, _named, widened=theirs) if not item[4]]
+            if not mine:
+                if not theirs or self._otherwise_looked(search, family, max(theirs, key=lambda t: (t[4], -t[2])),
+                                                        weights, seconds, threads, moves, _named) is None:
+                    break
+                done += 1
+                continue
             # The likeliest first; among equals, the nearest the start.
             position, earlier, ply, place, _looked, _share = max(mine, key=lambda item: (item[5], -item[2]))
             lost_here = went_wrong.already_failed_at(place) if went_wrong is not None else frozenset()
@@ -105,21 +122,23 @@ class Prepared:
                             aside if len(aside) < len(legal) else [], place, ply, among(legal)) is None:
                 break
             done += 1
-        if len(self.answers) > KEPT_AT_MOST:
-            for key in sorted(self.answers, key=lambda k: self.answers[k].get("at", 0.0))[:len(self.answers)
-                                                                                         - KEPT_AT_MOST]:
-                del self.answers[key]
+        for kept in (self.answers, self.otherwise):
+            if len(kept) > KEPT_AT_MOST:
+                for key in sorted(kept, key=lambda k: kept[k].get("at", 0.0))[:len(kept) - KEPT_AT_MOST]:
+                    del kept[key]
         return done
 
     def _walked(self, family: Any, start: Any, they_answered: Any, went_wrong: Any,
-                plies: int, first: int, after: Any, moves: Any, _a_place: Any, _named: Any
-                ) -> list[tuple[Any, list[Any], int, str, float, float]]:
+                plies: int, first: int, after: Any, moves: Any, _a_place: Any, _named: Any,
+                widened: list[Any] | None = None) -> list[tuple[Any, list[Any], int, str, float, float]]:
         """Her situations on the way from ``start``: through her answers where she has them, the answers the other
         side has given (or the one she expects), each with how far from the start it is, how long she has looked at it
         among the choices it offers now (nought where she has not, or where her answer is a move that lost there),
         and the share of games that reach it, each answer of theirs weighed by how often they have given it, and an
         answer she only expects as one they give. The walk stops at a situation of hers she has not worked out: what
-        follows it depends on her answer."""
+        follows it depends on her answer. ``widened``, where given, has the walk go on through the answers she found
+        they might give besides the one she expects, and gathers the situations of theirs where she has not looked
+        for one: each with how far from the start it is, the share of games that reach it, and the answer expected."""
         found: list[tuple[Any, list[Any], int, str, float, float]] = []
         walk: list[tuple[Any, list[Any], int, Any, float]] = [(start, [], 0, None, 1.0)]
         seen: set[str] = set()
@@ -148,6 +167,12 @@ class Prepared:
             given = dict(getattr(they_answered, "answered", {}).get(_key(place), {})) if they_answered else {}
             total = sum(given.values())
             named = sorted(given, key=lambda m: -given[m])[:ANSWERS_FOLLOWED] or ([expected] if expected else [])
+            if widened is not None and not given:
+                other = self.otherwise.get(_key(place))
+                if other is not None and other.get("among") == among(legal):
+                    named = [*named, other["move"]][:ANSWERS_FOLLOWED]
+                else:
+                    widened.append((position, earlier, ply, place, share, expected))
             for name in named:
                 move = next((m for m in legal if _named(m) == name), None)
                 if move is not None:
@@ -175,8 +200,26 @@ class Prepared:
                     ply, time.monotonic() - began, _named(move), found.depth)
         return move, reply
 
+    def _otherwise_looked(self, search: Any, family: Any, theirs: tuple[Any, list[Any], int, str, float, Any],
+                          weights: Any, seconds: float, threads: int, moves: Any, _named: Any) -> Any:
+        """One look at a situation of theirs, for the answer they might give besides the one she expects: kept as
+        what else they may answer there."""
+        position, earlier, ply, place, _share, expected = theirs
+        legal = moves(family, position)
+        aside = [m for m in legal if expected is not None and _named(m) == expected]
+        began = time.monotonic()
+        found = search(family, position, seconds=seconds, weights=weights, earlier=earlier, threads=threads,
+                       **({"set_aside": aside} if aside and len(aside) < len(legal) else {}))
+        if found.move is None:
+            return None
+        self.otherwise[_key(place)] = {"move": _named(found.move), "among": among(legal), "at": time.time(),
+                                       "ply": int(ply)}
+        logger.info("worked out what else they may answer %d turn(s) from the start in %.0f s: %s (looked %d deep)",
+                    ply, time.monotonic() - began, _named(found.move), found.depth)
+        return found.move
+
     def as_bytes(self) -> bytes:
-        return json.dumps(self.answers, separators=(",", ":")).encode()
+        return json.dumps({"answers": self.answers, "otherwise": self.otherwise}, separators=(",", ":")).encode()
 
     @classmethod
     def from_bytes(cls, data: bytes | None) -> Prepared:
@@ -185,5 +228,10 @@ class Prepared:
         # not a failure: nothing kept, or nothing readable, is nothing prepared.
         except (TypeError, ValueError):
             return cls()
-        return cls(answers={str(k): dict(v) for k, v in held.items() if isinstance(v, dict)}
-                   if isinstance(held, dict) else {})
+        if not isinstance(held, dict):
+            return cls()
+        # Kept before what else they may answer was kept: the answers alone.
+        answers = held.get("answers") if isinstance(held.get("answers"), dict) else held
+        otherwise = held.get("otherwise") if isinstance(held.get("otherwise"), dict) else {}
+        return cls(answers={str(k): dict(v) for k, v in answers.items() if isinstance(v, dict)},
+                   otherwise={str(k): dict(v) for k, v in otherwise.items() if isinstance(v, dict)})
