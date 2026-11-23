@@ -18,6 +18,13 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 const EMPTY: u8 = 0;
+/// What lies beyond a search's horizon, counted per side from the rules alone: quantities that change little in a move
+/// and decide games long after, so no search's end sees what they come to. In order: how far each piece that only goes
+/// forward and becomes another kind has come with no such piece of the other side ahead of it to stop it (each counted
+/// as the square of the share of the way it has come); such pieces with no quiet move forward; pieces held by another of
+/// their side; squares in the other side's half that the side reaches and the other does not; and pieces of the side
+/// beside its royal one.
+const BEYOND: usize = 5;
 const OFF: u8 = 255;
 const NONE: u16 = u16::MAX;
 const MATE: i32 = 1_000_000;
@@ -90,6 +97,9 @@ struct WeightsD {
     /// A second judgement, learned from what her longer looks found positions worth: added to the first.
     #[serde(default)]
     learned: Option<LearnedD>,
+    /// Per quantity of what lies beyond the horizon, in BEYOND's order: its worth to the side that has more of it.
+    #[serde(default)]
+    beyond: Vec<f64>,
 }
 
 /// One hidden layer over which kind stands where, from the side to move: per kind, for the mover's pieces and the
@@ -143,6 +153,9 @@ struct Kind {
     takes_again: bool,
     /// It has a step that takes over.
     takes_over: bool,
+    /// Every way it goes is forward, and it becomes another kind: how far it has come, and what stands ahead of it,
+    /// matter long before it gets there.
+    runner: bool,
     worth: i32,
     mobility: i32,
     squares: [Vec<i32>; 2],
@@ -163,6 +176,8 @@ struct Game {
     takes_first: bool,
     tempo: i32,
     royal_pressed: i32,
+    /// What lies beyond the horizon is worth, per quantity, in BEYOND's order; all zero where it is not judged.
+    beyond: [f32; BEYOND],
     /// The most one quiet move moved her judgement at the position a search began from, the turn's own worth left
     /// aside: the unit the search's margins are counted in. Zero where no quiet move moved it, and then there are no
     /// margins. Measured at each search's start, because how far a move moves her judgement is a property of the
@@ -282,6 +297,8 @@ impl Game {
                 }
             }
             let takes_over = steps.iter().any(|s| s.may == 3);
+            let runner = !becomes.is_empty() && !k.steps.is_empty()
+                && k.steps.iter().all(|s| s.offsets.iter().all(|(fw, _rt)| *fw > 0));
             kinds.push(Kind {
                 letter: k.letter.clone(),
                 steps,
@@ -291,6 +308,7 @@ impl Game {
                 crosses_with,
                 takes_again: k.takes_again,
                 takes_over,
+                runner,
                 worth,
                 mobility,
                 squares,
@@ -349,6 +367,13 @@ impl Game {
             takes_first: f.takes_first,
             tempo: w.tempo.round() as i32,
             royal_pressed: w.royal_pressed.round() as i32,
+            beyond: {
+                let mut beyond = [0f32; BEYOND];
+                for (i, v) in w.beyond.iter().take(BEYOND).enumerate() {
+                    beyond[i] = *v as f32;
+                }
+                beyond
+            },
             margin: AtomicI32::new(0),
             learned,
             zob_piece,
@@ -1180,7 +1205,8 @@ impl<'a> Searcher<'a> {
         }
         let any_mobility = g.kinds.iter().any(|k| k.mobility != 0);
         let any_exposed = g.kinds.iter().any(|k| k.exposed != 0);
-        if any_mobility || any_exposed || g.royal_pressed != 0 {
+        let any_beyond = g.beyond.iter().any(|w| *w != 0.0);
+        if any_mobility || any_exposed || any_beyond || g.royal_pressed != 0 {
             // One walk of each side's reach answers mobility, pressure on a royal piece and what is left exposed: it
             // used to be a whole move generation per side and a ray scan for every square asked about.
             let b = &self.b;
@@ -1217,6 +1243,13 @@ impl<'a> Searcher<'a> {
                         if k.exposed != 0 && reach.attacks[1 - s][sq] > 0 && reach.attacks[s][sq] == 0 {
                             score[s] -= k.exposed;
                         }
+                    }
+                }
+                if any_beyond {
+                    let counted = beyond_the_horizon(g, b, &reach);
+                    for side in 0..2 {
+                        let worth: f32 = (0..BEYOND).map(|i| g.beyond[i] * counted[side][i]).sum();
+                        score[side] += worth.round() as i32;
                     }
                 }
             });
@@ -1666,7 +1699,7 @@ impl<'a> Searcher<'a> {
         let g = self.g;
         let k = g.kinds.len();
         let squares = (g.rows * g.cols) as usize;
-        let mut f = vec![0f32; 2 * k + 2 + k * squares + k];
+        let mut f = vec![0f32; 2 * k + 2 + k * squares + k + BEYOND];
         for &sq in &g.on_board {
             let c = self.b.cells[sq];
             if c == EMPTY {
@@ -1714,10 +1747,98 @@ impl<'a> Searcher<'a> {
                     f[exposed_at + kind_of(c)] += if s == 0 { -1.0 } else { 1.0 };
                 }
             }
+            // What lies beyond the horizon: the first side's less the second's.
+            let counted = beyond_the_horizon(g, b, &reach);
+            for i in 0..BEYOND {
+                f[exposed_at + k + i] = counted[0][i] - counted[1][i];
+            }
         });
         f[2 * k + 1] = if self.b.turn == 0 { 1.0 } else { -1.0 };
         f
     }
+}
+
+/// What lies beyond a search's horizon at ``b``, per side, in BEYOND's order, from the rules and the walk of each side's
+/// reach. Nothing here knows a game: a piece that only goes forward and becomes another kind is read from its steps.
+fn beyond_the_horizon(g: &Game, b: &Board, reach: &Reach) -> [[f32; BEYOND]; 2] {
+    let mut out = [[0f32; BEYOND]; 2];
+    let last = (g.rows - 1).max(1) as f32;
+    for &sq in &g.on_board {
+        let c = b.cells[sq];
+        if c == EMPTY {
+            continue;
+        }
+        let s = side_of(c);
+        let k = &g.kinds[kind_of(c)];
+        let (r, col) = g.rc(sq);
+        let own_row = if s == 0 { r } else { g.rows - 1 - r };
+        if k.runner {
+            // Ahead of it, on its own line and the lines beside: a piece of the other side that also only goes forward
+            // stands in its way or can come into it.
+            let mut opposed = false;
+            'ahead: for ahead in (own_row + 1)..g.rows {
+                let rr = if s == 0 { ahead } else { g.rows - 1 - ahead };
+                for cc in (col - 1)..=(col + 1) {
+                    if cc < 0 || cc >= g.cols {
+                        continue;
+                    }
+                    let o = b.cells[g.sq(rr, cc)];
+                    if o != EMPTY && o != OFF && side_of(o) != s && g.kinds[kind_of(o)].runner {
+                        opposed = true;
+                        break 'ahead;
+                    }
+                }
+            }
+            if !opposed {
+                let share = own_row as f32 / last;
+                out[s][0] += share * share;
+            }
+            let mut quiet_ways = 0;
+            let mut open = false;
+            for step in &k.steps {
+                if step.may == 2 || step.may == 3 || step.only_unmoved {
+                    continue;
+                }
+                for d in &step.units[s] {
+                    quiet_ways += 1;
+                    if b.cells[(sq as i32 + d) as usize] == EMPTY {
+                        open = true;
+                    }
+                }
+            }
+            if quiet_ways > 0 && !open {
+                out[s][1] += 1.0;
+            }
+        }
+        if !k.royal && reach.attacks[s][sq] > 0 {
+            out[s][2] += 1.0;
+        }
+    }
+    for &sq in &g.on_board {
+        let r = g.row(sq);
+        for s in 0..2 {
+            let own_row = if s == 0 { r } else { g.rows - 1 - r };
+            if 2 * own_row >= g.rows && reach.attacks[s][sq] > 0 && reach.attacks[1 - s][sq] == 0 {
+                out[s][3] += 1.0;
+            }
+        }
+    }
+    for s in 0..2 {
+        for r in b.royals(g, s) {
+            for dr in -1..=1 {
+                for dc in -1..=1 {
+                    if dr == 0 && dc == 0 {
+                        continue;
+                    }
+                    let o = b.cells[(r as i32 + dr * g.stride + dc) as usize];
+                    if o != EMPTY && o != OFF && side_of(o) == s {
+                        out[s][4] += 1.0;
+                    }
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The most one quiet move moves her judgement at ``b``, the turn's own worth left aside: set as the game's margin.

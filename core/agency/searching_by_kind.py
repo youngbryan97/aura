@@ -46,6 +46,9 @@ class Weights:
     #: to the first: its hidden layer's size, per kind a row into it for each square from the mover's side and from the
     #: other side's, and the layer's biases and output. None until rehearsal has earned one.
     learned: dict[str, Any] | None = None
+    #: What lies beyond the horizon (the compiled search's BEYOND, core/agency/what_lies_beyond_the_horizon.py): per
+    #: quantity, in its order, its worth to the side that has more of it. Nothing until rehearsal earns it.
+    beyond: list[float] = field(default_factory=list)
 
     def as_json(self) -> str:
         return json.dumps(asdict(self))
@@ -76,7 +79,7 @@ class Weights:
                        squares={kind: [list(reversed(row)) if turned_round else list(row) for row in table]
                                 for kind, table in by_name(self.squares).items()},
                        tempo=self.tempo, royal_pressed=self.royal_pressed, exposed=by_name(self.exposed),
-                       learned=learned)
+                       learned=learned, beyond=list(self.beyond))
 
 
 @dataclass

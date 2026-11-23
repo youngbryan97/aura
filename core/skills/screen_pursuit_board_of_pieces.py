@@ -211,6 +211,7 @@ async def _her_clock(target_app: str) -> float | None:
 #: What is kept beside her record of a board: how the pieces stand together, and the positions it is learned from.
 _TOGETHER = "how-the-pieces-stand-together"
 _LOOKED_AT_LONGER = "positions-looked-at-longer"
+_CAME_TO = "what-her-games-came-to"
 
 
 def _her_record(target_app: str) -> str:
@@ -256,6 +257,11 @@ def _kept_under(record: str) -> dict[str, Any]:
             positions = recall_beside(record, _LOOKED_AT_LONGER)
             if positions:
                 rehearsal.looked_at_longer = LookedAtLonger.from_bytes(positions)
+            came_to = recall_beside(record, _CAME_TO)
+            if came_to:
+                from core.agency.what_lies_beyond_the_horizon import WhatGamesCameTo
+
+                rehearsal.came_to = WhatGamesCameTo.from_bytes(came_to)
             kept["rehearsal"] = rehearsal
         except (TypeError, ValueError, KeyError, OSError) as why:
             logger.info("what she measured at this board could not be read back (%s)", why)
@@ -283,6 +289,9 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
         looked = getattr(rehearsal, "looked_at_longer", None)
         if looked is not None and looked.parts:
             remember_beside(_her_record(target_app), _LOOKED_AT_LONGER, looked.as_bytes())
+        came_to = getattr(rehearsal, "came_to", None)
+        if came_to is not None and came_to.result:
+            remember_beside(_her_record(target_app), _CAME_TO, came_to.as_bytes())
         record["worth"] = {"weights": weights, "earned": list(rehearsal.earned),
                            "royal": rehearsal.royal, "tries": dict(rehearsal.tries),
                            "lengths": list(rehearsal.lengths)[-400:],
