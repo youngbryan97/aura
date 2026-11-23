@@ -481,6 +481,10 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     from core.agency.searching_by_kind import search
 
     rehearsing = _Rehearsing(rehearsal)
+    # What her eyes and hands cost, each look and each click timed: her turn's log says how long moving took, and not
+    # which of the two it went on. LIVE 23 November 2026, game 21, moving took 52 s of her 194 and thinking 92.
+    timed = _Timed()
+    look, click = timed.looking(look), timed.clicking(click)
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
     # Her look on their time has a thread of its own: a round of rehearsal under way does not hold it up.
     ponder_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pondering")
@@ -502,7 +506,43 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     came["first_was_hers"] = getattr(came.get("learned"), "first_was_hers", None)
     came["went_wrong"] = went_wrong
     came["they_answered"] = they_answered
+    came["eyes_and_hands"] = timed.said()
+    logger.info("her eyes and hands this game: %s", came["eyes_and_hands"])
     return came
+
+
+@dataclass
+class _Timed:
+    """How long each look at the board and each click took her this game."""
+
+    looks: list[float] = field(default_factory=list)
+    clicks: list[float] = field(default_factory=list)
+
+    def looking(self, look: Look) -> Look:
+        async def timed() -> Any:
+            began = time.monotonic()
+            try:
+                return await look()
+            finally:
+                self.looks.append(time.monotonic() - began)
+        return timed
+
+    def clicking(self, click: Click) -> Click:
+        async def timed(x: float, y: float) -> bool:
+            began = time.monotonic()
+            try:
+                return await click(x, y)
+            finally:
+                self.clicks.append(time.monotonic() - began)
+        return timed
+
+    def said(self) -> dict[str, Any]:
+        import statistics
+
+        def of(times: list[float]) -> dict[str, Any]:
+            return {"n": len(times), "median_s": round(statistics.median(times), 3) if times else None,
+                    "total_s": round(sum(times), 1)}
+        return {"looks": of(self.looks), "clicks": of(self.clicks)}
 
 
 @dataclass

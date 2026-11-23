@@ -155,3 +155,18 @@ def test_what_changes_slowly_through_her_games_is_found_in_their_positions() -> 
     found, why = store.slow_and_deciding()
     assert found is not None, why
     assert found[at + 3] > 0 and abs(found[at + 3]) > 5 * np.median(np.abs(found)), found[at:]
+
+
+def test_once_the_rest_are_earned_how_the_pieces_stand_together_is_learned_again_in_turn() -> None:
+    from core.agency.what_a_kind_is_worth import SLOW_AND_DECIDING, a_first_rehearsal, what_to_try
+
+    rehearsal = a_first_rehearsal(CHESS)
+    rehearsal.earned = ["worth", "turn and safety"]
+    assert what_to_try(rehearsal) == ("moves", False)
+    rehearsal.earned = [g for g in GROUPS if g not in (BEYOND_THE_HORIZON, SLOW_AND_DECIDING)]
+    tried = []
+    for rounds in range(6):
+        rehearsal.rounds = rounds
+        tried.append(what_to_try(rehearsal))
+    assert {t for t, _again in tried} == {BEYOND_THE_HORIZON, SLOW_AND_DECIDING, TOGETHER}
+    assert all(again == (t == TOGETHER) for t, again in tried)

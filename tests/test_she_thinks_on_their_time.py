@@ -104,3 +104,25 @@ def test_in_a_game_she_looks_on_their_time_and_remembers_their_answers(monkeypat
     assert looked, "she did not look at anything on their time"
     assert all(position.turn == FIRST for position in looked), "each look is at a position where she is to move"
     assert sum(sum(counts.values()) for counts in came["they_answered"].answered.values()) >= came["theirs"] > 0
+
+
+def test_what_her_eyes_and_hands_cost_is_told_with_the_game(monkeypatch) -> None:
+    monkeypatch.setattr(playing, "STILL_S", 0.02)
+    monkeypatch.setattr(playing, "OFFERS_SHOW_S", 0.01)
+    monkeypatch.setattr(playing, "WAITS_FOR_THE_FIRST_MOVE_S", 0.5)
+    monkeypatch.setattr(playing._Rehearsing, "start", lambda self, pool, family: None)
+    app = _AnOpponentThatThinksApart(NOBODYS_GAME, seed=5, answers_in_s=0.1)
+
+    async def run() -> dict:
+        seat = playing.a_board_of_two_sides_at_its_start(app.draw())
+        stop = asyncio.Event()
+        answering = asyncio.create_task(app.answers(stop))
+        try:
+            return await playing.play_pieces_by_kind(seat, app.look, app.click, seconds=10.0, thinks_s=0.1)
+        finally:
+            stop.set()
+            await answering
+
+    told = asyncio.run(run())["eyes_and_hands"]
+    assert told["looks"]["n"] > 0 and told["clicks"]["n"] >= app.clicks > 0
+    assert told["looks"]["median_s"] is not None and told["looks"]["total_s"] >= 0

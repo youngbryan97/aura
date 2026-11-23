@@ -29,6 +29,11 @@ foretells positions it was not fitted on better than her first look does, and ke
 Measured 22 November 2026 on 84,299 such positions against Stockfish held to depth 5, 40 games on each of four seeds:
 0.447, 0.474, 0.550 and 0.538 with it, 0.412, 0.450, 0.350 and 0.425 without.
 
+Two groups are taught by how her games ended whoever teaches the rest, since a longer look has a horizon of its own:
+what lies beyond the horizon (core/agency/what_lies_beyond_the_horizon.py), and what changes slowly and decides
+(core/cognition/what_changes_slowly_and_decides.py). Once every other group is earned they take turns, with how the
+pieces stand together learned again on the positions she has by then; each is kept only where it wins its match.
+
 What she measures is hers, about this one game, kept with what she learned of it. Nothing is measured for her and
 shipped; nothing here knows a game.
 """
@@ -49,7 +54,7 @@ from core.agency.what_lies_beyond_the_horizon import WhatGamesCameTo, beyond_at
 
 logger = logging.getLogger("Aura.WhatAKindIsWorth")
 
-__all__ = ["BEYOND_THE_HORIZON", "GROUPS", "SLOW_AND_DECIDING", "added_to", "HER_LONGER_LOOK", "RESULTS", "TOGETHER", "LookedAtLonger", "Rehearsal",
+__all__ = ["BEYOND_THE_HORIZON", "GROUPS", "SLOW_AND_DECIDING", "added_to", "what_to_try", "HER_LONGER_LOOK", "RESULTS", "TOGETHER", "LookedAtLonger", "Rehearsal",
            "a_first_rehearsal",
            "calibrated_scale", "fitted", "rehearse", "tried_as"]
 
@@ -468,12 +473,18 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         rehearsal.samples_y.append(label)
     rehearsal.came_to.add(played, came_to, rehearsal.rounds, beyond_at(family))
     rehearsal.rounds += 1
-    unearned = [group for group in GROUPS if group not in rehearsal.earned]
-    trying = unearned[0] if unearned else None
-    if unearned and all(group in TAUGHT_BY_RESULTS for group in unearned):
-        trying = unearned[rehearsal.rounds % len(unearned)]
+    trying, refreshing = what_to_try(rehearsal)
     groups = [*rehearsal.earned, *([trying] if trying else [])]
-    if trying == TOGETHER:
+    if trying == TOGETHER and refreshing:
+        # Learned again, it goes to its match: the layer she plays by was learned on many of the positions any of
+        # them would be held back on, so how each foretells them is no fair test between the two.
+        learned = rehearsal.looked_at_longer.judgement(seed=seed)
+        if learned is None:
+            rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,
+                              "why": "nothing learned yet foretells her longer look better than her first look"}
+            return rehearsal
+        candidate = replace(rehearsal.weights, learned=learned)
+    elif trying == TOGETHER:
         learned = rehearsal.looked_at_longer.judgement(seed=seed)
         if learned is None:
             rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,
@@ -536,8 +547,11 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     tries = 1
     if trying:
         # A refit of the groups she has, with none new to try, is no group's try.
-        # What lies beyond the horizon is taught by how her games ended, whoever teaches the rest.
+        # What lies beyond the horizon is taught by how her games ended, whoever teaches the rest; a layer learned again
+        # is a candidate of its own, its tries counted apart from the first one's.
         counted = tried_as(trying, RESULTS if trying in TAUGHT_BY_RESULTS else rehearsal.teacher)
+        if refreshing:
+            counted = f"{counted}, learned again"
         tries = rehearsal.tries[counted] = rehearsal.tries.get(counted, 0) + 1
     kept = mean - 0.5 > how_far_above_even(tries) * max(error, 1e-9)
     rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "scored": round(mean, 3),
@@ -555,6 +569,19 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         rehearsal.last["teacher"] = HER_LONGER_LOOK
     logger.info("rehearsal round %d: %s", rehearsal.rounds, rehearsal.last)
     return rehearsal
+
+
+def what_to_try(rehearsal: Rehearsal) -> tuple[str | None, bool]:
+    """The group a round tries, and whether it is one earned before and learned again: the first not earned, in order;
+    once only groups taught by results are left, those and how the pieces stand together take turns. An earned group
+    was never fitted again, and her positions go on growing: LIVE 23 November 2026 her layer had been learned once, and
+    her record held 74,454 positions her longer look had searched."""
+    unearned = [group for group in GROUPS if group not in rehearsal.earned]
+    if not all(group in TAUGHT_BY_RESULTS for group in unearned) or TOGETHER not in rehearsal.earned:
+        return (unearned[0] if unearned else None), False
+    turns = [*unearned, TOGETHER]
+    trying = turns[rehearsal.rounds % len(turns)]
+    return trying, trying == TOGETHER
 
 
 def a_first_rehearsal(family: Family) -> Rehearsal:
