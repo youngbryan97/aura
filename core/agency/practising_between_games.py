@@ -168,13 +168,13 @@ def practise_when_idle(orch: Any, track: Any = None) -> bool:
     if _PLAYING or (_RUNNING is not None and not _RUNNING.done()):
         return False
     from core.runtime.background_policy import (
-        IDLE_COGNITION_BACKGROUND_POLICY,
+        COMPUTE_ONLY_BACKGROUND_POLICY,
         background_activity_reason,
     )
 
     # Her own work, not something said to anyone: it does not wait for someone to have spoken to her since she woke.
     # LIVE 22 November 2026 her first hour on 225d54fcd ran no round, and the reason was "no_user_anchor".
-    why = background_activity_reason(orch, profile=IDLE_COGNITION_BACKGROUND_POLICY, needs_the_model=False,
+    why = background_activity_reason(orch, profile=COMPUTE_ONLY_BACKGROUND_POLICY, needs_the_model=False,
                                      allow_no_user_anchor=True)
     if why:
         return _waits(str(why))

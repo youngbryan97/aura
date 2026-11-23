@@ -11,6 +11,7 @@ import ast
 from pathlib import Path
 
 from core.runtime.background_policy import (
+    COMPUTE_ONLY_BACKGROUND_POLICY,
     IDLE_COGNITION_BACKGROUND_POLICY,
     MAINTENANCE_BACKGROUND_POLICY,
     RESEARCH_BACKGROUND_POLICY,
@@ -42,6 +43,7 @@ def test_profiles_are_ordered_by_cost():
 def test_profiles_have_sane_bounds():
     for profile in (
         IDLE_COGNITION_BACKGROUND_POLICY,
+        COMPUTE_ONLY_BACKGROUND_POLICY,
         THOUGHT_BACKGROUND_POLICY,
         RESEARCH_BACKGROUND_POLICY,
         MAINTENANCE_BACKGROUND_POLICY,
@@ -112,3 +114,13 @@ def test_named_profile_matches_inline_call_resolution():
     src = inspect.getsource(background_activity_reason)
     assert "profile.min_idle_seconds" in src
     assert "profile.require_conversation_ready" in src
+
+
+def test_compute_only_work_waits_as_idle_cognition_but_for_memory_only_where_the_loops_slow():
+    # Work that computes without the model holds little memory of its own: it waits for the same idleness as idle
+    # cognition, and for memory only at the level the background loops themselves slow at.
+    assert COMPUTE_ONLY_BACKGROUND_POLICY.min_idle_seconds == IDLE_COGNITION_BACKGROUND_POLICY.min_idle_seconds
+    assert COMPUTE_ONLY_BACKGROUND_POLICY.max_failure_pressure == IDLE_COGNITION_BACKGROUND_POLICY.max_failure_pressure
+    assert COMPUTE_ONLY_BACKGROUND_POLICY.require_conversation_ready is False
+    assert IDLE_COGNITION_BACKGROUND_POLICY.max_memory_percent < COMPUTE_ONLY_BACKGROUND_POLICY.max_memory_percent
+    assert COMPUTE_ONLY_BACKGROUND_POLICY.max_memory_percent == THOUGHT_BACKGROUND_POLICY.max_memory_percent

@@ -66,14 +66,20 @@ def test_where_they_have_not_answered_she_follows_the_answer_she_expects() -> No
     assert searched == [_a_place(start), _a_place(after(CHESS, there, expected))]
 
 
-def test_an_answer_counts_only_under_the_rules_and_judgement_it_was_worked_out_under() -> None:
+def test_an_answer_counts_while_the_rules_it_was_worked_out_under_stand() -> None:
+    from dataclasses import replace
+
     start, weights = CHESS.the_start(), first_weights(CHESS)
     prepared = Prepared()
     prepared.prepare(CHESS, start, weights, positions=1, plies=2, search=_a_quick_look([]))
     assert prepared.answer(_a_place(start), under(CHESS, weights)) is not None
+    # Her judgement changed: a long look under the one she had still stands.
     other = first_weights(CHESS)
     other.tempo += 7
-    assert prepared.answer(_a_place(start), under(CHESS, other)) is None
+    assert prepared.answer(_a_place(start), under(CHESS, other)) is not None
+    # The rules changed: it is another answer.
+    other_rules = replace(CHESS, count_to_draw=CHESS.count_to_draw + 1)
+    assert prepared.answer(_a_place(start), under(other_rules, weights)) is None
     again = Prepared.from_bytes(prepared.as_bytes())
     assert again.answer(_a_place(start), under(CHESS, weights)) == prepared.answer(_a_place(start),
                                                                                   under(CHESS, weights))

@@ -51,22 +51,25 @@ def _key(place: str) -> str:
     return hashlib.sha1(str(place).encode()).hexdigest()[:16]
 
 
-def under(family: Any, weights: Any) -> str:
-    """The rules and judgement an answer is worked out under, as a short name: either changed is another answer."""
+def under(family: Any, weights: Any = None) -> str:
+    """The rules an answer is worked out under, as a short name: rules changed, it is another answer. Her judgement
+    changed, it is not: a 30 s look under the judgement she had is still far better than her game pace under the one
+    she has (on 12 opening positions, 61 hundredths of a piece against 211), and a judgement she keeps is changed a
+    little at a time. ``weights`` is taken and not read, for callers that pass it."""
     from core.agency.searching_by_kind import described
 
-    return hashlib.sha1((described(family) + "\0" + weights.as_json()).encode()).hexdigest()[:16]
+    return hashlib.sha1(described(family).encode()).hexdigest()[:16]
 
 
 @dataclass
 class Prepared:
     """Her answers, worked out ahead, to the situations she expects to meet: each with the move, how deep the look
-    went, what it judged, and the rules and judgement it was worked out under."""
+    went, what it judged, and the rules it was worked out under."""
 
     answers: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def answer(self, place: str, worked_out_under: str) -> dict[str, Any] | None:
-        """What she worked out for this situation under these rules and this judgement, if she has."""
+        """What she worked out for this situation under these rules, if she has."""
         held = self.answers.get(_key(place))
         return held if held is not None and held.get("under") == worked_out_under else None
 

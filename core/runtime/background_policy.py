@@ -313,6 +313,13 @@ def _read_memory_pressure_snapshot() -> _MemoryPressureSnapshot:
 #                    conversation but may run during warmup (mind-tick
 #                    reflection, phenomenology, metacognition, momentum). This
 #                    names the emergent inline convention (180s / 78%).
+#   COMPUTE_ONLY   — idle work that computes without the model and holds little
+#                    memory of its own (practice at a board: a compiled search
+#                    and its table). It waits as idle cognition does, but for
+#                    memory only at the level the loops themselves slow at
+#                    (85%): with her cortex loaded her memory stands near 80%,
+#                    and LIVE 23 November 2026 practice, and with it every
+#                    opening she prepares, waited on memory_pressure_79 to 81.
 #   THOUGHT        — deliberate background thinking that should wait for a
 #                    ready conversation lane.
 #   RESEARCH       — multi-step background research: long idle gate.
@@ -328,6 +335,13 @@ IDLE_COGNITION_BACKGROUND_POLICY = BackgroundPolicyProfile(
     # so `profile=IDLE_COGNITION` is a true drop-in for `min_idle_seconds=180,
     # max_memory_percent=78`.
     max_failure_pressure=0.60,
+    require_conversation_ready=False,
+)
+
+COMPUTE_ONLY_BACKGROUND_POLICY = BackgroundPolicyProfile(
+    min_idle_seconds=IDLE_COGNITION_BACKGROUND_POLICY.min_idle_seconds,
+    max_memory_percent=85.0,
+    max_failure_pressure=IDLE_COGNITION_BACKGROUND_POLICY.max_failure_pressure,
     require_conversation_ready=False,
 )
 
