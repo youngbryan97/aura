@@ -28,7 +28,15 @@ def test_a_ride_read_in_one_look_rests_on_too_little_and_a_step_seen_often_does_
     assert rules.seen_going_there(ALONE, Move(E1, (1, 5))) >= SEEN_TO_BELIEVE
 
 
-def test_a_crossing_rests_on_evidence_of_its_own() -> None:
+def test_a_crossing_rests_on_how_often_one_was_seen() -> None:
+    """That her rules can express a crossing is no evidence one was seen: it rests on the crossings she has seen made
+    or been offered (suggestions of 23 November 2026; it counted as seen a billion times before)."""
     rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
+    board = from_fen("4k3/8/8/8/8/8/8/4K2R w K -")
     castling = Move(E1, (0, 6), partner=((0, 7), (0, 5)))
-    assert rules.seen_going_there(from_fen("4k3/8/8/8/8/8/8/4K2R w K -"), castling) >= SEEN_TO_BELIEVE
+    assert rules.seen_going_there(board, castling) == 0
+    for _ in range(SEEN_TO_BELIEVE):
+        rules.watched(board, castling)
+    assert rules.seen_going_there(board, castling) >= SEEN_TO_BELIEVE
+    kept = HowThePiecesMove.from_memory(rules.as_memory())
+    assert kept is not None and kept.seen_going_there(board, castling) >= SEEN_TO_BELIEVE

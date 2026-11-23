@@ -226,6 +226,14 @@ class HowThePiecesMove:
     #: Every answer the game gave, kept whole so her rules can be checked against all of it
     #: (core/agency/what_the_game_showed.py); kept beside the record, not in it.
     shown: Any = field(default=None, repr=False, compare=False)
+    #: How often each kind was seen, or offered, making a move of each sort that is not a plain step: crossing with
+    #: a partner, changing places, taking over, taking in passing. What a rule allowing such a move rests on is how
+    #: often it was seen, not that the rule can express it (suggestions of 23 November 2026).
+    special_seen: dict[str, int] = field(default_factory=dict)
+
+    def _saw_special(self, kind: str, sort: str) -> None:
+        key = f"{kind}|{sort}"
+        self.special_seen[key] = self.special_seen.get(key, 0) + 1
 
     @classmethod
     def from_the_start(cls, rows: int, columns: int, start: dict[Square, tuple[int, str]]) -> HowThePiecesMove:
@@ -255,6 +263,8 @@ class HowThePiecesMove:
 
             crossing_to = {move.partner[0] for move in _possible(family, position)
                            if move.start == square and move.partner is not None and move.partner[0] != move.end}
+            for _offered in crossing_to & set(squares):
+                self._saw_special(kind, "crosses")
         for forward in range(-MAX_STEP, MAX_STEP + 1):
             for right in range(-MAX_STEP, MAX_STEP + 1):
                 if (forward, right) == (0, 0) or math.gcd(abs(forward), abs(right)) != 1:
@@ -286,6 +296,7 @@ class HowThePiecesMove:
                         elif is_offered and there not in crossing_to:
                             # A square of its own side offered: the two change places.
                             self._of(kind, direction).swapped.add(times)
+                            self._saw_special(kind, "swaps")
                         break
                     times += 1
         if family is not None:
@@ -477,12 +488,15 @@ class HowThePiecesMove:
         if move.partner is not None and move.partner == (move.end, move.start):
             # Two of a side changed places: the one that moved goes that way onto its own side's piece.
             self._of(kind, direction).swapped.add(times)
+            self._saw_special(kind, "swaps")
             return
         if move.partner is not None:
             partner_kind = position.cells[move.partner[0]][1]
             self.crosses[kind] = partner_kind
+            self._saw_special(kind, "crosses")
             return
         if _takes_over_seen(side, move):
+            self._saw_special(kind, "takes over")
             # Each landing from the last, over a piece that went: a take over, and more than one a take again.
             path = (move.start, *move.via, move.end)
             for a, b in zip(path, path[1:], strict=False):
@@ -502,6 +516,7 @@ class HowThePiecesMove:
             way.took += 1
             if move.taken_at != move.end:
                 self.takes_passing.add(kind)
+                self._saw_special(kind, "takes in passing")
                 victim = position.cells[move.taken_at][1]
                 self.passes.add(victim)
         else:
@@ -594,11 +609,20 @@ class HowThePiecesMove:
 
     def seen_going_there(self, position: Position, move: Move) -> int:
         """How often this kind has been offered, or seen to go, the way this move goes, as far as it goes or further:
-        what her rules allowing it rests on. A crossing, two pieces changing places and a take over or in passing rest
-        on evidence of their own, and are counted as resting on plenty."""
-        if move.partner is not None or move.via or move.taken_at not in (None, move.end):
-            return 1 << 30
+        what her rules allowing it rests on. A crossing, two pieces changing places, and a take over or in passing rest
+        on how often a move of that sort was seen of the kind: that her rules can express one is no evidence it was
+        seen. A kind's way of taking over, seen before such moves were counted, rests on its own count of them."""
         side, kind = position.cells[move.start]
+        if move.partner is not None:
+            sort = "swaps" if move.partner == (move.end, move.start) else "crosses"
+            return self.special_seen.get(f"{kind}|{sort}", 0)
+        if move.via or move.taken_at not in (None, move.end):
+            if move.taken_at is not None and move.taken_at != move.end and not move.via \
+                    and not _takes_over_seen(side, move):
+                return self.special_seen.get(f"{kind}|takes in passing", 0)
+            ways = self._ways_of(kind)
+            counted = sum(way.over_took for way in ways.values())
+            return max(self.special_seen.get(f"{kind}|takes over", 0), counted)
         (forward, right), times = in_its_frame(side, move.start, move.end)
         ways = self._ways_of(kind)
         seen = 0
@@ -730,6 +754,7 @@ class HowThePiecesMove:
             "takes_again": sorted(self.takes_again), "quiet_kept_back_while_taking": self.quiet_kept_back_while_taking,
             "quiet_offered_while_taking": self.quiet_offered_while_taking, "no_move_loses": self.no_move_loses,
             "unconfirmed": dict(self.unconfirmed), "wins_arriving": sorted(self.wins_arriving),
+            "special_seen": dict(self.special_seen),
         }
 
     @classmethod
@@ -768,6 +793,7 @@ class HowThePiecesMove:
             learned.no_move_loses = bool(kept.get("no_move_loses", False))
             learned.unconfirmed = {str(k): int(v) for k, v in kept.get("unconfirmed", {}).items()}
             learned.wins_arriving = {str(k) for k in kept.get("wins_arriving", [])}
+            learned.special_seen = {str(k): int(v) for k, v in kept.get("special_seen", {}).items()}
             first = kept.get("first_was_hers")
             learned.first_was_hers = first if isinstance(first, bool) else None
             return learned
@@ -805,7 +831,9 @@ class HowThePiecesMove:
             takes_again={names[k] for k in self.takes_again if k in names},
             quiet_kept_back_while_taking=self.quiet_kept_back_while_taking,
             quiet_offered_while_taking=self.quiet_offered_while_taking, no_move_loses=self.no_move_loses,
-            first_was_hers=None if first is None else first != turned_round)
+            first_was_hers=None if first is None else first != turned_round,
+            special_seen={f"{names[k]}|{sort}": n for key, n in self.special_seen.items()
+                          for k, sort in [key.split("|", 1)] if k in names})
 
     def royal(self, kind: str) -> bool:
         """Whether the game keeps this kind safe: left open by moves it withheld and almost never by moves it offered,

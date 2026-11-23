@@ -750,7 +750,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.longest_answer_s = max(game.longest_answer_s, monotonic_time() - game.waiting_since)
                     game.their_move_seen_at = monotonic_time()
                     game.read_this_wait = False
-                    game.they_answered.they_answered(_a_place(game.believed), _named(move))
+                    game.they_answered.they_answered(_a_place(game.believed, game.learned.start, family),
+                                                     _named(move))
                 game.follow(move)
                 game.waiting_since = monotonic_time()
             if seen_moves:
@@ -848,7 +849,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 continue
         weights = rehearsing.weights_for(family)
         set_aside: list[Move] = []
-        here = _a_place(game.believed)
+        here = _a_place(game.believed, game.learned.start, family)
         failed_here = game.went_wrong.already_failed_at(here)
         if failed_here:
             again = [one for one in legal if _named(one) in failed_here]
@@ -989,7 +990,7 @@ def _worked_out_ahead(prepared: Any, game: _Game, family: Family, weights: Any, 
     from core.agency.searching_by_kind import Found
     from core.agency.thinking_before_it_comes import among
 
-    held = prepared.answer(_a_place(game.believed), among(legal))
+    held = prepared.answer(_a_place(game.believed, game.learned.start, family), among(legal))
     move = next((m for m in legal if held is not None and _named(m) == held.get("move")), None)
     if move is None:
         return None
@@ -1002,7 +1003,7 @@ def _expect_back(game: _Game, family: Family, move: Move, found: Any) -> None:
     met the position and her search did not look past her own move."""
     game.expected = None
     mine = after(family, game.believed, move)
-    named = game.they_answered.most_often(_a_place(mine))
+    named = game.they_answered.most_often(_a_place(mine, game.learned.start, family))
     before = next((m for m in moves(family, mine) if _named(m) == named), None) if named else None
     if before is not None:
         game.expected = (before, after(family, mine, before), family)
@@ -1345,10 +1346,29 @@ def _shows_her_move(shown: dict, move: Move) -> bool:
     return shown.get(move.start, (None,))[0] != FIRST and shown.get(move.end, (None,))[0] == FIRST
 
 
-def _a_place(position: Position) -> str:
-    """A position as a place she may come back to: what stands on each square, and whose turn it is."""
-    return ";".join(f"{r},{c}:{side}{kind}" for (r, c), (side, kind) in sorted(position.cells.items())) + \
+def _a_place(position: Position, start: dict | None = None, family: Family | None = None) -> str:
+    """A position as a situation she may come back to: what stands on each square and whose turn it is, and, where
+    its history is not the ordinary one, the history that changes what may happen next.
+
+    Two situations with the same pieces can differ in what may be done from them: a piece standing where it began may
+    have moved and come back, and a square may be passable for one move. A situation known by its pieces alone shares
+    a name with one it is not, and what was worked out or seen in one is used in the other (suggestions of 23 November
+    2026). The ordinary history, given ``start``, is every piece standing on its own starting square unmoved, no other
+    unmoved, and nothing passable that a move of the side to move can take in passing (given ``family``; without it,
+    anything passable counts): there the name is the pieces' alone, as it has always been, and everything kept under
+    it stays hers. Any other history is named."""
+    placed = ";".join(f"{r},{c}:{side}{kind}" for (r, c), (side, kind) in sorted(position.cells.items())) + \
         f"|{position.turn}"
+    if start is None:
+        return placed
+    ordinary = {square for square, held in position.cells.items() if start.get(square) == held}
+    passable = position.passable is not None and (
+        family is None or any(m.taken_at not in (None, m.end) and not m.via for m in moves(family, position)))
+    if set(position.unmoved) == ordinary and not passable:
+        return placed
+    unmoved = ",".join(f"{r}.{c}" for r, c in sorted(position.unmoved))
+    passing = f"{position.passable[0][0]}.{position.passable[0][1]}" if passable else ""
+    return f"{placed}|unmoved:{unmoved}|passable:{passing}"
 
 
 def _named(move: Move) -> str:
