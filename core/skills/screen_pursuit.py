@@ -295,6 +295,17 @@ ObservationPolicy = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
 
 
 
+
+def nothing_has_answered(pending: dict[str, Any], can_do: Any) -> bool:
+    """Whether nothing she has done here has answered her: nothing she did changed the screen, or the board of pieces
+    on it would not take a move a moment ago. A board that would not take a move has not answered her either, so the
+    controls around it are the way on. LIVE 23 November 2026 En Croissant showed a game already over, and she sat down
+    at its board sixteen times in four and a half minutes and never pressed "New Game", because a key of hers had done
+    something there before."""
+    if time.monotonic() < float(pending.get("board_left_until", 0.0)):
+        return True
+    return not any((getattr(can_do, "did_something", None) or {}).values())
+
 async def read_screen(
     app_name: str = "", over: tuple[float, float, float, float] | None = None
 ) -> dict[str, Any]:
@@ -1129,8 +1140,7 @@ async def pursue_on_screen(
         from .screen_pursuit_a_way_on import took_a_way_on
 
         if await took_a_way_on(target_app or anchor.get("app", ""), goal, pending,
-                               nothing_answered=not any((getattr(can_do, "did_something", None) or {}).values()),
-                               seen=seen):
+                               nothing_answered=nothing_has_answered(pending, can_do), seen=seen):
             # What the press changed is looked at again before anything is done on it.
             fresh = await looked_at_as_it_happens(lambda: observe_the_screen(
                 SimpleNamespace(

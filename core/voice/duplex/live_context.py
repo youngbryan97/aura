@@ -19,9 +19,10 @@ import asyncio
 import contextlib
 import inspect
 import logging
-import time
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
+
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.Voice.LiveContext")
 
@@ -363,8 +364,8 @@ async def _her_cortex_client_when_up(timeout_s: float) -> Any:
     170 s for every turn spoken in that time.
     """
     client = _her_cortex_client()
-    waited_until = time.monotonic() + max(0.0, float(timeout_s))
-    while (client is None or not hasattr(client, "generate")) and still_waking() and time.monotonic() < waited_until:
+    waited_until = monotonic_time() + max(0.0, float(timeout_s))
+    while (client is None or not hasattr(client, "generate")) and still_waking() and monotonic_time() < waited_until:
         await asyncio.sleep(0.25)
         client = _her_cortex_client()
     return client
@@ -404,17 +405,17 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
                     still_waking() or "serving")
         return None
     lease = None
-    deadline = time.monotonic() + max(0.0, float(timeout_s))
+    deadline = monotonic_time() + max(0.0, float(timeout_s))
     with _a_person_waits():
         # What of her background work holds her model is asked to stop now, and again each second she waits: one
         # that took the gate after the turn began was never asked. LIVE 11 November 2026, her narrative on her CPU
         # model took it while its worker was still starting, the turn's one ask found nothing to cancel, and her
         # reply waited 84 s behind it.
-        while lease is None and time.monotonic() < deadline:
+        while lease is None and monotonic_time() < deadline:
             _background_stands_aside("voice_live: a person is waiting for her reply")
             lease = await acquire_external_generation_gate_lease(
                 owner="voice_live:reply", timeout_s=timeout_s,
-                wait_s=min(1.0, max(0.0, deadline - time.monotonic())), foreground=True)
+                wait_s=min(1.0, max(0.0, deadline - monotonic_time())), foreground=True)
     if lease is None:
         return None
     hold = pacing = None

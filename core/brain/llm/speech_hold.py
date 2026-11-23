@@ -20,6 +20,8 @@ import time
 from multiprocessing import shared_memory
 from typing import Any
 
+from core.runtime.wall_clock import wall_time
+
 _UNTIL = struct.Struct("d")
 
 
@@ -32,7 +34,7 @@ class SpeechHold:
         self.release()
 
     def hold_for(self, seconds: float) -> None:
-        _UNTIL.pack_into(self._memory.buf, 0, time.time() + max(0.0, float(seconds)))
+        _UNTIL.pack_into(self._memory.buf, 0, wall_time() + max(0.0, float(seconds)))
 
     def release(self) -> None:
         _UNTIL.pack_into(self._memory.buf, 0, 0.0)
@@ -94,10 +96,11 @@ def wait_for_her_voice(job: dict, *, sleep_s: float = 0.02, stopped: Any = None)
             _READER = _Reader(name)
         except (FileNotFoundError, OSError, ValueError):
             return 0.0  # not a failure: her voice's side has already gone, so there is nothing to wait for
-    started = time.time()
+    # The machine's clock: an experiment's clock in place of time.time never reaches a hold set on the real one.
+    started = wall_time()
     longest = _longest_hold_s()
     while True:
-        now = time.time()
+        now = wall_time()
         try:
             until = _READER.until()
         except (ValueError, OSError):

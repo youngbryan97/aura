@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -41,6 +40,7 @@ from core.cognition.how_long_a_change_takes_to_settle import HowLongItSettles
 from core.cognition.keeping_her_own_count import KeptCount
 from core.cognition.the_furthest_she_has_got import WhatFailedWhere
 from core.perception.pieces_by_their_look import Lattice, Looks, PiecesSeen, squares_of_one_ground
+from core.runtime.wall_clock import monotonic_time
 
 logger = logging.getLogger("Aura.PlayingPiecesByKind")
 
@@ -277,10 +277,10 @@ async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tupl
     changes on this board have kept going. A change watched to its end is learned from. LIVE 21 November 2026, game
     16, seeing each of their moves stand still took 0.6 s of her clock, every turn."""
     last = ""
-    began = time.monotonic()
+    began = monotonic_time()
     first_change: float | None = None
     last_change = 0.0
-    while time.monotonic() - began < within_s:
+    while monotonic_time() - began < within_s:
         picture = await look()
         if picture is None:
             return None
@@ -302,7 +302,7 @@ async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tupl
         # change seen within one wait was counted.
         before = last or seat.last_still
         if before and said != before:
-            now = time.monotonic()
+            now = monotonic_time()
             first_change = now if first_change is None else first_change
             last_change = now
         last = said
@@ -384,7 +384,7 @@ class _Game:
     made: int = 0
     theirs: int = 0
     #: Since when she has waited on the other side, and the longest it has taken to answer.
-    waiting_since: float = field(default_factory=time.monotonic)
+    waiting_since: float = field(default_factory=monotonic_time)
     longest_answer_s: float = 0.0
     #: What her hands cost on her clock this game, measured: picking a piece up to see its offers, and making a move
     #: and seeing it shown. Each is the mean of the times taken, with how many there were.
@@ -520,20 +520,20 @@ class _Timed:
 
     def looking(self, look: Look) -> Look:
         async def timed() -> Any:
-            began = time.monotonic()
+            began = monotonic_time()
             try:
                 return await look()
             finally:
-                self.looks.append(time.monotonic() - began)
+                self.looks.append(monotonic_time() - began)
         return timed
 
     def clicking(self, click: Click) -> Click:
         async def timed(x: float, y: float) -> bool:
-            began = time.monotonic()
+            began = monotonic_time()
             try:
                 return await click(x, y)
             finally:
-                self.clicks.append(time.monotonic() - began)
+                self.clicks.append(monotonic_time() - began)
         return timed
 
     def said(self) -> dict[str, Any]:
@@ -624,7 +624,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
     tell = say or (lambda _line: None)
-    began = time.monotonic()
+    began = monotonic_time()
     # The start is the board as it stood when she sat down: the other side may have moved since.
     start = dict(seat.start)
     if not start:
@@ -640,8 +640,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
     tell("Two sides facing each other on a board. I'll take the side nearest me, find out how the pieces move by "
          "picking them up and watching, and search my moves.")
     # Who goes first: the other side, if it moves while she waits.
-    waited = time.monotonic()
-    while time.monotonic() - waited < WAITS_FOR_THE_FIRST_MOVE_S:
+    waited = monotonic_time()
+    while monotonic_time() - waited < WAITS_FOR_THE_FIRST_MOVE_S:
         now = await _seen_still(seat, look, within_s=2.0)
         if now is not None and not _agrees(seat.as_rules(now[1]), game.believed.cells) and moves_seen(
                 Position(cells=game.believed.cells, turn=SECOND, unmoved=game.believed.unmoved),
@@ -663,7 +663,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
     game.learned.first_was_hers = game.first_is_hers
     misread = 0
     unexplained: dict | None = None
-    while time.monotonic() - began < seconds:
+    while monotonic_time() - began < seconds:
         still = await _seen_still(seat, look)
         if still is None:
             return {"ended": "the board went out of sight", "moves": game.made, "theirs": game.theirs,
@@ -713,7 +713,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.earlier.append(held)
                     game.believed = Position(cells=cells, turn=turn, unmoved=frozenset(
                         sq for sq in held.unmoved if cells.get(sq) == held.cells.get(sq)))
-                    game.waiting_since = time.monotonic()
+                    game.waiting_since = monotonic_time()
                     misread, unexplained = 0, None
                     continue
                 await asyncio.sleep(0.3)
@@ -730,13 +730,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                                                          game.first_is_hers, whose="their")
                          + (", as I expected." if foreseen else "."))
                     game.theirs += 1
-                    game.answers_s.append(time.monotonic() - game.waiting_since)
-                    game.longest_answer_s = max(game.longest_answer_s, time.monotonic() - game.waiting_since)
-                    game.their_move_seen_at = time.monotonic()
+                    game.answers_s.append(monotonic_time() - game.waiting_since)
+                    game.longest_answer_s = max(game.longest_answer_s, monotonic_time() - game.waiting_since)
+                    game.their_move_seen_at = monotonic_time()
                     game.read_this_wait = False
                     game.they_answered.they_answered(_a_place(game.believed), _named(move))
                 game.follow(move)
-                game.waiting_since = time.monotonic()
+                game.waiting_since = monotonic_time()
             if seen_moves:
                 continue
             # Nothing moved: what differed was a mark. The board is as she holds it, and the turn goes on from there.
@@ -750,7 +750,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 await _read_her_clock_while_it_stands(clock, rehearsing, game)
             # A side that has not answered for ten times as long as it ever took is not playing: a board that took her
             # move before the game was begun, or a game ended by something she cannot see. Given back, not waited on.
-            if time.monotonic() - game.waiting_since > max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s):
+            if monotonic_time() - game.waiting_since > max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s):
                 tell("They haven't answered my move, so I don't think the game has started; I'll look at the screen.")
                 return {"ended": "not answered", "moves": game.made, "theirs": game.theirs, "learned": game.learned}
             await asyncio.sleep(0.2)
@@ -760,7 +760,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         # Her turn, all of it on her clock where the game shows one: picking pieces up, thinking and moving share the
         # turn's part of the time she has left. LIVE 20 November 2026 only the thinking was held to it, and picking up
         # six pieces a turn and seeing each move shown took a third of a three-minute game.
-        turn_began = time.monotonic()
+        turn_began = monotonic_time()
         # Her clock has run since their move was seen, or since her turn began where nothing of theirs came first.
         clock_began = game.their_move_seen_at if game.theirs else turn_began
         share, on_her_clock = await _time_for_a_move(clock, rehearsing, game.made, thinks_s, game, clock_began)
@@ -781,11 +781,11 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 break
             if _times_offered(game.learned, kind) >= SEEN_ENOUGH and game.made:
                 continue
-            if on_her_clock and not _room_to_learn(game, time.monotonic() - turn_began, share, probes):
+            if on_her_clock and not _room_to_learn(game, monotonic_time() - turn_began, share, probes):
                 break
-            probe_began = time.monotonic()
+            probe_began = monotonic_time()
             squares = await _offers_for(seat, look, click, picture, square)
-            game.timed_probe(time.monotonic() - probe_began)
+            game.timed_probe(monotonic_time() - probe_began)
             probes += 1
             if squares is not None:
                 offered[square] = squares
@@ -821,7 +821,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 await _by_hand(seat, click, picture, move, OFFERS_SHOW_S)
                 if await _comes_to_show(seat, look, game, move):
                     game.made += 1
-                    game.waiting_since = time.monotonic()
+                    game.waiting_since = monotonic_time()
                 continue
         weights = rehearsing.weights_for(family)
         set_aside: list[Move] = []
@@ -834,20 +834,20 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 tell(f"I've played {said_of_a_move(family, game.believed, again[0], game.learned, game.first_is_hers)}"
                      " from here before and it went wrong, so I'll look at something else.")
         found = None
-        learned_until, searched_s = time.monotonic(), 0.0
+        learned_until, searched_s = monotonic_time(), 0.0
         for _ in range(CHECKS_A_TURN):
             # What is left of the turn, less what making the move and seeing it shown has taken her this game.
-            thinks = (max(0.2, share - (time.monotonic() - turn_began) - game.finish_s) if on_her_clock
+            thinks = (max(0.2, share - (monotonic_time() - turn_began) - game.finish_s) if on_her_clock
                       else share)
             # A move that is the only one is made without weighing (core/cognition/when_the_situation_decides.py).
             only = nothing_to_decide([m for m in legal if m not in set_aside]) if not set_aside else None
             if only is not None:
                 found = Found(only, 0, 0, 0, [only], by="the only move")
             else:
-                search_began = time.monotonic()
+                search_began = monotonic_time()
                 found = search(family, game.believed, seconds=thinks, weights=weights, earlier=game.earlier,
                                set_aside=set_aside, threads=_cores_free())
-                searched_s += time.monotonic() - search_began
+                searched_s += monotonic_time() - search_began
             if found.move is None:
                 break
             # Before she moves it, she picks it up: the move is made only where the game offers it. Each look that
@@ -895,7 +895,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                   f"{found.nodes:,} positions)"
         tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. {how}")
         made = False
-        finish_began = time.monotonic()
+        finish_began = monotonic_time()
         for attempt in range(TRIES_OF_A_MOVE):
             if attempt and move.start not in offered:
                 # Made without a look and not shown: a look says whether the game offers it at all, before her clock
@@ -908,12 +908,12 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     if _landing(move) not in squares:
                         break
             await _by_hand(seat, click, picture, move, OFFERS_SHOW_S * (1 + attempt))
-            moved_at = time.monotonic()
+            moved_at = monotonic_time()
             made = await _comes_to_show(seat, look, game, move)
             if made:
                 break
         if made:
-            game.timed_finish(time.monotonic() - finish_began)
+            game.timed_finish(monotonic_time() - finish_began)
             # Her clock stopped when her move was made: what it ran this turn is counted off.
             game.count.step(-(moved_at - clock_began))
             _expect_back(game, family, move, found)
@@ -921,8 +921,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             seen = game.their_move_seen_at or turn_began
             logger.info("her turn %d took %.1f s: %.1f s before it began, %.1f s learning, %.1f s thinking, %.1f s "
                         "between, %.1f s moving; her share of the clock was %s", game.made + 1,
-                        time.monotonic() - seen, turn_began - seen, learned_until - turn_began, searched_s,
-                        finish_began - learned_until - searched_s, time.monotonic() - finish_began,
+                        monotonic_time() - seen, turn_began - seen, learned_until - turn_began, searched_s,
+                        finish_began - learned_until - searched_s, monotonic_time() - finish_began,
                         f"{share:.1f} s" if on_her_clock else "not on a clock")
         if not made:
             game.learned.refused(game.believed, move, family=family)
@@ -932,7 +932,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             tell("The game didn't take that move; I've learned it isn't one.")
             continue
         game.made += 1
-        game.waiting_since = time.monotonic()
+        game.waiting_since = monotonic_time()
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned,
             "foresaw": (game.foreseen, game.foreseeable)}
 
@@ -1033,9 +1033,9 @@ async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, 
     moves_left = rehearsing.moves_left(made)
     if moves_left <= 0:
         return otherwise, False
-    began = time.monotonic() if clock_began is None else clock_began
+    began = monotonic_time() if clock_began is None else clock_began
     if game is not None and game.count.value is not None and not game.count.must_read(game.count.value / moves_left):
-        return max(0.2, (game.count.value - (time.monotonic() - began)) / moves_left), True
+        return max(0.2, (game.count.value - (monotonic_time() - began)) / moves_left), True
     try:
         left = await clock()
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -1045,7 +1045,7 @@ async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, 
         return otherwise, False
     if game is not None:
         # Her count begins from it, as the clock showed when it began to run this turn.
-        game.count.read(left + (time.monotonic() - began))
+        game.count.read(left + (monotonic_time() - began))
     return max(0.2, left / moves_left), True
 
 
@@ -1059,17 +1059,17 @@ async def _read_her_clock_while_it_stands(clock: Callable[[], Awaitable[float | 
     moves_left = max(1, rehearsing.moves_left(game.made))
     if count.value is not None and not count.must_read(count.value / moves_left):
         return
-    waited = time.monotonic() - game.waiting_since
+    waited = monotonic_time() - game.waiting_since
     if game.answers_s and waited + game.read_s > min(game.answers_s):
         return
-    began = time.monotonic()
+    began = monotonic_time()
     try:
         left = await clock()
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.info("her clock was not read (%s)", exc)
         return
     finally:
-        game.read_s = max(game.read_s, time.monotonic() - began)
+        game.read_s = max(game.read_s, monotonic_time() - began)
     if left is not None:
         if count.value is not None:
             logger.info("her clock read %.1f s where her count said %.1f s", left, count.value)
@@ -1190,8 +1190,8 @@ def _times_offered(learned: HowThePiecesMove, kind: str) -> int:
 async def _comes_to_show(seat: Seat, look: Look, game: _Game, move: Move) -> bool:
     """Whether the board comes to show her move made, alone or answered already. It is followed by whoever reads the
     board next, as moves seen."""
-    ends_at = time.monotonic() + MOVE_SHOWS_S
-    while time.monotonic() < ends_at:
+    ends_at = monotonic_time() + MOVE_SHOWS_S
+    while monotonic_time() < ends_at:
         # One look that shows her move's squares as her move leaves them is enough; a board still moving cannot show
         # that. Waiting for it to read the same twice first took 2.1 s a move, a third of game 11's clock.
         picture = await look()
