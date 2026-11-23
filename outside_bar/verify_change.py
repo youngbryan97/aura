@@ -15,12 +15,13 @@ time, and it comes back out if the outside benchmarks fall while it stands.
 5. It leaves alone the machinery that decides how tests run.
 
 The code under test runs inside a boundary that can write only to its own checkout and a scratch folder. Its results come
-back over a pipe, and nothing in its environment names this check. A commit whose code looks into the interpreter running
-it goes to a person. Code built to detect the check by other means can still go unseen: no test run can rule that out from
+back over a pipe, and nothing in its environment names this check. A commit whose code reaches into the interpreter running
+it is refused. Code built to detect the check by other means can still go unseen: no test run can rule that out from
 inside the process being tested.
 
-The result is one JSON object on stdout, then a line in words when the commit did not hold. The exit code is 1 when it did
-was refused, and 2 when the repository or the commit could not be found. A commit that breaks the check does not pass it.
+The result is one JSON object on stdout, then a line in words when the commit did not hold. The exit code is 0 when it held
+or landed on probation, 1 when it was refused, and 2 when the repository or the commit could not be found. A commit that
+breaks the check does not pass it.
 """
 from __future__ import annotations
 
