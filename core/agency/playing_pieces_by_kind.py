@@ -892,13 +892,18 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             ready = _worked_out_ahead(prepared, game, family, weights, legal) if not set_aside else None
             if only is not None:
                 found = Found(only, 0, 0, 0, [only], by="the only move")
-            elif ready is not None:
+            elif ready is not None and ready.by == "worked out ahead":
                 found = ready
             else:
                 search_began = monotonic_time()
                 found = search(family, game.believed, seconds=most, weights=weights, earlier=game.earlier,
                                set_aside=set_aside, threads=_cores_free(), wary=FIRST,
                                soft=thinks if most > thinks else None)
+                if ready is not None:
+                    # Worked out under rules that have changed since: a hint, checked by the look just made.
+                    found = _checked(ready, found, legal, lambda aside: search(
+                        family, game.believed, seconds=max(0.2, thinks / 2), weights=weights, earlier=game.earlier,
+                        set_aside=aside, threads=_cores_free(), wary=FIRST))
                 searched_s += monotonic_time() - search_began
             if found.move is None:
                 break
@@ -945,6 +950,10 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         elif found.by == "worked out ahead":
             _judged(game, here, move, found)
             how = f"I worked this one out before the game (looked {found.depth} moves deep)"
+        elif found.by == "worked out ahead, checked":
+            _judged(game, here, move, found)
+            how = (f"I worked this one out before the game (looked {found.depth} moves deep), and a look now, with what "
+                   "I have learned of the pieces since, still finds it best")
         else:
             _judged(game, here, move, found)
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
@@ -1022,7 +1031,24 @@ def _worked_out_ahead(prepared: Any, game: _Game, family: Family, weights: Any, 
     move = next((m for m in legal if held is not None and _named(m) == held.get("move")), None)
     if move is None:
         return None
-    return Found(move, int(held.get("score", 0)), int(held.get("depth", 0)), 0, [move], by="worked out ahead")
+    by = "worked out ahead" if prepared.certified(held, family) else "worked out ahead, to check"
+    return Found(move, int(held.get("score", 0)), int(held.get("depth", 0)), 0, [move], by=by)
+
+
+def _checked(hint: Any, now: Any, legal: list[Move], search_only: Callable[[list[Move]], Any]) -> Any:
+    """An answer worked out ahead under rules that have changed since, held against a look made now (``now``): kept
+    where the look finds the same move, or finds it no worse than the look's own judgement moved while it looked
+    (``unsteady``), searched alone for that (``search_only``, given the moves set aside); else the look's move. A long
+    look under rules a little out of date is worth more than a short one under the rules as they are, unless the short
+    one finds it wrong."""
+    from dataclasses import replace
+
+    if now.move is None or now.move == hint.move:
+        return replace(hint, by="worked out ahead, checked")
+    alone = search_only([m for m in legal if m != hint.move])
+    if alone.move == hint.move and now.score - alone.score <= max(0, int(now.unsteady)):
+        return replace(hint, by="worked out ahead, checked")
+    return replace(now, by="worked out ahead, and a look now found better")
 
 
 def _expect_back(game: _Game, family: Family, move: Move, found: Any) -> None:

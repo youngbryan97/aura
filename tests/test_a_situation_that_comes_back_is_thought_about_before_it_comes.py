@@ -220,3 +220,38 @@ def test_a_move_her_rules_allow_on_too_little_is_set_aside_and_an_answer_that_is
                      doubtful=lambda position, move: move == first)
     assert searched == [_a_place(start)]
     assert prepared.answer(_a_place(start), among(moves(CHESS, start)))["move"] != _named(first)
+
+
+def test_an_answer_worked_out_under_the_rules_she_plays_by_is_played_and_one_under_other_rules_is_a_hint() -> None:
+    from dataclasses import replace
+
+    from core.agency.how_the_pieces_move import HowThePiecesMove
+
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    prepared = Prepared()
+    prepared.prepare(CHESS, start, weights, positions=1, plies=2, search=_a_quick_look([]))
+    game = _Game(learned=HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, dict(start.cells)),
+                 believed=start)
+    assert _worked_out_ahead(prepared, game, CHESS, weights, moves(CHESS, start)).by == "worked out ahead"
+    # Her rules grew elsewhere, and the start offers the same choices: what she worked out there is a hint.
+    grown = replace(CHESS, count_to_draw=CHESS.count_to_draw + 1)
+    hint = _worked_out_ahead(prepared, game, grown, weights, moves(grown, start))
+    assert hint is not None and hint.by == "worked out ahead, to check"
+    held = prepared.answer(_a_place(start), among(moves(CHESS, start)))
+    assert held["line"] and held["line"][0] == held["move"]
+
+
+def test_a_hint_stands_unless_a_look_now_finds_it_worse_than_its_own_judgement_moved() -> None:
+    from core.agency.playing_pieces_by_kind import _checked
+
+    legal = sorted(moves(CHESS, CHESS.the_start()), key=_named)
+    hint = Found(legal[0], 30, 16, 0, [legal[0]], by="worked out ahead, to check")
+    now = Found(legal[1], 40, 9, 1000, [legal[1]], unsteady=15)
+    # Searched alone, the hint comes within what the look's own judgement moved: it stands.
+    kept = _checked(hint, now, legal, lambda aside: Found(legal[0], 30, 10, 500, [legal[0]]))
+    assert kept.move == legal[0] and kept.by == "worked out ahead, checked"
+    # Further off than that: the look made now is played.
+    assert _checked(hint, now, legal, lambda aside: Found(legal[0], 10, 10, 500, [legal[0]])).move == legal[1]
+    # A look that finds the same move needs no second look.
+    agreeing = Found(legal[0], 25, 9, 1000, [legal[0]])
+    assert _checked(hint, agreeing, legal, lambda aside: 1 / 0).by == "worked out ahead, checked"

@@ -389,7 +389,9 @@ def test_a_move_not_taken_is_made_again_slower_before_it_is_given_up(monkeypatch
     monkeypatch.setattr(playing, "STILL_S", 0.3)
     monkeypatch.setattr(playing, "THINKS_S", 0.2)
     game, said = _DraughtsGame(think_s=0.6, wants_between_s=0.6), []
-    result = asyncio.run(play_a_board(game.look, game, "Checkers.", seconds=14.0, say=said.append))
+    # Each move here takes about 6.5 s (set down too soon, waited on, made again slower, then answered): measured 23
+    # November 2026, the second was made at 13.8 s, and 14 s left it no room under a loaded machine.
+    result = asyncio.run(play_a_board(game.look, game, "Checkers.", seconds=20.0, say=said.append))
     assert game.made >= 2 and result["ended"] == "out of time", (result, game.made, said)
     assert not any("wouldn't take" in line for line in said), said
 

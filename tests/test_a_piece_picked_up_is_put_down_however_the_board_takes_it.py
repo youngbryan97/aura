@@ -18,6 +18,13 @@ def _played(monkeypatch, keeps_it_picked: bool) -> tuple[dict, BoardApplication,
     monkeypatch.setattr(playing, "OFFERS_SHOW_S", 0.01)
     monkeypatch.setattr(playing, "WAITS_FOR_THE_FIRST_MOVE_S", 0.5)
     monkeypatch.setattr(playing._Rehearsing, "start", lambda self, pool, family: None)
+    # Searched by a count of positions, not by the clock: the same game every time, however loaded the machine. A
+    # search by time looked less deep under load, played another game, and in it met a move this game really refuses.
+    import core.agency.searching_by_kind as searching
+
+    by_time = searching.search
+    monkeypatch.setattr(searching, "search", lambda family, position, **how: by_time(
+        family, position, **{**how, "nodes": 20_000, "threads": 1, "soft": None}))
     app = BoardApplication(NOBODYS_GAME, seed=5, keeps_it_picked=keeps_it_picked)
     said: list[str] = []
     seat_holder: list = []

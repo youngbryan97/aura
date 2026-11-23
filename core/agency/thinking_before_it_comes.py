@@ -43,7 +43,7 @@ from typing import Any
 
 logger = logging.getLogger("Aura.ThinkingBeforeItComes")
 
-__all__ = ["LOOKS_FOR_S", "Prepared", "among"]
+__all__ = ["LOOKS_FOR_S", "Prepared", "among", "the_rules_of"]
 
 #: How long she looks at each situation she prepares: the look measured above to choose better than her game pace.
 LOOKS_FOR_S = 30.0
@@ -51,6 +51,8 @@ LOOKS_FOR_S = 30.0
 KEPT_AT_MOST = 2_000
 #: How many of the other side's answers in one situation she prepares for: the ones they have given most.
 ANSWERS_FOLLOWED = 2
+#: Moves of a look's line kept with its answer: the line her look expects, as far as her pondering follows one.
+LINE_KEPT = 8
 
 
 def _key(place: str) -> str:
@@ -70,6 +72,16 @@ def among(legal: Any) -> str:
     return hashlib.sha1("|".join(sorted(_named(m) for m in legal)).encode()).hexdigest()[:16]
 
 
+def the_rules_of(family: Any) -> str:
+    """The rules a look was made under, as a short name. An answer worked out among the choices a situation offers is
+    an answer to it; one worked out under the very rules she plays by now is certain to be the answer that look gives,
+    and one worked out under rules that have changed since, elsewhere on the board, is a hint, which a short look
+    checks before she plays it (core/agency/playing_pieces_by_kind.py)."""
+    from core.agency.searching_by_kind import described
+
+    return hashlib.sha1(described(family).encode()).hexdigest()[:16]
+
+
 @dataclass
 class Prepared:
     """Her answers, worked out ahead, to the situations she expects to meet: each with the move, how deep the look
@@ -84,6 +96,11 @@ class Prepared:
         """What she worked out for this situation among these choices (``among``), if she has."""
         held = self.answers.get(_key(place))
         return held if held is not None and held.get("among") == choices else None
+
+    @staticmethod
+    def certified(held: dict[str, Any], family: Any) -> bool:
+        """Whether an answer was worked out under the rules she plays by now (``the_rules_of``): else it is a hint."""
+        return held.get("rules") == the_rules_of(family)
 
     def prepare(self, family: Any, start: Any, weights: Any, *, they_answered: Any = None, went_wrong: Any = None,
                 positions: int, plies: int, seconds: float = LOOKS_FOR_S, threads: int = 1, search: Any = None,
@@ -210,7 +227,8 @@ class Prepared:
         reply = _named(line[1]) if len(line) > 1 and line[0] == move else None
         self.answers[_key(place)] = {"move": _named(move), "depth": int(found.depth), "score": int(found.score),
                                      "among": choices, "reply": reply, "at": time.time(),
-                                     "seconds": float(seconds), "ply": int(ply)}
+                                     "seconds": float(seconds), "ply": int(ply), "rules": the_rules_of(family),
+                                     "line": [_named(m) for m in line[:LINE_KEPT]]}
         logger.info("worked out ahead a situation %d turn(s) from the start in %.0f s: %s (looked %d deep)",
                     ply, time.monotonic() - began, _named(move), found.depth)
         return move, reply
