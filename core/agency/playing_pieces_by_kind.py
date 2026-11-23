@@ -65,6 +65,10 @@ MARKED_SHARE = 0.02
 PROBES_A_TURN = 6
 #: Offers seen of a kind after which it is not picked up just to learn from.
 SEEN_ENOUGH = 8
+#: Sightings of a kind going a way, that far or further, below which a move that way is looked at before it is made:
+#: one misread look can show two. LIVE 23 November 2026 one look gave her royal kind two squares far up the board, and
+#: her rules had it ride the whole file; preparing after, she worked out a move of it from e1 to e4.
+SEEN_TO_BELIEVE = 3
 #: Moves she picks up and finds not offered, at most, before she moves the best one the game does offer.
 CHECKS_A_TURN = 8
 #: The least she waits on an answer before taking it that none is coming, whatever answers have taken so far.
@@ -865,7 +869,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # 2026, game 10: the look took 47 s of a 232 s game, where her thinking had 60.
             if found.move.start not in offered:
                 pressed = any(k.royal for k in family.kinds.values()) and in_check(family, game.believed, FIRST)
-                unseen = not game.learned.knows_how_it_goes(game.believed.cells[found.move.start][1])
+                unseen = (not game.learned.knows_how_it_goes(game.believed.cells[found.move.start][1])
+                          or game.learned.seen_going_there(game.believed, found.move) < SEEN_TO_BELIEVE)
                 if not _looks_first(game, pressed=pressed, unseen=unseen):
                     break
                 squares = await _offers_for(seat, look, click, picture, found.move.start)
@@ -1062,8 +1067,9 @@ def _looks_first(game: _Game, *, pressed: bool = False, unseen: bool = False) ->
     """Whether she picks the piece up to see what the game offers before she moves it: on every move until her rules
     have earned going without (core/cognition/how_far_to_go_before_looking.py), and then on every move they have not.
     Always while her piece that must be kept safe is attacked (``pressed``): that is where a game narrows what it
-    offers most, and where her rules have seen it least. Always for a kind she has never seen go (``unseen``): what
-    she searched it with is a guess that it goes every way, and what her rules earned elsewhere says nothing of it."""
+    offers most, and where her rules have seen it least. Always for a kind she has never seen go, or a move her rules
+    allow on fewer than SEEN_TO_BELIEVE sightings of the kind going that way (``unseen``): what she searched it with is
+    a guess, and what her rules earned elsewhere says nothing of it."""
     if not pressed and not unseen and game.unlooked + 1 < game.far.how_many(trusted=game.far.how_often_it_held):
         game.unlooked += 1
         return False

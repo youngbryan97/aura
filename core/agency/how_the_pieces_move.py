@@ -575,6 +575,24 @@ class HowThePiecesMove:
             return 0
         return furthest
 
+    def seen_going_there(self, position: Position, move: Move) -> int:
+        """How often this kind has been offered, or seen to go, the way this move goes, as far as it goes or further:
+        what her rules allowing it rests on. A crossing, two pieces changing places and a take over or in passing rest
+        on evidence of their own, and are counted as resting on plenty."""
+        if move.partner is not None or move.via or move.taken_at not in (None, move.end):
+            return 1 << 30
+        side, kind = position.cells[move.start]
+        (forward, right), times = in_its_frame(side, move.start, move.end)
+        ways = self._ways_of(kind)
+        seen = 0
+        for direction in {(forward, right), (forward, -right)}:
+            way = ways.get(direction)
+            if way is None:
+                continue
+            distances = set(way.went_at) | set(way.took_at) | way.offered | way.offered_unmoved
+            seen = max(seen, sum(way._counted(t, False) + way._counted(t, True) for t in distances if t >= times))
+        return seen
+
     def knows_how_it_goes(self, kind: str) -> bool:
         """Whether she has seen this kind go anywhere: whether its steps are her own reading, not a guess."""
         return bool(self._steps_of(kind))
