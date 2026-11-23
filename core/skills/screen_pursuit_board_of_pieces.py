@@ -102,7 +102,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
                                      learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
                                      went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"),
                                      they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"),
-                                     prepared=kept.get("prepared"))
+                                     prepared=kept.get("prepared"), held=keep.get("pieces_held") or kept.get("held"))
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
     went_wrong_now = came.pop("went_wrong", None)
     if went_wrong_now is not None:
@@ -110,6 +110,9 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     they_answered_now = came.pop("they_answered", None)
     if they_answered_now is not None:
         keep["pieces_they_answered"] = they_answered_now
+    held_now = came.pop("held", None)
+    if held_now is not None:
+        keep["pieces_held"] = held_now
     # Where the game stood when it stopped, kept for reading how it ended; too long for the log.
     final, last_move = came.pop("final", None), came.pop("last_move", None)
     logger.info("a board of pieces played: %s", came)
@@ -119,7 +122,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         keep["pieces_rehearsal"] = rehearsal_now
     # Off the loop: what she gathered beside the record runs to megabytes.
     await asyncio.to_thread(_keep_what_she_learned, target_app, seat.looks, learned_now, rehearsal_now,
-                            went_wrong_now, they_answered_now)
+                            went_wrong_now, they_answered_now, held_now)
     if came.get("ended") in ("not taking moves", "not answered"):
         keep["board_left_until"] = time.monotonic() + LEFT_UNTIL_S
         # Until the board takes a move, it has not answered her (screen_pursuit.nothing_has_answered).
@@ -232,6 +235,8 @@ _THEY_ANSWERED = "what-they-answered-where"
 _PREPARED = "worked-out-ahead"
 #: Every answer the game gave about what may be done (core/agency/what_the_game_showed.py).
 _SHOWN = "what-the-game-showed"
+#: What her judgements of this board have gone on to come to (core/cognition/how_far_her_judgement_holds.py).
+_HELD_SO = "how-her-judgement-held"
 
 
 def _her_record(target_app: str) -> str:
@@ -276,6 +281,15 @@ def _kept_under(record: str) -> dict[str, Any]:
         from core.agency.thinking_before_it_comes import Prepared
 
         kept["prepared"] = Prepared.from_bytes(ahead)
+    judged = recall_beside(record, _HELD_SO)
+    if judged:
+        from core.cognition.how_far_her_judgement_holds import HowFarItHolds
+
+        try:
+            kept["held"] = HowFarItHolds.from_memory(json.loads(judged))
+        # not a failure: what cannot be read back is gathered afresh.
+        except (TypeError, ValueError):
+            kept["held"] = None
     worth = held.get("worth") or {}
     if worth.get("weights"):
         try:
@@ -303,7 +317,7 @@ def _kept_under(record: str) -> dict[str, Any]:
 
 
 def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal: Any, went_wrong: Any = None,
-                           they_answered: Any = None) -> None:
+                           they_answered: Any = None, held: Any = None) -> None:
     from dataclasses import asdict
 
     from core.agency.what_a_kind_is_worth import RESULTS
@@ -315,8 +329,11 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
         shown = getattr(learned, "shown", None)
         if shown is not None and (shown.offers or shown.refusals):
             remember_beside(_her_record(target_app), _SHOWN, shown.as_bytes())
-    if went_wrong is not None and went_wrong.ruled_out:
+    if went_wrong is not None and (went_wrong.ruled_out or went_wrong.suspected or went_wrong.cleared):
         record["went_wrong"] = went_wrong.as_memory()
+    if held is not None and held.pairs:
+        # What her judgements have come to, kept beside the record: thousands of judgements.
+        remember_beside(_her_record(target_app), _HELD_SO, json.dumps(held.as_memory()).encode())
     if they_answered is not None and they_answered.answered:
         # Kept beside the record: thousands of positions where a record holds sixty thousand characters.
         remember_beside(_her_record(target_app), _THEY_ANSWERED, they_answered.as_bytes())

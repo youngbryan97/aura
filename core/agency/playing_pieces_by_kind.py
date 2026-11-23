@@ -41,6 +41,7 @@ from core.agency.pieces_by_their_kind import (
 )
 from core.agency.thinking_on_their_time import Pondering, WhatTheyAnsweredWhere
 from core.agency.what_she_did import ACCEPTED, REFUSED, WhatSheDid
+from core.cognition.how_far_her_judgement_holds import HowFarItHolds
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.how_long_a_change_takes_to_settle import HowLongItSettles
 from core.cognition.keeping_her_own_count import KeptCount
@@ -426,6 +427,8 @@ class _Game:
     they_answered: WhatTheyAnsweredWhere = field(default_factory=WhatTheyAnsweredWhere)
     #: Her moves as the game took them: proposed, attempted, and made or refused (core/agency/what_she_did.py).
     did: WhatSheDid = field(default_factory=WhatSheDid)
+    #: What her judgements of this board have gone on to come to (core/cognition/how_far_her_judgement_holds.py).
+    held: HowFarItHolds = field(default_factory=HowFarItHolds)
     pondering: Pondering = field(default_factory=Pondering)
     judged: list[tuple[str, str, int]] = field(default_factory=list)
     #: The reply her search expects to her last move, the position it leads to, and the rules it was found by; whether
@@ -483,7 +486,7 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                               borrow: Callable[[dict, bool], Any] | None = None,
                               went_wrong: WhatFailedWhere | None = None,
                               they_answered: WhatTheyAnsweredWhere | None = None,
-                              prepared: Any = None) -> dict[str, Any]:
+                              prepared: Any = None, held: Any = None) -> dict[str, Any]:
     """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
     are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
     the game shows it. Where she has learned nothing of this board, ``borrow`` is asked, once she knows who moves first,
@@ -510,7 +513,7 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
             came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
                                rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
                                the_moves=the_moves, went_wrong=went_wrong, ponder_pool=ponder_pool,
-                               they_answered=they_answered, prepared=prepared)
+                               they_answered=they_answered, prepared=prepared, held=held)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
         ponder_pool.shutdown(wait=False, cancel_futures=True)
@@ -636,7 +639,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 borrow: Callable[[dict, bool], Any] | None = None,
                 the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None,
                 ponder_pool: Any = None, they_answered: WhatTheyAnsweredWhere | None = None,
-                prepared: Any = None) -> dict[str, Any]:
+                prepared: Any = None, held: Any = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -678,6 +681,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 rehearsing.rehearsal = lent_rehearsal
             tell(f"This board begins as the one in {where} does, so I'll start from what I learned there.")
     game.learned.first_was_hers = game.first_is_hers
+    if held is not None:
+        game.held = held
     if game.learned.shown is None:
         from core.agency.what_the_game_showed import WhatTheGameShowed
 
@@ -942,6 +947,11 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             _judged(game, here, move, found)
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
                   f"{found.nodes:,} positions)"
+            # What judgements like it have come to here, where she has seen enough to say: her judgement read as the
+            # chance it has turned out to be.
+            held_so = game.held.says(found.score)
+            if held_so:
+                how += f" {held_so[0].upper()}{held_so[1:]}."
         tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. {how}")
         act = game.did.proposed(_as_played(game, move))
         game.did.attempted(act)
@@ -1475,7 +1485,14 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
         logger.info("she foresaw %d of their %d answers", game.foreseen, game.foreseeable)
     ended_with = {"ended": result, "moves": game.made, "theirs": game.theirs, "learned": game.learned,
                   "foresaw": (game.foreseen, game.foreseeable), "final": game.believed, "last_move": game.last_followed,
-                  "acts": game.did.as_record()}
+                  "acts": game.did.as_record(), "held": game.held}
+    outcome = {"won": 1.0, "lost": 0.0, "drawn": 0.5}.get(result)
+    if outcome is not None:
+        game.held.came_to([score for _place, _move, score in game.judged], outcome)
+        error = game.held.error()
+        if error is not None:
+            logger.info("what her judgements of this board come to: %d games, error %.3f", game.held.undertakings,
+                        error)
     if game.learned.shown is not None:
         # Her rules as they stand, checked against every answer the game has given: what they would have it offer that
         # it did not, and what it offered that they would not. Both should be none.
