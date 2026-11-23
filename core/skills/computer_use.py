@@ -1837,6 +1837,11 @@ end tell
                 # she numbered each side's move as a move of its own.
                 said += (f" The moves, {'theirs' if game.get('first_was_hers') is False else 'mine'} first in each "
                          f"pair: {_in_pairs(moves)}.")
+            refused = [str(one) for one in (game.get("acts") or {}).get("refused") or []]
+            if refused:
+                # What she tried and the game would not take is said as that: an intention said aloud is not a move
+                # made (core/agency/what_she_did.py). LIVE 23 November 2026 her account named refused moves as played.
+                said += f" Moves I tried that the game refused, so never made: {', '.join(refused)}."
             if lines:
                 said += " What I said as I played, in order: " + " | ".join(lines)
         elif result.get("completed"):

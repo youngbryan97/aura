@@ -40,6 +40,7 @@ from core.agency.pieces_by_their_kind import (
     outcome,
 )
 from core.agency.thinking_on_their_time import Pondering, WhatTheyAnsweredWhere
+from core.agency.what_she_did import ACCEPTED, REFUSED, WhatSheDid
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.how_long_a_change_takes_to_settle import HowLongItSettles
 from core.cognition.keeping_her_own_count import KeptCount
@@ -418,6 +419,8 @@ class _Game:
     went_wrong: WhatFailedWhere = field(default_factory=WhatFailedWhere)
     #: What the other side answered in each position she has met, and her look on their time at what she expects next.
     they_answered: WhatTheyAnsweredWhere = field(default_factory=WhatTheyAnsweredWhere)
+    #: Her moves as the game took them: proposed, attempted, and made or refused (core/agency/what_she_did.py).
+    did: WhatSheDid = field(default_factory=WhatSheDid)
     pondering: Pondering = field(default_factory=Pondering)
     judged: list[tuple[str, str, int]] = field(default_factory=list)
     #: The reply her search expects to her last move, the position it leads to, and the rules it was found by; whether
@@ -833,10 +836,15 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 move = Move(start, end, taken_at=taken)
                 tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}, "
                      "the move the game offers me.")
+                act = game.did.proposed(_as_played(game, move))
+                game.did.attempted(act)
                 await _by_hand(seat, click, picture, move, OFFERS_SHOW_S)
                 if await _comes_to_show(seat, look, game, move):
+                    game.did.settled(act, ACCEPTED, known_by="the board showed it made")
                     game.made += 1
                     game.waiting_since = monotonic_time()
+                else:
+                    game.did.settled(act, REFUSED, known_by="the board did not show it")
                 continue
         weights = rehearsing.weights_for(family)
         set_aside: list[Move] = []
@@ -918,6 +926,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
                   f"{found.nodes:,} positions)"
         tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. {how}")
+        act = game.did.proposed(_as_played(game, move))
+        game.did.attempted(act)
         made = False
         finish_began = monotonic_time()
         for attempt in range(TRIES_OF_A_MOVE):
@@ -950,6 +960,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                         monotonic_time() - seen, turn_began - seen, learned_until - turn_began, searched_s,
                         finish_began - learned_until - searched_s, monotonic_time() - finish_began,
                         f"{share:.1f} s" if on_her_clock else "not on a clock")
+        game.did.settled(act, ACCEPTED if made else REFUSED,
+                         known_by="the board showed it made" if made else "the game did not take it")
         if not made:
             game.learned.refused(game.believed, move, family=family)
             if game.unlooked:
@@ -960,7 +972,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         game.made += 1
         game.waiting_since = monotonic_time()
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned,
-            "foresaw": (game.foreseen, game.foreseeable)}
+            "foresaw": (game.foreseen, game.foreseeable), "acts": game.did.as_record()}
+
+
+def _as_played(game: _Game, move: Move) -> str:
+    """A move named as her record of the game names it: its squares, and an x where it takes."""
+    rows, columns = game.learned.rows, game.learned.columns
+    return (_square_named(move.start, game.first_is_hers, rows, columns) + ("x" if move.taken_at is not None else "-")
+            + _square_named(move.end, game.first_is_hers, rows, columns))
 
 
 def _worked_out_ahead(prepared: Any, game: _Game, family: Family, weights: Any, legal: list[Move]) -> Any:
@@ -1386,7 +1405,8 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
     if game.foreseeable:
         logger.info("she foresaw %d of their %d answers", game.foreseen, game.foreseeable)
     ended_with = {"ended": result, "moves": game.made, "theirs": game.theirs, "learned": game.learned,
-                  "foresaw": (game.foreseen, game.foreseeable), "final": game.believed, "last_move": game.last_followed}
+                  "foresaw": (game.foreseen, game.foreseeable), "final": game.believed, "last_move": game.last_followed,
+                  "acts": game.did.as_record()}
     if game.learned.shown is not None:
         # Her rules as they stand, checked against every answer the game has given: what they would have it offer that
         # it did not, and what it offered that they would not. Both should be none.
