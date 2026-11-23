@@ -1129,6 +1129,11 @@ async def pursue_on_screen(
                 target_app=target_app,
             ),
         ))
+        if seen.get("laid_over") and blocker_attempts["count"] < MAX_BLOCKER_ATTEMPTS:
+            # A panel laid over the window, the rest darkened behind it: what is under it cannot be pressed or played
+            # until it is closed, and closing it is this cycle's (core/perception/something_laid_over_it.py). LIVE 23
+            # November 2026 "Player not found" lay over the board and she pressed the up arrow at the board under it.
+            return seen
         # Two sides of pieces at their start, in the window she is working in: a game to learn and play by search, not
         # to press keys at (core/skills/screen_pursuit_board_of_pieces.py).
         played = await played_a_board_of_pieces(target_app or anchor.get("app", ""), ends_at, pending, seen)

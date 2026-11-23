@@ -281,6 +281,40 @@ def _is_what_she_intended(warnings: tuple[str, ...], intending: str) -> bool:
     return "start over" in intending.lower() or "restart" in intending.lower()
 
 
+#: The reason given for a panel seen laid over the window.
+LAID_OVER = "a panel is laid over the window and the rest is darkened behind it"
+
+
+def _closing_what_is_laid_over(laid: dict[str, Any], layout: Sequence[dict[str, Any]]) -> OverlayVerdict:
+    """How to close a panel laid over the window: a control on the panel that closes without agreeing, where it has
+    one; otherwise Escape, which closes a panel on every desktop and agrees to nothing. Controls elsewhere in the
+    window are under the panel and are not what closes it."""
+    try:
+        left, top = float(laid["left"]), float(laid["top"])
+        right, bottom = float(laid["right"]), float(laid["bottom"])
+    # not a failure: a panel without a place is closed the way that needs none.
+    except (KeyError, TypeError, ValueError):
+        left = top = 0.0
+        right = bottom = 1.0
+    best_score, best = 0, None
+    for region in layout:
+        label = str(region.get("text") or "").strip()
+        where = _where(region)
+        if not label or len(label) > 40 or where is None:
+            continue
+        if not (left <= where[0] <= right and top <= where[1] <= bottom):
+            continue
+        score = _dismissal_score(label)
+        if score > best_score:
+            best_score, best = score, region
+    if best is not None:
+        x, y = _where(best) or (0.0, 0.0)
+        return OverlayVerdict(present=True, click_x=round(x, 5), click_y=round(y, 5),
+                              label=str(best.get("text") or "").strip(), confidence=best_score,
+                              reasons=(LAID_OVER, "dismissive_control_present"))
+    return OverlayVerdict(present=True, suggested_key="escape", confidence=60, reasons=(LAID_OVER,))
+
+
 def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> OverlayVerdict:
     """Read one screen observation and decide whether something is in the way.
 
@@ -298,7 +332,7 @@ def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> Overl
     """
     text = str(observation.get("text") or "")
     layout = list(observation.get("layout") or [])
-    if not text and not layout:
+    if not text and not layout and not observation.get("laid_over"):
         return OverlayVerdict()
 
     # Hints are counted from POSITIONED text, and the top strip is ignored.
@@ -334,6 +368,12 @@ def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> Overl
             ),
             reasons=destructive,
         )
+
+    laid = observation.get("laid_over")
+    if isinstance(laid, dict):
+        # A panel her eyes saw laid over the window, with the rest darkened behind it
+        # (core/perception/something_laid_over_it.py): something is in the way whatever its words are.
+        return _closing_what_is_laid_over(laid, layout)
 
     body_text = " ".join(
         str(region.get("text") or "")

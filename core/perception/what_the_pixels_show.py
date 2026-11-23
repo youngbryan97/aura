@@ -284,6 +284,22 @@ def panels_in(image: Any) -> list[Panel]:
     return panels
 
 
+def _boxed_in(layout: Sequence[dict[str, Any]], panels: Sequence[Panel]) -> None:
+    """Each run of words given the smallest panel drawn around it, as ``within`` (left, top, right, bottom). Whether
+    a label has a box of its own, holding nothing else, is how a button is told from words set on a page."""
+    for region in layout:
+        try:
+            x, y = float(region["center_x"]), float(region["center_y"])
+        # not a failure: words with no place have no box around them.
+        except (KeyError, TypeError, ValueError):
+            continue
+        around = [panel for panel in panels if panel.holds(x, y)]
+        if around:
+            panel = min(around, key=lambda one: one.width * one.height)
+            region["within"] = [round(panel.left, 4), round(panel.top, 4), round(panel.left + panel.width, 4),
+                                round(panel.top + panel.height, 4)]
+
+
 def _nearly_the_same(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
@@ -1033,6 +1049,7 @@ class Looker:
                 }
             )
         full = layout + extra
+        _boxed_in(full, panels)
         self.last_looks = every_look
         return {
             "ok": True,
@@ -1359,6 +1376,12 @@ def settled_reading(
             if unread
             else "it was still changing",
         )
+    if isinstance(reading, dict):
+        # How light each part of it is, so a panel laid over the window can be told from the last picture of it
+        # (core/perception/something_laid_over_it.py).
+        from core.perception.something_laid_over_it import how_light_each_part_is
+
+        reading["tones"] = how_light_each_part_is(picture)
     return picture, reading, still
 
 
@@ -1647,6 +1670,11 @@ async def _read_until_settled(
     if isinstance(reading, dict):
         from uuid import uuid4
 
+        from core.perception.something_laid_over_it import how_light_each_part_is
+
+        # How light each part of it is, so a panel laid over the window can be told from the last picture of it
+        # (core/perception/something_laid_over_it.py).
+        reading["tones"] = await asyncio.to_thread(how_light_each_part_is, picture)
         # Evidence belongs to the pixels actually captured, before OCR completed.
         # Bounded immutable bytes are private to the observation, never a global image.
         reading = ScreenReading(reading, picture_snapshot=snapshot)
@@ -1772,4 +1800,13 @@ async def look_at_window(
             "seconds_reading": round(time.monotonic() - began - looked_took, 3),
         }
     )
+    # A panel laid over the whole window, told from the last picture of it with nothing over it. Only of the whole
+    # window: a part of it is framed differently from one look to the next.
+    tones = reading.pop("tones", None)
+    if over is None:
+        from core.perception.something_laid_over_it import laid_over_what_she_saw
+
+        laid = laid_over_what_she_saw(f"{window.owner}:{window.number}", tones)
+        if laid is not None:
+            reading["laid_over"] = laid.as_dict()
     return reading

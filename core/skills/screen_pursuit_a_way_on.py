@@ -36,6 +36,9 @@ PRESSES_OF_A_WAY_ON = 2
 #: line and a half of a card.
 SAME_COLUMN = 0.06
 SAME_CARD = 0.09
+#: The most runs of words a thing drawn to be pressed says what it does in: a card's heading, its line and its button.
+#: A box of more is something to read (a list of moves, a page of notes).
+SAYS_AT_MOST = 3
 
 
 def _regions(reading: dict[str, Any]) -> list[dict[str, Any]]:
@@ -49,12 +52,40 @@ def _regions(reading: dict[str, Any]) -> list[dict[str, Any]]:
             y = float(region.get("center_y", region.get("y", 0.0)))
         except (TypeError, ValueError):
             continue
-        found.append({"text": text, "x": x, "y": y})
+        one = {"text": text, "x": x, "y": y}
+        if isinstance(region.get("within"), (list, tuple)) and len(region["within"]) == 4:
+            one["within"] = [float(v) for v in region["within"]]
+        found.append(one)
     return found
 
 
+def _a_box_of_its_own(control: list[dict[str, Any]], controls: list[list[dict[str, Any]]]) -> bool:
+    """Whether a control's words are drawn in a box that holds no other control's words, and say no more than a card
+    does: a button, or a card, as against words set on a page among others. The box is the smallest drawn around any of its words (read with them,
+    core/perception/what_the_pixels_show.py)."""
+    boxes = [r["within"] for r in control if "within" in r]
+    if not boxes or len(control) > SAYS_AT_MOST:
+        return False
+    box = min(boxes, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
+    return not any(_holds(box, r) for other in controls if other is not control for r in other)
+
+
+def _holds(box: list[float] | None, region: dict[str, Any]) -> bool:
+    return box is not None and box[0] <= region["x"] <= box[2] and box[1] <= region["y"] <= box[3]
+
+
+def _drawn_together(one: dict[str, Any], other: dict[str, Any]) -> bool:
+    """Whether two runs of words may be one control by what is drawn around them: where the box drawn around either
+    holds the other (a card's heading and its button), or nothing is seen drawn around them. A button's words and the
+    words under it in another box are two things."""
+    mine, theirs = one.get("within"), other.get("within")
+    if mine is None or theirs is None:
+        return True
+    return _holds(mine, other) or _holds(theirs, one)
+
+
 def _controls(regions: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-    """Words stacked close in one column, top to bottom, as one control."""
+    """Words stacked close in one column, top to bottom, and drawn in one box, as one control."""
     joined = list(range(len(regions)))
 
     def root(i: int) -> int:
@@ -66,7 +97,8 @@ def _controls(regions: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     for i, one in enumerate(regions):
         for j in range(i + 1, len(regions)):
             other = regions[j]
-            if abs(one["x"] - other["x"]) <= SAME_COLUMN and abs(one["y"] - other["y"]) <= SAME_CARD:
+            if (abs(one["x"] - other["x"]) <= SAME_COLUMN and abs(one["y"] - other["y"]) <= SAME_CARD
+                    and _drawn_together(one, other)):
                 joined[root(i)] = root(j)
     groups: dict[int, list[dict[str, Any]]] = {}
     for i, region in enumerate(regions):
@@ -290,6 +322,20 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
     act = 0
     scores = [float(v) for v in by_act[:, act]]
     chosen = _stands_out(scores)
+    # What is drawn to be pressed first. A person looking for the way on looks at the buttons and the cards, and reads
+    # the words set among other words (a heading, a name, a date) as things to read. Among the controls in a box of
+    # their own, the one that stands out is taken, where it means more than the middle of what the screen says. LIVE
+    # 23 November 2026 at a finished game "BLACK Stockfish", a heading over the players' names, was nearer "play a game
+    # against Stockfish" (0.77) than the "New Game" button (0.60); pressing it laid "Player not found" over the board.
+    boxed = [i for i, control in enumerate(controls) if _a_box_of_its_own(control, controls)]
+    if len(boxed) >= 2:
+        among = _stands_out([scores[i] for i in boxed])
+        if among is not None and scores[boxed[among]] > float(np.median(scores)):
+            if boxed[among] != chosen and chosen is not None:
+                logger.info("of the controls drawn to be pressed in %r, %r stands out (%.2f) over the words %r (%.2f)",
+                            target_app, texts[boxed[among]][:60], scores[boxed[among]], texts[chosen][:60],
+                            scores[chosen])
+            chosen = boxed[among]
     if chosen is None:
         # Nothing stands out by what the words are about ("Start game" is not about chess against an engine, and is
         # what starts one): which control does the next step is a question of understanding the place, put to her own
