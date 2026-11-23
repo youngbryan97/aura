@@ -126,3 +126,34 @@ def test_what_her_eyes_and_hands_cost_is_told_with_the_game(monkeypatch) -> None
     told = asyncio.run(run())["eyes_and_hands"]
     assert told["looks"]["n"] > 0 and told["clicks"]["n"] >= app.clicks > 0
     assert told["looks"]["median_s"] is not None and told["looks"]["total_s"] >= 0
+
+
+def test_she_also_looks_at_their_strongest_answer_where_it_is_not_the_one_she_expects(monkeypatch) -> None:
+    """What they tend to answer schedules where she looks first; what they could answer is looked at as well
+    (suggestions of 23 November 2026): a strong side's best answer is not the one it gave before because it gave it."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    import core.agency.searching_by_kind as searching
+
+    learned = HowThePiecesMove.from_the_start(8, 8, CHESS.start)
+    game = playing._Game(learned=learned, believed=CHESS.the_start())
+    mine = Move((1, 4), (3, 4))
+    made = after(CHESS, game.believed, mine)
+    usual = next(m for m in moves(CHESS, made) if (m.start, m.end) == ((6, 2), (4, 2)))
+    game.they_answered.they_answered(playing._a_place(made), playing._named(usual))
+    strongest = next(m for m in moves(CHESS, made) if (m.start, m.end) == ((6, 4), (4, 4)))
+
+    class _Found:
+        line = [mine, strongest]
+        by = "compiled"
+
+    playing._expect_back(game, CHESS, mine, _Found())
+    assert game.expected[0] == usual and game.also_expected[0] == strongest
+    looked: list = []
+    monkeypatch.setattr(searching, "search", lambda family, position, **k: looked.append((position, k["seconds"])))
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        game.pondering.start(pool, CHESS, game.expected[1], seconds=2.0, weights=None, earlier=[], threads=1,
+                             also=game.also_expected[1])
+        game.pondering.running.result()
+    assert [position for position, _seconds in looked] == [game.expected[1], game.also_expected[1]]
+    assert all(seconds == 1.0 for _position, seconds in looked)

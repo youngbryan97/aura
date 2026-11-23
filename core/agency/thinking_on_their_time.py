@@ -86,18 +86,28 @@ class Pondering:
         return max(0.05, min(her_share, statistics.median(their_answer_times)))
 
     def start(self, pool: Any, family: Any, position: Any, *, seconds: float, weights: Any, earlier: list[Any],
-              threads: int) -> None:
-        """A look at ``position`` in the background, where none is under way."""
+              threads: int, also: Any = None) -> None:
+        """A look at ``position`` in the background, where none is under way; and, where ``also`` is another
+        position (the one after the answer that would hurt her most, where it is not the one she expects), a look at
+        that too, the time shared between them. What they tend to answer schedules where she looks first; what they
+        could answer is looked at as well (suggestions of 23 November 2026)."""
+        from core.agency.pieces_by_their_kind import FIRST
         from core.agency.searching_by_kind import search
 
         if self.busy() or pool is None:
             return
         self.looks += 1
-        from core.agency.pieces_by_their_kind import FIRST
+        positions = [position] if also is None else [position, also]
 
-        # As wary of her own unsure ways as the search of her turn is: the two share what they find.
-        self.running = pool.submit(search, family, position, seconds=seconds, weights=weights, earlier=earlier,
-                                   threads=threads, wary=FIRST)
+        def look() -> Any:
+            found = None
+            for one in positions:
+                # As wary of her own unsure ways as the search of her turn is: the two share what they find.
+                found = search(family, one, seconds=seconds / len(positions), weights=weights, earlier=earlier,
+                               threads=threads, wary=FIRST)
+            return found
+
+        self.running = pool.submit(look)
 
     def settle(self) -> None:
         """What a finished look found is in her search's table already; only its failure is worth a word."""

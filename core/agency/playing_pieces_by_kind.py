@@ -434,6 +434,8 @@ class _Game:
     #: The reply her search expects to her last move, the position it leads to, and the rules it was found by; whether
     #: the reply came is counted, foreseen of foreseeable.
     expected: tuple[Move, Position, Family] | None = None
+    #: Their strongest answer as her search found it, where it is not the one she expects of them.
+    also_expected: tuple[Move, Position, Family] | None = None
     foreseen: int = 0
     foreseeable: int = 0
     #: How long each of their answers took.
@@ -1028,16 +1030,21 @@ def _expect_back(game: _Game, family: Family, move: Move, found: Any) -> None:
     she has met it, else the reply her search found best for them; and where it leaves her. Nothing when she has not
     met the position and her search did not look past her own move."""
     game.expected = None
+    game.also_expected = None
     mine = after(family, game.believed, move)
     named = game.they_answered.most_often(_a_place(mine, game.learned.start, family))
     before = next((m for m in moves(family, mine) if _named(m) == named), None) if named else None
+    line = list(getattr(found, "line", None) or [])
+    strongest = line[1] if getattr(found, "by", "") != "the only move" and len(line) >= 2 and line[0] == move else None
     if before is not None:
         game.expected = (before, after(family, mine, before), family)
+        if strongest is not None and _named(strongest) != _named(before):
+            # Their best answer, as her search found it, where it is not the one they gave before: looked at too.
+            game.also_expected = (strongest, after(family, mine, strongest), family)
         return
-    line = list(getattr(found, "line", None) or [])
-    if getattr(found, "by", "") == "the only move" or len(line) < 2 or line[0] != move:
+    if strongest is None:
         return
-    game.expected = (line[1], after(family, mine, line[1]), family)
+    game.expected = (strongest, after(family, mine, strongest), family)
 
 
 def _think_on_their_time(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks_s: float) -> None:
@@ -1050,9 +1057,12 @@ def _think_on_their_time(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks
     family = game.learned.family(unseen_go_every_way=True)
     if facing.turn != FIRST or not moves(family, facing):
         return
+    also = game.also_expected[1] if game.also_expected is not None else None
+    if also is not None and (also.turn != FIRST or not moves(family, also)):
+        also = None
     game.pondering.start(pool, family, facing, seconds=game.pondering.look_for(game.answers_s, game.last_share or thinks_s),
                          weights=rehearsing.weights_for(family), earlier=[*game.earlier, game.believed],
-                         threads=max(1, _cores_free() - 1))
+                         threads=max(1, _cores_free() - 1), also=also)
 
 
 def _was_expected(game: _Game, move: Move) -> bool:
