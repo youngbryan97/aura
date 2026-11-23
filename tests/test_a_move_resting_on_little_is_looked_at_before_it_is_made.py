@@ -16,13 +16,13 @@ E1 = (0, 4)
 AROUND = {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}
 
 
-def test_a_ride_read_in_one_look_rests_on_too_little_and_a_step_seen_often_does_not() -> None:
+def test_far_squares_read_in_one_look_rest_on_too_little_and_a_step_seen_often_does_not() -> None:
     rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
     for _ in range(3):
         rules.offered(ALONE, E1, AROUND, family=CHESS)
     rules.offered(ALONE, E1, AROUND | {(5, 4), (6, 4)}, family=CHESS)  # a misreading: e6 and e7 taken for offered
-    assert any(s.offsets == ((1, 0),) and s.rides == 0 for s in rules.family().kinds["K"].steps)
-    assert rules.seen_going_there(ALONE, Move(E1, (3, 4))) < SEEN_TO_BELIEVE
+    assert [s.sure for s in rules.family().kinds["K"].steps if s.offsets == ((5, 0),)] == [False]
+    assert rules.seen_going_there(ALONE, Move(E1, (5, 4))) < SEEN_TO_BELIEVE
     assert rules.seen_going_there(ALONE, Move(E1, (1, 4))) >= SEEN_TO_BELIEVE
     # Its image across the board counts for it: a step seen going left is the same evidence for going right.
     assert rules.seen_going_there(ALONE, Move(E1, (1, 5))) >= SEEN_TO_BELIEVE

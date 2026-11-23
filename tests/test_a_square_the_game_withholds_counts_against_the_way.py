@@ -54,16 +54,26 @@ def test_a_move_withheld_for_what_it_leaves_open_takes_nothing_from_the_way() ->
     assert any(s.offsets == ((1, 1),) for s in rules.family().kinds["B"].steps)
 
 
-def test_a_line_read_far_once_stops_short_of_a_square_the_game_withholds() -> None:
+def test_a_leap_read_far_once_goes_when_the_game_withholds_it_and_a_line_stops_short_of_a_withheld_square() -> None:
     rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
-    alone = from_fen("4k3/8/8/8/8/8/8/4K3 w - -")
+    alone = from_fen("k7/8/8/8/8/8/8/4K3 w - -")
     around = {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}
     rules.offered(alone, E1, around, family=CHESS)
     rules.offered(alone, E1, around | {(6, 4)}, family=CHESS)  # a misreading: e7 taken for offered
-    assert any(s.offsets == ((1, 0),) and s.rides == 0 for s in rules.family().kinds["K"].steps)
+    # Six squares up with the five between never offered: a leap, or a misreading, not a line.
+    assert [s.rides for s in rules.family().kinds["K"].steps if s.offsets == ((1, 0),)] == [1]
+    assert [s.sure for s in rules.family().kinds["K"].steps if s.offsets == ((6, 0),)] == [False]
     _knowing_what_is_kept_safe(rules)
     rules.offered(alone, E1, around, family=rules.family(unseen_go_every_way=True))
-    assert [s.rides for s in rules.family().kinds["K"].steps if s.offsets == ((1, 0),)] == [1]
+    assert not [s for s in rules.family().kinds["K"].steps if s.offsets == ((6, 0),)]
+    # A run read unbroken, e2 to e4 with e5 empty and not offered, is a way three squares long; withheld past e2
+    # with e3 and e4 empty, it stops at e2.
+    lined = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
+    lined.offered(alone, E1, around | {(2, 4), (3, 4)}, family=CHESS)
+    assert [s.rides for s in lined.family().kinds["K"].steps if s.offsets == ((1, 0),)] == [3]
+    _knowing_what_is_kept_safe(lined)
+    lined.offered(alone, E1, around, family=lined.family(unseen_go_every_way=True))
+    assert [s.rides for s in lined.family().kinds["K"].steps if s.offsets == ((1, 0),)] == [1]
 
 
 def test_a_distance_offered_unmoved_and_withheld_once_moved_is_an_unmoved_one() -> None:

@@ -592,6 +592,20 @@ class HowThePiecesMove:
         if not offered:
             return -1
         furthest = max(offered)
+        # A line is what a run of offers from the next square shows. A piece that goes past a square on its line can
+        # stop on it, and every square it passes is offered in the same look. Offers beyond the run, with squares
+        # never offered between, have two explanations: a line whose squares between were misread as not offered,
+        # or a run as long as it is, with leaps that far or misreadings beyond it. The one that needs fewer squares
+        # misread is taken, and the line where they need as many (one rule, not two). The far distances of a run are
+        # kept by _steps_of as leaps she is not sure of. LIVE 23 November 2026 her royal kind, offered one square
+        # forward many times and six and seven squares once, was held to ride the whole file: a line needs the four
+        # squares between misread, a run of one the two far offers.
+        run = 0
+        while run + 1 in offered:
+            run += 1
+        missed = sum(1 for t in range(run + 1, furthest) if t not in offered)
+        if 0 < run < furthest and missed > sum(1 for t in offered if t > run):
+            return run
         withheld = {t for t in (way.withheld | (way.withheld_unmoved if unmoved else set())) if t > furthest}
         if withheld:
             return furthest
@@ -686,13 +700,20 @@ class HowThePiecesMove:
         steps: list[Step] = []
         ways = self._ways_of(kind)
         for direction, way in sorted(ways.items()):
+            # A move of a special sort is relied on as far as moves of that sort were seen of the kind, as
+            # seen_going_there counts them: that her rules can express one is no evidence it was seen. LIVE 23
+            # November 2026 her royal kind held three ways of changing places with its own pieces, each read once.
+            swaps_sure = self.special_seen.get(f"{kind}|swaps", 0) >= SEEN_TO_BELIEVE
             for times in sorted(way.swapped):
-                steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may="swaps"))
+                steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may="swaps",
+                                  sure=swaps_sure))
             over = sorted(way.over - way.offered - way.offered_unmoved) if not way.over_took else sorted(way.over)
             if over and way.over_refused <= AGAINST_AT_MOST * (way.over_took + len(way.over)):
                 # Beyond one piece of the other side: at one distance a leap of it, at several along the line.
-                steps.append(Step(((direction[0] * over[0], direction[1] * over[0]),), rides=1, may="takes over")
-                             if len(over) == 1 else Step((direction,), rides=0, may="takes over"))
+                over_sure = max(self.special_seen.get(f"{kind}|takes over", 0), way.over_took) >= SEEN_TO_BELIEVE
+                steps.append(Step(((direction[0] * over[0], direction[1] * over[0]),), rides=1, may="takes over",
+                                  sure=over_sure)
+                             if len(over) == 1 else Step((direction,), rides=0, may="takes over", sure=over_sure))
             if not way.any_seen_going():
                 continue
             moved_reach = self._reach(way, unmoved=False)
@@ -715,10 +736,18 @@ class HowThePiecesMove:
                     steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may=may,
                                       only_unmoved=only, sure=way.sightings([times]) >= SEEN_TO_BELIEVE))
                 continue
-            sure = way.sightings() >= SEEN_TO_BELIEVE
+            sure = way.sightings([t for t in way.offered if moved_reach <= 0 or t <= moved_reach]) >= SEEN_TO_BELIEVE
             if moved_reach >= 0:
                 steps.append(Step((direction,), rides=1 if way.jumped and moved_reach == 1 else moved_reach, may=may,
                                   takes_in_passing=kind in self.takes_passing and may == "takes", sure=sure))
+            # Offered further than the run of offers that makes its line: a leap that far or a misreading, each kept as
+            # a leap she is not sure of until the game has shown it often enough, or withholds it.
+            for times in sorted(offered):
+                reach = moved_reach if times in way.offered else unmoved_reach
+                if reach > 0 and times > reach:
+                    steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may=may,
+                                      only_unmoved=times not in way.offered,
+                                      sure=way.sightings([times]) >= SEEN_TO_BELIEVE))
             if unmoved_reach != moved_reach and (unmoved_reach == 0 or unmoved_reach > max(moved_reach, 0)):
                 # What it may do only from where it began rests on what was seen of it from there.
                 first_only = way.offered_unmoved - way.offered
