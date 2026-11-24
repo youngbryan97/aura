@@ -5512,7 +5512,10 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             requested = 90.0
         timeout = max(15.0, min(_MAX_FOREGROUND_READY_WAIT_S, float(requested)))
         lane = self.get_conversation_status()
-        if self._lane_can_attempt_visible_conversation_turn(lane):
+        # A lane kept only by a generation under way is loaded and serving: the turn waits its turn on it, and what is
+        # under way is asked to stop. LIVE 24 November 2026 a question asked while a program was being written took a
+        # warmup for one, waited 15 s behind the writing, and was answered from a second 27B loaded for it.
+        if self._lane_can_attempt_visible_conversation_turn(lane) or self._lane_only_busy(lane):
             # Cortex is serving again — clear any post-thrash warmup cooldown.
             self._reset_cortex_warmup_backoff()
             return lane
@@ -5555,7 +5558,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 label="foreground_ready_lock",
             ):
                 lane = self.get_conversation_status()
-                if self._lane_can_attempt_visible_conversation_turn(lane):
+                if self._lane_can_attempt_visible_conversation_turn(lane) or self._lane_only_busy(lane):
                     return lane
                 if self._prewarm_task and not self._prewarm_task.done():
                     task = self._prewarm_task

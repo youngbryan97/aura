@@ -59,12 +59,15 @@ class _WaitsForTheResult:
         now = time.time()
         self._current_request_id = str(req_id or "")
         self._current_request_seq = max(0, int(request_seq or 0))
-        # A new generation supersedes any stale cooperative-cancel request.
+        # A cancel left over from a generation that ended is put down; one the worker has not answered yet is not left
+        # over. LIVE 24 November 2026 a person's turn asked job 18 to stop, a warmup was enqueued 0.9 s later as job 19,
+        # the request to stop 18 was wiped here before its worker looked, and the turn waited 43 s for 18 to finish. The
+        # worker puts down what is older than the job it starts (clear_stale_soft_cancel).
         cancel_seq = getattr(self, "_cancel_seq", None)
-        if cancel_seq is not None and int(getattr(cancel_seq, "value", 0)) not in (
-            0,
-            self._current_request_seq,
-        ):
+        asked_to_stop = int(getattr(cancel_seq, "value", 0)) if cancel_seq is not None else 0
+        unanswered = (int((getattr(self, "_soft_cancel_target", None) or {}).get("seq") or 0) == asked_to_stop
+                      and getattr(self, "_soft_cancel_ack", None) is None)
+        if asked_to_stop not in (0, self._current_request_seq) and not unanswered:
             cancel_seq.value = 0
         self._current_request_progress_baseline_at = max(
             self._last_heartbeat,

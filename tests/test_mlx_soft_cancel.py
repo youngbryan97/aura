@@ -114,6 +114,21 @@ def test_new_generation_clears_stale_cancel_request():
 # ── module-level sweep + owner-clear integration ───────────────────────
 
 
+def test_a_job_begun_behind_one_asked_to_stop_does_not_take_the_asking_back():
+    """LIVE 24 November 2026: a warmup enqueued 0.9 s after a turn asked job 18 to stop wiped the asking, and the turn
+    waited 43 s for job 18 to finish."""
+    client = MLXLocalClient("/models/test-small")
+    client._cancel_seq = _Value(0)
+    client._last_heartbeat = client._last_progress_at = client._last_ready_at = 0.0
+    client._mark_generation_started("req-18", request_seq=18)
+    assert client.soft_cancel_active_generation("a live turn began")["requested"]
+    client._mark_generation_started("req-19", request_seq=19)
+    assert client._cancel_seq.value == 18
+    client._soft_cancel_ack = {"seq": 18}
+    client._mark_generation_started("req-20", request_seq=20)
+    assert client._cancel_seq.value == 0, "answered, and left over"
+
+
 def test_soft_cancel_sweep_collects_only_accepting_clients(monkeypatch):
     accepted = _bare_client(active_seq=5, started=True)
     idle = _bare_client(active_seq=0, started=False)

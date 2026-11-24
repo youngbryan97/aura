@@ -518,7 +518,7 @@ def _prompt_cache_scope_for_job(job: dict[str, Any]) -> str:
     """
 
     scope = str(job.get("prompt_cache_scope") or "")  # a voice session's live context keeps its own (live_context.py)
-    if scope.startswith("voice_live:") and len(scope) <= 80:
+    if (scope.startswith("voice_live:") and len(scope) <= 80) or scope == "work_asked_for":
         return scope
     return "user_surface" if job.get("clean_user_surface_contract", False) else "default"
 

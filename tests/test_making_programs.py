@@ -402,7 +402,9 @@ def test_a_test_of_a_state_there_is_not_is_the_tests_fault_and_what_changed_is_t
              'test("b", t => { const s = t.s; t.tick(0.1); t.expect(s.wind === 4, "no wind"); });'
              'test("c", t => { t.hold("ArrowRight", 0.5); t.expect(t.s.me.has === 1, "has nothing"); });'
              'test("d", t => { t.expect(t.sees("home") && t.sees("score"), "not shown"); });')
-    got = {r.name: r for r in _two_steps(TWO_STEPS, tmp_path, tests).rules}
+    tests += 'test("e", t => { t.expect(t.hud()[0].value === 0 && t.hud(t.s).length === 1 && t.put() === undefined, "no hud"); });'
+    got = {r.name: r for r in _two_steps(TWO_STEPS.replace("  score(s)", "  hud(s) { return [{ label: 'Stones', value: s.brought }]; },\n  score(s)"), tmp_path, tests).rules}
+    assert got["e"].ok, got["e"].why
     assert got["a"].the_test and "s.camera" in got["a"].why and "it has me, stones, home, brought, left" in got["a"].why
     assert got["b"].the_test and not got["c"].the_test and got["d"].ok
     assert "me.x 480 to 600" in got["c"].why and "left 90 to 89.5" in got["c"].why

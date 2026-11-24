@@ -334,7 +334,10 @@ const Frame = (() => {
       get score() { return scoreOf(s); }, get over() { return ended(s) || false; }, get won() { const e = ended(s); return !!(e && e.won); }, get played() { return played.slice(); },
       expect, initial() { s = P.initial(); return s; }, update(e) { return t.send(e); } };
     const told = { changed: () => (first ? changed(first, s) : []), asked: (body) => readIn(body).filter((k) => !began.includes(k) && !(P.designed && k in P.designed) && !later().includes(k)), held: () => Object.keys(s) };
-    return new Proxy(t, { get(o, k) { if (k === "__told") return told; if (k in o || typeof k === "symbol") return o[k]; const e = new Error(`the test asks for t.${String(k)}, and there is no such thing; there are: ${Object.keys(o).join(" ")}`); e.theTest = true; throw e; } });
+    return new Proxy(t, { get(o, k) { if (k === "__told") return told; if (k in o || typeof k === "symbol") return o[k];
+      // A function of the program's own, asked of the test: given the state as it is, where it was not given one.
+      if (typeof P[k] === "function") return (...args) => P[k](...(args.length && args[0] && typeof args[0] === "object" && !Array.isArray(args[0]) ? args : [s, ...args]));
+      const e = new Error(`the test asks for t.${String(k)}, and there is no such thing; there are: ${Object.keys(o).join(" ")}`); e.theTest = true; throw e; } });
   }
   // What a test expects: that something is so, or, in the manner of most tests, what something is.
   let waiting = [];
