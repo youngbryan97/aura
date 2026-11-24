@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.runtime.wall_clock import monotonic_time
 from core.understanding.carrying_out import CameTo, Tell
 from core.understanding.her_model_between_turns import ask as _ask
 from core.understanding.requests_of_her import Part, Request
@@ -51,8 +52,8 @@ def runs_here(app: Path, *, within_s: float = STARTS_WITHIN_S) -> bool:
         get_subprocess_gateway().run(["open", "-g", str(app)], timeout=30, source="building.open",
                                      accelerator_capability="none")
     inside = str(app / "Contents" / "MacOS")
-    until = time.monotonic() + within_s
-    while time.monotonic() < until:
+    until = monotonic_time() + within_s
+    while monotonic_time() < until:
         if any(str(p.info.get("exe") or "").startswith(inside) for p in psutil.process_iter(["exe"])):
             return True
         time.sleep(0.5)

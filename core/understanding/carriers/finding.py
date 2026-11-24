@@ -14,13 +14,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from core.runtime.wall_clock import monotonic_time
 from core.search.what_a_page_says_of_itself import PageSays, has_lapsed, page_says
 from core.understanding.carrying_out import CameTo, Tell
 from core.understanding.her_model_between_turns import ask as _ask
@@ -292,7 +292,7 @@ async def _look_through(hits: Sequence[tuple[str, str, str]], search: _Search, g
     """Read what was found, following lists to what they list; how many fit."""
     waiting = [(url, False) for url, _title, _around in hits]
     fitted = 0
-    while waiting and time.monotonic() < until and len(search.fits) < enough:
+    while waiting and monotonic_time() < until and len(search.fits) < enough:
         url, listed = waiting.pop(0)
         key = url.split("#")[0].split("?utm")[0].rstrip("/")
         if key in search.seen:
@@ -357,12 +357,12 @@ async def find(request: Request, tell: Tell, *, ask: Any = None) -> CameTo:
                       parts=[Part("what is wanted was read", "unmet", "no reading of it came")])
     gave = _what_they_gave(request)
     search, enough = _Search(wanted), max(wanted.how_many, 0) or ENOUGH
-    until = time.monotonic() + WITHIN_S
+    until = monotonic_time() + WITHIN_S
     tell(f"Looking for {wanted.one_is}: " + "; ".join(need.what for need in wanted.needs[:6]) + ".")
     queries, written_again = wanted.queries, False
-    while queries and time.monotonic() < until and len(search.fits) < enough:
+    while queries and monotonic_time() < until and len(search.fits) < enough:
         gained = await _look_through(await _hits(queries), search, gave, ask, tell, until=until, enough=enough)
-        if len(search.fits) >= enough or time.monotonic() >= until or (not gained and written_again):
+        if len(search.fits) >= enough or monotonic_time() >= until or (not gained and written_again):
             break
         written_again = not gained
         queries = await _other_queries(search, queries, gave, ask)
