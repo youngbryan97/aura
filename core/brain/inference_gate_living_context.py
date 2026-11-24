@@ -180,6 +180,7 @@ class _BuildsTheLivingContext:
     ) -> Any:
         from .inference_gate import (
             _REQUESTED_ARTIFACT_EFFECT_CEILING,
+            _REQUESTED_DESKTOP_EFFECT_CEILING,
             _SELF_SERVICE_EFFECT_CEILING,
             _answer_reserve_seconds,
             _tool_loop_budget,
@@ -265,16 +266,20 @@ class _BuildsTheLivingContext:
             # contract: scope=sandboxed_compute". She read the
             # library three times over and never ran it.
             #
-            # Still narrow: these are the two ceilings a request
-            # can establish for itself. Nothing here authorises
-            # external_io, privileged mutation, deleting, sending
-            # or spending — those need their own consent, because
-            # nobody asked for them.
+            # Still narrow: these are the ceilings a request can
+            # establish for itself. A request that tells her to
+            # work a program on this machine has asked for her
+            # hands on it (LIVE 24 November 2026, "Open En Croissant
+            # and play a game of chess against Stockfish").
+            # Nothing here authorises external_io, privileged
+            # mutation, deleting, sending or spending — those need
+            # their own consent, because nobody asked for them.
             "user_explicitly_authorized": (
                 ceiling
                 in {
                     _SELF_SERVICE_EFFECT_CEILING,
                     _REQUESTED_ARTIFACT_EFFECT_CEILING,
+                    _REQUESTED_DESKTOP_EFFECT_CEILING,
                 }
             ),
         }

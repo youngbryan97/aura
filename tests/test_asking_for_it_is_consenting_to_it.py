@@ -104,3 +104,19 @@ def test_the_permission_model_still_asks_when_nobody_authorised() -> None:
     model = Path("core/capabilities/permission_model.py").read_text(encoding="utf-8")
     assert 'context.get("user_explicitly_authorized", False)' in model
     assert "Requires user confirmation" in model
+
+
+def test_an_order_to_work_a_program_here_carries_consent_for_her_hands_on_it(monkeypatch) -> None:
+    """LIVE 24 November 2026: "Open En Croissant and play a game of chess against Stockfish" ran under the
+    self-service ceiling; her reading chose desktop_task and the ceiling withheld it, and she answered in words."""
+    import core.epistemics.where_a_request_is_done as where
+    from core.phases.response_contract import _REQUESTED_DESKTOP_CEILING, requested_effect_ceiling
+
+    monkeypatch.setattr(where, "installed_program_names", lambda: ["en-croissant", "Chess"])
+    ceiling, scopes = requested_effect_ceiling(
+        "Open En Croissant and play a game of chess against Stockfish. Tell me each move as you go.")
+    assert ceiling == _REQUESTED_DESKTOP_CEILING and "foreground_desktop_control" in scopes
+    assert _handed_off(_REQUESTED_DESKTOP_CEILING)["user_explicitly_authorized"] is True
+    # Naming the program without an order, or the game without the program, asks for no hands on anything.
+    for not_an_order in ("What is En Croissant?", "I like a game of chess now and then."):
+        assert requested_effect_ceiling(not_an_order)[0] != _REQUESTED_DESKTOP_CEILING, not_an_order

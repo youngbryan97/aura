@@ -521,11 +521,14 @@ _MESH_PRE_TRUST_RATIONALES = frozenset({"acknowledgement", "resource_hold"})
 #: engine handed the bias to a stub router and stopped there, which is the
 #: shape of a half-wired channel — a writer, a test of the writer, and no
 #: reader.
-#: The two ceilings a request can establish for itself, read from the one place
+#: The ceilings a request can establish for itself, read from the one place
 #: that decides them rather than spelled again here.
 try:  # pragma: no cover - import shape only
     from core.phases.response_contract import (
         _REQUESTED_ARTIFACT_CEILING as _REQUESTED_ARTIFACT_EFFECT_CEILING,
+    )
+    from core.phases.response_contract import (
+        _REQUESTED_DESKTOP_CEILING as _REQUESTED_DESKTOP_EFFECT_CEILING,
     )
     from core.phases.response_contract import (
         _SELF_SERVICE_CEILING as _SELF_SERVICE_EFFECT_CEILING,
@@ -533,6 +536,7 @@ try:  # pragma: no cover - import shape only
 except ImportError:  # pragma: no cover - the gate still runs without them
     _SELF_SERVICE_EFFECT_CEILING = "sandboxed_compute"
     _REQUESTED_ARTIFACT_EFFECT_CEILING = "read_write_artifacts"
+    _REQUESTED_DESKTOP_EFFECT_CEILING = "foreground_desktop_control"
 
 _SAMPLING_BIAS_KEYS = (
     "sampling_bias",

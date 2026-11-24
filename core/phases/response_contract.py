@@ -1185,6 +1185,11 @@ _REQUESTED_ARTIFACT_SCOPES = _SELF_SERVICE_EFFECT_SCOPES | {"read_write_artifact
 _REQUESTED_BROWSING_CEILING = "external_io"
 _REQUESTED_BROWSING_SCOPES = _SELF_SERVICE_EFFECT_SCOPES | {"external_io"}
 
+#: What a turn may do when the person told her to work a program on this machine: "Open En Croissant and play a game
+#: of chess" asks for her hands on the program, as asking for a deck asks for a file.
+_REQUESTED_DESKTOP_CEILING = "foreground_desktop_control"
+_REQUESTED_DESKTOP_SCOPES = _SELF_SERVICE_EFFECT_SCOPES | {"foreground_desktop_control"}
+
 #: The scopes a person's request may open beyond self-service, whichever way it is read: a file to exist, or her
 #: reaching outside this machine.
 _REQUESTABLE_SCOPES = frozenset({_REQUESTED_ARTIFACT_CEILING, _REQUESTED_BROWSING_CEILING})
@@ -1227,7 +1232,27 @@ def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
     # and so is looking in her mail.
     if asks_to_go_online(str(objective or "")) or asks_into_her_mail(objective) or the_conversations_place(objective):
         return _REQUESTED_BROWSING_CEILING, frozenset(_REQUESTED_BROWSING_SCOPES)
+    # Told to work a program on this machine is asking for her hands on it. LIVE 24 November 2026, "Open En Croissant
+    # and play a game of chess against Stockfish. Tell me each move as you go, and close it when you're done." came
+    # through the tool hand-off under the self-service ceiling: her reading chose desktop_task, the ceiling withheld it,
+    # and she answered in words, twice.
+    if _orders_a_program_here_worked(str(objective or "")):
+        return _REQUESTED_DESKTOP_CEILING, frozenset(_REQUESTED_DESKTOP_SCOPES)
     return _SELF_SERVICE_CEILING, frozenset(_SELF_SERVICE_EFFECT_SCOPES)
+
+
+def _orders_a_program_here_worked(objective: str) -> bool:
+    """Whether the turn names a program installed on this machine, read by meaning
+    (core/epistemics/where_a_request_is_done.py), and tells her to do something: "Open En Croissant and play a game"
+    does, "what is En Croissant?" and "a game of chess" do not."""
+    from core.epistemics.where_a_request_is_done import program_it_names
+
+    if not program_it_names(objective):
+        return False
+    from core.conversation.request_mood import RequestMood, assess_request_mood, shaped_as_an_order
+
+    verdict = assess_request_mood(objective)
+    return verdict.mood is RequestMood.DIRECTIVE or any(map(shaped_as_an_order, verdict.ambiguous_clauses))
 
 
 def _asks_her_build_changed(objective: str) -> bool:
