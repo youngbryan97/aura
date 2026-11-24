@@ -4656,19 +4656,20 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
         """
 
         objective = str(getattr(params, "objective", "") or "")
-        # An objective that names a program on this machine is about that program, whatever the conversation was
-        # doing on a page before: LIVE 23 November 2026 "Open En Croissant and play a game of chess" went to the page
-        # an earlier request had named, because both asked for something to be played.
-        if _a_program_here_named(objective):
-            return None
         try:
-            from core.conversation.page_interaction import page_interaction_target
+            from core.conversation.page_interaction import _the_page_it_names, page_interaction_target
 
             url = page_interaction_target(objective)
         except (ImportError, AttributeError, TypeError, ValueError) as why:
             logger.info("could not work out which page this is about: %s", why)
             return None
         if not url:
+            return None
+        # An objective that names a program on this machine is about that program, whatever the conversation was
+        # doing on a page before: LIVE 23 November 2026 "Open En Croissant and play a game of chess" went to the page
+        # an earlier request had named, because both asked for something to be played. A page the objective names
+        # itself is still where it is done: "Play 2048 at play2048.co" names a program and the page it is played on.
+        if not _the_page_it_names(objective) and _a_program_here_named(objective):
             return None
 
         # Through the governed executor, never the skill object directly.

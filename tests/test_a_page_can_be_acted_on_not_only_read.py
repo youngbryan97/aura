@@ -379,3 +379,31 @@ def test_an_objective_naming_a_program_here_stays_with_the_program(monkeypatch):
     # An address at a domain is someone's mailbox, not a page to go to.
     assert place_named("Reach me at bryan.young@gmail.com any time") == ""
     assert place_named("go to gmail.com and open my inbox") == "https://gmail.com"
+
+
+def test_a_program_named_with_the_page_it_is_played_on_is_done_on_the_page(monkeypatch):
+    """"Play 2048 at play2048.co" names the program 2048 and the page it is played on: the page is where it is done."""
+    import asyncio
+
+    import core.capabilities.app_registry as app_registry
+    import core.container as container
+    from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill
+
+    class _Registry:
+        def all_apps(self):
+            return [app_registry.InstalledApp(name="2048")]
+
+    asked = {}
+
+    class _Engine:
+        async def execute(self, skill, params, context=None):
+            asked.update({"skill": skill, **params})
+            return {"ok": True, "completed": True, "result_text": "played"}
+
+    monkeypatch.setattr(app_registry, "get_app_registry", lambda: _Registry())
+    monkeypatch.setattr(container.ServiceContainer, "get",
+                        staticmethod(lambda name, default=None: _Engine() if name == "capability_engine" else default))
+    objective = "Play 2048 at https://play2048.co and get as far as you can"
+    result = asyncio.run(DesktopTaskSkill()._delegate_page_objective(DesktopTaskParams(objective=objective), {}))
+    assert result is not None
+    assert asked["skill"] == "sovereign_browser" and asked["url"] == "https://play2048.co"
