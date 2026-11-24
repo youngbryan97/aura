@@ -148,3 +148,45 @@ def test_an_answer_is_read_once_the_board_holds_still_and_never_from_another_pie
         read = asyncio.run(probe(square))
         true = {m.end for m in moves(CHESS, app.position) if m.start == square}
         assert read is None or read == true, (square, read, true)
+
+
+#: Their straight-runner on her royal kind's file: every square it lands on going up the file stands attacked.
+FILE_HELD = from_fen("4r2k/8/8/8/8/8/8/4K3 w - -")
+
+
+def _with_a_misread_way_up_the_file() -> HowThePiecesMove:
+    rules = _seen_one_square_forward_often()
+    rules.offered(CROWDED, E1, MISREAD_OVER_A_PIECE, family=CHESS)
+    # How their straight-runner goes, seen often: along its file and its row, as far as they are clear.
+    alone = from_fen("4k3/8/8/8/8/8/8/R6K w - -")
+    for _ in range(3):
+        rules.offered(alone, (0, 0), {(r, 0) for r in range(1, 8)} | {(0, c) for c in range(1, 7)}, family=CHESS)
+    rules.kept_off_attacked["K"] = 50 * ROYAL_AFTER  # known for the kind the game keeps safe
+    assert rules.royal("K")
+    return rules
+
+
+def test_a_withholding_counts_against_a_way_she_is_not_sure_of_wherever_it_would_land() -> None:
+    """LIVE 24 November 2026 her royal kind's three-square jumps outlived every look that withheld them, each put down
+    to the square it would land on being attacked."""
+    rules = _with_a_misread_way_up_the_file()
+    landing = rules.family()
+    assert in_check(landing, Position(cells={(2, 4): (0, "K"), (7, 4): (1, "R")}, turn=0), 0)
+    before = dict(rules.seen["K"][(1, 0)].refused_going_at)
+    rules.offered(FILE_HELD, E1, {(0, 3), (0, 5), (1, 3), (1, 5)}, family=rules.family())
+    after_it = rules.seen["K"][(1, 0)].refused_going_at
+    assert sum(after_it.values()) > sum(before.values()), (before, after_it)
+
+
+def test_a_refusal_counts_against_a_way_she_is_not_sure_of_rather_than_where_it_lands() -> None:
+    """The same, for a move tried: LIVE 23 November 2026, measured on her record, her royal kind's six squares forward
+    were refused six times in one game, each put down to where it landed, and chosen again the next turn."""
+    rules = _with_a_misread_way_up_the_file()
+    family = rules.family()
+    from core.agency.pieces_by_their_kind import Move
+
+    move = Move(E1, (2, 4))  # tried, as her search chose it
+    assert not rules.sure_of(FILE_HELD, move, family)
+    before = rules.seen["K"][(1, 0)].refused_going_at.get(2, 0)
+    rules.refused(FILE_HELD, move, family=family)
+    assert rules.seen["K"][(1, 0)].refused_going_at.get(2, 0) == before + 1

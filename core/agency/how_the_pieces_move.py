@@ -38,6 +38,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from core.agency.pieces_by_their_kind import (
+    CROSSING_STEP,
     FIRST,
     SECOND,
     Family,
@@ -301,12 +302,19 @@ class HowThePiecesMove:
         # rook's square to her king was kept as the two changing places, a move she then found open to her king in
         # check, where the crossing is not.
         crossing_to = set()
+        crossing_ends: set[Square] = set()
         if family is not None:
             from core.agency.pieces_by_their_kind import _possible
 
-            crossing_to = {move.partner[0] for move in _possible(family, position)
-                           if move.start == square and move.partner is not None and move.partner[0] != move.end}
-            for _offered in crossing_to & set(squares):
+            crossings = [move for move in _possible(family, position)
+                         if move.start == square and move.partner is not None and move.partner[0] != move.end]
+            crossing_to = {move.partner[0] for move in crossings}
+            # The square a crossing of hers lands on, offered, is the crossing offered too, not a plain way that far:
+            # the plain way outlives what the crossing needs. LIVE 23-24 November 2026 her royal kind held two squares
+            # sideways from where it began as a plain way, learned from the crossing's offers, and her search could
+            # still "cross" after its partner had moved: giving the crossing up looked free.
+            crossing_ends = {move.end for move in crossings}
+            if (crossing_to | crossing_ends) & set(squares):
                 self._saw_special(kind, "crosses")
         # This look, as one look: how far it showed each way going.
         shown: dict[Direction, int] = {}
@@ -321,7 +329,7 @@ class HowThePiecesMove:
                     if not (0 <= there[0] < self.rows and 0 <= there[1] < self.columns):
                         break
                     held = position.cells.get(there)
-                    is_offered = there in squares
+                    is_offered = there in squares and there not in crossing_ends
                     if held is None:
                         if is_offered:
                             way = self._of(kind, direction)
@@ -408,8 +416,13 @@ class HowThePiecesMove:
                 continue
             weighed.add(move.end)
             made = after(family, position, move)
-            if any(owner == side and held in kept_safe and attacked(family, made, there, 1 - side)
-                   for there, (owner, held) in made.cells.items()):
+            # Of two explanations for a withholding, it counts against the one resting on less: a way she is not sure
+            # of is less than what the move would leave open (as a refusal is weighed, in refused). LIVE 24 November
+            # 2026 her royal kind's three-square jumps outlived every look that withheld them, each put down to the
+            # square it would land on being attacked.
+            if self.sure_of(position, move, family) and any(
+                    owner == side and held in kept_safe and attacked(family, made, there, 1 - side)
+                    for there, (owner, held) in made.cells.items()):
                 continue
             direction, times = in_its_frame(side, square, move.end)
             way = self._of(kind, direction)
@@ -662,6 +675,12 @@ class HowThePiecesMove:
             kept_safe = {k for k in {k for _s, k in self.start.values()} | set(self.seen) if self.royal(k)}
             if kept_safe and not open_kinds & kept_safe:
                 open_kinds = set()
+            # Of two explanations, the refusal counts against the one resting on less: a way she is not sure of is
+            # less than what the move left open. LIVE 23 November 2026, measured on her record after game 31: her
+            # royal kind's six squares forward, read once, refused six times in one game, each put down to the royal
+            # kind left open where it landed, and chosen again the next turn.
+            if open_kinds and goes and not self.sure_of(position, move, family):
+                open_kinds = set()
             if open_kinds and goes:
                 # The kind goes there, as she has seen: what stopped it is what the move left open.
                 self.refusals += 1
@@ -723,6 +742,10 @@ class HowThePiecesMove:
         if furthest >= 2 and not way.jumped:
             return 0
         return furthest
+
+    def _crosses_surely(self, kind: str) -> bool:
+        """Whether this kind crosses with a partner, seen often enough to be relied on."""
+        return bool(self.crosses.get(kind)) and self.special_seen.get(f"{kind}|crosses", 0) >= SEEN_TO_BELIEVE
 
     def _sure_as_far_as(self, way: _Seen, rides: int) -> int:
         """How far along a way, of at most ``rides`` squares (0 the whole line), it can be relied on: up to the first
@@ -850,6 +873,10 @@ class HowThePiecesMove:
             if not way.any_seen_going():
                 continue
             moved_reach = self._reach(way, unmoved=False)
+            if direction[0] == 0 and self._crosses_surely(kind) and CROSSING_STEP in way.offered_unmoved:
+                # Offered only from where it began, as far as its crossing lands: what the crossing explains, with
+                # everything it needs, is not also a plain way.
+                way = replace(way, offered_unmoved=way.offered_unmoved - {CROSSING_STEP})
             unmoved_reach = self._reach(way, unmoved=True)
             # Seen taking, and seldom or never going to an empty square that way though kept off one: it only takes
             # along it. Seen stopped at a piece of the other side it could have reached, and seldom or never taking:

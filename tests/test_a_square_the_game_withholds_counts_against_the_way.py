@@ -77,21 +77,20 @@ def test_a_leap_read_far_once_goes_when_the_game_withholds_it_and_a_line_stops_s
     assert [s.rides for s in lined.family().kinds["K"].steps if s.offsets == ((1, 0),)] == [1]
 
 
-def test_a_distance_offered_unmoved_and_withheld_once_moved_is_an_unmoved_one() -> None:
+def test_the_square_a_crossing_lands_on_is_the_crossing_and_not_a_plain_way() -> None:
+    """LIVE 23-24 November 2026 her royal kind held two squares sideways from where it began as a plain way, learned
+    from the crossing's offers, so her search could still cross after the partner had moved."""
     rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
     side_steps = {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}
     unmoved = from_fen("4k3/8/8/8/8/8/8/4K2R w K -")
     moved = from_fen("4k3/8/8/8/8/8/8/4K2R w - -")
     rules.offered(unmoved, E1, side_steps | {(0, 6)}, family=CHESS)
+    assert rules.special_seen.get("K|crosses") == 1
+    assert 2 not in rules.seen["K"][(0, 1)].offered_unmoved
     rules.offered(moved, E1, side_steps | {(0, 6)}, family=CHESS)  # a misreading of a piece that has moved
     _knowing_what_is_kept_safe(rules)
     rules.offered(moved, E1, side_steps, family=rules.family(unseen_go_every_way=True))
-    way = rules.seen["K"][(0, 1)]
-    assert 2 not in way.offered and 2 in way.offered_unmoved
-    assert not way.refused_going_at.get(2), "withheld from a piece that had moved, it is not refused to one unmoved"
-    # Withheld from it unmoved, where what else such a move needs is not in her rules, it counts against nothing.
-    rules.offered(unmoved, E1, side_steps, family=rules.family(unseen_go_every_way=True))
-    assert 2 in rules.seen["K"][(0, 1)].offered_unmoved
+    assert 2 not in rules.seen["K"][(0, 1)].offered
 
 
 def test_an_offer_of_nothing_says_nothing() -> None:

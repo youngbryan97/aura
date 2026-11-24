@@ -316,6 +316,10 @@ def _possible(family: Family, position: Position) -> list[Move]:
     return found
 
 
+#: How far a royal goes toward its partner when they cross: the vocabulary's one crossing.
+CROSSING_STEP = 2
+
+
 def _crossings(family: Family, position: Position, square: Square, kind: Kind) -> list[Move]:
     """A royal and an unmoved partner on its row: the royal moves two squares toward it, the partner to the square it
     crossed, if the way between is empty and the royal neither stands, passes nor lands where it could be taken."""
@@ -326,13 +330,13 @@ def _crossings(family: Family, position: Position, square: Square, kind: Kind) -
         if owner != side or letter != kind.crosses_with or partner_at[0] != row or partner_at not in position.unmoved:
             continue
         way = 1 if partner_at[1] > square[1] else -1
-        if abs(partner_at[1] - square[1]) <= 2:
+        if abs(partner_at[1] - square[1]) <= CROSSING_STEP:
             # The partner must stand beyond where the royal lands: next to it or on that square, there is no crossing.
             continue
         between = range(square[1] + way, partner_at[1], way)
         if any((row, c) in position.cells for c in between):
             continue
-        end = (row, square[1] + 2 * way)
+        end = (row, square[1] + CROSSING_STEP * way)
         if not _inside(family, end):
             continue
         crossed = [(row, square[1]), (row, square[1] + way), end]
