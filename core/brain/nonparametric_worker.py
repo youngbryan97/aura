@@ -90,6 +90,8 @@ _CONTROL_OR_MEASUREMENT_JOB_FLAGS = frozenset(
         "operator_evidence_contract",
         "strict_answer_contract",
         "strict_value_contract",
+        # Code, and data in a shape: what she remembers does not choose its next token.
+        "read_by_a_machine",
     }
 )
 

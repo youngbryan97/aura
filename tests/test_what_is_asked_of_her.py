@@ -533,10 +533,10 @@ def _between(monkeypatch, texts, waiting):
         answer = next(given)
         if isinstance(answer, tuple):
             held[:] = [answer[0]]
-            return ""
+            return "", ""
         if isinstance(answer, Exception):
             raise answer
-        return answer
+        return answer, "eos" if answer else ""
 
     async def nobody():
         return None

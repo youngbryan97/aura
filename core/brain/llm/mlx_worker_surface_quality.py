@@ -158,7 +158,7 @@ def _surface_control_alpha(
 ) -> float:
     if ceiling is None:
         ceiling = _surface_alpha_from_certificate(engine)
-    configured = job.get("clean_user_surface_steering_alpha")
+    configured = 0.0 if job.get("read_by_a_machine") else job.get("clean_user_surface_steering_alpha")
     if configured is None:
         # Nobody asked. The client sends the key with nothing in it on every
         # lane that did not set one, and that read as a request for zero:

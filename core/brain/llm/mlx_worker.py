@@ -7192,7 +7192,7 @@ def _mlx_worker_loop(
 
                                         sentinel = TokenSentinel(
                                             check_interval=8, affect_interval=16,
-                                            native_thinking=native_thinking,
+                                            native_thinking=native_thinking, read_by_a_machine=bool(job.get("read_by_a_machine", False)),
                                             substrate_mem=substrate_mem,
                                             steering_hooks=_active_steering_hooks(engine),
                                             boundary_context=str(job.get("boundary_context") or ""),

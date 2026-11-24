@@ -3056,7 +3056,7 @@ def _apply_memory_pressure_generation_controls(
         # `<script type=`, because a 4096-token default had been scaled to 970
         # — a fair size for prose and half a page.
         effective_cap = max(pressure_cap, requested_max_tokens)
-    elif options.get("schema") is not None and pressure_cap >= 192:
+    elif (options.get("schema") is not None or options.get("read_by_a_machine")) and pressure_cap >= 192:
         # An answer held to a schema is the same: a JSON object cut before it closes is not a shorter answer, it is no
         # answer, and the worker retries it. LIVE 11 November 2026, one request to read r/nosleep: seven of her
         # browser's structured answers were cut mid-JSON at the warning band's 384 tokens, the first of them asked
@@ -4833,7 +4833,7 @@ def _build_the_generation_request(
         "expect_next": [str(c) for c in (kwargs.get("expect_next") or ())],
         "surprise_of": [str(c) for c in (kwargs.get("surprise_of") or ())],
         "states_at_turn": [str(c) for c in (kwargs.get("states_at_turn") or ())],
-        "show_what_is_written": a_watcher() is not None,
+        "show_what_is_written": a_watcher() is not None, "read_by_a_machine": bool(kwargs.get("read_by_a_machine", False)),
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
         ).strip().lower(),
@@ -10719,7 +10719,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             or kwargs.get("web_interlocutor_contract", False)
             or kwargs.get("benchmark_request", False)
             or kwargs.get("health_probe", False)
-            or kwargs.get("schema") is not None
+            or kwargs.get("schema") is not None or kwargs.get("read_by_a_machine", False)
         )
         if pinned_generation_contract:
             _bridge = None

@@ -142,8 +142,11 @@ def attach_endogenous_state(
     Fail-open by construction: a turn that cannot assemble a state is a turn
     that generates the way it always did. What must never happen is a job
     carrying a state that looks live and is not, so a state whose channels
-    are all absent is left off the job rather than shipped as zeros.
+    are all absent is left off the job rather than shipped as zeros. What a machine reads carries none: her state is in
+    what she says, and not in which bracket closes a line of code.
     """
+    if req.get("read_by_a_machine"):
+        return
     try:
         from core.brain.llm.endogenous_decode import JOB_STATE_KEY
         from core.brain.llm.endogenous_state import assemble_state

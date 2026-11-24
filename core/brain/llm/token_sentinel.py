@@ -186,6 +186,7 @@ class TokenSentinel:
         user_surface: bool = False,
         affect_expected: bool = True,
         native_thinking: bool = False,
+        read_by_a_machine: bool = False,
     ):
         """
         Args:
@@ -199,6 +200,8 @@ class TokenSentinel:
             user_surface: Whether this generation may reach the user
             affect_expected: Whether this generation requested affect steering
             native_thinking: Whether the generation opens in her private channel
+            read_by_a_machine: Whether it is code or data, which says nothing to anyone and repeats itself where it
+                has to: only a loop no program holds is stopped in it
         """
         # These are used as modulo divisors on EVERY generated token. A zero
         # raised ZeroDivisionError straight out of the token loop — taking down
@@ -222,6 +225,7 @@ class TokenSentinel:
         # whole answer with a canned refusal. A loop is a loop in either
         # channel and is still read across everything.
         self._native_thinking = native_thinking is True
+        self._read_by_a_machine = bool(read_by_a_machine)
 
         #: True when either interval had to be corrected, so status() can report
         #: that the sentinel is not running on the cadence it was asked for.
@@ -271,6 +275,14 @@ class TokenSentinel:
         self._text += token_text
         self._token_count += 1
 
+        if self._read_by_a_machine:
+            if self._token_count % self._check_interval == 0:
+                signal = self._check_generative_loop()
+                if signal.type == InterventionType.ABORT_LOOP:
+                    self._interventions.append(signal)
+                    return signal
+            return InterventionSignal(type=InterventionType.NONE)
+
         # ── Boundary check (every check_interval tokens) ─────────────
         if self._token_count % self._check_interval == 0:
             signal = self._check_boundaries()
@@ -308,6 +320,8 @@ class TokenSentinel:
 
     def finalize(self) -> InterventionSignal:
         """Run terminal semantic checks against the completed generated text."""
+        if self._read_by_a_machine:
+            return InterventionSignal(type=InterventionType.NONE)
         signal = self._check_ontological_integrity(complete=True)
         if signal.type == InterventionType.ABORT_ONTOLOGY_VIOLATION:
             self._interventions.append(signal)
@@ -324,8 +338,10 @@ class TokenSentinel:
         if n_tokens < 6:
             return InterventionSignal(type=InterventionType.NONE)
 
-        # Only scan the tail of the token buffer to bound compute cost
-        scan_window = min(200, n_tokens)
+        # Only scan the tail of the token buffer to bound compute cost. A map of forty equal rows and a table of zeros
+        # are programs, so what a machine reads is held to eight times the repeats.
+        patience = 8 if self._read_by_a_machine else 1
+        scan_window = min(200 * patience, n_tokens)
         tail = self._tokens[-scan_window:]
         tail_len = len(tail)
 
@@ -348,8 +364,8 @@ class TokenSentinel:
 
             # Exempt long runs of whitespace or simple punctuation unless extreme
             if not seq_str.strip() or (len(seq_str.strip()) == 1 and not seq_str.strip().isalnum()):
-                if repeats >= 60:
-                    threshold = 60
+                if repeats >= 60 * patience:
+                    threshold = 60 * patience
                 else:
                     continue
             else:
@@ -361,6 +377,7 @@ class TokenSentinel:
                     threshold = 6
                 else:
                     threshold = 4
+                threshold *= patience
 
             if repeats >= threshold:
                 logger.warning(
