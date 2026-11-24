@@ -282,3 +282,27 @@ def test_an_answer_stands_at_another_count_toward_a_draw_only_where_neither_coul
     other.prepare(CHESS, near, first_weights(CHESS), positions=1, plies=2, search=_a_quick_look([]))
     assert other.answer(_a_place(near), choices, count=limit - 1, limit=limit) is not None
     assert other.answer(_a_place(near), choices, count=limit - 2, limit=limit) is None
+
+
+def test_an_answer_worked_out_under_another_judgement_or_one_that_repeats_the_game_is_a_hint() -> None:
+    """Suggestions of 23 November 2026: a certificate named the rules a look was made under and not the judgement, and
+    a key leaves out what a repeat can end."""
+    from dataclasses import replace
+
+    from core.agency.how_the_pieces_move import HowThePiecesMove
+
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    prepared = Prepared()
+    prepared.prepare(CHESS, start, weights, positions=1, plies=2, search=_a_quick_look([]))
+    game = _Game(learned=HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, dict(start.cells)),
+                 believed=start)
+    assert _worked_out_ahead(prepared, game, CHESS, weights, moves(CHESS, start)).by == "worked out ahead"
+    other = replace(weights, tempo=weights.tempo + 7)
+    assert _worked_out_ahead(prepared, game, CHESS, other, moves(CHESS, start)).by == "worked out ahead, to check"
+    held = prepared.answer(_a_place(start), among(moves(CHESS, start)))
+    move = next(m for m in moves(CHESS, start) if _named(m) == held["move"])
+    # The situation her move would leave stood earlier in this game.
+    came_back = replace(start, seen=(after(CHESS, start, move).key(),))
+    game.believed = came_back
+    assert _worked_out_ahead(prepared, game, CHESS, weights, moves(CHESS, came_back)).by == \
+        "worked out ahead, to check"

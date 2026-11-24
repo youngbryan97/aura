@@ -1058,7 +1058,12 @@ def _worked_out_ahead(prepared: Any, game: _Game, family: Family, weights: Any, 
     move = next((m for m in legal if held is not None and _named(m) == held.get("move")), None)
     if move is None:
         return None
-    by = "worked out ahead" if prepared.certified(held, family) else "worked out ahead, to check"
+    # A move that brings back a situation of this game was worked out without the game's history, which a repeat
+    # can end: it is checked like any hint (suggestions of 23 November 2026: a key that leaves out repetitions).
+    there = after(family, game.believed, move)
+    repeats = any(key == there.key() for key in there.seen)
+    by = "worked out ahead" if prepared.certified(held, family, weights) and not repeats else \
+        "worked out ahead, to check"
     return Found(move, int(held.get("score", 0)), int(held.get("depth", 0)), 0, [move], by=by)
 
 

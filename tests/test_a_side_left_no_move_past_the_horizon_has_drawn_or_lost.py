@@ -43,3 +43,13 @@ def test_a_side_left_no_move_and_not_attacked_has_drawn_where_the_rules_draw_it(
 def test_a_side_left_no_move_has_lost_where_the_rules_have_it_lose() -> None:
     losing = replace(CHESS, no_move_unattacked="loses")
     assert _scored(losing, ends=1.0) > 900_000
+
+
+def test_the_position_the_review_found_scores_its_stalemate_as_a_draw() -> None:
+    # From k7/8/1QK5/8/8/8/8/8 w - -, her king to d7 leaves theirs no move and not attacked: +569 at depth one, as
+    # the review of 23 November 2026 found it.
+    review = from_fen("k7/8/1QK5/8/8/8/8/8 w - -")
+    others = [(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in moves(CHESS, review)
+              if (m.start, m.end) != ((5, 2), (6, 3))]
+    found = engine.search(described(CHESS), placed(review), first_weights(CHESS).as_json(), 5.0, 1, 16, 0, others)
+    assert tuple(found["move"][:4]) == (5, 2, 6, 3) and int(found["score"]) == 0

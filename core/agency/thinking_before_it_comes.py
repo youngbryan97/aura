@@ -43,7 +43,7 @@ from typing import Any
 
 logger = logging.getLogger("Aura.ThinkingBeforeItComes")
 
-__all__ = ["LOOKS_FOR_S", "Prepared", "among", "the_rules_of"]
+__all__ = ["LOOKS_FOR_S", "Prepared", "among", "judged_by", "the_rules_of"]
 
 #: How long she looks at each situation she prepares: the look measured above to choose better than her game pace.
 LOOKS_FOR_S = 30.0
@@ -82,6 +82,13 @@ def the_rules_of(family: Any) -> str:
     return hashlib.sha1(described(family).encode()).hexdigest()[:16]
 
 
+def judged_by(weights: Any) -> str:
+    """How a look judged what it found, as a short name: her weights, and how she searches with them. A look's move
+    rests on its judgement as much as on the rules; worked out under a judgement she has since changed, it is a hint
+    (suggestions of 23 November 2026: a certificate that names the rules and not the judgement)."""
+    return hashlib.sha1(weights.as_json().encode()).hexdigest()[:16] if weights is not None else ""
+
+
 @dataclass
 class Prepared:
     """Her answers, worked out ahead, to the situations she expects to meet: each with the move, how deep the look
@@ -108,9 +115,12 @@ class Prepared:
         return held
 
     @staticmethod
-    def certified(held: dict[str, Any], family: Any) -> bool:
-        """Whether an answer was worked out under the rules she plays by now (``the_rules_of``): else it is a hint."""
-        return held.get("rules") == the_rules_of(family)
+    def certified(held: dict[str, Any], family: Any, weights: Any = None) -> bool:
+        """Whether an answer was worked out under the rules she plays by now (``the_rules_of``) and, given her
+        ``weights``, under the judgement she plays by now (``judged_by``): else it is a hint."""
+        if held.get("rules") != the_rules_of(family):
+            return False
+        return weights is None or held.get("judged_by") == judged_by(weights)
 
     def prepare(self, family: Any, start: Any, weights: Any, *, they_answered: Any = None, went_wrong: Any = None,
                 positions: int, plies: int, seconds: float = LOOKS_FOR_S, threads: int = 1, search: Any = None,
@@ -238,7 +248,7 @@ class Prepared:
         self.answers[_key(place)] = {"move": _named(move), "depth": int(found.depth), "score": int(found.score),
                                      "among": choices, "reply": reply, "at": time.time(),
                                      "seconds": float(seconds), "ply": int(ply), "rules": the_rules_of(family),
-                                     "count": int(position.count),
+                                     "judged_by": judged_by(weights), "count": int(position.count),
                                      "line": [_named(m) for m in line[:LINE_KEPT]]}
         logger.info("worked out ahead a situation %d turn(s) from the start in %.0f s: %s (looked %d deep)",
                     ply, time.monotonic() - began, _named(move), found.depth)
