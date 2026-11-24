@@ -388,6 +388,53 @@ async def _her_earlier_answers_to(request: str, began: float) -> Any:
     return mostly_one_of_them
 
 
+#: What she gets ready on a person's time for the turn they are likely to take next
+#: (core/cognition/ready_for_their_turn.py), and what each person last said, by person.
+_READY: dict[str, Any] = {}
+
+
+def _ready_for_their_turn() -> Any:
+    if "ready" not in _READY:
+        from core.cognition.ready_for_their_turn import ReadyForTheirTurn
+
+        _READY["ready"] = ReadyForTheirTurn()
+        _READY["theirs"] = {}
+    return _READY["ready"]
+
+
+def _listening_for_her_answers() -> None:
+    """Begin listening, once, for her answers as the conversation store records them: each is the moment the turn
+    becomes theirs, and she gets ready for it."""
+    task = _READY.get("listening")
+    if task is not None and not task.done():
+        return
+    _READY["listening"] = get_task_tracker().create_task(_on_her_answers(), name="chat.ready_for_their_turn")
+
+
+async def _on_her_answers() -> None:
+    from core.event_bus import get_event_bus
+    from core.memory.rag_bridge import fetch_deep_context
+
+    queue = await get_event_bus().subscribe("turn_recorded")
+    while True:
+        _priority, _sequence, event = await queue.get()
+        data = (event or {}).get("data") or {} if isinstance(event, dict) else {}
+        if str(data.get("role") or "").lower() not in {"aura", "assistant"}:
+            continue
+        principal_id, principal_surface = _chat_memory_state._chat_memory_identity()
+        who = principal_id or "someone"
+        theirs = _READY.get("theirs", {}).get(who, "")
+        if not theirs:
+            continue
+        # The exchange as it stands, their words and her answer: what the turn they take next most often goes on with.
+        exchange = f"{theirs} {str(data.get('content') or '')}"[:2000]
+        began = _this_sitting_began_at()
+        _ready_for_their_turn().get_ready(who, lambda exchange=exchange, began=began, pid=principal_id,
+                                          surface=principal_surface: fetch_deep_context(
+                                              exchange, principal_id=pid, principal_surface=surface,
+                                              sitting_began_at=began))
+
+
 async def _fetch_deep_memory_context(user_message: str) -> str:
     """The Invisible RAG Bridge, wired: silent per-turn semantic recall.
 
@@ -395,14 +442,26 @@ async def _fetch_deep_memory_context(user_message: str) -> str:
     records recall telemetry, and reranks temporally — it just had no
     caller on the turn path (July external review). Bounded hard: a slow
     vault must never stall a live turn; a timeout is backpressure, not an
-    incident.
+    incident. Where it comes back empty, what she recalled on their time for
+    the exchange they are carrying on stands in for it
+    (core/cognition/ready_for_their_turn.py).
     """
+    principal_id, principal_surface = _chat_memory_state._chat_memory_identity()
+    who = principal_id or "someone"
+    ready = _ready_for_their_turn()
+    # Their turn has come: what she was still getting ready for it stops, so it takes nothing from this turn.
+    ready.their_turn_came(who)
+    _READY["theirs"][who] = str(user_message or "")
+    try:
+        _listening_for_her_answers()
+    except (ImportError, RuntimeError, AttributeError) as exc:
+        logger.info("she is not listening for her answers to get ready for the next turn (%s)", exc)
+    began = _this_sitting_began_at()
+    recalled = ""
     try:
         from core.memory.rag_bridge import fetch_deep_context
 
-        principal_id, principal_surface = _chat_memory_state._chat_memory_identity()
-        began = _this_sitting_began_at()
-        return str(
+        recalled = str(
             await asyncio.wait_for(
                 fetch_deep_context(
                     user_message,
@@ -417,7 +476,6 @@ async def _fetch_deep_memory_context(user_message: str) -> str:
         )
     except TimeoutError:
         logger.debug("Deep memory recall timed out for this turn (backpressure).")
-        return ""
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
             "rag_bridge",
@@ -425,7 +483,13 @@ async def _fetch_deep_memory_context(user_message: str) -> str:
             severity="warning",
             action="continued the turn without deep memory recall",
         )
-        return ""
+    if recalled:
+        return recalled
+    got_ready = ready.take(who, since=began or 0.0)
+    if got_ready:
+        logger.info("this turn's recall came back empty: what she recalled on their time for the exchange stands in")
+        return str(got_ready)
+    return ""
 
 
 def _context_challenge_reply_is_inadequate(user_message: str, reply_text: str) -> bool:
