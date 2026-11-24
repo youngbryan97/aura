@@ -41,15 +41,21 @@ class _Kept:
 
     def write(self, said: str, line: str) -> None:
         with self._lock:
-            self._file.write(json.dumps({"at": _now(), "said": said, "line": line, "session": self.session}) + "\n")
+            if not self._file.closed:
+                self._file.write(json.dumps({"at": _now(), "said": said, "line": line, "session": self.session})
+                                 + "\n")
 
     def close(self) -> None:
         self.write("ended", "")
-        self._file.close()
+        with self._lock:
+            self._file.close()
 
 
-def kept_conversation(program: list[str], kept_at: Path, given=sys.stdin, shown=sys.stdout) -> int:
-    """Runs ``program``, passing ``given``'s lines to it and its lines to ``shown``, each kept as it passes."""
+def kept_conversation(program: list[str], kept_at: Path, given=sys.stdin, shown=sys.stdout, *,
+                      ends_with_it: bool = False) -> int:
+    """Runs ``program``, passing ``given``'s lines to it and its lines to ``shown``, each kept as it passes. With
+    ``ends_with_it``, this process ends when the program does, as the program would have, though nothing has closed
+    what it is given: a GUI that told its engine to quit waits for the engine's end, not for its own."""
     kept = _Kept(kept_at, " ".join(program))
     child = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
 
@@ -58,6 +64,10 @@ def kept_conversation(program: list[str], kept_at: Path, given=sys.stdin, shown=
             kept.write("by", line.rstrip("\n"))
             shown.write(line)
             shown.flush()
+        if ends_with_it:
+            code = child.wait()
+            kept.close()
+            os._exit(code)
 
     answering = threading.Thread(target=from_it, daemon=True)
     answering.start()
@@ -87,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--program", required=True, help="the program to run in this one's place")
     parser.add_argument("--kept", type=Path, required=True, help="the JSON-lines file the conversation is kept in")
     asked, rest = parser.parse_known_args(argv)
-    return kept_conversation([asked.program, *rest], asked.kept)
+    return kept_conversation([asked.program, *rest], asked.kept, ends_with_it=True)
 
 
 if __name__ == "__main__":
