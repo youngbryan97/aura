@@ -81,6 +81,8 @@ class Made:
     trial: Trial
     seconds: float = 0.0
     why_not: str = ""
+    #: The tests that were read again and corrected, which is told of them.
+    corrected: frozenset[str] = frozenset()
 
     def working(self) -> bool:
         """Whether it runs, and something it was asked for is so."""
@@ -123,6 +125,10 @@ class _Maker:
         self._guessed_at: set[str] = set()
         self._known: set[str] = set()
         self._said_of_it = ""
+        #: Which versions of the program each test held for and which it failed for; and the tests that were corrected.
+        self._held_by: dict[str, set[str]] = {}
+        self._failed_by: dict[str, set[str]] = {}
+        self.corrected: set[str] = set()
         self.when_kept: Callable[[Path], None] | None = None
         self.began = time.monotonic()
 
@@ -368,6 +374,8 @@ class _Maker:
             # A test that holds where nothing happens says nothing of what happens, and one that fails there may.
             keep = set(trial.hollow)
             trial.rules = [r for r in trial.rules if r.name not in keep or not r.ok]
+        for r in trial.rules:
+            (self._held_by if r.ok else self._failed_by).setdefault(r.name, set()).add(parts.code())
         if not quiet:
             self.work.tried(what, [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
         return trial
@@ -655,6 +663,8 @@ class _Maker:
         self._said_of_it = _prose(said)
         if not self._written(said, "the mend", parts):
             self.work.trouble("The mend changed nothing.")
+            for r in first:  # asked to mend it and finding nothing to change is a second witness for the program
+                self._failed_by.setdefault(r.name, set()).add("nothing to change")
             return None
         return parts
 
@@ -672,6 +682,12 @@ class _Maker:
             self.work.says("The window does this already, so it is no control of the program's: " + "; ".join(c.does for c in gone) + ".")
             return [c.does for c in gone]
         return []
+
+    def _to_be_doubted(self, failing: list[Result]) -> list[Result]:
+        """Of the tests that fail, those that may be what is wrong: what asks for what there is not, and what no version of
+        the program has held to, of two or more tried. One that some version held to can be held to, and is the program's
+        (CodeT, Chen and others 2023; core/rebuilding/what_versions_agree_on.py)."""
+        return [r for r in failing if r.the_test or (not self._held_by.get(r.name) and len(self._failed_by.get(r.name, ())) >= 2)]
 
     async def _tests_read_again(self, failing: list[Result]) -> bool:
         """The tests that still fail, read again against the rule each is of: kept, corrected, or taken out with its reason."""
@@ -691,7 +707,7 @@ class _Maker:
         before, tests = each_test_in(self.parts.tests)
         held = dict(tests)
         corrected = 0
-        for result in failing[:AT_ONCE]:
+        for result in self._to_be_doubted(failing)[:AT_ONCE]:
             if result.name not in held:
                 continue
             said = await self.write(f"{_HOW_TESTS[self.design.kind]}\n\nA test of one rule:\n```js\n{held[result.name]}\n```\n"
@@ -702,6 +718,9 @@ class _Maker:
             new = each_test_in(_code(said))[1] if "```" in said else []
             if new and new[0][1] != held[result.name]:
                 held[result.name] = re.sub(r"test\s*\(\s*([\"'`])(?:\\.|(?!\1).)*\1", lambda _m, n=result.name: f"test({json.dumps(n)}", new[0][1], count=1, flags=re.S)
+                self.corrected.add(result.name)
+                self._held_by.pop(result.name, None)
+                self._failed_by.pop(result.name, None)
                 corrected += 1
         if corrected:
             self.parts.tests = "\n\n".join([*([before.strip()] if before.strip() else []), *(f"{text};" for text in held.values())])
@@ -751,7 +770,7 @@ class _Maker:
 
     def made(self, path: Path, why_not: str = "") -> Made:
         assert self.design is not None
-        return Made(self.design, self.parts, self.folder, path, self.trial, time.monotonic() - self.began, why_not)
+        return Made(self.design, self.parts, self.folder, path, self.trial, time.monotonic() - self.began, why_not, frozenset(self.corrected))
 
 
 def _how_much_is_wrong(failing: list[Result]) -> float:

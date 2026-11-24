@@ -1086,3 +1086,13 @@ def test_functions_of_programs_that_held_are_what_the_next_starts_from(tmp_path,
     got = functions_like(["blow(s): the wind rises"], tmp_path, kind="game", at_most=1)
     assert got == ["gust(s) { /* good */ }"] and functions_like(["blow(s): the wind"], tmp_path, kind="app") == []
     assert functions_like(["blow(s): the wind"], tmp_path, kind="game", but=tmp_path / "good") == []
+
+
+def test_a_test_some_version_held_to_is_not_the_one_that_is_wrong(tmp_path):
+    from core.making.trying import Result
+
+    made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
+    made._failed_by = {"held once": {"a", "b"}, "never held": {"a", "b"}, "seen once": {"a"}, "asks for nothing there": {"a"}}
+    made._held_by = {"held once": {"c"}}
+    failing = [Result(name, False, the_test=name.startswith("asks")) for name in made._failed_by]
+    assert [r.name for r in made._to_be_doubted(failing)] == ["never held", "asks for nothing there"]

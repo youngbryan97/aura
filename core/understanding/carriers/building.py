@@ -217,7 +217,8 @@ async def _as_it_came_out(request: Request, made: Any) -> CameTo:
     broken = [r for r in generic if not r.ok]
     parts = [Part("it runs, and does what it does when anything is pressed", "unmet" if broken else "met",
                   "; ".join(f"{r.name}: {r.why}" for r in broken)[:400] if broken else f"{len(generic)} ways of trying it hold")]
-    parts += [Part(r.name, "met" if r.ok else "unmet", "its test holds" if r.ok else r.why[:300]) for r in made.trial.rules]
+    parts += [Part(r.name, "met" if r.ok else "unmet", ("its test holds" + (", as it was read again and corrected" if r.name in made.corrected else ""))
+                   if r.ok else r.why[:300]) for r in made.trial.rules]
     where: dict[str, Any] = {"page": str(made.path), "heard": "\n".join(request.added)}
     if made.working():
         placed, places = await _put_where_it_belongs(made, request)
