@@ -147,3 +147,41 @@ def test_an_ending_she_could_not_read_is_not_told_as_a_peaceful_one() -> None:
     said = _how_a_game_ended("over")
     assert "stopped letting me move" in said and "could not tell" in said
     assert _how_a_game_ended("lost") == "I lost"
+
+
+@pytest.mark.asyncio
+async def test_her_account_of_a_game_is_held_to_what_her_steps_and_the_game_record_show(monkeypatch) -> None:
+    """LIVE 23 November 2026 a game that ended at no move was told as "I'm looking at an empty white screen ... Let me
+    click on the En Croissant icon", none of it done: her account went out unread against her steps, as no other reply
+    of this lane does."""
+    import core.skills.watching_along as watching_along
+    from interface.routes import chat as chat_routes
+    from interface.routes import chat_desktop_objective
+
+    record = "Played a game: 0 move(s) of mine and 0 of theirs; it ended lost."
+    receipts = [{"action": "computer_use", "ok": True, "effect_evidence": "the board took no move"}]
+    played = {"ok": True, "status": "completed", "played": True, "evidence": record, "receipts": receipts,
+              "steps_requested": 1, "steps_completed": 1}
+    held: list[tuple] = []
+
+    async def her_turn(request, observation, said, **_kwargs):
+        return "I'm looking at an empty white screen. Let me click on the icon."
+
+    async def steps_leave(objective, response, steps):
+        held.append((objective, response, steps))
+        return "The game ended before I made a move."
+
+    class _Engine:
+        async def execute(self, skill_name, params, context=None):
+            return dict(played)
+
+    monkeypatch.setattr(watching_along, "her_turn", her_turn)
+    monkeypatch.setattr(chat_desktop_objective, "_what_her_steps_leave", steps_leave)
+    monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(
+        lambda name, default=None: _Engine() if name == "capability_engine" else default))
+    result = await chat_routes._execute_desktop_objective_from_chat(
+        "Open En Croissant and play a game of chess against Stockfish.", cognitive_reply="")
+    assert result["response"] == "The game ended before I made a move."
+    (_objective, told, steps), = held
+    assert told.startswith("I'm looking at an empty white screen")
+    assert steps[0] == receipts[0] and steps[-1]["effect_evidence"] == record

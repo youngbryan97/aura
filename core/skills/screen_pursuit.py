@@ -193,6 +193,30 @@ _SEAM_FELL_THROUGH = object()
 logger = logging.getLogger("Aura.ScreenPursuit")
 
 
+def _read_back(part: str, reader: str) -> None:
+    """Registers how the part of a world's record kept under ``part`` is read again: by the reader the pursuit reads it
+    with (``reader``, "module:Class"), and written back out. A part kept with something in it that reads back as
+    nothing is a world she has forgotten without being told."""
+    from core.runtime.what_she_learned_still_holds import replays
+
+    @replays(part)
+    def _read_again(_world: str, record: dict[str, Any]) -> list[str]:
+        import importlib
+
+        module, name = reader.split(":")
+        kept = record.get(part)
+        held = getattr(importlib.import_module(module), name).from_memory(kept or {})
+        return ["it was kept with something in it and reads back as nothing"] if kept and not held.as_memory() else []
+
+
+for _part, _reader in (("acts", "core.agency.what_i_can_do_here:WhatWorksHere"),
+                       ("moves", "core.perception.how_it_moves:HowItMoves"),
+                       ("skill", "core.agency.what_worked_before:WhatWorkedBefore"),
+                       ("lines", "core.agency.what_worked_before:WhatWorkedBefore"),
+                       ("world", "core.perception.what_the_world_does:WhatTheWorldDoes")):
+    _read_back(_part, _reader)
+
+
 #: How many times a blocker may be attacked before the run reports it.
 #:
 #: A dismissal Step succeeds when the KEY WAS PRESSED, not when the overlay

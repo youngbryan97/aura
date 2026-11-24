@@ -126,6 +126,11 @@ replies — is checked against [docs/WRITING_RULES.md](docs/WRITING_RULES.md).
   raises counts as a violation.
 - **New telemetry** is a declared channel with an id, a unit, and limits
   (`core/fsw/telemetry_dictionary.py`). Ids are a contract; never reuse one.
+- **A change to how she learns or reads any world** is replayed against what she has actually learned with
+  `make learned-worlds` before it is pushed. Tests start learning from nothing; her kept worlds
+  (`~/.aura/state/worlds/`) hold every misreading of every visit. 164f17a72 passed every test and had her
+  begin the first world she went back to already lost. A module that keeps part of a world's record
+  registers how that part is read again (`core/runtime/what_she_learned_still_holds.py`).
 - **Claims about Aura** must be registered with the test that validates
   them (`core/organism/model_validation.py`). A claim with no test cannot
   be registered.

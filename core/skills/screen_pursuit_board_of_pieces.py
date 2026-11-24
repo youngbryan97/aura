@@ -19,6 +19,8 @@ import re
 import time
 from typing import Any
 
+from core.runtime.what_she_learned_still_holds import replays
+
 logger = logging.getLogger("Aura.ScreenPursuit.BoardOfPieces")
 
 __all__ = ["played_a_board_of_pieces"]
@@ -337,6 +339,38 @@ def _kept_under(record: str) -> dict[str, Any]:
         except (TypeError, ValueError, KeyError, OSError) as why:
             logger.info("what she measured at this board could not be read back (%s)", why)
     return kept
+
+
+@replays("rules")
+def _what_no_longer_holds_of_her_rules(world: str, _record: dict[str, Any]) -> list[str]:
+    """Her rules of a board as this code reads them, against the board as it began and the answers it gave: at the
+    state it began in, the side that acted first has an act, is not already pressed (the kind the game keeps safe
+    attacked) and is not already over; and every act the board offered there is one her rules allow."""
+    from core.agency.pieces_by_their_kind import FIRST, SECOND, Position, in_check, moves, outcome
+
+    rules = _kept_under(world).get("rules")
+    if rules is None:
+        return ["her rules could not be read"]
+    family = rules.family(unseen_go_every_way=True)
+    start = dict(rules.start)
+    wrong: list[str] = []
+    for side in {True: (FIRST,), False: (SECOND,)}.get(rules.first_was_hers, (FIRST, SECOND)):
+        began = Position(cells=start, turn=side, unmoved=frozenset(start))
+        legal = moves(family, began)
+        if not legal:
+            wrong.append(f"side {side} has no act at the state the board began in")
+        elif outcome(family, began, legal):
+            wrong.append(f"side {side} begins with the board already over: {outcome(family, began, legal)}")
+        if in_check(family, began, side):
+            wrong.append(f"side {side} begins pressed: its kind the game keeps safe stands attacked")
+    shown = getattr(rules, "shown", None)
+    if shown is not None:
+        logger.info("her rules of %s read again: %s", world, shown.checked(rules.family()).says())
+        from core.agency.what_the_game_showed import offered_where_it_began
+
+        for square, missing in offered_where_it_began(shown, start, rules.family()):
+            wrong.append(f"the board offered {sorted(missing)} from {square} where it began, and her rules forbid it")
+    return wrong
 
 
 def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal: Any, went_wrong: Any = None,

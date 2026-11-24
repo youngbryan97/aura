@@ -368,6 +368,13 @@ async def _execute_desktop_objective_from_chat(
         # on with no reply, the turn found none: this lane is the one that answers a desktop objective.
         record = str(result.get("evidence") or "").strip()
         told = await _her_account_of_a_game(objective, record)
+        # Held to the task's steps as every reply of this lane is. LIVE 23 November 2026, a game that ended at no move
+        # was told as "I'm looking at an empty white screen ... Let me click on the En Croissant icon", none of it done.
+        if told:
+            kept = result.get("receipts")
+            steps = [*(kept if isinstance(kept, list) else []), {"action": "desktop_task", "ok": bool(result.get("ok")),
+                                                                 "effect_evidence": record}]
+            told = await _what_her_steps_leave(objective, told, steps)
         return {"ok": bool(result.get("ok")),
                 "status": "desktop_objective_completed" if result.get("ok") else "desktop_objective_failed",
                 "response": told or record, "result": result}
