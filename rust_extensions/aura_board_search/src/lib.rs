@@ -255,6 +255,8 @@ struct Kind {
     runner: bool,
     /// A piece of it on its side's far row has won the game for its side.
     wins_arriving: bool,
+    /// Two of its ways can reach the same square, so a move found twice must be listed once.
+    overlapping: bool,
     worth: i32,
     mobility: i32,
     squares: [Vec<i32>; 2],
@@ -297,6 +299,76 @@ struct Game {
     zob_passable: Vec<u64>,
     zob_turn: u64,
     on_board: Vec<usize>,
+    /// Per side, the lines its pieces take along, each walked once whatever kinds share it.
+    rays: [Vec<Ray>; 2],
+    /// The kinds that take over: asked about apart from the lines.
+    taking_over: Vec<usize>,
+    /// Per side, by how far one square lies from another (offset by the board's size), which of the side's lines
+    /// from the first pass over the second: after a move, only those lines through a square it changed need asking
+    /// about. Empty where the side has more lines than one mask holds.
+    through: [Vec<u128>; 2],
+}
+
+/// One line a side's pieces take along, looked at from the square taken. Every kind that takes along the same line
+/// shares one walk outward from the square, which stops at the first piece: whether that piece takes there is then a
+/// lookup of how far its kind takes along the line. Asking whether a square is attacked walks each line once, not once
+/// for each kind that has it.
+struct Ray {
+    d: i32,
+    /// The farthest any kind takes along it, i32::MAX for no limit.
+    farthest: i32,
+    /// Per kind, the farthest it takes along the line (0 not at all): by its sure steps, by any step, by its sure
+    /// steps a piece may take only unmoved, and by any such step.
+    reach: Vec<[i32; 4]>,
+}
+
+impl Ray {
+    fn lines(kinds: &[Kind], side: usize) -> Vec<Ray> {
+        let mut rays: Vec<Ray> = Vec::new();
+        for (ki, k) in kinds.iter().enumerate() {
+            for s in &k.steps {
+                if s.may != 0 && s.may != 2 {
+                    continue;
+                }
+                let far = if s.rides == 0 { i32::MAX } else { s.rides };
+                for &d in &s.deltas[side] {
+                    let at = match rays.iter().position(|r| r.d == d) {
+                        Some(i) => i,
+                        None => {
+                            rays.push(Ray { d, farthest: 0, reach: vec![[0; 4]; kinds.len()] });
+                            rays.len() - 1
+                        }
+                    };
+                    let ray = &mut rays[at];
+                    ray.farthest = ray.farthest.max(far);
+                    let base = if s.only_unmoved { 2 } else { 0 };
+                    let r = &mut ray.reach[ki];
+                    r[base + 1] = r[base + 1].max(far);
+                    if s.sure {
+                        r[base] = r[base].max(far);
+                    }
+                }
+            }
+        }
+        rays
+    }
+
+    fn through(rays: &[Ray], size: usize, span: i32) -> Vec<u128> {
+        if rays.len() > 128 {
+            return Vec::new();
+        }
+        let mut table = vec![0u128; 2 * size + 1];
+        for (i, ray) in rays.iter().enumerate() {
+            for n in 1..=ray.farthest.min(span) {
+                let apart = n as i64 * ray.d as i64;
+                if apart.unsigned_abs() as usize > size {
+                    break;
+                }
+                table[(apart + size as i64) as usize] |= 1u128 << i;
+            }
+        }
+        table
+    }
 }
 
 fn code(kind: usize, side: usize) -> u8 {
@@ -417,6 +489,20 @@ impl Game {
                 }
             }
             let takes_over = steps.iter().any(|s| s.may == 3);
+            let overlapping = {
+                let span = f.rows.max(f.columns);
+                let mut reached = std::collections::HashSet::new();
+                let mut twice = false;
+                for s in steps.iter().filter(|s| s.may != 3) {
+                    for &d in &s.deltas[0] {
+                        let most = if s.rides == 0 { span } else { s.rides.min(span) };
+                        for n in 1..=most {
+                            twice |= !reached.insert(n as i64 * d as i64);
+                        }
+                    }
+                }
+                twice
+            };
             let runner = !becomes.is_empty() && !k.steps.is_empty()
                 && k.steps.iter().all(|s| s.offsets.iter().all(|(fw, _rt)| *fw > 0));
             kinds.push(Kind {
@@ -430,6 +516,7 @@ impl Game {
                 takes_over,
                 runner,
                 wins_arriving: k.wins_arriving,
+                overlapping,
                 worth,
                 mobility,
                 squares,
@@ -486,7 +573,6 @@ impl Game {
             border,
             stride,
             size,
-            kinds,
             count_to_draw: f.count_to_draw,
             repeats_to_draw: f.repeats_to_draw,
             no_move_draws: f.no_move_unattacked == "draw",
@@ -511,7 +597,17 @@ impl Game {
             zob_passable,
             zob_turn,
             on_board,
+            through: {
+                let span = f.rows.max(f.columns);
+                [Ray::through(&Ray::lines(&kinds, 0), size, span), Ray::through(&Ray::lines(&kinds, 1), size, span)]
+            },
+            rays: [Ray::lines(&kinds, 0), Ray::lines(&kinds, 1)],
+            taking_over: kinds.iter().enumerate().filter(|(_, k)| k.takes_over).map(|(i, _)| i).collect(),
+            kinds,
         })
+    }
+    fn is_royal(&self, c: u8) -> bool {
+        c != EMPTY && c != OFF && self.kinds[kind_of(c)].royal
     }
     fn sq(&self, r: i32, c: i32) -> usize {
         ((r + self.border) * self.stride + c + self.border) as usize
@@ -564,6 +660,8 @@ struct Undo {
     passable: Option<(u16, u16)>,
     count: i32,
     hash: u64,
+    /// The move moved, took or made a royal piece: the royal squares are found again when it is taken back.
+    royal: bool,
 }
 
 /// What one walk of each side's reach finds, kept per thread so a position's judgement allocates nothing.
@@ -616,6 +714,9 @@ struct Board {
     wary: usize,
     /// Set while the first moves of a search are being listed.
     at_root: bool,
+    /// Per side, the squares of its royal pieces: changed in place by a move that moved, took or made one, and back
+    /// again when it is taken back.
+    royal: [Vec<u16>; 2],
 }
 
 impl Board {
@@ -635,8 +736,9 @@ impl Board {
         let passable = p.passable.map(|((a, b), (c, d))| (g.sq(a, b) as u16, g.sq(c, d) as u16));
         let wary = p.wary.map(|w| w as usize).filter(|w| *w < 2).unwrap_or(2);
         let mut b = Board { cells, unmoved, turn: p.turn as usize, passable, count: p.count, hash: 0, history: vec![],
-                            wary, at_root: false };
+                            wary, at_root: false, royal: [Vec::new(), Vec::new()] };
         b.hash = b.full_hash(g);
+        b.find_royals(g);
         for h in &p.history {
             let earlier = Board::from(g, h)?;
             b.history.push(earlier.hash);
@@ -665,35 +767,73 @@ impl Board {
     }
 
     fn attacked(&self, g: &Game, sq: usize, by: usize) -> bool {
-        for (ki, k) in g.kinds.iter().enumerate() {
-            let want = code(ki, by);
-            if k.takes_over && self.taken_over(sq, by, k, want) {
+        for &ki in &g.taking_over {
+            if self.taken_over(sq, by, &g.kinds[ki], code(ki, by)) {
                 return true;
             }
-            for s in &k.steps {
-                if s.may == 1 || s.may == 3 || s.may == 4 || (!s.sure && by == self.wary) {
+        }
+        let wary = by == self.wary;
+        g.rays[by].iter().any(|ray| self.along(sq, by, ray, wary))
+    }
+
+    /// Whether the first piece out from ``sq`` along ``ray`` is one of ``by``'s that takes there along it.
+    #[inline(always)]
+    fn along(&self, sq: usize, by: usize, ray: &Ray, wary: bool) -> bool {
+        let mut t = sq as i32 - ray.d;
+        let mut n = 1;
+        loop {
+            let c = self.cells[t as usize];
+            if c == OFF {
+                return false;
+            }
+            if c != EMPTY {
+                if side_of(c) != by {
+                    return false;
+                }
+                let r = &ray.reach[kind_of(c)];
+                let mut far = if wary { r[0] } else { r[1] };
+                if self.unmoved[t as usize] {
+                    far = far.max(if wary { r[2] } else { r[3] });
+                }
+                return n <= far;
+            }
+            if n >= ray.farthest {
+                return false;
+            }
+            t -= ray.d;
+            n += 1;
+        }
+    }
+
+    /// Whether a royal piece of ``side`` stands attacked after ``m``, which moved no royal piece, where none did
+    /// before it: only a line from the royal piece through a square the move changed can have opened.
+    fn attacked_after(&self, g: &Game, side: usize, m: &Move, before: bool, moved_royal: bool) -> bool {
+        let by = 1 - side;
+        let through = &g.through[by];
+        if before || moved_royal || through.is_empty() || !g.taking_over.is_empty() {
+            return self.in_check(g, side);
+        }
+        let mut changed = [NONE; 5 + MORE];
+        changed[..5].copy_from_slice(&[m.from, m.to, m.taken_at, m.partner_from, m.partner_to]);
+        changed[5..5 + m.n_more as usize].copy_from_slice(&m.more[..m.n_more as usize]);
+        let wary = by == self.wary;
+        for &r in &self.royal[side] {
+            let mut lines = 0u128;
+            for &v in &changed {
+                if v == NONE {
                     continue;
                 }
-                for &d in &s.deltas[by] {
-                    let mut t = sq as i32 - d;
-                    let mut n = 1;
-                    loop {
-                        let c = self.cells[t as usize];
-                        if c == OFF {
-                            break;
-                        }
-                        if c != EMPTY {
-                            if c == want && (!s.only_unmoved || self.unmoved[t as usize]) {
-                                return true;
-                            }
-                            break;
-                        }
-                        if s.rides != 0 && n >= s.rides {
-                            break;
-                        }
-                        t -= d;
-                        n += 1;
-                    }
+                let apart = r as i64 - v as i64;
+                if apart == 0 {
+                    return self.in_check(g, side);
+                }
+                lines |= through[(apart + g.size as i64) as usize];
+            }
+            while lines != 0 {
+                let i = lines.trailing_zeros() as usize;
+                lines &= lines - 1;
+                if self.along(r as usize, by, &g.rays[by][i], wary) {
+                    return true;
                 }
             }
         }
@@ -764,10 +904,14 @@ impl Board {
             }
             let ki = kind_of(c);
             let k = &g.kinds[ki];
-            *stamp = stamp.wrapping_add(1);
-            if *stamp == 0 {
-                seen.fill(0);
-                *stamp = 1;
+            // Only a kind two of whose ways can reach one square needs telling which it has counted already.
+            let twice = k.overlapping || k.takes_over;
+            if twice {
+                *stamp = stamp.wrapping_add(1);
+                if *stamp == 0 {
+                    seen.fill(0);
+                    *stamp = 1;
+                }
             }
             if k.takes_over {
                 let mut hops = Vec::new();
@@ -802,7 +946,7 @@ impl Board {
                         } else {
                             side_of(c2) != side && s.may != 1
                         };
-                        if movable && seen[tu] != *stamp {
+                        if movable && (!twice || seen[tu] != *stamp) {
                             seen[tu] = *stamp;
                             mobility[ki] += if !k.becomes.is_empty() && g.row(tu) == far { k.becomes.len() as i32 } else { 1 };
                         }
@@ -820,12 +964,31 @@ impl Board {
         }
     }
 
-    fn royals<'b>(&'b self, g: &'b Game, side: usize) -> impl Iterator<Item = usize> + 'b {
-        let kinds = &g.kinds;
-        g.on_board.iter().copied().filter(move |&sq| {
+    fn royals<'b>(&'b self, _g: &'b Game, side: usize) -> impl Iterator<Item = usize> + 'b {
+        self.royal[side].iter().map(|&sq| sq as usize)
+    }
+
+    fn royal_moved(&mut self, side: usize, from: u16, to: u16) {
+        if let Some(at) = self.royal[side].iter_mut().find(|sq| **sq == from) {
+            *at = to;
+        }
+    }
+
+    fn royal_gone(&mut self, side: usize, at: u16) {
+        if let Some(i) = self.royal[side].iter().position(|sq| *sq == at) {
+            self.royal[side].remove(i);
+        }
+    }
+
+    fn find_royals(&mut self, g: &Game) {
+        self.royal[0].clear();
+        self.royal[1].clear();
+        for &sq in &g.on_board {
             let c = self.cells[sq];
-            c != EMPTY && c != OFF && side_of(c) == side && kinds[kind_of(c)].royal
-        })
+            if g.is_royal(c) {
+                self.royal[side_of(c)].push(sq as u16);
+            }
+        }
     }
 
     /// Whether a piece of ``side`` whose kind wins by arriving stands on that side's far row: only that row is looked at.
@@ -838,8 +1001,7 @@ impl Board {
     }
 
     fn in_check(&self, g: &Game, side: usize) -> bool {
-        let royals: Vec<usize> = self.royals(g, side).collect();
-        royals.iter().any(|&sq| self.attacked(g, sq, 1 - side))
+        self.royal[side].iter().any(|&sq| self.attacked(g, sq as usize, 1 - side))
     }
 
     fn possible(&self, g: &Game, out: &mut Vec<Move>, only_takes: bool) {
@@ -872,7 +1034,7 @@ impl Board {
                                     if side_of(c2) == side {
                                         let m = Move { from: sq as u16, to: t as u16, partner_from: t as u16,
                                                        partner_to: sq as u16, ..Move::null() };
-                                        if !out[start..].contains(&m) {
+                                        if !k.overlapping || !out[start..].contains(&m) {
                                             out.push(m);
                                         }
                                     }
@@ -921,11 +1083,11 @@ impl Board {
                             if !k.becomes.is_empty() && g.row(t as usize) == far {
                                 for &b in &k.becomes {
                                     let m = Move { becomes: b + 1, ..base };
-                                    if !out[start..].contains(&m) {
+                                    if !k.overlapping || !out[start..].contains(&m) {
                                         out.push(m);
                                     }
                                 }
-                            } else if !out[start..].contains(&base) {
+                            } else if !k.overlapping || !out[start..].contains(&base) {
                                 out.push(base);
                             }
                         }
@@ -1127,6 +1289,7 @@ impl Board {
             passable: self.passable,
             count: self.count,
             hash: self.hash,
+            royal: false,
         };
         self.history.push(self.hash);
         let mut slot = 0;
@@ -1185,14 +1348,58 @@ impl Board {
         self.count = if undo.captured != EMPTY || k.cannot_go_back { 0 } else { self.count + 1 };
         self.turn = 1 - self.turn;
         self.hash ^= g.zob_turn;
+        undo.royal = g.is_royal(moved) || g.is_royal(placed) || g.is_royal(undo.captured) || g.is_royal(partner)
+            || undo.captured_more[..m.n_more as usize].iter().any(|&c| g.is_royal(c));
+        if undo.royal {
+            if g.is_royal(undo.captured) {
+                self.royal_gone(side_of(undo.captured), m.taken_at);
+            }
+            for i in 0..m.n_more as usize {
+                if g.is_royal(undo.captured_more[i]) {
+                    self.royal_gone(side_of(undo.captured_more[i]), m.more[i]);
+                }
+            }
+            if g.is_royal(partner) {
+                self.royal_moved(side_of(partner), m.partner_from, m.partner_to);
+            }
+            let side = side_of(moved);
+            match (g.is_royal(moved), g.is_royal(placed)) {
+                (true, true) => self.royal_moved(side, m.from, m.to),
+                (true, false) => self.royal_gone(side, m.from),
+                (false, true) => self.royal[side].push(m.to),
+                _ => {}
+            }
+        }
         undo
     }
 
-    fn unmake(&mut self, u: Undo) {
+    fn unmake(&mut self, g: &Game, u: Undo) {
         let m = u.m;
         let from = m.from as usize;
         let to = m.to as usize;
         let partner = if m.partner_from != NONE { self.cells[m.partner_to as usize] } else { EMPTY };
+        if u.royal {
+            // The move's changes to the royal squares, undone in the reverse order.
+            let placed = self.cells[to];
+            let side = side_of(u.moved);
+            match (g.is_royal(u.moved), g.is_royal(placed)) {
+                (true, true) => self.royal_moved(side, m.to, m.from),
+                (true, false) => self.royal[side].push(m.from),
+                (false, true) => self.royal_gone(side, m.to),
+                _ => {}
+            }
+            if g.is_royal(partner) {
+                self.royal_moved(side_of(partner), m.partner_to, m.partner_from);
+            }
+            for i in (0..m.n_more as usize).rev() {
+                if g.is_royal(u.captured_more[i]) {
+                    self.royal[side_of(u.captured_more[i])].push(m.more[i]);
+                }
+            }
+            if g.is_royal(u.captured) {
+                self.royal[side_of(u.captured)].push(m.taken_at);
+            }
+        }
         if m.partner_from != NONE {
             self.cells[m.partner_to as usize] = EMPTY;
         }
@@ -1246,11 +1453,12 @@ impl Board {
         self.possible(g, &mut out, false);
         self.at_root = was;
         let side = self.turn;
+        let checked = self.in_check(g, side);
         out.into_iter()
             .filter(|&m| {
                 let u = self.make(g, m);
-                let ok = !self.in_check(g, side);
-                self.unmake(u);
+                let ok = !self.attacked_after(g, side, &m, checked, u.royal);
+                self.unmake(g, u);
                 ok
             })
             .collect()
@@ -1382,7 +1590,17 @@ struct Accounting {
     iterations: Vec<(i32, i32, bool, u64)>,
 }
 
+/// Positions whose judgement one search keeps, at most: a power of two, about a megabyte.
+const JUDGEMENTS_KEPT: usize = 1 << 16;
+
 struct Searcher<'a> {
+    /// The judgements this search has made, by the position's key: a position met again, by other moves or by a
+    /// deeper pass, is not judged again. Everything a judgement reads is in the key (the pieces, which are unmoved,
+    /// what may be taken in passing, whose turn), and the search's own setting (who is wary) does not change within it.
+    judgements: Vec<(u64, i32)>,
+    /// Kept for ordering moves, so a node's ordering allocates nothing.
+    keyed: Vec<(std::cmp::Reverse<i64>, u32)>,
+    listed: Vec<Move>,
     g: &'a Game,
     b: Board,
     tt: &'a Table,
@@ -1466,6 +1684,18 @@ impl<'a> Searcher<'a> {
     }
 
     fn evaluate(&mut self) -> i32 {
+        let key = self.b.hash;
+        let at = key as usize & (JUDGEMENTS_KEPT - 1);
+        let (kept_key, kept) = self.judgements[at];
+        if kept_key == key && key != 0 {
+            return kept;
+        }
+        let judged = self.evaluate_afresh();
+        self.judgements[at] = (key, judged);
+        judged
+    }
+
+    fn evaluate_afresh(&mut self) -> i32 {
         let g = self.g;
         let mut score = [0i32; 2];
         let mut late = [0i32; 2];
@@ -1608,10 +1838,10 @@ impl<'a> Searcher<'a> {
         }
     }
 
-    fn order(&self, moves: &mut [Move], best: Option<u32>, ply: usize) {
-        let mut keyed: Vec<(i64, Move)> = moves
-            .iter()
-            .map(|&m| {
+    fn order(&mut self, moves: &mut [Move], best: Option<u32>, ply: usize) {
+        let mut keyed = std::mem::take(&mut self.keyed);
+        keyed.clear();
+        keyed.extend(moves.iter().enumerate().map(|(i, &m)| {
                 let key: i64 = if best.is_some() && packed(&m) == best {
                     1 << 40
                 } else if m.taken_at != NONE {
@@ -1633,13 +1863,19 @@ impl<'a> Searcher<'a> {
                 } else {
                     self.history[m.from as usize * self.g.size + m.to as usize] as i64
                 };
-                (key, m)
-            })
-            .collect();
-        keyed.sort_by(|a, b| b.0.cmp(&a.0));
-        for (i, (_, m)) in keyed.into_iter().enumerate() {
-            moves[i] = m;
+                (std::cmp::Reverse(key), i as u32)
+            }));
+        // Highest key first, and among equal keys the order they were listed in: a stable sort's order, sorted as
+        // small pairs in a buffer the searcher keeps, not as whole moves in a new one.
+        keyed.sort_unstable();
+        let mut listed = std::mem::take(&mut self.listed);
+        listed.clear();
+        listed.extend_from_slice(moves);
+        for (i, &(_, at)) in keyed.iter().enumerate() {
+            moves[i] = listed[at as usize];
         }
+        self.listed = listed;
+        self.keyed = keyed;
     }
 
     fn time_up(&mut self) -> bool {
@@ -1721,6 +1957,10 @@ impl<'a> Searcher<'a> {
         let mut moves = Vec::with_capacity(32);
         // At the horizon, every move is generated so that the quiet ones that attack their royal piece can be found.
         let checks_too = with_checks && !checked && self.g.kinds.iter().any(|k| k.royal);
+        // Whether their royal piece already stands attacked: only where the search began, for a position reached by a
+        // move she let stand never has it (a turn is passed only out of check). Each move then asks only about the
+        // lines it changed.
+        let theirs_checked = checks_too && ply == 0 && self.b.in_check(self.g, 1 - side);
         self.b.possible(self.g, &mut moves, !checked && !checks_too);
         self.order(&mut moves, None, ply);
         let mut any = false;
@@ -1736,18 +1976,18 @@ impl<'a> Searcher<'a> {
                 continue;
             }
             let u = self.b.make(self.g, m);
-            if self.b.in_check(self.g, side) {
-                self.b.unmake(u);
+            if self.b.attacked_after(self.g, side, &m, checked, u.royal) {
+                self.b.unmake(self.g, u);
                 continue;
             }
-            if checks_too && quiet && !self.b.in_check(self.g, 1 - side) {
+            if checks_too && quiet && !self.b.attacked_after(self.g, 1 - side, &m, theirs_checked, u.royal) {
                 // A quiet move that forces nothing is past the horizon as before.
-                self.b.unmake(u);
+                self.b.unmake(self.g, u);
                 continue;
             }
             any = true;
             let score = -self.quiesce(-beta, -alpha, ply + 1);
-            self.b.unmake(u);
+            self.b.unmake(self.g, u);
             if self.stop {
                 return 0;
             }
@@ -1879,21 +2119,22 @@ impl<'a> Searcher<'a> {
         let mut best_move = None;
         let mut legal = 0;
         let mut quiets_tried: Vec<Move> = Vec::new();
+        let theirs_checked = ply == 0 && self.b.in_check(g, 1 - side);
         for m in moves {
             if ply == 0 && self.excluded.contains(&m) {
                 continue;
             }
             let quiet = m.taken_at == NONE && m.becomes == 0;
             let u = self.b.make(g, m);
-            if self.b.in_check(g, side) {
-                self.b.unmake(u);
+            if self.b.attacked_after(g, side, &m, checked, u.royal) {
+                self.b.unmake(self.g, u);
                 continue;
             }
             legal += 1;
             if ply < MAX_PLY {
                 self.played[ply] = m;
             }
-            let gives_check = self.b.in_check(g, 1 - side);
+            let gives_check = self.b.attacked_after(g, 1 - side, &m, theirs_checked, u.royal);
             if legal > 1 && !pv_node && !checked && quiet && !gives_check && best_score > -MATE + 1000 {
                 // Near the end of a look, a quiet move late in the order, or one that even with a margin cannot lift
                 // her to the bound, is not looked at.
@@ -1902,7 +2143,7 @@ impl<'a> Searcher<'a> {
                 let futile = unit > 0 && (depth as f64) <= habits.futile_within
                     && stand + ((habits.futile_margins * (unit * depth) as f64) as i32) <= alpha;
                 if late || futile {
-                    self.b.unmake(u);
+                    self.b.unmake(self.g, u);
                     continue;
                 }
             }
@@ -1925,7 +2166,7 @@ impl<'a> Searcher<'a> {
                     score = -self.search(depth - 1, -beta, -alpha, ply + 1, true);
                 }
             }
-            self.b.unmake(u);
+            self.b.unmake(self.g, u);
             if self.stop {
                 return 0;
             }
@@ -2020,7 +2261,7 @@ impl<'a> Searcher<'a> {
             seen.push(self.b.hash);
         }
         while let Some(u) = undos.pop() {
-            self.b.unmake(u);
+            self.b.unmake(self.g, u);
         }
         line
     }
@@ -2047,6 +2288,9 @@ impl<'a> Searcher<'a> {
             commonest: usize::MAX,
             soft: 0.0,
             acc: Accounting::default(),
+            judgements: vec![(0, 0); JUDGEMENTS_KEPT],
+            keyed: Vec::new(),
+            listed: Vec::new(),
         }
     }
 }
@@ -2326,7 +2570,7 @@ fn measure_the_margin(g: &Game, b: &Board) {
         }
         let u = s.b.make(g, m);
         let after = -s.evaluate();
-        s.b.unmake(u);
+        s.b.unmake(g, u);
         most = most.max((after - before + 2 * g.tempo).abs());
     }
     g.margin.store(most, Ordering::Relaxed);
@@ -2361,7 +2605,7 @@ fn perft_inner(g: &Game, b: &mut Board, depth: u32) -> u64 {
     for m in moves {
         let u = b.make(g, m);
         n += perft_inner(g, b, depth - 1);
-        b.unmake(u);
+        b.unmake(g, u);
     }
     n
 }
@@ -2417,6 +2661,9 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
         commonest: usize::MAX,
         soft: 0.0,
         acc: Accounting::default(),
+        judgements: vec![(0, 0); JUDGEMENTS_KEPT],
+        keyed: Vec::new(),
+        listed: Vec::new(),
     };
     Ok(s.evaluate())
 }
@@ -2526,6 +2773,9 @@ fn search(
             commonest: usize::MAX,
             soft,
             acc: Accounting::default(),
+            judgements: vec![(0, 0); JUDGEMENTS_KEPT],
+            keyed: Vec::new(),
+            listed: Vec::new(),
         };
         let all = s.b.legal(&g);
         let legal: Vec<Move> = all.into_iter().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
@@ -2627,8 +2877,8 @@ fn self_play(
         for game in 0..games {
             let a_is_first = game % 2 == 0;
             let (ta, tb) = (Table::new(entries), Table::new(entries));
-            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default() };
-            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default() };
+            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default(), judgements: vec![(0, 0); JUDGEMENTS_KEPT], keyed: Vec::new(), listed: Vec::new() };
+            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default(), judgements: vec![(0, 0); JUDGEMENTS_KEPT], keyed: Vec::new(), listed: Vec::new() };
             // The second side looks at as many positions as its own pace affords in the same time, where it is given.
             if nodes_per_move_b > 0 {
                 sb.max_nodes = nodes_per_move_b;
