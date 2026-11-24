@@ -108,3 +108,10 @@ def test_each_pass_offers_her_model_her_step_alone_and_a_call_to_another_is_not_
     assert offered[0] == ["find"]
     assert "check" not in ran
     assert out["content"] in ("", "All done.")
+
+
+def test_steps_let_go_in_this_piece_of_work_are_not_offered_again() -> None:
+    steps = HerSteps.for_loop(TOOLS, "make it right", let_go=["find"])
+    assert steps.next() == "change"
+    steps.not_filled("change")
+    assert steps.let_go() == ["find", "change"]

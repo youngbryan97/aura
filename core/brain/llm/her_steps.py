@@ -63,9 +63,10 @@ class HerSteps:
     @classmethod
     def for_loop(cls, tools: Mapping[str, Any] | None, objective: str = "", *, order: Iterable[str] | None = None,
                  choose_by_meaning: bool = False, needs: Mapping[str, str] | None = None,
-                 already: Iterable[tuple[str, bool]] = ()) -> HerSteps | None:
+                 already: Iterable[tuple[str, bool]] = (), let_go: Iterable[str] = ()) -> HerSteps | None:
         """Her steps over ``tools`` (None where none are offered), in ``order`` where given, with the calls of this
-        piece of work already made (``already``: each tool and whether it came back done) counted."""
+        piece of work already made (``already``: each tool and whether it came back done) counted, and the steps
+        already let go in it (``let_go``) not offered again."""
         offered = dict(tools or {})
         if not offered:
             return None
@@ -78,7 +79,12 @@ class HerSteps:
         for name, ok in already:
             if name in offered:
                 steps.called(name, ok)
+        steps.finished.update(name for name in let_go if name in offered)
         return steps
+
+    def let_go(self) -> list[str]:
+        """The steps let go without coming back done: for a piece of work that goes on across loops."""
+        return [name for name in self.tools if name in self.finished and name not in self.done]
 
     def _open(self) -> list[str]:
         open_steps = []

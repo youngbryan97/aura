@@ -115,6 +115,7 @@ class HerCortex:
         calls: list[dict[str, Any]] = []
         # Her steps this pass, each with whether it came back done: the next generation goes on from them.
         taken: list[tuple[str, bool]] = []
+        let_go: list[str] = []
         content, generations, empty = "", 0, 0
         while turns_left > 0 and empty < 2:
             if a_person_is_waiting_for_her_model():
@@ -130,7 +131,7 @@ class HerCortex:
             try:
                 step = await asyncio.wait_for(
                     client.think_and_act(objective, max_turns=1, prior_turns=list(prior), her_steps_taken=list(taken),
-                                         **kwargs), timeout=left_s)
+                                         her_steps_let_go=list(let_go), **kwargs), timeout=left_s)
             except TimeoutError:
                 # The pass's own time ran out mid-generation: its end, not a fault, and what it did stays. LIVE to 12
                 # November 2026 the timeout left the pass, its earlier calls were lost, and her self-repair targeted
@@ -142,6 +143,12 @@ class HerCortex:
             generations += 1
             turns_left -= 1
             made = list((step or {}).get("tool_calls") or [])
+            # A step her model wrote no call for is let go for the rest of the pass, and the pass goes on to the next.
+            # LIVE 24 November 2026 every generation began again at her first step, which her model left unwritten.
+            newly = [name for name in (step or {}).get("her_steps_let_go") or () if name not in let_go]
+            let_go += newly
+            if not made and not str((step or {}).get("content") or "").strip() and newly:
+                continue
             if not made:
                 content = str((step or {}).get("content") or "")
                 if content.strip():

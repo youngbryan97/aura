@@ -11049,7 +11049,8 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
         steps = HerSteps.for_loop(tools, str(objective or ""), order=kwargs.get("her_plan"),
                                   choose_by_meaning=kwargs.get("her_choice") == "by_meaning",
-                                  needs=kwargs.get("her_needs"), already=kwargs.get("her_steps_taken") or ())
+                                  needs=kwargs.get("her_needs"), already=kwargs.get("her_steps_taken") or (),
+                                  let_go=kwargs.get("her_steps_let_go") or ())
         step: str | None = None
         last_result = ""
         native_on = bool(template_tools)
@@ -11396,7 +11397,8 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
         # Out of turns: the last text was a call or an announcement, and a line the runtime wrote
         # for her is not her reply either. Both were served as one. The receipts say what ran.
-        return {"content": "", "turns": max_turns, "tool_calls": tool_calls_made, "exhausted": True}
+        return {"content": "", "turns": max_turns, "tool_calls": tool_calls_made, "exhausted": True,
+                "her_steps_let_go": steps.let_go() if steps is not None else []}
 
 
 
