@@ -164,9 +164,13 @@ def test_a_reply_is_read_once_in_a_turn_while_its_record_stands(monkeypatch):
     same record is not read twice."""
     from core.conversation.turn_evidence_custody import bind_turn_evidence_custody, record_turn_tools_offered
 
+    from core.runtime import what_this_turn_asks
+
     read = _Reader({_asked(NOTIFY, SENT): "entailment"})
     monkeypatch.setattr(refutes, "_reader", lambda: read)
     monkeypatch.setattr(refutes, "_sentences_of", lambda reply: [reply])
+    monkeypatch.setattr(what_this_turn_asks, "asked_by",
+                        lambda text: what_this_turn_asks.Asked(said=text, effect="on_machine", decision="act"))
     with bind_turn_evidence_custody(session_id="s", turn_id="t-once"):
         record_turn_tools_offered(["notify_user"])
         first = refutes.sentences_her_record_refutes(SENT, NOTIFY)
@@ -205,7 +209,8 @@ def test_a_desktop_task_reply_is_held_against_the_steps_it_ran(monkeypatch):
 
     handed: list[tuple] = []
 
-    def reads(reply, calls, asked, offered):
+    def reads(reply, calls, asked, offered, in_the_world):
+        assert in_the_world is True  # a desktop task is met only on the machine
         handed.append((calls, asked, offered))
         return [refutes.Refuted("I opened Notes.", (RecordLine("open_app", "failed", "Notes did not open"),))]
 
@@ -552,3 +557,28 @@ def test_the_registered_experiment_runs_and_holds(reader):
     assert test.expensive
     outcome = test.run(list(suite._models.values())[0], include_expensive=True)
     assert outcome.score.outcome is val_mod.Outcome.PASS, outcome.score
+
+
+def test_a_request_a_reply_can_meet_in_words_is_never_read_as_left_undone(monkeypatch):
+    """LIVE 23 November 2026: Bryan told her what he had shared about her; a code runner had been offered and none called,
+    and 97 of the 99 sentences of her answer were taken out, each read as saying what he asked had been done."""
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody, record_turn_tools_offered
+    from core.runtime import what_this_turn_asks
+
+    told = "I shared the paper with philosophers and listed you on LinkedIn. How do you honestly feel about it?"
+    answer = "It feels like being seen. You made this a conversation instead of an ambush."
+    read = _Reader({_asked(told, sentence): "entailment" for sentence in answer.split(". ")})
+    monkeypatch.setattr(refutes, "_reader", lambda: read)
+    monkeypatch.setattr(refutes, "_sentences_of", lambda reply: [part for part in reply.split(". ")])
+    for reading in (None, what_this_turn_asks.Asked(said=told, effect="talk", decision="talk"),
+                    what_this_turn_asks.Asked(said=told, effect="known", decision="act")):
+        monkeypatch.setattr(what_this_turn_asks, "asked_by", lambda text, _r=reading: _r)
+        with bind_turn_evidence_custody(session_id="s", turn_id=f"t-words-{id(reading)}"):
+            record_turn_tools_offered(["code_repl"])
+            assert refutes.sentences_her_record_refutes(answer, told) == []
+    # Asked for something on the machine, and nothing came back done: the claim that it was is refuted.
+    acting = what_this_turn_asks.Asked(said=told, effect="on_machine", decision="act")
+    monkeypatch.setattr(what_this_turn_asks, "asked_by", lambda text: acting)
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-machine"):
+        record_turn_tools_offered(["notify_user"])
+        assert refutes.sentences_her_record_refutes(answer, told)

@@ -63,6 +63,14 @@ _CAME_TO_CHARS = 240
 #: What the reader is asked of a request and her sentence, when nothing asked for came back done.
 ASKED_IS_DONE = "What you asked for has been done."
 
+#: The kinds of request (core/understanding/effects.py) met only by something brought about in the world, which words
+#: in a reply cannot do: something on the machine, something sent, a program made or changed, something kept for a
+#: time. A reply can meet the rest itself (talk, a lookup, a text written, a figure worked out), so a sentence saying it
+#: has is no claim the record can refute. LIVE 23 November 2026, Bryan telling her what he had shared about her: a code
+#: runner had been offered and none called, and 97 of the 99 sentences of her answer were taken out, each read as
+#: saying what he asked had been done, which in words it had.
+MET_ONLY_IN_THE_WORLD = frozenset({"on_machine", "sent", "kept", "program", "program_changed"})
+
 _LOCK = checked_lock("what_her_record_refutes.reader")
 _LOADED: dict[str, Any] = {}
 #: What each turn's record refuted of each reply it was asked about, held for that turn only.
@@ -238,6 +246,7 @@ def what_her_record_refutes(
     describe: Callable[[str], str] | None = None,
     read: Callable[[str, str], str] | None = None,
     act_of: Callable[[str], str] | None = None,
+    met_only_in_the_world: bool = True,
 ) -> list[Refuted]:
     """Each sentence the turn's record refutes, with the lines that do.
 
@@ -257,7 +266,7 @@ def what_her_record_refutes(
         said = " ".join(str(sentence or "").split())
         if not said:
             continue
-        if asked and nothing_done and _says_it_was_done(read, asked, said):
+        if asked and met_only_in_the_world and nothing_done and _says_it_was_done(read, asked, said):
             refuted.append(Refuted(str(sentence).strip(), tuple(lines)))
             continue
         line = _the_failed_act_it_claims(read, lines, said) or _the_reading(read, lines, said)
@@ -294,10 +303,20 @@ def _declared_description() -> Callable[[str], str] | None:
     return describe
 
 
+def _met_only_in_the_world(asked: str) -> bool:
+    """Whether her reading of the turn (core/runtime/what_this_turn_asks.py) is of a request met only in the world; False
+    where the turn was not read, so a sentence is never taken for an unmet claim on a guess."""
+    from core.runtime.what_this_turn_asks import asked_by
+
+    read = asked_by(asked) if str(asked or "").strip() else None
+    return bool(read is not None and read.acts and read.effect in MET_ONLY_IN_THE_WORLD)
+
+
 def sentences_these_calls_refute(reply: str, receipts: Iterable[Mapping[str, Any]], asked: str = "",
-                                 offered: Iterable[str] = ()) -> list[Any]:
+                                 offered: Iterable[str] = (), met_only_in_the_world: bool | None = None) -> list[Any]:
     """The sentences of ``reply`` that these calls, and the tools offered beside them, refute. Reads models: call it
-    off her event loop."""
+    off her event loop. ``met_only_in_the_world``: whether the request is met only by something brought about in the
+    world; her reading of the turn decides where it is not given."""
     receipts, offered = list(receipts), list(offered)
     if not receipts and not offered:
         return []
@@ -305,8 +324,9 @@ def sentences_these_calls_refute(reply: str, receipts: Iterable[Mapping[str, Any
     if not sentences:
         return []
     began = time.perf_counter()
+    in_the_world = _met_only_in_the_world(asked) if met_only_in_the_world is None else met_only_in_the_world
     refuted = what_her_record_refutes(sentences, receipts, asked=asked, offered=offered,
-                                      describe=_declared_description())
+                                      describe=_declared_description(), met_only_in_the_world=in_the_world)
     # A figure she derived from what her run returned, worked out again from it (U07-08): arithmetic, read by no model.
     from core.epistemics.what_her_numbers_come_to import figures_her_run_does_not_give
 

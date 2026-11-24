@@ -613,8 +613,9 @@ async def _what_her_steps_leave(objective: Any, response: Any, steps: Any) -> An
     if not str(response or "").strip():
         return response
     try:
+        # A desktop task is work on the machine: what it was asked for is met only there.
         refuted = await asyncio.to_thread(sentences_these_calls_refute, str(response), calls, str(objective or ""),
-                                          [] if calls else ["desktop_task"])
+                                          [] if calls else ["desktop_task"], True)
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.desktop_steps_refute", exc, severity="warning",
                            action="the task's reply went out without being held against its steps")
