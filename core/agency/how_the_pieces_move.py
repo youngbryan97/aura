@@ -78,6 +78,10 @@ _EVERY_LINE = (Step(((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1),
 #: Sightings of a kind going a way, offered by the game or seen made, below which the way is not relied on: one
 #: misread look can show two. LIVE 23 November 2026 one look gave her royal kind two squares far up the board.
 SEEN_TO_BELIEVE = 3
+#: Which reading of a board's answers gathered what is kept: 2 since an answer is read from the board as it was, once
+#: it holds still (f60209bb0). What an earlier reading gathered weighs as kept knowledge does when it comes back
+#: (core/runtime/what_she_learned.py, TRUST_CARRIED_OVER), once, the first time the record is read after.
+READING = 2
 #: What one look counts for against SEEN_TO_BELIEVE, which counted squares: three squares were to make sure of two
 #: looks, since one misread look shows two at most, so two looks that agree are what it asked for.
 A_LOOK_IS_WORTH = SEEN_TO_BELIEVE / 2
@@ -274,6 +278,8 @@ class HowThePiecesMove:
     #: a partner, changing places, taking over, taking in passing. What a rule allowing such a move rests on is how
     #: often it was seen, not that the rule can express it (suggestions of 23 November 2026).
     special_seen: dict[str, int] = field(default_factory=dict)
+    #: Which reading gathered what is kept here (READING).
+    read_by: int = READING
 
     def _saw_special(self, kind: str, sort: str) -> None:
         key = f"{kind}|{sort}"
@@ -962,7 +968,7 @@ class HowThePiecesMove:
             "takes_again": sorted(self.takes_again), "quiet_kept_back_while_taking": self.quiet_kept_back_while_taking,
             "quiet_offered_while_taking": self.quiet_offered_while_taking, "no_move_loses": self.no_move_loses,
             "unconfirmed": dict(self.unconfirmed), "wins_arriving": sorted(self.wins_arriving),
-            "special_seen": dict(self.special_seen),
+            "special_seen": dict(self.special_seen), "read_by": self.read_by,
         }
 
     @classmethod
@@ -1004,10 +1010,52 @@ class HowThePiecesMove:
             learned.special_seen = {str(k): int(v) for k, v in kept.get("special_seen", {}).items()}
             first = kept.get("first_was_hers")
             learned.first_was_hers = first if isinstance(first, bool) else None
+            read_by = int(kept.get("read_by", 1))
+            if read_by < READING:
+                learned._weighed_as_read_before_mending()
             return learned
         except (KeyError, TypeError, ValueError) as why:
             logger.info("what she learned of this game could not be read back (%s); learning it afresh", why)
             return None
+
+    def _weighed_as_read_before_mending(self) -> None:
+        """What a reading since mended gathered, weighed as kept knowledge is when it comes back: every count it made
+        at TRUST_CARRIED_OVER of itself, and a distance whose own counts come to nothing no longer offered. LIVE 23
+        November 2026, game 31: 31 of the squares she read in 55 answers were never offered, most of them the marks of
+        the piece looked at before; thirty games read that way left her rules with ways seen once that no later look
+        could test (a leap onto a square her own piece always held). Ways seen many times keep their standing."""
+        from core.runtime.what_she_learned import TRUST_CARRIED_OVER
+
+        def less(n: int) -> int:
+            return int(n * TRUST_CARRIED_OVER)
+
+        dropped = 0
+        for ways in self.seen.values():
+            for way in ways.values():
+                counted_by_distance = bool(way.went_at or way.took_at)
+                for name in _COUNTED:
+                    setattr(way, name, {t: less(n) for t, n in getattr(way, name).items() if less(n) > 0})
+                way.took, way.would_not_take = less(way.took), less(way.would_not_take)
+                way.moved_to_empty, way.jumped = less(way.moved_to_empty), less(way.jumped)
+                way.over_took, way.over_refused = less(way.over_took), less(way.over_refused)
+                if counted_by_distance:
+                    for kept in (way.offered, way.offered_unmoved):
+                        # A distance in an unbroken run of two or more from the next square rests on the run, as a
+                        # line does, where nothing contests it; any other stands on its own counts.
+                        run = 0
+                        while run + 1 in kept:
+                            run += 1
+                        line = run if run >= 2 else 0
+                        contested = (way.withheld | way.withheld_unmoved | set(way.refused_going_at)
+                                     | set(way.refused_taking_at))
+                        gone = {t for t in kept if (t > line or t in contested)
+                                and not way.went_at.get(t) and not way.took_at.get(t)}
+                        kept -= gone
+                        dropped += len(gone)
+        self.special_seen = {k: less(v) for k, v in self.special_seen.items() if less(v) > 0}
+        self.read_by = READING
+        logger.info("what an earlier reading of this board gathered now weighs %.1f of itself; %d distance(s) it alone "
+                    "held are let go", TRUST_CARRIED_OVER, dropped)
 
     def under_other_names(self, names: dict[str, str], *, turned_round: bool = False) -> HowThePiecesMove:
         """What she learned here, for a board that begins as this one does with each kind called what ``names`` maps
