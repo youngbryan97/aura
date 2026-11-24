@@ -26,14 +26,16 @@ from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Understanding")
 
-__all__ = ["Part", "Request", "RequestsOfHer", "Try", "get_requests_of_her"]
+__all__ = ["ASKED", "Ask", "Part", "Request", "RequestsOfHer", "Try", "get_requests_of_her"]
 
 #: How a request stands. ``met`` and ``partly`` and ``unmet`` are what a check found; ``cut_short`` is work that stopped
 #: before a check; ``set_aside`` is the person's own word.
 OPEN, WORKING, MET, PARTLY, UNMET, CUT_SHORT, SET_ASIDE = (
     "open", "working", "met", "partly", "unmet", "cut_short", "set_aside")
 #: Ways of standing that leave something to do.
-UNFINISHED = frozenset({OPEN, WORKING, PARTLY, UNMET, CUT_SHORT})
+#: Asked about first, and waiting for an answer.
+ASKED = "asked"
+UNFINISHED = frozenset({OPEN, WORKING, PARTLY, UNMET, CUT_SHORT, ASKED})
 #: How many requests are kept, and how many gifts of files a conversation.
 KEPT, KEPT_GIVEN = 400, 20
 
@@ -57,6 +59,19 @@ class Try:
 
 
 @dataclass
+class Ask:
+    """Something she asked whoever made a request, held until they answer it."""
+
+    words: str
+    #: What it is about: ``wanted`` (whether it was asked for at all), or ``which`` (something that changes what is made).
+    about: str = "which"
+    #: What she goes on with until they say; empty where she waits for them.
+    goes_with: str = ""
+    at: float = 0.0
+    answer: str = ""
+
+
+@dataclass
 class Request:
     id: str
     conversation: str
@@ -70,6 +85,8 @@ class Request:
     made: dict[str, Any] = field(default_factory=dict)
     #: What was said about it since, in order: answers to a question of hers, corrections, more to go on.
     added: list[str] = field(default_factory=list)
+    #: What she has asked them of it.
+    asks: list[Ask] = field(default_factory=list)
     #: What she told them as she began it, which the work holds to where it can.
     told: str = ""
     now: str = ""
@@ -81,6 +98,16 @@ class Request:
         """Everything the person said of it."""
         return "\n".join([self.said, *self.added])
 
+    def waits_on(self) -> Ask | None:
+        """What she asked of it that has not been answered, the latest first."""
+        return next((ask for ask in reversed(self.asks) if not ask.answer), None)
+
+    def ask(self, words: str, *, about: str = "which", goes_with: str = "") -> Ask:
+        """Something to ask them, held until it is answered."""
+        ask = Ask(" ".join(str(words).split()), about, " ".join(str(goes_with).split()), time.time())
+        self.asks.append(ask)
+        return ask
+
     def missing(self) -> list[Part]:
         return [part for part in self.parts if part.stands != "met"]
 
@@ -89,12 +116,14 @@ class Request:
         lines = [f"Asked {_when(self.opened_at)}: {_short(self.said)}"]
         stands = {OPEN: "not started", WORKING: "being worked on now", MET: "done, and checked",
                   PARTLY: "partly done", UNMET: "tried, and not done", CUT_SHORT: "cut short before it was finished",
-                  SET_ASIDE: "set aside"}[self.stands]
+                  SET_ASIDE: "set aside", ASKED: "not begun: waiting for their answer"}[self.stands]
         lines.append(f"It stands: {stands}" + (f" ({self.now})" if self.now and self.stands == WORKING else "") + ".")
         lines += [f"Made: {name}: {value}" for name, value in self.made.items() if value]
         for part in self.parts:
             mark = {"met": "done", "unmet": "not done", "unknown": "not checked"}[part.stands]
             lines.append(f"- {part.what}: {mark}" + (f" ({part.shown_by})" if part.shown_by else ""))
+        lines += [f"Asked them: {ask.words}" + (f" They said: {_short(ask.answer)}" if ask.answer else " (not answered yet"
+                  + (f"; going on with {ask.goes_with}" if ask.goes_with else "") + ")") for ask in self.asks[-3:]]
         for attempt in self.tries[-3:]:
             lines.append(f"Tried {_when(attempt.at)}: {attempt.how}. " + (f"Came to: {attempt.came_to}" if attempt.came_to else ""))
         return lines
@@ -142,6 +171,7 @@ class RequestsOfHer:
                 row = dict(row)
                 row["parts"] = [Part(**part) for part in row.get("parts") or ()]
                 row["tries"] = [Try(**attempt) for attempt in row.get("tries") or ()]
+                row["asks"] = [Ask(**ask) for ask in row.get("asks") or ()]
                 request = Request(**{name: value for name, value in row.items() if name in Request.__dataclass_fields__})
                 if request.stands == WORKING:
                     request.stands = CUT_SHORT

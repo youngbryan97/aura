@@ -18,6 +18,7 @@ from core.understanding.effects import BY_NAME, EFFECTS
 from core.understanding.examples import Turn, attached, examples, transcript
 from core.understanding.fitted_on_her_model import FittedOnHerModel, fit
 from core.understanding.requests_of_her import (
+    ASKED,
     CUT_SHORT,
     MET,
     PARTLY,
@@ -773,3 +774,112 @@ def test_what_they_set_aside_is_gone_on_with_and_not_changed(tmp_path):
     assert settled.what == "on_with" and settled.asked.effect == "program"
     request.stands = MET
     assert settle(_read("try it again", "resume"), ledger, conversation="c").asked.effect == "program_changed"
+
+
+def test_what_is_said_of_a_program_made_here_is_a_change_to_it_whichever_way_it_is_put(tmp_path):
+    """LIVE 24 November: sure to be asking (0.98), 0.64 of it changing the program, and nothing was begun."""
+    ledger = RequestsOfHer(tmp_path / "r.json")
+    said = "The flat app opens saying Alice is owed 50 when nothing's been put in, and one expense should be for several of us."
+    p = _p(program_changed=0.64, resume=0.16, program=0.14, status=0.03, talk=0.02, computed=0.01)
+    effect, decision, asking = decide(p)
+    asked = Asked(said=said, effect=effect, decision=decision, asking=asking, by_effect=p)
+    assert (effect, decision) == ("program_changed", "ask_first")
+    request = ledger.asked("Make an app.", effect="program", conversation="c")
+    request.made["page"], request.stands = "/x/index.html", MET
+    settled = settle(asked, ledger, conversation="c")
+    assert settled.asked.acts and settled.asked.effect == "program_changed" and settled.request is request and settled.what == "on_with"
+    unsure = _p(program_changed=0.40, talk=0.50, program=0.10)
+    effect, decision, asking = decide(unsure)
+    still = settle(Asked(said=said, effect=effect, decision=decision, asking=asking, by_effect=unsure), ledger, conversation="c").asked
+    assert not still.acts, "as likely talk as not"
+
+
+# ── what she asks them ───────────────────────────────────────────────
+
+def _turns(tmp_path, monkeypatch):
+    from interface.routes import chat_carrying_out as chat
+
+    ledger, begun, recorded, sent = RequestsOfHer(tmp_path / "r.json"), [], [], []
+    monkeypatch.setattr(chat, "get_requests_of_her", lambda: ledger)
+    monkeypatch.setattr(chat, "_recorded", lambda said, returned, ok=True: recorded.append(returned))
+
+    async def before(session, said):
+        return []
+
+    async def words(request, beside=None):
+        return ""
+
+    async def unasked(message, *, origin):
+        return None
+
+    from core.conversation import said_unasked
+
+    monkeypatch.setattr(chat, "_the_words_before", before)
+    monkeypatch.setattr(chat, "_her_words", words)
+    monkeypatch.setattr(chat, "_shown", lambda message, request: sent.append(message))
+    monkeypatch.setattr(said_unasked, "she_said_unasked", unasked)
+    monkeypatch.setattr(carrying_out, "begin", lambda request, **kw: begun.append(request) or True)
+
+    def turn(said, effect, decision="act", reply=""):
+        async def whole():
+            held.clear()
+            hold(Asked(said=said, effect=effect, decision=decision, asking=0.6, by_effect=_p(program=0.6, talk=0.4)) if decision == "ask_first"
+                 else _read(said, effect, decision))
+            taken = await chat.take_up_what_is_asked(said, session_id="c")
+            chat.her_question_is_asked(reply, said, session_id="c")
+            for _ in range(20):
+                await asyncio.sleep(0)
+            return taken
+
+        return asyncio.run(whole())
+
+    return ledger, begun, recorded, sent, turn
+
+
+def test_what_she_is_unsure_was_asked_is_asked_about_and_a_yes_begins_it(tmp_path, monkeypatch):
+    """LIVE 24 November: it decided to ask first, nothing made it ask, and nothing held the question open."""
+    ledger, begun, recorded, sent, turn = _turns(tmp_path, monkeypatch)
+    said = "A tide clock on the wall would be nice."
+    assert turn(said, "program", "ask_first", reply="It would, wouldn't it.")
+    (request,) = ledger.of("c")
+    assert request.stands == ASKED and not begun and recorded[-1]["begun"] is False
+    assert sent == [f"Should I go ahead with that: {said.rstrip('.')}?"], "her reply asked nothing, so the question follows it"
+    assert turn("Yes, please.", "resume", reply="On it.")
+    assert begun == [request] and request.asks[0].answer == "Yes, please." and request.waits_on() is None and len(sent) == 1
+
+
+def test_a_question_her_reply_asks_is_not_asked_again_and_talk_of_something_else_sets_it_aside(tmp_path, monkeypatch):
+    ledger, begun, _recorded, sent, turn = _turns(tmp_path, monkeypatch)
+    turn("A tide clock on the wall would be nice.", "program", "ask_first", reply="Want me to make you one? I could start now.")
+    (request,) = ledger.of("c")
+    assert not sent and request.asks[0].words == "Want me to make you one?"
+    turn("Nah, just thinking aloud.", "talk", "talk", reply="Fair enough.")
+    assert request.stands == SET_ASIDE and not begun and not sent
+
+
+def test_what_work_asks_is_kept_with_the_request_and_taken_to_them(tmp_path, monkeypatch):
+    ledger, _begun, _recorded, sent, turn = _turns(tmp_path, monkeypatch)
+    from core.understanding.workbench import Work
+    from interface.routes import chat_carrying_out as chat
+
+    request = ledger.asked("Make a settling up app.", effect="program", conversation="c")
+    work = Work(request.id, "Make a settling up app.")
+    work.when_asked = lambda words, goes_with: carrying_out._asked_of_them(request, words, goes_with, chat.ask_them)
+
+    async def asks():
+        work.asks("Does a share that will not divide go to whoever paid", "the first of them")
+        for _ in range(20):
+            await asyncio.sleep(0)
+
+    asyncio.run(asks())
+    assert sent == ["Does a share that will not divide go to whoever paid? Until you say, I'm going on with the first of them."]
+    assert "Asked them" in "\n".join(request.account()) and "going on with the first of them" in "\n".join(request.account())
+    request.stands = WORKING
+    monkeypatch.setattr(carrying_out, "is_under_way", lambda r: True)
+    from core.understanding.workbench import get_workbench
+
+    bench = get_workbench().begin(request.id, "Make a settling up app.")
+    turn("Whoever paid.", "resume")
+    assert request.asks[0].answer == "Whoever paid." and bench.heard() == ["Whoever paid."]
+    again = RequestsOfHer(tmp_path / "r.json")
+    assert again.get(request.id).asks[0].answer == "Whoever paid.", "kept across a restart"

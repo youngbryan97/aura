@@ -133,8 +133,18 @@ def _title(request: Request) -> str:
     return words if len(words) <= 70 else words[:70].rsplit(" ", 1)[0] + " …"
 
 
+def _asked_of_them(request: Request, words: str, goes_with: str, asks: Callable[[Request, Any], Awaitable[None]] | None) -> None:
+    """Something she asks of a request while she works on it: held with it, and taken to them."""
+    from core.utils.task_tracker import get_task_tracker
+
+    ask = request.ask(words, goes_with=goes_with)
+    if asks is not None:
+        get_task_tracker().create_task(asks(request, ask), name=f"request.asks.{request.id}")
+
+
 def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[None]],
-          carrier: Carrier | None = None, ledger: RequestsOfHer | None = None) -> bool:
+          carrier: Carrier | None = None, ledger: RequestsOfHer | None = None,
+          asks: Callable[[Request, Any], Awaitable[None]] | None = None) -> bool:
     """Start carrying a request out on her own time; False where nothing does this kind of thing or it is under way."""
     from core.utils.task_tracker import get_task_tracker
 
@@ -143,6 +153,7 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
         return False
 
     bench = get_workbench().begin(request.id, _title(request), request.effect)
+    bench.when_asked = lambda words, goes_with: _asked_of_them(request, words, goes_with, asks)
 
     async def work() -> None:
         work_somebody_asked_for.begun(request.id)

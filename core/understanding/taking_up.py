@@ -48,6 +48,7 @@ def settle(asked: Asked, ledger: RequestsOfHer, *, conversation: str, before: Se
     if asked.decision == "ask_first" and asked.effect == "resume" and unfinished is not None:
         # Going on with what was asked for and is not done is not something nobody asked for.
         asked = replace(asked, decision="act")
+    asked = _of_what_was_made(asked, held)
     if not asked.acts:
         return Settled(asked)
     if asked.effect == "status":
@@ -67,6 +68,27 @@ def settle(asked: Asked, ledger: RequestsOfHer, *, conversation: str, before: Se
             and any(_same(unfinished.said, words) or _same((unfinished.added or [""])[-1], words) for words in before)):
         return Settled(asked, unfinished, "told_more" if unfinished.stands == WORKING else "on_with")
     return Settled(asked, None, "new")
+
+
+def _of_what_was_made(asked: Asked, held: Sequence[Request]) -> Asked:
+    """The reading where a program was made in this conversation, and the turn asks for something.
+
+    Changing it, going on with it and making one are then one thing to do, whichever of them the words are nearest, so what
+    the reading gives to each counts together. LIVE 24 November 2026 "The flat app opens saying Alice is owed 50 ... and one
+    expense should be able to be for several of us" was sure to be asking (0.98), and 0.64 of it was changing the program;
+    the rest was going on with it and making it, and so nothing was begun.
+    """
+    if asked.decision != "ask_first" or not any(request.made.get("page") for request in held):
+        return asked
+    about = {name: asked.by_effect.get(name, 0.0) for name in ("program_changed", "resume", "program")}
+    whole = sum(about.values())
+    if asked.effect not in about or whole <= 0.0:
+        return asked
+    together = {**{name: p for name, p in asked.by_effect.items() if name not in about}, "program_changed": whole}
+    effect, decision, asking = decide(together)
+    if decision != "act" or effect != "program_changed":
+        return asked
+    return replace(asked, effect="program_changed", decision="act", asking=asking, sure=whole)
 
 
 def _same(one: str, other: str) -> bool:

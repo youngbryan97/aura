@@ -18,13 +18,13 @@ from core.runtime.errors import record_degradation
 from core.runtime.what_this_turn_asks import Asked, hold, this_turn
 from core.understanding.effects import BY_NAME
 from core.understanding.her_model_between_turns import ORIGIN, nobody_waiting
-from core.understanding.requests_of_her import Request, get_requests_of_her
+from core.understanding.requests_of_her import ASKED, SET_ASIDE, Ask, Request, get_requests_of_her
 from core.understanding.workbench import get_workbench
 from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS
 
 logger = logging.getLogger("Aura.Chat")
 
-__all__ = ["ORIGIN", "her_word_is_kept", "said_to_work", "take_up_what_is_asked", "tell_what_it_came_to", "the_message"]
+__all__ = ["ORIGIN", "ask_them", "her_question_is_asked", "her_word_is_kept", "said_to_work", "take_up_what_is_asked", "tell_what_it_came_to", "the_message"]
 
 #: The least time her words on what a request came to may take to form.
 LEAST_S = 60.0
@@ -71,9 +71,20 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
     settled = settle(asked, ledger, conversation=session_id, before=before)
     asked = settled.asked
     hold(asked)
-    if asked.decision == "ask_first" and asked.effect in carrying_out.carriers():
-        _recorded(said, {"begun": False, "could_be_asked_for": asked.effect, "sure_it_was_asked_for": round(asked.asking, 2)})
-        return False
+    waiting = next((r for r in reversed(ledger.of(session_id)) if r.waits_on() is not None), None)
+    if asked.decision == "ask_first" and asked.effect in carrying_out.carriers() and waiting is None:
+        # Not sure it was asked for: asked, and held open, so that a yes begins it.
+        request = settled.request if settled.request is not None and settled.request.stands == ASKED else ledger.asked(
+            said, effect=asked.effect, conversation=session_id, materials=attachments or ledger.given(session_id, with_words=before))
+        request.stands = ASKED
+        ask = request.ask(f"Should I go ahead with that: {_short(said)}?", about="wanted")
+        hold(dataclasses.replace(asked, request_id=request.id))
+        await ledger.keep()
+        _recorded(said, {"begun": False, "held_open_until_they_answer": ask.words, "could_be_asked_for": BY_NAME[asked.effect].met,
+                         "sure_it_was_asked_for": round(asked.asking, 2)})
+        return True
+    if waiting is not None:
+        _answered(waiting, asked, said)
     if not asked.acts:
         return False
     if settled.what == "how_it_stands" and settled.request is not None:
@@ -104,13 +115,70 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
         return True
     from core.skills.screen_pursuit import _tell
 
-    begun = carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to)
+    begun = carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to, asks=ask_them)
     _recorded(said, {"status": "started" if begun else "not_started", "working_on": BY_NAME[request.effect].met,
                      "for": request.said, "where": "in the background, after this reply",
                      "when_done": "what it came to is said here, in the conversation",
                      **({"how_it_stood": request.account()} if request.tries else {})}, ok=begun)
     logger.info("🧰 Request %s (%s) %s: %s", request.id, request.effect, "begun" if begun else "not begun", said[:120])
     return True
+
+
+def _short(words: str, most: int = 160) -> str:
+    words = " ".join(str(words).split()).rstrip(".!?")
+    return words if len(words) <= most else words[:most].rsplit(" ", 1)[0] + "..."
+
+
+def _answered(request: Request, asked: Asked, said: str) -> None:
+    """The turn after she asked something of a request: what they said of it is its answer, and talk of something else is not."""
+    ask = request.waits_on()
+    if ask is None:
+        return
+    if asked.acts or asked.decision == "ask_first":
+        ask.answer = said
+    elif ask.about == "wanted" and request.stands == ASKED:
+        # Told of something else, or no: it was not asked for.
+        ask.answer, request.stands = said, SET_ASIDE
+
+
+def her_question_is_asked(reply: str, said: str, *, session_id: str) -> None:
+    """After a reply is given: where she was to ask first, the question, sent after it where the reply does not ask one."""
+    from core.utils.task_tracker import get_task_tracker
+
+    asked = this_turn()
+    request = get_requests_of_her().get(asked.request_id) if asked is not None and asked.request_id else None
+    ask = request.waits_on() if request is not None else None
+    if request is None or ask is None or ask.about != "wanted" or request.stands != ASKED:
+        return
+    question = _the_question_in(reply)
+    if question:
+        ask.words = question
+        return
+    get_task_tracker().create_task(ask_them(request, ask), name=f"request.asks.{request.id}")
+
+
+def _the_question_in(reply: str) -> str:
+    """The last question a reply asks, or none."""
+    import re
+
+    found = re.findall(r"[^.!?\n]*\?", str(reply or ""))
+    return " ".join(found[-1].split()) if found else ""
+
+
+async def ask_them(request: Request, ask: Ask) -> None:
+    """Ask them something of a request in the conversation, as a message of hers of its own: in her words where they ask it,
+    and as it stands where they do not."""
+    words = await _her_words(request, {"asking_them": ask.words, **({"going_on_until_they_say_with": ask.goes_with} if ask.goes_with else {})})
+    if not _the_question_in(words):
+        plain = ask.words if ask.words.rstrip().endswith("?") else f"{ask.words.rstrip('.')}?"
+        words = plain + (f" Until you say, I'm going on with {ask.goes_with.rstrip('.')}." if ask.goes_with else "")
+    ask.words = _the_question_in(words) or ask.words
+    _shown(words, request)
+    from core.conversation.said_unasked import she_said_unasked
+
+    await she_said_unasked(words, origin=ORIGIN)
+    await get_requests_of_her().keep()
+    logger.info("🧰 She asked of request %s: %s", request.id, ask.words[:160])
 
 
 def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
@@ -166,7 +234,7 @@ async def _keep_her_word(reply: str, said: str, asked: Asked, *, session_id: str
         await ledger.keep()
         from core.skills.screen_pursuit import _tell
 
-        begun = carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to)
+        begun = carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to, asks=ask_them)
         logger.info("🧰 Her reply said she was doing it (%.2f), so request %s (%s) is %s: %s", says[UNDERTAKES], request.id, kind,
                     "begun" if begun else "not begun", said[:120])
     except _CHAT_RECOVERABLE_ERRORS as exc:
@@ -218,7 +286,7 @@ async def said_to_work(work_id: str, words: str) -> str:
         request.effect = "program_changed"
     bench = get_workbench().begin(request.id, request.said, request.effect)
     bench.happened("said", words=words)
-    return "taken up again" if carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to) else "not begun"
+    return "taken up again" if carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to, asks=ask_them) else "not begun"
 
 
 async def tell_what_it_came_to(request: Request) -> None:
@@ -251,14 +319,14 @@ def _holds_to(words: str, account: list[str], request: Request) -> bool:
     return not strange
 
 
-async def _her_words(request: Request) -> str:
+async def _her_words(request: Request, beside: dict[str, Any] | None = None) -> str:
     from core.brain.her_unprompted_turn import (
         her_conversation_now_with,
         on_her_cortex,
         what_she_finished,
     )
 
-    facts = json.dumps({"what_it_came_to": request.account(), **({"found": request.made["told"]} if request.made.get("told") else {})},
+    facts = json.dumps(beside if beside is not None else {"what_it_came_to": request.account(), **({"found": request.made["told"]} if request.made.get("told") else {})},
                        ensure_ascii=False)
     try:
         await nobody_waiting()

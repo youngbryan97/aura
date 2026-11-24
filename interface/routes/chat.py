@@ -527,7 +527,7 @@ from interface.routes.chat_runtime_proof import (  # noqa: E402
     _verified_live_proof_pwd_result,  # noqa: F401
     _write_live_proof_file,  # noqa: F401
 )
-from interface.routes.chat_carrying_out import her_word_is_kept, take_up_what_is_asked  # noqa: E402
+from interface.routes.chat_carrying_out import her_question_is_asked, her_word_is_kept, take_up_what_is_asked  # noqa: E402
 from interface.routes.chat_what_is_asked import files_meant, read_what_this_turn_asks  # noqa: E402
 from interface.routes.chat_turn_contract import (  # noqa: E402
     _CHRONIC_ABSENCE_TURNS,  # noqa: F401
@@ -8227,6 +8227,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             if not is_benchmark and not conversation_only_surface and not _desktop_exec_state["attempted"]:
                 her_word_is_kept(final_text, _semantic_user_message, session_id=str(_chat_session_id))
+                her_question_is_asked(final_text, _semantic_user_message, session_id=str(_chat_session_id))
             return final_text, status
 
         async def _try_serve_grounded_recovery(

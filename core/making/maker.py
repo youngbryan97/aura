@@ -31,9 +31,21 @@ from core.making import design as how
 from core.making import her_own_mends as own
 from core.making.code_parts import BEFORE, assembled, each_test_in, patched, python_patched
 from core.making.design import Asked, Design, Rule, in_proportion, left_out, with_every_ask
+from core.making.many_ways import SORTS
+from core.making.many_ways import made as made_with
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
+from core.making.searching import could_be_believed, is_believed, search
 from core.making.tools import Case, Cases, Language, languages, lines_each_ran, try_tool
-from core.making.trying import ANOTHER_WAY, Result, Trial, page_of, site_of, try_page
+from core.making.trying import (
+    AGAIN,
+    ANOTHER_WAY,
+    Result,
+    Trial,
+    page_of,
+    rule_of,
+    site_of,
+    try_page,
+)
 from core.making.what_has_worked import functions_like, get_kept
 from core.understanding.carriers.finding import quoted_in
 from core.understanding.workbench import PutDown, Work
@@ -56,6 +68,8 @@ AT_ONCE = 5
 OWN_S = 60.0
 #: How many mends in a row may gain nothing before the last of what fails is left.
 GAINED_NOTHING = 2
+#: How many rules are tested again at once, and how many of the ways a search finds are tried whole.
+A_FEW_RULES, BELIEVED = 6, 6
 
 
 @dataclass
@@ -94,6 +108,10 @@ class Made:
 
 _CANNOT_DO_WITHOUT = frozenset({"it can be read", "it has its functions", "it can be tried", "it comes to an end", "it begins", "it is drawn",
                                 "it is shown", "it builds"})
+
+
+def _first_up(text: str) -> str:
+    return text[:1].upper() + text[1:]
 
 
 def _prose(text: str) -> str:
@@ -147,6 +165,9 @@ class _Maker:
         #: The rules built so far, a layer at a time, and what is told where the program stands each time it is kept.
         self.has: list[str] = []
         self._looked_at: set[str] = set()
+        self._searched: set[str] = set()
+        #: The rules that have had a second test written of them.
+        self._twice: set[str] = set()
         self._guessed_at: set[str] = set()
         self._known: set[str] = set()
         self._said_of_it = ""
@@ -321,7 +342,40 @@ class _Maker:
         self.parts.tests = "\n\n".join([was, *(another_way(c) for c in checks)]).strip()
         self.work.wrote("tests", "\n\n".join(another_way(c) for c in checks))
         await self.mended()
+        await self.where_two_workings_part(checks)
         await self.kept()
+
+    async def where_two_workings_part(self, checks: list[Another]) -> None:
+        """Where a function and the other way of working its answer out still differ: a third, written without sight of
+        either, and whichever two agree. Where no two do, what was asked does not settle it, and they are asked, with the
+        case they differ on (as ClarifyGPT, Mu and others 2023, finds what a request leaves open)."""
+        assert self.design is not None
+        for check in checks:
+            name = f"{check.claims.rstrip('.')}{ANOTHER_WAY}"
+            parted = next((r for r in self.trial.rules if r.name == name and not r.ok and not r.the_test), None)
+            said = next((line for line in self.design.functions if line.split("(", 1)[0].strip() == check.function), "")
+            if parted is None or not said or check.function not in self.parts.functions:
+                continue
+            self.work.step(f"Working out {check.function} a third time, without sight of the other two")
+            third = await self.write(f"Write this one of its functions, whole, as one JavaScript object in one block: `({{ {check.function}(...) {{ ... }} }})`.\n"
+                                     f"{said}\nWhat is so of every answer it gives: {check.claims}", A_TEST + 500, warmth=0.6, given=self._given())
+            found = patched({}, _code(third))[0].get(check.function)
+            if not found:
+                continue
+            parts = self.parts.copy()
+            parts.functions[check.function] = found
+            trial = await self.tried(parts, quiet=True)
+            agrees = next((r.ok for r in trial.rules if r.name == name), False)
+            if agrees and self._wrong(trial) < self._wrong(self.trial):
+                self.work.says(f"Two of three workings of {check.function} agree, and the program has the one they agree on.")
+                self.parts, self.trial = parts, trial
+                continue
+            before, tests = each_test_in(self.parts.tests)
+            self.parts.tests = "\n\n".join([*([before.strip()] if before.strip() else []), *(f"{text};" for n, text in tests if n != name)])
+            self.trial = await self.tried(quiet=True)
+            self._known.discard(name)
+            self.work.asks(f"{check.claims.rstrip('.')}: is that what you want of it? {_first_up(parted.why)}", "what it does now")
+
 
     async def added_where_it_is_not(self, rules: list[str], words: str = "") -> None:
         """More of its rules: nothing written where the program already holds to them, and nothing kept that leaves it worse
@@ -479,7 +533,9 @@ class _Maker:
                 self._known = set()
                 self.trial = await self.tried(what="Trying it, with the tests read again")
                 continue
-            if await self._her_own_mend(failing) or await self._small_edits(failing):
+            if await self._tested_again(failing):
+                continue
+            if await self._a_searched_mend(failing) or await self._her_own_mend(failing) or await self._small_edits(failing):
                 nothing_gained = 0
                 continue
             parts = await self._a_mend(failing, warm=0.2 + 0.3 * nothing_gained)
@@ -505,6 +561,88 @@ class _Maker:
         """How wrong a trial shows it, beside every check that any trial of it has got as far as."""
         self._known |= {r.name for r in [*trial.generic, *trial.rules]}
         return _how_wrong(trial, self._known)
+
+    async def _tested_again(self, failing: list[Result]) -> bool:
+        """A second test of each rule whose test fails, written apart from the first; whether there are any new. Where it
+        holds, one of the two is wrong, and the first is read again before anything is mended to it. Where it fails too, the
+        program is what is wrong, and a mend has to make both hold: much that is no mend at all will fit one test."""
+        assert self.design is not None
+        rules = [r.name for r in failing if r in self.trial.rules and not r.the_test and not r.name.endswith((AGAIN, ANOTHER_WAY)) and r.name not in self._twice][:A_FEW_RULES]
+        if self.design.kind not in {"app", "game"} or not rules:
+            return False
+        self._twice |= set(rules)
+        self.work.step("Testing again, another way, what fails")
+        said = await self.write(f"{_HOW_TESTS[self.design.kind]}\n\nWrite a test for each of these rules, as JavaScript, the tests alone and nothing of the "
+                                "program:\n" + "\n".join(f"- {rule}" for rule in rules), min(TEST_TOKENS, 200 + 320 * len(rules)), warmth=0.7, given=self._given())
+        first = dict(each_test_in(self.parts.tests)[1])
+        new = []
+        for (name, text), rule in zip(each_test_in(_code(said))[1], rules, strict=False):
+            rule = name if name in rules else rule
+            if " ".join(text.split()) != " ".join(first.get(rule, "").split()):
+                new.append(_named(text, f"{rule}{AGAIN}"))
+        if not new:
+            return False
+        was = self.parts.tests
+        self.parts.tests = "\n\n".join([was, *(f"{text};" for text in new)])
+        self.work.wrote("tests", "\n\n".join(new))
+        trial = await self.tried(what="Trying it, with those tests too")
+        # One that asks for what there is not says nothing of the program.
+        odd = {r.name for r in trial.rules if r.name.endswith(AGAIN) and not r.ok and r.the_test}
+        if odd:
+            before, tests = each_test_in(self.parts.tests)
+            self.parts.tests = "\n\n".join([*([before.strip()] if before.strip() else []), *(f"{text};" for name, text in tests if name not in odd)])
+            trial.rules = [r for r in trial.rules if r.name not in odd]
+        self._known = set()
+        self.trial = trial
+        holds = {rule_of(r.name) for r in trial.rules if r.ok and r.name.endswith(AGAIN)}
+        parted = [r for r in trial.rules if not r.ok and r.name in holds]
+        if parted:
+            self.work.says("Two tests of the same rule part: one holds and one fails. The one that fails is read again before anything is mended to it: " + "; ".join(r.name for r in parted)[:300])
+            if await self._tests_read_again(parted):
+                self._known = set()
+                self.trial = await self.tried(what="Trying it, with the tests put right")
+        return True
+
+    async def _a_searched_mend(self, failing: list[Result]) -> bool:
+        """A mend found by searching, thousands of ways tried against its tests without her model; whether one was kept."""
+        assert self.design is not None
+        code = self.parts.code()
+        if self.design.kind not in {"app", "game"} or code in self._searched:
+            return False
+        self._searched.add(code)
+        self.work.step("Searching the ways it could be changed, each tried against its tests")
+        found = await search(self.design, code, self.parts.tests, failing, self.browser, self.folder / "searched.html",
+                             functions=list(self.parts.functions), pays={sort: get_kept().pays(sort) for sort in SORTS})
+        likely = [m for m in found.mends if could_be_believed(m)]
+        if found.tried:
+            self.work.says(f"Tried {found.says()}, without her model: {len(found.mends)} make something hold that failed"
+                           + (f", and {len(likely)} of them leave the rest as it was." if found.mends else "."))
+        before, had = self._wrong(self.trial), {r.name for r in failing}
+        best: tuple[tuple[int, float], Parts, Trial, Any] | None = None
+        for mend in sorted(likely, key=lambda m: not is_believed(m, found))[:BELIEVED]:
+            parts = self._with_code(made_with(code, mend.way))
+            if parts is None:
+                continue
+            trial = await self.tried(parts, quiet=True)
+            wrong, now = self._wrong(trial), {r.name for r in trial.failing()}
+            # What two things bear out: two tests of the rule, or two things that failed and now hold.
+            borne_out = is_believed(mend, found) or len({rule_of(name) for name in had - now}) > 1
+            if wrong < (best[0] if best else before) and not now - had and borne_out:
+                best = (wrong, parts, trial, mend)
+            else:
+                get_kept().tried(mend.way.sort, kept=False)
+            if best is not None and not best[2].failing():
+                break
+        if best is None:
+            return False
+        _how, self.parts, trial, mend = best
+        get_kept().tried(mend.way.sort, kept=True)
+        await self._remembered(failing, mend.way.says, mend.way.sort)
+        self.work.says(f"Kept a mend she found by searching: {mend.way.says}. {len(failing)} things failed before it and {len(trial.failing())} do now.")
+        self.trial = trial
+        self.work.tried("Trying it with that", [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
+        await self.kept()
+        return True
 
     async def _her_own_mend(self, failing: list[Result]) -> bool:
         """A mend she writes without her model, where one leaves less that fails; whether one was kept. Once for each state
@@ -759,7 +897,8 @@ class _Maker:
         """Of the tests that fail, those that may be what is wrong: what asks for what there is not, and what no version of
         the program has held to, of two or more tried. One that some version held to can be held to, and is the program's
         (CodeT, Chen and others 2023; core/rebuilding/what_versions_agree_on.py)."""
-        return [r for r in failing if r.the_test or (not self._held_by.get(r.name) and len(self._failed_by.get(r.name, ())) >= 2)]
+        twice = {rule_of(r.name) for r in self.trial.rules if r.ok and r.name.endswith(AGAIN)}
+        return [r for r in failing if r.the_test or r.name in twice or (not self._held_by.get(r.name) and len(self._failed_by.get(r.name, ())) >= 2)]
 
     async def _tests_read_again(self, failing: list[Result]) -> bool:
         """The tests that still fail, read again against the rule each is of: kept, corrected, or taken out with its reason."""
@@ -782,14 +921,17 @@ class _Maker:
         for result in self._to_be_doubted(failing)[:AT_ONCE]:
             if result.name not in held:
                 continue
+            other = held.get(f"{result.name}{AGAIN}", "")
+            holds = any(r.ok and r.name == f"{result.name}{AGAIN}" for r in self.trial.rules)
+            beside = f"Another test of the same rule {'holds' if holds else 'fails too'}:\n```js\n{other}\n```\n" if other else ""
             said = await self.write(f"{_HOW_TESTS[self.design.kind]}\n\nA test of one rule:\n```js\n{held[result.name]}\n```\n"
-                                    f"It fails: {result.why}\n\nBy the rule and what the state means, is the test wrong, or is it the program? In a sentence "
+                                    f"It fails: {result.why}\n{beside}\nBy the rule and what the state means, is the test wrong, or is it the program? In a sentence "
                                     "say which and why. Where it is the test, then write it corrected, in one block; where it is the program, write no "
                                     "code.", A_TEST, given=self._given())
             self.work.says(_prose(said))
             new = each_test_in(_code(said))[1] if "```" in said else []
             if new and new[0][1] != held[result.name]:
-                held[result.name] = re.sub(r"test\s*\(\s*([\"'`])(?:\\.|(?!\1).)*\1", lambda _m, n=result.name: f"test({json.dumps(n)}", new[0][1], count=1, flags=re.S)
+                held[result.name] = _named(new[0][1], result.name)
                 self.corrected.add(result.name)
                 self._held_by.pop(result.name, None)
                 self._failed_by.pop(result.name, None)
@@ -845,6 +987,11 @@ class _Maker:
         return Made(self.design, self.parts, self.folder, path, self.trial, time.monotonic() - self.began, why_not, frozenset(self.corrected))
 
 
+def _named(test: str, name: str) -> str:
+    """A test under this name."""
+    return re.sub(r"test\s*\(\s*([\"'`])(?:\\.|(?!\1).)*\1", lambda _m: f"test({json.dumps(name)}", test, count=1, flags=re.S)
+
+
 def _how_much_is_wrong(failing: list[Result]) -> float:
     """What fails, by how much stands on it: a program that breaks hides whatever is behind that, so putting it right counts
     for more than the rules it uncovers count against it."""
@@ -858,7 +1005,11 @@ def _how_much_is_wrong(failing: list[Result]) -> float:
         # A test that got as far as what it expects is nearer than one the program broke in.
         return 3.0 if result.broke else 2.0
 
-    return sum(weight(result) for result in failing)
+    # A rule that is tested twice is one rule, and is not had until both hold.
+    most: dict[str, float] = {}
+    for result in failing:
+        most[rule_of(result.name)] = max(most.get(rule_of(result.name), 0.0), weight(result))
+    return sum(most.values())
 
 
 #: How far a program got, by what of it fails: one that cannot be read is tried for nothing else, so it fails at one thing.

@@ -20,7 +20,7 @@ from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Making.Trying")
 
-__all__ = ["ANOTHER_WAY", "Result", "Trial", "as_object", "page_of", "site_of", "try_page"]
+__all__ = ["AGAIN", "ANOTHER_WAY", "Result", "Trial", "as_object", "by_rule", "page_of", "rule_of", "site_of", "try_page"]
 
 _HERE = Path(__file__).resolve().parent
 _TRY = page_script("() => window.__try()")
@@ -30,6 +30,8 @@ _THERE = page_script("() => { const there = () => { try { return typeof PROGRAM 
                      " return typeof window.__try === 'function' && (there() || (!document.getElementById('program') && document.body.innerText.length > 0)); }")
 #: How the name of a test ends that works out what a function gives another way: what it tests needs nothing to happen.
 ANOTHER_WAY = ", worked out another way"
+#: How the name of a second test of a rule ends, written apart from the first.
+AGAIN = ", tested again"
 #: How long a trial may take before it is taken to be one that does not end.
 TRIAL_S = 120.0
 
@@ -61,6 +63,21 @@ class Trial:
         return [r for r in [*self.generic, *self.rules] if r.ok]
 
 
+def rule_of(name: str) -> str:
+    """The rule a test is of."""
+    return name.removesuffix(AGAIN)
+
+
+def by_rule(results: list[Result]) -> list[Result]:
+    """What tests showed, rule by rule: a rule that is tested twice holds where both do."""
+    out: dict[str, Result] = {}
+    for result in results:
+        rule = rule_of(result.name)
+        if rule not in out or out[rule].ok and not result.ok:
+            out[rule] = Result(rule, result.ok, result.why, result.broke, result.the_test)
+    return list(out.values())
+
+
 def as_object(code: str) -> str:
     """Some code that gives a program's functions, as an expression that is the object of them: however it was written."""
     parts = parts_in(code)
@@ -83,8 +100,9 @@ def _script(body: str) -> str:
     return "<script>" + body.replace("</script", "<\\/script") + "</script>"
 
 
-def page_of(design: Design, code: str, *, tests: str | None = None) -> str:
-    """The program as one page; with ``tests``, the page that tries it."""
+def page_of(design: Design, code: str, *, tests: str | None = None, program: str = "", before: str = "", after: str = "") -> str:
+    """The program as one page; with ``tests``, the page that tries it. ``program`` is the program where it is an expression
+    already; ``before`` and ``after`` are scripts that stand before it and at the end."""
     head = ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, "
             "initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; "
             f"style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:\"><title>{design.name}</title>")
@@ -96,7 +114,9 @@ def page_of(design: Design, code: str, *, tests: str | None = None) -> str:
     parts = [_script(frame), _script(bundle(design.pieces))]
     # What stands beside the program can be called as its own, too: this.between(...) is between(...).
     beside = ", ".join(["rnd", "between", "int", "pick", "shuffle", "play", "ui", "W", "H", *with_needs(design.pieces)])
-    parts.append(_script(_program(beside, facts, code)))
+    if before:
+        parts.append(_script(before))
+    parts.append(_script(_program(beside, facts, code, program)))
     if tests is None:
         parts.append(_script("Frame.open(PROGRAM);"))
     else:
@@ -106,11 +126,13 @@ def page_of(design: Design, code: str, *, tests: str | None = None) -> str:
                              " window.__played = () => { const missing = window.__missing(); return { missing, generic: missing.length ? [] : Frame.tried(PROGRAM, null, false).generic }; };"
                              " window.__ruled = () => ({ hollow: Frame.tried(PROGRAM, window.TESTS, true).rules, rules: Frame.tried(PROGRAM, window.TESTS, false).rules });"
                              " window.__try = () => { const played = window.__played(); return played.missing.length ? played : { ...played, ...window.__ruled() }; };"))
+    if after:
+        parts.append(_script(after))
     return f"{head}<style>{style}</style></head><body><div id=\"program\"></div>{''.join(parts)}</body></html>"
 
 
-def _program(beside: str, facts: dict[str, Any], code: str) -> str:
-    return f"const PROGRAM = Object.assign({{ {beside} }}, {json.dumps(facts)}, {as_object(code)});"
+def _program(beside: str, facts: dict[str, Any], code: str, program: str = "") -> str:
+    return f"const PROGRAM = Object.assign({{ {beside} }}, {json.dumps(facts)}, {program or as_object(code)});"
 
 
 def _result(row: dict[str, Any]) -> Result:

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from core.making import design as how
-from core.making import maker, pieces
+from core.making import maker, pieces, searching
 from core.making.code_parts import (
     BEFORE,
     assembled,
@@ -21,7 +21,7 @@ from core.making.code_parts import (
 )
 from core.making.design import Asked, Design, Rule, in_proportion, left_out, with_every_ask
 from core.making.tools import Case, Cases, languages, try_tool
-from core.making.trying import as_object, page_of, site_of, try_page
+from core.making.trying import Result, as_object, page_of, site_of, try_page
 from core.understanding.workbench import PutDown, Work, get_workbench, this_work, working_on
 
 _CHANCE_JS = ("let seed=1;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647},between=(a,b)=>a+rnd()*(b-a),"
@@ -528,7 +528,7 @@ def test_what_is_used_is_found_as_a_person_finds_it(tmp_path):
     assert "no “Colour” to use" in got["nothing taken away to find it"].why
 
 
-def test_a_mend_that_gains_nothing_whole_is_tried_a_part_at_a_time(tmp_path):
+def test_a_mend_that_gains_nothing_whole_is_tried_a_part_at_a_time(tmp_path, unsearched):
     work = Work("w", "moths")
     wrong = _RULES.replace("s.saved++", "s.saved += 0")
     update = "update" + _RULES.split("  update", 1)[1].split("  score(s)")[0].rstrip().rstrip(",")
@@ -614,8 +614,8 @@ def test_a_tool_is_run_with_no_network_and_no_writing_outside(tmp_path):
 class _Model:
     """Answers as a model would, from what it was given to answer with."""
 
-    def __init__(self, written: list[str], design: Design | None = None) -> None:
-        self.written, self.design, self.asked = list(written), design or _design(pieces=["vec"]), []
+    def __init__(self, written: list[str], design: Design | None = None, again: str = "None.") -> None:
+        self.written, self.design, self.asked, self.again = list(written), design or _design(pieces=["vec"]), [], again
 
     async def ask(self, prompt, schema, n, *, given=""):
         self.asked.append(given + prompt)
@@ -627,7 +627,16 @@ class _Model:
 
     async def write(self, prompt, n, *, warmth=0.2, given=""):
         self.asked.append(given + prompt)
-        return self.written.pop(0)
+        return self.again if warmth == 0.7 else self.written.pop(0)
+
+
+@pytest.fixture
+def unsearched(monkeypatch):
+    """What her model is asked for where nothing is found without it."""
+    async def search(*_a, **_k):
+        return searching.Found()
+
+    monkeypatch.setattr(maker, "search", search)
 
 
 def _make(tmp_path, model: _Model, work: Work | None = None):
@@ -663,7 +672,7 @@ def test_what_she_told_them_as_she_began_is_held_to_by_the_design(tmp_path):
     assert not any("You have told them" in prompt for prompt in model.asked)
 
 
-def test_what_fails_is_mended_by_the_part_that_is_wrong_and_kept_only_where_less_fails(tmp_path):
+def test_what_fails_is_mended_by_the_part_that_is_wrong_and_kept_only_where_less_fails(tmp_path, unsearched):
     wrong = _RULES.replace("s.saved++", "s.saved += 0")
     worse = "Trying.\n```js\n({ update(s, e) { s.moths = null; } })\n```"
     right = "The catch did not count.\n```js\n({ update" + _RULES.split("  update", 1)[1].split("  score(s)")[0].rstrip().rstrip(",") + " })\n```"
@@ -674,7 +683,7 @@ def test_what_fails_is_mended_by_the_part_that_is_wrong_and_kept_only_where_less
     assert "Not kept" in said and "Kept" in said
 
 
-def test_a_test_that_is_wrong_is_put_right_by_its_rule_and_one_that_is_right_stands(tmp_path):
+def test_a_test_that_is_wrong_is_put_right_by_its_rule_and_one_that_is_right_stands(tmp_path, unsearched):
     wrong = TESTS.replace('t.expect(t.score === 1, "score " + t.score)', 't.expect(t.score === 7, "score " + t.score)')
     right = 'The test is wrong: one moth is one.\n```js\n' + TESTS.splitlines()[0] + "\n```"
     made = _make(tmp_path, _Model([f"```js\n{wrong}\n```", f"```js\n{_RULES}\n```", f"```js\n{_LOOKS}\n```",
@@ -706,7 +715,7 @@ def test_a_word_in_the_middle_of_it_goes_back_to_the_design(tmp_path):
     assert made is not None and "#0f0" in made.parts.functions["draw"] and "make the lamp green" in maker.parts_of(made.folder)[2]
 
 
-def test_what_breaks_off_leaves_the_program_as_it_stood(tmp_path):
+def test_what_breaks_off_leaves_the_program_as_it_stood(tmp_path, unsearched):
     work = Work("w", "moths")
     model = _Model([f"```js\n{TESTS}\n```", f"```js\n{_RULES.replace('s.saved++', 's.saved += 0')}\n```", f"```js\n{_LOOKS}\n```"])
     real, kept = model.write, []
@@ -1020,7 +1029,7 @@ def test_a_piece_above_a_tool_is_never_what_is_mended(tmp_path):
     assert says == "added `import re`" and code.splitlines()[2] == "import re"
 
 
-def test_small_edits_are_guesses_and_the_one_that_gains_is_kept(tmp_path):
+def test_small_edits_are_guesses_and_the_one_that_gains_is_kept(tmp_path, unsearched):
     from core.self_modification.edits_her_model_proposes import ProposedEdit, ProposedEdits
 
     wrong = _RULES.replace("s.saved++", "s.saved += 0")
@@ -1126,7 +1135,7 @@ def test_a_test_that_holds_whatever_happens_is_not_one_it_no_longer_gets_as_far_
     assert maker._how_wrong(after, known) == (0, 0.0) < maker._how_wrong(before, known)
 
 
-def test_what_it_holds_to_already_is_not_built_again_and_what_leaves_it_worse_is_not_kept(tmp_path):
+def test_what_it_holds_to_already_is_not_built_again_and_what_leaves_it_worse_is_not_kept(tmp_path, unsearched):
     model = _Model([f"```js\n{TESTS}\n```", f"```js\n{_RULES}\n```", f"```js\n{_LOOKS}\n```"])
     made = _make(tmp_path, model)
     record = json.loads((made.folder / "program.json").read_text())
@@ -1193,3 +1202,121 @@ def test_a_program_is_held_to_another_way_once_it_is_built(tmp_path):
     assert asked == [maker.Anothers] and ran and made.parts.tests.count("worked out another way") == 1
     asyncio.run(made.worked_out_another_way())
     assert asked == [maker.Anothers], "once"
+
+
+BETTER = SETTLES.replace("let i = 0, j = 0;", "for (const x of o) { const k = c.findIndex((y) => y[1] === x[1]); if (k >= 0) { out.push({ from: x[0], to: c[k][0], amount: x[1] }); c.splice(k, 1); x[1] = 0; } } for (let k = o.length - 1; k >= 0; k--) if (!o[k][1]) o.splice(k, 1); let i = 0, j = 0;")
+
+
+@pytest.mark.parametrize("third,agrees", [(BETTER, True), (SETTLES, False)])
+def test_where_two_workings_part_a_third_decides_and_where_none_agree_they_are_asked(tmp_path, third, agrees):
+    """What to ask is found by what differs, on a case, and is no field of the design for her model to fill."""
+    asked: list[tuple[str, str]] = []
+
+    async def ask(prompt, schema, n, *, given=""):
+        return None
+
+    async def write(prompt, n, *, warmth=0.2, given=""):
+        assert "without sight" not in prompt and SETTLES[:40] not in prompt, "it is written without sight of either"
+        return f"```js\n({{ {third} }})\n```"
+
+    async def run(browser):
+        work = Work("w", "x")
+        work.when_asked = lambda words, goes_with: asked.append((words, goes_with))
+        made = maker._Maker("settle up", ask=ask, write=write, work=work, folder=tmp_path, browser=browser)
+        made.design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"name": "rye"}]}, functions=["settle(b): who pays whom"])
+        made.parts = maker.Parts(functions=maker.patched({}, APP.replace("  view(s, ui)", f"  {SETTLES},\n  view(s, ui)"))[0], tests=maker.another_way(_fewest()))
+        made.trial = await made.tried()
+        await made.where_two_workings_part([_fewest()])
+        return made
+
+    made = _in_a_browser(run)
+    name = "It settles everyone up in the fewest payments, worked out another way"
+    if agrees:
+        assert not asked and made.parts.functions["settle"].startswith("settle(b)") and "splice" in made.parts.functions["settle"] and name in {r.name for r in made.trial.passing()}
+    else:
+        ((words, goes_with),) = asked
+        assert "fewest payments: is that what you want of it?" in words and "For [{" in words and goes_with == "what it does now"
+        assert maker.ANOTHER_WAY not in made.parts.tests and name not in {r.name for r in made.trial.failing()}
+
+
+AGAIN_MOTH = '```js\ntest("a moth that is caught is saved", t => { t.s.moths = [{ x: 200, y: 400 }, { x: 900, y: 20 }]; t.s.next = 9; t.point(200, 400, 0.1); t.expect(t.s.saved === 1 && t.s.moths.length === 1, "saved " + t.s.saved); });\n```'
+
+
+def test_a_mistake_is_put_right_by_searching_and_her_model_writes_no_code_of_it(tmp_path):
+    """Two tests of the rule have to hold with it: one that fits a single test may be no mend at all."""
+    work = Work("w", "moths")
+    model = _Model([f"```js\n{TESTS}\n```", f"```js\n{_RULES.replace('s.saved++', 's.saved += 0')}\n```", f"```js\n{_LOOKS}\n```"], again=AGAIN_MOTH)
+    made = _make(tmp_path, model, work)
+    assert made is not None and made.trial.failing() == [] and model.written == []
+    said = [row["words"] for row in work.seen()["happened"] if row["what"] == "says"]
+    assert any(words.startswith("Kept a mend she found by searching") for words in said)
+    assert maker.AGAIN in made.parts.tests
+
+
+def test_two_tests_of_a_rule_that_part_are_read_before_anything_is_mended_to_either(tmp_path):
+    wrong = TESTS.replace('t.expect(t.score === 1, "score " + t.score)', 't.expect(t.score === 7, "score " + t.score)')
+    right = "The test is wrong: one moth is one.\n```js\n" + TESTS.splitlines()[0] + "\n```"
+    work = Work("w", "moths")
+    model = _Model([f"```js\n{wrong}\n```", f"```js\n{_RULES}\n```", f"```js\n{_LOOKS}\n```", right], again=AGAIN_MOTH)
+    made = _make(tmp_path, model, work)
+    assert made is not None and made.trial.failing() == [] and "=== 1" in made.parts.tests and model.written == []
+    steps = [row["title"] for row in work.seen()["happened"] if row["what"] == "step"]
+    assert "Testing again, another way, what fails" in steps and not any(step.startswith(("Searching", "Mending")) for step in steps)
+    assert any("Another test of the same rule holds" in prompt for prompt in model.asked)
+
+
+def test_a_rule_that_is_tested_twice_is_one_rule_and_is_had_where_both_hold():
+    from core.making.trying import by_rule
+
+    both = [Result("it counts", True), Result("it counts" + maker.AGAIN, False, "it does not"), Result("it ends", True)]
+    assert [(r.name, r.ok) for r in by_rule(both)] == [("it counts", False), ("it ends", True)]
+    assert maker._how_much_is_wrong([Result("it counts", False), Result("it counts" + maker.AGAIN, False)]) == maker._how_much_is_wrong([Result("it counts", False)])
+
+
+# ── what is true of any program, that no test of its rules says ──────
+
+SHELF = """({
+  initial() { return { books: [], title: "", by: { Ana: 0 } }; },
+  next(s) { return s.books.reduce((n, b) => Math.max(n, b.id), 0) + 1; },
+  update(s, e) {
+    if (e.type === "input") { s[e.name] = e.value; return s; }
+    if (e.name === "add" && s.title.trim()) { s.books.push({ id: this.next(s), title: s.title, who: "Ana" }); s.title = ""; }
+    if (e.name === "drop") { s.books = s.books.filter((b) => b.id !== e.value); }
+    s.by = { Ana: s.books.filter((b) => b.who === "Ana").length };
+    return s;
+  },
+  view(s, ui) { return ui.column(ui.title("Shelf"), ui.input("Title", "title", s.title), ui.button("Add", "add"), ui.text("Ana has " + s.by.Ana),
+    ui.list(s.books.slice().sort((a, b) => a.title.localeCompare(b.title)), (b) => ui.row(ui.text(b.title), ui.button("Drop " + b.title, "drop", b.id)))); },
+})"""
+SHELF_STATE = {"books": [{"id": 1, "title": "Emma", "who": "Ana"}], "title": "", "by": {"Ana": 1}}
+
+
+def test_a_program_that_keeps_things_rightly_is_found_nothing_wrong_with(tmp_path):
+    trial = _tried(page_of(_design(name="Shelf", kind="app", controls=[], state=SHELF_STATE), SHELF, tests=""), tmp_path)
+    assert [f"{r.name}: {r.why}" for r in trial.failing()] == []
+    assert {"showing it changes nothing in it", "each thing in it can be told from the others", "nothing is put in where nothing was filled in",
+            "what is put in and taken out again leaves it as it was", "it is quick with a lot in it"} <= {r.name for r in trial.passing()}
+
+
+@pytest.mark.parametrize("was,instead,named", [
+    ("s.books.reduce((n, b) => Math.max(n, b.id), 0) + 1", "s.books.length + 1", "each thing in it can be told from the others"),
+    ("s.books.slice().sort(", "s.books.sort(", "showing it changes nothing in it"),
+    ('e.name === "add" && s.title.trim()', 'e.name === "add"', "nothing is put in where nothing was filled in"),
+    ("s.by = { Ana: s.books.filter((b) => b.who === \"Ana\").length };", 'if (e.name === "add") s.by = { Ana: s.books.length };', "what is put in and taken out again leaves it as it was"),
+])
+def test_what_is_wrong_with_how_a_program_keeps_things_is_told_though_no_rule_says_it(tmp_path, was, instead, named):
+    """LIVE 24 November 2026 an app at 20 of 20 kept sums of what was no longer there."""
+    assert SHELF.count(was) == 1
+    trial = _tried(page_of(_design(name="Shelf", kind="app", controls=[], state=SHELF_STATE), SHELF.replace(was, instead), tests=""), tmp_path)
+    assert named in {r.name for r in trial.failing()}, [f"{r.name}: {r.why}" for r in trial.failing()]
+
+
+@pytest.mark.parametrize("was,instead,named", [
+    ('g.sky("#11142a", "#1d1233");', 'g.sky("#11142a", "#1d1233"); s.t += 1;', "showing it changes nothing in it"),
+    ("s.moths = s.moths.filter((m) => !m.gone);", "s.trail = (s.trail || []); for (let i = 0; i < 3; i++) s.trail.push({ x: s.x, y: s.y }); s.moths = s.moths.filter((m) => !m.gone); s.lamp = 3;", "it does not fill up as it goes on"),
+])
+def test_a_game_that_changes_as_it_is_drawn_or_fills_up_is_told_so(tmp_path, was, instead, named):
+    assert GOOD.count(was) == 1
+    design = _design(pieces=["vec"], state={"x": 480, "y": 300, "t": 0, "next": 1, "lamp": 3, "saved": 0, "moths": [{"x": 10, "y": 10}], "trail": []})
+    trial = _tried(page_of(design, GOOD.replace(was, instead), tests=""), tmp_path)
+    assert named in {r.name for r in trial.failing()}, [f"{r.name}: {r.why}" for r in trial.failing()]

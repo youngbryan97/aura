@@ -45,6 +45,8 @@ class Work:
     _n: int = 0
     _happened: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=KEPT))
     _said: list[str] = field(default_factory=list)
+    #: Told of what is asked, to take it to them.
+    when_asked: Any = None
     _go: asyncio.Event = field(default_factory=asyncio.Event)
     _stop: bool = False
 
@@ -80,6 +82,12 @@ class Work:
         good = sum(1 for r in results if r.get("ok"))
         self.happened("tried", title=what, good=good, of=len(results), results=results[:80])
         logger.info("🛠 %s: %s: %d of %d hold.", self.title, what, good, len(results))
+
+    def asks(self, words: str, goes_with: str = "") -> None:
+        """Something of it to be asked of whoever it is for, and what is gone on with until they say."""
+        self.happened("asks", words=" ".join(str(words).split())[:400], goes_with=" ".join(str(goes_with).split())[:300])
+        if self.when_asked is not None:
+            self.when_asked(str(words), str(goes_with))
 
     def trouble(self, why: str) -> None:
         self.happened("trouble", why=str(why)[:1200])
