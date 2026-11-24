@@ -562,6 +562,9 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         if candidate is not None:
             # A refit of what a weighted sum holds keeps how the pieces stand together as it was learned.
             candidate.learned = rehearsal.weights.learned
+    if candidate is not None:
+        # And how she searches with it: a judgement refitted is played with the habits it is measured against.
+        candidate.habits = dict(getattr(rehearsal.weights, "habits", None) or {})
     if candidate is None:
         rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "kept": False,
                           "why": "too few positions to fit"}

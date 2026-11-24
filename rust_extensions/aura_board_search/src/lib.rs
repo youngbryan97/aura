@@ -158,6 +158,9 @@ struct Habits {
     unsteady_kept: f64,
     falling_by: f64,
     steady_share: f64,
+    /// Whether what one move's search learned of which moves tend to be best (its history and countermoves) is kept,
+    /// halved, for the next move's search of the same game: 1 keeps it, nought starts each move afresh.
+    keeps_ordering: f64,
 }
 
 impl Default for Habits {
@@ -183,6 +186,7 @@ impl Default for Habits {
             unsteady_kept: 0.5,
             falling_by: 0.5,
             steady_share: 1.0,
+            keeps_ordering: 0.0,
         }
     }
 }
@@ -1302,6 +1306,8 @@ struct Table {
     /// the commonest kind's pieces stand (in sixteenths of a point of judgement): shared by her searchers, and kept with
     /// the table from one move to the next.
     corrections: Vec<AtomicI32>,
+    /// What the last search of this game learned of which moves tend to be best: its history and countermoves.
+    ordering: Mutex<Option<(Vec<i32>, Vec<Move>)>>,
 }
 
 /// The table kept between one search and the next of the same game with the same weights: what the last move's search
@@ -1331,6 +1337,7 @@ impl Table {
             slots: (0..entries.max(1)).map(|_| (AtomicU64::new(0), AtomicU64::new(0))).collect(),
             // A table of one entry is for a single judgement, where nothing is searched to correct it by.
             corrections: if entries > 1 { (0..2 * CORRECTIONS).map(|_| AtomicI32::new(0)).collect() } else { vec![] },
+            ordering: Mutex::new(None),
         }
     }
 
@@ -1364,6 +1371,17 @@ impl Table {
     }
 }
 
+/// What a search did, for knowing what it cost and where its time went: hits in the table that settled a position, the
+/// positions looked at past the horizon, the furthest ply reached, and each depth completed with its score, whether its
+/// best move changed from the depth before, and the time it had taken by then.
+#[derive(Default, Clone)]
+struct Accounting {
+    tt_hits: u64,
+    qnodes: u64,
+    seldepth: usize,
+    iterations: Vec<(i32, i32, bool, u64)>,
+}
+
 struct Searcher<'a> {
     g: &'a Game,
     b: Board,
@@ -1389,6 +1407,7 @@ struct Searcher<'a> {
     /// The time a search means to take, where its hard limit (`seconds`) is longer: it stops between depths by how
     /// likely another depth is to change its answer (`Habits`). Nought: it searches until the hard limit.
     soft: f64,
+    acc: Accounting,
 }
 
 /// How many arrangements of the commonest kind a searcher keeps corrections for, a power of two.
@@ -1654,6 +1673,8 @@ impl<'a> Searcher<'a> {
 
     fn quiesce_inner(&mut self, mut alpha: i32, beta: i32, ply: usize, with_checks: bool) -> i32 {
         self.nodes += 1;
+        self.acc.qnodes += 1;
+        self.acc.seldepth = self.acc.seldepth.max(ply);
         if self.time_up() {
             return 0;
         }
@@ -1667,11 +1688,15 @@ impl<'a> Searcher<'a> {
                 } else if s < -MATE + 1000 {
                     s += ply as i32;
                 }
-                match entry.flag {
-                    0 => return s,
-                    1 if s >= beta => return s,
-                    2 if s <= alpha => return s,
-                    _ => {}
+                let settles = match entry.flag {
+                    0 => true,
+                    1 => s >= beta,
+                    2 => s <= alpha,
+                    _ => false,
+                };
+                if settles {
+                    self.acc.tt_hits += 1;
+                    return s;
                 }
             }
         }
@@ -1754,6 +1779,7 @@ impl<'a> Searcher<'a> {
 
     fn search(&mut self, mut depth: i32, mut alpha: i32, beta: i32, ply: usize, null_ok: bool) -> i32 {
         self.nodes += 1;
+        self.acc.seldepth = self.acc.seldepth.max(ply);
         if self.time_up() {
             return 0;
         }
@@ -1790,11 +1816,15 @@ impl<'a> Searcher<'a> {
                 } else if s < -MATE + 1000 {
                     s += ply as i32;
                 }
-                match entry.flag {
-                    0 => return s,
-                    1 if s >= beta => return s,
-                    2 if s <= alpha => return s,
-                    _ => {}
+                let settles = match entry.flag {
+                    0 => true,
+                    1 => s >= beta,
+                    2 => s <= alpha,
+                    _ => false,
+                };
+                if settles {
+                    self.acc.tt_hits += 1;
+                    return s;
                 }
             }
         }
@@ -2016,6 +2046,7 @@ impl<'a> Searcher<'a> {
             counter: vec![Move::null(); g.size * g.size],
             commonest: usize::MAX,
             soft: 0.0,
+            acc: Accounting::default(),
         }
     }
 }
@@ -2065,6 +2096,8 @@ impl<'a> Searcher<'a> {
             if done > 0 {
                 self.unsteady = (score - best_score).abs();
             }
+            let changed = last_best.is_some_and(|b| b != best);
+            self.acc.iterations.push((depth, score, changed, (self.started.elapsed().as_secs_f64() * 1000.0) as u64));
             if self.soft > 0.0 && done > 0 {
                 // Between depths, given a soft time: go on while another depth is likely to change the answer.
                 let h = self.g.habits;
@@ -2383,6 +2416,7 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
         counter: vec![Move::null(); g.size * g.size],
         commonest: usize::MAX,
         soft: 0.0,
+        acc: Accounting::default(),
     };
     Ok(s.evaluate())
 }
@@ -2421,14 +2455,23 @@ fn search(
             let all = main.b.legal(&g);
             let legal: Vec<Move> = all.iter().copied().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
             if legal.is_empty() {
-                return (None, 0, 0, 0u64, vec![], 0, 0);
+                return (None, 0, 0, 0u64, vec![], 0, 0, Accounting::default());
             }
             main.excluded = all.into_iter().filter(|m| !legal.contains(m)).collect();
+            let kept_ordering = if g.habits.keeps_ordering > 0.0 { table.ordering.lock().unwrap().clone() } else { None };
+            if let Some((h, c)) = &kept_ordering {
+                if h.len() == main.history.len() && c.len() == main.counter.len() {
+                    main.history = h.iter().map(|v| v / 2).collect();
+                    main.counter = c.clone();
+                }
+            }
             let mut helpers: Vec<Searcher> = (1..threads)
                 .map(|_| {
                     let mut h = Searcher::fresh(&g, b.clone(), table, seconds, started, 0);
                     h.halt = Some(&halt);
                     h.excluded = main.excluded.clone();
+                    h.history = main.history.clone();
+                    h.counter = main.counter.clone();
                     h
                 })
                 .collect();
@@ -2447,7 +2490,16 @@ fn search(
             let line = main.line(best, 12);
             let n = main.nodes + helpers.iter().map(|h| h.nodes).sum::<u64>();
             let ms = (started.elapsed().as_secs_f64() * 1000.0) as u64;
-            (Some(best), best_score, done, n, line, ms, main.unsteady)
+            if g.habits.keeps_ordering > 0.0 {
+                *table.ordering.lock().unwrap() = Some((main.history.clone(), main.counter.clone()));
+            }
+            let mut acc = main.acc.clone();
+            for h in &helpers {
+                acc.tt_hits += h.acc.tt_hits;
+                acc.qnodes += h.acc.qnodes;
+                acc.seldepth = acc.seldepth.max(h.acc.seldepth);
+            }
+            (Some(best), best_score, done, n, line, ms, main.unsteady, acc)
         });
         return search_result(py, &g, result);
     }
@@ -2473,28 +2525,44 @@ fn search(
             counter: vec![Move::null(); g.size * g.size],
             commonest: usize::MAX,
             soft,
+            acc: Accounting::default(),
         };
         let all = s.b.legal(&g);
         let legal: Vec<Move> = all.into_iter().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
         s.excluded = s.b.legal(&g).into_iter().filter(|m| !legal.contains(m)).collect();
         if legal.is_empty() {
-            return (None, 0, 0, 0u64, vec![], 0, 0);
+            return (None, 0, 0, 0u64, vec![], 0, 0, Accounting::default());
+        }
+        if g.habits.keeps_ordering > 0.0 && nodes == 0 {
+            if let Some((h, c)) = table.ordering.lock().unwrap().clone() {
+                if h.len() == s.history.len() && c.len() == s.counter.len() {
+                    s.history = h.iter().map(|v| v / 2).collect();
+                    s.counter = c;
+                }
+            }
         }
         let (found, best_score, done) = s.best(deepest, &legal);
         let best = found.unwrap_or(legal[0]);
         let line = s.line(best, 12);
         let n = s.nodes;
         let ms = (s.started.elapsed().as_secs_f64() * 1000.0) as u64;
-        (Some(best), best_score, done, n, line, ms, s.unsteady)
+        if g.habits.keeps_ordering > 0.0 && nodes == 0 {
+            *table.ordering.lock().unwrap() = Some((s.history.clone(), s.counter.clone()));
+        }
+        (Some(best), best_score, done, n, line, ms, s.unsteady, s.acc.clone())
     });
     search_result(py, &g, result)
 }
 
 #[allow(clippy::type_complexity)]
-fn search_result(py: Python<'_>, g: &Game, result: (Option<Move>, i32, i32, u64, Vec<Move>, u64, i32))
+fn search_result(py: Python<'_>, g: &Game, result: (Option<Move>, i32, i32, u64, Vec<Move>, u64, i32, Accounting))
                  -> PyResult<PyObject> {
     let d = PyDict::new_bound(py);
-    let (best, score, depth, n, line, ms, unsteady) = result;
+    let (best, score, depth, n, line, ms, unsteady, acc) = result;
+    d.set_item("tt_hits", acc.tt_hits)?;
+    d.set_item("qnodes", acc.qnodes)?;
+    d.set_item("seldepth", acc.seldepth)?;
+    d.set_item("iterations", acc.iterations)?;
     d.set_item("margin", g.margin.load(Ordering::Relaxed))?;
     match best {
         Some(m) => d.set_item("move", move_out(g, &m))?,
@@ -2559,8 +2627,8 @@ fn self_play(
         for game in 0..games {
             let a_is_first = game % 2 == 0;
             let (ta, tb) = (Table::new(entries), Table::new(entries));
-            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0 };
-            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0 };
+            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default() };
+            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default() };
             // The second side looks at as many positions as its own pace affords in the same time, where it is given.
             if nodes_per_move_b > 0 {
                 sb.max_nodes = nodes_per_move_b;

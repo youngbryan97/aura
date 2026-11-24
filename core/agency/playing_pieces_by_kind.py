@@ -589,7 +589,8 @@ class _Rehearsing:
                        learned=getattr(earned.weights, "learned", None),
                        beyond=list(getattr(earned.weights, "beyond", None) or []),
                        emptying={k: v for k, v in (getattr(earned.weights, "emptying", None) or {}).items()
-                                 if k in family.kinds})
+                                 if k in family.kinds},
+                       habits=dict(getattr(earned.weights, "habits", None) or {}))
 
     def collect(self) -> None:
         if self.running is not None and self.running.done():
@@ -1007,6 +1008,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                         monotonic_time() - seen, turn_began - seen, learned_until - turn_began, searched_s,
                         finish_began - learned_until - searched_s, monotonic_time() - finish_began,
                         f"{share:.1f} s" if on_her_clock else "not on a clock")
+            looked = getattr(found, "accounting", None) or {}
+            if looked:
+                # What the look did, for knowing what it cost and where its time went (suggestions of 23 November 2026).
+                steps = list(looked.get("iterations") or [])
+                logger.info("her look at turn %d: %d deep, furthest ply %s, %s of %s positions settled by her table, %s "
+                            "past the horizon, its best move changed at %d of %d depths", game.made + 1, found.depth,
+                            looked.get("seldepth"), looked.get("tt_hits"), found.nodes, looked.get("qnodes"),
+                            sum(1 for step in steps if step[2]), len(steps))
         game.did.settled(act, ACCEPTED if made else REFUSED,
                          known_by="the board showed it made" if made else "the game did not take it")
         if not made:

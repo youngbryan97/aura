@@ -52,6 +52,11 @@ class Weights:
     #: Per kind, as ``squares`` is: what each square adds as the board empties, weighed by the share of the pieces at
     #: the start that are gone. Nothing until rehearsal earns it.
     emptying: dict[str, list[list[float]]] = field(default_factory=dict)
+    #: How she searches with them, in the compiled search's habits (its Habits: how far a late move's look is shortened,
+    #: how a soft time is spent, whether what one move's search learned of good moves is kept for the next...): those
+    #: she has moved from where they were set, the rest as set. How she judges and how she looks are kept together,
+    #: because each was measured with the other.
+    habits: dict[str, float] = field(default_factory=dict)
 
     def as_json(self) -> str:
         return json.dumps(asdict(self))
@@ -84,7 +89,8 @@ class Weights:
                        tempo=self.tempo, royal_pressed=self.royal_pressed, exposed=by_name(self.exposed),
                        learned=learned, beyond=list(self.beyond),
                        emptying={kind: [list(reversed(row)) if turned_round else list(row) for row in table]
-                                 for kind, table in by_name(self.emptying).items()})
+                                 for kind, table in by_name(self.emptying).items()},
+                       habits=dict(self.habits))
 
 
 @dataclass
@@ -100,6 +106,10 @@ class Found:
     #: How far the best score moved between the last two depths the search completed: under this, two moves' scores
     #: do not tell them apart.
     unsteady: int = 0
+    #: What the search did, where the compiled search says: table hits that settled a position, positions looked at
+    #: past the horizon, the furthest ply reached, and each depth completed (depth, score, whether its best move
+    #: changed, milliseconds by then).
+    accounting: dict[str, Any] = field(default_factory=dict)
 
 
 def _reached_on_empty(family: Family, letter: str) -> float:
@@ -241,7 +251,9 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
         first = line[0] if line else _matching(family, position, tuple(result["move"]))
         return Found(first, int(result["score"]), int(result["depth"]), int(result["nodes"]), line,
                      mate=bool(result.get("mate")), ms=int(result.get("ms", 0)), by="compiled",
-                     unsteady=int(result.get("unsteady", 0)))
+                     unsteady=int(result.get("unsteady", 0)),
+                     accounting={key: result[key] for key in ("tt_hits", "qnodes", "seldepth", "iterations")
+                                 if key in result})
     return _search_here(family, position, seconds=seconds, weights=weights, set_aside=aside)
 
 
