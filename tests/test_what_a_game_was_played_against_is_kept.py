@@ -68,3 +68,45 @@ def test_a_game_with_no_purpose_declared_before_it_ended_counts_as_tuning(tmp_pa
     receipts.declare("evaluation", "declared after the game")
     row = receipts.receipt(_an_engine(tmp_path), None, [log])
     assert row["purpose"] == "tuning" and row["declared"] is None
+
+
+def _an_engine_that_listens(tmp_path):
+    engine = tmp_path / "listening"
+    engine.write_text("#!/bin/sh\nwhile read line; do case \"$line\" in\n"
+                      "uci) echo 'id name Engine 7'; echo 'option name Threads type spin default 1 min 1 max 8';"
+                      " echo uciok;;\ngo*) echo 'bestmove e2e4';;\nquit) exit 0;;\nesac; done\n")
+    engine.chmod(engine.stat().st_mode | stat.S_IEXEC)
+    return engine
+
+
+def test_what_an_engine_was_really_told_is_read_from_its_conversation_as_it_happened(tmp_path) -> None:
+    """Suggestions of 23 November 2026: a receipt kept an engine's defaults and the settings a file claimed, which do
+    not show what the GUI sent. Run in the engine's place, the conversation is passed through unchanged and kept."""
+    import io
+
+    from tools.a_conversation_with_a_program_kept import kept_conversation
+
+    kept, shown = tmp_path / "conversation.jsonl", io.StringIO()
+    told = "uci\nsetoption name Threads value 4\nsetoption name UCI_LimitStrength value true\ngo movetime 300\nquit\n"
+    assert kept_conversation([str(_an_engine_that_listens(tmp_path))], kept, io.StringIO(told), shown) == 0
+    assert "id name Engine 7" in shown.getvalue() and "bestmove e2e4" in shown.getvalue()
+    lines = [json.loads(line) for line in kept.read_text().splitlines()]
+    assert [row["line"] for row in lines if row["said"] == "to"] == told.splitlines()
+    read = receipts.what_it_was_told(kept, "", "2999-01-01T00:00:00+00:00", {"Threads": "1",
+                                                                            "UCI_LimitStrength": "false"})
+    assert read["named_itself"] == "Engine 7" and read["sent"]["Threads"] == "4"
+    assert read["changed_from_its_defaults"] == {"Threads": "4", "UCI_LimitStrength": "true"}
+    assert read["asked_to_think"] == {"go movetime 300": 1}
+
+
+def test_a_receipt_carries_a_fingerprint_of_what_she_keeps_of_the_board(tmp_path, monkeypatch) -> None:
+    import core.runtime.what_she_learned as learned
+
+    monkeypatch.setattr(learned, "_KEPT_IN", tmp_path)
+    (tmp_path / "en-croissant-board-of-pieces.json").write_text("{}")
+    (tmp_path / "en-croissant-board-of-pieces.worked-out-ahead").write_bytes(b"\x01")
+    (tmp_path / "somewhere-else.json").write_text("{}")
+    before = receipts.what_she_keeps_of(receipts.HER_BOARD)
+    assert set(before) == {"en-croissant-board-of-pieces.json", "en-croissant-board-of-pieces.worked-out-ahead"}
+    (tmp_path / "en-croissant-board-of-pieces.worked-out-ahead").write_bytes(b"\x02")
+    assert receipts.what_she_keeps_of(receipts.HER_BOARD) != before
