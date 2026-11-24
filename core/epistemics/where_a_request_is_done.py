@@ -46,7 +46,8 @@ def installed_program_names() -> list[str]:
     try:
         from core.container import ServiceContainer
 
-        registry = ServiceContainer.get("app_registry", default=None)
+        # Only a registry already running: reading where a request is done never starts a service.
+        registry = ServiceContainer.peek("app_registry", default=None)
         if registry is not None and hasattr(registry, "all_apps"):
             names = [str(app.name) for app in registry.all_apps() if getattr(app, "name", "")]
             if names:

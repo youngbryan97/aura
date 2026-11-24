@@ -5,11 +5,11 @@ import re
 from typing import Any
 
 from core.runtime.os_automation_effects import extract_direct_application_targets
-from core.runtime.what_this_turn_asks import asked_by
 from core.runtime.skill_task_bridge import (
     looks_like_capability_inventory_dialogue_request,
     strip_negated_action_spans,
 )
+from core.runtime.what_this_turn_asks import asked_by
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.occluded_view_intent import asks_about_occluded_view
 from core.utils.own_source_intent import asks_for_own_source
@@ -421,6 +421,19 @@ def _asks_about_a_concrete_path(text: str) -> bool:
 _MAY_NEED_THE_SCREEN = frozenset({"on_machine", "sent", "kept", "known", "written", "computed"})
 
 
+def _names_a_program_here(said: str) -> bool:
+    """Whether ``said`` names a program on this machine, read by meaning with the inference model her reply check uses
+    (core/epistemics/where_a_request_is_done.py): a program's name in any spelling is a candidate, and the reader is
+    asked whether the request names an application by it."""
+    try:
+        from core.epistemics.where_a_request_is_done import program_it_names
+
+        return bool(program_it_names(said))
+    except (ImportError, OSError, RuntimeError, ValueError) as exc:
+        logger.info("whether a request names a program here was not read: %s", exc)
+        return False
+
+
 def looks_like_desktop_objective(user_message: str) -> bool:
     """Return true for user requests that need visible desktop/computer action.
 
@@ -438,11 +451,15 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     # vocabulary below is only what it was said with. LIVE 23 November 2026 "Could you build me Snake for my desktop?"
     # was not building, because Snake is in no list here, and went to a lane that made an empty folder.
     read = asked_by(user_message)
-    # Read as work on this machine but not sure enough to act on it unasked ("ask_first"), the reading does not settle
-    # it, and nothing asks either: the turn went to her model's tool loop, which opened En Croissant by hand and stopped
-    # (LIVE 24 November 2026, "Open En Croissant and play a game of chess against Stockfish", on_machine at 0.81). What
-    # follows decides as it did before the reading, as for a turn that was not read.
-    if read is not None and not (read.effect == "on_machine" and read.decision == "ask_first"):
+    if read is not None:
+        if read.effect == "on_machine" and read.decision == "ask_first" and _names_a_program_here(user_message):
+            # Read as work on this machine, sure it was asked for, and unsure only which kind of work: a second reading,
+            # by meaning, of whether the request names a program on this machine settles which. LIVE 24 November
+            # 2026, "Open En Croissant and play a game of chess against Stockfish", on_machine at 0.81 and sure at 0.97
+            # it asked for something, was decided "ask_first", nothing asked, and the turn went to her model's tool
+            # loop. That afternoon's mend decided it by the word lists below instead; Bryan: "Need a better design
+            # than keywords".
+            return True
         if not read.acts or read.effect not in _MAY_NEED_THE_SCREEN:
             return False
         if read.effect == "on_machine":

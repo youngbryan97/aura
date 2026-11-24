@@ -315,17 +315,29 @@ def test_the_desktop_lane_takes_what_was_read_and_not_what_was_worded():
     assert not looks_like_desktop_objective(said) and not asks_to_build_software(said)
 
 
-def test_work_on_the_machine_read_but_not_sure_is_decided_by_what_was_said():
-    """LIVE 24 November 2026: read as on_machine at 0.81, "ask_first", the request went to no lane that asks and none
-    that acts, and her model's tool loop opened En Croissant by hand and stopped. Unsure, the reading does not settle it."""
-    from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+def test_work_on_the_machine_read_but_unsure_of_its_kind_is_settled_by_a_second_reading_by_meaning(monkeypatch):
+    """LIVE 24 November 2026: read as on_machine at 0.81 and sure at 0.97 it asked for something, "ask_first", the
+    request went to no lane that asks and none that acts. Whether it names a program on this machine, read by meaning,
+    settles it; no list of words does (Bryan: "Need a better design than keywords")."""
+    import core.runtime.desktop_objective_intent as lane
 
+    named: list[str] = []
+
+    def reads(said):
+        named.append(said)
+        return said.startswith("Open En Croissant")
+
+    monkeypatch.setattr(lane, "_names_a_program_here", reads)
     said = "Open En Croissant and play a game of chess against Stockfish. Tell me each move as you go."
     hold(_read(said, "on_machine", "ask_first"))
-    assert looks_like_desktop_objective(said)
+    assert lane.looks_like_desktop_objective(said) and named == [said]
+    # Unsure, and naming no program here: the reading's own decision stands, and the words decide nothing.
+    said = "Open the pod bay doors and play me something."
+    hold(_read(said, "on_machine", "ask_first"))
+    assert not lane.looks_like_desktop_objective(said)
     said = "I play a game of chess now and then."
     hold(_read(said, "on_machine", "ask_first"))
-    assert not looks_like_desktop_objective(said), "talk about a game is still not a request to play one"
+    assert not lane.looks_like_desktop_objective(said), "talk about a game is still not a request to play one"
 
 
 def test_no_page_is_worked_for_a_turn_that_asks_for_no_page():
