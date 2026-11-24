@@ -25,6 +25,7 @@ from core.search.what_a_page_says_of_itself import PageSays, has_lapsed, page_sa
 from core.understanding.carrying_out import CameTo, Tell
 from core.understanding.her_model_between_turns import ask as _ask
 from core.understanding.requests_of_her import Part, Request
+from core.understanding.workbench import this_work
 
 logger = logging.getLogger("Aura.Understanding.Finding")
 
@@ -298,6 +299,8 @@ async def _look_through(hits: Sequence[tuple[str, str, str]], search: _Search, g
         if key in search.seen:
             continue
         search.seen.add(key)
+        if (work := this_work()) is not None:
+            work.step(f"Reading {url[:110]}")
         page, why = await _page(url)
         if page is None:
             search.dropped.append((url, why))
@@ -322,6 +325,8 @@ async def _look_through(hits: Sequence[tuple[str, str, str]], search: _Search, g
         search.fits.append(found)
         fitted += 1
         tell(f"Found one that fits so far: {found.name}.")
+        if (work := this_work()) is not None:
+            work.happened("found", title=found.name, where=url)
     return fitted
 
 

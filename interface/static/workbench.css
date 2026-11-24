@@ -1,0 +1,40 @@
+/* workbench.css — her work as it goes: the steps, what she says of them, the code as she writes it, what holds. */
+.wb-page { margin: 0; height: 100vh; background: var(--aura-bg); color: var(--aura-fg); font-family: var(--aura-font-ui); }
+.wb { display: flex; flex-direction: column; min-height: 0; height: 100%; font: var(--aura-text-2)/var(--aura-text-2h) var(--aura-font-ui); color: var(--aura-fg); }
+.wb * { box-sizing: border-box; }
+.wb button { font: inherit; color: inherit; background: var(--aura-card); border: 1px solid var(--aura-card-border); border-radius: var(--aura-radius-1); padding: 5px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.wb button:hover { border-color: var(--aura-accent); }
+.wb button:focus-visible, .wb textarea:focus-visible, .wb select:focus-visible { outline: 2px solid var(--aura-accent); outline-offset: 1px; }
+.wb button:disabled { opacity: .45; cursor: default; }
+.wb svg.wb-icon { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.wb-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--aura-space-2); padding: var(--aura-space-2) var(--aura-space-3); border-bottom: 1px solid var(--aura-card-border); }
+.wb-head select { font: inherit; color: inherit; background: var(--aura-raised); border: 1px solid var(--aura-card-border); border-radius: var(--aura-radius-1); padding: 5px 8px; min-width: 0; flex: 1 1 180px; }
+.wb-state { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: var(--aura-radius-pill); border: 1px solid var(--aura-card-border); font-size: 11.5px; }
+.wb-state i { width: 7px; height: 7px; border-radius: 50%; background: var(--aura-fg-mute); }
+.wb-state.going i { background: var(--aura-ok); animation: wb-beat 1.6s ease-in-out infinite; } .wb-state.held i { background: var(--aura-warn); } .wb-state.stopped i { background: var(--aura-error); }
+@keyframes wb-beat { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .wb-state.going i { animation: none; } }
+.wb-now { padding: var(--aura-space-2) var(--aura-space-3); border-bottom: 1px solid var(--aura-card-border); color: var(--aura-fg-dim); display: flex; gap: var(--aura-space-2); flex-wrap: wrap; align-items: baseline; }
+.wb-now strong { color: var(--aura-fg); font-weight: 600; } .wb-now .wb-stall { color: var(--aura-warn); }
+.wb-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wb-wide .wb-body { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(380px, 1.25fr); }
+.wb-feed { flex: 1; min-height: 0; overflow-y: auto; padding: var(--aura-space-3); display: flex; flex-direction: column; gap: 10px; }
+.wb-feed > * { flex: none; }
+.wb-wide .wb-feed { border-right: 1px solid var(--aura-card-border); }
+.wb-code-side { min-height: 0; display: flex; flex-direction: column; } .wb:not(.wb-wide) .wb-code-side { display: none; }
+.wb-tabs { display: flex; gap: 4px; overflow-x: auto; padding: 8px 10px 0; } .wb-tabs button { white-space: nowrap; border-bottom-left-radius: 0; border-bottom-right-radius: 0; font-size: 12px; } .wb-tabs .on { border-color: var(--aura-accent); }
+.wb-row { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; } .wb-row > svg { margin-top: 2px; color: var(--aura-fg-mute); }
+.wb-step { color: var(--aura-fg); font-weight: 600; } .wb-when { color: var(--aura-fg-mute); font-weight: 400; font-size: 11px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.wb-says { white-space: pre-wrap; overflow-wrap: anywhere; } .wb-trouble { color: var(--aura-warn); } .wb-said { background: var(--aura-accent-soft); border-radius: var(--aura-radius-2); padding: 7px 10px; white-space: pre-wrap; }
+.wb-checks summary { cursor: pointer; } .wb-checks ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.wb-checks li { display: grid; grid-template-columns: 16px 1fr; gap: 6px; } .wb-checks li.ok svg { color: var(--aura-ok); } .wb-checks li.no svg { color: var(--aura-error); } .wb-checks .wb-why { color: var(--aura-fg-mute); overflow-wrap: anywhere; }
+.wb-bar { height: 5px; border-radius: 3px; background: var(--aura-card); overflow: hidden; margin-top: 5px; } .wb-bar > div { height: 100%; background: var(--aura-ok); }
+.wb-block { border: 1px solid var(--aura-card-border); border-radius: var(--aura-radius-1); overflow: hidden; background: var(--aura-raised); } .wb-block > header { display: flex; gap: 8px; padding: 5px 9px; color: var(--aura-fg-mute); border-bottom: 1px solid var(--aura-card-border); font-size: 11.5px; }
+.wb pre { margin: 0; padding: 10px 12px; overflow: auto; font: 12px/1.5 var(--aura-font-mono); max-height: 340px; tab-size: 2; } .wb-wide .wb-code-side pre { max-height: none; flex: 1; } .wb-code-side .wb-block { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 10px 10px; border-top-left-radius: 0; }
+.wb-k { color: #c9a6ff; } .wb-s { color: #9fe0a8; } .wb-n { color: #ffc98a; } .wb-c { color: var(--aura-fg-mute); font-style: italic; } .wb-f { color: #8ec7ff; } [data-aura-scheme="light"] .wb-k { color: #6d28d9; } [data-aura-scheme="light"] .wb-s { color: #17703c; } [data-aura-scheme="light"] .wb-n { color: #a14a00; } [data-aura-scheme="light"] .wb-f { color: #0b5cad; }
+.wb-caret { display: inline-block; width: 7px; height: 13px; background: var(--aura-accent); vertical-align: -2px; animation: wb-beat 1s steps(2) infinite; }
+.wb-say { display: flex; gap: 8px; padding: var(--aura-space-2) var(--aura-space-3); border-top: 1px solid var(--aura-card-border); } .wb-say textarea { flex: 1; resize: none; font: inherit; color: inherit; background: var(--aura-raised); border: 1px solid var(--aura-card-border); border-radius: var(--aura-radius-1); padding: 7px 9px; min-height: 38px; }
+.wb-empty { color: var(--aura-fg-dim); padding: var(--aura-space-4); line-height: 1.6; }
+/* the tab, while something is going */
+.tab-btn.wb-going { position: relative; } .tab-btn.wb-going::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--aura-ok); animation: wb-beat 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .tab-btn.wb-going::after { animation: none; } }

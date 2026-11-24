@@ -1,0 +1,421 @@
+# ## table: rows printed in columns that line up
+#  table(rows, heads=None) -> text; numbers to the right, each column as wide as it needs
+# ?? table([["rye", 3], ["oat", 12]], ["loaf", "n"]).splitlines()[-1] == "oat   12"
+def table(rows, heads=None):
+    rows = [[str(c) if not isinstance(c, float) else f"{c:,.2f}" for c in r] for r in rows]
+    everything = ([list(map(str, heads))] if heads else []) + rows
+    if not everything:
+        return ""
+    wide = [max(len(r[i]) if i < len(r) else 0 for r in everything) for i in range(max(map(len, everything)))]
+    number = [bool(rows) and all(r[i].replace(",", "").replace(".", "", 1).lstrip("-").isdigit() for r in rows if i < len(r) and r[i]) for i in range(len(wide))]
+    line = lambda r: "  ".join((c.rjust if number[i] else c.ljust)(wide[i]) for i, c in enumerate(r)).rstrip()  # noqa: E731
+    return "\n".join(([line(everything[0]), "  ".join("-" * w for w in wide)] if heads else []) + [line(r) for r in rows])
+
+
+# ## bars: a chart of bars in text
+#  bars([(label, value)], width=40) -> text
+# ?? bars([("a", 2), ("bb", 4)], 8).splitlines()[0].count("█") == 4
+def bars(rows, width=40):
+    rows = list(rows)
+    if not rows:
+        return ""
+    top = max(abs(v) for _l, v in rows) or 1
+    wide = max(len(str(label)) for label, _v in rows)
+    return "\n".join(f"{str(label).ljust(wide)}  {'█' * round(width * abs(v) / top)} {v:,.2f}".rstrip("0").rstrip(".") if isinstance(v, float)
+                     else f"{str(label).ljust(wide)}  {'█' * round(width * abs(v) / top)} {v:,}" for label, v in rows)
+
+
+# ## rows_of: tables read from CSV, TSV, JSON or JSON lines, with numbers as numbers
+#  rows_of(text, kind="csv") -> list of dicts; rows_in(path) by its ending; as_csv(rows) -> text
+# ?? rows_of("a,b\n1,x y\n2.5,\"q,r\"") == [{"a": 1, "b": "x y"}, {"a": 2.5, "b": "q,r"}]
+# ?? rows_of('{"a": 1}\n{"a": 2}', "jsonl")[1]["a"] == 2 and as_csv([{"a": 1, "b": "x,y"}]).splitlines()[1] == '1,"x,y"'
+def rows_of(text, kind="csv"):
+    import csv
+    import io
+    import json
+    if kind == "json":
+        got = json.loads(text)
+        return got if isinstance(got, list) else [got]
+    if kind in ("jsonl", "ndjson"):
+        return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+    def value(v):
+        v = (v or "").strip()
+        for kind_ in (int, float):
+            try:
+                return kind_(v.replace(",", "")) if v and not v.startswith("0") or v in ("0",) or v.startswith("0.") else v
+            except ValueError:
+                continue
+        return v
+    return [{(k or "").strip(): value(v) for k, v in r.items() if k is not None} for r in csv.DictReader(io.StringIO(text.lstrip("﻿")), delimiter="\t" if kind == "tsv" else ",")]
+
+
+def rows_in(path):
+    from pathlib import Path
+    path = Path(path)
+    return rows_of(path.read_text(encoding="utf-8"), path.suffix.lstrip(".").lower() or "csv")
+
+
+def as_csv(rows):
+    import csv
+    import io
+    rows = list(rows)
+    out = io.StringIO()
+    if rows:
+        w = csv.DictWriter(out, fieldnames=list(dict.fromkeys(k for r in rows for k in r)), lineterminator="\n")
+        w.writeheader()
+        w.writerows(rows)
+    return out.getvalue()
+
+
+# ## human: sizes, lengths of time and counts said as people say them
+#  human.size(bytes) human.time(seconds) human.count(n, one, many=None) human.ago(then, now) human.money(amount, sign="$")
+# ?? human.size(1536) == "1.5 KB" and human.time(3725) == "1 h 2 min" and human.count(1, "loaf", "loaves") == "1 loaf" and human.money(1234.5) == "$1,234.50"
+class human:  # noqa: N801
+    @staticmethod
+    def size(n):
+        for unit in ("B", "KB", "MB", "GB", "TB"):
+            if abs(n) < 1024 or unit == "TB":
+                return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+            n /= 1024
+
+    @staticmethod
+    def time(s):
+        s = int(round(s))
+        h, m = s // 3600, (s % 3600) // 60
+        return f"{h} h {m} min" if h else f"{m} min {s % 60} s" if m else f"{s} s"
+
+    @staticmethod
+    def count(n, one, many=None):
+        return f"{n:,} {one if n == 1 else many or one + 's'}"
+
+    @staticmethod
+    def ago(then, now):
+        s = now - then
+        for size, name in ((86400, "day"), (3600, "hour"), (60, "minute")):
+            if s >= size:
+                return f"{human.count(int(s // size), name)} ago"
+        return "just now"
+
+    @staticmethod
+    def money(a, sign="$"):
+        return f"{'-' if a < 0 else ''}{sign}{abs(a):,.2f}"
+
+
+# ## when: days read as people write them
+#  when(text, today) -> datetime.date: "2026-11-23", "23 Nov", "11/23/2026", "tomorrow", "next tuesday", "in 3 weeks", "3 days ago"; None where it is not a day
+# ?? (lambda d: (str(when("next tuesday", d)), str(when("in 3 weeks", d)), str(when("23 Nov", d)), when("soonish", d)))(__import__("datetime").date(2026, 11, 23)) == ("2026-11-24", "2026-12-14", "2026-11-23", None)
+def when(text, today):
+    import datetime as dt
+    import re
+    t = " ".join(str(text).lower().replace(",", " ").split())
+    months = {m: i + 1 for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split())}
+    days = {d: i for i, d in enumerate("mon tue wed thu fri sat sun".split())}
+    if t in ("today", "now"):
+        return today
+    if t in ("tomorrow", "yesterday"):
+        return today + dt.timedelta(days=1 if t == "tomorrow" else -1)
+    m = re.fullmatch(r"(?:in )?(\d+) (day|week|month|year)s?( ago)?", t)
+    if m:
+        n = int(m[1]) * (-1 if m[3] else 1)
+        if m[2] in ("day", "week"):
+            return today + dt.timedelta(days=n * (7 if m[2] == "week" else 1))
+        k = today.year * 12 + today.month - 1 + n * (12 if m[2] == "year" else 1)
+        y, mo = k // 12, k % 12 + 1
+        last = (dt.date(y + mo // 12, mo % 12 + 1, 1) - dt.timedelta(days=1)).day
+        return dt.date(y, mo, min(today.day, last))
+    m = re.fullmatch(r"(?:(next|this|last) )?([a-z]{3})[a-z]*", t)
+    if m and m[2] in days:
+        gap = (days[m[2]] - today.weekday()) % 7
+        return today + dt.timedelta(days=(gap - 7 if m[1] == "last" else gap or 7))
+    for pattern, order in ((r"(\d{4})-(\d{1,2})-(\d{1,2})", "ymd"), (r"(\d{1,2})/(\d{1,2})/(\d{4})", "mdy")):
+        m = re.fullmatch(pattern, t)
+        if m:
+            got = dict(zip(order, map(int, m.groups()), strict=True))
+            try:
+                return dt.date(got["y"], got["m"], got["d"])
+            except ValueError:
+                return None
+    m = re.fullmatch(r"(\d{1,2})(?:st|nd|rd|th)? ([a-z]{3})[a-z]*(?: (\d{4}))?", t) or re.fullmatch(r"([a-z]{3})[a-z]* (\d{1,2})(?:st|nd|rd|th)?(?: (\d{4}))?", t)
+    if m:
+        a, b, y = m.groups()
+        day, month = (a, b) if a.isdigit() else (b, a)
+        if month in months:
+            try:
+                return dt.date(int(y or today.year), months[month], int(day))
+            except ValueError:
+                return None
+    return None
+
+
+# ## kept: things kept between runs, in one file
+#  kept(path, name="things") -> a list-like store in SQLite: .add(dict) -> id, .all(), .get(id), .change(id, **new), .remove(id), .where(key=value)
+# ?? (lambda k: (k.add({"a": 1}), k.add({"a": 2}), k.change(1, a=5), k.remove(2), k.all()))(kept(":memory:"))[-1] == [{"id": 1, "a": 5}]
+class kept:  # noqa: N801
+    def __init__(self, path, name="things"):
+        import sqlite3
+        self.db, self.name = sqlite3.connect(str(path)), name
+        self.db.execute(f"create table if not exists {name} (id integer primary key, body text not null)")
+
+    def add(self, thing):
+        import json
+        with self.db:
+            return self.db.execute(f"insert into {self.name} (body) values (?)", (json.dumps(thing),)).lastrowid
+
+    def all(self):
+        import json
+        return [{"id": i, **json.loads(b)} for i, b in self.db.execute(f"select id, body from {self.name} order by id")]
+
+    def get(self, i):
+        return next((t for t in self.all() if t["id"] == int(i)), None)
+
+    def change(self, i, **new):
+        import json
+        thing = self.get(i)
+        if thing is None:
+            return False
+        thing.pop("id")
+        with self.db:
+            self.db.execute(f"update {self.name} set body=? where id=?", (json.dumps({**thing, **new}), int(i)))
+        return True
+
+    def remove(self, i):
+        with self.db:
+            return self.db.execute(f"delete from {self.name} where id=?", (int(i),)).rowcount > 0
+
+    def where(self, **want):
+        return [t for t in self.all() if all(t.get(k) == v for k, v in want.items())]
+
+
+# ## files: files found, weighed, and told from one another
+#  files.under(folder, ending=None) -> paths; files.same(paths) -> groups of paths with the same contents; files.by_size(paths) ; files.safe(name) -> a name a file can have
+# ?? files.safe('a/b:c*?.txt') == "a-b-c.txt"
+class files:  # noqa: N801
+    @staticmethod
+    def under(folder, ending=None):
+        from pathlib import Path
+        return sorted(p for p in Path(folder).rglob("*") if p.is_file() and not any(part.startswith(".") for part in p.relative_to(folder).parts)
+                      and (ending is None or p.suffix.lower() == ending.lower()))
+
+    @staticmethod
+    def same(paths):
+        import hashlib
+        by = {}
+        for p in paths:
+            by.setdefault(p.stat().st_size, []).append(p)
+        out = {}
+        for group in by.values():
+            if len(group) > 1:
+                for p in group:
+                    out.setdefault(hashlib.sha256(p.read_bytes()).hexdigest(), []).append(p)
+        return [g for g in out.values() if len(g) > 1]
+
+    @staticmethod
+    def by_size(paths):
+        return sorted(((p.stat().st_size, p) for p in paths), reverse=True)
+
+    @staticmethod
+    def safe(name):
+        import re
+        return re.sub(r"-+(?=\.)|^-+|-+$", "", re.sub(r"[^\w.\- ]+", "-", name)).strip() or "file"
+
+
+# ## near_to: text matched though it is not quite the same
+#  near_to(word, words, n=3) -> the nearest, best first; alike(a, b) -> 0..1
+# ?? near_to("aple", ["banana", "apple", "grape"])[0] == "apple" and alike("abc", "abc") == 1.0
+def near_to(word, words, n=3):
+    return sorted(words, key=lambda w: -alike(str(word).lower(), str(w).lower()))[:n]
+
+
+def alike(a, b):
+    import difflib
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+# ## picture: charts drawn as SVG files
+#  picture.bars(rows [(label, value)], title) -> svg text; picture.lines(series {name: [(x, y)]}, title); picture.pie(rows, title)
+# ?? picture.bars([("a", 1), ("b", 2)], "t").count("<rect") == 3 and "<polyline" in picture.lines({"a": [(0, 1), (1, 2)]}, "t") and picture.pie([("a", 1), ("b", 1)], "t").count("<path") == 2
+class picture:  # noqa: N801
+    COLOURS = ("#4c6ef5", "#f76707", "#2f9e44", "#e03131", "#7048e8", "#1098ad", "#f08c00", "#495057")
+
+    @staticmethod
+    def _in(body, title, w=760, h=440):
+        from html import escape
+        return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" font-family="system-ui, sans-serif" role="img" aria-label="{escape(title)}">'
+                f'<rect width="{w}" height="{h}" fill="#fff"/><text x="{w / 2}" y="30" text-anchor="middle" font-size="18" fill="#222">{escape(title)}</text>{body}</svg>')
+
+    @staticmethod
+    def bars(rows, title=""):
+        from html import escape
+        rows = list(rows)
+        top, gap = max((abs(v) for _l, v in rows), default=1) or 1, 700 / max(1, len(rows))
+        body = "".join(f'<rect x="{30 + i * gap + gap * .15:.1f}" y="{390 - 320 * abs(v) / top:.1f}" width="{gap * .7:.1f}" height="{320 * abs(v) / top:.1f}" rx="4" fill="{picture.COLOURS[0]}"/>'
+                       f'<text x="{30 + (i + .5) * gap:.1f}" y="412" text-anchor="middle" font-size="12" fill="#555">{escape(str(label))}</text>'
+                       f'<text x="{30 + (i + .5) * gap:.1f}" y="{384 - 320 * abs(v) / top:.1f}" text-anchor="middle" font-size="12" fill="#222">{v:,}</text>' for i, (label, v) in enumerate(rows))
+        return picture._in(body, title)
+
+    @staticmethod
+    def lines(series, title=""):
+        from html import escape
+        points = [p for s in series.values() for p in s]
+        if not points:
+            return picture._in("", title)
+        x0, x1, y0, y1 = min(p[0] for p in points), max(p[0] for p in points), min(0, min(p[1] for p in points)), max(p[1] for p in points)
+        at = lambda p: f"{60 + 660 * (p[0] - x0) / ((x1 - x0) or 1):.1f},{390 - 320 * (p[1] - y0) / ((y1 - y0) or 1):.1f}"  # noqa: E731
+        body = "".join(f'<polyline fill="none" stroke="{picture.COLOURS[i % 8]}" stroke-width="2.5" points="{" ".join(map(at, s))}"/>'
+                       f'<text x="{64 + i * 120}" y="430" font-size="12" fill="{picture.COLOURS[i % 8]}">{escape(str(name))}</text>' for i, (name, s) in enumerate(series.items()))
+        return picture._in(body, title)
+
+    @staticmethod
+    def pie(rows, title=""):
+        import math
+        from html import escape
+        rows = list(rows)
+        whole, a, body = sum(v for _l, v in rows) or 1, -math.pi / 2, ""
+        for i, (label, v) in enumerate(rows):
+            b = a + 2 * math.pi * v / whole
+            p = lambda t, r=150: f"{290 + r * math.cos(t):.1f},{230 + r * math.sin(t):.1f}"  # noqa: B023, E731
+            body += f'<path d="M290,230 L{p(a)} A150,150 0 {int(b - a > math.pi)},1 {p(b)} Z" fill="{picture.COLOURS[i % 8]}"/><text x="500" y="{110 + i * 24}" font-size="14" fill="{picture.COLOURS[i % 8]}">{escape(str(label))} {100 * v / whole:.0f}%</text>'
+            a = b
+        return picture._in(body, title)
+
+
+# ## report: findings written as a page to be read
+#  report(title, parts) -> HTML text; parts are ("text", words), ("table", heads, rows), ("svg", svg) or ("heading", words)
+# ?? "<table>" in report("T", [("heading", "a"), ("table", ["x"], [[1]]), ("text", "b < c")]) and "b &lt; c" in report("T", [("text", "b < c")])
+def report(title, parts):
+    from html import escape
+    body = ""
+    for part in parts:
+        if part[0] == "heading":
+            body += f"<h2>{escape(str(part[1]))}</h2>"
+        elif part[0] == "svg":
+            body += part[1]
+        elif part[0] == "table":
+            body += ("<table><thead><tr>" + "".join(f"<th>{escape(str(h))}</th>" for h in part[1]) + "</tr></thead><tbody>"
+                     + "".join("<tr>" + "".join(f"<td>{escape(str(c))}</td>" for c in r) + "</tr>" for r in part[2]) + "</tbody></table>")
+        else:
+            body += f"<p>{escape(str(part[1]))}</p>"
+    return (f'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{escape(title)}</title><style>body{{font:16px/1.6 system-ui,sans-serif;max-width:860px;margin:40px auto;padding:0 20px;color:#1c1e21}}'
+            f'table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;padding:7px 10px;border-bottom:1px solid #ddd}}svg{{max-width:100%}}@media(prefers-color-scheme:dark){{body{{background:#15171a;color:#e9ecef}}th,td{{border-color:#333}}}}</style><h1>{escape(title)}</h1>{body}</html>')
+
+
+# ## sound: tones and tunes written as WAV files
+#  sound.tone(hz, seconds, loud=0.5) -> samples; sound.tune([(hz or None, seconds)]) ; sound.save(path, samples); sound.hz("A4")
+# ?? sound.hz("A4") == 440.0 and len(sound.tone(440, 0.1)) == 4410 and max(sound.tone(440, 0.1)) <= 0.5
+class sound:  # noqa: N801
+    RATE = 44100
+
+    @staticmethod
+    def hz(note):
+        names = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+        n = names[note[0].upper()] + (1 if "#" in note else -1 if "b" in note[1:] else 0) + 12 * (int(note[-1]) + 1)
+        return round(440 * 2 ** ((n - 69) / 12), 6)
+
+    @staticmethod
+    def tone(hz, seconds, loud=0.5):
+        import math
+        n = int(sound.RATE * seconds)
+        edge = max(1, int(sound.RATE * 0.005))
+        return [loud * min(1, i / edge, (n - i) / edge) * math.sin(2 * math.pi * hz * i / sound.RATE) for i in range(n)]
+
+    @staticmethod
+    def tune(notes):
+        out = []
+        for hz, seconds in notes:
+            out += sound.tone(hz, seconds) if hz else [0.0] * int(sound.RATE * seconds)
+        return out
+
+    @staticmethod
+    def save(path, samples):
+        import struct
+        import wave
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(sound.RATE)
+            w.writeframes(b"".join(struct.pack("<h", int(32767 * max(-1, min(1, s)))) for s in samples))
+
+
+# ## commands: a tool with commands, each with what it is given, and help that says so
+#  commands(name, about, {command: (help, [(argument, help) or ("--option", help, default)], function(args))}) -> exit code; an argument ending in "*" takes many
+# ?? commands("t", "about", {"add": ("adds", [("n*", "numbers")], lambda a: print(sum(map(int, a.n))) or 0)}, ["add", "1", "2"]) == 0
+def commands(name, about, table_of, argv=None):
+    import argparse
+    import sys
+    parser = argparse.ArgumentParser(prog=name, description=about)
+    subs = parser.add_subparsers(dest="command")
+    for command, (says, takes, _f) in table_of.items():
+        sub = subs.add_parser(command, help=says, description=says)
+        for take in takes:
+            if take[0].startswith("--"):
+                default = take[2] if len(take) > 2 else None
+                if default is False:
+                    sub.add_argument(take[0], action="store_true", help=take[1])
+                else:
+                    sub.add_argument(take[0], help=take[1], default=default, type=type(default) if default is not None else str)
+            elif take[0].endswith("*"):
+                sub.add_argument(take[0][:-1], nargs="*", help=take[1])
+            else:
+                sub.add_argument(take[0], help=take[1])
+    args = parser.parse_args(argv)
+    if not args.command:
+        parser.print_help()
+        return 0
+    try:
+        return int(table_of[args.command][2](args) or 0)
+    except (OSError, ValueError, KeyError) as why:
+        print(f"{name}: {why}", file=sys.stderr)
+        return 1
+
+
+# ## grouped: rows added up by what they share
+#  grouped(rows, by, of=None, how="sum|mean|count|max|min") -> [(key, value)] largest first; by is a key or a function of a row
+# ?? grouped([{"k": "a", "v": 1}, {"k": "b", "v": 5}, {"k": "a", "v": 2}], "k", "v") == [("b", 5), ("a", 3)]
+def grouped(rows, by, of=None, how="sum"):
+    out = {}
+    for r in rows:
+        out.setdefault(by(r) if callable(by) else r.get(by), []).append(1 if of is None or how == "count" else float(r.get(of) or 0))
+    f = {"sum": sum, "count": len, "max": max, "min": min, "mean": lambda v: sum(v) / len(v)}[how]
+    whole = lambda v: int(v) if float(v).is_integer() else round(v, 4)  # noqa: E731
+    return sorted(((k, whole(f(v))) for k, v in out.items()), key=lambda p: -p[1])
+
+
+# ## marked: Markdown written as HTML
+#  marked(text) -> HTML: headings, lists, quotes, code, bold, italic, links
+# ?? marked("# A\n\n- b\n- **c**\n\n`d` <e>") == "<h1>A</h1>\n<ul><li>b</li><li><strong>c</strong></li></ul>\n<p><code>d</code> &lt;e&gt;</p>"
+def marked(text):
+    import re
+    from html import escape
+
+    def inline(t):
+        t = re.sub(r"`([^`]+)`", lambda m: f"<code>{m[1]}</code>", escape(t, quote=False))
+        t = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", t)
+        t = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", t)
+        return re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', t)
+    out, lines, i = [], text.split("\n"), 0
+    while i < len(lines):
+        line = lines[i]
+        if line.startswith("```"):
+            j = next((k for k in range(i + 1, len(lines)) if lines[k].startswith("```")), len(lines))
+            out.append("<pre><code>" + escape("\n".join(lines[i + 1:j])) + "</code></pre>")
+            i = j
+        elif m := re.match(r"(#{1,6})\s+(.*)", line):
+            out.append(f"<h{len(m[1])}>{inline(m[2])}</h{len(m[1])}>")
+        elif m := re.match(r"\s*([-*+]|\d+\.)\s+", line):
+            tag, items = "ol" if m[1][0].isdigit() else "ul", []
+            while i < len(lines) and (n := re.match(r"\s*(?:[-*+]|\d+\.)\s+(.*)", lines[i])):
+                items.append(f"<li>{inline(n[1])}</li>")
+                i += 1
+            out.append(f"<{tag}>{''.join(items)}</{tag}>")
+            continue
+        elif line.startswith(">"):
+            out.append(f"<blockquote>{inline(line.lstrip('> '))}</blockquote>")
+        elif line.strip():
+            j = i
+            while j + 1 < len(lines) and lines[j + 1].strip() and not re.match(r"#{1,6}\s|\s*[-*+]\s|\s*\d+\.\s|>|```", lines[j + 1]):
+                j += 1
+            out.append(f"<p>{inline(' '.join(lines[i:j + 1]))}</p>")
+            i = j
+        i += 1
+    return "\n".join(out)

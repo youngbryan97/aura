@@ -46,6 +46,7 @@ from .mlx_client_tool_results import (  # noqa: F401  (re-exported: they were de
     _what_the_loop_answers,
 )
 from .mlx_client_waiting import _WaitsForTheResult
+from .what_is_being_written import watcher as a_watcher
 from .what_she_expects_next import _AsksWhatSheExpectsNext
 from .worker_exit import await_init_while_the_worker_loads
 
@@ -4832,6 +4833,7 @@ def _build_the_generation_request(
         "expect_next": [str(c) for c in (kwargs.get("expect_next") or ())],
         "surprise_of": [str(c) for c in (kwargs.get("surprise_of") or ())],
         "states_at_turn": [str(c) for c in (kwargs.get("states_at_turn") or ())],
+        "show_what_is_written": a_watcher() is not None,
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
         ).strip().lower(),
@@ -9034,6 +9036,10 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     continue
                 if status in {"progress", "token"}:
                     self._record_worker_stream_progress(res, status=status, action=action)
+                    if owned_response and res.get("written") is not None:
+                        from core.brain.llm.what_is_being_written import pass_on
+
+                        pass_on(res)
                     if owned_response and res.get('reply_preview'):
                         from core.brain.llm.reply_previews import publish_owned_reply_preview
 
@@ -10283,6 +10289,10 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
     def _generate_inner_part_3(self, deadline, foreground_request, fut, prompt, req, req_id):
         self._pending_generations[req_id] = fut
+        if req.get("show_what_is_written"):
+            from core.brain.llm.what_is_being_written import watch_for
+
+            watch_for(req_id)
         if req.get('stream_user_surface') is True and foreground_request:
             from core.brain.llm.reply_previews import ReplyPreviewDelivery
             from core.conversation.reply_stream import active_reply_stream
@@ -11406,6 +11416,9 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         release_lane: bool = True,
     ) -> None:
         getattr(self, '_pending_reply_previews', {}).pop(request_id, None)
+        from core.brain.llm.what_is_being_written import forget
+
+        forget(request_id)
         if foreground_watchdog is not None:
             foreground_watchdog.cancel()
         if self._foreground_generation_watchdog is foreground_watchdog:

@@ -25,6 +25,7 @@ from core.understanding.requests_of_her import (
     MET,
     OPEN,
     PARTLY,
+    SET_ASIDE,
     UNMET,
     WORKING,
     Part,
@@ -33,6 +34,7 @@ from core.understanding.requests_of_her import (
     Try,
     get_requests_of_her,
 )
+from core.understanding.workbench import PutDown, get_workbench, working_on
 
 logger = logging.getLogger("Aura.Understanding")
 
@@ -93,6 +95,10 @@ async def carry_out(request: Request, carrier: Carrier, *, tell: Tell, ledger: R
             request.tries.append(Try(at=began, how="it was stopped", came_to="cut short"))
             await ledger.changed(request, stands=CUT_SHORT)
             raise
+        except PutDown:
+            request.tries.append(Try(at=began, how="it was stopped by them", came_to="set aside"))
+            await ledger.changed(request, stands=SET_ASIDE)
+            return request
         except Exception as exc:  # noqa: BLE001 - a try that breaks is a try that failed, and is named as one
             record_degradation("carrying_out", exc, severity="warning", action=f"a try at request {request.id} broke off")
             came = CameTo(how="it broke off", came_to=f"{type(exc).__name__}: {exc}"[:400],
@@ -121,6 +127,11 @@ def _the_whole(request: Request) -> str:
     return effect.met if effect is not None else "what was asked"
 
 
+def _title(request: Request) -> str:
+    words = " ".join(request.said.split())
+    return words if len(words) <= 70 else words[:70].rsplit(" ", 1)[0] + " …"
+
+
 def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[None]],
           carrier: Carrier | None = None, ledger: RequestsOfHer | None = None) -> bool:
     """Start carrying a request out on her own time; False where nothing does this kind of thing or it is under way."""
@@ -130,14 +141,19 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
     if carrier is None or is_under_way(request):
         return False
 
+    bench = get_workbench().begin(request.id, _title(request), request.effect)
+
     async def work() -> None:
         try:
             # The turn that asked is answered first.
+            bench.waits("the conversation, which comes first")
             await nobody_waiting()
-            await carry_out(request, carrier, tell=tell, ledger=ledger)
+            with working_on(bench):
+                await carry_out(request, carrier, tell=tell, ledger=ledger)
         finally:
             _UNDER_WAY.pop(request.id, None)
-        if request.stands != OPEN:
+            bench.finished("stopped" if bench.stopped or request.stands in {CUT_SHORT, SET_ASIDE} else "done")
+        if request.stands not in {OPEN, SET_ASIDE}:
             await told(request)
 
     _UNDER_WAY[request.id] = get_task_tracker().create_task(work(), name=f"request.{request.effect}.{request.id}")

@@ -1221,6 +1221,7 @@ from interface.routes import rpc as rpc_routes
 from interface.routes import settings as settings_routes
 from interface.routes import subsystems as subsystem_routes
 from interface.routes import system as system_routes
+from interface.routes import work as work_routes
 from interface.routes import worlds as worlds_routes
 
 checkpoint_service = CheckpointService()
@@ -1247,10 +1248,9 @@ app.include_router(allostasis_routes.router, prefix="/api", tags=["allostasis"])
 app.include_router(dashboard_routes.router, prefix="/api", tags=["dashboard"])
 app.include_router(dashboard_routes.trace_router, prefix="/api", tags=["trace"])
 app.include_router(settings_routes.router, prefix="/api", tags=["settings"])
-app.include_router(multimodal_routes.router, prefix="/api", tags=["multimodal"])
-app.include_router(media_routes.router, prefix="/api", tags=["media"])
-app.include_router(performance_routes.router, prefix="/api", tags=["performance"])
-app.include_router(mission_control_routes.router, prefix="/api", tags=["mission_control"])
+for _routes, _tag in ((multimodal_routes, "multimodal"), (media_routes, "media"), (performance_routes, "performance"),
+                      (mission_control_routes, "mission_control"), (work_routes, "work")):
+    app.include_router(_routes.router, prefix="/api", tags=[_tag])
 
 # Full-duplex voice (/ws/voice). Imported late and defensively: the voice
 # lane pulls in ONNX, Silero and the ASR stack, and a runtime that cannot

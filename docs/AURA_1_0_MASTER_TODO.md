@@ -5376,6 +5376,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     searched it by code (a breadth-first search through code_repl) and answered three moves, blue to the table,
     red onto blue, orange onto red; an independent simulator finds the plan reaches the goal and three moves the
     shortest. It took 485 s, 389 of them decoding, and her answer kept an aside of her working ("but wait, no:").
+  - 23 and 24 November, what a person wants and its being done. On 23 November, in her own window, a game asked for
+    was an empty folder called done; openings asked for with a resume beside the request opened a mail site for six
+    minutes and then refused a program nobody had named; a paper of 73 pages was answered from its opening. Each turn
+    had gone to the lane whose words it held. What a turn asks for is now read from her own cortex's states where her
+    turn opens, by a classifier fitted in her own process on invented examples, and decided by what each mistake would
+    cost (`core/understanding`, `core/brain/llm/her_states_at_a_turn.py`; `tests/test_what_is_asked_of_her.py`). On
+    135 sentences kept out of the fitting a 9B of her family told the thirteen kinds apart on 96.3% and did the right
+    thing on 97%; fitted live on her 27B, 23 November 17:57, 91.7% of kinds out of fold and 96.4% on whether anything
+    was asked. Every door takes that reading where there is one. A request is kept with what was tried and what is
+    missing, and only a check closes it; work goes on between a person's turns and gives way to them; what a reply of
+    hers says she is doing is begun (25 of 26 replies kept out read right). Live the same evening a game asked for in a
+    sentence about a nephew read as a program at 1.00 and its work began; the engine that rebuilds programs was still
+    writing it half an hour later, and its checks looked for words on a canvas.
+  - 24 November, an engine for making any program (`core/making`, `tests/test_making_programs.py`). A program is a
+    state, what each event does to it, and how it is shown, so it is tried without a window: run for minutes of
+    whatever can be pressed, searched ahead for whether it can be scored in, won and lost, held to tests of its rules
+    written before it, and measured. 62 engineered pieces for games and apps and 15 for tools, each with its own
+    checks, are what it is made from, and a mend is the functions that change. Tools are built and run in the
+    languages this machine has, under its sandbox. Her work shows as she does it, in the window and on a page of its
+    own (`interface/routes/work.py`, `interface/static/workbench.js`): steps, what she says of them, code as she
+    writes it, what holds and what does not, what she waits on; and a word said to it reaches it at its next step.
 - [ ] U08 Exercise every capability from I05 with varied phrasing, follow-ups,
   failures, cancellation, and recovery; track every observed defect.
   PARTIAL 2026-09-29, the instrument, not yet a run. Every skill in the I05

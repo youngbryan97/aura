@@ -208,6 +208,7 @@
     <link rel="stylesheet" href="/static/error_banner.css">
     <link rel="stylesheet" href="/static/aura.css">
     <link rel="stylesheet" href="/static/conversation_visuals.css">
+    <link rel="stylesheet" href="/static/workbench.css">
     <link rel="stylesheet" href="/static/voice_mode.css">
     <link rel="stylesheet" href="/static/presence_design.css">
 </head>
@@ -572,6 +573,9 @@
                 <button class="tab-btn active" data-tab="neural">
                     <span class="tab-icon">◉</span> NEURAL
                 </button>
+                <button class="tab-btn" data-tab="work">
+                    <svg class="tab-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5 3 8l3 3M10 5l3 3-3 3"/></svg> WORK
+                </button>
                 <button class="tab-btn" data-tab="telemetry">
                     <span class="tab-icon">◆</span> TELEMETRY
                 </button>
@@ -589,6 +593,8 @@
                 </button>
             </div>
             <div class="sidebar-body">
+                <!-- Work Tab: what she is making, as she makes it -->
+                <div id="pane-work" class="tab-pane"><div id="workbench" class="wb"></div></div>
                 <!-- Neural Tab -->
                 <div id="pane-neural" class="tab-pane active">
                     <div class="neural-toolbar">
@@ -1405,6 +1411,8 @@
     <script src="/static/conversation_visuals.js"></script>
     <script src="/static/ambient_gradient.js"></script>
     <script src="/static/aura.js"></script>
+    <script src="/static/workbench.js"></script>
+    <script>mountWorkbench(document.getElementById('workbench'), {});</script>
     <script src="/static/voice_mode.js"></script>
 </body>
 

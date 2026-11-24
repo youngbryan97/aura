@@ -65,6 +65,8 @@ RUNTIME_SHELL_ASSETS = (
     "interface/static/conversation_visuals.js",
     "interface/static/ambient_gradient.js",
     "interface/static/conversation_visuals.css",
+    "interface/static/workbench.css",
+    "interface/static/workbench.js",
     "interface/static/neuron_glyph.svg",
     "interface/static/voice_mode.js",
     "interface/static/voice_mode.css",

@@ -8177,6 +8177,22 @@
       "scope": "<module>._ActsOnThePage.type"
     },
     {
+      "callee": "core.runtime.page_gateway.get_page_gateway().go_to",
+      "canonical_owner": false,
+      "category": "page_gateway",
+      "count": 1,
+      "path": "core/making/trying.py",
+      "scope": "<module>.try_page"
+    },
+    {
+      "callee": "core.runtime.page_gateway.get_page_gateway().read",
+      "canonical_owner": false,
+      "category": "page_gateway",
+      "count": 2,
+      "path": "core/making/trying.py",
+      "scope": "<module>.try_page"
+    },
+    {
       "callee": "core.runtime.page_gateway.get_page_gateway().read",
       "canonical_owner": false,
       "category": "page_gateway",
@@ -16153,6 +16169,14 @@
       "scope": "<module>.CommandRoleSignerBroker._execute"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/making/tools.py",
+      "scope": "<module>._run"
+    },
+    {
       "callee": "<subprocess_gateway>.run",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -17212,6 +17236,14 @@
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
       "canonical_owner": false,
       "category": "subprocess_gateway",
+      "count": 2,
+      "path": "core/understanding/carriers/building.py",
+      "scope": "<module>._its_command"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
       "count": 1,
       "path": "core/understanding/carriers/building.py",
       "scope": "<module>.runs_here"
@@ -17255,6 +17287,14 @@
       "count": 1,
       "path": "core/voice/voice_session.py",
       "scope": "<module>.VoiceSessionManager.narrate"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "interface/routes/work.py",
+      "scope": "<module>._open"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_async",
@@ -17594,6 +17634,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "61a01ba8ced129ac00c5d0f32b45415bb59120704db4453245a7c5821921392c",
+  "inventory_sha256": "b97458e498f0ae2d77ef1d54abd79f8082afbafbfdf3c9e4a9ce561b455161bb",
   "schema_version": 1
 }

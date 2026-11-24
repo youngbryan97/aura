@@ -528,9 +528,12 @@ def _between(monkeypatch, texts, waiting):
     given, waits = iter(texts), iter(waiting)
     asked: list[str] = []
 
-    async def on_the_lane(prompt, schema, max_tokens):
-        asked.append(prompt)
+    async def on_the_lane(prompt, max_tokens, *, so_far="", held=None, **how):
+        asked.append(prompt + so_far)
         answer = next(given)
+        if isinstance(answer, tuple):
+            held[:] = [answer[0]]
+            return ""
         if isinstance(answer, Exception):
             raise answer
         return answer
@@ -553,6 +556,12 @@ def test_an_ask_that_gave_way_is_made_again_and_not_called_a_failure(monkeypatch
     between, asked = _between(monkeypatch, ["", TimeoutError("stopped"), '{"name": "a"}'], [True, True])
     got = asyncio.run(between.ask("What?", It, 10))
     assert got is not None and got.name == "a" and len(asked) == 3
+
+
+def test_what_she_had_written_when_somebody_spoke_is_gone_on_from(monkeypatch):
+    between, asked = _between(monkeypatch, [("const a = 1;\n",), ("const b",), " = 2;"], [True, True])
+    assert asyncio.run(between.write("Write it.", 100)) == "const a = 1;\nconst b = 2;"
+    assert asked == ["Write it.", "Write it.const a = 1;\n", "Write it.const a = 1;\nconst b"]
 
 
 def test_an_empty_answer_with_nobody_waiting_is_her_model_being_away(monkeypatch):

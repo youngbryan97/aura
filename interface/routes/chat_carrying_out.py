@@ -19,11 +19,12 @@ from core.runtime.what_this_turn_asks import Asked, hold, this_turn
 from core.understanding.effects import BY_NAME
 from core.understanding.her_model_between_turns import ORIGIN, nobody_waiting
 from core.understanding.requests_of_her import Request, get_requests_of_her
+from core.understanding.workbench import get_workbench
 from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS
 
 logger = logging.getLogger("Aura.Chat")
 
-__all__ = ["ORIGIN", "her_word_is_kept", "take_up_what_is_asked", "tell_what_it_came_to", "the_message"]
+__all__ = ["ORIGIN", "her_word_is_kept", "said_to_work", "take_up_what_is_asked", "tell_what_it_came_to", "the_message"]
 
 #: The least time her words on what a request came to may take to form.
 LEAST_S = 60.0
@@ -77,7 +78,7 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
         return False
     if settled.what == "how_it_stands" and settled.request is not None:
         hold(dataclasses.replace(asked, request_id=settled.request.id))
-        _recorded(said, {"how_it_stands": settled.request.account()})
+        _recorded(said, {"how_it_stands": settled.request.account(), **_as_it_goes(settled.request)})
         return True
     if asked.effect not in carrying_out.carriers():
         return False
@@ -96,7 +97,10 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
     hold(dataclasses.replace(asked, request_id=request.id))
     await ledger.keep()
     if carrying_out.is_under_way(request):
-        _recorded(said, {"under_way": request.account(), "given_more": said})
+        work = get_workbench().get(request.id)
+        if work is not None and asked.effect != "status":
+            work.say(said)
+        _recorded(said, {"under_way": request.account(), "given_more": said, **_as_it_goes(request)})
         return True
     from core.skills.screen_pursuit import _tell
 
@@ -161,6 +165,45 @@ async def _is_long(materials: Sequence[str], said: str) -> bool:
 
     held = [item for item in await asyncio.gather(*(asyncio.to_thread(kept, m) for m in materials)) if item]
     return sum(len(text) for _note, text in held) > MAX_COMPOSED_PREFLIGHT_CHARS - len(said) - 4096
+
+
+def _as_it_goes(request: Request) -> dict[str, Any]:
+    """What she is doing on a request now, and the last of what happened in it, as facts for her to speak of."""
+    work = get_workbench().get(request.id)
+    if work is None or work.state not in {"going", "held"}:
+        return {}
+    seen = work.seen()
+    last = [row for row in seen["happened"] if row["what"] in {"step", "says", "tried", "trouble"}][-5:]
+    told = [row.get("title") or row.get("words") or row.get("why") or "" for row in last]
+    for row in reversed(last):
+        if row["what"] == "tried":
+            told.append("failing now: " + "; ".join(r["name"] for r in row["results"] if not r["ok"])[:400])
+            break
+    return {"doing_now": seen["now"].get("what") or "", "waiting": seen["stalled"], "lately": [t for t in told if t]}
+
+
+async def said_to_work(work_id: str, words: str) -> str:
+    """Something said to a work: heard by it where it is going, and the request taken up again with it where it is not."""
+    from core.skills.screen_pursuit import _tell
+    from core.understanding import carrying_out
+
+    ledger, work = get_requests_of_her(), get_workbench().get(work_id)
+    request = ledger.get(work_id)
+    if request is None:
+        if work is None or work.state not in {"going", "held"}:
+            return "no such request"
+        work.say(words)
+        return "heard"
+    request.added.append(words)
+    await ledger.keep()
+    if work is not None and carrying_out.is_under_way(request):
+        work.say(words)
+        return "heard"
+    if request.effect == "program" and request.made.get("page"):
+        request.effect = "program_changed"
+    bench = get_workbench().begin(request.id, request.said, request.effect)
+    bench.happened("said", words=words)
+    return "taken up again" if carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to) else "not begun"
 
 
 async def tell_what_it_came_to(request: Request) -> None:

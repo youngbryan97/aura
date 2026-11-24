@@ -25,6 +25,7 @@ from core.understanding.carriers.finding import quoted_in
 from core.understanding.carrying_out import CameTo, Tell
 from core.understanding.her_model_between_turns import ask as _ask
 from core.understanding.requests_of_her import Part, Request
+from core.understanding.workbench import this_work
 
 logger = logging.getLogger("Aura.Understanding.Reading")
 
@@ -163,7 +164,10 @@ async def reading_of(name: str, text: str, tell: Tell, *, ask: Any) -> list[Sect
     before = ""
     for n, section in enumerate(sections, 1):
         if not section.read:
-            tell(f"Reading {name}, part {n} of {len(sections)}.")
+            if (work := this_work()) is not None:
+                work.step(f"Reading {name}, part {n} of {len(sections)}")
+            else:
+                tell(f"Reading {name}, part {n} of {len(sections)}.")
             parts = await _read_a_section(name, text, section, n, len(sections), before, ask)
         else:
             parts = [section]
