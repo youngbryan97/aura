@@ -64,11 +64,17 @@ class BoardApplication:
     """The application: its position, what is picked up, its last move. Her side is the first, drawn at the bottom."""
 
     def __init__(self, family: Family, *, she_goes_first: bool = True, square: int = 64, margin: int = 80,
-                 answers_in_s: float = 0.05, seed: int = 0, keeps_it_picked: bool = False) -> None:
+                 answers_in_s: float = 0.05, seed: int = 0, keeps_it_picked: bool = False,
+                 lags_looks: int = 0) -> None:
         self.family = family
         #: Whether a second click on the piece picked up leaves it picked up, as many board applications do (a click
         #: there may begin a drag); a click on an empty square it may not go to puts it down.
         self.keeps_it_picked = keeps_it_picked
+        #: For how many looks after what is picked up changes the board still shows what was picked up before, as a
+        #: display that has not yet redrawn does.
+        self.lags_looks = lags_looks
+        self._shown_picked: tuple[int, int] | None = None
+        self._lag_left = 0
         self.square = square
         self.margin = margin
         self.position = family.the_start()
@@ -99,14 +105,15 @@ class BoardApplication:
             return self.family.rows - 1 - row_seen, column
         return None
 
-    def draw(self) -> np.ndarray:
+    def draw(self, picked: tuple[int, int] | None | str = "now") -> np.ndarray:
         image = Image.new("RGB", (self.wide, self.tall), (28, 28, 32))
         draw = ImageDraw.Draw(image)
         offers = set()
-        if self.picked is not None:
+        picked = self.picked if picked == "now" else picked
+        if picked is not None:
             # As a board shows a move that lands more than once: its next landing.
             offers = {(m.via + (m.end,))[len(self.path)] for m in moves(self.family, self.position)
-                      if m.start == self.picked and list((m.via + (m.end,))[:len(self.path)]) == self.path}
+                      if m.start == picked and list((m.via + (m.end,))[:len(self.path)]) == self.path}
         for row in range(self.family.rows):
             for column in range(self.family.columns):
                 x0 = self.margin + column * self.square
@@ -115,7 +122,7 @@ class BoardApplication:
                 colour = LIGHT if light else DARK
                 if (row, column) in self.last:
                     colour = LAST_LIGHT if light else LAST_DARK
-                if self.picked == (row, column):
+                if picked == (row, column):
                     colour = PICKED
                 draw.rectangle([x0, y0, x0 + self.square - 1, y0 + self.square - 1], fill=colour)
         for square, (side, kind) in self.position.cells.items():
@@ -130,6 +137,11 @@ class BoardApplication:
 
     async def look(self) -> np.ndarray:
         await asyncio.sleep(0.005)
+        if self.picked != self._shown_picked and self._lag_left > 0:
+            self._lag_left -= 1
+            return self.draw(self._shown_picked)
+        self._shown_picked = self.picked
+        self._lag_left = self.lags_looks
         return self.draw()
 
     async def click(self, x_share: float, y_share: float) -> bool:

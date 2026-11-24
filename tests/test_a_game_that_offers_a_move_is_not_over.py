@@ -132,3 +132,19 @@ def test_a_far_square_is_a_leap_only_where_a_jump_was_seen_that_far() -> None:
     assert not [s for s in rules.family().kinds["K"].steps if s.offsets in (((6, 0),), ((7, 0),))]
     start = Position(cells=dict(CHESS.start), turn=HER_SIDE, unmoved=frozenset(CHESS.start))
     assert not in_check(rules.family(), start, HER_SIDE)
+
+
+def test_an_answer_is_read_once_the_board_holds_still_and_never_from_another_pieces_marks() -> None:
+    """LIVE 23 November 2026, game 31: of 55 answers read, 31 squares were ones the game never offered, most of them
+    the marks of the piece looked at before. A board that redraws a look late is read again until the answer holds."""
+    app = BoardApplication(CHESS, seed=3, lags_looks=1)
+    seat = playing.a_board_of_two_sides_at_its_start(app.draw())
+    picture = app.draw()
+
+    async def probe(square):
+        return await playing._offers_for(seat, app.look, app.click, picture, square)
+
+    for square in ((1, 0), (0, 1), (1, 4), (0, 6)):
+        read = asyncio.run(probe(square))
+        true = {m.end for m in moves(CHESS, app.position) if m.start == square}
+        assert read is None or read == true, (square, read, true)

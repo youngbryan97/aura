@@ -343,8 +343,25 @@ def _marked(seat: Seat, before: Any, now: Any, picked: tuple[int, int] | None) -
     return marked
 
 
+#: How many more looks an answer is read again for, at most, before a display still changing is taken to say nothing.
+READS_TO_SETTLE = 3
+
+
 async def _offers_for(seat: Seat, look: Look, click: Click, picture: Any, square: tuple[int, int]) -> set | None:
-    """Pick the piece on ``square`` up, see which squares the game marks, and put it down again."""
+    """Pick the piece on ``square`` up, see which squares the game marks, and put it down again: None where the board
+    gave no answer that can be read.
+
+    An answer is read from the board as it was, and once it holds still. LIVE 23 November 2026, game 31: of 55 answers
+    read, 31 squares were ones the game never offered, most of them the marks of the piece looked at before (her king
+    on f1 "offered" a2, c2, b3 and a4, the squares of the piece she had just put down). A piece not put down, or a
+    display not yet changed, was read as the next piece's answer, and her rules learned ways no piece has."""
+    if not await _as_it_was(seat, look, picture):
+        # Another piece's marks are still showing: put it down on a square the game marks nothing on (a marked square
+        # would be a move), and read nothing until the board is as it was.
+        now = await look()
+        showing = _marked(seat, picture, now, None) if now is not None and now.shape == picture.shape else set()
+        if not showing or not await _put_down(seat, look, click, picture, square, showing, picked=False):
+            return None
     await click(*seat.centre_share(square, picture))
     await asyncio.sleep(OFFERS_SHOW_S)
     marked_picture = await look()
@@ -352,19 +369,35 @@ async def _offers_for(seat: Seat, look: Look, click: Click, picture: Any, square
         await _put_down(seat, look, click, picture, square, set())
         return None
     marked = _marked(seat, picture, marked_picture, square)
+    for _ in range(READS_TO_SETTLE):
+        # Read again: the same answer twice is the game's, a changing one is still arriving.
+        await asyncio.sleep(OFFERS_SHOW_S / 2)
+        again = await look()
+        if again is None or again.shape != picture.shape:
+            break
+        settled = _marked(seat, picture, again, square)
+        if settled == marked:
+            break
+        marked = settled
+    else:
+        await _put_down(seat, look, click, picture, square, marked)
+        logger.info("the answer for the piece on %s did not hold still; read as nothing", square)
+        return None
     await _put_down(seat, look, click, picture, square, marked)
     return marked
 
 
 async def _put_down(seat: Seat, look: Look, click: Click, picture: Any, square: tuple[int, int],
-                    marked: set[tuple[int, int]]) -> bool:
+                    marked: set[tuple[int, int]], *, picked: bool = True) -> bool:
     """Put a piece picked up down again, and see the board as it was before. A second click on it puts it down in some
     applications and leaves it picked up in others, where a click may begin a drag; there, a click on an empty square
-    the game did not mark puts it down. Left picked up, its marks are read as the next piece's offers."""
-    await click(*seat.centre_share(square, picture))
-    await asyncio.sleep(OFFERS_SHOW_S)
-    if await _as_it_was(seat, look, picture):
-        return True
+    the game did not mark puts it down. Left picked up, its marks are read as the next piece's offers. With ``picked``
+    False, the piece held is not the one on ``square``, and only the click away is tried."""
+    if picked:
+        await click(*seat.centre_share(square, picture))
+        await asyncio.sleep(OFFERS_SHOW_S)
+        if await _as_it_was(seat, look, picture):
+            return True
     seen = seat.looks.read(picture, seat.lattice, settled=True)
     occupied = set(seat.as_rules(seen)) if seen is not None else set()
     empty = [sq for sq in (seat.rules_square(r, c) for r in range(seat.rows) for c in range(seat.columns))
