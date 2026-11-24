@@ -665,7 +665,7 @@ def test_what_she_cannot_begin_from_here_is_not_begun(monkeypatch, tmp_path):
     assert _kept(monkeypatch, tmp_path, {UNDERTAKES: 0.9, "none": 0.1}, asked) == []
 
 
-def test_nothing_is_begun_beside_work_the_turn_already_did(monkeypatch):
+def test_nothing_is_begun_beside_work_the_turn_already_did(monkeypatch, tmp_path):
     from core.conversation import surface_disposition
     from interface.routes import chat_carrying_out as chat
 
@@ -683,6 +683,14 @@ def test_nothing_is_begun_beside_work_the_turn_already_did(monkeypatch):
     hold(dataclasses.replace(_read("Make it.", "program"), request_id="a1"))
     chat.her_word_is_kept("On it.", "Make it.", session_id="c")
     assert started == [], "the turn's request is the work"
+    ledger = RequestsOfHer(tmp_path / "told.json")
+    monkeypatch.setattr(chat, "get_requests_of_her", lambda: ledger)
+    begun = ledger.asked("Make it.", effect="program", conversation="c")
+    hold(dataclasses.replace(_read("Make it.", "program"), request_id=begun.id))
+    chat.her_word_is_kept("On it. It will have a green door.", "Make it.", session_id="c")
+    assert started == [] and begun.told == "On it. It will have a green door."
+    chat.her_word_is_kept("It is going well.", "How is it?", session_id="c")
+    assert begun.told == "On it. It will have a green door.", "what she told them as she began it"
     hold(_read("Make it.", "program"))
     monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ({"tool": "x"},))
     chat.her_word_is_kept("On it.", "Make it.", session_id="c")

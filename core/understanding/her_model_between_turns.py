@@ -40,6 +40,8 @@ READ_BY_A_MACHINE: dict[str, Any] = {"read_by_a_machine": True, "cognitive_mode"
                                      "presence_penalty": 0.0}
 #: How generation ends where something stopped it, and where its room ran out; and how often a write goes on past its room.
 STOPPED, NO_ROOM, GOES_ON = {"soft_cancelled", "deadline_exceeded"}, {"max_tokens", "hard_token_limit"}, 3
+#: How often a write is taken up again where something of hers, and nobody, stopped it.
+TAKEN_UP_AGAIN = 12
 
 
 async def nobody_waiting() -> None:
@@ -164,7 +166,7 @@ async def _asked_until_answered(asked: str, max_tokens: int, *, goes_on: bool = 
             raise HerModelIsAwayError(f"it could not be asked: {type(why).__name__}: {str(why)[:160]}") from why
         if work is not None and (work.stopped or work.somebody_spoke()):
             raise PutDown("it was stopped" if work.stopped else "somebody spoke to it")
-        if ended in STOPPED and (_somebody_is_waiting() or stopped < GOES_ON):
+        if ended in STOPPED and (_somebody_is_waiting() or stopped < TAKEN_UP_AGAIN):
             # Part of an answer, stopped for somebody or by the clock: not the answer.
             stopped += not _somebody_is_waiting()
             so_far += max([text or "", *held], key=len) if goes_on else ""

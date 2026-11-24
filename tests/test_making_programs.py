@@ -276,6 +276,11 @@ def test_what_broke_is_told_by_the_functions_it_broke_in(tmp_path):
     assert "in glow, called by update" in failing["it runs without breaking, whatever is pressed"].why
 
 
+def test_a_piece_asked_for_what_it_has_not_is_told_with_what_it_has(tmp_path):
+    failing = {r.name: r for r in _tried(page_of(_design(pieces=["vec"]), GOOD.replace("vec.dist(s, m)", "vec.apart(s, m)"), tests=TESTS), tmp_path).failing()}
+    assert "vec.apart is not a function; vec has " in failing["it runs without breaking, whatever is pressed"].why and "dist" in failing["it runs without breaking, whatever is pressed"].why
+
+
 def test_code_written_in_more_than_one_block_is_all_taken(tmp_path):
     made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
     made.design = _design()
@@ -365,6 +370,17 @@ def test_a_test_of_a_state_there_is_not_is_the_tests_fault_and_what_changed_is_t
     assert "me.x 480 to 600" in got["c"].why and "left 90 to 89.5" in got["c"].why
 
 
+def test_a_rule_is_held_to_with_nothing_else_about_where_something_else_came_between(tmp_path):
+    code = TWO_STEPS.replace("stones: [{ x: 60, y: 60 }]", "stones: [{ x: 60, y: 60 }], thieves: [{ x: 480, y: 300 }]").replace(
+        "s.left -= e.dt;", "s.left -= e.dt; for (const q of s.thieves) if (Math.hypot(q.x - s.me.x, q.y - s.me.y) < 30) s.me.has = 0;")
+    tests = ('test("a", t => { t.s.stones = [{ x: 480, y: 300 }]; t.tick(0.1); t.expect(t.s.me.has === 1, "has it not"); });'
+             'test("b", t => { t.s.stones = [{ x: 480, y: 300 }]; t.tick(0.05); t.s.thieves[0].x = 480; t.tick(0.1); t.expect(t.s.me.has === 0, "has it still"); });'
+             'test("c", t => { t.tick(0.1); t.expect(t.s.me.has === 1, "has nothing"); });')
+    got = {r.name: r for r in _two_steps(code.replace("s.me.has = 0;\n    s.me.x", "s.me.has = 0;\n    s.me.x"), tmp_path, tests).rules}
+    assert (got["a"].ok and got["a"].why == "with nothing else about") or got["a"].ok
+    assert got["b"].ok and not got["c"].ok
+
+
 def test_a_rule_nobody_asked_for_that_the_window_keeps_is_not_built_again(tmp_path, monkeypatch):
     import core.cognition.evidence_relevance as relevance
 
@@ -378,6 +394,9 @@ def test_a_rule_nobody_asked_for_that_the_window_keeps_is_not_built_again(tmp_pa
     kept = made._not_the_windows(_design(rules=rules))
     assert [rule.says for rule in kept] == ["the wind rises", "a pause that slows the wind", "crows fly in pairs"]
     assert [rule.says for rule in made._not_the_windows(_design(kind="site", rules=rules))] == [rule.says for rule in rules]
+    design = _design(rules=rules, controls=[how.Control(input="Enter", does="go past the start screen"), how.Control(input="ArrowUp", does="climb the wind")])
+    made._not_the_windows(design)
+    assert [control.input for control in design.controls] == ["ArrowUp"]
 
 
 def test_putting_right_what_breaks_counts_for_more_than_what_it_uncovers():
@@ -512,6 +531,18 @@ def test_it_is_tested_before_it_is_written_and_kept_whole(tmp_path):
     assert any(row["what"] == "says" and "move the hand" in row["words"] for row in work.seen()["happened"])
 
 
+def test_what_she_told_them_as_she_began_is_held_to_by_the_design(tmp_path):
+    model = _Model([])
+    made = maker._Maker("I want to catch the moths", ask=model.ask, write=model.write, work=Work("w", "x"), folder=tmp_path, browser=None)
+    made.told = "I'll give you a jar, and E lets one go."
+    asyncio.run(made.designed())
+    assert any("E lets one go" in prompt and "kept to where it goes with what they asked" in prompt for prompt in model.asked)
+    made.told = ""
+    model.asked.clear()
+    asyncio.run(made.designed())
+    assert not any("You have told them" in prompt for prompt in model.asked)
+
+
 def test_what_fails_is_mended_by_the_part_that_is_wrong_and_kept_only_where_less_fails(tmp_path):
     wrong = _RULES.replace("s.saved++", "s.saved += 0")
     worse = "Trying.\n```js\n({ update(s, e) { s.moths = null; } })\n```"
@@ -527,7 +558,7 @@ def test_a_test_that_is_wrong_is_put_right_by_its_rule_and_one_that_is_right_sta
     wrong = TESTS.replace('t.expect(t.score === 1, "score " + t.score)', 't.expect(t.score === 7, "score " + t.score)')
     right = 'The test is wrong: one moth is one.\n```js\n' + TESTS.splitlines()[0] + "\n```"
     made = _make(tmp_path, _Model([f"```js\n{wrong}\n```", f"```js\n{_RULES}\n```", f"```js\n{_LOOKS}\n```",
-                                   "It is right as it is.", "It is right as it is.", right]))
+                                   "It is right as it is.", right]))
     assert made is not None and made.trial.failing() == [] and "=== 1" in made.parts.tests
     made = _make(tmp_path / "b", _Model([f"```js\n{wrong}\n```", f"```js\n{_RULES}\n```", f"```js\n{_LOOKS}\n```",
                                          "It is right as it is.", "It is right as it is.", "It is the program: a moth is worth seven."]))

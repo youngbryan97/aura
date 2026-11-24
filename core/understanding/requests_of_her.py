@@ -70,6 +70,8 @@ class Request:
     made: dict[str, Any] = field(default_factory=dict)
     #: What was said about it since, in order: answers to a question of hers, corrections, more to go on.
     added: list[str] = field(default_factory=list)
+    #: What she told them as she began it, which the work holds to where it can.
+    told: str = ""
     now: str = ""
     opened_at: float = 0.0
     changed_at: float = 0.0
@@ -140,7 +142,7 @@ class RequestsOfHer:
                 row = dict(row)
                 row["parts"] = [Part(**part) for part in row.get("parts") or ()]
                 row["tries"] = [Try(**attempt) for attempt in row.get("tries") or ()]
-                request = Request(**row)
+                request = Request(**{name: value for name, value in row.items() if name in Request.__dataclass_fields__})
                 if request.stands == WORKING:
                     request.stands = CUT_SHORT
                     request.tries.append(Try(at=time.time(), how="it was under way when she stopped running",

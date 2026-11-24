@@ -77,6 +77,58 @@ def test_the_same_tokens_as_her_worker_decodes_one_at_a_time(on_cpu):
     assert kept_from_her_head > 0  # some of them were her head's drafts, kept
 
 
+def _with_its_text(model, head, prompt, count, *, processors=None, cache=None, stop_after=None):
+    from core.brain.llm.her_head_in_the_stream import head_generate_step
+
+    stream = head_generate_step(mx.array(prompt), model, head, max_tokens=count, logits_processors=processors,
+                                prompt_cache=cache, prefill_step_size=4, drafts_from=list(prompt))
+    out = []
+    for token, _, drafted in stream:
+        out.append((int(token), drafted))
+        if stop_after is not None and len(out) == stop_after:
+            stream.close()
+            break
+    return [token for token, _ in out], sum(1 for _, drafted in out if drafted)
+
+
+def test_what_stood_in_its_text_before_is_drafted_several_at_a_time_and_the_tokens_are_the_same(on_cpu):
+    by_head = by_text = 0
+    for seed in range(8):
+        model = _tiny(vocab=7, seed=seed)
+        head = _head(model)
+        plain = _plain(model, PROMPT, 160)
+        one, two = _Recording(), _Recording()
+        assert _with_its_text(model, head, PROMPT, 160)[0] == plain, seed
+        assert _with_its_text(model, head, PROMPT, 60, processors=[two])[0] == _plain(model, PROMPT, 60, processors=[one]), seed
+        assert two.histories == one.histories[:len(two.histories)]
+        by_head += _with_head(model, head, PROMPT, 160)[1]
+        by_text += _with_its_text(model, head, PROMPT, 160)[1]
+    assert by_text > by_head
+
+
+@pytest.mark.parametrize("stop_after", [1, 2, 3, 5, 8, 13, 21, 34])
+def test_stopped_anywhere_it_has_read_no_more_than_it_said(on_cpu, stop_after):
+    from mlx_lm.models.cache import make_prompt_cache
+
+    for seed in (0, 1, 2, 3):
+        model = _tiny(vocab=7, seed=seed)
+        cache = make_prompt_cache(model)
+        said, _ = _with_its_text(model, _head(model), PROMPT, 90, cache=cache, stop_after=stop_after)
+        read = next(c.offset for c in cache if hasattr(c, "offset"))
+        assert len(PROMPT) + len(said) - 1 <= read <= len(PROMPT) + len(said), (seed, read, len(said))
+        plain = make_prompt_cache(model)
+        model.language_model.model(mx.array([[*PROMPT, *said][:read]]), plain)
+        for mine, theirs in zip(cache, plain, strict=True):
+            for a, b in zip(mine.state, theirs.state, strict=True):
+                assert mx.allclose(a[..., : b.shape[-2], :] if a.shape != b.shape else a, b, atol=1e-3).item(), (seed, stop_after)
+
+
+def test_the_room_there_is_is_kept_to(on_cpu):
+    model = _tiny(vocab=7, seed=3)
+    for room in range(1, 14):
+        assert _with_its_text(model, _head(model), PROMPT, room)[0] == _plain(model, PROMPT, room)
+
+
 @pytest.mark.parametrize("seed", [0, 4])
 def test_each_logits_processor_sees_what_it_sees_one_token_at_a_time(on_cpu, seed):
     model = _tiny(vocab=7, seed=seed)
@@ -170,6 +222,8 @@ def test_her_worker_lets_her_head_draft_with_everything_her_generations_carry(mo
     assert mlx_worker._speculative_eligible(head, carried, {}) is True  # her processors and her cache, kept
     assert mlx_worker._speculative_eligible(head, {**carried, "kv_bits": 4}, {}) is False
     assert mlx_worker._speculative_eligible(head, carried, {"schema": {"type": "object"}}) is False
+    # What holds a shape replays what a draft had it read (a_shape_the_decoder_enforces.py), so her work's data is drafted.
+    assert mlx_worker._speculative_eligible(head, carried, {"schema": {"type": "object"}, "read_by_a_machine": True}) is True
     assert mlx_worker._speculative_eligible(None, carried, {}) is False
     assert mlx_worker._speculative_eligible(SimpleNamespace(), carried, {}) is False  # another draft: as before
     monkeypatch.setenv("AURA_HER_HEAD_DRAFTS", "0")

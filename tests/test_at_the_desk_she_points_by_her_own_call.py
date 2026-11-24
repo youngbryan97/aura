@@ -425,3 +425,33 @@ def test_her_look_at_the_screen_reaches_her_model_as_her_own_call_not_the_person
                         lambda _began: [(time.time() - 5.0, "user", "What's this error?")])
     waiting = her_conversation_now_with("WHAT IS ON THE SCREEN", reading, looked_with=A_LOOK_AT_THE_SCREEN)
     assert waiting[-1]["role"] != "user" and waiting[-2] == {"role": "user", "content": "What's this error?"}
+
+
+def test_what_she_has_to_say_here_stops_no_work_somebody_asked_for(monkeypatch):
+    """LIVE 24 November 2026, 06:43: a remark of hers stopped a mend of a game she had been asked for at 1,222 tokens."""
+    from core.brain import llm_health_router_gate_owners as owners
+    from core.runtime import work_somebody_asked_for
+
+    asked_to_stop: list[str] = []
+    seen_waiting: list[bool] = []
+    monkeypatch.setattr(owners, "_background_stands_aside", lambda reason: asked_to_stop.append(reason))
+    cortex = _HerCortex({"content": "That form wants one thing you built."})
+    monkeypatch.setattr("core.together.remarks.said_since", lambda began: [])
+    gate = type("Gate", (), {"_mlx_client": cortex})()
+    monkeypatch.setattr("core.runtime.service_access.resolve_inference_gate", lambda default=None: gate)
+    monkeypatch.setattr("core.brain.llm_health_router.a_person_is_waiting_for_her_model", lambda: False)
+
+    async def lease(**_kwargs):
+        seen_waiting.append(owners.a_person_is_waiting_for_her_model())
+        return object()
+
+    monkeypatch.setattr("core.brain.llm_health_router.acquire_external_generation_gate_lease", lease)
+    monkeypatch.setattr("core.brain.llm_health_router.release_external_generation_gate_lease", lambda _lease: None)
+    work_somebody_asked_for.begun("a game")
+    try:
+        said = asyncio.run(turn.her_turn_at_the_desk("WHAT IS ON THE SCREEN", "TextEdit\nDescribe it.", least_s=1.0))
+    finally:
+        work_somebody_asked_for.ended("a game")
+
+    assert said.startswith("That form"), "it is still said, between two steps of the work"
+    assert asked_to_stop == [] and seen_waiting == [False]

@@ -143,7 +143,8 @@ async def build(request: Request, tell: Tell) -> CameTo:
     folder = page.parent if request.made.get("page") and await asyncio.to_thread(page.is_file) else None
     async with _a_browser() as browser:
         if folder is None:
-            made = await maker.make(request.whole, ask=_ask, write=_write, work=_this(request), where=_builds(), browser=browser)
+            made = await maker.make(request.whole, ask=_ask, write=_write, work=_this(request), where=_builds(), browser=browser,
+                                    told=request.told)
         elif request.added and request.added[-1] not in str(request.made.get("heard") or ""):
             made = await maker.change(folder, "\n".join(request.added), ask=_ask, write=_write, work=_this(request), browser=browser)
         else:

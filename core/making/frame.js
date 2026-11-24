@@ -304,13 +304,14 @@ const Frame = (() => {
   function ran(states) { const seen = {}; for (const s of states) { const of = (x, path, depth) => { if (typeof x === "boolean") x = Number(x); if (Array.isArray(x)) { path += " (how many)"; x = x.length; } if (typeof x === "number") { const v = seen[path] || (seen[path] = [x, x, path.split(".").length]); v[0] = Math.min(v[0], x); v[1] = Math.max(v[1], x); } else if (x && typeof x === "object" && depth < 2) for (const k of Object.keys(x).slice(0, 30)) of(x[k], path ? `${path}.${k}` : k, depth + 1); }; of(s, "", 0); } const say = (n) => Math.round(n * 10) / 10; return Object.entries(seen).sort((a, b) => a[1][2] - b[1][2]).map(([k, v]) => (v[0] === v[1] ? `${k} stayed ${say(v[0])}` : `${k} ${say(v[0])} to ${say(v[1])}`)).slice(0, 22).join("; "); }
 
   let goesOn = null; const later = () => { if (!goesOn) { try { seed = 7; goesOn = Object.keys(run(P.initial(), 2, null)); } catch (e) { goesOn = []; } } return goesOn; };
-  function tester() {
-    seed = 7; played.length = 0; let s = P.initial();
+  function tester(named) {
+    const only = (s) => { if (named) for (const k of Object.keys(s)) if (Array.isArray(s[k]) && !named.includes(k)) s[k] = []; return s; };
+    seed = 7; played.length = 0; let s = only(P.initial());
     const fail = (why) => { throw new Error(why); };
     const find = (label, what) => { const want = String(label).toLowerCase().trim(); const all = every(shown(s)).filter(what); const by = (f) => all.find((v) => f((v.props["aria-label"] || words(v) || v.props.placeholder || "").toLowerCase().trim())); return by((n) => n === want) || by((n) => n.startsWith(want)) || by((n) => n.includes(want)) || fail(`there is no “${label}” to use; there are: ${all.map((v) => v.props["aria-label"] || words(v)).slice(0, 12).join(", ")}`); };
     // A state that is set is set over one that has begun: what a test does not name is as it is at the beginning.
-    let first = null; const began = Object.keys(s), act = (f) => { if (!first) first = copy(s); s = f(s); return t; };
-    const t = { get s() { return s; }, set s(v) { s = { ...P.initial(), ...v }; }, W, H,
+    let first = null; const began = Object.keys(s), act = (f) => { only(s); if (!first) first = copy(s); s = f(s); return t; };
+    const t = { get s() { return s; }, set s(v) { s = only({ ...P.initial(), ...v }); }, W, H,
       send(e) { return act((s) => apply(s, e)); },
       tick(seconds) { return act((s) => run(s, seconds == null ? STEP : seconds, null)); },
       hold(k, seconds) { return act((s) => run(s, seconds == null ? 0.1 : seconds, { held: { [k]: true } })); },
@@ -345,10 +346,12 @@ const Frame = (() => {
     return { ...ways(false), not: ways(true) };
   }
   function judged() { const left = waiting.filter((w) => !w.judged); waiting = []; for (const w of left) if (!w.value) throw new Error(w.why || "what was expected is not so"); }
-  function tryOne(name, act) { const at = performance.now(); try { const note = act(); return { name, ok: true, why: note || "", ms: Math.round(performance.now() - at) }; } catch (e) { return { name, ok: false, theTest: !!(e && e.theTest), broke: e instanceof TypeError || e instanceof ReferenceError || e instanceof RangeError || e instanceof SyntaxError, why: String((e && e.message) || e).slice(0, 760) + where(e), ms: Math.round(performance.now() - at) }; } }
+  function tryOne(name, act) { const at = performance.now(); try { const note = act(); return { name, ok: true, why: note || "", ms: Math.round(performance.now() - at) }; } catch (e) { return { name, ok: false, theTest: !!(e && e.theTest), broke: e instanceof TypeError || e instanceof ReferenceError || e instanceof RangeError || e instanceof SyntaxError, why: String((e && e.message) || e).slice(0, 760) + has(String((e && e.message) || e)) + where(e), ms: Math.round(performance.now() - at) }; } }
   // Where something went wrong, by the names of the program's own functions, the innermost first.
-  const OURS = new Set(["apply", "run", "tryOne", "check", "generic", "rules", "tried", "wander", "look", "act", "shown", "judged", "fail", "must", "expect", "judge", "ways", "every", "words", "pen", "tester", "body", "map", "filter", "forEach", "reduce", "some", "every", "find", "eval", "evaluate", "__try", "get", "send", "tick", "hold", "press", "point", "click", "type", "test"]);
+  const OURS = new Set(["apply", "run", "once", "explore", "tryOne", "check", "generic", "rules", "tried", "wander", "look", "act", "shown", "judged", "fail", "must", "expect", "judge", "ways", "every", "words", "pen", "tester", "body", "map", "filter", "forEach", "reduce", "some", "every", "find", "eval", "evaluate", "__try", "get", "send", "tick", "hold", "press", "point", "click", "type", "test"]);
   const where = (e) => { const names = []; for (const line of String((e && e.stack) || "").split("\n").slice(1)) { const m = /at (?:async )?(?:Object\.|Proxy\.|PROGRAM\.)?([A-Za-z_$][\w$]*)(?: \[as [^\]]+\])? \(/.exec(line); if (m && !OURS.has(m[1]) && names[names.length - 1] !== m[1]) names.push(m[1]); if (names.length >= 4) break; } return names.length ? ` (in ${names.join(", called by ")})` : ""; };
+  // What a piece can be asked for, where it was asked for what it has not.
+  const has = (said) => { const m = /\b([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*) is not a function/.exec(said), piece = m && P && P[m[1]]; return piece && typeof piece === "object" && typeof piece[m[2]] !== "function" ? `; ${m[1]} has ${Object.keys(piece).filter((k) => typeof piece[k] === "function").join(", ")}` : ""; };
   const must = (ok, why) => { if (!ok) throw new Error(why); };
 
   function generic() {
@@ -385,11 +388,14 @@ const Frame = (() => {
   }
   // The names of the state a test reads or sets, from what is written of it: t.s.name, and name of what t.s was called.
   function readIn(body) { const src = String(body), t = (/^\s*(?:async\s*)?(?:function\s*\w*\s*)?\(?\s*([\w$]+)/.exec(src) || [])[1] || "t", found = new Set(), of = (what) => { for (const m of src.matchAll(new RegExp(`(?<![\\w$.])${what}\\??\\.([A-Za-z_$][\\w$]*)`, "g"))) found.add(m[1]); }; of(t.replace("$", "\\$") + "\\.s"); for (const m of src.matchAll(new RegExp(`(?:const|let|var)\\s+([\\w$]+)\\s*=\\s*${t.replace("$", "\\$")}\\.s\\s*[;,\\n]`, "g"))) of(m[1].replace("$", "\\$")); return [...found]; }
-  function rules(tests) { return (tests || []).map(([name, body]) => tryOne(name, () => { waiting = []; const t = tester(); try { try { body(t); } catch (e) { judged(); throw e; } judged(); } catch (e) { const t_ = t.__told, odd = t_.asked(body), then = t_.changed(); if (odd.length && !(e instanceof ReferenceError)) { e.theTest = true; e.message += `; the test reads s.${odd.join(", s.")}, and the state has no such thing: it has ${t_.held().join(", ")}`; } e.message += then.length ? `; from where the test began it to its end, what changed: ${then.join("; ")}` : "; nothing in the state changed"; throw e; } })); }
+  function rules(tests, nothing) { return (tests || []).map(([name, body]) => { const was = tryOne(name, () => once(body)); if (was.ok || was.broke || was.theTest || nothing || !isGame()) return was;
+    // What the test does not name may be what came between: a crow that was near takes the letter before it is had. So it is tried again with nothing else about.
+    const alone = tryOne(name, () => { once(body, readIn(body)); return "with nothing else about"; }); return alone.ok ? alone : was; }); }
+  function once(body, named) { { waiting = []; const t = tester(named); try { try { body(t); } catch (e) { judged(); throw e; } judged(); } catch (e) { const t_ = t.__told, odd = t_.asked(body), then = t_.changed(); if (odd.length && !(e instanceof ReferenceError)) { e.theTest = true; e.message += `; the test reads s.${odd.join(", s.")}, and the state has no such thing: it has ${t_.held().join(", ")}`; } e.message += then.length ? `; from where the test began it to its end, what changed: ${then.join("; ")}` : "; nothing in the state changed"; throw e; } } }
   function tried(program, tests, nothing) {
     P = { ...program }; live = false; goesOn = null;
     if (nothing) P.update = (s) => s;
-    return { generic: nothing || tests ? [] : generic(), rules: rules(tests) };
+    return { generic: nothing || tests ? [] : generic(), rules: rules(tests, nothing) };
   }
   return { open, tried, rnd, chance, play, expect, ui, W, H };
 })();

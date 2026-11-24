@@ -111,6 +111,7 @@ class _Maker:
         self.design: Design | None = None
         self.parts = Parts()
         self.trial = Trial()
+        self.told = ""
         self.began = time.monotonic()
 
     # ── 1. the design ────────────────────────────────────────────────
@@ -125,6 +126,8 @@ class _Maker:
                 + f"\nFor a tool in Python, these:\n{catalogue('python')}\n"
                 + (f"Nearest what they asked: {', '.join(near_by)}\n" if near_by else "")
                 + f"\nTools can be written in: {', '.join(languages())}.\n")
+        if self.told:
+            told += f"\nYou have told them of it, and what you told them is kept to where it goes with what they asked:\n{self.told}\n"
         if before is not None:
             told += f"\nIt was designed as:\n{before.model_dump_json()}\n\nWhat they have said since is the last of what they asked. "
         wrong: list[str] = []
@@ -158,13 +161,17 @@ class _Maker:
     def _not_the_windows(self, design: Design) -> list[Rule]:
         """Its rules but those nobody asked for that the window it runs in keeps by itself: a start screen built into a
         program that has one is a second one, and the program stands waiting behind it."""
-        mine = [rule for rule in design.rules if not rule.of]
-        window = _THE_WINDOW_HAS.get(design.kind, ())
-        asked = [*(rule.says for rule in design.rules if rule.of), *(control.does for control in design.controls)]
-        own = _the_windows_own([rule.says for rule in mine], asked, window) if window else [False] * len(mine)
+        asked = [rule.says for rule in design.rules if rule.of]
+        keys = design.controls
+        if design.kind == "game" and asked:
+            its_own = _the_windows_own([key.does for key in keys], asked)
+            design.controls = [key for key, window_s in zip(keys, its_own, strict=True) if not window_s] or keys
+        mine, window = [rule for rule in design.rules if not rule.of], _THE_WINDOW_HAS.get(design.kind, ())
+        own = _the_windows_own([rule.says for rule in mine], [*asked, *(key.does for key in design.controls)], window) if window else [False] * len(mine)
         gone = [rule for rule, its in zip(mine, own, strict=True) if its]
-        if gone:
-            self.work.says("The window it runs in has this already: " + "; ".join(rule.says for rule in gone) + ".")
+        dropped = [*(rule.says.rstrip(".") for rule in gone), *(key.does for key in keys if key not in design.controls)]
+        if dropped:
+            self.work.says("The window it runs in has this already: " + "; ".join(dropped) + ".")
         return [rule for rule in design.rules if rule not in gone]
 
     # ── 2. its tests ─────────────────────────────────────────────────
@@ -344,7 +351,7 @@ class _Maker:
                 if await self._tests_read_again(amiss):
                     self.trial = await self.tried(what="Trying it, with the tests put right")
                     continue
-            if nothing_gained >= GAINED_NOTHING:
+            if nothing_gained >= (GAINED_NOTHING if doubted or any(not r.ok for r in self.trial.generic) else 1):
                 if doubted or self.design.kind == "site" or not [r for r in self.trial.rules if not r.ok]:
                     break
                 doubted = 1
@@ -612,9 +619,11 @@ def maker_again(maker: _Maker) -> Callable[[], Awaitable[None]]:
     return again
 
 
-async def make(asked: str, *, ask: Asks, write: Writes, work: Work, where: Path, browser: Any) -> Made | None:
-    """Make what was asked for, in a folder of its own under ``where``; None where no design of it could be had."""
+async def make(asked: str, *, ask: Asks, write: Writes, work: Work, where: Path, browser: Any, told: str = "") -> Made | None:
+    """Make what was asked for, in a folder of its own under ``where``; None where no design of it could be had. ``told`` is
+    what she said to whoever asked as she began, which the design holds to."""
     maker = _Maker(asked, ask=ask, write=write, work=work, folder=where, browser=browser)
+    maker.told = told
 
     async def first() -> None:
         if await maker.designed() is None:

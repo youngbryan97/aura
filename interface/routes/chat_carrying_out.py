@@ -120,7 +120,13 @@ def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
     from core.utils.task_tracker import get_task_tracker
 
     asked = this_turn()
-    if not str(reply or "").strip() or asked is None or asked.request_id or turn_tool_receipts():
+    if not str(reply or "").strip() or asked is None:
+        return
+    begun = get_requests_of_her().get(asked.request_id) if asked.request_id else None
+    if begun is not None and not begun.tries and not begun.told:
+        # What she says of work as she begins it is said before the work is thought out, so the work holds to it.
+        begun.told = str(reply).strip()[:1600]
+    if asked.request_id or turn_tool_receipts():
         return
     get_task_tracker().create_task(_keep_her_word(reply, said, asked, session_id=session_id), name="her_word_is_kept")
 

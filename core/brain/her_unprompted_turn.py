@@ -227,6 +227,7 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
     )
     from core.runtime.service_access import resolve_inference_gate
     from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+    from core.runtime.work_somebody_asked_for import under_way as work_is_under_way
 
     if a_person_is_waiting_for_her_model():
         logger.info("🫧 %s: her model is someone's now", origin)
@@ -237,7 +238,9 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
     prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
     seconds = generations * max(least_s, time_a_prompt_needs(prompt_chars, A_CLOSED_QUESTIONS_FLOOR))
     waits = contextlib.nullcontext()
-    if to_someone_here:
+    # What they asked her for is theirs: a remark of hers comes between two steps of it, and stops none. LIVE 24 November
+    # 2026 a remark worth 0.033 stopped a mend of a program at 1,222 tokens.
+    if to_someone_here and not work_is_under_way():
         # What she has decided to say to the person in front of her comes before her own background work, as their
         # turn would: that work stands aside between its generations and the generation in hand is asked to stop,
         # and a pass of hers keeps what it had done. LIVE 16 November 2026, 08:31 local, keeping Bryan company, her

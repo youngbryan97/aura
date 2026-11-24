@@ -42,6 +42,12 @@ __all__ = ["HER_HEAD", "head_generate_step", "her_head_may_check", "her_own_head
 HER_HEAD = state_root() / "models" / "qwen3.8-27b-mtp-source" / "mtp_head.safetensors"
 
 
+#: A draft from her own text: the least and the most tokens it is found by, and how many it is of to begin with and at most.
+#: MEASURED 24 November 2026 on her 27B with her app closed, 700 tokens of a mend of a game after a prompt of 5,305 that holds
+#: it: 24.8 tokens a second by her head alone, 36.1 with 3, 6, 6 and 16, 41.0 with these, and 39.6 to 41.6 with longer drafts.
+TEXT_LEAST, TEXT_LONGEST, TEXT_DEPTH, TEXT_DEEPEST = 4, 8, 8, 24
+
+
 def _switched_on() -> bool:
     """AURA_HER_HEAD_DRAFTS, on unless set to 0. MEASURED 20 October 2026 on her 27B with every channel on
     (tools/her_decode_with_each_channel.py --with-her-head): 15.2 tokens a second without it, 21.5 with it, and her
@@ -88,14 +94,17 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
                        logits_processors: Sequence[Callable[[Any, Any], Any]] | None = None,
                        prompt_cache: list | None = None, prefill_step_size: int = 512,
                        prompt_progress_callback: Callable[[int, int], None] | None = None,
-                       tap: Any = None, **_ignored: Any) -> Generator[tuple[int, mx.array, bool], None, None]:
-    """Her tokens for ``prompt``, a pass reading the last kept token and her head's draft after it.
+                       tap: Any = None, drafts_from: Sequence[int] | None = None,
+                       **_ignored: Any) -> Generator[tuple[int, mx.array, bool], None, None]:
+    """Her tokens for ``prompt``, a pass reading the last kept token and her head's draft after it; and, where
+    ``drafts_from`` is given (the whole prompt), what followed the same tokens before in it or in what she has written,
+    wherever that begins with her head's own draft. A program mended is mostly the program again.
 
     Yields ``(token, logprobs, from_draft)`` as mlx_lm's speculative step does. A position's processors run only
     once the positions before it are kept: they keep state (her private channel's count, her memory's last entry)."""
     from mlx_lm.models.cache import KVCache, make_prompt_cache
 
-    from core.brain.llm.several_tokens_a_pass import _logits, _read, _text, _unread
+    from core.brain.llm.several_tokens_a_pass import _logits, _read, _text, _TextIndex, _unread
     from core.consciousness.spoken_positions import speaking_several
 
     text = _text(model)
@@ -147,32 +156,54 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
     hiddens = hidden[0] if tap is not None else None
     token, logprobs = choose(_logits(text, hidden[:, -1, :]), -1)
     draft = drafted_after(hidden[:, -1:], [token])
-    from_draft, made = False, 0
+    from_draft, made, depth = False, 0, TEXT_DEPTH
+    index = None
+    if drafts_from is not None:
+        index = _TextIndex(TEXT_LONGEST)
+        index.extend(drafts_from)
     while True:
         yield token, logprobs, from_draft
         made += 1
         if 0 <= max_tokens <= made:
             return
         kept(token)
-        with speaking_several():  # both are tokens she speaks: steered, and sampled for Φ, as one at a time
-            read, saved = _read(text, mx.array([[token, draft]]), cache)
+        proposal = [draft]
+        if index is not None:
+            index.extend([token])
+            again = index.draft(depth, least=TEXT_LEAST)
+            if again and again[0] == draft:
+                proposal = again
+        if max_tokens > 0:
+            proposal = proposal[:max_tokens - made]
+        with speaking_several():  # all are tokens she speaks: steered, and sampled for Φ, as one at a time
+            read, saved = _read(text, mx.array([[token, *proposal]]), cache)
         hiddens = read[0] if tap is not None else None
         logits = _logits(text, read)
-        checked, checked_logprobs = choose(logits[:, 0, :], 0)
-        if checked != draft:
-            _unread(cache, saved, 2, 1)
-            token, logprobs, from_draft = checked, checked_logprobs, False
-            draft = drafted_after(read[:, :1], [token])
-            continue
-        # Kept: her token after the draft comes from the same pass.
-        yield draft, checked_logprobs, True
-        made += 1
-        if 0 <= max_tokens <= made:
-            return
-        kept(draft)
-        token, logprobs = choose(logits[:, 1, :], 1)
+        took, whole = 0, 1 + len(proposal)
+        try:
+            for at, guess in enumerate(proposal):
+                checked, checked_logprobs = choose(logits[:, at, :], at)
+                if checked != guess:
+                    token, logprobs = checked, checked_logprobs
+                    break
+                took += 1
+                yield guess, checked_logprobs, True
+                made += 1
+                if 0 <= max_tokens <= made:
+                    return
+                kept(guess)
+                if index is not None:
+                    index.extend([guess])
+            else:
+                # Every one kept: her token after them comes from the same pass.
+                token, logprobs = choose(logits[:, took, :], took)
+        finally:
+            # What was read past the last token kept is as if it had never been, however this ends.
+            _unread(cache, saved, whole, 1 + took)
         from_draft = False
-        draft = drafted_after(read, [draft, token])
+        if len(proposal) > 1:
+            depth = min(TEXT_DEEPEST, depth * 2) if took == len(proposal) else max(2, took + 1)
+        draft = drafted_after(read[:, :1 + took], [*proposal[:took], token])
 
 
 def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_tokens: int = 256,
@@ -185,6 +216,7 @@ def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_t
     from core.brain.llm.two_tokens_a_step import MTPHead
 
     if not isinstance(draft_model, MTPHead):
+        kwargs.pop("drafts_from", None)
         yield from stream_generate(model, tokenizer, prompt, max_tokens=max_tokens, draft_model=draft_model, **kwargs)
         return
     if not isinstance(tokenizer, TokenizerWrapper):

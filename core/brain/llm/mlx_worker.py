@@ -4025,7 +4025,8 @@ def _speculative_eligible(
     (core/brain/llm/her_head_in_the_stream.py)."""
     from core.brain.llm.her_head_in_the_stream import her_head_may_check
 
-    verdict = False if draft_model is None or job.get("schema") else her_head_may_check(draft_model, generation_kwargs)
+    held = job.get("schema") and not job.get("read_by_a_machine")
+    verdict = False if draft_model is None or held else her_head_may_check(draft_model, generation_kwargs)
     if verdict is not None:
         return verdict
     if job.get("schema"):
@@ -7625,6 +7626,7 @@ def _mlx_worker_loop(
                                     )
                                     if use_speculative:
                                         clean_kwargs["draft_model"] = draft_model
+                                        clean_kwargs["drafts_from"] = list(tokens) if job.get("read_by_a_machine") else None
                                     draft_accepted_tokens = 0
                                     generation_stream_started_at = time.perf_counter()
                                     first_token_latency_s: float | None = None

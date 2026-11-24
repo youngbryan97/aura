@@ -28,13 +28,10 @@ Drafts come from two places.
 
 A rejected draft must leave the caches as if it had never been read.
 Full-attention caches are trimmed. Her gated delta net layers keep a running
-state that cannot be trimmed, so during the checking pass each records its
-state after every position, and a rejection puts back the state after the
-last token kept. The checking pass is her model's own forward call, so
+state that cannot be trimmed, so a rejection reads the tokens kept again in
+those layers alone, from the state before the pass. The checking pass is her model's own forward call, so
 whatever wraps her blocks (affective steering wraps their calls and adds its
-vector) acts on it as on any other pass; only a gated delta net layer whose
-cache asks for its states computes them position by position, which is the
-same arithmetic.
+vector) acts on it as on any other pass.
 
 One sequence at a time; the acceptance rule covers greedy decoding and her
 samplers' temperature, top-p, min-p and top-k.
@@ -105,9 +102,10 @@ class _TextIndex:
                 if end - n >= 0:
                     self.ends[n][tuple(self.tokens[end - n:end])] = end - 1
 
-    def draft(self, depth: int) -> list[int]:
-        """What followed the longest earlier occurrence of the text's last tokens, up to ``depth`` tokens."""
-        for n in range(min(self.longest, len(self.tokens)), 0, -1):
+    def draft(self, depth: int, least: int = 1) -> list[int]:
+        """What followed the longest earlier occurrence of the text's last tokens, of ``least`` or more, up to ``depth``
+        tokens."""
+        for n in range(min(self.longest, len(self.tokens)), least - 1, -1):
             where = self.ends[n].get(tuple(self.tokens[-n:]))
             if where is not None:
                 return self.tokens[where + 1: where + 1 + depth]
@@ -124,8 +122,8 @@ def _logits(text: Any, hidden: mx.array) -> mx.array:
     return text.lm_head(hidden)
 
 
-def _linear_reading(attn: Any, inputs: mx.array, mask: Any, cache: Any) -> tuple[mx.array, list]:
-    """A gated delta net layer reading several tokens, as mlx_lm's does, with its state after each but the last."""
+def _linear_reading(attn: Any, inputs: mx.array, mask: Any, cache: Any) -> tuple[mx.array, Any]:
+    """A gated delta net layer reading several tokens, as mlx_lm's does, with what gives its state after the first few."""
     from mlx_lm.models.gated_delta import gated_delta_update
 
     batch, steps, _ = inputs.shape
@@ -153,18 +151,19 @@ def _linear_reading(attn: Any, inputs: mx.array, mask: Any, cache: Any) -> tuple
     inv_scale = k.shape[-1] ** -0.5
     q = (inv_scale**2) * mx.fast.rms_norm(q, None, 1e-6)
     k = inv_scale * mx.fast.rms_norm(k, None, 1e-6)
-    state = cache[1]
-    outs, saved = [], []
-    for i in range(steps):
-        out, state = gated_delta_update(q[:, i:i + 1], k[:, i:i + 1], v[:, i:i + 1], a[:, i:i + 1], b[:, i:i + 1],
-                                        attn.A_log, attn.dt_bias, state, None, use_kernel=not attn.training)
-        outs.append(out)
-        if i < steps - 1:
-            saved.append((mx.contiguous(conv_input[:, i + 1:i + 1 + keep, :]), state))
-    cache[1] = state
+    before = cache[1]
+    out, cache[1] = gated_delta_update(q, k, v, a, b, attn.A_log, attn.dt_bias, before, None, use_kernel=not attn.training)
+
+    def after(first: int) -> tuple[mx.array, mx.array]:
+        # The state after the first of these tokens is worked out where it is asked for, which is where a draft was
+        # rejected: one step of the kernel for all of them, where each in turn was one for every layer and token.
+        _, state = gated_delta_update(q[:, :first], k[:, :first], v[:, :first], a[:, :first], b[:, :first],
+                                      attn.A_log, attn.dt_bias, before, None, use_kernel=not attn.training)
+        return mx.contiguous(conv_input[:, first:first + keep, :]), state
+
     cache.advance(steps)
-    out = attn.norm(mx.concatenate(outs, axis=1), z)
-    return attn.out_proj(out.reshape(batch, steps, -1)), saved
+    out = attn.norm(out, z)
+    return attn.out_proj(out.reshape(batch, steps, -1)), after
 
 
 _PATCHED: dict = {}
@@ -189,12 +188,12 @@ def _let_linear_layers_keep_their_states() -> None:
 
 
 def _read(text: Any, tokens: mx.array, cache: list) -> tuple[mx.array, list]:
-    """Her final hidden states for the tokens through her model's own forward call, and each linear layer's
-    state after every token but the last."""
+    """Her final hidden states for the tokens through her model's own forward call, and what gives each linear layer's
+    state after the first of them."""
     _let_linear_layers_keep_their_states()
     linear = [c for c, layer in zip(cache, text.model.layers, strict=True) if layer.is_linear]
     for c in linear:
-        c.keep_states, c.kept_states = True, []
+        c.keep_states, c.kept_states = True, None
     try:
         hidden = text.model(tokens, cache)
     finally:
@@ -213,7 +212,7 @@ def _unread(cache: list, saved_by_layer: list, read: int, kept: int) -> None:
         if saved is None:
             c.trim(read - kept)
         else:
-            c[0], c[1] = saved[kept - 1]
+            c[0], c[1] = saved(kept)
 
 
 def _choose(row: mx.array, sampling: Sampling) -> int:
