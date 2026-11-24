@@ -929,7 +929,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             if found.move.start not in offered:
                 pressed = any(k.royal for k in family.kinds.values()) and in_check(family, game.believed, FIRST)
                 unseen = (not game.learned.knows_how_it_goes(game.believed.cells[found.move.start][1])
-                          or game.learned.seen_going_there(game.believed, found.move) < SEEN_TO_BELIEVE)
+                          or game.learned.seen_going_there(game.believed, found.move) < SEEN_TO_BELIEVE
+                          or not game.learned.sure_of(game.believed, found.move, family))
                 if not _looks_first(game, pressed=pressed, unseen=unseen):
                     break
                 squares = await _offers_for(seat, look, click, picture, found.move.start)
@@ -969,8 +970,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             how = "I worked this ending out to the end before the game: every position it can come to"
         elif found.by == "worked out ahead, checked":
             _judged(game, here, move, found)
-            how = (f"I worked this one out before the game (looked {found.depth} moves deep), and a look now, with what "
-                   "I have learned of the pieces since, still finds it best")
+            how = (f"I worked this one out before the game, and a look now ({found.depth} moves deep), with what I "
+                   "have learned of the pieces since, still finds it best")
         else:
             _judged(game, here, move, found)
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
@@ -1052,7 +1053,8 @@ def _worked_out_ahead(prepared: Any, game: _Game, family: Family, weights: Any, 
     from core.agency.searching_by_kind import Found
     from core.agency.thinking_before_it_comes import among
 
-    held = prepared.answer(_a_place(game.believed, game.learned.start, family), among(legal))
+    held = prepared.answer(_a_place(game.believed, game.learned.start, family), among(legal),
+                           count=game.believed.count, limit=family.count_to_draw)
     move = next((m for m in legal if held is not None and _named(m) == held.get("move")), None)
     if move is None:
         return None
@@ -1065,14 +1067,17 @@ def _checked(hint: Any, now: Any, legal: list[Move], search_only: Callable[[list
     where the look finds the same move, or finds it no worse than the look's own judgement moved while it looked
     (``unsteady``), searched alone for that (``search_only``, given the moves set aside); else the look's move. A long
     look under rules a little out of date is worth more than a short one under the rules as they are, unless the short
-    one finds it wrong."""
+    one finds it wrong. What the move is worth, and how deep that was seen, are the look's made now: that it agrees on
+    the move says nothing of numbers worked out under rules since changed (suggestions of 23 November 2026)."""
     from dataclasses import replace
 
-    if now.move is None or now.move == hint.move:
-        return replace(hint, by="worked out ahead, checked")
+    if now.move is None:
+        return replace(hint, by="worked out ahead, not checked")
+    if now.move == hint.move:
+        return replace(now, by="worked out ahead, checked")
     alone = search_only([m for m in legal if m != hint.move])
     if alone.move == hint.move and now.score - alone.score <= max(0, int(now.unsteady)):
-        return replace(hint, by="worked out ahead, checked")
+        return replace(alone, by="worked out ahead, checked")
     return replace(now, by="worked out ahead, and a look now found better")
 
 

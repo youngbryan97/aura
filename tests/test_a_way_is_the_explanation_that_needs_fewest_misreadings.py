@@ -50,3 +50,33 @@ def test_two_pieces_changing_places_are_relied_on_as_far_as_moves_of_that_sort_w
         rules.offered(unmoved, E1, around | {(0, 7)})
     # The way seen is relied on; its mirror image, an inference, waits on the image being seen.
     assert [s.sure for s in rules.family().kinds["K"].steps if s.may == "swaps" and s.offsets == ((0, 3),)] == [True]
+
+
+def test_three_far_squares_one_look_showed_beyond_squares_other_looks_withheld_are_not_a_line() -> None:
+    """One corrupted look showing three far squares (suggestions of 23 November 2026): looks before it showed the
+    squares between empty and not offered, which a line would have offered."""
+    from core.agency.pieces_by_their_kind import Move
+
+    rules = _fresh()
+    open_file = from_fen("k7/8/8/8/8/8/8/4K3 w - -")
+    around = {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}
+    for _ in range(SEEN_TO_BELIEVE):
+        rules.offered(open_file, E1, around)
+    rules.offered(open_file, E1, around | {(4, 4), (5, 4), (6, 4)})  # one misreading: e5, e6 and e7
+    assert rules.seen_going_there(open_file, Move(E1, (5, 4))) < SEEN_TO_BELIEVE, "one look, however many squares"
+    assert rules.seen_going_there(open_file, Move(E1, (1, 4))) >= SEEN_TO_BELIEVE
+    assert not any(s.sure for s in rules.family().kinds["K"].steps if s.offsets[0][0] >= 4)
+
+
+def test_a_move_by_far_squares_one_look_showed_beyond_a_gap_is_checked_before_it_is_made() -> None:
+    """One corrupted look showing three far squares: a leap she is not sure of, so a move by it is checked first."""
+    from core.agency.pieces_by_their_kind import Move
+
+    rules = _fresh()
+    open_file = from_fen("k7/8/8/8/8/8/8/4K3 w - -")
+    around = {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}
+    for _ in range(SEEN_TO_BELIEVE):
+        rules.offered(open_file, E1, around)
+    rules.offered(open_file, E1, around | {(4, 4), (5, 4), (6, 4)})  # e5, e6 and e7 in one misread look
+    assert not rules.sure_of(open_file, Move(E1, (5, 4)))
+    assert rules.sure_of(open_file, Move(E1, (1, 4)))

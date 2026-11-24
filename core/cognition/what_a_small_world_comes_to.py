@@ -57,6 +57,10 @@ class Worked:
     chance: np.ndarray | None = field(repr=False)
     shares: list[list[float]] = field(repr=False)
     complete: bool = True
+    #: Whether her chance of a good end settled, every situation's to within what a float holds; where it did not
+    #: (out of time, in a world whose dealing goes round and round), ``chance`` is a bound from below: each pass only
+    #: raises it toward the true chance.
+    chance_settled: bool = True
     name_of: Callable[[Any], Hashable] = field(default=lambda state: state, repr=False)
 
     def __len__(self) -> int:
@@ -131,7 +135,9 @@ def worked_out(starts: Iterable[Any], next_of: Callable[[Any], Iterable[tuple]],
         index = names.get(name)
         if index is not None:
             return index
-        if len(states) >= most or (seconds is not None and time.monotonic() - began > seconds):
+        # Counted against every situation listed: with ``keep`` False none is kept, and a cap counted against what
+        # was kept never applied (suggestions of 23 November 2026: asked to stop at 10, it listed 51).
+        if len(ends) >= most or (seconds is not None and time.monotonic() - began > seconds):
             complete = False
             return -1
         index = len(ends)
@@ -191,11 +197,13 @@ def worked_out(starts: Iterable[Any], next_of: Callable[[Any], Iterable[tuple]],
         kind = deciding[owners]
         for side in (1, -1):
             _forced_by(side, forced, turns, owners, first, safe, listed_child, kind)
-    chance = None
+    chance, settled = None, True
     if (deciding == _WHO[CHANCE]).any() and len(owners):
-        chance = _chance_of_a_good_end(end, owners, first, safe, listed_child, kind,
-                                       np.frombuffer(dealt, dtype=np.float64), count)
+        chance, settled = _chance_of_a_good_end(end, owners, first, safe, listed_child, kind,
+                                                np.frombuffer(dealt, dtype=np.float64),
+                                                None if seconds is None else began + seconds)
     return Worked(names=names, states=states, acts=acts, who=deciding, forced=forced, turns=turns, chance=chance,
+                  chance_settled=settled,
                   shares=shares, complete=complete, name_of=name_of)
 
 
@@ -226,13 +234,16 @@ def _forced_by(side: int, forced: np.ndarray, turns: np.ndarray, owners: np.ndar
 
 def _chance_of_a_good_end(end: np.ndarray, owners: np.ndarray, first: np.ndarray, child: np.ndarray,
                           listed_child: np.ndarray, kind: np.ndarray, share: np.ndarray,
-                          count: int) -> np.ndarray:
+                          until: float | None) -> tuple[np.ndarray, bool]:
     """Her chance of a good end from each situation, playing for it against a side that plays against it, with the
-    world dealing by its shares: passes until no situation's chance moves by more than a float holds, and never more
-    passes than there are situations."""
+    world dealing by its shares, and whether it settled. From nothing, each pass can only raise a situation's chance
+    toward the true one, so whatever pass it stops at is a bound from below; it stops where no situation's chance
+    moves by more than a float holds, or at ``until`` (a time). A cap of as many passes as there are situations
+    stopped a world that deals the same situation again and again short of its answer: a chance of a half each time,
+    over and over, came out three in four where it is certain (suggestions of 23 November 2026)."""
     chance = np.where(np.isnan(end), 0.0, (end > 0).astype(np.float64))
     totals = np.add.reduceat(share, first)
-    for _ in range(count):
+    while True:
         theirs = np.where(listed_child, chance[child], 0.0)
         best = np.maximum.reduceat(theirs, first)
         worst = np.minimum.reduceat(theirs, first)
@@ -241,5 +252,6 @@ def _chance_of_a_good_end(end: np.ndarray, owners: np.ndarray, first: np.ndarray
         moved = float(np.max(np.abs(now - chance[owners]))) if len(owners) else 0.0
         chance[owners] = now
         if moved <= SETTLED_TO:
-            break
-    return chance
+            return chance, True
+        if until is not None and time.monotonic() >= until:
+            return chance, False

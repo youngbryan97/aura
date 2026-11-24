@@ -253,8 +253,32 @@ def test_a_hint_stands_unless_a_look_now_finds_it_worse_than_its_own_judgement_m
     # Searched alone, the hint comes within what the look's own judgement moved: it stands.
     kept = _checked(hint, now, legal, lambda aside: Found(legal[0], 30, 10, 500, [legal[0]]))
     assert kept.move == legal[0] and kept.by == "worked out ahead, checked"
+    # Its worth and depth are the look's made now, not the ones worked out under rules since changed.
+    assert (kept.score, kept.depth) == (30, 10)
     # Further off than that: the look made now is played.
     assert _checked(hint, now, legal, lambda aside: Found(legal[0], 10, 10, 500, [legal[0]])).move == legal[1]
     # A look that finds the same move needs no second look.
     agreeing = Found(legal[0], 25, 9, 1000, [legal[0]])
-    assert _checked(hint, agreeing, legal, lambda aside: 1 / 0).by == "worked out ahead, checked"
+    checked = _checked(hint, agreeing, legal, lambda aside: 1 / 0)
+    assert checked.by == "worked out ahead, checked" and (checked.score, checked.depth) == (25, 9)
+
+
+def test_an_answer_stands_at_another_count_toward_a_draw_only_where_neither_could_reach_the_limit() -> None:
+    from dataclasses import replace
+
+    start = CHESS.the_start()
+    prepared = Prepared()
+    prepared.prepare(CHESS, start, first_weights(CHESS), positions=1, plies=2, search=_a_quick_look([]))
+    place, choices = _a_place(start), among(moves(CHESS, start))
+    limit = CHESS.count_to_draw
+    assert limit and prepared.answer(place, choices, count=0, limit=limit) is not None
+    # Alike but for the count, both far from the limit: the look could not have reached it, and the answer stands.
+    assert prepared.answer(place, choices, count=3, limit=limit) is not None
+    # Near the limit, the count can change what happens next: it is another situation.
+    assert prepared.answer(place, choices, count=limit - 1, limit=limit) is None
+    # Worked out near the limit, it stands at that count alone.
+    near = replace(start, count=limit - 1)
+    other = Prepared()
+    other.prepare(CHESS, near, first_weights(CHESS), positions=1, plies=2, search=_a_quick_look([]))
+    assert other.answer(_a_place(near), choices, count=limit - 1, limit=limit) is not None
+    assert other.answer(_a_place(near), choices, count=limit - 2, limit=limit) is None

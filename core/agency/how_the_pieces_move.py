@@ -77,6 +77,9 @@ _EVERY_LINE = (Step(((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1),
 #: Sightings of a kind going a way, offered by the game or seen made, below which the way is not relied on: one
 #: misread look can show two. LIVE 23 November 2026 one look gave her royal kind two squares far up the board.
 SEEN_TO_BELIEVE = 3
+#: What one look counts for against SEEN_TO_BELIEVE, which counted squares: three squares were to make sure of two
+#: looks, since one misread look shows two at most, so two looks that agree are what it asked for.
+A_LOOK_IS_WORTH = SEEN_TO_BELIEVE / 2
 
 
 def in_its_frame(side: int, start: Square, end: Square) -> tuple[Direction, int]:
@@ -94,7 +97,7 @@ def _square_along(side: int, start: Square, direction: Direction, times: int) ->
 
 
 #: The counts of a way kept by distance.
-_COUNTED = ("went_at", "took_at", "refused_going_at", "refused_taking_at")
+_COUNTED = ("went_at", "took_at", "refused_going_at", "refused_taking_at", "looks_at", "before_looks_at")
 
 
 def _summed(one: dict[int, int], other: dict[int, int]) -> dict[int, int]:
@@ -129,6 +132,12 @@ class _Seen:
     took_at: dict[int, int] = field(default_factory=dict)
     refused_going_at: dict[int, int] = field(default_factory=dict)
     refused_taking_at: dict[int, int] = field(default_factory=dict)
+    #: For each distance, how many separate looks (an offer read, a move seen made) showed this way going that far and
+    #: no further: what it rests on is counted by looks, not by squares, since one misread look can show several
+    #: (suggestions of 23 November 2026: one corrupted look with three far squares met a threshold of three). What was
+    #: counted by squares before looks were counted is kept as it was, in ``before_looks_at``.
+    looks_at: dict[int, int] = field(default_factory=dict)
+    before_looks_at: dict[int, int] = field(default_factory=dict)
 
     def _counted(self, times: int, taking: bool) -> int:
         counts = self.took_at if taking else self.went_at
@@ -138,11 +147,37 @@ class _Seen:
         kept = times in self.offered or times in self.offered_unmoved
         return int(kept and not (self.took_at or self.went_at) and bool(self.took if taking else self.moved_to_empty))
 
-    def sightings(self, distances: Any = None) -> int:
-        """How often this way was offered or seen gone, at ``distances`` (all it was seen at, where None)."""
+    def sightings(self, distances: Any = None) -> float:
+        """How often this way was offered or seen gone, at ``distances`` (all it was seen at, where None), counted by
+        squares: what her search relies on. A run of squares in one look is good evidence of a line, and squares
+        beyond a gap are kept as leaps of their own distance (``HowThePiecesMove._reach``)."""
         at = set(self.went_at) | set(self.took_at) | self.offered | self.offered_unmoved if distances is None \
             else set(distances)
-        return sum(self._counted(t, False) + self._counted(t, True) for t in at)
+        return sum(self._by_squares(t) for t in at)
+
+    def looks(self, distances: Any = None) -> float:
+        """How many separate looks showed this way going as far as the nearest of ``distances`` or further, each
+        counting for A_LOOK_IS_WORTH sightings, with what was counted by squares before looks were: what a move is
+        checked by before it is made. One misread look is one look, however many squares it shows."""
+        if not self.looks_at:
+            return self.sightings(distances)
+        nearest = min(distances) if distances else 0
+        before = sum(n for t, n in self.before_looks_at.items() if distances is None or t in set(distances))
+        return before + A_LOOK_IS_WORTH * sum(n for t, n in self.looks_at.items() if t >= nearest)
+
+    def _by_squares(self, times: int) -> int:
+        """How often this distance was counted before looks were: a distance kept as offered before distances were
+        counted at all was offered at least once."""
+        counted = self._counted(times, False) + self._counted(times, True)
+        return max(counted, int(times in self.offered or times in self.offered_unmoved))
+
+    def a_look(self, furthest: int) -> None:
+        """One look that showed this way going ``furthest`` and no further. The first keeps what was counted by
+        squares before it."""
+        if not self.looks_at:
+            every = set(self.went_at) | set(self.took_at) | self.offered | self.offered_unmoved
+            self.before_looks_at = {t: n for t in every if (n := self._by_squares(t))}
+        self.looks_at[furthest] = self.looks_at.get(furthest, 0) + 1
 
     def _stands(self, times: int) -> bool:
         return (self._counted(times, False) > self.refused_going_at.get(times, 0)
@@ -181,7 +216,9 @@ class _Seen:
                      over_refused=self.over_refused + other.over_refused, swapped=self.swapped | other.swapped,
                      went_at=_summed(self.went_at, other.went_at), took_at=_summed(self.took_at, other.took_at),
                      refused_going_at=_summed(self.refused_going_at, other.refused_going_at),
-                     refused_taking_at=_summed(self.refused_taking_at, other.refused_taking_at))
+                     refused_taking_at=_summed(self.refused_taking_at, other.refused_taking_at),
+                     looks_at=_summed(self.looks_at, other.looks_at),
+                     before_looks_at=_summed(self.before_looks_at, other.before_looks_at))
 
 
 @dataclass
@@ -265,6 +302,8 @@ class HowThePiecesMove:
                            if move.start == square and move.partner is not None and move.partner[0] != move.end}
             for _offered in crossing_to & set(squares):
                 self._saw_special(kind, "crosses")
+        # This look, as one look: how far it showed each way going.
+        shown: dict[Direction, int] = {}
         for forward in range(-MAX_STEP, MAX_STEP + 1):
             for right in range(-MAX_STEP, MAX_STEP + 1):
                 if (forward, right) == (0, 0) or math.gcd(abs(forward), abs(right)) != 1:
@@ -281,6 +320,7 @@ class HowThePiecesMove:
                         if is_offered:
                             way = self._of(kind, direction)
                             way.an_offer(times, unmoved, taking=False)
+                            shown[direction] = max(shown.get(direction, 0), times)
                             way.moved_to_empty += 1
                         elif kind in self.seen and direction in self.seen[kind]:
                             way = self.seen[kind][direction]
@@ -291,6 +331,7 @@ class HowThePiecesMove:
                                 way = self._of(kind, direction)
                                 way.took += 1
                                 way.an_offer(times, unmoved, taking=True)
+                                shown[direction] = max(shown.get(direction, 0), times)
                             elif self._goes(kind, direction, times, unmoved):
                                 self.seen[kind][direction].would_not_take += 1
                         elif is_offered and there not in crossing_to:
@@ -319,10 +360,13 @@ class HowThePiecesMove:
                 way = self._of(kind, direction)
                 way.jumped += 1
                 way.an_offer(times, unmoved, taking=there in position.cells)
+                shown[direction] = max(shown.get(direction, 0), times)
                 if there in position.cells and position.cells[there][0] != side:
                     way.took += 1
                 elif there not in position.cells:
                     way.moved_to_empty += 1
+        for direction, furthest in shown.items():
+            self._of(kind, direction).a_look(furthest)
 
     def _what_the_offer_withholds(self, position: Position, square: Square, squares: set[Square],
                                   family: Family) -> None:
@@ -512,6 +556,8 @@ class HowThePiecesMove:
         if any(b in position.cells for b in between):
             way.jumped += 1
         way.an_offer(times, unmoved, taking=move.taken_at is not None)
+        # A move seen made is one look at the way it went.
+        way.a_look(times)
         if move.taken_at is not None:
             way.took += 1
             if move.taken_at != move.end:
@@ -603,7 +649,11 @@ class HowThePiecesMove:
         run = 0
         while run + 1 in offered:
             run += 1
-        missed = sum(1 for t in range(run + 1, furthest) if t not in offered)
+        # Against the line, too: squares short of the furthest that a look showed empty and not offered, which a line
+        # would have offered (a corrupted look with three far squares, beyond squares other looks withheld, is not a
+        # line: suggestions of 23 November 2026).
+        held_back = way.withheld | (way.withheld_unmoved if unmoved else set())
+        missed = sum(1 for t in range(run + 1, furthest) if t not in offered or t in held_back)
         if 0 < run < furthest and missed > sum(1 for t in offered if t > run):
             return run
         withheld = {t for t in (way.withheld | (way.withheld_unmoved if unmoved else set())) if t > furthest}
@@ -645,8 +695,23 @@ class HowThePiecesMove:
             if way is None:
                 continue
             distances = set(way.went_at) | set(way.took_at) | way.offered | way.offered_unmoved
-            seen = max(seen, sum(way._counted(t, False) + way._counted(t, True) for t in distances if t >= times))
+            seen = max(seen, sum(way._by_squares(t) for t in distances if t >= times))
         return seen
+
+    def sure_of(self, position: Position, move: Move, family: Family | None = None) -> bool:
+        """Whether the way her rules allow this move by is one she is sure of (``Step.sure``): a move by a way she is
+        not sure of is checked before it is made. Far squares one look showed beyond a gap are leaps she is not sure of
+        until looks agree (suggestions of 23 November 2026: one corrupted look with three far squares met the count
+        of three sightings)."""
+        from core.agency.pieces_by_their_kind import _reach
+
+        side, kind = position.cells[move.start]
+        family = family or self.family(unseen_go_every_way=True)
+        held = family.kinds.get(kind)
+        if held is None or move.partner is not None or move.via:
+            return True
+        by = [step for end, step, _passed in _reach(family, position, move.start, side, held) if end == move.end]
+        return not by or any(step.sure for step in by)
 
     def knows_how_it_goes(self, kind: str) -> bool:
         """Whether she has seen this kind go anywhere: whether its steps are her own reading, not a guess."""

@@ -47,7 +47,14 @@ def _played(monkeypatch, keeps_it_picked: bool) -> tuple[dict, BoardApplication,
 
 
 def test_a_board_that_keeps_a_piece_picked_up_teaches_her_no_false_offers(monkeypatch) -> None:
+    from core.agency.pieces_by_their_kind import moves
+
     came, app, said, kinds = _played(monkeypatch, keeps_it_picked=True)
     assert came["moves"] >= 4, said[-4:]
-    assert not any("didn't take that move" in line for line in said), [line for line in said if "didn't" in line]
+    # A move the game would not take is no false offer where the game's own rules do not allow it there: a move that
+    # leaves a royal piece attacked, the game ending in it. Only one the game allows, refused, is a false lesson.
+    allowed = {f"{'abcdefgh'[m.start[1]]}{m.start[0] + 1}{'abcdefgh'[m.end[1]]}{m.end[0] + 1}"
+               for m in moves(app.family, app.position)}
+    refused = {name[:2] + name[-2:] for name in came["acts"]["refused"]}
+    assert not refused & allowed, (refused & allowed, [line for line in said if "didn't" in line])
     assert kinds == len(NOBODYS_GAME.kinds), f"{kinds} kinds of piece read on a board of {len(NOBODYS_GAME.kinds)}"

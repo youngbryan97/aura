@@ -102,7 +102,8 @@ class _ClockedApplication(BoardApplication):
             await asyncio.sleep(0.02)
             if self.position.turn != FIRST and not outcome(self.family, self.position):
                 await asyncio.sleep(self.answers_in_s)
-                found = search(self.family, self.position, seconds=0.01)
+                # By a count of positions, not the clock: the same answer every time, however loaded the machine.
+                found = search(self.family, self.position, seconds=0.01, nodes=2_000)
                 if found.move is not None:
                     self.make(found.move)
 
@@ -121,6 +122,13 @@ def test_her_clock_is_read_on_their_time(monkeypatch) -> None:
     monkeypatch.setattr(playing, "WAITS_FOR_THE_FIRST_MOVE_S", 0.2)
     monkeypatch.setattr(playing._Rehearsing, "start", lambda self, pool, family: None)
     monkeypatch.setattr(playing._Rehearsing, "moves_left", lambda self, made: 30)
+    # Her searches by a count of positions too: under load a search by time looked less deep and lost in five moves
+    # one run in four, on main as on changes to her rules (23 November 2026).
+    import core.agency.searching_by_kind as searching
+
+    by_time = searching.search
+    monkeypatch.setattr(searching, "search", lambda family, position, **how: by_time(
+        family, position, **{**how, "nodes": 20_000, "threads": 1, "soft": None}))
     app = _ClockedApplication(NOBODYS_GAME, seed=5, answers_in_s=0.6)
     counts: list[KeptCount] = []
     real_read = playing._read_her_clock_while_it_stands

@@ -95,3 +95,29 @@ def test_her_look_ahead_works_a_world_small_enough_to_list_out_to_the_end() -> N
     ranked = looking_ahead.look_ahead(_ALine(), _APlace(4), ["on", "back"], toward="256", budget_s=0.5)
     assert ranked["on"][0] > ranked["back"][0]
     assert ranked["on"][1] == "it reaches 256 for certain in 4 acts", ranked["on"][1]
+
+
+def test_a_cap_on_situations_holds_where_none_are_kept() -> None:
+    # Asked to stop at ten, with nothing kept: suggestions of 23 November 2026 found it listed 51.
+    worked = worked_out([0], lambda at: [("+1", at + 1), ("+2", at + 2)], lambda at: None, lambda at: HERS,
+                        most=10, keep=False)
+    assert len(worked) == 10 and not worked.complete
+
+
+def test_a_world_that_deals_the_same_situation_again_and_again_is_worked_out_to_its_true_chance() -> None:
+    # Half the time the good end, half the time back where she was: in the end, certain. A cap of as many passes as
+    # there are situations stopped it at three in four.
+    def next_of(state):
+        return [("try", "dealing")] if state == "start" else [("good", "good", 0.5), ("again", "start", 0.5)]
+
+    worked = worked_out(["start"], next_of, lambda s: 1.0 if s == "good" else None,
+                        lambda s: CHANCE if s == "dealing" else HERS)
+    assert worked.chance_settled and abs(worked.chance[worked.at("start")] - 1.0) < 1e-9
+    # Where the world deals the same situation back nearly every time, the chance settles only after millions of
+    # passes: out of time, it says so, and what it says is a bound from below.
+    def slow(state):
+        return [("try", "dealing")] if state == "start" else [("good", "good", 1e-6), ("again", "start", 1 - 1e-6)]
+
+    rushed = worked_out(["start"], slow, lambda s: 1.0 if s == "good" else None,
+                        lambda s: CHANCE if s == "dealing" else HERS, seconds=0.05)
+    assert rushed.complete and not rushed.chance_settled and 0.0 < rushed.chance[rushed.at("start")] < 1.0

@@ -92,10 +92,20 @@ class Prepared:
     #: she expects, by situation of theirs.
     otherwise: dict[str, dict[str, Any]] = field(default_factory=dict)
 
-    def answer(self, place: str, choices: str) -> dict[str, Any] | None:
-        """What she worked out for this situation among these choices (``among``), if she has."""
+    def answer(self, place: str, choices: str, *, count: int = 0, limit: int = 0) -> dict[str, Any] | None:
+        """What she worked out for this situation among these choices (``among``), if she has. Where the rules end a
+        game in a draw at a count of moves (``limit``), the count it stood at (``count``) is part of what can happen
+        next: an answer stands at the count it was worked out at, or where both counts are far enough from the limit
+        that the look that made it could not have reached it (suggestions of 23 November 2026: two situations alike but
+        for the count shared an answer)."""
         held = self.answers.get(_key(place))
-        return held if held is not None and held.get("among") == choices else None
+        if held is None or held.get("among") != choices:
+            return None
+        if limit > 0:
+            then, deep = held.get("count"), int(held.get("depth", 0))
+            if then != count and (then is None or then + deep >= limit or count + deep >= limit):
+                return None
+        return held
 
     @staticmethod
     def certified(held: dict[str, Any], family: Any) -> bool:
@@ -180,7 +190,7 @@ class Prepared:
             if not legal:
                 continue
             if position.turn == first:
-                held = self.answer(place, among(legal))
+                held = self.answer(place, among(legal), count=position.count, limit=family.count_to_draw)
                 lost_here = went_wrong.already_failed_at(place) if went_wrong is not None else frozenset()
                 move = next((m for m in legal if held is not None and _named(m) == held.get("move")
                              and _named(m) not in lost_here and not (doubtful is not None and doubtful(position, m))),
@@ -228,6 +238,7 @@ class Prepared:
         self.answers[_key(place)] = {"move": _named(move), "depth": int(found.depth), "score": int(found.score),
                                      "among": choices, "reply": reply, "at": time.time(),
                                      "seconds": float(seconds), "ply": int(ply), "rules": the_rules_of(family),
+                                     "count": int(position.count),
                                      "line": [_named(m) for m in line[:LINE_KEPT]]}
         logger.info("worked out ahead a situation %d turn(s) from the start in %.0f s: %s (looked %d deep)",
                     ply, time.monotonic() - began, _named(move), found.depth)
