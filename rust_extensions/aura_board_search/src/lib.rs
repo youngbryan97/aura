@@ -179,6 +179,10 @@ struct Habits {
     /// Whether what a look past the horizon found is kept in the table, where a deeper look's finding is not
     /// displaced by it: 1 keeps it, nought does not.
     keeps_the_horizon: f64,
+    /// Whether a look past the horizon ends a game as the search does: a side left no move there has lost or drawn by
+    /// the rules, and a position repeated or counted out is drawn. Nought judges it as it stands, as before: a side
+    /// left no move a queen down was scored a queen down, +569, where it was a draw (suggestions of 23 November 2026).
+    ends_past_the_horizon: f64,
     /// From this many plies of look on, a position the table holds no best move for is looked at a ply shorter, for
     /// a shorter look finds one to begin with next time: nought never.
     unhinted_from: f64,
@@ -263,6 +267,7 @@ impl Default for Habits {
             // were: keeping the horizon 0.507 +- 0.026; shortening an unhinted look from four plies 0.558 and, from
             // other openings, 0.493; looking more fully where improving 0.560 and 0.535 (pooled 0.548 +- 0.018).
             keeps_the_horizon: 0.0,
+            ends_past_the_horizon: 1.0,
             unhinted_from: 0.0,
             improving: 1.0,
             unsure_extends: 0.0,
@@ -2272,7 +2277,12 @@ impl<'a> Searcher<'a> {
         if self.g.arrival_wins && self.b.arrived(self.g, 1 - self.b.turn) {
             return -MATE + ply as i32;
         }
+        let ends = self.g.habits.ends_past_the_horizon > 0.0;
         if ply > 0 {
+            // As in the search: a position repeated, or counted out, is drawn wherever the look meets it.
+            if ends && (self.b.repeated(1) || (self.g.count_to_draw > 0 && self.b.count >= self.g.count_to_draw)) {
+                return 0;
+            }
             if let Some(known) = self.known_ending(ply) {
                 return known;
             }
@@ -2302,6 +2312,7 @@ impl<'a> Searcher<'a> {
         self.b.possible(self.g, &mut moves, !checked && !checks_too);
         self.order(&mut moves, None, ply);
         let mut any = false;
+        let mut legal_seen = false;
         let mut best = if checked { -MATE + ply as i32 } else { alpha };
         let unit = self.g.margin.load(Ordering::Relaxed);
         let exchanges = self.g.habits.weighs_exchanges > 0.0;
@@ -2328,6 +2339,7 @@ impl<'a> Searcher<'a> {
                 self.b.unmake(self.g, u);
                 continue;
             }
+            legal_seen = true;
             if checks_too && quiet && !self.b.attacked_after(self.g, 1 - side, &m, theirs_checked, u.royal) {
                 // A quiet move that forces nothing is past the horizon as before.
                 self.b.unmake(self.g, u);
@@ -2352,7 +2364,30 @@ impl<'a> Searcher<'a> {
         if checked && !any {
             return -MATE + ply as i32;
         }
+        // A side left no move is not judged as it stands: by the rules it has lost, or drawn. At the horizon, where
+        // the look begins past it, a side with no move among those it made is asked whether it has any at all, the
+        // ones passed over unmade and the ones not listed among takes included.
+        if ends && with_checks && !checked && !legal_seen && !self.has_a_legal_move() {
+            return if self.g.no_move_draws { 0 } else { -MATE + ply as i32 };
+        }
         best.max(if checked { best } else { alpha }).min(INF)
+    }
+
+    /// Whether the side to move has any move its rules allow.
+    fn has_a_legal_move(&mut self) -> bool {
+        let side = self.b.turn;
+        let checked = self.b.in_check(self.g, side);
+        let mut moves = Vec::with_capacity(48);
+        self.b.possible(self.g, &mut moves, false);
+        for m in moves {
+            let u = self.b.make(self.g, m);
+            let illegal = self.b.attacked_after(self.g, side, &m, checked, u.royal);
+            self.b.unmake(self.g, u);
+            if !illegal {
+                return true;
+            }
+        }
+        false
     }
 
     fn has_pieces_beyond_irreversible(&self, side: usize) -> bool {

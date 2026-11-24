@@ -43,7 +43,19 @@ def test_where_her_judgement_tells_outcomes_apart_the_curve_rises_with_it() -> N
     assert held.chance(300.0) > 0.8 > 0.2 > held.chance(-300.0)
     again = HowFarItHolds.from_memory(held.as_memory())
     assert abs(again.chance(100.0) - held.chance(100.0)) < 0.02
-    assert held.error() < 0.25
+    assert held.error() < 0.25 and held.held_out < 0.25
+
+
+def test_a_curve_that_foretells_games_it_was_not_fitted_on_no_better_than_a_coin_says_nothing() -> None:
+    """Suggestions of 23 November 2026: a curve read on the games it was fitted on flatters itself, most where they are
+    few. Judgements that bear on nothing, in games that go either way, fit a curve; read on games each was not fitted
+    on, it is no nearer than a coin, and it is not told."""
+    rng = random.Random(11)
+    held = HowFarItHolds()
+    for game in range(ENOUGH_TO_SAY + 1):
+        held.came_to([rng.gauss(0.0, 150.0) for _ in range(10)], float(game % 2))
+    assert held.chance(100.0) is not None and held.held_out >= 0.25
+    assert held.says(100.0) == ""
 
 
 def test_a_game_that_ended_adds_what_her_judgements_came_to() -> None:

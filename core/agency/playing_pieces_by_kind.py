@@ -1557,8 +1557,8 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
         game.held.came_to([score for _place, _move, score in game.judged], outcome)
         error = game.held.error()
         if error is not None:
-            logger.info("what her judgements of this board come to: %d games, error %.3f", game.held.undertakings,
-                        error)
+            logger.info("what her judgements of this board come to: %d games, error %.3f, %.3f on games each was not "
+                        "fitted on", game.held.undertakings, error, game.held.held_out or float("nan"))
     if game.learned.shown is not None:
         # Her rules as they stand, checked against every answer the game has given: what they would have it offer that
         # it did not, and what it offered that they would not. Both should be none.
