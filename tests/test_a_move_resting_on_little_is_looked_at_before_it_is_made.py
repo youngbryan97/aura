@@ -21,7 +21,8 @@ def test_far_squares_read_in_one_look_rest_on_too_little_and_a_step_seen_often_d
     for _ in range(3):
         rules.offered(ALONE, E1, AROUND, family=CHESS)
     rules.offered(ALONE, E1, AROUND | {(5, 4), (6, 4)}, family=CHESS)  # a misreading: e6 and e7 taken for offered
-    assert [s.sure for s in rules.family().kinds["K"].steps if s.offsets == ((5, 0),)] == [False]
+    # Never seen passing over a piece: as far as e6 and e7 only along a clear way, and not relied on.
+    assert [s.sure for s in rules.family().kinds["K"].steps if s.offsets == ((1, 0),) and s.rides > 1] == [False, False]
     assert rules.seen_going_there(ALONE, Move(E1, (5, 4))) < SEEN_TO_BELIEVE
     assert rules.seen_going_there(ALONE, Move(E1, (1, 4))) >= SEEN_TO_BELIEVE
     # Its image across the board counts for it: a step seen going left is the same evidence for going right.

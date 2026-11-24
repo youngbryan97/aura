@@ -27,7 +27,8 @@ def test_far_offers_with_the_squares_between_never_offered_are_a_step_and_leaps_
     rules.offered(open_file, E1, around | {(6, 4), (7, 4)})  # a misreading: e7 and e8 taken for offered
     forward = [s for s in rules.family().kinds["K"].steps if s.offsets[0][1] == 0 and s.offsets[0][0] > 0]
     assert ((1, 0), 1, True) in [(s.offsets[0], s.rides, s.sure) for s in forward]
-    assert {(s.offsets[0], s.sure) for s in forward if s.offsets[0] != (1, 0)} == {((6, 0), False), ((7, 0), False)}
+    # The far squares, never seen reached over a piece, are reached only along a clear way, and not relied on.
+    assert {(s.offsets[0], s.rides, s.sure) for s in forward if s.rides != 1} == {((1, 0), 6, False), ((1, 0), 7, False)}
     assert not any(s.rides == 0 for s in forward)
 
 

@@ -840,30 +840,20 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # move, the game is not over and her reading of the board is what is wrong. LIVE 21 November 2026 a mark on
             # her king turned it, as she read it, into a piece of the other side; she said "I lost" with the game going
             # on, and closed the application.
-            offers_left = await _what_the_game_still_offers(seat, look, click, picture, game.believed)
+            # The offers of this turn's looks first: one already seen is the game going on.
+            offers_left = {sq: ends for sq, ends in offered.items() if ends}
+            if not offers_left:
+                offers_left = await _what_the_game_still_offers(seat, look, click, picture, game.believed)
+                for start, ends in offers_left.items():
+                    game.learned.offered(game.believed, start, ends, family=family)
             if not offers_left:
                 return _the_end(ended or "no move", game, tell)
             logger.info("her model says the game is over (%s) and the game still offers %d move(s)",
                         ended or "no move", sum(len(v) for v in offers_left.values()))
-            for start, ends in offers_left.items():
-                game.learned.offered(game.believed, start, ends, family=family)
             family = game.learned.family(unseen_go_every_way=True)
-            if not moves(family, game.believed):
-                start, ends = next(iter(offers_left.items()))
-                end = sorted(ends)[0]
-                taken = end if game.believed.cells.get(end, (FIRST,))[0] != FIRST else None
-                move = Move(start, end, taken_at=taken)
-                tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}, "
-                     "the move the game offers me.")
-                act = game.did.proposed(_as_played(game, move))
-                game.did.attempted(act)
-                await _by_hand(seat, click, picture, move, OFFERS_SHOW_S)
-                if await _comes_to_show(seat, look, game, move):
-                    game.did.settled(act, ACCEPTED, known_by="the board showed it made")
-                    game.made += 1
-                    game.waiting_since = monotonic_time()
-                else:
-                    game.did.settled(act, REFUSED, known_by="the board did not show it")
+            legal = moves(family, game.believed)
+            if not legal:
+                await _made_as_offered(seat, look, click, picture, game, family, offers_left, tell)
                 continue
         weights = rehearsing.weights_for(family)
         set_aside: list[Move] = []
@@ -967,7 +957,20 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 return _the_end("no move", game, tell)
         move = found.move if found is not None else None
         if move is None:
-            return _the_end("no move", game, tell)
+            # Her rules leave her nothing the game has not refused, and what the game offers decides, not her rules.
+            # LIVE 23 November 2026, the start of a game: her rules gave her three moves, the game refused all three,
+            # and she said she had lost with the game offering her pawns' moves in the same turn's looks.
+            offers_left = {sq: ends for sq, ends in offered.items() if ends}
+            if not offers_left:
+                offers_left = await _what_the_game_still_offers(seat, look, click, picture, game.believed)
+                for start, ends in offers_left.items():
+                    game.learned.offered(game.believed, start, ends, family=family)
+            if not offers_left:
+                return _the_end("no move", game, tell)
+            logger.info("her rules leave her no move and the game offers %d", sum(len(v) for v in offers_left.values()))
+            await _made_as_offered(seat, look, click, picture, game, game.learned.family(unseen_go_every_way=True),
+                                   offers_left, tell)
+            continue
         if found.by == "the only move":
             how = "It's the only move I have"
         elif found.by == "worked out ahead":
@@ -1400,6 +1403,26 @@ def _read_against(shown: dict, believed: dict, others: dict[int, set[str]] | Non
         if kind is None and square in believed:
             out[square] = (believed[square][0], None)
     return out
+
+
+async def _made_as_offered(seat: Seat, look: Look, click: Click, picture: Any, game: _Game, family: Family,
+                           offers: dict[tuple[int, int], set], tell: Callable[[str], None]) -> None:
+    """A move the game offers, made where her rules give her none: what the game offers is what the game allows."""
+    start, ends = next(iter(offers.items()))
+    end = sorted(ends)[0]
+    taken = end if game.believed.cells.get(end, (FIRST,))[0] != FIRST else None
+    move = Move(start, end, taken_at=taken)
+    tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}, "
+         "the move the game offers me.")
+    act = game.did.proposed(_as_played(game, move))
+    game.did.attempted(act)
+    await _by_hand(seat, click, picture, move, OFFERS_SHOW_S)
+    if await _comes_to_show(seat, look, game, move):
+        game.did.settled(act, ACCEPTED, known_by="the board showed it made")
+        game.made += 1
+        game.waiting_since = monotonic_time()
+    else:
+        game.did.settled(act, REFUSED, known_by="the board did not show it")
 
 
 async def _what_the_game_still_offers(seat: Seat, look: Look, click: Click, picture: Any,

@@ -60,12 +60,13 @@ def test_a_leap_read_far_once_goes_when_the_game_withholds_it_and_a_line_stops_s
     around = {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}
     rules.offered(alone, E1, around, family=CHESS)
     rules.offered(alone, E1, around | {(6, 4)}, family=CHESS)  # a misreading: e7 taken for offered
-    # Six squares up with the five between never offered: a leap, or a misreading, not a line.
-    assert [s.rides for s in rules.family().kinds["K"].steps if s.offsets == ((1, 0),)] == [1]
-    assert [s.sure for s in rules.family().kinds["K"].steps if s.offsets == ((6, 0),)] == [False]
+    # Six squares up with the five between never offered: a step of one, and six squares a misreading or a way that
+    # far she is not sure of, along a clear way only, since it was never seen passing over a piece.
+    assert [(s.rides, s.sure) for s in rules.family().kinds["K"].steps if s.offsets == ((1, 0),)] == [(1, False),
+                                                                                                    (6, False)]
     _knowing_what_is_kept_safe(rules)
     rules.offered(alone, E1, around, family=rules.family(unseen_go_every_way=True))
-    assert not [s for s in rules.family().kinds["K"].steps if s.offsets == ((6, 0),)]
+    assert [s.rides for s in rules.family().kinds["K"].steps if s.offsets == ((1, 0),)] == [1]
     # A run read unbroken, e2 to e4 with e5 empty and not offered, is a way three squares long; withheld past e2
     # with e3 and e4 empty, it stops at e2.
     lined = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)

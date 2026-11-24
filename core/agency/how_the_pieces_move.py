@@ -322,7 +322,10 @@ class HowThePiecesMove:
                             way.an_offer(times, unmoved, taking=False)
                             shown[direction] = max(shown.get(direction, 0), times)
                             way.moved_to_empty += 1
-                        elif kind in self.seen and direction in self.seen[kind]:
+                        elif squares and kind in self.seen and direction in self.seen[kind]:
+                            # An offer of nothing may be a piece not picked up, or a board not yet taking moves
+                            # (LIVE 23 November 2026, a game's setup board, picked up piece by piece): it withholds
+                            # nothing.
                             way = self.seen[kind][direction]
                             (way.withheld_unmoved if unmoved else way.withheld).add(times)
                     else:
@@ -344,6 +347,7 @@ class HowThePiecesMove:
             self._what_the_offer_keeps_safe(position, square, squares, family)
             self._what_the_offer_says_of_taking_first(position, square, squares, family)
             self._what_the_offer_withholds(position, square, squares, family)
+            self._what_the_offer_shows_of_their_reach(position, square, squares, family)
         # A square offered with a piece on the way to it was leapt to: over exactly one piece of the other side onto an
         # empty square, it is a take over, unless the same distance is offered with nothing in the way. Any other is a
         # leap that far, and the game offering it is evidence the kind goes there, as much as a square with nothing on
@@ -411,6 +415,47 @@ class HowThePiecesMove:
                     way.offered.discard(times)
                 continue
             way.a_refusal(times, taking=move.taken_at is not None)
+
+    def _what_the_offer_shows_of_their_reach(self, position: Position, square: Square, squares: set[Square],
+                                             family: Family) -> None:
+        """A move the game offered that leaves her kind it keeps safe where, by her rules, the other side could take it:
+        the game would not have offered it. Where every way of theirs making that attack is one she is not sure of, the
+        offer is the game's word against each of those takes that far, once a look, as a refused take is. Where a way
+        she is sure of makes it, her reading of the board is what is in doubt, and nothing is counted.
+
+        LIVE 23 November 2026 her rules had their royal kind take hers from across the board at the start, and the game
+        offered her pawns' moves, each of which left hers so attacked; none of those offers counted against the take."""
+        from core.agency.pieces_by_their_kind import _reach, after
+
+        side = position.cells[square][0]
+        if position.turn != side or not squares:
+            return
+        kept_safe = {k for k in {k for _s, k in self.start.values()} | set(self.seen) if self.royal(k)}
+        if not kept_safe:
+            return
+        against: set[tuple[str, Direction, int]] = set()
+        # The moves as the game offered them, whether or not her rules have them yet: a piece of hers onto an empty
+        # square or one of theirs (a square of her own side offered is a move of another sort, and says nothing here).
+        for end in squares:
+            held = position.cells.get(end)
+            if held is not None and held[0] == side:
+                continue
+            made = after(family, position, Move(square, end, taken_at=end if held is not None else None))
+            royals = {there for there, (owner, held) in made.cells.items() if owner == side and held in kept_safe}
+            attacks: list[tuple[str, Direction, int, bool]] = []
+            for there, (owner, letter) in made.cells.items():
+                if owner == side or letter not in family.kinds:
+                    continue
+                for end, step, _passed in _reach(family, made, there, owner, family.kinds[letter], only_takes=True):
+                    if end in royals and step.may not in ("moves", "swaps"):
+                        attacks.append((letter, *in_its_frame(owner, there, end), step.sure))
+            if attacks and not any(sure for *_way, sure in attacks):
+                against |= {(letter, direction, times) for letter, direction, times, _sure in attacks}
+        for letter, (forward, right), times in against:
+            ways = self.seen.get(letter, {})
+            way = ways.get((forward, right)) or ways.get((forward, -right))
+            if way is not None:
+                way.a_refusal(times, taking=True)
 
     def _what_the_offer_says_of_taking_first(self, position: Position, square: Square, squares: set[Square],
                                              family: Family) -> None:
@@ -806,11 +851,20 @@ class HowThePiecesMove:
                 steps.append(Step((direction,), rides=1 if way.jumped and moved_reach == 1 else moved_reach, may=may,
                                   takes_in_passing=kind in self.takes_passing and may == "takes", sure=sure))
             # Offered further than the run of offers that makes its line: a leap that far or a misreading, each kept as
-            # a leap she is not sure of until the game has shown it often enough, or withholds it.
+            # a way she is not sure of until the game has shown it often enough, or withholds it. A way never seen
+            # passing over a piece goes that far only where the way is clear, as a line goes: a leap goes over whatever
+            # stands between, and nothing she saw showed that. LIVE 23 November 2026, the first game after these far
+            # distances were kept, as leaps: her royal kind, offered six and seven squares forward in one misread look,
+            # leapt the length of the board, theirs stood attacking hers through both rows of pieces at the start, and
+            # she said she had lost before making a move. Nor does it take that far where the game has shown it does
+            # not (_what_the_offer_shows_of_their_reach).
             for times in sorted(offered):
                 reach = moved_reach if times in way.offered else unmoved_reach
                 if reach > 0 and times > reach:
-                    steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may=may,
+                    far_may = ("moves" if may == "either"
+                               and way.refused_taking_at.get(times, 0) > way._counted(times, True) else may)
+                    steps.append(Step(((direction[0] * times, direction[1] * times),) if way.jumped else (direction,),
+                                      rides=1 if way.jumped else times, may=far_may,
                                       only_unmoved=times not in way.offered,
                                       sure=way.sightings([times]) >= SEEN_TO_BELIEVE))
             if unmoved_reach != moved_reach and (unmoved_reach == 0 or unmoved_reach > max(moved_reach, 0)):

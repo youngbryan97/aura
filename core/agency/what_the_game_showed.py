@@ -23,7 +23,7 @@ from typing import Any
 
 logger = logging.getLogger("Aura.WhatTheGameShowed")
 
-__all__ = ["KEPT_AT_MOST", "Checked", "WhatTheGameShowed"]
+__all__ = ["KEPT_AT_MOST", "Checked", "WhatTheGameShowed", "offered_where_it_began"]
 
 #: Answers kept at most, the latest: each is a whole situation written out.
 KEPT_AT_MOST = 800
@@ -101,7 +101,10 @@ class WhatTheGameShowed:
             except (KeyError, TypeError, ValueError):
                 continue
             start = tuple(answer["from"])
-            if start not in position.cells or position.cells[start][0] != position.turn:
+            # An offer of nothing may be a piece not picked up, or a board not yet taking moves, and the learner reads
+            # it as saying nothing (how_the_pieces_move): so does the checker. LIVE 23 November 2026 six pieces picked
+            # up on a game's setup board were counted as six disagreements.
+            if start not in position.cells or position.cells[start][0] != position.turn or not answer["to"]:
                 continue
             kind = position.cells[start][1]
             # Each partner's square her rules have the piece crossing with, read as the square the crossing ends on.
@@ -148,3 +151,26 @@ class WhatTheGameShowed:
             return cls()
         return cls(offers=list(held.get("offers") or [])[-KEPT_AT_MOST:],
                    refusals=list(held.get("refusals") or [])[-KEPT_AT_MOST:])
+
+
+def offered_where_it_began(shown: WhatTheGameShowed, start: dict, family: Any) -> list[tuple[tuple[int, int], set]]:
+    """The acts the game offered at the state it began in that ``family`` does not allow, by the square each was
+    offered from: what her rules can least afford to have wrong, since every game she plays there begins there."""
+    from core.agency.pieces_by_their_kind import moves
+
+    began = {square: tuple(held) for square, held in start.items()}
+    out: list[tuple[tuple[int, int], set]] = []
+    for answer in shown.offers:
+        try:
+            position = _read(answer["at"])
+        # not a failure: an answer kept by an older reader that cannot be read back is passed over.
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not answer["to"] or {sq: tuple(held) for sq, held in position.cells.items()} != began:
+            continue
+        start_square = tuple(answer["from"])
+        allowed = {m.end for m in moves(family, position) if m.start == start_square}
+        missing = {tuple(sq) for sq in answer["to"]} - allowed
+        if missing:
+            out.append((start_square, missing))
+    return out
