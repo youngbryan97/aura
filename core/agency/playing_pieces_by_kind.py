@@ -912,7 +912,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 found = search(family, game.believed, seconds=most, weights=weights, earlier=game.earlier,
                                set_aside=set_aside, threads=_cores_free(), wary=FIRST,
                                soft=thinks if most > thinks else None,
-                               expected={went: n / theirs for went, n in game.they_went.items()} if theirs else None)
+                               expected={went: n / theirs for went, n in game.they_went.items()} if theirs else None,
+                               endings=endings)
                 if ready is not None:
                     # Worked out under rules that have changed since: a hint, checked by the look just made.
                     found = _checked(ready, found, legal, lambda aside, family=family, thinks=thinks, weights=weights:

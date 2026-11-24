@@ -225,7 +225,7 @@ def _matching(family: Family, position: Position, found: tuple) -> Move | None:
 def search(family: Family, position: Position, *, seconds: float, weights: Weights | None = None,
            earlier: list[Position] | None = None, nodes: int = 0, set_aside: list[Move] | None = None,
            threads: int = 1, wary: int | None = None, soft: float | None = None,
-           expected: dict[tuple[Square, Square], float] | None = None) -> Found:
+           expected: dict[tuple[Square, Square], float] | None = None, endings: dict | None = None) -> Found:
     """The best move for the side to move, searched for ``seconds`` (or ``nodes``), leaving out ``set_aside``: moves
     the game has shown are not moves. With ``threads`` above one, that many searchers look at once, sharing what each
     finds (a count of nodes is searched by one). ``wary`` is the side that acts in the world: what its rules hold on
@@ -234,7 +234,9 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
     where given, is the time she means to take, ``seconds`` then the most she may: between depths the search stops by
     how likely another depth is to change its answer, longer where its best move keeps changing or its judgement
     falls, sooner where it has held. ``expected``, where given, holds the moves the other side has been seen to make,
-    by their squares, with the share of its moves each was: tried early at its turns."""
+    by their squares, with the share of its moves each was: tried early at its turns. ``endings``, where given, are
+    small endings worked out to the end (core/agency/what_a_small_ending_comes_to.py): a line that comes into one is
+    scored by what it comes to, as far into the look as it is met."""
     weights = weights or first_weights(family)
     aside = list(set_aside or [])
     engine = _compiled()
@@ -249,9 +251,10 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
         asked = (described(family), placed(position, earlier, wary, expected), weights.as_json(), float(seconds))
         excluded = [(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in aside]
         threaded = {"threads": int(threads)} if threads > 1 else {}
+        known = _endings_held(engine, family, endings)
         try:
             result = engine.search(*asked, nodes=int(nodes), excluded=excluded, **threaded,
-                                   **({"soft": float(soft)} if soft else {}))
+                                   **({"soft": float(soft)} if soft else {}), **({"endings": known} if known else {}))
         # not a failure: a build of the compiled search from before it took a soft time searches for the time it was
         # meant to take, as a hard one; one from before it could think in threads thinks in one.
         except TypeError:
@@ -281,6 +284,32 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
 
 
 _MATE = 1_000_000
+
+#: The keys of the endings the compiled search already holds, in this process.
+_HELD_ENDINGS: set[str] = set()
+
+
+def _endings_held(engine: Any, family: Family, endings: dict | None) -> str:
+    """The key the compiled search holds ``endings`` under, those worked out under the rules ``family`` holds now,
+    handing them over the first time; "" where there are none or the build cannot hold them."""
+    if not endings or not hasattr(engine, "hold_endings"):
+        return ""
+    from core.agency.what_a_small_ending_comes_to import rules_of_the_ending
+
+    valid = {pieces: ending for pieces, ending in endings.items()
+             if ending.rows == family.rows and ending.columns == family.columns
+             and ending.rules == rules_of_the_ending(family, pieces)}
+    if not valid:
+        return ""
+    import hashlib
+
+    key = hashlib.sha1(json.dumps(sorted((list(map(list, p)), e.rules) for p, e in valid.items())).encode()).hexdigest()
+    if key not in _HELD_ENDINGS:
+        engine.hold_endings(described(family), key, [([(int(side), str(kind)) for side, kind in pieces], ending.rows,
+                                                       ending.columns, ending.values.astype("<i2").tobytes())
+                                                      for pieces, ending in valid.items()])
+        _HELD_ENDINGS.add(key)
+    return key
 
 
 def _worth_here(family: Family, position: Position, weights: Weights) -> float:

@@ -404,7 +404,21 @@ struct Game {
     /// from the first pass over the second: after a move, only those lines through a square it changed need asking
     /// about. Empty where the side has more lines than one mask holds.
     through: [Vec<u128>; 2],
+    /// Endings worked out to the end, where a search is given them (`hold_endings`), and the most pieces any has.
+    endings: Option<Arc<Vec<EndingHeld>>>,
+    endings_most: usize,
 }
+
+/// One ending worked out to the end (core/agency/what_a_small_ending_comes_to.py): its pieces by side and kind in the
+/// order its situations are named by, and for each situation what it comes to for the first side, above nought won in
+/// that many plies less one, below nought lost so, nought neither.
+struct EndingHeld {
+    pieces: Vec<(usize, usize)>,
+    squares: usize,
+    values: Vec<i16>,
+}
+
+static ENDINGS: OnceLock<Mutex<HashMap<String, Arc<Vec<EndingHeld>>>>> = OnceLock::new();
 
 /// One line a side's pieces take along, looked at from the square taken. Every kind that takes along the same line
 /// shares one walk outward from the square, which stops at the first piece: whether that piece takes there is then a
@@ -700,6 +714,8 @@ impl Game {
             },
             rays: [Ray::lines(&kinds, 0), Ray::lines(&kinds, 1)],
             taking_over: kinds.iter().enumerate().filter(|(_, k)| k.takes_over).map(|(i, _)| i).collect(),
+            endings: None,
+            endings_most: 0,
             kinds,
         })
     }
@@ -816,6 +832,8 @@ struct Board {
     royal: [Vec<u16>; 2],
     /// Moves the other side has been seen to make, by square, with the share of its moves each was.
     expected: Vec<(u16, u16, f64)>,
+    /// How many pieces stand.
+    standing: usize,
 }
 
 impl Board {
@@ -837,7 +855,9 @@ impl Board {
         let mut b = Board { cells, unmoved, turn: p.turn as usize, passable, count: p.count, hash: 0, history: vec![],
                             wary, at_root: false, royal: [Vec::new(), Vec::new()],
                             expected: p.expected.iter()
-                                .map(|&(a, b, c, d, w)| (g.sq(a, b) as u16, g.sq(c, d) as u16, w)).collect() };
+                                .map(|&(a, b, c, d, w)| (g.sq(a, b) as u16, g.sq(c, d) as u16, w)).collect(),
+                            standing: 0 };
+        b.standing = g.on_board.iter().filter(|&&sq| b.cells[sq] != EMPTY).count();
         b.hash = b.full_hash(g);
         b.find_royals(g);
         for h in &p.history {
@@ -1451,6 +1471,8 @@ impl Board {
         self.hash ^= g.zob_turn;
         undo.royal = g.is_royal(moved) || g.is_royal(placed) || g.is_royal(undo.captured) || g.is_royal(partner)
             || undo.captured_more[..m.n_more as usize].iter().any(|&c| g.is_royal(c));
+        self.standing -= (undo.captured != EMPTY) as usize
+            + undo.captured_more[..m.n_more as usize].iter().filter(|&&c| c != EMPTY).count();
         if undo.royal {
             if g.is_royal(undo.captured) {
                 self.royal_gone(side_of(undo.captured), m.taken_at);
@@ -1525,6 +1547,8 @@ impl Board {
         self.hash = u.hash;
         self.turn = 1 - self.turn;
         self.history.pop();
+        self.standing += (u.captured != EMPTY) as usize
+            + u.captured_more[..m.n_more as usize].iter().filter(|&&c| c != EMPTY).count();
     }
 
     fn make_null(&mut self, g: &Game) -> (Option<(u16, u16)>, u64) {
@@ -1983,6 +2007,55 @@ impl<'a> Searcher<'a> {
         }
     }
 
+    /// What an ending worked out to the end says this position comes to for the side to move: a win or a loss in so
+    /// many plies, scored as one found by looking, or nought where neither side can force one. None where no ending
+    /// held has these pieces.
+    fn known_ending(&self, ply: usize) -> Option<i32> {
+        let held = self.g.endings.as_ref()?;
+        let g = self.g;
+        if self.b.standing > g.endings_most || self.b.standing > 8 {
+            return None;
+        }
+        let mut here = [(0usize, 0usize, 0usize); 8];
+        let mut n = 0;
+        for &sq in &g.on_board {
+            let c = self.b.cells[sq];
+            if c != EMPTY {
+                let (r, col) = g.rc(sq);
+                here[n] = (side_of(c), kind_of(c), (r * g.cols + col) as usize);
+                n += 1;
+            }
+        }
+        'endings: for e in held.iter() {
+            if e.pieces.len() != n {
+                continue;
+            }
+            let mut index = 0usize;
+            let mut i = 0;
+            while i < n {
+                let piece = e.pieces[i];
+                let alike = e.pieces[i..].iter().take_while(|p| **p == piece).count();
+                let mut at: Vec<usize> = here[..n].iter().filter(|h| (h.0, h.1) == piece).map(|h| h.2).collect();
+                if at.len() != alike {
+                    continue 'endings;
+                }
+                at.sort_unstable();
+                for sq in at {
+                    index = index * e.squares + sq;
+                }
+                i += alike;
+            }
+            let v = *e.values.get(index * 2 + self.b.turn)?;
+            if v == 0 {
+                return Some(0);
+            }
+            let plies = (v.unsigned_abs() as usize - 1 + ply) as i32;
+            let winner = if v > 0 { 0 } else { 1 };
+            return Some(if winner == self.b.turn { MATE - plies } else { -(MATE - plies) });
+        }
+        None
+    }
+
     /// What taking with ``m`` comes to once both sides have taken back on its square while it pays them, each with
     /// the least worth piece that can, in the worth of kinds. A piece behind another on a line it takes along joins in
     /// when the one in front has gone, and a royal piece takes only where nothing can take it back. A move that is not
@@ -2199,6 +2272,11 @@ impl<'a> Searcher<'a> {
         if self.g.arrival_wins && self.b.arrived(self.g, 1 - self.b.turn) {
             return -MATE + ply as i32;
         }
+        if ply > 0 {
+            if let Some(known) = self.known_ending(ply) {
+                return known;
+            }
+        }
         let side = self.b.turn;
         let checked = self.b.in_check(self.g, side);
         let mut stand = -INF;
@@ -2300,6 +2378,9 @@ impl<'a> Searcher<'a> {
             }
             if self.b.repeated(1) || (g.count_to_draw > 0 && self.b.count >= g.count_to_draw) {
                 return 0;
+            }
+            if let Some(known) = self.known_ending(ply) {
+                return known;
             }
         }
         if ply >= MAX_PLY - 1 {
@@ -3023,6 +3104,28 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
     Ok(s.evaluate())
 }
 
+/// Hold endings worked out to the end under ``key``, for searches given that key: each as its pieces (side, kind
+/// letter) in the order its situations are named by, its board's rows and columns, and its values as little-endian
+/// 16-bit numbers. Held once and kept, so a game's searches do not pass them again.
+#[pyfunction]
+fn hold_endings(description: &str, key: &str, endings: Vec<(Vec<(usize, String)>, i32, i32, Vec<u8>)>) -> PyResult<usize> {
+    let f: FamilyD = serde_json::from_str(description).map_err(|e| PyValueError::new_err(format!("description: {e}")))?;
+    let mut held = Vec::new();
+    for (pieces, rows, cols, bytes) in endings {
+        let mut kinds = Vec::new();
+        for (side, letter) in pieces {
+            let k = f.kinds.iter().position(|k| k.letter == letter)
+                .ok_or_else(|| PyValueError::new_err(format!("unknown kind {letter}")))?;
+            kinds.push((side, k));
+        }
+        let values = bytes.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]])).collect();
+        held.push(EndingHeld { pieces: kinds, squares: (rows * cols) as usize, values });
+    }
+    let n = held.len();
+    ENDINGS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap().insert(key.to_string(), Arc::new(held));
+    Ok(n)
+}
+
 /// What the move from (r, c) to (r2, c2) comes to once both sides have taken back on its square while it pays them, in
 /// the worth of kinds: its first listed form, where a move has several.
 #[pyfunction]
@@ -3040,7 +3143,7 @@ fn exchange(description: &str, position: &str, weights: &str, start: (i32, i32),
 /// The best move found in ``seconds`` (or ``nodes``, when given): a dict with the move, its score for the side to move,
 /// the depth completed, the nodes looked at, and the line expected after it.
 #[pyfunction]
-#[pyo3(signature = (description, position, weights, seconds, deepest=64, hash_mb=64, nodes=0, excluded=vec![], threads=1, soft=0.0))]
+#[pyo3(signature = (description, position, weights, seconds, deepest=64, hash_mb=64, nodes=0, excluded=vec![], threads=1, soft=0.0, endings=""))]
 #[allow(clippy::too_many_arguments)]
 fn search(
     py: Python<'_>,
@@ -3054,8 +3157,13 @@ fn search(
     excluded: Vec<(i32, i32, i32, i32, String)>,
     threads: usize,
     soft: f64,
+    endings: &str,
 ) -> PyResult<PyObject> {
-    let (g, b) = parse(description, position, weights)?;
+    let (mut g, b) = parse(description, position, weights)?;
+    if !endings.is_empty() {
+        g.endings = ENDINGS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap().get(endings).cloned();
+        g.endings_most = g.endings.as_ref().map_or(0, |e| e.iter().map(|x| x.pieces.len()).max().unwrap_or(0));
+    }
     measure_the_margin(&g, &b);
     let entries = ((hash_mb.max(1) * 1024 * 1024) / std::mem::size_of::<(AtomicU64, AtomicU64)>()).max(1024);
     if threads > 1 && nodes == 0 {
@@ -3359,6 +3467,7 @@ fn aura_board_search(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(legal_moves, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(exchange, m)?)?;
+    m.add_function(wrap_pyfunction!(hold_endings, m)?)?;
     m.add_function(wrap_pyfunction!(beyond_counts, m)?)?;
     m.add_function(wrap_pyfunction!(search, m)?)?;
     m.add_function(wrap_pyfunction!(self_play, m)?)?;
