@@ -161,6 +161,17 @@ struct Habits {
     /// Whether what one move's search learned of which moves tend to be best (its history and countermoves) is kept,
     /// halved, for the next move's search of the same game: 1 keeps it, nought starts each move afresh.
     keeps_ordering: f64,
+    /// Whether a take is weighed by what it comes to once both sides have taken back on its square while it pays them
+    /// (`Searcher::exchange`): 1 orders the takes that lose after the quiet moves and leaves them unlooked at past the
+    /// horizon, nought weighs a take by what it takes.
+    weighs_exchanges: f64,
+    /// Within this many plies of a look's end, away from her best line and out of check, a move that loses more than
+    /// it can win back once its square is fought over is not looked at: a take that loses more than
+    /// `exchange_takes_margins` margins a ply, a quiet move that loses more than `exchange_quiet_margins` margins a
+    /// ply squared. Nought looks at them all.
+    exchange_within: f64,
+    exchange_takes_margins: f64,
+    exchange_quiet_margins: f64,
 }
 
 impl Default for Habits {
@@ -187,6 +198,12 @@ impl Default for Habits {
             falling_by: 0.5,
             steady_share: 1.0,
             keeps_ordering: 0.0,
+            // Measured 23 November 2026 in her model of chess, 300 games each: 0.702 against weighing a take by what
+            // it takes at equal nodes, and 0.637 with her nodes cut by the 12 per cent the weighing costs.
+            weighs_exchanges: 1.0,
+            exchange_within: 0.0,
+            exchange_takes_margins: 1.0,
+            exchange_quiet_margins: 0.25,
         }
     }
 }
@@ -1601,6 +1618,8 @@ struct Searcher<'a> {
     /// Kept for ordering moves, so a node's ordering allocates nothing.
     keyed: Vec<(std::cmp::Reverse<i64>, u32)>,
     listed: Vec<Move>,
+    /// A board's cells, copied to play an exchange out on.
+    scratch: Vec<u8>,
     g: &'a Game,
     b: Board,
     tt: &'a Table,
@@ -1838,8 +1857,98 @@ impl<'a> Searcher<'a> {
         }
     }
 
+    /// What taking with ``m`` comes to once both sides have taken back on its square while it pays them, each with
+    /// the least worth piece that can, in the worth of kinds. A piece behind another on a line it takes along joins in
+    /// when the one in front has gone, and a royal piece takes only where nothing can take it back. A move that is not
+    /// one plain take or plain move, or a game whose pieces take over, is worth what it takes. A quiet move comes to
+    /// what the piece moved is lost for, where it is.
+    fn exchange(&self, m: &Move, cells: &mut Vec<u8>) -> i32 {
+        let g = self.g;
+        let to = m.to as usize;
+        let victim = if m.taken_at == NONE { EMPTY } else { self.b.cells[m.taken_at as usize] };
+        if (m.taken_at != NONE && m.taken_at as usize != to) || m.becomes != 0 || m.n_more > 0
+            || m.partner_from != NONE || !g.taking_over.is_empty()
+        {
+            return self.worth_of(victim);
+        }
+        cells.clear();
+        cells.extend_from_slice(&self.b.cells);
+        let mut gain = [0i32; 48];
+        gain[0] = self.worth_of(victim);
+        let mut on_it = cells[m.from as usize];
+        cells[m.from as usize] = EMPTY;
+        let mut side = 1 - side_of(on_it);
+        let mut d = 0;
+        while d + 1 < gain.len() {
+            let Some(at) = self.least_taker(cells, to, side) else { break };
+            let taker = cells[at];
+            if g.kinds[kind_of(taker)].royal {
+                cells[at] = EMPTY;
+                let answered = self.least_taker(cells, to, 1 - side).is_some();
+                cells[at] = taker;
+                if answered {
+                    break;
+                }
+            }
+            d += 1;
+            gain[d] = self.worth_of(on_it) - gain[d - 1];
+            if (-gain[d - 1]).max(gain[d]) < 0 {
+                break;
+            }
+            cells[at] = EMPTY;
+            on_it = taker;
+            side = 1 - side;
+        }
+        while d > 0 {
+            gain[d - 1] = -((-gain[d - 1]).max(gain[d]));
+            d -= 1;
+        }
+        gain[0]
+    }
+
+    /// The square of the least worth piece of ``by`` that could take on ``sq`` in ``cells``.
+    fn least_taker(&self, cells: &[u8], sq: usize, by: usize) -> Option<usize> {
+        let g = self.g;
+        let wary = by == self.b.wary;
+        let mut best: Option<(i32, usize)> = None;
+        for ray in &g.rays[by] {
+            let mut t = sq as i32 - ray.d;
+            let mut n = 1;
+            loop {
+                let c = cells[t as usize];
+                if c == OFF {
+                    break;
+                }
+                if c != EMPTY {
+                    if side_of(c) == by {
+                        let r = &ray.reach[kind_of(c)];
+                        let mut far = if wary { r[0] } else { r[1] };
+                        if self.b.unmoved[t as usize] {
+                            far = far.max(if wary { r[2] } else { r[3] });
+                        }
+                        if n <= far {
+                            let worth = self.worth_of(c);
+                            if best.map_or(true, |(w, _)| worth < w) {
+                                best = Some((worth, t as usize));
+                            }
+                        }
+                    }
+                    break;
+                }
+                if n >= ray.farthest {
+                    break;
+                }
+                t -= ray.d;
+                n += 1;
+            }
+        }
+        best.map(|(_, at)| at)
+    }
+
     fn order(&mut self, moves: &mut [Move], best: Option<u32>, ply: usize) {
         let mut keyed = std::mem::take(&mut self.keyed);
+        let mut scratch = std::mem::take(&mut self.scratch);
+        let exchanges = self.g.habits.weighs_exchanges > 0.0;
         keyed.clear();
         keyed.extend(moves.iter().enumerate().map(|(i, &m)| {
                 let key: i64 = if best.is_some() && packed(&m) == best {
@@ -1847,7 +1956,12 @@ impl<'a> Searcher<'a> {
                 } else if m.taken_at != NONE {
                     let victim = self.worth_of(self.b.cells[m.taken_at as usize]) as i64;
                     let attacker = self.worth_of(self.b.cells[m.from as usize]) as i64;
-                    (1 << 30) + victim * 64 - attacker / 16
+                    if exchanges && m.becomes == 0 && self.exchange(&m, &mut scratch) < 0 {
+                        // A take that loses once the square is fought over comes after the quiet moves.
+                        -(1 << 30) + victim * 64 - attacker / 16
+                    } else {
+                        (1 << 30) + victim * 64 - attacker / 16
+                    }
                 } else if m.becomes != 0 {
                     (1 << 30) + self.g.kinds[(m.becomes - 1) as usize].worth as i64 * 64
                 } else if ply < MAX_PLY && self.killers[ply][0] == m {
@@ -1876,6 +1990,7 @@ impl<'a> Searcher<'a> {
         }
         self.listed = listed;
         self.keyed = keyed;
+        self.scratch = scratch;
     }
 
     fn time_up(&mut self) -> bool {
@@ -1966,6 +2081,7 @@ impl<'a> Searcher<'a> {
         let mut any = false;
         let mut best = if checked { -MATE + ply as i32 } else { alpha };
         let unit = self.g.margin.load(Ordering::Relaxed);
+        let exchanges = self.g.habits.weighs_exchanges > 0.0;
         for m in moves {
             let quiet = m.taken_at == NONE && m.becomes == 0;
             // A take that would leave her short of the bound even with what it takes and two margins cannot raise the
@@ -1973,6 +2089,15 @@ impl<'a> Searcher<'a> {
             if !checked && unit > 0 && m.becomes == 0 && m.taken_at != NONE
                 && stand + self.worth_of(self.b.cells[m.taken_at as usize]) + ((self.g.habits.take_margins * unit as f64) as i32) < alpha
             {
+                continue;
+            }
+            // A take that loses once both sides have taken back on its square is not looked at past the horizon.
+            if !checked && exchanges && m.taken_at != NONE && m.becomes == 0 && {
+                let mut scratch = std::mem::take(&mut self.scratch);
+                let lost = self.exchange(&m, &mut scratch) < 0;
+                self.scratch = scratch;
+                lost
+            } {
                 continue;
             }
             let u = self.b.make(self.g, m);
@@ -2125,7 +2250,7 @@ impl<'a> Searcher<'a> {
                 continue;
             }
             let quiet = m.taken_at == NONE && m.becomes == 0;
-            let u = self.b.make(g, m);
+            let mut u = self.b.make(g, m);
             if self.b.attacked_after(g, side, &m, checked, u.royal) {
                 self.b.unmake(self.g, u);
                 continue;
@@ -2146,6 +2271,23 @@ impl<'a> Searcher<'a> {
                     self.b.unmake(self.g, u);
                     continue;
                 }
+            }
+            if legal > 1 && !pv_node && !checked && !gives_check && unit > 0 && (depth as f64) <= habits.exchange_within
+                && best_score > -MATE + 1000 && m.becomes == 0
+            {
+                let most = if quiet {
+                    habits.exchange_quiet_margins * (unit * depth * depth) as f64
+                } else {
+                    habits.exchange_takes_margins * (unit * depth) as f64
+                };
+                self.b.unmake(self.g, u);
+                let mut scratch = std::mem::take(&mut self.scratch);
+                let comes_to = self.exchange(&m, &mut scratch);
+                self.scratch = scratch;
+                if (comes_to as f64) < -most {
+                    continue;
+                }
+                u = self.b.make(g, m);
             }
             let mut score;
             if legal == 1 {
@@ -2291,6 +2433,7 @@ impl<'a> Searcher<'a> {
             judgements: vec![(0, 0); JUDGEMENTS_KEPT],
             keyed: Vec::new(),
             listed: Vec::new(),
+            scratch: Vec::new(),
         }
     }
 }
@@ -2642,30 +2785,22 @@ fn beyond_counts(description: &str, position: &str) -> PyResult<Vec<Vec<f32>>> {
 fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
     let (g, b) = parse(description, position, weights)?;
     let table = Table::new(1);
-    let mut s = Searcher {
-        g: &g,
-        b,
-        tt: &table,
-        halt: None,
-        killers: vec![[Move::null(); 2]; MAX_PLY],
-        history: vec![0; g.size * g.size],
-        nodes: 0,
-        started: Instant::now(),
-        seconds: 1e9,
-        stop: false,
-        max_nodes: 0,
-        excluded: vec![],
-        unsteady: 0,
-        played: vec![Move::null(); MAX_PLY],
-        counter: vec![Move::null(); g.size * g.size],
-        commonest: usize::MAX,
-        soft: 0.0,
-        acc: Accounting::default(),
-        judgements: vec![(0, 0); JUDGEMENTS_KEPT],
-        keyed: Vec::new(),
-        listed: Vec::new(),
-    };
+    let mut s = Searcher::fresh(&g, b, &table, 1e9, Instant::now(), 0);
     Ok(s.evaluate())
+}
+
+/// What the move from (r, c) to (r2, c2) comes to once both sides have taken back on its square while it pays them, in
+/// the worth of kinds: its first listed form, where a move has several.
+#[pyfunction]
+fn exchange(description: &str, position: &str, weights: &str, start: (i32, i32), end: (i32, i32)) -> PyResult<i32> {
+    let (g, mut b) = parse(description, position, weights)?;
+    let (from, to) = (g.sq(start.0, start.1) as u16, g.sq(end.0, end.1) as u16);
+    let m = b.legal(&g).into_iter().find(|m| m.from == from && m.to == to)
+        .ok_or_else(|| PyValueError::new_err("no such move"))?;
+    let table = Table::new(1);
+    let s = Searcher::fresh(&g, b, &table, 1e9, Instant::now(), 0);
+    let mut cells = Vec::new();
+    Ok(s.exchange(&m, &mut cells))
 }
 
 /// The best move found in ``seconds`` (or ``nodes``, when given): a dict with the move, its score for the side to move,
@@ -2776,6 +2911,7 @@ fn search(
             judgements: vec![(0, 0); JUDGEMENTS_KEPT],
             keyed: Vec::new(),
             listed: Vec::new(),
+            scratch: Vec::new(),
         };
         let all = s.b.legal(&g);
         let legal: Vec<Move> = all.into_iter().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
@@ -2877,8 +3013,8 @@ fn self_play(
         for game in 0..games {
             let a_is_first = game % 2 == 0;
             let (ta, tb) = (Table::new(entries), Table::new(entries));
-            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default(), judgements: vec![(0, 0); JUDGEMENTS_KEPT], keyed: Vec::new(), listed: Vec::new() };
-            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default(), judgements: vec![(0, 0); JUDGEMENTS_KEPT], keyed: Vec::new(), listed: Vec::new() };
+            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default(), judgements: vec![(0, 0); JUDGEMENTS_KEPT], keyed: Vec::new(), listed: Vec::new(), scratch: Vec::new() };
+            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default(), judgements: vec![(0, 0); JUDGEMENTS_KEPT], keyed: Vec::new(), listed: Vec::new(), scratch: Vec::new() };
             // The second side looks at as many positions as its own pace affords in the same time, where it is given.
             if nodes_per_move_b > 0 {
                 sb.max_nodes = nodes_per_move_b;
@@ -2997,6 +3133,7 @@ fn aura_board_search(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(perft, m)?)?;
     m.add_function(wrap_pyfunction!(legal_moves, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;
+    m.add_function(wrap_pyfunction!(exchange, m)?)?;
     m.add_function(wrap_pyfunction!(beyond_counts, m)?)?;
     m.add_function(wrap_pyfunction!(search, m)?)?;
     m.add_function(wrap_pyfunction!(self_play, m)?)?;
