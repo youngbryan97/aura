@@ -340,7 +340,7 @@ class _Maker:
 
     # ── 4. trying and mending ────────────────────────────────────────
 
-    async def tried(self, parts: Parts | None = None, what: str = "Trying it") -> Trial:
+    async def tried(self, parts: Parts | None = None, what: str = "Trying it", *, quiet: bool = False) -> Trial:
         design, parts = self.design, parts or self.parts
         assert design is not None
         if design.kind == "tool":
@@ -355,7 +355,8 @@ class _Maker:
             # A test that holds where nothing happens says nothing of what happens, and one that fails there may.
             keep = set(trial.hollow)
             trial.rules = [r for r in trial.rules if r.name not in keep or not r.ok]
-        self.work.tried(what, [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
+        if not quiet:
+            self.work.tried(what, [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
         return trial
 
     async def mended(self) -> None:
@@ -388,6 +389,9 @@ class _Maker:
                 continue
             trial = await self.tried(parts, "Trying the mend")
             before, after = _how_much_is_wrong(failing), _how_much_is_wrong(trial.failing())
+            if after >= before and (better := await self._the_best_of(parts, before)) is not None:
+                parts, trial = better
+                after = _how_much_is_wrong(trial.failing())
             if after < before:
                 self.work.says(f"Kept: {len(failing)} things failed before it and {len(trial.failing())} do now"
                                + (", and what was underneath them is put right." if len(trial.failing()) >= len(failing) else "."))
@@ -396,6 +400,36 @@ class _Maker:
             else:
                 nothing_gained += 1
                 self.work.says(f"Not kept: {len(failing)} things failed before it and {len(trial.failing())} after.")
+
+    async def _the_best_of(self, mend: Parts, before: float) -> tuple[Parts, Trial] | None:
+        """A mend that gained nothing whole, taken apart: each function of it on its own over what gains, and the whole of it
+        without each. A trial takes seconds where a mend takes a minute or two of her model's."""
+        changed = [name for name, text in mend.functions.items() if self.parts.functions.get(name) != text]
+        if not 2 <= len(changed) <= 7:
+            return None
+        self.work.says("Trying that mend a part at a time.")
+        best: tuple[Parts, Trial] | None = None
+        over = self.parts
+        for name in changed:
+            parts = over.copy()
+            parts.functions[name] = mend.functions[name]
+            trial = await self.tried(parts, quiet=True)
+            if (wrong := _how_much_is_wrong(trial.failing())) < before:
+                best, before, over = (parts, trial), wrong, parts
+        for name in changed if len(changed) > 2 else ():
+            parts = mend.copy()
+            if name in self.parts.functions:
+                parts.functions[name] = self.parts.functions[name]
+            else:
+                del parts.functions[name]
+            trial = await self.tried(parts, quiet=True)
+            if (wrong := _how_much_is_wrong(trial.failing())) < before:
+                best, before = (parts, trial), wrong
+        if best is not None:
+            took = [name.removeprefix(BEFORE) for name in changed if best[0].functions.get(name) == mend.functions[name]]
+            self.work.tried("Trying the part of it that gains: " + ", ".join(took)[:120],
+                            [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*best[1].generic, *best[1].rules]])
+        return best
 
     async def finished(self) -> None:
         """What a person would see is not finished (one thing over another, words cut off or hard to read, a window that
@@ -593,7 +627,7 @@ def _tests_named(tests: str, names: list[str]) -> str:
 
 _HOW_TESTS = {
     "game": """A test is test("the rule, as it is written", t => { ... }). t begins at initial(). t.s is the state, to be read and set. t.tick(seconds) lets time pass, t.press(key), t.hold(key, seconds), t.point(x, y, seconds), t.click(x, y), t.send(event). t.score, t.over, t.won. t.draw() gives what is drawn, as [{what: "circle", args: [...]}] in the pen's own names; t.sees(text) is whether those words are drawn or counted above it. t.expect(so, "why not"). Set the state to where the rule bears, let the least happen, and expect what the rule says, and only that: where it gives no amount, any sensible amount holds.""",
-    "app": """A test is test("the rule, as it is written", t => { ... }). t begins at initial(). t.s is the state, to be read and set. t.click(label), t.type(label, text), t.choose(label, value), t.enter(label) work the controls shown, by their labels. t.tick(seconds) lets time pass, t.press(key), t.send(event). t.sees(text) is whether it is shown. t.expect(so, "why not"). Expect what the rule says, and only that: where it gives no words or amount, any sensible ones hold.""",
+    "app": """A test is test("the rule, as it is written", t => { ... }). t begins at initial(). t.s is the state, to be read and set. t.click(label), t.type(label, text), t.choose(label, value), t.enter(label) work the controls shown, by their labels. t.tick(seconds) lets time pass, t.press(key), t.send(event). t.sees(text) is whether it is shown, t.comesBefore(a, b) whether one thing is shown before another. t.expect(so, "why not"). What a rule says is seen is judged by what is shown, and not by how the state keeps it. Expect what the rule says, and only that: where it gives no words, form or amount, any sensible ones hold.""",
     "site": """A test is test("the rule, as it is written", () => { ... }) and runs in the page. see(text) fails where the text is not shown, one(selector), all(selector), press(text) presses the link or button that says it, expect(so, "why not").""",
 }
 

@@ -313,7 +313,18 @@ const Frame = (() => {
     const only = (s) => { if (named) for (const k of Object.keys(s)) if (Array.isArray(s[k]) && !named.includes(k)) s[k] = []; return s; };
     emptied = named ? only : null; seed = 7; played.length = 0; let s = only(P.initial());
     const fail = (why) => { throw new Error(why); };
-    const find = (label, what) => { const want = String(label).toLowerCase().trim(); const all = every(shown(s)).filter(what); const by = (f) => all.find((v) => f((v.props["aria-label"] || words(v) || v.props.placeholder || "").toLowerCase().trim())); return by((n) => n === want) || by((n) => n.startsWith(want)) || by((n) => n.includes(want)) || fail(`there is no “${label}” to use; there are: ${all.map((v) => v.props["aria-label"] || words(v)).slice(0, 12).join(", ")}`); };
+    const nameOf = (v) => String(v.props["aria-label"] || words(v) || v.props.placeholder || "").toLowerCase().trim();
+    const whereIn = (name, want) => name.search(new RegExp(`(?<![\\p{L}\\p{N}])${want.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "u")), isWords = (name, want) => whereIn(name, want) >= 0;
+    const usable = (v, what) => what(v) && !v.props.disabled;
+    const called = (tree, want, what) => { const all = every(tree).filter((v) => usable(v, what)); return all.find((v) => nameOf(v) === want) || all.find((v) => isWords(nameOf(v), want)) || (want.length > 3 && all.find((v) => nameOf(v).startsWith(want))) || null; };
+    // What stands with some words: the smallest part of what is shown that has them and something to use, as a card has.
+    const beside = (tree, want, what) => { let found = null; const of = (v) => { if (v.tag === "#") return; const has = nameOf(v).includes(want) && isWords(nameOf(v), want); if (!has) return; const all = every(v).filter((n) => n !== v && usable(n, what)); if (usable(v, what)) found = v; else if (all.length) found = all[0]; v.kids.forEach(of); }; tree.kids.forEach(of); return found; };
+    // Found as a person finds it: by its name, by what it stands with, or behind a button that shows it and takes nothing away.
+    const find = (label, what, by) => { const want = String(label).toLowerCase().trim(), here = shown(s); const now = called(here, want, what) || (by && beside(here, want, what)); if (now) return now;
+      const size = (x) => (x && typeof x === "object" ? Object.values(x).reduce((n, y) => n + (Array.isArray(y) ? y.length : 0) + size(y), 0) : 0), held = size(s); let edge = [s];
+      for (let deep = 0; deep < 2; deep++) { const next = []; for (const from of edge) for (const v of every(shown(from)).filter((n) => n.props.do && !n.props.disabled).slice(0, 24)) { let then; try { then = apply(copy(from), { type: "do", name: v.props.do[0], value: v.props.do[1] }); } catch (e) { continue; } if (size(then) !== held || JSON.stringify(then) === JSON.stringify(from)) continue; const got = called(shown(then), want, what); if (got) { act(() => then); return called(shown(s), want, what); } if (next.length < 12) next.push(then); } edge = next; }
+      if (every(here).some((v) => what(v) && v.props.disabled && nameOf(v) === want)) fail(`“${label}” cannot be used now`);
+      const all = every(here).filter((v) => usable(v, what)); return fail(`there is no “${label}” to use; there are: ${all.map((v) => v.props["aria-label"] || words(v)).slice(0, 12).join(", ")}`); };
     // A state that is set is set over one that has begun: what a test does not name is as it is at the beginning.
     let first = null; const began = Object.keys(s), act = (f) => { only(s); if (!first) first = copy(s); s = f(s); return t; };
     const t = { get s() { return s; }, set s(v) { s = only({ ...P.initial(), ...v }); }, W, H,
@@ -322,11 +333,14 @@ const Frame = (() => {
       hold(k, seconds) { return act((s) => run(s, seconds == null ? 0.1 : seconds, { held: { [k]: true } })); },
       press(k) { return t.hold(k, STEP); },
       point(x, y, seconds) { return act((s) => run(s, seconds == null ? STEP : seconds, { pointer: { x, y, down: false } })); },
-      click(x, y) { if (typeof x === "string") { const v = find(x, (n) => n.props.do); if (v.props.disabled) fail(`“${x}” cannot be used now`); return act((s) => apply(s, { type: "do", name: v.props.do[0], value: v.props.do[1] })); } return act((s) => run(s, STEP, { pointer: { x, y, down: true } })); },
+      click(x, y) { if (typeof x === "string") { const v = find(x, (n) => n.props.do, true); return act((s) => apply(s, { type: "do", name: v.props.do[0], value: v.props.do[1] })); } return act((s) => run(s, STEP, { pointer: { x, y, down: true } })); },
       type(label, text) { const v = find(label, (n) => n.props.in); const value = v.props.number ? Number(text) : v.props.type === "checkbox" ? !!text : String(text); return act((s) => apply(s, { type: "input", name: v.props.in, value })); },
       choose(label, value) { return t.type(label, value); },
       enter(label) { const v = find(label, (n) => n.props.enter); return act((s) => apply(s, { type: "do", name: v.props.enter, value: null })); },
       sees(text) { if (isGame()) { const said = [...t.draw().filter((c) => c.what === "text").map((c) => c.args[0]), ...(P.hud ? P.hud(s) : []).flatMap((r) => [r.label, r.value]), ...(P.score ? ["score", scoreOf(s)] : [])].join(" ").toLowerCase(); return said.includes(String(text).toLowerCase()); } const all = words(shown(s)).toLowerCase(); return every(shown(s)).some((v) => String(v.props.value || "").toLowerCase().includes(String(text).toLowerCase())) || all.includes(String(text).toLowerCase()); },
+      // Which of two things shown comes first.
+      comesBefore(a, b) { const all = isGame() ? "" : words(shown(s)).toLowerCase(), one = whereIn(all, String(a).toLowerCase()), two = whereIn(all, String(b).toLowerCase()); return one >= 0 && two >= 0 && one < two; },
+      get shown() { return isGame() ? t.draw().filter((c) => c.what === "text").map((c) => c.args[0]).join(" ") : words(shown(s)); },
       // What is drawn for the state as it is: each call of the pen, with what it was given.
       draw() { const calls = []; const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H; const real = pen(canvas.getContext("2d"), 1);
         const g = new Proxy(real, { get: (o, k) => (typeof o[k] === "function" ? (...args) => { calls.push({ what: String(k), args }); if (k === "at") { const [x, y, turn, act] = args; return real.at(x, y, turn, () => act(g)); } return o[k](...args); } : o[k]) });
@@ -404,7 +418,7 @@ const Frame = (() => {
     const alone = tryOne(name, () => { try { once(body, readIn(body).filter((k) => !setEmpty(body, k))); } finally { emptied = null; } return "with nothing else about"; }); return alone.ok ? alone : was; }); }
   // Whether all a test says of a list is that it is empty.
   function setEmpty(body, k) { const src = String(body), all = src.match(new RegExp(`\\.s\\.${k}(?![\\w$])`, "g")) || [], none = src.match(new RegExp(`\\.s\\.${k}\\s*=\\s*\\[\\s*\\]`, "g")) || []; return all.length > 0 && all.length === none.length; }
-  function once(body, named) { { waiting = []; const t = tester(named); try { try { body(t); } catch (e) { judged(); throw e; } judged(); } catch (e) { const t_ = t.__told, odd = t_.asked(body), then = t_.changed(); if (odd.length && !(e instanceof ReferenceError)) { e.theTest = true; e.message += `; the test reads s.${odd.join(", s.")}, and the state has no such thing: it has ${t_.held().join(", ")}`; } e.message += then.length ? `; from where the test began it to its end, what changed: ${then.join("; ")}` : "; nothing in the state changed"; throw e; } } }
+  function once(body, named) { { waiting = []; const t = tester(named); try { try { body(t); } catch (e) { judged(); throw e; } judged(); } catch (e) { const t_ = t.__told, odd = t_.asked(body), then = t_.changed(); if (odd.length && !(e instanceof ReferenceError)) { e.theTest = true; e.message += `; the test reads s.${odd.join(", s.")}, and the state has no such thing: it has ${t_.held().join(", ")}`; } if (!isGame()) { let said = ""; try { said = t.shown; } catch (x) { said = ""; } e.message += `; it shows “${said.slice(0, 260)}”`; } e.message += then.length ? `; from where the test began it to its end, what changed: ${then.join("; ")}` : "; nothing in the state changed"; throw e; } } }
   function tried(program, tests, nothing) {
     P = { ...program }; live = false; goesOn = emptied = null;
     if (nothing) P.update = (s) => s;

@@ -486,6 +486,49 @@ def test_an_app_is_tried_by_its_controls(tmp_path):
     assert {"removing"} <= {r.name for r in dead}
 
 
+HIDDEN = '''({
+  initial() { return { plants: [], adding: false, name: "", gone: 0 }; },
+  update(s, e) {
+    if (e.type === "input") s[e.name] = e.value;
+    if (e.type === "do" && e.name === "open") s.adding = true;
+    if (e.type === "do" && e.name === "clear") { s.plants = []; s.gone++; }
+    if (e.type === "do" && e.name === "add") { s.plants.push({ id: s.plants.length + 1, name: s.name, wet: 0 }); s.adding = false; s.name = ""; }
+    if (e.type === "do" && e.name === "water") s.plants.find((p) => p.id === e.value).wet++;
+  },
+  view(s, ui) {
+    const list = s.plants.slice().sort((a, b) => a.wet - b.wet);
+    return ui.column(ui.button("Add plant", "open"), ui.button("Clear all", "clear"), s.adding ? ui.row(ui.input("Name", "name", s.name), ui.button("Save", "add", null, { disabled: !s.name })) : null,
+      list.map((p) => ui.card(ui.heading(p.name), ui.text("Watered " + p.wet), ui.button("Water", "water", p.id))));
+  },
+})'''
+
+
+def test_what_is_used_is_found_as_a_person_finds_it(tmp_path):
+    design = _design(name="Plants", kind="app", controls=[], state={"plants": [{"id": 1, "name": "fig", "wet": 0}], "adding": False, "name": "", "gone": 0})
+    two = 't.s.plants = [{ id: 1, name: "A", wet: 0 }, { id: 2, name: "Fig", wet: 3 }]; '
+    tests = ('test("behind a button", t => { t.type("Name", "Ivy").click("Save"); t.expect(t.s.plants[0].name === "Ivy", "no ivy"); });'
+             f'test("by what it stands with", t => {{ {two}t.click("Fig"); t.expect(t.s.plants[1].wet === 4 && t.s.plants[0].wet === 0, "not watered"); }});'
+             f'test("whole words", t => {{ {two}t.click("A"); t.expect(t.s.plants[0].wet === 1 && !t.s.adding, "not A"); }});'
+             f'test("in order", t => {{ {two}t.expect(t.comesBefore("A", "Fig") && !t.comesBefore("Fig", "A")); t.click("A").click("A").click("A").click("A"); t.expect(t.comesBefore("Fig", "A"), "not after"); }});'
+             'test("not yet", t => { t.click("Add plant"); t.click("Save"); });'
+             'test("nothing taken away to find it", t => { t.s.plants = [{ id: 1, name: "A", wet: 0 }]; t.type("Colour", "red"); });')
+    got = {r.name: r for r in _tried(page_of(design, HIDDEN, tests=tests), tmp_path).rules}
+    assert all(got[name].ok for name in ("behind a button", "by what it stands with", "whole words", "in order")), [(r.name, r.why) for r in got.values() if not r.ok]
+    assert "cannot be used now" in got["not yet"].why and "it shows “" in got["not yet"].why
+    assert "no “Colour” to use" in got["nothing taken away to find it"].why
+
+
+def test_a_mend_that_gains_nothing_whole_is_tried_a_part_at_a_time(tmp_path):
+    work = Work("w", "moths")
+    wrong = _RULES.replace("s.saved++", "s.saved += 0")
+    update = "update" + _RULES.split("  update", 1)[1].split("  score(s)")[0].rstrip().rstrip(",")
+    both = f"```js\n({{ {update}, hud(s) {{ return s.nothing.there; }}, over(s) {{ return s.nothing.there; }} }})\n```"
+    made = _make(tmp_path, _Model([f"```js\n{TESTS}\n```", f"```js\n{wrong}\n```", f"```js\n{_LOOKS}\n```", both]), work)
+    assert made is not None and made.trial.failing() == [] and "s.saved++" in made.parts.functions["update"]
+    assert "nothing.there" not in made.parts.code()
+    assert any(row["what"] == "tried" and row["title"].startswith("Trying the part of it that gains: update") for row in work.seen()["happened"])
+
+
 def test_an_app_that_shows_the_machines_words_or_begins_filled_is_told_so(tmp_path):
     design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"id": 1, "name": "rye"}]})
     for change, named in (('ui.title("Loaves")', "it is shown"), ("items: [] }", "it begins with nothing in it that nobody put there")):

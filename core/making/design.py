@@ -24,7 +24,7 @@ class Rule(BaseModel):
 
 
 class Control(BaseModel):
-    input: str = Field(description='a key ("ArrowLeft", "Space", "Enter", "a") or "pointer"')
+    input: str = Field(description='for a game, a key ("ArrowLeft", "Space", "Enter", "a") or "pointer"; for an app, the label of a button or a field, exactly as it is shown')
     does: str
 
 
@@ -62,7 +62,8 @@ class Design(BaseModel):
         if self.functions:
             lines += ["Written in these functions, each short, called as this.name(...):", *(f"  {f}" for f in self.functions)]
         if self.controls:
-            lines += ["Controls:", *(f"  {control.input}: {control.does}" for control in self.controls)]
+            lines += ["Controls, by the labels they have:" if self.kind == "app" else "Controls:",
+                      *(f"  {control.input}: {control.does}" for control in self.controls)]
         for label, text in (("Ends", self.ends), ("Counts", self.scored), ("Looks", self.look.scene)):
             if text:
                 lines.append(f"{label}: {text}")
