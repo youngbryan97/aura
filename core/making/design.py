@@ -124,7 +124,7 @@ GAME = f"""A game is one JavaScript object. Its state is plain data: numbers, st
 Keys: "ArrowLeft" "ArrowRight" "ArrowUp" "ArrowDown" "Space" "Enter" or a lower-case letter. {_CHANCE}
 The window, the start, pause and end screens, the score and the best score are there already."""
 
-PEN = """g.clear(color) g.sky(top, bottom) g.rect(x,y,w,h,color,{r,stroke,width,alpha,glow}) g.circle(x,y,r,color,{..}) g.ellipse(x,y,rx,ry,color,{turn}) g.line(x1,y1,x2,y2,color,width) g.poly([[x,y],..],color,{..}) g.wedge(x,y,r,fromAngle,toAngle,color,{solid}) fades outward unless solid, g.text(words,x,y,{size,color,align,weight}) g.at(x,y,angle,g => ...) draws turned about a place, g.t seconds, g.ctx the canvas context. A color of null with {stroke} draws an outline."""
+PEN = """g.clear(color) g.sky(top, bottom) g.rect(x,y,w,h,color,{r,stroke,width,alpha,glow}) g.circle(x,y,r,color,{..}) g.ellipse(x,y,rx,ry,color,{turn}) g.line(x1,y1,x2,y2,color,width) g.poly([[x,y],..],color,{..}) g.wedge(x,y,r,fromAngle,toAngle,color,{solid}) fades outward unless solid, g.text(words,x,y,{size,color,align,weight}) g.at(x,y,angle,g => ...) draws turned about a place, g.glow(x,y,r,color,strength) is light added. g.screen(g => ...) draws in the view's own place while the world is moved (a sky, a frame, words). g.t seconds, g.ctx the canvas context. A color of null with {stroke} draws an outline."""
 
 APP = f"""An app is one JavaScript object. Its state is plain data: numbers, strings, lists and objects, no functions. It is kept between openings, and Undo is there already.
   initial()       the state as it begins, before anybody has used it: empty of records
@@ -139,6 +139,10 @@ Labels of buttons that stand together differ, so each can be told from the rest.
 SITE = """A site is one HTML document body, with a <style> of its own and, where needed, one <script>. No address outside the page is used: pictures are drawn as inline SVG, fonts are the system's. Every link goes to a part of the page that is there. It reads well at 400 and at 1200 pixels wide, in light and in dark."""
 
 TOOL = """A tool is one file of {language} that is run as: {run}. It reads its arguments and its standard input, writes its answer to standard output and what went wrong to standard error, and leaves with 0 when it did what was asked and not 0 when it did not. With --help it says how it is used. It uses no network and nothing that has to be installed: {has}."""
+
+
+#: The pieces a game is drawn with, which are told to whoever writes one: what is drawn with them is drawn well.
+DRAWN_WITH = ("scene", "figures", "light", "weather", "meters", "trails", "cloth")
 
 
 def how_it_is_written(design: Design) -> str:

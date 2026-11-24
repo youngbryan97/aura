@@ -29,6 +29,15 @@ _CHANCE_JS = ("let seed=1;const rnd=()=>{seed=(seed*16807)%2147483647;return see
               "for(let i=o.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[o[i],o[j]]=[o[j],o[i]]}return o},W=960,H=600,play=()=>{};")
 
 
+#: What something draws, drawn with the frame's own pen: how much of the view is left bare, how many colours, and where.
+_PAINTED_JS = ("const pen_ = (() => { " + (Path(maker.__file__).parent / "frame.js").read_text() + "\nreturn Frame.pen; })();"
+               "const painted = (draw, t = 1) => { const c = document.createElement('canvas'); c.width = W; c.height = H;"
+               "const x = c.getContext('2d', { willReadFrequently: true }); x.save(); draw(pen_(x, t)); x.restore(); const d = x.getImageData(0, 0, W, H).data;"
+               "let bare = 0, sum = 0; const seen = new Set(); for (let i = 0; i < d.length; i += 4) { if (d[i + 3] === 0) bare++; "
+               "if (i % 28 === 0) seen.add((d[i] >> 2) * 4096 + (d[i + 1] >> 2) * 64 + (d[i + 2] >> 2)); sum = (sum * 31 + d[i] + d[i + 1] + d[i + 2]) % 1e9; }"
+               "return { bare: bare / (W * H), colours: seen.size, sum, at: (a, b) => [...d.slice((Math.round(b) * W + Math.round(a)) * 4, (Math.round(b) * W + Math.round(a)) * 4 + 4)] }; };")
+
+
 def _in_a_browser(act):
     """What ``act(browser)`` gives, in a Chromium of its own."""
     api = pytest.importorskip("playwright.async_api")
@@ -68,7 +77,7 @@ def test_every_piece_says_what_it_is_for_how_it_is_called_and_is_checked():
 
 def test_every_check_of_every_piece_holds():
     checks = [(name, check) for name, piece in pieces.pieces().items() for check in piece.checks]
-    held = _values([f"() => {{ {_CHANCE_JS}{pieces.bundle([name])}\n return ({check}); }}" for name, check in checks])
+    held = _values([f"() => {{ {_CHANCE_JS}{_PAINTED_JS}{pieces.bundle([name])}\n return ({check}); }}" for name, check in checks])
     assert [c for c, ok in zip(checks, held, strict=True) if ok is not True] == []
 
 
@@ -337,6 +346,28 @@ def test_what_takes_two_steps_is_found_by_playing_it(tmp_path):
     trial = _two_steps(TWO_STEPS, tmp_path)
     assert [(r.name, r.why) for r in trial.failing()] == []
     assert any(r.name == "it can be scored in" and "scored" in r.why for r in trial.generic)
+
+
+def test_a_picture_that_slides_out_of_the_view_is_told_and_one_in_its_own_place_is_not(tmp_path):
+    moved = TWO_STEPS.replace('g.clear("#20242c");', 'g.clear("#20242c"); g.ctx.translate(W / 2 - s.me.x * 6, 0); BACK')
+    sky = "g.ctx.save(); for (let i = 0; i < 12; i++) g.rect(2400 + i * 80, 0, 80, 600, ['#112233','#445566','#778899','#aa3355'][i % 4]); g.ctx.restore();"
+    world = _two_steps(moved.replace("BACK", sky), tmp_path)
+    own = _two_steps(moved.replace("BACK", sky.replace("g.ctx.save();", "g.screen(() => {").replace("2400 + i * 80", "i * 80").replace(" g.ctx.restore();", "});")), tmp_path)
+    named = "the picture is filled wherever play goes"
+    assert next(r for r in world.generic if r.name == named).why.startswith("at the beginning") and next(r for r in own.generic if r.name == named).ok
+
+
+def test_whoever_writes_a_game_is_told_the_pieces_it_is_drawn_with(tmp_path):
+    made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
+    made.design = _design()
+    assert "scene.sky(g," in made._given() and "figures.draw(g," in made._given()
+    made.design = _design(kind="app")
+    assert "scene.sky(g," not in made._given()
+    design = _design(pieces=["vec"])
+    page = page_of(design, GOOD.replace('g.sky("#11142a", "#1d1233");', 'scene.sky(g, { kind: "night" });'), tests=TESTS)
+    made.design = design
+    made._written(f"```js\n{GOOD.replace('g.sky(', 'scene.sky(')}\n```", "x")
+    assert "scene" in design.pieces and "const scene" not in page
 
 
 def test_what_can_never_be_reached_is_told_with_what_never_ran(tmp_path):

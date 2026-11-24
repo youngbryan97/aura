@@ -68,7 +68,10 @@ const Frame = (() => {
       ctx.shadowBlur = o && o.glow ? o.glow : 0; ctx.shadowColor = (o && o.glowColor) || (o && o.color) || "#fff"; };
     const fin = (color, o) => { if (o && o.stroke) { ctx.lineWidth = o.width || 2; ctx.strokeStyle = o.stroke; ctx.stroke(); }
       ctx.shadowBlur = 0; ctx.globalAlpha = 1; };
-    const g = { W, H, t, ctx,
+    const g = { W, H, t, ctx, base: ctx.getTransform(),
+      // Drawn in the view's own place, wherever the world has been moved to.
+      screen(draw) { ctx.save(); ctx.setTransform(g.base); draw(g); ctx.restore(); },
+      glow(x, y, r, color, strength) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = strength == null ? 0.6 : Math.max(0, Math.min(1, strength)); const f = ctx.createRadialGradient(x, y, 0, x, y, Math.max(1, r)); f.addColorStop(0, color || "#ffe9a8"); f.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = f; ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, Math.PI * 2); ctx.fill(); ctx.restore(); },
       clear(color) { ctx.globalAlpha = 1; ctx.fillStyle = color || "#101418"; ctx.fillRect(0, 0, W, H); },
       sky(top, bottom) { const f = ctx.createLinearGradient(0, 0, 0, H); f.addColorStop(0, top); f.addColorStop(1, bottom); ctx.globalAlpha = 1; ctx.fillStyle = f; ctx.fillRect(0, 0, W, H); },
       rect(x, y, w, h, color, o) { if (color && typeof color === "object") { o = color; color = o.fill || o.color || null; } opt({ color, ...o }); ctx.fillStyle = color; ctx.beginPath();
@@ -374,6 +377,9 @@ const Frame = (() => {
       if (P.over) check("it can be lost or won", () => { const g = explored(); let e = g.over; if (!e) { seed = 1; const s = run(P.initial(), 240, null); e = ended(s); } must(e, `it never ended: left alone for four minutes, or played ${g.tries} times over. While it was played: ${ran(g.all.map((c) => c.s))}`); });
       if (P.over) check("it is not over before it can be played", () => { seed = 7; const s = run(P.initial(), 2, null); must(!ended(s), "it is over within two seconds of beginning"); });
       check("it is drawn", () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const ctx = c.getContext("2d", { willReadFrequently: true }); const pic = (s, tm) => { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H); P.draw(s, pen(ctx, tm)); return ctx.getImageData(0, 0, W, H).data; }; seed = 7; const s0 = P.initial(); const a = pic(s0, 0).slice(0); let other = 0, blank = 0; for (let i = 0; i < a.length; i += 4 * 97) { if (a[i] !== a[0] || a[i + 1] !== a[1] || a[i + 2] !== a[2]) other++; if (a[i + 3] === 0) blank++; } const n = a.length / (4 * 97); must(other > n * 0.005, "nothing is drawn but one colour"); must(blank < n * 0.5, "most of it is left undrawn: begin draw with g.clear(colour)"); const s1 = wander(null, 4, 2); const b = pic(s1, 4); let moved = 0; for (let i = 0; i < a.length; i += 4 * 97) if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) moved++; must(moved > 0, "the picture is the same after four seconds of play"); for (let sd = 1; sd <= 3; sd++) pic(wander(null, 20, sd), sd); });
+      check("the picture is filled wherever play goes", () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const ctx = c.getContext("2d", { willReadFrequently: true }); const most = (s, tm) => { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.clearRect(0, 0, W, H); P.draw(s, pen(ctx, tm)); const d = ctx.getImageData(0, 0, W, H).data, seen = new Map(); let n = 0, top = 0, what = ""; for (let i = 0; i < d.length; i += 4 * 53) { const k = d[i + 3] < 8 ? "nothing at all" : "#" + [d[i], d[i + 1], d[i + 2]].map((v) => (v >> 3 << 3).toString(16).padStart(2, "0")).join(""); const m = (seen.get(k) || 0) + 1; seen.set(k, m); n++; if (m > top) { top = m; what = k; } } return { share: top / n, what }; };
+        seed = 7; const first = most(P.initial(), 0), all = explored().all, later = []; for (let i = 1; i <= 8; i++) later.push(most(all[Math.floor((all.length - 1) * (i / 8))].s, 3 + i)); later.sort((a, b) => a.share - b.share); const mid = later[4];
+        must(mid.share < 0.62 || mid.share < first.share + 0.22, `at the beginning ${Math.round(first.share * 100)}% of the picture is one colour, and where play goes ${Math.round(mid.share * 100)}% of it is ${mid.what}: what fills the view slides out of it as the world moves. Fill it in the view's own place (the scene pieces do, and g.screen does)`); });
       check("it is quick enough", () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const g = pen(c.getContext("2d"), 0); let s = wander(null, 10, 4); const at = performance.now(); for (let i = 0; i < 120; i++) { s = apply(s, { type: "tick", dt: STEP, held: {}, pointer: NONE }); P.draw(s, g); } const ms = (performance.now() - at) / 120; must(ms < 12, `a frame takes ${ms.toFixed(1)} ms`); return `${ms.toFixed(1)} ms a frame`; });
       if (P.hud) check("what it counts is shown", () => { seed = 7; const rows = P.hud(P.initial()); must(Array.isArray(rows) && rows.every((r) => r && r.label != null && r.value != null), "hud() does not give {label, value} rows"); });
     } else {
@@ -401,7 +407,7 @@ const Frame = (() => {
     if (nothing) P.update = (s) => s;
     return { generic: nothing || tests ? [] : generic(), rules: rules(tests, nothing) };
   }
-  return { open, tried, rnd, chance, play, expect, ui, W, H };
+  return { open, tried, rnd, chance, play, expect, ui, pen, W, H };
 })();
 const { rnd, between, int, pick, shuffle } = { rnd: Frame.rnd, ...Frame.chance };
 Object.assign(rnd, { between, int, pick, shuffle });

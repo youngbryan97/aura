@@ -220,10 +220,12 @@ class _Maker:
                 told += f"\nThese are there to be called, above what is written, and are not written again:\n{calls(design.pieces, 'python')}"
             return told
         told = how.how_it_is_written(design)
+        drawn_with: list[str] = []
         if design.kind == "game":
             told += f"\nThe pen: {how.PEN}"
-        if design.pieces:
-            told += f"\nPieces that are there to be called, by these names:\n{calls(with_needs(design.pieces))}"
+            drawn_with = list(how.DRAWN_WITH)
+        if design.pieces or drawn_with:
+            told += f"\nPieces that are there to be called, by these names:\n{calls(with_needs([*drawn_with, *design.pieces]))}"
         return told
 
     def language(self) -> Language:
