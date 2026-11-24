@@ -37,6 +37,9 @@ from typing import Any
 import numpy as np
 
 from core.runtime.flags import FlagKind, declare
+from core.runtime.interpreter_turns import (
+    A_SHORT_TURN_S as TURN_WHILE_PLAYING_S,  # noqa: F401 - read here by name
+)
 from core.runtime.interpreter_turns import short_turns
 from core.runtime.lockdep import checked_lock
 
