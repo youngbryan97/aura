@@ -21,6 +21,7 @@ from core.understanding.requests_of_her import (
     CUT_SHORT,
     MET,
     PARTLY,
+    SET_ASIDE,
     UNMET,
     WORKING,
     Part,
@@ -742,3 +743,33 @@ def test_a_reply_to_a_turn_that_work_carries_out_is_not_held_to_being_the_work()
     assert _instruction_coverage_reasons(said, reply) == []
     clear()
     assert _instruction_coverage_reasons("List three rivers, and explain how you chose them.", "I'm on it.") != []
+
+
+def test_what_a_turn_asks_is_held_where_her_worker_reads_her_drafts():
+    from core.conversation.response_reliability import _has_internal_task_prompt_leak
+    from core.runtime.what_this_turn_asks import carried, clear, take, this_turn
+
+    said = "try the flatmates app again"
+    reply = "I'm on it. Let me first look at what actually exists right now, so I want to see the real state before touching anything."
+    clear()
+    assert carried(said) is None
+    hold(dataclasses.replace(_read(said, "resume"), request_id="a1"))
+    job = {"what_is_asked": carried(said)}
+    clear()
+    take(None)
+    assert this_turn() is None
+    take(job["what_is_asked"])
+    assert this_turn().request_id == "a1" and not _has_internal_task_prompt_leak(reply, said)
+    assert _has_internal_task_prompt_leak("ORIGINAL PROBLEM: the user asked for an app.", said), "what is never hers to say is still caught"
+    take({})
+    assert this_turn() is None
+
+
+def test_what_they_set_aside_is_gone_on_with_and_not_changed(tmp_path):
+    ledger = RequestsOfHer(tmp_path / "r.json")
+    request = ledger.asked("Make an app.", effect="program", conversation="c")
+    request.made["page"], request.stands = "/x/index.html", SET_ASIDE
+    settled = settle(_read("try it again", "resume"), ledger, conversation="c")
+    assert settled.what == "on_with" and settled.asked.effect == "program"
+    request.stands = MET
+    assert settle(_read("try it again", "resume"), ledger, conversation="c").asked.effect == "program_changed"

@@ -6297,8 +6297,10 @@ def _has_internal_task_prompt_leak(reply_text: Any, asked: Any = "") -> bool:
         pass
     try:
         from core.language.answer_surface import has_private_planning_prefix
+        from core.runtime.what_this_turn_asks import is_done_and_not_said
 
-        return has_private_planning_prefix(body)
+        # Where what was asked is being done, saying what she does first is the reply, and no plan let slip.
+        return has_private_planning_prefix(body) and not is_done_and_not_said(asked)
     except (ImportError, RuntimeError, TypeError, ValueError):
         # not a failure: the literal protocol detector remains authoritative if the language
         # substrate is unavailable, and unknown is not permission to cut prose.

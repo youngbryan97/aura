@@ -1011,3 +1011,40 @@ def test_small_edits_are_guesses_and_the_one_that_gains_is_kept(tmp_path):
     made = _make(tmp_path, model, work)
     assert made is not None and made.trial.failing() == [] and "s.saved++" in made.parts.code() and "s.lamp = 0" not in made.parts.code()
     assert any(row["what"] == "says" and row["words"].startswith("Kept a small edit: a catch did not count.") for row in work.seen()["happened"])
+
+
+def test_a_program_that_cannot_be_read_is_never_the_better_of_two():
+    from core.making.trying import Result, Trial
+
+    broken = Trial(generic=[Result("it can be read", False, "Unexpected token")])
+    partly = Trial(generic=[Result("it begins", True), Result("it is shown", True)], rules=[Result(f"rule {n}", n > 6, "no") for n in range(12)])
+    stuck = Trial(generic=[Result("it begins", False, "today is not defined")], rules=[Result(f"rule {n}", False, "today", broke=True) for n in range(12)])
+    known: set[str] = {r.name for t in (broken, partly, stuck) for r in [*t.generic, *t.rules]}
+    assert maker._how_wrong(partly, known) < maker._how_wrong(stuck, known) < maker._how_wrong(broken, known)
+    fewer = Trial(generic=partly.generic, rules=partly.rules[:4])
+    assert maker._how_wrong(partly, known) < maker._how_wrong(fewer, known), "what is no longer got as far as is not right"
+
+
+def test_an_edit_that_breaks_the_program_is_not_kept_and_a_mend_that_lets_it_be_read_is(tmp_path):
+    from core.self_modification.edits_her_model_proposes import ProposedEdit, ProposedEdits
+
+    half = _RULES.replace("s.saved++", "s.saved += 0")
+    model = _Model([f"```js\n{TESTS}\n```", f"```js\n{half}\n```", f"```js\n{_LOOKS}\n```", "It is right as it is.", "It is the program."])
+    real = model.ask
+
+    async def ask(prompt, schema, n, *, given=""):
+        if schema is not ProposedEdits:
+            return await real(prompt, schema, n, given=given)
+        return ProposedEdits(edits=[ProposedEdit(line=2, old="", new="const const x;", why="breaks it")])
+
+    model.ask = ask
+    made = _make(tmp_path, model)
+    assert "const const" not in made.parts.code() and any(r.name == "it begins" and r.ok for r in made.trial.generic)
+    # And the other way about: what could not be read, and now can and fails at more.
+    again = maker._Maker("x", ask=ask, write=model.write, work=Work("w", "x"), folder=tmp_path, browser=None)
+    again.design = _design()
+    from core.making.trying import Result, Trial
+
+    again.trial = Trial(generic=[Result("it can be read", False, "Identifier 'a' has already been declared")])
+    read = Trial(generic=[Result("it begins", False, "today is not defined")], rules=[Result(f"rule {n}", False, "today") for n in range(10)])
+    assert again._wrong(read) < again._wrong(again.trial)

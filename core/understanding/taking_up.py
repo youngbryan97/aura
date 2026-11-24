@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 
 from core.runtime.what_this_turn_asks import Asked
 from core.understanding.effects import ABOUT_WORK_ASKED_FOR
-from core.understanding.requests_of_her import UNFINISHED, WORKING, Request, RequestsOfHer
+from core.understanding.requests_of_her import MET, WORKING, Request, RequestsOfHer
 from core.understanding.what_is_asked import decide
 
 __all__ = ["Settled", "settle"]
@@ -55,7 +55,7 @@ def settle(asked: Asked, ledger: RequestsOfHer, *, conversation: str, before: Se
     if asked.effect == "resume":
         request = unfinished or latest
         assert request is not None
-        if request.stands not in UNFINISHED and request.effect == "program" and request.made.get("page"):
+        if request.stands == MET and request.effect == "program" and request.made.get("page"):
             return Settled(replace(asked, effect="program_changed"), request, "on_with")
         return Settled(replace(asked, effect=request.effect), request,
                        "told_more" if request.stands == WORKING else "on_with")

@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from core.runtime.what_this_turn_asks import is_done_and_not_said
+
 
 def visible_user_request(user_message: Any) -> str:
     """Return only the part of a turn the PERSON wrote, or "" if unknowable.
@@ -23,14 +25,14 @@ def visible_user_request(user_message: Any) -> str:
     A coverage check that cannot see what was asked must not assert the reply
     failed to cover it — an unknown request is not an unmet one.
     """
+    from core.utils.injected_blocks import strip_injected_blocks
+
     from .response_reliability import (
         _INJECTED_PROMPT_BLOCK_MARKERS,
         _MAX_PLAUSIBLE_USER_TURN_CHARS,
         _SCAFFOLD_KV_LINE_RE,
         _TRANSCRIPT_REPLAY_LINE_RE,
     )
-
-    from core.utils.injected_blocks import strip_injected_blocks
 
     text = str(user_message or "")
     if not text.strip():
@@ -70,24 +72,6 @@ def visible_user_request(user_message: Any) -> str:
     return remainder
 
 
-#: Kinds that are met by something being done, and not by what the reply says.
-_DONE_AND_NOT_SAID = frozenset({"program", "program_changed", "found", "on_machine", "sent", "kept", "resume", "status"})
-
-
-def _is_carried_out_elsewhere(user: str) -> bool:
-    """Whether what was asked is being brought about by work of hers, so that the reply is to say so and not to be it.
-
-    LIVE 24 November 2026, asked for an app of her houseplants, "I'm building the plant-watering tracker and will confirm
-    here when it's ready" was refused for not covering the six things asked of the app, seven drafts running, for over
-    five minutes, and the work waited for the reply. The same is so of what is done on their machine, sent, or kept: what
-    was asked of it is asked of the thing done.
-    """
-    from core.runtime.what_this_turn_asks import asked_by
-
-    asked = asked_by(user)
-    return asked is not None and (bool(asked.request_id) or (asked.acts and asked.effect in _DONE_AND_NOT_SAID))
-
-
 def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[str]:
     from .response_reliability import (
         _FACT_COUNT_REQUEST_RE,
@@ -121,7 +105,7 @@ def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[st
     reply = str(reply_text or "").strip()
     if not user or not reply:
         return []
-    if _is_carried_out_elsewhere(user):
+    if is_done_and_not_said(user):
         return ["protocol_artifact_leakage"] if evaluate_facet_coverage(reply, user).get("protocol_artifact_detected") else []
 
     reasons: list[str] = []

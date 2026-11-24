@@ -18,7 +18,7 @@ from typing import Any
 
 from core.runtime.lockdep import checked_lock
 
-__all__ = ["Asked", "asked_by", "clear", "hold", "licensed", "this_turn"]
+__all__ = ["Asked", "asked_by", "carried", "clear", "hold", "is_done_and_not_said", "licensed", "take", "this_turn"]
 
 #: How long a reading answers for its words outside the context of its turn: as long as a turn can run.
 HELD_FOR_S = 3600.0
@@ -98,6 +98,35 @@ def asked_by(text: Any) -> Asked | None:
     if held is not None and time.time() - held.at <= HELD_FOR_S:
         return held
     return None
+
+
+def carried(words: Any = "") -> dict[str, Any] | None:
+    """The reading of this turn, as a job for another process of hers carries it."""
+    asked = (asked_by(words) if str(words or "").strip() else None) or _THIS_TURN.get()
+    if asked is None:
+        return None
+    return {"said": asked.said[:4000], "effect": asked.effect, "decision": asked.decision, "request_id": asked.request_id}
+
+
+def take(job: Any) -> None:
+    """The reading a job carries, held while it is done; nothing held where it carries none."""
+    clear()
+    if isinstance(job, dict) and str(job.get("said") or "").strip():
+        hold(Asked(said=str(job["said"]), effect=str(job.get("effect") or ""), decision=str(job.get("decision") or ""),
+                   request_id=str(job.get("request_id") or ""), at=time.time()))
+
+
+def is_done_and_not_said(text: Any) -> bool:
+    """Whether what these words ask for is brought about by work of hers or by something done, so that the reply is to say so
+    and not to be it. LIVE 24 November 2026, asked for an app of her houseplants, "I'm building the plant-watering tracker
+    and will confirm here when it's ready" was refused for not covering the six things asked of the app, seven drafts
+    running, for over five minutes; and "I'm on it. Let me first look at what actually exists" as a plan let slip."""
+    asked = asked_by(text)
+    return asked is not None and (bool(asked.request_id) or (asked.acts and asked.effect in _DONE_AND_NOT_SAID))
+
+
+#: Kinds that are met by something being done, and not by what the reply says.
+_DONE_AND_NOT_SAID = frozenset({"program", "program_changed", "found", "on_machine", "sent", "kept", "resume", "status"})
 
 
 def licensed(text: Any, *effects: str) -> bool | None:

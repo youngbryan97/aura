@@ -37,6 +37,7 @@ from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
 from core.runtime.state_ownership import shared_asset_root, state_root
 from core.runtime.wall_clock import monotonic_time, wall_time
+from core.runtime.what_this_turn_asks import take as take_what_is_asked
 
 from .mlx_worker_loop_steps import (  # noqa: F401  (re-exported: they were defined here)
     _add_the_bound_logits_processor,
@@ -6613,6 +6614,7 @@ def _mlx_worker_loop(
                 continue
 
             action = job.get("action")
+            take_what_is_asked(job.get("what_is_asked"))
             if action == "generate" and job.get("states_at_turn"):
                 # Her states where her turn opens, for a reading of what was asked; nothing is written.
                 ipc_writer.put(states_as_a_job(job, model, tokenizer, engine, metal_semaphore))

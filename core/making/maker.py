@@ -120,6 +120,7 @@ class _Maker:
         self.has: list[str] = []
         self._looked_at: set[str] = set()
         self._guessed_at: set[str] = set()
+        self._known: set[str] = set()
         self.when_kept: Callable[[Path], None] | None = None
         self.began = time.monotonic()
 
@@ -369,6 +370,7 @@ class _Maker:
         """What fails, handed back with the code, as long as that gains; then a doubt of the tests that still fail."""
         assert self.design is not None
         self.trial = await self.tried()
+        self._known = set()
         nothing_gained = doubted = 0
         put_right = False
         while self.trial.failing():
@@ -378,6 +380,7 @@ class _Maker:
             if amiss and not put_right:
                 put_right = True
                 if await self._tests_read_again(amiss):
+                    self._known = set()
                     self.trial = await self.tried(what="Trying it, with the tests put right")
                     continue
             if nothing_gained >= (GAINED_NOTHING if any(not r.ok for r in self.trial.generic) else 1):
@@ -387,6 +390,7 @@ class _Maker:
                 if not await self._tests_read_again([r for r in self.trial.rules if not r.ok]):
                     break
                 nothing_gained = 0
+                self._known = set()
                 self.trial = await self.tried(what="Trying it, with the tests read again")
                 continue
             if await self._her_own_mend(failing) or await self._small_edits(failing):
@@ -397,10 +401,10 @@ class _Maker:
                 nothing_gained += 1
                 continue
             trial = await self.tried(parts, "Trying the mend")
-            before, after = _how_much_is_wrong(failing), _how_much_is_wrong(trial.failing())
+            before, after = self._wrong(self.trial), self._wrong(trial)
             if after >= before and (better := await self._the_best_of(parts, before)) is not None:
                 parts, trial = better
-                after = _how_much_is_wrong(trial.failing())
+                after = self._wrong(trial)
             if after < before:
                 self.work.says(f"Kept: {len(failing)} things failed before it and {len(trial.failing())} do now"
                                + (", and what was underneath them is put right." if len(trial.failing()) >= len(failing) else "."))
@@ -410,6 +414,11 @@ class _Maker:
                 nothing_gained += 1
                 self.work.says(f"Not kept: {len(failing)} things failed before it and {len(trial.failing())} after.")
 
+    def _wrong(self, trial: Trial) -> tuple[int, float]:
+        """How wrong a trial shows it, beside every check that any trial of it has got as far as."""
+        self._known |= {r.name for r in [*trial.generic, *trial.rules]}
+        return _how_wrong(trial, self._known)
+
     async def _her_own_mend(self, failing: list[Result]) -> bool:
         """A mend she writes without her model, where one leaves less that fails; whether one was kept. Once for each state
         the program is in: what her own Python has to say of it does not change until it does."""
@@ -418,14 +427,14 @@ class _Maker:
         if self.design.kind == "site" or code in self._looked_at:
             return False
         self._looked_at.add(code)
-        before, began, tried = _how_much_is_wrong(failing), time.monotonic(), 0
-        best: tuple[float, Parts, Trial, str] | None = None
+        before, began, tried = self._wrong(self.trial), time.monotonic(), 0
+        best: tuple[tuple[int, float], Parts, Trial, str] | None = None
         async for sort, says, parts in self._mends_of_her_own(failing):
             if tried == 0:
                 self.work.step("Trying the mends her own Python writes, before her model is asked")
             tried += 1
             trial = await self.tried(parts, quiet=True)
-            wrong = _how_much_is_wrong(trial.failing())
+            wrong = self._wrong(trial)
             # What was made to fit one case at a suspicious line may fit nothing else: it counts where it mends what broke, or more than one.
             fits = not sort.startswith(("template:", "ingredient:")) or len(failing) - len(trial.failing()) > 1 or any("Traceback" in r.why for r in failing)
             if wrong < (best[0] if best else before) and fits and not {r.name for r in trial.failing()} - {r.name for r in failing}:
@@ -470,7 +479,7 @@ class _Maker:
         if not isinstance(got, ProposedEdits):
             return False
         guesses = [(s, s.edits) for s in edits_from_proposals(code, got)]
-        before, best = _how_much_is_wrong(failing), None
+        before, best = self._wrong(self.trial), None
         began = time.monotonic()
         for suspicion, edits in [*guesses, *_pairs(guesses)]:
             if time.monotonic() - began > OWN_S or (best is not None and not best[2].failing()):
@@ -479,7 +488,7 @@ class _Maker:
             if parts is None:
                 continue
             trial = await self.tried(parts, quiet=True)
-            wrong = _how_much_is_wrong(trial.failing())
+            wrong = self._wrong(trial)
             if wrong < (best[0] if best else before):
                 best = (wrong, parts, trial, suspicion.why)
         if best is None:
@@ -541,7 +550,7 @@ class _Maker:
                 continue  # its pieces stand in the middle of it, and what is above them cannot be told from what is below
             yield sort, says, parts
 
-    async def _the_best_of(self, mend: Parts, before: float) -> tuple[Parts, Trial] | None:
+    async def _the_best_of(self, mend: Parts, before: tuple[int, float]) -> tuple[Parts, Trial] | None:
         """A mend that gained nothing whole, taken apart: each function of it on its own over what gains, and the whole of it
         without each. A trial takes seconds where a mend takes a minute or two of her model's."""
         changed = [name for name, text in mend.functions.items() if self.parts.functions.get(name) != text]
@@ -554,7 +563,7 @@ class _Maker:
             parts = over.copy()
             parts.functions[name] = mend.functions[name]
             trial = await self.tried(parts, quiet=True)
-            if (wrong := _how_much_is_wrong(trial.failing())) < before:
+            if (wrong := self._wrong(trial)) < before:
                 best, before, over = (parts, trial), wrong, parts
         for name in changed if len(changed) > 2 else ():
             parts = mend.copy()
@@ -563,7 +572,7 @@ class _Maker:
             else:
                 del parts.functions[name]
             trial = await self.tried(parts, quiet=True)
-            if (wrong := _how_much_is_wrong(trial.failing())) < before:
+            if (wrong := self._wrong(trial)) < before:
                 best, before = (parts, trial), wrong
         if best is not None:
             took = [name.removeprefix(BEFORE) for name in changed if best[0].functions.get(name) == mend.functions[name]]
@@ -583,7 +592,7 @@ class _Maker:
             parts = await self._a_mend([Result(found, False, "seen in its window") for found in before], warm=0.2)
             if parts is not None:
                 trial, after = await self.tried(parts, "Trying it with that mended"), await self._unfinished(parts)
-                if len(after) < len(before) and _how_much_is_wrong(trial.failing()) <= _how_much_is_wrong(self.trial.failing()):
+                if len(after) < len(before) and self._wrong(trial) <= self._wrong(self.trial):
                     self.work.says(f"Kept: {len(before)} things looked unfinished and {len(after)} do now.")
                     self.parts, self.trial, before = parts, trial, after
         self.trial.generic.append(Result("nothing in it overlaps, is cut off or is hard to read", not before, "; ".join(before)[:400]))
@@ -631,6 +640,7 @@ class _Maker:
         its_own = _the_windows_own([c.does for c in dead], [rule.says for rule in self.design.rules])
         gone = [c for c, own in zip(dead, its_own, strict=True) if own or c.input in {"Enter", "Escape", "p", "m", "r"}]
         if gone and len(gone) < len(self.design.controls):
+            self._known = {name for name in self._known if not any(name.endswith(f"({c.does})") for c in gone)}
             self.design.controls = [c for c in self.design.controls if c not in gone]
             self.work.says("The window does this already, so it is no control of the program's: " + "; ".join(c.does for c in gone) + ".")
             return [c.does for c in gone]
@@ -731,6 +741,21 @@ def _how_much_is_wrong(failing: list[Result]) -> float:
         return 3.0 if result.broke else 2.0
 
     return sum(weight(result) for result in failing)
+
+
+#: How far a program got, by what of it fails: one that cannot be read is tried for nothing else, so it fails at one thing.
+_GOT_AS_FAR = {"it can be read": 3, "it has its functions": 3, "it can be tried": 3, "it comes to an end": 3, "it builds": 3, "it begins": 2,
+               "it is shown": 1, "it is drawn": 1}
+
+
+def _how_wrong(trial: Trial, known: set[str]) -> tuple[int, float]:
+    """How wrong a program is, to be compared: how far it got first, and then what fails of it, with what it did not get as
+    far as counted as failing. LIVE 24 November 2026 an edit that left a program unreadable was kept as the better of the
+    two, for it failed at one thing where the other failed at eleven."""
+    failing = trial.failing()
+    stuck = max((_GOT_AS_FAR.get(r.name, 1 if r.name.startswith("it runs without breaking") else 0) for r in failing), default=0)
+    here = {r.name for r in [*trial.generic, *trial.rules]}
+    return stuck, _how_much_is_wrong(failing) + 3.0 * len(known - here)
 
 
 #: What the window a program runs in does by itself.

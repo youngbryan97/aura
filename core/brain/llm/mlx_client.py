@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 from core.brain.llm.the_tool_loops_last_pass import this_pass_writes
 from core.runtime import resource_psutil as psutil
 from core.runtime.service_access import resolve_inference_gate
+from core.runtime.what_this_turn_asks import carried
 
 from .her_states_at_a_turn import _ReadsHerStatesAtATurn
 from .mlx_client_artifacts import (  # noqa: F401  (re-exported: they were defined here)
@@ -4833,6 +4834,7 @@ def _build_the_generation_request(
         "expect_next": [str(c) for c in (kwargs.get("expect_next") or ())],
         "surprise_of": [str(c) for c in (kwargs.get("surprise_of") or ())],
         "states_at_turn": [str(c) for c in (kwargs.get("states_at_turn") or ())],
+        "what_is_asked": carried(kwargs.get("user_surface_validation_prompt")) if kwargs.get("clean_user_surface_contract") else None,
         "show_what_is_written": a_watcher() is not None, "read_by_a_machine": bool(kwargs.get("read_by_a_machine", False)),
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
