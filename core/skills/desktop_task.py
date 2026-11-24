@@ -400,21 +400,20 @@ async def _its_pointing_emitted(payload: dict[str, Any], objective: str, *, plan
 
 
 def _a_program_here_named(text: str) -> str:
-    """The program on this machine ``text`` names, as the machine names it (its name as written, whole words); "" where
-    it names none. A name written otherwise is a word: "a game of chess" asks for chess, "Open Chess" names the
-    program."""
+    """The program on this machine ``text`` names, by the machine's name for it in any spelling, read by meaning
+    (core/epistemics/where_a_request_is_done.py): "Open En Croissant" names en-croissant.app; "a game of chess" names
+    no program and "Open Chess" names one. "" where it names none."""
     try:
         from core.capabilities.app_registry import get_app_registry
 
-        names = [app.name for app in get_app_registry().all_apps() if app.name]
+        names = [app.name for app in get_app_registry().all_apps() if app.name] or None
     except (ImportError, AttributeError, OSError, RuntimeError) as exc:
         record_degradation("desktop_task.programs_here", exc, severity="info",
-                           action="read the objective without the programs on this machine")
-        return ""
-    for name in sorted(names, key=len, reverse=True):
-        if re.search(rf"(?<![\w]){re.escape(name)}(?![\w])", text):
-            return name
-    return ""
+                           action="read the objective with the programs found in the Applications folders")
+        names = None
+    from core.epistemics.where_a_request_is_done import program_it_names
+
+    return program_it_names(text, names)
 
 
 class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill):

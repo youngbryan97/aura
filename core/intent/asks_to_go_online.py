@@ -17,7 +17,6 @@ import re
 
 __all__ = [
     "FRONT_PAGES", "acts_asked", "asks_into_her_mail", "asks_to_go_online", "place_named", "site_named",
-    "the_place_it_continues",
 ]
 
 #: Sites people send her to by name rather than by address, at their front pages. LIVE 20 October 2026, the dress
@@ -118,26 +117,6 @@ def acts_asked(message: object) -> set[str]:
     if _AN_ADDRESS.search(text):
         text = re.sub(r"\b(watch|view|listen)(\w*)\s+(?:to\s+)?(?:this|that)\b", r"\1\2", text, flags=re.IGNORECASE)
     return {act for act, said in _ACTS.items() if said.search(text)}
-
-
-def the_place_it_continues(message: object, earlier: list[str]) -> tuple[str, str]:
-    """Where ``message`` means, when it names no place and goes on with what the conversation was doing somewhere: the
-    front page of the latest request in ``earlier`` (oldest first) that named a place, where it asked for the same
-    kind of thing, and that request; ("", "") otherwise.
-
-    Bryan, 22 October 2026: after two YouTube videos, "Now Salad Fingers. Pick whichever episode you want" means a third
-    on YouTube, as it would to anybody watching with him; read alone, it named no place and never reached her browser.
-    """
-    if place_named(message):
-        return "", ""
-    acts = acts_asked(message)
-    if not acts:
-        return "", ""
-    for said in reversed(earlier):
-        place = place_named(said)
-        if place:
-            return (place, said) if acts & acts_asked(said) else ("", "")
-    return "", ""
 
 
 #: Her own mail, named as people name it to her: her email, her inbox, her mail.

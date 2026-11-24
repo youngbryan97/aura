@@ -121,38 +121,44 @@ def _their_earlier_requests(text: str) -> list[str]:
 
 
 def the_conversations_place(text: Any) -> str:
-    """The page a request that names none means, from the conversation: where the latest request that named a place
-    was worked, when this one asks for the same kind of thing (core/intent/asks_to_go_online.py
-    ``the_place_it_continues``), and that one was work on a page."""
-    from core.intent.asks_to_go_online import acts_asked, place_named, the_place_it_continues
+    """The page a request that names none means, from the conversation: the latest place an earlier message named, when
+    what this request asks for is done there, read by meaning (core/epistemics/where_a_request_is_done.py).
+
+    LIVE 23 November 2026, "Open En Croissant and play a game of chess against Stockfish" went to gmail.com, lichess.org
+    and linkedin.com: a résumé pasted earlier held an address at gmail.com and a link at linkedin.com, and both it and
+    the request held a word from one list ("game", "play"). A request naming a program on this machine is that
+    program's, and one that names no place goes on with a page only where the reader says it is done there.
+    """
+    from core.epistemics.where_a_request_is_done import continues_there, program_it_names
+    from core.intent.asks_to_go_online import place_named
 
     body = str(text or "")
-    if place_named(body) or not acts_asked(body):
+    if not body.strip() or place_named(body) or program_it_names(body):
         return ""
-    place, said = the_place_it_continues(body, _their_earlier_requests(body))
-    if not place or not _the_page_it_names(said):
+    place, said = _the_latest_place_named(_their_earlier_requests(body))
+    if not place or not _asked_to_act(body):
         return ""
-    return place if _goes_on_with_it(body) or _she_is_asked_to_do_it(body) else ""
+    return place if continues_there(said, body, place) else ""
 
 
-#: Going on with what was asked, to something else, with no verb of its own: "Now Salad Fingers, whichever episode you
-#: want" asks for what the request before it asked for. "How about another one?" proposes it.
-_GOES_ON = re.compile(r"^\s*(?:(?:ok(?:ay)?|alright|so|and|right)[,\s]+)*(?:(now|next|then|after\s+that)|how\s+about)\b",
-                      re.IGNORECASE)
+def _the_latest_place_named(earlier: list[str]) -> tuple[str, str]:
+    """The front page of the latest place a message in ``earlier`` (oldest first) names, and that message; ("", "")."""
+    from core.intent.asks_to_go_online import place_named
+
+    for said in reversed(earlier):
+        place = place_named(said)
+        if place:
+            return place, said
+    return "", ""
 
 
-def _goes_on_with_it(body: str) -> bool:
-    """Whether the request goes on with the one before it rather than asking about it ("Now, what did you think?")."""
-    opening = _GOES_ON.match(body)
-    if opening is None:
-        return False
-    if not opening.group(1):
-        return True  # "how about ..."
-    if "?" in body:
-        return False
-    from core.conversation.request_mood import RequestMood, assess_request_mood
-
-    return assess_request_mood(body).mood is not RequestMood.MENTION
+def _asked_to_act(body: str) -> bool:
+    """Whether the request asks her to do something, by her reading of the turn where there is one
+    (core/runtime/what_this_turn_asks.py), and by its grammar where there is not."""
+    read = asked_by(body)
+    if read is not None:
+        return read.acts
+    return _she_is_asked_to_do_it(body)
 
 
 def _she_is_asked_to_do_it(body: str) -> bool:

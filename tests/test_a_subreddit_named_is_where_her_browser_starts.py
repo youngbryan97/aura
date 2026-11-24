@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from core.conversation.page_interaction import front_page_named
-from core.intent.asks_to_go_online import place_named, site_named, the_place_it_continues
+from core.intent.asks_to_go_online import place_named, site_named
 from core.skills.sovereign_browser import BrowserInput
 
 pytestmark = pytest.mark.unit
@@ -40,5 +40,12 @@ def test_a_subreddit_inside_an_address_is_left_to_the_address():
     assert place_named(asked) == "https://www.reddit.com"
 
 
-def test_the_next_request_there_goes_on_at_the_subreddit():
-    assert the_place_it_continues("Now read me the second thread", [_ASKED])[0] == "https://www.reddit.com/r/nosleep/"
+def test_the_next_request_there_goes_on_at_the_subreddit(monkeypatch):
+    import core.conversation.page_interaction as pages
+    from core.epistemics import where_a_request_is_done as where
+
+    monkeypatch.setattr(where, "continues_there", lambda earlier, request, place: True)
+    monkeypatch.setattr(where, "program_it_names", lambda text, names=None: "")
+    monkeypatch.setattr(pages, "_asked_to_act", lambda body: True)
+    monkeypatch.setattr(pages, "_their_earlier_requests", lambda _text: [_ASKED])
+    assert pages.the_conversations_place("Now read me the second thread") == "https://www.reddit.com/r/nosleep/"
