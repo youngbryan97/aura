@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import re
 import time
@@ -12,9 +13,10 @@ import pytest
 from core.brain.llm import her_states_at_a_turn as states
 from core.runtime import what_this_turn_asks as held
 from core.runtime.what_this_turn_asks import Asked, asked_by, hold, licensed
-from core.understanding import carrying_out, what_is_asked
+from core.understanding import carrying_out, fitted_on_her_model, what_is_asked
 from core.understanding.effects import BY_NAME, EFFECTS
 from core.understanding.examples import Turn, attached, examples, transcript
+from core.understanding.fitted_on_her_model import FittedOnHerModel, fit
 from core.understanding.requests_of_her import (
     CUT_SHORT,
     MET,
@@ -26,7 +28,13 @@ from core.understanding.requests_of_her import (
     RequestsOfHer,
 )
 from core.understanding.taking_up import settle
-from core.understanding.what_is_asked import WhatIsAsked, decide, fit
+from core.understanding.what_is_asked import WhatIsAsked, decide
+from core.understanding.what_she_says_she_does import (
+    UNDERTAKES,
+    WhatSheSaysSheDoes,
+    reply_transcript,
+    she_says,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -230,7 +238,7 @@ def test_a_batch_waits_for_room_and_for_whoever_is_talking(monkeypatch):
     async def sleep(seconds):
         slept.append(seconds)
 
-    monkeypatch.setattr(what_is_asked.asyncio, "sleep", sleep)
+    monkeypatch.setattr(fitted_on_her_model.asyncio, "sleep", sleep)
     answers = iter([[], ["state"]])
     talking = iter([True, False, False])
 
@@ -238,13 +246,13 @@ def test_a_batch_waits_for_room_and_for_whoever_is_talking(monkeypatch):
         assert in_a_turn
         return next(answers)
 
-    got = asyncio.run(WhatIsAsked._read_when_it_can(["x"], ask, lambda: next(talking)))
+    got = asyncio.run(FittedOnHerModel._read_when_it_can(["x"], ask, lambda: next(talking)))
     assert got == ["state"] and slept == [1.0, 2.0]
 
     async def never(texts, *, in_a_turn):
         return []
 
-    assert asyncio.run(WhatIsAsked._read_when_it_can(["x"], never, None)) == []
+    assert asyncio.run(FittedOnHerModel._read_when_it_can(["x"], never, None)) == []
 
 
 @pytest.mark.parametrize(("p", "decision", "effect"), [
@@ -487,7 +495,7 @@ def test_taking_up_opens_begins_and_records_the_call(tmp_path, monkeypatch):
         return await chat.take_up_what_is_asked(said, session_id="c"), held.this_turn().request_id
 
     taken, request_id = asyncio.run(turn())
-    assert taken and begun and begun[0].said == said and recorded[-1]["begun"] is True
+    assert taken and begun and begun[0].said == said and recorded[-1]["status"] == "started"
     assert request_id == begun[0].id
 
     held.clear()
@@ -510,3 +518,166 @@ def test_the_turn_is_read_before_any_door_and_taken_up_before_any_lane():
     assert body.index("take_up_what_is_asked(") < body.index("_resolve_action_episode_projection(")
     assert body.index("take_up_what_is_asked(") < body.index("_execute_governed_capability_request_from_chat(")
     assert "and not taken_up" in body
+
+
+# ── her model, between people's turns ────────────────────────────────
+
+def _between(monkeypatch, texts, waiting):
+    from core.understanding import her_model_between_turns as between
+
+    given, waits = iter(texts), iter(waiting)
+    asked: list[str] = []
+
+    async def on_the_lane(prompt, schema, max_tokens):
+        asked.append(prompt)
+        answer = next(given)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async def nobody():
+        return None
+
+    monkeypatch.setattr(between, "_on_the_lane", on_the_lane)
+    monkeypatch.setattr(between, "nobody_waiting", nobody)
+    monkeypatch.setattr(between, "_somebody_is_waiting", lambda: next(waits))
+    return between, asked
+
+
+def test_an_ask_that_gave_way_is_made_again_and_not_called_a_failure(monkeypatch):
+    from pydantic import BaseModel
+
+    class It(BaseModel):
+        name: str
+
+    between, asked = _between(monkeypatch, ["", TimeoutError("stopped"), '{"name": "a"}'], [True, True])
+    got = asyncio.run(between.ask("What?", It, 10))
+    assert got is not None and got.name == "a" and len(asked) == 3
+
+
+def test_an_empty_answer_with_nobody_waiting_is_her_model_being_away(monkeypatch):
+    from pydantic import BaseModel
+
+    from core.rebuilding.her_model import HerModelIsAwayError
+
+    class It(BaseModel):
+        name: str
+
+    for answer, why in (("", "empty answer"), (None, "held for something else")):
+        between, _asked = _between(monkeypatch, [answer], [False])
+        with pytest.raises(HerModelIsAwayError, match=why):
+            asyncio.run(between.ask("What?", It, 10))
+
+
+def test_work_begins_when_the_turn_that_asked_is_answered(tmp_path, monkeypatch):
+    order: list[str] = []
+
+    async def nobody():
+        order.append("waited")
+
+    monkeypatch.setattr(carrying_out, "nobody_waiting", nobody)
+
+    async def run():
+        ledger = RequestsOfHer(tmp_path / "r.json")
+        request = ledger.asked("Make it.", effect="program", conversation="c")
+
+        async def carrier(request, tell):
+            order.append("worked")
+            return carrying_out.CameTo(how="built", parts=[Part("it runs", "met")])
+
+        done = asyncio.Event()
+
+        async def told(request):
+            order.append("told")
+            done.set()
+
+        assert carrying_out.begin(request, tell=lambda line: None, told=told, carrier=carrier, ledger=ledger)
+        assert not carrying_out.begin(request, tell=lambda line: None, told=told, carrier=carrier, ledger=ledger)
+        await asyncio.wait_for(done.wait(), timeout=5)
+        return request
+
+    assert asyncio.run(run()).stands == MET and order == ["waited", "worked", "told"]
+
+
+# ── her own word ─────────────────────────────────────────────────────
+
+def test_every_reply_example_is_of_a_kind_and_there_are_enough_of_each():
+    kinds = [kind for kind, _reply, _said in she_says()]
+    assert {kind: kinds.count(kind) >= 20 for kind in set(kinds)} == {"undertakes": True, "reports": True, "offers": True, "none": True}
+    text = "\n".join(f"{reply} {said}" for _kind, reply, said in she_says())
+    assert not re.search(r"[\w.]+@[\w.]+\.\w+|\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b", text)
+
+
+def test_a_reply_is_read_to_the_end_of_her_turn():
+    assert reply_transcript("On it.", "Make a clock.") == (
+        "<|im_start|>user\nMake a clock.<|im_end|>\n<|im_start|>assistant\nOn it.<|im_end|>")
+
+
+def _kept(monkeypatch, tmp_path, says: dict, asked: Asked, reply: str = "On it."):
+    from interface.routes import chat_carrying_out as chat
+    from interface.routes import chat_what_is_asked
+
+    ledger = RequestsOfHer(tmp_path / "r.json")
+    monkeypatch.setattr(chat, "get_requests_of_her", lambda: ledger)
+    monkeypatch.setattr(chat_what_is_asked, "her_client", lambda: object())
+
+    async def nobody():
+        return None
+
+    async def read(self, reply, said, *, client):
+        return says
+
+    monkeypatch.setattr(chat, "nobody_waiting", nobody)
+    monkeypatch.setattr(WhatSheSaysSheDoes, "read", read)
+    begun: list[Request] = []
+    monkeypatch.setattr(carrying_out, "begin", lambda request, **kw: begun.append(request) or True)
+    asyncio.run(chat._keep_her_word(reply, asked.said, asked, session_id="c"))
+    return begun
+
+
+MAYBE = _p(talk=0.55, program=0.40, known=0.05)
+
+
+def test_what_her_reply_says_she_is_doing_is_begun(monkeypatch, tmp_path):
+    asked = Asked(said="A tide clock would be lovely.", effect="talk", decision="talk", by_effect=MAYBE)
+    begun = _kept(monkeypatch, tmp_path, {UNDERTAKES: 0.9, "none": 0.1}, asked)
+    assert [r.effect for r in begun] == ["program"] and begun[0].said == asked.said
+
+
+@pytest.mark.parametrize("says", [{UNDERTAKES: 0.2, "offers": 0.8}, {UNDERTAKES: 0.1, "reports": 0.1, "none": 0.8},
+                                  {UNDERTAKES: 0.45, "none": 0.4, "offers": 0.15}, None])
+def test_an_offer_a_report_or_a_remark_begins_nothing(monkeypatch, tmp_path, says):
+    asked = Asked(said="A tide clock would be lovely.", effect="talk", decision="talk", by_effect=MAYBE)
+    assert _kept(monkeypatch, tmp_path, says, asked) == []
+
+
+def test_what_she_cannot_begin_from_here_is_not_begun(monkeypatch, tmp_path):
+    asked = Asked(said="Good night.", effect="talk", decision="talk", by_effect=_p(talk=0.97, kept=0.02, program=0.01))
+    assert _kept(monkeypatch, tmp_path, {UNDERTAKES: 0.9, "none": 0.1}, asked) == []
+
+
+def test_nothing_is_begun_beside_work_the_turn_already_did(monkeypatch):
+    from core.conversation import surface_disposition
+    from interface.routes import chat_carrying_out as chat
+
+    started: list[str] = []
+    monkeypatch.setattr(chat, "_keep_her_word", lambda *a, **k: started.append("x"))
+
+    class Tracker:
+        def create_task(self, *a, **k):
+            started.append("task")
+
+    from core.utils import task_tracker
+
+    monkeypatch.setattr(task_tracker, "get_task_tracker", lambda: Tracker())
+    monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ())
+    hold(dataclasses.replace(_read("Make it.", "program"), request_id="a1"))
+    chat.her_word_is_kept("On it.", "Make it.", session_id="c")
+    assert started == [], "the turn's request is the work"
+    hold(_read("Make it.", "program"))
+    monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ({"tool": "x"},))
+    chat.her_word_is_kept("On it.", "Make it.", session_id="c")
+    assert started == [], "she called something this turn"
+    monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ())
+    chat.her_word_is_kept("On it.", "Make it.", session_id="c")
+    assert "task" in started

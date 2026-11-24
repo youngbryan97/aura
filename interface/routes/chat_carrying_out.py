@@ -16,15 +16,15 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.what_this_turn_asks import Asked, hold, this_turn
+from core.understanding.effects import BY_NAME
+from core.understanding.her_model_between_turns import ORIGIN, nobody_waiting
 from core.understanding.requests_of_her import Request, get_requests_of_her
 from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS
 
 logger = logging.getLogger("Aura.Chat")
 
-__all__ = ["ORIGIN", "take_up_what_is_asked", "tell_what_it_came_to", "the_message"]
+__all__ = ["ORIGIN", "her_word_is_kept", "take_up_what_is_asked", "tell_what_it_came_to", "the_message"]
 
-#: What names this work to her lane, her log and her conversation.
-ORIGIN = "work_asked_for"
 #: The least time her words on what a request came to may take to form.
 LEAST_S = 60.0
 
@@ -101,11 +101,57 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
     from core.skills.screen_pursuit import _tell
 
     begun = carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to)
-    _recorded(said, {"begun": begun, "request": request.said, "kind": request.effect,
-                     "it_goes_on_after_this_reply": True, "they_will_be_told_what_it_came_to": True,
+    _recorded(said, {"status": "started" if begun else "not_started", "working_on": BY_NAME[request.effect].met,
+                     "for": request.said, "where": "in the background, after this reply",
+                     "when_done": "what it came to is said here, in the conversation",
                      **({"how_it_stood": request.account()} if request.tries else {})}, ok=begun)
     logger.info("🧰 Request %s (%s) %s: %s", request.id, request.effect, "begun" if begun else "not begun", said[:120])
     return True
+
+
+def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
+    """After a reply is given: what it says she is doing is begun, where nothing she did this turn is that. Off the turn,
+    so no reply waits for it."""
+    from core.conversation.surface_disposition import turn_tool_receipts
+    from core.utils.task_tracker import get_task_tracker
+
+    asked = this_turn()
+    if not str(reply or "").strip() or asked is None or asked.request_id or turn_tool_receipts():
+        return
+    get_task_tracker().create_task(_keep_her_word(reply, said, asked, session_id=session_id), name="her_word_is_kept")
+
+
+async def _keep_her_word(reply: str, said: str, asked: Asked, *, session_id: str) -> None:
+    """Begin what her reply undertakes, as the likeliest thing this turn could have asked for that she can carry out."""
+    from core.understanding import carrying_out
+    from core.understanding.what_she_says_she_does import UNDERTAKES, get_what_she_says_she_does
+    from interface.routes.chat_what_is_asked import her_client
+
+    try:
+        await nobody_waiting()
+        says = await get_what_she_says_she_does().read(reply, said, client=her_client())
+        if says is None or max(says, key=lambda kind: says[kind]) != UNDERTAKES:
+            return
+        kinds = {kind: p for kind, p in asked.by_effect.items() if kind != "talk"}
+        kind = max(kinds, key=lambda name: kinds[name], default="")
+        # Begun where failing to keep her word would cost more than doing what she did not mean she was doing.
+        likelier = says[UNDERTAKES] > (1.0 - says[UNDERTAKES]) * (BY_NAME[kind].unasked if kind in BY_NAME else 1.0)
+        if kind not in carrying_out.carriers() or not likelier or kinds[kind] * 2 < sum(kinds.values()):
+            logger.info("🧰 Her reply undertakes something (%.2f) that is not hers to begin from here (%s).", says[UNDERTAKES], kind)
+            return
+        ledger = get_requests_of_her()
+        if kind == "document_read" and not ledger.given(session_id):
+            return
+        request = ledger.asked(said, effect=kind, conversation=session_id,
+                               materials=ledger.given(session_id, with_words=None if kind == "document_read" else [said]))
+        await ledger.keep()
+        from core.skills.screen_pursuit import _tell
+
+        begun = carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to)
+        logger.info("🧰 Her reply said she was doing it (%.2f), so request %s (%s) is %s: %s", says[UNDERTAKES], request.id, kind,
+                    "begun" if begun else "not begun", said[:120])
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("carrying_out", exc, severity="warning", action="what a reply undertook was not begun")
 
 
 async def _is_long(materials: Sequence[str], said: str) -> bool:
@@ -153,13 +199,11 @@ async def _her_words(request: Request) -> str:
         on_her_cortex,
         what_she_finished,
     )
-    from core.brain.llm_health_router_gate_owners import a_person_is_waiting_for_her_model
 
     facts = json.dumps({"what_it_came_to": request.account(), **({"found": request.made["told"]} if request.made.get("told") else {})},
                        ensure_ascii=False)
     try:
-        while a_person_is_waiting_for_her_model():
-            await asyncio.sleep(1.0)
+        await nobody_waiting()
         messages = her_conversation_now_with("", facts, looked_with=(ORIGIN, {"request": request.said}))
         return what_she_finished(await on_her_cortex(messages, origin=ORIGIN, least_s=LEAST_S))
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError, TimeoutError) as exc:

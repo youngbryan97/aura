@@ -19,7 +19,7 @@ from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS
 
 logger = logging.getLogger("Aura.Chat")
 
-__all__ = ["begin_reading_what_is_asked", "files_meant", "names_of", "read_what_this_turn_asks"]
+__all__ = ["begin_reading_what_is_asked", "files_meant", "her_client", "names_of", "read_what_this_turn_asks"]
 
 #: The longest a turn waits to be read. One pass over the exchange takes well under a second on a warm lane; past this
 #: the lane is busy with something else and the turn goes on unread.
@@ -28,7 +28,7 @@ READ_WITHIN_S = 12.0
 BESIDE = 1
 
 
-def _client() -> Any:
+def her_client() -> Any:
     """The client of the model she thinks with, as her turns hold it."""
     gate = ServiceContainer.get("inference_gate", default=None)
     return getattr(gate, "_mlx_client", None)
@@ -38,12 +38,13 @@ def begin_reading_what_is_asked() -> None:
     """Fit the reading on the model that is running, while nobody is waiting; asked for again while it is not ready."""
     from core.brain.llm_health_router_gate_owners import a_person_is_waiting_for_her_model
     from core.understanding.what_is_asked import get_what_is_asked
+    from core.understanding.what_she_says_she_does import get_what_she_says_she_does
     from core.utils.task_tracker import get_task_tracker
 
     async def learn() -> None:
-        client = _client()
-        if client is not None:
-            await get_what_is_asked().learn(client, waiting=a_person_is_waiting_for_her_model)
+        client = her_client()
+        if client is not None and await get_what_is_asked().learn(client, waiting=a_person_is_waiting_for_her_model):
+            await get_what_she_says_she_does().learn(client, waiting=a_person_is_waiting_for_her_model)
 
     get_task_tracker().create_task(learn(), name="what_is_asked.learn")
 
@@ -99,7 +100,7 @@ async def read_what_this_turn_asks(said: str, *, session_id: str, attachments: S
         from core.understanding.examples import attached
         from core.understanding.what_is_asked import get_what_is_asked
 
-        client, reads = _client(), get_what_is_asked()
+        client, reads = her_client(), get_what_is_asked()
         if client is None:
             return None
         if not reads.ready(client):

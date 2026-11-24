@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from core.search.what_a_page_says_of_itself import PageSays, has_lapsed, page_says
 from core.understanding.carrying_out import CameTo, Tell
+from core.understanding.her_model_between_turns import ask as _ask
 from core.understanding.requests_of_her import Part, Request
 
 logger = logging.getLogger("Aura.Understanding.Finding")
@@ -120,12 +121,6 @@ def figure_disagrees(need: Need, quote: str) -> bool | None:
     if not near:
         return None
     return max(near) < need.figure if need.bound == "at least" else min(near) > need.figure
-
-
-async def _ask(prompt: str, schema: Any, max_tokens: int) -> Any:
-    from core.rebuilding.her_model import ask_her_model
-
-    return await ask_her_model(prompt, schema, max_tokens, origin="work_asked_for")
 
 
 def _materials(request: Request) -> list[tuple[str, str]]:

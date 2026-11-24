@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from core.understanding.carriers.finding import quoted_in
 from core.understanding.carrying_out import CameTo, Tell
+from core.understanding.her_model_between_turns import ask as _ask
 from core.understanding.requests_of_her import Part, Request
 
 logger = logging.getLogger("Aura.Understanding.Reading")
@@ -95,12 +96,6 @@ def _gaps(text: str, sections: list[Section]) -> list[tuple[int, int]]:
     if at < len(text):
         gaps.append((at, len(text)))
     return gaps
-
-
-async def _ask(prompt: str, schema: Any, max_tokens: int) -> Any:
-    from core.rebuilding.her_model import ask_her_model
-
-    return await ask_her_model(prompt, schema, max_tokens, origin="work_asked_for")
 
 
 def _where(digest: str) -> Path:

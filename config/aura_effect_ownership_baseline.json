@@ -7473,20 +7473,20 @@
       "scope": "<module>._keep"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/understanding/fitted_on_her_model.py",
+      "scope": "<module>.FittedOnHerModel._save"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/understanding/requests_of_her.py",
       "scope": "<module>.RequestsOfHer.keep"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes_async",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/understanding/what_is_asked.py",
-      "scope": "<module>.WhatIsAsked._save"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -17594,6 +17594,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "d9794734a4bd138227f4828f784c84bfbb1c0bdfff4c347aaa3bc44a3f6d4a2c",
+  "inventory_sha256": "61a01ba8ced129ac00c5d0f32b45415bb59120704db4453245a7c5821921392c",
   "schema_version": 1
 }

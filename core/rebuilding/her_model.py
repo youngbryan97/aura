@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger("Rebuilding.HerModel")
 
-__all__ = ["HerModelIsAwayError", "ask_her_model", "patiently", "the_object_in", "what_was_finished"]
+__all__ = ["HerModelIsAwayError", "as_answered", "ask_her_model", "patiently", "the_object_in", "what_was_finished"]
 
 #: The longest one ask may take, in seconds.
 ASK_S = 900.0
@@ -141,10 +141,8 @@ def what_was_finished(text: str) -> str | None:
     return None
 
 
-async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *, router: Any = None,
-                        origin: str = "rebuilding_a_program") -> BaseModel | None:
-    """Her model's answer to ``prompt`` as an instance of ``schema``, or None when it gave none that fits. ``origin`` is
-    what it is for, which says whose turn it gives way to (core/brain/llm_health_router_gate_owners.py)."""
+async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *, router: Any = None) -> BaseModel | None:
+    """Her model's answer to ``prompt`` as an instance of ``schema``, or None when it gave none that fits."""
     if router is None:
         from core.container import ServiceContainer
 
@@ -162,8 +160,8 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
             prefer_tier="primary",
             schema=schema.model_json_schema(),
             output_shape="json_object",
-            origin=origin,
-            purpose=origin,
+            origin="rebuilding_a_program",
+            purpose="rebuilding_a_program",
             is_background=False,
             foreground_request=True,
             # Read by code, not a reply to anybody: its shape's parser judges it.
@@ -179,6 +177,11 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
     text = str(reply.get("text") or "") if isinstance(reply, dict) else str(reply or "")
     if not re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip():
         raise HerModelIsAwayError("an empty answer")
+    return as_answered(text, schema)
+
+
+def as_answered(text: str, schema: type[BaseModel]) -> BaseModel | None:
+    """What her model wrote, as an instance of ``schema``, or None where it does not fit."""
     found = the_object_in(text) or what_was_finished(text)
     data: Any = None
     if found is not None:

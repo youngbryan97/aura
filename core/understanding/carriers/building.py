@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from core.understanding.carrying_out import CameTo, Tell
+from core.understanding.her_model_between_turns import ask as _ask
 from core.understanding.requests_of_her import Part, Request
 
 logger = logging.getLogger("Aura.Understanding.Building")
@@ -30,12 +31,6 @@ def _builds() -> Path:
     from core.skills.changing_a_program import where_builds_are
 
     return where_builds_are()[-1]
-
-
-async def _ask(prompt: str, schema: Any, max_tokens: int) -> Any:
-    from core.rebuilding.her_model import ask_her_model
-
-    return await ask_her_model(prompt, schema, max_tokens, origin="work_asked_for")
 
 
 def _as_kept(page: Path) -> tuple[str, str]:

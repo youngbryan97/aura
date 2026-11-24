@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.understanding.her_model_between_turns import nobody_waiting
 from core.understanding.requests_of_her import (
     CUT_SHORT,
     MET,
@@ -131,6 +132,8 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
 
     async def work() -> None:
         try:
+            # The turn that asked is answered first.
+            await nobody_waiting()
             await carry_out(request, carrier, tell=tell, ledger=ledger)
         finally:
             _UNDER_WAY.pop(request.id, None)
