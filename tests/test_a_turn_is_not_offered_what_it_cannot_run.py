@@ -165,18 +165,3 @@ def test_a_turn_that_asked_for_a_reminder_is_offered_the_reminder(monkeypatch) -
     assert classify_execution_risk("reminder", {}, effect_scope=ReminderSkill.effect_scope) == "low"
     kept, withheld = _tools_within_reach({"reminder": 1}, _REQUESTED_ARTIFACT_SCOPES)
     assert kept == {"reminder": 1} and withheld == ()
-
-
-def test_a_tool_whose_scope_the_request_asked_for_needs_no_second_yes() -> None:
-    """LIVE 24 November 2026: "Open En Croissant and play a game of chess" opened foreground desktop control, and the
-    hand-off still withheld computer_use, rated critical there, as needing a confirmation nobody could give. The
-    request was the confirmation, and the permission model is told it was asked for."""
-    desktop = frozenset({"status", "pure_compute", "read_only", "sandboxed_compute", "foreground_desktop_control"})
-    kept, withheld = _tools_within_reach({"computer_use": 1, "desktop_task": 2}, desktop)
-    assert {"computer_use", "desktop_task"} <= set(withheld), "without the request's consent, still withheld"
-    kept, withheld = _tools_within_reach({"computer_use": 1, "desktop_task": 2}, desktop,
-                                         frozenset({"foreground_desktop_control"}))
-    assert {"computer_use", "desktop_task"} <= set(kept) and not withheld
-    # Consent to one scope is not consent to another: a high-risk tool at a scope nobody asked for stays withheld.
-    kept, withheld = _tools_within_reach({"test_generator": 1}, _SANDBOX_CEILING, frozenset({"foreground_desktop_control"}))
-    assert "test_generator" in withheld

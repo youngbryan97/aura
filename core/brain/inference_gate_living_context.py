@@ -180,7 +180,6 @@ class _BuildsTheLivingContext:
     ) -> Any:
         from .inference_gate import (
             _REQUESTED_ARTIFACT_EFFECT_CEILING,
-            _REQUESTED_DESKTOP_EFFECT_CEILING,
             _SELF_SERVICE_EFFECT_CEILING,
             _answer_reserve_seconds,
             _tool_loop_budget,
@@ -266,20 +265,16 @@ class _BuildsTheLivingContext:
             # contract: scope=sandboxed_compute". She read the
             # library three times over and never ran it.
             #
-            # Still narrow: these are the ceilings a request can
-            # establish for itself. A request that tells her to
-            # work a program on this machine has asked for her
-            # hands on it (LIVE 24 November 2026, "Open En Croissant
-            # and play a game of chess against Stockfish").
-            # Nothing here authorises external_io, privileged
-            # mutation, deleting, sending or spending — those need
-            # their own consent, because nobody asked for them.
+            # Still narrow: these are the two ceilings a request
+            # can establish for itself. Nothing here authorises
+            # external_io, privileged mutation, deleting, sending
+            # or spending — those need their own consent, because
+            # nobody asked for them.
             "user_explicitly_authorized": (
                 ceiling
                 in {
                     _SELF_SERVICE_EFFECT_CEILING,
                     _REQUESTED_ARTIFACT_EFFECT_CEILING,
-                    _REQUESTED_DESKTOP_EFFECT_CEILING,
                 }
             ),
         }
@@ -548,8 +543,6 @@ class _BuildsTheLivingContext:
         """
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
-            _REQUESTED_ARTIFACT_EFFECT_CEILING,
-            _REQUESTED_DESKTOP_EFFECT_CEILING,
             _tools_within_reach,
             _what_a_tool_returned,
             logger,
@@ -638,11 +631,7 @@ class _BuildsTheLivingContext:
             # of a confirmation nobody could give. Two of the turn's two tool
             # calls were spent on tools that could never have run, and the
             # one that would have answered was never called.
-            # A ceiling the request set for itself carries its consent (the hand-off tells the permission model so):
-            # what the request asked for needs no second yes. The self-service ceiling is every turn's, and asked for
-            # nothing.
-            consented = frozenset({ceiling}) & {_REQUESTED_ARTIFACT_EFFECT_CEILING, _REQUESTED_DESKTOP_EFFECT_CEILING}
-            tools, withheld = _tools_within_reach(tools, allowed_scopes, consented)
+            tools, withheld = _tools_within_reach(tools, allowed_scopes)
             if withheld:
                 logger.info(
                     "🔧 Tool handoff: withheld %s — above the %s ceiling for this turn.",

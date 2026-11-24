@@ -447,7 +447,7 @@ def test_a_capability_called_on_the_request_leaves_the_reply_to_her(gate, monkey
     monkeypatch.setattr("core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["system_proprioception"])
     monkeypatch.setattr("core.brain.llm.runtime_wiring.build_agentic_tool_map",
                         lambda *a, **k: {"system_proprioception": {"name": "system_proprioception"}})
-    monkeypatch.setattr("core.brain.inference_gate._tools_within_reach", lambda tools, scopes, consented=frozenset(): (tools, ()))
+    monkeypatch.setattr("core.brain.inference_gate._tools_within_reach", lambda tools, scopes: (tools, ()))
     monkeypatch.setattr("core.brain.inference_gate_living_context.the_one_asked_for", lambda text, tools: "system_proprioception")
     monkeypatch.setattr("core.brain.inference_gate_living_context.capabilities_run_this_turn", lambda: frozenset())
     monkeypatch.setattr("core.brain.llm.mlx_client._refuse_action_beyond_authority", lambda *a: None)

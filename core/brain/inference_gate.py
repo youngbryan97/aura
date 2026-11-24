@@ -521,14 +521,11 @@ _MESH_PRE_TRUST_RATIONALES = frozenset({"acknowledgement", "resource_hold"})
 #: engine handed the bias to a stub router and stopped there, which is the
 #: shape of a half-wired channel — a writer, a test of the writer, and no
 #: reader.
-#: The ceilings a request can establish for itself, read from the one place
+#: The two ceilings a request can establish for itself, read from the one place
 #: that decides them rather than spelled again here.
 try:  # pragma: no cover - import shape only
     from core.phases.response_contract import (
         _REQUESTED_ARTIFACT_CEILING as _REQUESTED_ARTIFACT_EFFECT_CEILING,
-    )
-    from core.phases.response_contract import (
-        _REQUESTED_DESKTOP_CEILING as _REQUESTED_DESKTOP_EFFECT_CEILING,
     )
     from core.phases.response_contract import (
         _SELF_SERVICE_CEILING as _SELF_SERVICE_EFFECT_CEILING,
@@ -536,7 +533,6 @@ try:  # pragma: no cover - import shape only
 except ImportError:  # pragma: no cover - the gate still runs without them
     _SELF_SERVICE_EFFECT_CEILING = "sandboxed_compute"
     _REQUESTED_ARTIFACT_EFFECT_CEILING = "read_write_artifacts"
-    _REQUESTED_DESKTOP_EFFECT_CEILING = "foreground_desktop_control"
 
 _SAMPLING_BIAS_KEYS = (
     "sampling_bias",
@@ -2063,7 +2059,7 @@ def _what_a_tool_returned(result: Any, depth: int = 0) -> str:
 
 
 def _tools_within_reach(
-    tools: dict, allowed_scopes: object, consented: frozenset[str] = frozenset()
+    tools: dict, allowed_scopes: object
 ) -> tuple[dict, tuple[str, ...]]:
     """The offered tools this turn is actually allowed to run, and the rest.
 
@@ -2077,12 +2073,6 @@ def _tools_within_reach(
     ask for. `code_repl` passes the ceiling and fails the second — running code
     the model just wrote is correctly high risk — so offering it spends a tool
     call on a refusal either way.
-
-    A scope in ``consented`` is one the person's own request asked for, and the
-    permission model is told so: a high-risk tool there needs no confirmation,
-    because asking for it was the confirmation. LIVE 24 November 2026, "Open En
-    Croissant and play a game of chess" opened foreground desktop control, and
-    computer_use, rated critical there, was still withheld.
 
     A skill with no declared scope is offered. Withholding what has not been
     rated would quietly hide new skills, which is a worse failure than one
@@ -2105,7 +2095,7 @@ def _tools_within_reach(
         if scope is None:
             withheld.append(str(name))
             continue
-        if scope not in consented and _needs_a_confirmation_nobody_can_give(str(name), scope):
+        if _needs_a_confirmation_nobody_can_give(str(name), scope):
             withheld.append(str(name))
             continue
         kept[name] = definition

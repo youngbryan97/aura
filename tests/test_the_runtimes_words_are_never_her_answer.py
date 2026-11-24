@@ -120,7 +120,7 @@ def _one_capability(monkeypatch, name: str, definition: dict[str, Any], called: 
     monkeypatch.setattr("core.phases.response_contract.derive_capability_set", lambda _text, **_k: [name])
     monkeypatch.setattr("core.brain.llm.runtime_wiring.build_agentic_tool_map", lambda *a, **k: {name: definition})
     # Within this turn's ceiling, so what is tested is the call and not the reach.
-    monkeypatch.setattr("core.brain.inference_gate._tools_within_reach", lambda tools, scopes, consented=frozenset(): (tools, ()))
+    monkeypatch.setattr("core.brain.inference_gate._tools_within_reach", lambda tools, scopes: (tools, ()))
     monkeypatch.setattr("core.brain.inference_gate_living_context.the_one_asked_for", lambda text, tools: name)
     monkeypatch.setattr("core.brain.inference_gate_living_context._call_the_one", _call)
     monkeypatch.setattr("core.brain.inference_gate_living_context.capabilities_run_this_turn", lambda: frozenset())
