@@ -182,6 +182,33 @@ struct Habits {
     /// is looked at more fully: where it is not improving, a late quiet move is shortened a ply more and fewer quiet
     /// moves are tried near the end of a look. Nought looks at both alike.
     improving: f64,
+    /// Where a look is about to end and her two judgements of the position disagree by more than this many margins
+    /// (what her learned judgement adds to the weighted sum), the look goes a ply further, once on a line: what she
+    /// is unsure of is looked into. Nought never.
+    unsure_extends: f64,
+    /// The chance that another depth changes the answer, as her own searches have shown it
+    /// (core/cognition/when_more_thought_changes_the_answer.py): a logistic curve over how often the best move has
+    /// changed lately (fading as `unsteady_kept`), how many depths it has held, how far the score just fell in
+    /// margins, and the depth. Given it, a soft time is spent by it: the time meant, scaled by that chance against
+    /// `flip_mean`, how often a depth has changed the answer. `flip_mean` nought spends it by the rule above.
+    flip_mean: f64,
+    flip_level: f64,
+    flip_changes: f64,
+    flip_held: f64,
+    flip_fell: f64,
+    flip_depth: f64,
+    /// How much history shortens a late move's look less, a ply for each so much of it (nought: history does not
+    /// change how far a move is shortened). A quiet move that has often been best looks further; one that has often
+    /// failed, less far.
+    history_lengthens_by: f64,
+    /// The most plies a passed turn's look is shortened further for each margin her judgement stands above the
+    /// bound: the further above, the less a short look risks. Nought shortens it by depth alone.
+    passed_turn_margins: f64,
+    /// From this many plies of look on, the move the table holds as best is looked at a ply further where every
+    /// other move, looked at half as far, falls short of what the table says it is worth by `singular_margins`
+    /// sixty-fourths of a margin a ply: a move that alone holds the position is looked into. Nought never.
+    singular_from: f64,
+    singular_margins: f64,
 }
 
 impl Default for Habits {
@@ -220,6 +247,17 @@ impl Default for Habits {
             keeps_the_horizon: 0.0,
             unhinted_from: 0.0,
             improving: 1.0,
+            unsure_extends: 0.0,
+            flip_mean: 0.0,
+            flip_level: 0.0,
+            flip_changes: 0.0,
+            flip_held: 0.0,
+            flip_fell: 0.0,
+            flip_depth: 0.0,
+            history_lengthens_by: 0.0,
+            passed_turn_margins: 0.0,
+            singular_from: 0.0,
+            singular_margins: 64.0,
         }
     }
 }
@@ -1639,6 +1677,10 @@ struct Searcher<'a> {
     /// Her quick judgement of the position at each ply of the line being looked at, for the side to move there;
     /// -INF where it was not judged (in check).
     stands: Vec<i32>,
+    /// Whether the look was taken a ply further at each ply of the line, for her judgements disagreeing there.
+    extended: Vec<bool>,
+    /// At each ply, the move left out while the others are asked whether any comes near it; NONE-filled for none.
+    left_out: Vec<Option<u32>>,
     g: &'a Game,
     b: Board,
     tt: &'a Table,
@@ -2203,6 +2245,16 @@ impl<'a> Searcher<'a> {
         if checked {
             depth += 1;
         }
+        self.extended[ply] = false;
+        if depth == 1 && !checked && ply > 0 && g.habits.unsure_extends > 0.0 && !self.extended[ply - 1]
+            && (ply < 2 || !self.extended[ply - 2])
+        {
+            let unit = g.margin.load(Ordering::Relaxed);
+            if unit > 0 && self.learned_judgement().abs() as f64 > g.habits.unsure_extends * unit as f64 {
+                depth += 1;
+                self.extended[ply] = true;
+            }
+        }
         if depth <= 0 {
             return self.quiesce_from(alpha, beta, ply, true);
         }
@@ -2210,9 +2262,10 @@ impl<'a> Searcher<'a> {
         let idx = self.tt_index(key);
         let entry = self.tt.get(idx);
         let mut tt_move = None;
+        let leaving_out = self.left_out[ply];
         if entry.key == key {
             tt_move = entry.best;
-            if ply > 0 && entry.depth as i32 >= depth {
+            if ply > 0 && entry.depth as i32 >= depth && leaving_out.is_none() {
                 let mut s = entry.score;
                 if s > MATE - 1000 {
                     s -= ply as i32;
@@ -2267,9 +2320,14 @@ impl<'a> Searcher<'a> {
                 return q;
             }
         }
-        if !checked && null_ok && !pv_node && depth >= 3 && self.has_pieces_beyond_irreversible(side) {
+        if !checked && null_ok && !pv_node && depth >= 3 && leaving_out.is_none() && self.has_pieces_beyond_irreversible(side) {
             if stand >= beta {
-                let r = (habits.passed_turn + depth as f64 / habits.passed_turn_by.max(1.0)) as i32;
+                let above = if habits.passed_turn_margins > 0.0 && unit > 0 {
+                    ((stand - beta) as f64 / unit as f64).clamp(0.0, habits.passed_turn_margins)
+                } else {
+                    0.0
+                };
+                let r = (habits.passed_turn + depth as f64 / habits.passed_turn_by.max(1.0) + above) as i32;
                 if ply < MAX_PLY {
                     self.played[ply] = Move::null();
                 }
@@ -2295,10 +2353,32 @@ impl<'a> Searcher<'a> {
         let mut legal = 0;
         let mut quiets_tried: Vec<Move> = Vec::new();
         let theirs_checked = ply == 0 && self.b.in_check(g, 1 - side);
+        // Whether the table's best move alone holds the position: every other move, looked at half as far, falls short
+        // of what the table says it is worth.
+        let mut singular = None;
+        if habits.singular_from > 0.0 && ply > 0 && depth as f64 >= habits.singular_from && leaving_out.is_none()
+            && entry.key == key && tt_move.is_some() && (entry.flag == 0 || entry.flag == 1)
+            && entry.depth as i32 >= depth - 3 && entry.score.abs() < MATE - 1000 && unit > 0
+        {
+            let short_of = entry.score - (habits.singular_margins * (unit * depth) as f64 / 64.0) as i32;
+            self.left_out[ply] = tt_move;
+            let others = self.search((depth - 1) / 2, short_of - 1, short_of, ply, false);
+            self.left_out[ply] = None;
+            if self.stop {
+                return 0;
+            }
+            if others < short_of {
+                singular = tt_move;
+            }
+        }
         for m in moves {
             if ply == 0 && self.excluded.contains(&m) {
                 continue;
             }
+            if leaving_out.is_some() && packed(&m) == leaving_out {
+                continue;
+            }
+            let further = (singular.is_some() && packed(&m) == singular) as i32;
             let quiet = m.taken_at == NONE && m.becomes == 0;
             let mut u = self.b.make(g, m);
             if self.b.attacked_after(g, side, &m, checked, u.royal) {
@@ -2342,21 +2422,24 @@ impl<'a> Searcher<'a> {
             }
             let mut score;
             if legal == 1 {
-                score = -self.search(depth - 1, -beta, -alpha, ply + 1, true);
+                score = -self.search(depth - 1 + further, -beta, -alpha, ply + 1, true);
             } else {
                 let mut reduction = 0;
                 if depth >= 3 && legal > 3 && quiet && !checked && !gives_check {
                     // The later a move comes in the order and the deeper the look, the less it is likely to be the
                     // one: reduced by both, in proportion to their logarithms.
-                    let r = habits.shorten_from + (depth as f64).ln() * (legal as f64).ln() / habits.shorten_by.max(0.1);
+                    let mut r = habits.shorten_from + (depth as f64).ln() * (legal as f64).ln() / habits.shorten_by.max(0.1);
+                    if habits.history_lengthens_by > 0.0 {
+                        r -= self.history[m.from as usize * g.size + m.to as usize] as f64 / habits.history_lengthens_by;
+                    }
                     reduction = (r as i32 - pv_node as i32 + !improving as i32).clamp(1, depth - 2);
                 }
-                score = -self.search(depth - 1 - reduction, -alpha - 1, -alpha, ply + 1, true);
+                score = -self.search(depth - 1 + further - reduction, -alpha - 1, -alpha, ply + 1, true);
                 if score > alpha && reduction > 0 {
-                    score = -self.search(depth - 1, -alpha - 1, -alpha, ply + 1, true);
+                    score = -self.search(depth - 1 + further, -alpha - 1, -alpha, ply + 1, true);
                 }
                 if score > alpha && score < beta {
-                    score = -self.search(depth - 1, -beta, -alpha, ply + 1, true);
+                    score = -self.search(depth - 1 + further, -beta, -alpha, ply + 1, true);
                 }
             }
             self.b.unmake(self.g, u);
@@ -2403,6 +2486,10 @@ impl<'a> Searcher<'a> {
             }
         }
         if legal == 0 {
+            // With its best move left out and no other, nothing comes near it.
+            if leaving_out.is_some() {
+                return alpha;
+            }
             return if checked || !g.no_move_draws { -MATE + ply as i32 } else { 0 };
         }
         let flag = if best_score <= original_alpha {
@@ -2418,7 +2505,7 @@ impl<'a> Searcher<'a> {
         } else if stored < -MATE + 1000 {
             stored -= ply as i32;
         }
-        let replace = entry.key != key || depth >= entry.depth as i32 || flag == 0;
+        let replace = (entry.key != key || depth >= entry.depth as i32 || flag == 0) && leaving_out.is_none();
         if replace {
             self.tt.set(idx, Entry { key, depth: depth.min(127) as i8, flag, score: stored,
                                      best: best_move.and_then(|m| packed(&m)) });
@@ -2426,7 +2513,7 @@ impl<'a> Searcher<'a> {
         // What looking further found, where it says how far off the quick judgement was: a quiet best move (a take's
         // worth is the take's, not the judgement's), and a bound only where it bounds on the side it was off.
         let best_quiet = best_move.map_or(true, |m| m.taken_at == NONE && m.becomes == 0);
-        if corrected_at != usize::MAX && best_quiet
+        if corrected_at != usize::MAX && best_quiet && leaving_out.is_none()
             && !(flag == 1 && best_score <= stand) && !(flag == 2 && best_score >= stand)
         {
             self.found_off_by(corrected_at, stand, best_score, depth);
@@ -2486,6 +2573,8 @@ impl<'a> Searcher<'a> {
             listed: Vec::new(),
             scratch: Vec::new(),
             stands: vec![-INF; MAX_PLY + 1],
+            extended: vec![false; MAX_PLY + 1],
+            left_out: vec![None; MAX_PLY + 1],
         }
     }
 }
@@ -2549,9 +2638,20 @@ impl<'a> Searcher<'a> {
                 }
                 let unit = self.g.margin.load(Ordering::Relaxed).max(1);
                 let fell = score < best_score - unit;
-                let wanted = self.soft * (1.0 + h.unsteady_by * changes) * if fell { 1.0 + h.falling_by } else { 1.0 };
+                let learned = h.flip_mean > 0.0;
+                let wanted = if learned {
+                    let fell_by = ((best_score - score) as f64 / unit as f64).clamp(-4.0, 4.0);
+                    let z = h.flip_level + h.flip_changes * changes + h.flip_held * held.min(6) as f64
+                        + h.flip_fell * fell_by + h.flip_depth * depth as f64;
+                    let chance = 1.0 / (1.0 + (-z.clamp(-30.0, 30.0)).exp());
+                    self.soft * chance / h.flip_mean
+                } else {
+                    self.soft * (1.0 + h.unsteady_by * changes) * if fell { 1.0 + h.falling_by } else { 1.0 }
+                };
                 let elapsed = self.started.elapsed().as_secs_f64();
-                if elapsed >= wanted.min(self.seconds) || (held >= 3 && elapsed >= self.soft * h.steady_share) {
+                if elapsed >= wanted.min(self.seconds)
+                    || (!learned && held >= 3 && elapsed >= self.soft * h.steady_share)
+                {
                     best_score = score;
                     done = depth;
                     break;

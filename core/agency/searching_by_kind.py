@@ -17,7 +17,7 @@ import json
 import logging
 import math
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
 from core.agency.pieces_by_their_kind import Family, Move, Position, after, in_check, moves, outcome
@@ -224,6 +224,13 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
     aside = list(set_aside or [])
     engine = _compiled()
     if engine is not None:
+        from core.cognition import when_more_thought_changes_the_answer as thought
+
+        # How likely another depth is to change her answer, as her own searches have shown it: a soft time is spent
+        # by it. Habits she has set herself are kept over it.
+        spends = thought.kept().as_habits()
+        if spends:
+            weights = replace(weights, habits={**spends, **weights.habits})
         asked = (described(family), placed(position, earlier, wary), weights.as_json(), float(seconds))
         excluded = [(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in aside]
         threaded = {"threads": int(threads)} if threads > 1 else {}
@@ -238,6 +245,7 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
                 result = engine.search(*asked, nodes=int(nodes), excluded=excluded, **threaded)
             except TypeError:
                 result = engine.search(*asked, nodes=int(nodes), excluded=excluded)
+        thought.noted(result.get("iterations") or [], result.get("margin") or 0)
         if result.get("move") is None:
             return Found(None, 0, 0, int(result.get("nodes", 0)), [], by="compiled")
         line: list[Move] = []
@@ -252,7 +260,7 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
         return Found(first, int(result["score"]), int(result["depth"]), int(result["nodes"]), line,
                      mate=bool(result.get("mate")), ms=int(result.get("ms", 0)), by="compiled",
                      unsteady=int(result.get("unsteady", 0)),
-                     accounting={key: result[key] for key in ("tt_hits", "qnodes", "seldepth", "iterations")
+                     accounting={key: result[key] for key in ("tt_hits", "qnodes", "seldepth", "iterations", "margin")
                                  if key in result})
     return _search_here(family, position, seconds=seconds, weights=weights, set_aside=aside)
 

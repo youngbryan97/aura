@@ -344,8 +344,12 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
     from dataclasses import asdict
 
     from core.agency.what_a_kind_is_worth import RESULTS
+    from core.cognition.when_more_thought_changes_the_answer import settled
     from core.runtime.what_she_learned import remember, remember_beside
 
+    # How often another depth changed her answer in the searches of this game: the curve she spends a soft time by is
+    # fitted again on them, and kept.
+    settled()
     record: dict[str, Any] = {"app": target_app, "looks": looks.as_memory()}
     if learned is not None:
         record["rules"] = learned.as_memory()
