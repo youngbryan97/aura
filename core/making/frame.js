@@ -251,31 +251,84 @@ const Frame = (() => {
     return typeof x === "function" ? `${path} is a function: state is plain data` : null;
   }
   const inputsOf = () => { const keys = (P.controls || []).map((c) => c.input).filter((i) => i && i !== "pointer"); const ways = keys.map((k) => ({ held: { [k]: true } })); if ((P.controls || []).some((c) => c.input === "pointer")) for (const x of [0.15, 0.5, 0.85]) for (const y of [0.15, 0.5, 0.85]) for (const down of [false, true]) ways.push({ pointer: { x: W * x, y: H * y, down } }); return ways; };
-  const named = (way) => (way.held ? Object.keys(way.held)[0] : `pointer at ${Math.round(way.pointer.x)},${Math.round(way.pointer.y)}${way.pointer.down ? ", pressed" : ""}`);
 
+  // What tells one situation in a program from another: its flags and words, its counts, how many of each thing there are
+  // and how many of them are marked, what is on its board, and roughly where what is moved about is.
+  function situation(s) {
+    const out = [], plain = (x) => x === null || typeof x === "boolean" || typeof x === "string" || Number.isInteger(x);
+    const count = (n) => (n < 0 ? "-" + count(-n) : n <= 4 ? String(n) : "~" + Math.ceil(Math.log2(n)));
+    const of = (x, path, depth) => {
+      if (x === null || typeof x === "boolean") out.push(path + x);
+      else if (typeof x === "string") out.push(path + x.slice(0, 16));
+      else if (typeof x === "number") { const by = path.endsWith(".x") ? W / 12 : path.endsWith(".y") ? H / 8 : 0; if (by) out.push(path + Math.round(x / by)); else if (Number.isInteger(x)) out.push(path + count(x)); }
+      else if (Array.isArray(x)) {
+        out.push(path + "#" + count(x.length));
+        const flat = x.flat();
+        if (flat.length && flat.length <= 400 && flat.every(plain)) out.push(flat.join(","));
+        else { const marks = {}; for (const y of x.slice(0, 200)) if (y && typeof y === "object") for (const k of Object.keys(y)) if (typeof y[k] === "boolean" && y[k]) marks[k] = (marks[k] || 0) + 1; for (const k of Object.keys(marks)) out.push(path + "." + k + "#" + count(marks[k])); }
+      } else if (typeof x === "object" && depth < 3) for (const k of Object.keys(x).slice(0, 40)) of(x[k], path + "." + k, depth + 1);
+    };
+    of(s, "", 0); return out.join("|");
+  }
+  // Playing it to find what can come of it: from each kind of situation come upon, the least gone on from first, a few
+  // things are tried, and every new situation is one more to go on from. What takes two steps is found by its first.
+  function explore(most, enough) {
+    const began = performance.now(), one = inputsOf(), held = one.filter((w) => w.held).slice(0, 6), ways = [null, ...one];
+    for (let i = 0; i < held.length; i++) for (let j = i + 1; j < held.length; j++) ways.push({ held: { ...held[i].held, ...held[j].held } });
+    const points = one.some((w) => w.pointer); let z = 11; const r = () => (z = (z * 48271) % 2147483647) / 2147483647, any = (list) => list[Math.floor(r() * list.length)];
+    const places = (s) => { const at = []; const of = (x, d) => { if (!x || typeof x !== "object" || d > 3 || at.length > 24) return; if (Number.isFinite(x.x) && Number.isFinite(x.y)) at.push(x); for (const k of Object.keys(x)) of(x[k], d + 1); }; of(s, 0); return at; };
+    seed = 7; const first = P.initial(), got = { base: scoreOf(first), score: -Infinity, over: null, won: null, ends: 0, tries: 0, newest: 0, does: new Set() };
+    const known = new Map(), all = []; const put = (s) => { const k = situation(s); if (!known.has(k)) { const c = { s: copy(s), seed, seen: 0, score: scoreOf(s) }; known.set(k, c); all.push(c); got.newest = got.tries; } };
+    put(first);
+    while (performance.now() - began < most && all.length < 9000 && got.tries - got.newest < 300 && !(enough && enough(got, all))) {
+      let from = any(all); for (let i = 0; i < 5; i++) { const c = any(all); if (c.seen < from.seen || (c.seen === from.seen && c.score > from.score)) from = c; }
+      from.seen++; got.tries++; seed = (from.seed + from.seen * 7919) | 0; let s = copy(from.s), way = any(ways);
+      for (let i = 0; i < 8; i++) {
+        if (i && r() < 0.5) way = any(ways);
+        if (points && r() < 0.4) { const at = places(s); if (at.length) { const p = any(at); way = { pointer: { x: Math.max(0, Math.min(W, p.x)), y: Math.max(0, Math.min(H, p.y)), down: r() < 0.6 } }; } }
+        const unsure = way && (way.pointer ? ["pointer"] : Object.keys(way.held)).find((k) => !got.does.has(k));
+        if (unsure) { // the same with it and without it
+          const sd = seed, rest = way.held ? Object.fromEntries(Object.entries(way.held).filter(([k]) => k !== unsure)) : {}, without = JSON.stringify(run(copy(s), 0.3, Object.keys(rest).length ? { held: rest } : null));
+          seed = sd; s = run(s, 0.3, way); if (JSON.stringify(s) !== without) got.does.add(unsure);
+        } else s = run(s, 0.3, way);
+        got.score = Math.max(got.score, scoreOf(s));
+        const e = P.over ? ended(s) : null;
+        if (e) { got.ends++; got.over = got.over || e; if (e.won) got.won = e; break; }
+        put(s);
+      }
+    }
+    got.all = all; return got;
+  }
+  // What changed in the program between two states, and what a set of states ran between.
+  function changed(a, b) { const out = []; const of = (x, y, path, depth) => { if (out.length > 14 || JSON.stringify(x) === JSON.stringify(y)) return; if (x && y && typeof x === "object" && typeof y === "object" && depth < 4 && Array.isArray(x) === Array.isArray(y)) { if (Array.isArray(x) && x.length !== y.length) out.push(`${path} went from ${x.length} long to ${y.length}`); for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) if (!Array.isArray(x) || (k in x && k in y)) of(x[k], y[k], path ? `${path}.${k}` : k, depth + 1); return; } const say = (v) => { const t = typeof v === "number" ? String(Math.round(v * 100) / 100) : JSON.stringify(v); return t === undefined ? "nothing" : t.length > 60 ? t.slice(0, 60) + "…" : t; }; out.push(`${path} ${say(x)} to ${say(y)}`); }; of(a, b, "", 0); return out; }
+  function ran(states) { const seen = {}; for (const s of states) { const of = (x, path, depth) => { if (typeof x === "boolean") x = Number(x); if (Array.isArray(x)) { path += " (how many)"; x = x.length; } if (typeof x === "number") { const v = seen[path] || (seen[path] = [x, x, path.split(".").length]); v[0] = Math.min(v[0], x); v[1] = Math.max(v[1], x); } else if (x && typeof x === "object" && depth < 2) for (const k of Object.keys(x).slice(0, 30)) of(x[k], path ? `${path}.${k}` : k, depth + 1); }; of(s, "", 0); } const say = (n) => Math.round(n * 10) / 10; return Object.entries(seen).sort((a, b) => a[1][2] - b[1][2]).map(([k, v]) => (v[0] === v[1] ? `${k} stayed ${say(v[0])}` : `${k} ${say(v[0])} to ${say(v[1])}`)).slice(0, 22).join("; "); }
+
+  let goesOn = null; const later = () => { if (!goesOn) { try { seed = 7; goesOn = Object.keys(run(P.initial(), 2, null)); } catch (e) { goesOn = []; } } return goesOn; };
   function tester() {
     seed = 7; played.length = 0; let s = P.initial();
     const fail = (why) => { throw new Error(why); };
     const find = (label, what) => { const want = String(label).toLowerCase().trim(); const all = every(shown(s)).filter(what); const by = (f) => all.find((v) => f((v.props["aria-label"] || words(v) || v.props.placeholder || "").toLowerCase().trim())); return by((n) => n === want) || by((n) => n.startsWith(want)) || by((n) => n.includes(want)) || fail(`there is no “${label}” to use; there are: ${all.map((v) => v.props["aria-label"] || words(v)).slice(0, 12).join(", ")}`); };
     // A state that is set is set over one that has begun: what a test does not name is as it is at the beginning.
+    let first = null; const began = Object.keys(s), act = (f) => { if (!first) first = copy(s); s = f(s); return t; };
     const t = { get s() { return s; }, set s(v) { s = { ...P.initial(), ...v }; }, W, H,
-      send(e) { s = apply(s, e); return t; },
-      tick(seconds) { s = run(s, seconds == null ? STEP : seconds, null); return t; },
-      hold(k, seconds) { s = run(s, seconds == null ? 0.1 : seconds, { held: { [k]: true } }); return t; },
+      send(e) { return act((s) => apply(s, e)); },
+      tick(seconds) { return act((s) => run(s, seconds == null ? STEP : seconds, null)); },
+      hold(k, seconds) { return act((s) => run(s, seconds == null ? 0.1 : seconds, { held: { [k]: true } })); },
       press(k) { return t.hold(k, STEP); },
-      point(x, y, seconds) { s = run(s, seconds == null ? STEP : seconds, { pointer: { x, y, down: false } }); return t; },
-      click(x, y) { if (typeof x === "string") { const v = find(x, (n) => n.props.do); if (v.props.disabled) fail(`“${x}” cannot be used now`); s = apply(s, { type: "do", name: v.props.do[0], value: v.props.do[1] }); } else s = run(s, STEP, { pointer: { x, y, down: true } }); return t; },
-      type(label, text) { const v = find(label, (n) => n.props.in); const value = v.props.number ? Number(text) : v.props.type === "checkbox" ? !!text : String(text); s = apply(s, { type: "input", name: v.props.in, value }); return t; },
+      point(x, y, seconds) { return act((s) => run(s, seconds == null ? STEP : seconds, { pointer: { x, y, down: false } })); },
+      click(x, y) { if (typeof x === "string") { const v = find(x, (n) => n.props.do); if (v.props.disabled) fail(`“${x}” cannot be used now`); return act((s) => apply(s, { type: "do", name: v.props.do[0], value: v.props.do[1] })); } return act((s) => run(s, STEP, { pointer: { x, y, down: true } })); },
+      type(label, text) { const v = find(label, (n) => n.props.in); const value = v.props.number ? Number(text) : v.props.type === "checkbox" ? !!text : String(text); return act((s) => apply(s, { type: "input", name: v.props.in, value })); },
       choose(label, value) { return t.type(label, value); },
-      enter(label) { const v = find(label, (n) => n.props.enter); s = apply(s, { type: "do", name: v.props.enter, value: null }); return t; },
-      sees(text) { const all = words(shown(s)).toLowerCase(); return every(shown(s)).some((v) => String(v.props.value || "").toLowerCase().includes(String(text).toLowerCase())) || all.includes(String(text).toLowerCase()); },
+      enter(label) { const v = find(label, (n) => n.props.enter); return act((s) => apply(s, { type: "do", name: v.props.enter, value: null })); },
+      sees(text) { if (isGame()) { const said = [...t.draw().filter((c) => c.what === "text").map((c) => c.args[0]), ...(P.hud ? P.hud(s) : []).flatMap((r) => [r.label, r.value]), ...(P.score ? ["score", scoreOf(s)] : [])].join(" ").toLowerCase(); return said.includes(String(text).toLowerCase()); } const all = words(shown(s)).toLowerCase(); return every(shown(s)).some((v) => String(v.props.value || "").toLowerCase().includes(String(text).toLowerCase())) || all.includes(String(text).toLowerCase()); },
       // What is drawn for the state as it is: each call of the pen, with what it was given.
       draw() { const calls = []; const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H; const real = pen(canvas.getContext("2d"), 1);
         const g = new Proxy(real, { get: (o, k) => (typeof o[k] === "function" ? (...args) => { calls.push({ what: String(k), args }); if (k === "at") { const [x, y, turn, act] = args; return real.at(x, y, turn, () => act(g)); } return o[k](...args); } : o[k]) });
         P.draw(s, g); return calls; },
       get score() { return scoreOf(s); }, get over() { return ended(s) || false; }, get won() { const e = ended(s); return !!(e && e.won); }, get played() { return played.slice(); },
       expect, initial() { s = P.initial(); return s; }, update(e) { return t.send(e); } };
-    return new Proxy(t, { get(o, k) { if (k in o || typeof k === "symbol") return o[k]; const e = new Error(`the test asks for t.${String(k)}, and there is no such thing; there are: ${Object.keys(o).join(" ")}`); e.theTest = true; throw e; } });
+    const told = { changed: () => (first ? changed(first, s) : []), asked: (body) => readIn(body).filter((k) => !began.includes(k) && !(P.designed && k in P.designed) && !later().includes(k)), held: () => Object.keys(s) };
+    return new Proxy(t, { get(o, k) { if (k === "__told") return told; if (k in o || typeof k === "symbol") return o[k]; const e = new Error(`the test asks for t.${String(k)}, and there is no such thing; there are: ${Object.keys(o).join(" ")}`); e.theTest = true; throw e; } });
   }
   // What a test expects: that something is so, or, in the manner of most tests, what something is.
   let waiting = [];
@@ -309,12 +362,11 @@ const Frame = (() => {
     if (isGame()) {
       check("it runs without breaking, whatever is pressed", () => { for (let sd = 1; sd <= 5; sd++) { const s = wander(null, 30, sd); const w = wrong(s, "state", 0); must(!w, w); } });
       check("it is the same twice from the same beginning", () => { const a = JSON.stringify(wander(null, 5, 3)), b = JSON.stringify(wander(null, 5, 3)); must(a === b, "two runs from the same beginning went differently: use rnd() and not Math.random()"); });
-      for (const c of P.controls || []) check(`${shownKey(c.input)} does something (${c.does})`, () => { const mine = ways.filter((w) => (c.input === "pointer" ? w.pointer : w.held && w.held[c.input])); let moved = false; for (let sd = 1; sd <= 4 && !moved; sd++) { const from = sd === 1 ? (seed = 7, P.initial()) : wander(null, sd * 1.5, sd); if (P.over && ended(from)) continue; const sd2 = seed; const still = JSON.stringify(run(copy(from), 0.5, null)); for (const w of mine) { seed = sd2; if (JSON.stringify(run(copy(from), 0.5, w)) !== still) { moved = true; break; } } } if (!moved) must(false, "pressing it changes nothing while it is played"); });
-      let found = { score: 0, over: false, longest: 0 };
+      let played_ = null; const explored = () => (played_ = played_ || explore(6000, (g, all) => all.length > 60 && (P.controls || []).every((c) => g.does.has(c.input)) && (!P.score || g.score > g.base) && (!P.over || g.over)));
       check("time passes in it", () => { seed = 7; const a = P.initial(), b = run(copy(a), 2, null); must(JSON.stringify(a) !== JSON.stringify(b) || ways.some((w) => { seed = 7; const x = P.initial(); return JSON.stringify(run(copy(x), 1, w)) !== JSON.stringify(x); }), "nothing happens in two seconds, or when anything is pressed"); });
-      const look = (s) => { const tries = ways.length ? [null, ...ways] : [null]; let top = null, worth = -Infinity; const sd = seed; for (const w of tries) { seed = sd; const n = run(copy(s), 0.6, w); const e = P.over ? ended(n) : null; const v = scoreOf(n) * 10 - (e && !e.won ? 1e6 : 0) + (e && e.won ? 1e6 : 0); if (v > worth) { worth = v; top = w; } } seed = sd; return top; };
-      if (P.score) check("it can be scored in", () => { const began = performance.now(); for (let sd = 1; sd <= 6 && !(found.score > 0) && performance.now() - began < 25000; sd++) { const s = wander(null, sd <= 2 ? 45 : 60, sd, sd % 2 ? look : null); found.score = Math.max(found.score, scoreOf(s) - (seed = sd, scoreOf(P.initial()))); } must(found.score > 0, "nobody trying scored anything in five minutes of play"); return `played by trying things ahead, it scored ${found.score}`; });
-      if (P.over) check("it can be lost or won", () => { for (let sd = 1; sd <= 8 && !found.over; sd++) { let s; seed = sd; if (sd === 1) s = run(P.initial(), 240, null); else s = wander(null, 120, sd); if (ended(s)) found.over = true; } must(found.over, "it never ended, left alone or played at random for minutes"); });
+      for (const c of P.controls || []) check(`${shownKey(c.input)} does something (${c.does})`, () => { const g = explored(); if (!g.does.has(c.input)) must(false, `pressing it changes nothing while it is played, in ${g.all.length} different situations come upon`); });
+      if (P.score) check("it can be scored in", () => { const g = explored(); must(g.score > g.base, `played ${g.tries} times over, from ${g.all.length} different situations, its score never rose from ${g.base}. While it was played: ${ran(g.all.map((c) => c.s))}`); return `played, it scored ${Math.round(g.score - g.base)}`; });
+      if (P.over) check("it can be lost or won", () => { const g = explored(); let e = g.over; if (!e) { seed = 1; const s = run(P.initial(), 240, null); e = ended(s); } must(e, `it never ended: left alone for four minutes, or played ${g.tries} times over. While it was played: ${ran(g.all.map((c) => c.s))}`); });
       if (P.over) check("it is not over before it can be played", () => { seed = 7; const s = run(P.initial(), 2, null); must(!ended(s), "it is over within two seconds of beginning"); });
       check("it is drawn", () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const ctx = c.getContext("2d", { willReadFrequently: true }); const pic = (s, tm) => { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H); P.draw(s, pen(ctx, tm)); return ctx.getImageData(0, 0, W, H).data; }; seed = 7; const s0 = P.initial(); const a = pic(s0, 0).slice(0); let other = 0, blank = 0; for (let i = 0; i < a.length; i += 4 * 97) { if (a[i] !== a[0] || a[i + 1] !== a[1] || a[i + 2] !== a[2]) other++; if (a[i + 3] === 0) blank++; } const n = a.length / (4 * 97); must(other > n * 0.005, "nothing is drawn but one colour"); must(blank < n * 0.5, "most of it is left undrawn: begin draw with g.clear(colour)"); const s1 = wander(null, 4, 2); const b = pic(s1, 4); let moved = 0; for (let i = 0; i < a.length; i += 4 * 97) if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) moved++; must(moved > 0, "the picture is the same after four seconds of play"); for (let sd = 1; sd <= 3; sd++) pic(wander(null, 20, sd), sd); });
       check("it is quick enough", () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const g = pen(c.getContext("2d"), 0); let s = wander(null, 10, 4); const at = performance.now(); for (let i = 0; i < 120; i++) { s = apply(s, { type: "tick", dt: STEP, held: {}, pointer: NONE }); P.draw(s, g); } const ms = (performance.now() - at) / 120; must(ms < 12, `a frame takes ${ms.toFixed(1)} ms`); return `${ms.toFixed(1)} ms a frame`; });
@@ -331,11 +383,13 @@ const Frame = (() => {
     }
     return out;
   }
-  function rules(tests) { return (tests || []).map(([name, body]) => tryOne(name, () => { waiting = []; const t = tester(); try { try { body(t); } catch (e) { judged(); throw e; } judged(); } catch (e) { const then = JSON.stringify(t.s) || ""; e.message += `; the state then: ${then.slice(0, 420)}${then.length > 420 ? "…" : ""}`; throw e; } })); }
+  // The names of the state a test reads or sets, from what is written of it: t.s.name, and name of what t.s was called.
+  function readIn(body) { const src = String(body), t = (/^\s*(?:async\s*)?(?:function\s*\w*\s*)?\(?\s*([\w$]+)/.exec(src) || [])[1] || "t", found = new Set(), of = (what) => { for (const m of src.matchAll(new RegExp(`(?<![\\w$.])${what}\\??\\.([A-Za-z_$][\\w$]*)`, "g"))) found.add(m[1]); }; of(t.replace("$", "\\$") + "\\.s"); for (const m of src.matchAll(new RegExp(`(?:const|let|var)\\s+([\\w$]+)\\s*=\\s*${t.replace("$", "\\$")}\\.s\\s*[;,\\n]`, "g"))) of(m[1].replace("$", "\\$")); return [...found]; }
+  function rules(tests) { return (tests || []).map(([name, body]) => tryOne(name, () => { waiting = []; const t = tester(); try { try { body(t); } catch (e) { judged(); throw e; } judged(); } catch (e) { const t_ = t.__told, odd = t_.asked(body), then = t_.changed(); if (odd.length && !(e instanceof ReferenceError)) { e.theTest = true; e.message += `; the test reads s.${odd.join(", s.")}, and the state has no such thing: it has ${t_.held().join(", ")}`; } e.message += then.length ? `; from where the test began it to its end, what changed: ${then.join("; ")}` : "; nothing in the state changed"; throw e; } })); }
   function tried(program, tests, nothing) {
-    P = { ...program }; live = false;
+    P = { ...program }; live = false; goesOn = null;
     if (nothing) P.update = (s) => s;
-    return { generic: nothing ? [] : generic(), rules: rules(tests) };
+    return { generic: nothing || tests ? [] : generic(), rules: rules(tests) };
   }
   return { open, tried, rnd, chance, play, expect, ui, W, H };
 })();

@@ -24,6 +24,7 @@ __all__ = ["Result", "Trial", "as_object", "page_of", "site_of", "try_page"]
 
 _HERE = Path(__file__).resolve().parent
 _TRY = page_script("() => window.__try()")
+_PLAY, _RULES = page_script("() => window.__played()"), page_script("() => window.__ruled()")
 #: Whether the program itself could be read: a test that cannot be leaves it as it is.
 _THERE = page_script("() => typeof window.__try === 'function' && (typeof PROGRAM === 'object' || document.body.innerText.length > 0)")
 #: How long a trial may take before it is taken to be one that does not end.
@@ -47,6 +48,8 @@ class Trial:
     rules: list[Result] = field(default_factory=list)
     #: Tests that hold on the program with every event ignored: they test nothing that happens in it.
     hollow: list[str] = field(default_factory=list)
+    #: What of it never ran while it was played or used, as it is written, with the function it stands in.
+    never_ran: list[str] = field(default_factory=list)
 
     def failing(self) -> list[Result]:
         return [r for r in [*self.generic, *self.rules] if not r.ok]
@@ -90,20 +93,82 @@ def page_of(design: Design, code: str, *, tests: str | None = None) -> str:
     parts = [_script(frame), _script(bundle(design.pieces))]
     # What stands beside the program can be called as its own, too: this.between(...) is between(...).
     beside = ", ".join(["rnd", "between", "int", "pick", "shuffle", "play", "ui", "W", "H", *with_needs(design.pieces)])
-    parts.append(_script(f"const PROGRAM = Object.assign({{ {beside} }}, {json.dumps(facts)}, {as_object(code)});"))
+    parts.append(_script(_program(beside, facts, code)))
     if tests is None:
         parts.append(_script("Frame.open(PROGRAM);"))
     else:
         parts.append(_script("window.TESTS = []; function test(name, body) { window.TESTS.push([name, body]); }"))
         parts += [_script(text) for text in _tests_apart(tests)]
-        parts.append(_script("window.__try = () => { const missing = ['initial', 'update', PROGRAM.kind === 'app' ? 'view' : 'draw']"
-                             ".filter((k) => typeof PROGRAM[k] !== 'function'); if (missing.length) return { missing, generic: [], rules: [], hollow: [] };"
-                             " const hollow = Frame.tried(PROGRAM, window.TESTS, true).rules; return { missing, ...Frame.tried(PROGRAM, window.TESTS, false), hollow }; };"))
+        parts.append(_script("window.__missing = () => ['initial', 'update', PROGRAM.kind === 'app' ? 'view' : 'draw'].filter((k) => typeof PROGRAM[k] !== 'function');"
+                             " window.__played = () => { const missing = window.__missing(); return { missing, generic: missing.length ? [] : Frame.tried(PROGRAM, null, false).generic }; };"
+                             " window.__ruled = () => ({ hollow: Frame.tried(PROGRAM, window.TESTS, true).rules, rules: Frame.tried(PROGRAM, window.TESTS, false).rules });"
+                             " window.__try = () => { const played = window.__played(); return played.missing.length ? played : { ...played, ...window.__ruled() }; };"))
     return f"{head}<style>{style}</style></head><body><div id=\"program\"></div>{''.join(parts)}</body></html>"
+
+
+def _program(beside: str, facts: dict[str, Any], code: str) -> str:
+    return f"const PROGRAM = Object.assign({{ {beside} }}, {json.dumps(facts)}, {as_object(code)});"
 
 
 def _result(row: dict[str, Any]) -> Result:
     return Result(str(row["name"]), bool(row["ok"]), str(row.get("why") or ""), bool(row.get("broke")), bool(row.get("theTest")))
+
+
+async def _watched(context: Any, page: Any) -> Any:
+    """A watch on which parts of the page's programs run, kept by the browser itself; None where it keeps none."""
+    try:
+        watch = await context.new_cdp_session(page)
+        await watch.send("Profiler.enable")
+        await watch.send("Profiler.startPreciseCoverage", {"callCount": True, "detailed": True})
+        return watch
+    except Exception as exc:  # noqa: BLE001 - a browser that keeps no such watch is one the program is tried in without it
+        logger.info("What of a program runs is not watched here: %s", exc)
+        return None
+
+
+async def _gone_through(page: Any, watch: Any) -> dict[str, Any]:
+    """The program played or used, what of it ran in that, and then its tests."""
+    if watch is None:
+        return dict(await get_page_gateway().read(page, _TRY, source="making.trying"))
+    played = dict(await get_page_gateway().read(page, _PLAY, source="making.trying"))
+    if played.get("missing"):
+        return played
+    ran = (await watch.send("Profiler.takePreciseCoverage")).get("result") or []
+    return {**played, **dict(await get_page_gateway().read(page, _RULES, source="making.trying")), "ran": ran}
+
+
+#: What something that bears on what happens does: it sets something, or makes a sound, or ends.
+_BEARS = re.compile(r"[\w$\])]\s*(?:\+\+|--|[-+*/%|&]?=(?![=>]))|\.(?:push|splice|pop|shift|unshift)\(|\bplay\(")
+
+
+def _never_ran(ran: list[dict[str, Any]], html: str, *, most: int = 8) -> list[str]:
+    """What never ran of the program, from the browser's own count of each block of it."""
+    found = re.search(r"<script>(const PROGRAM = [\s\S]*?)</script>", html)
+    if found is None:
+        return []
+    # The browser counts in UTF-16 units.
+    body = found.group(1).encode("utf-16-le")
+    said = lambda a, b: body[2 * a: 2 * b].decode("utf-16-le", "replace")  # noqa: E731
+    script = next((s for s in ran if s.get("functions") and s["functions"][0]["ranges"][0]["endOffset"] * 2 == len(body)), None)
+    if script is None:
+        return []
+    rows: list[tuple[int, str]] = []
+    for function in script["functions"][1:]:
+        name, whole = function.get("functionName") or "", function["ranges"][0]
+        if not name or name == "PROGRAM":
+            continue
+        if whole["count"] == 0:
+            text = said(whole["startOffset"], whole["endOffset"])
+            if _BEARS.search(text):
+                rows.append((0, f"{name}(...) was never called"))
+            continue
+        for block in function["ranges"][1:]:
+            text = said(block["startOffset"], block["endOffset"])
+            if block["count"] == 0 and _BEARS.search(text):
+                upto = said(whole["startOffset"], block["startOffset"])
+                line = upto[upto.rfind("\n") + 1:].strip()
+                rows.append((1, f"in {name}: " + " ".join(f"{line[-160:]} {text.strip()}".split())[:260]))
+    return [text for _first, text in sorted(dict.fromkeys(rows), key=lambda row: row[0])][:most]
 
 
 async def try_page(html: str, where: Path, browser: Any) -> Trial:
@@ -116,12 +181,13 @@ async def try_page(html: str, where: Path, browser: Any) -> Trial:
     try:
         page = await context.new_page()
         page.on("pageerror", lambda error: problems.append(str(error)))
+        watch = await _watched(context, page) if "window.__played" in html else None
         await get_page_gateway().go_to(page, await asyncio.to_thread(lambda: where.resolve().as_uri()),
                                        source="making.trying", wait_until="load", timeout=20000)
         if problems and not await get_page_gateway().read(page, _THERE, source="making.trying"):
             return Trial(generic=[Result("it can be read", False, "; ".join(problems)[:400])])
         try:
-            got = await asyncio.wait_for(get_page_gateway().read(page, _TRY, source="making.trying"), timeout=TRIAL_S)
+            got = await asyncio.wait_for(_gone_through(page, watch), timeout=TRIAL_S)
         except TimeoutError:
             return Trial(generic=[Result("it comes to an end", False, f"trying it took longer than {TRIAL_S:.0f} seconds: something in it goes round without end, or a list in its state grows without end")])
         except Exception as exc:  # noqa: BLE001 - what a page raises while it is tried is what trying it shows
@@ -132,7 +198,8 @@ async def try_page(html: str, where: Path, browser: Any) -> Trial:
     if got.get("missing"):
         generic.insert(0, Result("it has its functions", False, f"these are missing: {', '.join(got['missing'])}"))
     return Trial(generic=generic, rules=[_result(r) for r in got.get("rules") or []],
-                 hollow=[str(r["name"]) for r in got.get("hollow") or [] if r["ok"]])
+                 hollow=[str(r["name"]) for r in got.get("hollow") or [] if r["ok"]],
+                 never_ran=_never_ran(got.get("ran") or [], html))
 
 
 _SITE_HELP = """

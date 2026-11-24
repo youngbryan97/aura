@@ -8177,6 +8177,14 @@
       "scope": "<module>._ActsOnThePage.type"
     },
     {
+      "callee": "core.runtime.page_gateway.get_page_gateway().read",
+      "canonical_owner": false,
+      "category": "page_gateway",
+      "count": 3,
+      "path": "core/making/trying.py",
+      "scope": "<module>._gone_through"
+    },
+    {
       "callee": "core.runtime.page_gateway.get_page_gateway().go_to",
       "canonical_owner": false,
       "category": "page_gateway",
@@ -8188,7 +8196,7 @@
       "callee": "core.runtime.page_gateway.get_page_gateway().read",
       "canonical_owner": false,
       "category": "page_gateway",
-      "count": 2,
+      "count": 1,
       "path": "core/making/trying.py",
       "scope": "<module>.try_page"
     },
@@ -17634,6 +17642,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "b97458e498f0ae2d77ef1d54abd79f8082afbafbfdf3c9e4a9ce561b455161bb",
+  "inventory_sha256": "166ed591ab2f4c41527df4a591fcc1296fd4503dbbb33abf513308ecfea9d50a",
   "schema_version": 1
 }

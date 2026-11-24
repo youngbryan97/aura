@@ -123,6 +123,13 @@ def _one_round(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
     lost game went wrong and working an ending out, the kind that has lately paid best, a kind with nothing left to do
     giving its turn to the next. A round pays where it changes what she will do: a group of weights kept, a suspect
     ruled out, an ending worked out, situations worked out ahead. Blocks; run it in a thread."""
+    from core.runtime.interpreter_turns import short_turns
+
+    with short_turns():
+        return _one_round_of(name, written)
+
+
+def _one_round_of(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
     from core.cognition.where_practice_pays import WherePracticePays
 
     pays = _PAYS.setdefault(name, WherePracticePays())

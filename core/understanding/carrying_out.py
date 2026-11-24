@@ -18,6 +18,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.runtime import work_somebody_asked_for
 from core.runtime.errors import record_degradation
 from core.understanding.her_model_between_turns import nobody_waiting
 from core.understanding.requests_of_her import (
@@ -144,6 +145,7 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
     bench = get_workbench().begin(request.id, _title(request), request.effect)
 
     async def work() -> None:
+        work_somebody_asked_for.begun(request.id)
         try:
             # The turn that asked is answered first.
             bench.waits("the conversation, which comes first")
@@ -152,6 +154,7 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
                 await carry_out(request, carrier, tell=tell, ledger=ledger)
         finally:
             _UNDER_WAY.pop(request.id, None)
+            work_somebody_asked_for.ended(request.id)
             bench.finished("stopped" if bench.stopped or request.stands in {CUT_SHORT, SET_ASIDE} else "done")
         if request.stands not in {OPEN, SET_ASIDE}:
             await told(request)

@@ -26,7 +26,7 @@ from typing import Any
 
 from core.making import design as how
 from core.making.code_parts import BEFORE, assembled, each_test_in, patched, python_patched
-from core.making.design import Asked, Design, in_proportion, left_out, with_every_ask
+from core.making.design import Asked, Design, Rule, in_proportion, left_out, with_every_ask
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
 from core.making.tools import Case, Cases, Language, languages, try_tool
 from core.making.trying import Result, Trial, page_of, site_of, try_page
@@ -140,6 +140,7 @@ class _Maker:
             wrong = left_out(got)
             got = with_every_ask(got, asks)
             got.rules = in_proportion(got, asks)
+            got.rules = await asyncio.to_thread(self._not_the_windows, got)
             held = pieces("python") if got.kind == "tool" else pieces()
             got.pieces = [name for name in dict.fromkeys(got.pieces) if name in held]
             if best is None or not wrong or len(wrong) < len(was):
@@ -153,6 +154,18 @@ class _Maker:
             self.work.says(f"{best.name}: {best.about} {len(best.rules)} rules"
                            + (f", made from {', '.join(best.pieces)}" if best.pieces else "") + ".")
         return best
+
+    def _not_the_windows(self, design: Design) -> list[Rule]:
+        """Its rules but those nobody asked for that the window it runs in keeps by itself: a start screen built into a
+        program that has one is a second one, and the program stands waiting behind it."""
+        mine = [rule for rule in design.rules if not rule.of]
+        window = _THE_WINDOW_HAS.get(design.kind, ())
+        asked = [*(rule.says for rule in design.rules if rule.of), *(control.does for control in design.controls)]
+        own = _the_windows_own([rule.says for rule in mine], asked, window) if window else [False] * len(mine)
+        gone = [rule for rule, its in zip(mine, own, strict=True) if its]
+        if gone:
+            self.work.says("The window it runs in has this already: " + "; ".join(rule.says for rule in gone) + ".")
+        return [rule for rule in design.rules if rule not in gone]
 
     # ── 2. its tests ─────────────────────────────────────────────────
 
@@ -394,6 +407,8 @@ class _Maker:
         self.work.step(f"Mending it: {first[0].name}" + (f", and {len(failing) - 1} more" if len(failing) > 1 else ""))
         named = _tests_named(self.parts.tests, [r.name for r in first])
         tests = f"\nThe tests of them:\n```js\n{named}\n```\n" if named else ""
+        if self.trial.never_ran and any(r in self.trial.generic for r in first):
+            told += "\nWhile it was played, none of this of it ever ran:\n" + "\n".join(f"- {text}" for text in self.trial.never_ran)
         said = await self.write(f"{self._interface()}\n\n{design.said()}\n\nIt is written as:\n```\n{self.parts.code()}\n```\n{tests}\n"
                                 f"Trying it, these fail:\n{told}\n\nSay in a sentence or two what is wrong and what you change, then "
                                 f"{self._how_to_change()}.", MEND_TOKENS, warmth=min(0.8, warm))
@@ -514,20 +529,28 @@ def _how_much_is_wrong(failing: list[Result]) -> float:
 
 #: What the window a program runs in does by itself.
 _THE_WINDOW_DOES = ("pause the game and resume it", "start the game or restart it after it ends", "quit the game", "turn the sound on or off")
+#: And what it has, as a rule of a program would say it.
+_THE_WINDOW_HAS = {
+    "game": ("There is a start screen with a title and how to play", "The game can be paused and gone on with",
+             "When it ends a screen says how it went and offers to play again", "The score and the best score are shown on the screen",
+             "The controls are listed for the player", "The sound can be turned off"),
+    "app": ("Everything is saved and is still there when the app is opened again", "What was done can be undone",
+            "The layout works on a narrow and a wide window"),
+}
 
 
-def _the_windows_own(does: list[str], rules: list[str]) -> list[bool]:
+def _the_windows_own(does: list[str], rules: list[str], window_does: tuple[str, ...] = _THE_WINDOW_DOES) -> list[bool]:
     """Whether each of these is nearer what the window does by itself than any rule of the program is, by her encoder."""
     from core.cognition.evidence_relevance import vectors_if_ready
 
-    vectors = vectors_if_ready([*does, *_THE_WINDOW_DOES, *rules]) if does else []
-    if not vectors or len(vectors) != len(does) + len(_THE_WINDOW_DOES) + len(rules):
+    vectors = vectors_if_ready([*does, *window_does, *rules]) if does else []
+    if not vectors or len(vectors) != len(does) + len(window_does) + len(rules):
         return [False] * len(does)
     import numpy as np
 
     v = np.asarray(vectors, dtype=np.float32)
     v /= np.linalg.norm(v, axis=1, keepdims=True) + 1e-9
-    mine, window, ruled = v[: len(does)], v[len(does): len(does) + len(_THE_WINDOW_DOES)], v[len(does) + len(_THE_WINDOW_DOES):]
+    mine, window, ruled = v[: len(does)], v[len(does): len(does) + len(window_does)], v[len(does) + len(window_does):]
     return [bool((window @ m).max() > ((ruled @ m).max() if len(rules) else 0.0)) for m in mine]
 
 
@@ -537,7 +560,7 @@ def _tests_named(tests: str, names: list[str]) -> str:
 
 
 _HOW_TESTS = {
-    "game": """A test is test("the rule, as it is written", t => { ... }). t begins at initial(). t.s is the state, to be read and set. t.tick(seconds) lets time pass, t.press(key), t.hold(key, seconds), t.point(x, y, seconds), t.click(x, y), t.send(event). t.score, t.over, t.won. t.draw() gives what is drawn, as [{what: "circle", args: [...]}] in the pen's own names. t.expect(so, "why not"). Set the state to where the rule bears, let the least happen, and expect what the rule says, and only that: where it gives no amount, any sensible amount holds.""",
+    "game": """A test is test("the rule, as it is written", t => { ... }). t begins at initial(). t.s is the state, to be read and set. t.tick(seconds) lets time pass, t.press(key), t.hold(key, seconds), t.point(x, y, seconds), t.click(x, y), t.send(event). t.score, t.over, t.won. t.draw() gives what is drawn, as [{what: "circle", args: [...]}] in the pen's own names; t.sees(text) is whether those words are drawn or counted above it. t.expect(so, "why not"). Set the state to where the rule bears, let the least happen, and expect what the rule says, and only that: where it gives no amount, any sensible amount holds.""",
     "app": """A test is test("the rule, as it is written", t => { ... }). t begins at initial(). t.s is the state, to be read and set. t.click(label), t.type(label, text), t.choose(label, value), t.enter(label) work the controls shown, by their labels. t.tick(seconds) lets time pass, t.press(key), t.send(event). t.sees(text) is whether it is shown. t.expect(so, "why not"). Expect what the rule says, and only that: where it gives no words or amount, any sensible ones hold.""",
     "site": """A test is test("the rule, as it is written", () => { ... }) and runs in the page. see(text) fails where the text is not shown, one(selector), all(selector), press(text) presses the link or button that says it, expect(so, "why not").""",
 }

@@ -11,6 +11,7 @@ from core.health.degraded_events import get_unified_failure_state
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
 from core.runtime.resource_observation import get_resource_observer
+from core.runtime.work_somebody_asked_for import under_way as work_is_under_way
 
 logger = logging.getLogger(__name__)
 _PROCESS_STARTED_AT = time.time()
@@ -850,6 +851,8 @@ def background_activity_reason(
     foreground_reason = _foreground_activity_reason(needs_the_model=needs_the_model)
     if foreground_reason:
         return foreground_reason
+    if work_is_under_way():
+        return "work_somebody_asked_for"
 
     if orch is not None:
         quiet_until = float(getattr(orch, "_foreground_user_quiet_until", 0.0) or 0.0)

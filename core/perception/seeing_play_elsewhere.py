@@ -37,6 +37,7 @@ from typing import Any
 import numpy as np
 
 from core.runtime.flags import FlagKind, declare
+from core.runtime.interpreter_turns import short_turns
 from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.SeeingPlayElsewhere")
@@ -416,32 +417,9 @@ def eyes_for_play(kinds: list[Any] | None = None) -> Any:
 
 # -- the interpreter's turns ---------------------------------------------------------------------------------------
 
-#: How long one thread may hold the interpreter while another waits, in seconds, while she plays as it happens.
-TURN_WHILE_PLAYING_S = 0.001
-_TURNS: dict[str, Any] = {"playing": 0, "before": None}
-_TURNS_LOCK = checked_lock("seeing_play_elsewhere.turns")
-
-
-class short_turns_while_playing:  # noqa: N801 - read as what it does, in a with
-    """While she plays as it happens, the interpreter changes hands every millisecond instead of every five, and as it
-    was after. Whatever else she is doing goes on, in shorter turns; her play, which hands the interpreter back between
-    every picture and every press, gets it back sooner each time. Measured offline 2026-10-13 with three other threads
-    busy beside play: 99 ms a picture with turns of five milliseconds, 46 with turns of one, 41 alone at most."""
-
-    def __enter__(self) -> short_turns_while_playing:
-        with _TURNS_LOCK:
-            if _TURNS["playing"] == 0:
-                _TURNS["before"] = sys.getswitchinterval()
-                sys.setswitchinterval(min(TURN_WHILE_PLAYING_S, _TURNS["before"]))
-            _TURNS["playing"] += 1
-        return self
-
-    def __exit__(self, *_: Any) -> None:
-        with _TURNS_LOCK:
-            _TURNS["playing"] = max(0, _TURNS["playing"] - 1)
-            if _TURNS["playing"] == 0 and _TURNS["before"] is not None:
-                sys.setswitchinterval(_TURNS["before"])
-                _TURNS["before"] = None
+#: While she plays as it happens, whatever else she is doing goes on in shorter turns: her play, which hands the interpreter
+#: back between every picture and every press, gets it back sooner each time.
+short_turns_while_playing = short_turns
 
 
 # -- that side -----------------------------------------------------------------------------------------------------

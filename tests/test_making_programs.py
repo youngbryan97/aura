@@ -297,6 +297,89 @@ def test_a_key_for_what_the_window_does_is_no_control_of_the_program(tmp_path):
     assert [c.input for c in design.controls] == ["pointer"]
 
 
+#: A game of two steps: what is carried from one side counts only at the other, and only there.
+TWO_STEPS = '''({
+  initial() { return { me: { x: 480, y: 300, has: 0 }, stones: [{ x: 60, y: 60 }], home: { x: 900, y: 540 }, brought: 0, left: 90 }; },
+  update(s, e) {
+    if (e.type === "key" && e.key === "Space" && e.down) this.put(s);
+    if (e.type !== "tick") return;
+    s.left -= e.dt; const v = 240 * e.dt;
+    s.me.x = Math.max(0, Math.min(W, s.me.x + ((e.held.ArrowRight ? 1 : 0) - (e.held.ArrowLeft ? 1 : 0)) * v));
+    s.me.y = Math.max(0, Math.min(H, s.me.y + ((e.held.ArrowDown ? 1 : 0) - (e.held.ArrowUp ? 1 : 0)) * v));
+    for (const p of s.stones) if (Math.hypot(p.x - s.me.x, p.y - s.me.y) < 40 && !s.me.has) { s.me.has = 1; p.x = between(0, W); p.y = between(0, 120); play("pick"); }
+  },
+  put(s) { if (s.me.has && Math.hypot(s.home.x - s.me.x, s.home.y - s.me.y) < 60) { s.me.has = 0; s.brought++; play("bell"); } },
+  score(s) { return s.brought; },
+  over(s) { return s.left <= 0 && { won: s.brought > 3, say: "Dark." }; },
+  draw(s, g) { g.clear("#20242c"); g.circle(s.me.x, s.me.y, 40, "#ffd977"); g.rect(s.home.x - 60, s.home.y - 60, 120, 120, "#335566"); for (const p of s.stones) g.circle(p.x, p.y, 8, "#cfc7ff"); g.text("home", s.home.x, s.home.y, { color: "#ffffff" }); },
+})'''
+
+
+def _two_steps(code: str, tmp_path: Path, tests: str = ""):
+    keys = [how.Control(input=k, does=f"go {k}") for k in ("ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown")]
+    design = _design(state={}, rules=[Rule(says="a stone brought home counts", of="bring stones home")], controls=[*keys, how.Control(input="Space", does="put the stone down")])
+    return _tried(page_of(design, code, tests=tests), tmp_path)
+
+
+def test_what_takes_two_steps_is_found_by_playing_it(tmp_path):
+    trial = _two_steps(TWO_STEPS, tmp_path)
+    assert [(r.name, r.why) for r in trial.failing()] == []
+    assert any(r.name == "it can be scored in" and "scored" in r.why for r in trial.generic)
+
+
+def test_what_can_never_be_reached_is_told_with_what_never_ran(tmp_path):
+    trial = _two_steps(TWO_STEPS.replace("if (e.type === \"key\" && e.key === \"Space\" && e.down) this.put(s);\n    if (e.type !== \"tick\") return;",
+                                         "if (e.type !== \"tick\") return;\n    if (e.key === \"Space\") this.put(s);"), tmp_path)
+    failing = {r.name: r.why for r in trial.failing()}
+    assert "Space does something (put the stone down)" in failing
+    assert "its score never rose from 0" in failing["it can be scored in"] and "me.has 0 to 1" in failing["it can be scored in"]
+    assert any(text.startswith("put(...) was never called") for text in trial.never_ran), trial.never_ran
+    blocked = _two_steps(TWO_STEPS.replace("< 60) { s.me.has = 0;", "< -1) { s.me.has = 0;"), tmp_path)
+    assert any(text.startswith("in put:") and "< -1) { s.me.has = 0; s.brought++" in text for text in blocked.never_ran), blocked.never_ran
+
+
+def test_what_never_ran_goes_to_the_mend(tmp_path):
+    from core.making.trying import Result, Trial
+
+    asked: list[str] = []
+
+    async def write(prompt, most, **_how):
+        asked.append(prompt)
+        return "```js\n({ score(s) { return 1; } })\n```"
+
+    made = maker._Maker("x", ask=None, write=write, work=Work("w", "x"), folder=tmp_path, browser=None)
+    made.design = _design()
+    made.trial = Trial(generic=[Result("it can be scored in", False, "never")], never_ran=["put(...) was never called"])
+    asyncio.run(made._a_mend(made.trial.failing(), warm=0.2))
+    assert "none of this of it ever ran:\n- put(...) was never called" in asked[0]
+
+
+def test_a_test_of_a_state_there_is_not_is_the_tests_fault_and_what_changed_is_told(tmp_path):
+    tests = ('test("a", t => { t.tick(0.1); t.expect(t.s.camera.x === 4, "no camera"); });'
+             'test("b", t => { const s = t.s; t.tick(0.1); t.expect(s.wind === 4, "no wind"); });'
+             'test("c", t => { t.hold("ArrowRight", 0.5); t.expect(t.s.me.has === 1, "has nothing"); });'
+             'test("d", t => { t.expect(t.sees("home") && t.sees("score"), "not shown"); });')
+    got = {r.name: r for r in _two_steps(TWO_STEPS, tmp_path, tests).rules}
+    assert got["a"].the_test and "s.camera" in got["a"].why and "it has me, stones, home, brought, left" in got["a"].why
+    assert got["b"].the_test and not got["c"].the_test and got["d"].ok
+    assert "me.x 480 to 600" in got["c"].why and "left 90 to 89.5" in got["c"].why
+
+
+def test_a_rule_nobody_asked_for_that_the_window_keeps_is_not_built_again(tmp_path, monkeypatch):
+    import core.cognition.evidence_relevance as relevance
+
+    def vectors(texts):
+        return [[float(any(w in text for w in ("start screen", "pause"))), float("wind" in text), float("crow" in text)] for text in texts]
+
+    monkeypatch.setattr(relevance, "vectors_if_ready", vectors)
+    made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
+    rules = [Rule(says="the wind rises", of="windier"), Rule(says="a pause that slows the wind", of="pause slowly"), Rule(says="the game has a start screen"),
+             Rule(says="crows fly in pairs")]
+    kept = made._not_the_windows(_design(rules=rules))
+    assert [rule.says for rule in kept] == ["the wind rises", "a pause that slows the wind", "crows fly in pairs"]
+    assert [rule.says for rule in made._not_the_windows(_design(kind="site", rules=rules))] == [rule.says for rule in rules]
+
+
 def test_putting_right_what_breaks_counts_for_more_than_what_it_uncovers():
     from core.making.trying import Result
 
