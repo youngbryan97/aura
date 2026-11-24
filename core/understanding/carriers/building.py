@@ -144,7 +144,7 @@ async def build(request: Request, tell: Tell) -> CameTo:
     async with _a_browser() as browser:
         if folder is None:
             made = await maker.make(request.whole, ask=_ask, write=_write, work=_this(request), where=_builds(), browser=browser,
-                                    told=request.told)
+                                    told=request.told, when_kept=_keeps(request))
         elif request.added and request.added[-1] not in str(request.made.get("heard") or ""):
             made = await maker.change(folder, "\n".join(request.added), ask=_ask, write=_write, work=_this(request), browser=browser)
         else:
@@ -175,6 +175,19 @@ async def change(request: Request, tell: Tell) -> CameTo:
         return CameTo(how="read the change into the design", came_to="it could not be read into the design",
                       parts=[Part("the change asked for", "unmet", "no design with it came")])
     return await _as_it_came_out(request, made)
+
+
+def _keeps(request: Request) -> Any:
+    """Where the program stands, on the request as soon as there is one to go on with: what cuts the work short leaves it."""
+    from core.understanding.requests_of_her import get_requests_of_her
+    from core.utils.task_tracker import get_task_tracker
+
+    def kept(page: Path) -> None:
+        if request.made.get("page") != str(page):
+            request.made["page"] = str(page)
+            get_task_tracker().create_task(get_requests_of_her().keep(), name=f"request.kept.{request.id}")
+
+    return kept
 
 
 def _this(request: Request) -> Work:

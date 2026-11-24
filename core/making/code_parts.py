@@ -145,6 +145,8 @@ def parts_in(code: str) -> dict[str, str]:
     for statement in _statements(head):
         found = re.match(r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*\S|(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)", statement)
         name = (found.group(1) or found.group(2)) if found else ""
+        if found and found.group(1) and _from_inside(statement.split("=", 1)[1]):
+            continue
         if name and not re.fullmatch(r"(?:const|let|var)\s+[\w$]+\s*=\s*\(?", statement.strip()):
             parts[BEFORE + name] = statement.rstrip(";").strip()
     if spot is not None:
@@ -159,6 +161,13 @@ def parts_in(code: str) -> dict[str, str]:
             parts[name] = re.sub(r"^(?:async\s+)?function\s*", "", text) if text.startswith(("function", "async")) else re.sub(
                 rf"^(?:const|let|var)\s+{re.escape(name)}\s*=\s*", f"{name}: ", text)
     return parts
+
+
+def _from_inside(value: str) -> bool:
+    """Whether what a name is given is from inside a function of the program: it is of the state, the event or the pen, which
+    nothing outside one has. A line quoted from a function to say what is wrong with it is no part of the program."""
+    return (re.match(r"\s*(?:async\s*)?(?:function\b|[\w$]+\s*=>|\([^()]*\)\s*=>)", value) is None
+            and re.search(r"(?<![\w$.])(?:this|s|e|g|ui)\s*(?:\.|\[)", value) is not None)
 
 
 def _statements(code: str) -> list[str]:

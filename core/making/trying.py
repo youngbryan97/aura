@@ -26,7 +26,8 @@ _HERE = Path(__file__).resolve().parent
 _TRY = page_script("() => window.__try()")
 _PLAY, _RULES = page_script("() => window.__played()"), page_script("() => window.__ruled()")
 #: Whether the program itself could be read: a test that cannot be leaves it as it is.
-_THERE = page_script("() => typeof window.__try === 'function' && (typeof PROGRAM === 'object' || document.body.innerText.length > 0)")
+_THERE = page_script("() => { const there = () => { try { return typeof PROGRAM === 'object'; } catch (e) { return false; } };"
+                     " return typeof window.__try === 'function' && (there() || (!document.getElementById('program') && document.body.innerText.length > 0)); }")
 #: How long a trial may take before it is taken to be one that does not end.
 TRIAL_S = 120.0
 
@@ -184,7 +185,14 @@ async def try_page(html: str, where: Path, browser: Any) -> Trial:
         watch = await _watched(context, page) if "window.__played" in html else None
         await get_page_gateway().go_to(page, await asyncio.to_thread(lambda: where.resolve().as_uri()),
                                        source="making.trying", wait_until="load", timeout=20000)
-        if problems and not await get_page_gateway().read(page, _THERE, source="making.trying"):
+        try:
+            # What a page raises before it is tried is the program's: a name used before it is given a value raises
+            # wherever it is read. LIVE 24 November 2026 it raised here, and a game at 24 of 25 was given up for it.
+            there = not problems or await get_page_gateway().read(page, _THERE, source="making.trying")
+        except Exception as exc:  # noqa: BLE001 - what a page raises as it is read is what reading it shows
+            problems.append(str(exc))
+            there = False
+        if not there:
             return Trial(generic=[Result("it can be read", False, "; ".join(problems)[:400])])
         try:
             got = await asyncio.wait_for(_gone_through(page, watch), timeout=TRIAL_S)

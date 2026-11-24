@@ -112,6 +112,9 @@ class _Maker:
         self.parts = Parts()
         self.trial = Trial()
         self.told = ""
+        #: The rules built so far, a layer at a time, and what is told where the program stands each time it is kept.
+        self.has: list[str] = []
+        self.when_kept: Callable[[Path], None] | None = None
         self.began = time.monotonic()
 
     # ── 1. the design ────────────────────────────────────────────────
@@ -182,14 +185,14 @@ class _Maker:
         self.work.step("Writing its tests, before the code they test")
         listed = "\n".join(f"- {rule}" for rule in rules)
         if design.kind == "tool":
-            got = await self.ask(f"{self._interface()}\n\n{design.said()}\n\nWrite cases that test these rules, two for each where "
-                                 f"it matters, with what each prints worked out exactly:\n{listed}", Cases, TEST_TOKENS)
+            got = await self.ask(f"Write cases that test these rules, two for each where it matters, with what each prints worked "
+                                 f"out exactly:\n{listed}", Cases, TEST_TOKENS, given=self._given())
             cases = list(got.cases) if isinstance(got, Cases) else []
             self.parts.cases += [c.model_dump() for c in cases]
             self.work.tried("Cases to run", [{"name": f"{c.rule}: {' '.join(c.args) or c.typed[:40] or 'as it is'}", "ok": True} for c in cases])
             return
-        said = await self.write(f"{self._interface()}\n\n{design.said()}\n\n{_HOW_TESTS[design.kind]}\n\nWrite a test for each of these "
-                                f"rules, as JavaScript, the tests alone and nothing of the program:\n{listed}", TEST_TOKENS)
+        said = await self.write(f"{_HOW_TESTS[design.kind]}\n\nWrite a test for each of these rules, as JavaScript, the tests alone and "
+                                f"nothing of the program:\n{listed}", TEST_TOKENS, given=self._given())
         self.work.says(_prose(said))
         before, found = each_test_in(_code(said))
         code = "\n\n".join([*([before.strip()] if before.strip() else []), *(f"{text};" for _name, text in found)])
@@ -199,6 +202,12 @@ class _Maker:
         self.work.wrote("tests", code)
 
     # ── 3. its code ──────────────────────────────────────────────────
+
+    def _given(self) -> str:
+        """What every ask about the program begins with: how such a program is written, and the design of this one. It
+        goes to her model as a message of its own, so the next ask reads on from the end of it."""
+        assert self.design is not None
+        return f"{self._interface()}\n\n{self.design.said()}"
 
     def _interface(self) -> str:
         design = self.design
@@ -234,15 +243,25 @@ class _Maker:
         """The program, a layer of its rules at a time: tests of the layer, its code, and what fails mended before the next."""
         layers = self.layers()
         for n, rules in enumerate(layers):
+            rules = [rule for rule in rules if rule not in self.has]
+            if not rules:
+                continue
             if len(layers) > 1:
                 self.work.happened("layer", n=n + 1, of=len(layers), rules=rules)
             await self.tested(rules)
-            if n == 0:
+            if not self.parts.code().strip():
                 await self.coded(rules)
             else:
                 await self.added(rules)
+            self.has += rules
             await self.mended()
+            await self.kept()
         await self.finished()
+
+    async def gone_on_with(self) -> None:
+        """A program as it was kept: what fails of it mended, and what of it was not built yet built."""
+        await self.mended()
+        await self.built()
 
     async def coded(self, rules: list[str]) -> None:
         design = self.design
@@ -250,22 +269,23 @@ class _Maker:
         if design.kind in {"site", "tool"}:
             what = "its page" if design.kind == "site" else f"it, in {self.language().name}"
             self.work.step(f"Writing {what}")
-            said = await self.write(f"{self._interface()}\n\n{design.said()}\n\nSay in a sentence or two how you will do it, then write "
-                                    f"{'the body of the page, whole' if design.kind == 'site' else 'the whole file'}, in one block.", CODE_TOKENS)
+            said = await self.write("Say in a sentence or two how you will do it, then write "
+                                    f"{'the body of the page, whole' if design.kind == 'site' else 'the whole file'}, in one block.",
+                                    CODE_TOKENS, given=self._given())
             self.work.says(_prose(said))
             self._written(said, what)
             return
-        first = "" if len(rules) == len(design.rules) else "\nOnly these of its rules are built now:\n" + "\n".join(f"- {r}" for r in rules)
+        first = "" if len(rules) == len(design.rules) else "Only these of its rules are built now:\n" + "\n".join(f"- {r}" for r in rules) + "\n\n"
         functions = "initial, update, score, over and hud" if design.kind == "game" else "initial and update"
         self.work.step("Writing its rules: how it begins and what each event does")
-        said = await self.write(f"{self._interface()}\n\n{design.said()}{first}\n\nSay in a sentence or two how you will do it, then write "
-                                f"{functions}, as one JavaScript object in one block: `({{ ... }})`. How it is shown is written after.", CODE_TOKENS)
+        said = await self.write(f"{first}Say in a sentence or two how you will do it, then write {functions}, as one JavaScript object in "
+                                "one block: `({ ... })`. How it is shown is written after.", CODE_TOKENS, given=self._given())
         self._written(said, "rules")
         which = "draw" if design.kind == "game" else "view"
         self.work.step("Writing how it looks")
-        said = await self.write(f"{self._interface()}\n\n{design.said()}{first}\n\nIts rules are written:\n```js\n{self.parts.code()}\n```\n\n"
+        said = await self.write(f"{first}Its rules are written:\n```js\n{self.parts.code()}\n```\n\n"
                                 f"Say in a sentence how it will look, then write {which}, as one JavaScript object in one block: "
-                                f"`({{ {which}(s, {'g' if which == 'draw' else 'ui'}) {{ ... }} }})`. It is to look finished.", CODE_TOKENS)
+                                f"`({{ {which}(s, {'g' if which == 'draw' else 'ui'}) {{ ... }} }})`. It is to look finished.", CODE_TOKENS, given=self._given())
         self._written(said, "looks")
 
     async def added(self, rules: list[str], words: str = "") -> None:
@@ -274,8 +294,8 @@ class _Maker:
         assert design is not None
         self.work.step("Building in: " + "; ".join(rules)[:160] if rules else "Changing it to what you said")
         told = (("\nTo be built in now:\n" + "\n".join(f"- {rule}" for rule in rules)) if rules else "") + (f"\nThey said: {words}" if words else "")
-        said = await self.write(f"{self._interface()}\n\n{design.said()}\n\nIt is written as:\n```\n{self.parts.code()}\n```\n{told}\n\n"
-                                f"Say in a sentence or two what you change, then {self._how_to_change()}.", CODE_TOKENS)
+        said = await self.write(f"It is written as:\n```\n{self.parts.code()}\n```\n{told}\n\n"
+                                f"Say in a sentence or two what you change, then {self._how_to_change()}.", CODE_TOKENS, given=self._given())
         self._written(said, "what changed" if self.parts.functions else "it")
 
     def _how_to_change(self) -> str:
@@ -370,6 +390,7 @@ class _Maker:
                 self.work.says(f"Kept: {len(failing)} things failed before it and {len(trial.failing())} do now"
                                + (", and what was underneath them is put right." if len(trial.failing()) >= len(failing) else "."))
                 self.parts, self.trial, nothing_gained = parts, trial, 0
+                await self.kept()
             else:
                 nothing_gained += 1
                 self.work.says(f"Not kept: {len(failing)} things failed before it and {len(trial.failing())} after.")
@@ -416,9 +437,9 @@ class _Maker:
         tests = f"\nThe tests of them:\n```js\n{named}\n```\n" if named else ""
         if self.trial.never_ran and any(r in self.trial.generic for r in first):
             told += "\nWhile it was played, none of this of it ever ran:\n" + "\n".join(f"- {text}" for text in self.trial.never_ran)
-        said = await self.write(f"{self._interface()}\n\n{design.said()}\n\nIt is written as:\n```\n{self.parts.code()}\n```\n{tests}\n"
+        said = await self.write(f"It is written as:\n```\n{self.parts.code()}\n```\n{tests}\n"
                                 f"Trying it, these fail:\n{told}\n\nSay in a sentence or two what is wrong and what you change, then "
-                                f"{self._how_to_change()}.", MEND_TOKENS, warmth=min(0.8, warm))
+                                f"{self._how_to_change()}.", MEND_TOKENS, warmth=min(0.8, warm), given=self._given())
         parts = self.parts.copy()
         if not self._written(said, "the mend", parts):
             self.work.trouble("The mend changed nothing.")
@@ -446,9 +467,9 @@ class _Maker:
         told = "\n".join(f"- {r.name}: {r.why}" for r in failing[:8])
         if self.design.kind == "tool":
             cases = [c for c in self.parts.cases if any(r.name.startswith(str(c["rule"])) for r in failing)]
-            got = await self.ask(f"{self._interface()}\n\n{self.design.said()}\n\nThese cases fail:\n{json.dumps(cases)}\nas:\n{told}\n\nThe program:\n```\n"
+            got = await self.ask(f"These cases fail:\n{json.dumps(cases)}\nas:\n{told}\n\nThe program:\n```\n"
                                  f"{self.parts.text}\n```\n\nWork out by the rules alone what each should print, and give the cases that were "
-                                 "wrong, corrected.", Cases, TEST_TOKENS)
+                                 "wrong, corrected.", Cases, TEST_TOKENS, given=self._given())
             if not isinstance(got, Cases) or not got.cases:
                 return False
             rules = {c.rule for c in got.cases}
@@ -460,10 +481,10 @@ class _Maker:
         for result in failing[:AT_ONCE]:
             if result.name not in held:
                 continue
-            said = await self.write(f"{self.design.said()}\n\n{_HOW_TESTS[self.design.kind]}\n\nA test of one rule:\n```js\n{held[result.name]}\n```\n"
+            said = await self.write(f"{_HOW_TESTS[self.design.kind]}\n\nA test of one rule:\n```js\n{held[result.name]}\n```\n"
                                     f"It fails: {result.why}\n\nBy the rule and what the state means, is the test wrong, or is it the program? In a sentence "
                                     "say which and why. Where it is the test, then write it corrected, in one block; where it is the program, write no "
-                                    "code.", A_TEST)
+                                    "code.", A_TEST, given=self._given())
             self.work.says(_prose(said))
             new = each_test_in(_code(said))[1] if "```" in said else []
             if new and new[0][1] != held[result.name]:
@@ -508,9 +529,11 @@ class _Maker:
             await asyncio.to_thread(governed, "write_text", path, self.page())
         record = {"title": design.name, "accent": design.look.accent, "asked": self.asked, "design": design.model_dump(),
                   "parts": {"functions": self.parts.functions, "text": self.parts.text, "tests": self.parts.tests,
-                            "cases": self.parts.cases},
+                            "cases": self.parts.cases}, "built": self.has,
                   "tried": [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*self.trial.generic, *self.trial.rules]]}
         await asyncio.to_thread(governed, "write_text", self.folder / "program.json", json.dumps(record, indent=1, ensure_ascii=False))
+        if self.when_kept is not None:
+            self.when_kept(path)
         return path
 
     def made(self, path: Path, why_not: str = "") -> Made:
@@ -589,6 +612,12 @@ async def _run(maker: _Maker, first: Callable[[], Awaitable[None]]) -> Made | No
             words = work.heard()
             maker.asked = "\n".join([maker.asked, *words])
             stage = maker_again(maker)
+        except Exception as why:  # noqa: BLE001 - a step that broke off leaves the program as it stood before it
+            if maker.design is None or not (maker.trial.passing() and maker.parts.code().strip()):
+                raise
+            logger.warning("A step of making %s broke off: %s", maker.design.name, why, exc_info=True)
+            work.trouble(f"That step broke off ({type(why).__name__}: {str(why)[:200]}); the program is kept as it stood before it.")
+            break
     if maker.design is None:
         return None
     return maker.made(await maker.kept())
@@ -605,7 +634,7 @@ def maker_again(maker: _Maker) -> Callable[[], Awaitable[None]]:
         new = [rule.says for rule in maker.design.rules if rule.says not in rules]
         same_kind = before is not None and before.kind == maker.design.kind
         if before is None or not same_kind or not (maker.parts.functions or maker.parts.text):
-            maker.parts = Parts()
+            maker.parts, maker.has = Parts(), []
             await maker.built()
             return
         for at in range(0, max(1, len(new)), A_LAYER):
@@ -613,17 +642,21 @@ def maker_again(maker: _Maker) -> Callable[[], Awaitable[None]]:
             if layer:
                 await maker.tested(layer)
             await maker.added(layer, maker.asked.splitlines()[-1] if at == 0 else "")
+            maker.has += layer
             await maker.mended()
-        await maker.finished()
+            await maker.kept()
+        await maker.built()
 
     return again
 
 
-async def make(asked: str, *, ask: Asks, write: Writes, work: Work, where: Path, browser: Any, told: str = "") -> Made | None:
+async def make(asked: str, *, ask: Asks, write: Writes, work: Work, where: Path, browser: Any, told: str = "",
+               when_kept: Callable[[Path], None] | None = None) -> Made | None:
     """Make what was asked for, in a folder of its own under ``where``; None where no design of it could be had. ``told`` is
-    what she said to whoever asked as she began, which the design holds to."""
+    what she said to whoever asked as she began, which the design holds to; ``when_kept`` is told where it stands each time
+    it is kept, so that what cuts it short leaves something to go on with."""
     maker = _Maker(asked, ask=ask, write=write, work=work, folder=where, browser=browser)
-    maker.told = told
+    maker.told, maker.when_kept = told, when_kept
 
     async def first() -> None:
         if await maker.designed() is None:
@@ -639,6 +672,7 @@ async def change(folder: Path, asked: str, *, ask: Asks, write: Writes, work: Wo
     design, parts, was_asked = await asyncio.to_thread(parts_of, folder)
     maker = _Maker(f"{was_asked}\n{asked}", ask=ask, write=write, work=work, folder=folder, browser=browser)
     maker.design, maker.parts = design, parts
+    maker.has = await asyncio.to_thread(_built_of, folder, design)
     return await _run(maker, maker_again(maker))
 
 
@@ -647,13 +681,20 @@ async def mend(folder: Path, *, ask: Asks, write: Writes, work: Work, browser: A
     design, parts, was_asked = await asyncio.to_thread(parts_of, folder)
     maker = _Maker(was_asked, ask=ask, write=write, work=work, folder=folder, browser=browser)
     maker.design, maker.parts = design, parts
-    return await _run(maker, maker.mended)
+    maker.has = await asyncio.to_thread(_built_of, folder, design)
+    return await _run(maker, maker.gone_on_with)
 
 
 def parts_of(folder: Path) -> tuple[Design, Parts, str]:
     """A program made before: its design, its parts, and what was asked for."""
     kept = json.loads((Path(folder) / "program.json").read_text("utf-8"))
     return Design.model_validate(kept["design"]), Parts(**kept["parts"]), str(kept.get("asked") or "")
+
+
+def _built_of(folder: Path, design: Design) -> list[str]:
+    """Which of its rules have been built: all of them, where that was not kept."""
+    built = json.loads((Path(folder) / "program.json").read_text("utf-8")).get("built")
+    return [str(rule) for rule in built] if isinstance(built, list) else [rule.says for rule in design.rules]
 
 
 def _a_folder(where: Path, name: str) -> Path:

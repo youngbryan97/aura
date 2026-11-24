@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -128,6 +129,12 @@ def test_a_change_takes_the_place_of_what_it_names_and_leaves_the_rest():
 ])
 def test_code_is_taken_however_it_was_written(code):
     assert {"initial", "update"} <= set(parts_in(code))
+
+
+def test_a_line_quoted_from_a_function_is_no_part_of_the_program():
+    said = "const lid = s.kite.letters.pop();\nconst FAR = 40;\nconst near = (s) => s.x < FAR;\n({ update(s, e) { const L = s.letters[0]; } })"
+    assert list(parts_in(said)) == [BEFORE + "FAR", BEFORE + "near", "update"]
+    assert parts_in("const L = s.letters.find(l => l.id === lid);") == {}
 
 
 def test_an_object_is_had_from_whatever_gives_one():
@@ -407,6 +414,11 @@ def test_putting_right_what_breaks_counts_for_more_than_what_it_uncovers():
     assert maker._how_much_is_wrong(uncovered) < maker._how_much_is_wrong(broken)
 
 
+def test_a_name_used_before_it_has_a_value_is_told_and_breaks_nothing(tmp_path):
+    trial = _tried(page_of(_design(), "(() => { const a = b + 1; const b = 2; return { initial() { return { a }; } }; })()", tests=TESTS), tmp_path)
+    assert [r.name for r in trial.failing()] == ["it can be read"] and "before initialization" in trial.failing()[0].why
+
+
 def test_code_that_cannot_be_read_or_does_not_end_is_told_as_that(tmp_path, monkeypatch):
     trial = _tried(page_of(_design(), "({ initial( { return {}; } })", tests=""), tmp_path)
     assert not trial.generic[0].ok
@@ -497,16 +509,16 @@ class _Model:
     def __init__(self, written: list[str], design: Design | None = None) -> None:
         self.written, self.design, self.asked = list(written), design or _design(pieces=["vec"]), []
 
-    async def ask(self, prompt, schema, n):
-        self.asked.append(prompt)
+    async def ask(self, prompt, schema, n, *, given=""):
+        self.asked.append(given + prompt)
         if schema is Asked:
             return Asked(asks=["catch the moths"])
         if schema is Cases:
             return Cases(cases=[])
         return self.design.model_copy(deep=True)
 
-    async def write(self, prompt, n, *, warmth=0.2):
-        self.asked.append(prompt)
+    async def write(self, prompt, n, *, warmth=0.2, given=""):
+        self.asked.append(given + prompt)
         return self.written.pop(0)
 
 
@@ -574,8 +586,8 @@ def test_a_word_in_the_middle_of_it_goes_back_to_the_design(tmp_path):
                       "Green now.\n```js\n({ draw(s, g) { g.clear(\"#020\"); g.circle(W / 2, H / 2, 30, \"#0f0\"); for (const m of s.moths) g.circle(m.x, m.y, 9, \"#cfc7ff\"); } })\n```"]
     real = model.write
 
-    async def write(prompt, n, *, warmth=0.2):
-        answer = await real(prompt, n, warmth=warmth)
+    async def write(prompt, n, **how):
+        answer = await real(prompt, n, **how)
         if len(model.written) == 2 and not work.somebody_spoke() and model.design is not later:
             work.say("make the lamp green")
             model.design = later
@@ -586,11 +598,47 @@ def test_a_word_in_the_middle_of_it_goes_back_to_the_design(tmp_path):
     assert made is not None and "#0f0" in made.parts.functions["draw"] and "make the lamp green" in maker.parts_of(made.folder)[2]
 
 
+def test_what_breaks_off_leaves_the_program_as_it_stood(tmp_path):
+    work = Work("w", "moths")
+    model = _Model([f"```js\n{TESTS}\n```", f"```js\n{_RULES.replace('s.saved++', 's.saved += 0')}\n```", f"```js\n{_LOOKS}\n```"])
+    real, kept = model.write, []
+
+    async def write(prompt, n, **how):
+        if not model.written:
+            raise RuntimeError("her model went away")
+        return await real(prompt, n, **how)
+
+    model.write = write
+    made = _in_a_browser(lambda browser: maker.make("I want to catch the moths", ask=model.ask, write=model.write, work=work,
+                                                    where=tmp_path, browser=browser, when_kept=kept.append))
+    assert made is not None and made.working() and made.trial.failing() and set(kept) == {made.path}
+    assert any(row["what"] == "trouble" and "her model went away" in row["why"] for row in work.seen()["happened"])
+    # And it is gone on with from there.
+    right = "```js\n({ update" + _RULES.split("  update", 1)[1].split("  score(s)")[0].rstrip().rstrip(",") + " })\n```"
+    again = _Model([right])
+    made = _in_a_browser(lambda browser: maker.mend(made.folder, ask=again.ask, write=again.write, work=Work("w", "x"), browser=browser))
+    assert made is not None and made.trial.failing() == []
+
+
+def test_what_was_cut_short_before_all_of_it_was_built_is_built(tmp_path):
+    model = _Model([f"```js\n{TESTS}\n```", f"```js\n{_RULES}\n```", f"```js\n{_LOOKS}\n```"])
+    made = _make(tmp_path, model)
+    record = json.loads((made.folder / "program.json").read_text())
+    assert record["built"] == [rule.says for rule in made.design.rules]
+    record["design"]["rules"].append({"says": "the lamp hums", "of": ""})
+    (made.folder / "program.json").write_text(json.dumps(record))
+    more = _Model(['```js\ntest("the lamp hums", t => { t.tick(0.1); t.expect(t.s.hum === 1); });\n```',
+                   "```js\n({ initial() { return { x: W / 2, y: H / 2, moths: [], next: 0.5, saved: 0, lamp: 3, t: 0, hum: 1 }; } })\n```"])
+    made = _in_a_browser(lambda browser: maker.mend(made.folder, ask=more.ask, write=more.write, work=Work("w", "x"), browser=browser))
+    assert made is not None and made.trial.failing() == [] and "the lamp hums" in json.loads((made.folder / "program.json").read_text())["built"]
+    assert any("To be built in now:\n- the lamp hums" in prompt for prompt in more.asked)
+
+
 def test_a_work_told_to_stop_is_put_down(tmp_path):
     work = Work("w", "moths")
     model = _Model([f"```js\n{TESTS}\n```"])
 
-    async def write(prompt, n, *, warmth=0.2):
+    async def write(prompt, n, **_how):
         work.stop()
         raise PutDown("it was stopped")
 

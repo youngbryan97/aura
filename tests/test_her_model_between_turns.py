@@ -56,14 +56,21 @@ async def test_what_she_writes_is_asked_for_whole_and_unsteered(lane):
 
 
 async def test_a_write_that_runs_out_of_room_goes_on(lane):
-    lane.client = _Client(("half of ", "max_tokens"), ("the rest", "eos"))
-    assert await hers.write("write it", 600) == "half of the rest"
-    assert lane.client.asked[1][0].endswith("</think>\n\nhalf of ")
+    lane.client = _Client(("So:\n```js\nhalf of ", "max_tokens"), ("the rest\n```", "eos"))
+    assert await hers.write("write it", 600, given="What there is.") == "So:\n```js\nhalf of the rest\n```"
+    assert lane.client.asked[0][1]["messages"] == [{"role": "user", "content": "What there is."}, {"role": "user", "content": "write it"}]
+    assert lane.client.asked[1][0] == ("<|im_start|>user\nWhat there is.<|im_end|>\n<|im_start|>user\nwrite it<|im_end|>\n<|im_start|>assistant\n"
+                                       "<think>\n\n</think>\n\nSo:\n```js\nhalf of ")
+
+
+async def test_prose_that_fills_its_room_is_not_gone_on_with(lane):
+    lane.client = _Client(("Looking closer, the issue is that the issue is", "max_tokens"))
+    assert (await hers.write("write it", 12)).startswith("Looking closer")
 
 
 async def test_a_write_goes_on_past_its_room_only_so_often(lane):
-    lane.client = _Client(*[("x", "max_tokens")] * 9)
-    assert await hers.write("write it", 10) == "x" * (hers.GOES_ON + 1)
+    lane.client = _Client(*[("```x", "max_tokens"), ("x", "max_tokens"), ("x", "max_tokens"), ("x", "max_tokens")])
+    assert await hers.write("write it", 10) == "```x" + "x" * hers.GOES_ON
 
 
 async def test_part_of_a_write_stopped_for_somebody_is_not_the_write(lane):
@@ -81,6 +88,7 @@ async def test_part_of_a_typed_answer_is_asked_again(lane):
     lane.client = _Client(('{"one": 1, "t', "soft_cancelled"), ('{"one": 1, "two": 2}', "eos"))
     assert await hers.ask("which", Two, 100) == Two(one=1, two=2)
     assert len(lane.client.asked) == 2 and lane.client.asked[1][1]["read_by_a_machine"]
+    assert "schema" not in lane.client.asked[1][1] and lane.client.asked[1][1]["output_shape"] == "json_object"
 
 
 async def test_it_waits_for_memory_that_would_cut_it(lane, monkeypatch):

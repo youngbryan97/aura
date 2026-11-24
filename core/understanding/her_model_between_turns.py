@@ -37,9 +37,9 @@ ORIGIN = "work_asked_for"
 LEAST_S, WAITS_FOR_THE_LANE_S = 120.0, 600.0
 #: What is read by a machine is written so: no thinking aloud, no token held back because it was used before.
 READ_BY_A_MACHINE: dict[str, Any] = {"read_by_a_machine": True, "cognitive_mode": "fast", "repetition_penalty": 1.0,
-                                     "presence_penalty": 0.0}
+                                     "presence_penalty": 0.0, "prompt_cache_scope": "work_asked_for"}
 #: How generation ends where something stopped it, and where its room ran out; and how often a write goes on past its room.
-STOPPED, NO_ROOM, GOES_ON = {"soft_cancelled", "deadline_exceeded"}, {"max_tokens", "hard_token_limit"}, 3
+STOPPED, NO_ROOM, GOES_ON = {"soft_cancelled", "deadline_exceeded"}, {"max_tokens", "hard_token_limit"}, 2
 #: How often a write is taken up again where something of hers, and nobody, stopped it.
 TAKEN_UP_AGAIN = 12
 
@@ -58,9 +58,14 @@ def _somebody_is_waiting() -> bool:
     return bool(a_person_is_waiting_for_her_model())
 
 
-def _going_on(asked: str, so_far: str) -> str:
+def _messages(asked: str, given: str) -> list[dict[str, str]]:
+    return [{"role": "user", "content": text} for text in (given, asked) if text]
+
+
+def _going_on(asked: str, so_far: str, given: str = "") -> str:
     """The exchange with what she had written of her answer in her turn: what she writes next goes on from it."""
-    return f"<|im_start|>user\n{asked}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n{so_far}"
+    before = "".join(f"<|im_start|>user\n{message['content']}<|im_end|>\n" for message in _messages(asked, given))
+    return f"{before}<|im_start|>assistant\n<think>\n\n</think>\n\n{so_far}"
 
 
 async def _memory_to_write_in(work: Any) -> None:
@@ -76,7 +81,7 @@ async def _memory_to_write_in(work: Any) -> None:
         waited += 5.0
 
 
-async def _on_the_lane(asked: str, max_tokens: int, *, so_far: str = "", held: list[str] | None = None,
+async def _on_the_lane(asked: str, max_tokens: int, *, so_far: str = "", held: list[str] | None = None, given: str = "",
                        **how: Any) -> tuple[str | None, str]:
     """Her cortex's answer under one lease and how it ended; "" where it wrote nothing, None where the lane was not to be
     had. ``so_far`` is what she had written of it before she gave way, which she goes on from; ``held`` is given what she
@@ -95,7 +100,7 @@ async def _on_the_lane(asked: str, max_tokens: int, *, so_far: str = "", held: l
     work = this_work()
     ended: dict[str, Any] = {}
     await _memory_to_write_in(work)
-    seconds = max(LEAST_S, 2.0 * time_a_prompt_needs(len(asked), max_tokens))
+    seconds = max(LEAST_S, 2.0 * time_a_prompt_needs(len(given) + len(asked), max_tokens))
     if work is not None:
         work.waits("her model, which is busy with something else of hers")
     lease = await acquire_external_generation_gate_lease(owner=f"{ORIGIN}:between_turns", timeout_s=seconds,
@@ -109,8 +114,8 @@ async def _on_the_lane(asked: str, max_tokens: int, *, so_far: str = "", held: l
         with_it = {"origin": ORIGIN, "max_tokens": int(max_tokens), "internal_inference": True, "foreground_request": True,
                    "timeout": seconds, "_generation_result_sink": ended, **READ_BY_A_MACHINE, **how}
         if so_far:
-            return str(await client.generate(_going_on(asked, so_far), **with_it) or "")
-        return str(await client.generate_text_async(asked, messages=[{"role": "user", "content": asked}], system_prompt="", **with_it) or "")
+            return str(await client.generate(_going_on(asked, so_far, given), **with_it) or "")
+        return str(await client.generate_text_async(asked, messages=_messages(asked, given), system_prompt="", **with_it) or "")
 
     def seen(text: str, tokens: int) -> None:
         if held is not None:
@@ -174,7 +179,8 @@ async def _asked_until_answered(asked: str, max_tokens: int, *, goes_on: bool = 
                         f"goes on from {len(so_far)} characters" if so_far else "is made again")
             continue
         if text and re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip():
-            if goes_on and ended in NO_ROOM and out_of_room < GOES_ON:
+            # Past its room it goes on where what it is in the middle of is code: prose that fills its room is not getting there.
+            if goes_on and ended in NO_ROOM and out_of_room < GOES_ON and (so_far + text).count("```") % 2:
                 out_of_room += 1
                 so_far += text
                 logger.info("🧰 A write ran out of its room of %d tokens, and goes on from %d characters.", max_tokens, len(so_far))
@@ -188,17 +194,20 @@ async def _asked_until_answered(asked: str, max_tokens: int, *, goes_on: bool = 
         raise HerModelIsAwayError("an empty answer" if text is not None else "its lane is held for something else")
 
 
-async def ask(prompt: str, schema: type[BaseModel], max_tokens: int) -> BaseModel | None:
-    """Her cortex's answer to ``prompt`` as an instance of ``schema``, or None when it gave none that fits."""
+async def ask(prompt: str, schema: type[BaseModel], max_tokens: int, *, given: str = "") -> BaseModel | None:
+    """Her cortex's answer to ``prompt`` as an instance of ``schema``, or None when it gave none that fits. ``given`` is
+    what comes before it and before the asks after it alike, which she reads once."""
     from core.rebuilding.her_model import as_answered
 
     asked = f"{prompt}\n\nAnswer with one JSON object that follows this JSON schema:\n{json.dumps(schema.model_json_schema())}"
-    text = await _asked_until_answered(asked, max_tokens, schema=schema.model_json_schema(), output_shape="json_object",
-                                       temperature=0.2)
+    # The decoder holds it to one JSON object; whether it fits is read here, where what only overran a bound is cut to it.
+    # LIVE 24 November 2026 a design with one list too long was written three times over in her worker, the same 2,484
+    # tokens each time, for 200 s of it.
+    text = await _asked_until_answered(asked, max_tokens, output_shape="json_object", temperature=0.2, given=given)
     return as_answered(text, schema)
 
 
-async def write(prompt: str, max_tokens: int, *, warmth: float = 0.2) -> str:
+async def write(prompt: str, max_tokens: int, *, warmth: float = 0.2, given: str = "") -> str:
     """What her cortex writes for ``prompt``, as it wrote it: prose, code, or the one around the other."""
-    text = await _asked_until_answered(prompt, max_tokens, goes_on=True, temperature=warmth)
+    text = await _asked_until_answered(prompt, max_tokens, goes_on=True, temperature=warmth, given=given)
     return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
