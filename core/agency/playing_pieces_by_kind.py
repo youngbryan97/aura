@@ -464,6 +464,14 @@ class _Game:
     they_went: dict[tuple[tuple[int, int], tuple[int, int]], int] = field(default_factory=dict)
     #: Her moves as the game took them: proposed, attempted, and made or refused (core/agency/what_she_did.py).
     did: WhatSheDid = field(default_factory=WhatSheDid)
+    #: Moves she made by hand that the board did not show made, each with the position and rules it was tried under:
+    #: kept from what she learns until the game is seen taking a move after them. A board that has stopped taking
+    #: anything has not refused the move; her hands did not reach it. LIVE 24 November 2026 the board stopped taking
+    #: her moves at move 14, d2-d3 (legal) was learned as no move of a pawn's, and every piece picked up after it
+    #: offered nothing.
+    untaken: list[tuple[Any, Move, Any]] = field(default_factory=list)
+    #: Pieces she picked up that the board offered nothing, held the same way: position, square, rules.
+    unshown: list[tuple[Any, Any, Any]] = field(default_factory=list)
     #: What her judgements of this board have gone on to come to (core/cognition/how_far_her_judgement_holds.py).
     held: HowFarItHolds = field(default_factory=HowFarItHolds)
     pondering: Pondering = field(default_factory=Pondering)
@@ -898,6 +906,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 set_aside = list(again)
                 tell(f"I've played {said_of_a_move(family, game.believed, again[0], game.learned, game.first_is_hers)}"
                      " from here before and it went wrong, so I'll look at something else.")
+        # A move the board did not take here is not tried again here, though it is not yet learned as no move.
+        set_aside += [m for at, m, _rules in game.untaken
+                      if at.key() == game.believed.key() and m in legal and m not in set_aside]
         found = None
         learned_until, searched_s = monotonic_time(), 0.0
         for _ in range(CHECKS_A_TURN):
@@ -966,7 +977,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 squares = await _offers_for(seat, look, click, picture, found.move.start)
                 if squares is not None:
                     offered[found.move.start] = squares
-                    game.learned.offered(game.believed, found.move.start, squares, family=family)
+                    if squares:
+                        # The board answered a pick-up: it is taking what she does.
+                        _the_untaken_were_refused(game)
+                        game.learned.offered(game.believed, found.move.start, squares, family=family)
+                    else:
+                        # Nothing offered at all is what a board that has stopped answering shows too: held, as a
+                        # move the board did not take is, until the board is seen answering.
+                        game.unshown.append((game.believed, found.move.start, family))
                     said = {one.end for one in legal if one.start == found.move.start}
                     if set(squares) == said:
                         game.far.it_was_where_she_said(1)
@@ -974,7 +992,10 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                         game.far.it_was_not(1)
             if found.move.start not in offered or _landing(found.move) in offered[found.move.start]:
                 break
-            game.learned.refused(game.believed, found.move, family=family)
+            if offered[found.move.start]:
+                game.learned.refused(game.believed, found.move, family=family)
+            else:
+                game.untaken.append((game.believed, found.move, family))
             set_aside.append(found.move)
             family = game.learned.family(unseen_go_every_way=True)
             weights = rehearsing.weights_for(family)
@@ -1073,12 +1094,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         game.did.settled(act, ACCEPTED if made else REFUSED,
                          known_by="the board showed it made" if made else "the game did not take it")
         if not made:
-            game.learned.refused(game.believed, move, family=family)
+            game.untaken.append((game.believed, move, family))
             if game.unlooked:
                 game.far.it_was_not(game.unlooked)
                 game.unlooked = 0
-            tell("The game didn't take that move; I've learned it isn't one.")
+            tell("The game didn't take that move.")
             continue
+        _the_untaken_were_refused(game)
         game.made += 1
         game.waiting_since = monotonic_time()
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned,
@@ -1452,6 +1474,7 @@ async def _made_as_offered(seat: Seat, look: Look, click: Click, picture: Any, g
     await _by_hand(seat, click, picture, move, OFFERS_SHOW_S)
     if await _comes_to_show(seat, look, game, move):
         game.did.settled(act, ACCEPTED, known_by="the board showed it made")
+        _the_untaken_were_refused(game)
         game.made += 1
         game.waiting_since = monotonic_time()
     else:
@@ -1635,7 +1658,25 @@ def _position_from_place(place: str, start: dict) -> Position | None:
         return None
 
 
+def _the_untaken_were_refused(game: _Game) -> None:
+    """The board has answered after the moves it did not take and the pick-ups it offered nothing: it was answering,
+    and those were its answers."""
+    for at, square, rules in game.unshown:
+        game.learned.offered(at, square, set(), family=rules)
+    for at, move, rules in game.untaken:
+        game.learned.refused(at, move, family=rules)
+    game.unshown.clear()
+    game.untaken.clear()
+
+
 def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, Any]:
+    if game.untaken or game.unshown:
+        # The board answered nothing after these: it had stopped answering, and they say nothing of the rules.
+        logger.info("%d move(s) the board did not take and %d pick-up(s) it offered nothing, before it answered nothing "
+                    "more, are not learned: %s", len(game.untaken), len(game.unshown),
+                    ", ".join(_named(move) for _at, move, _rules in game.untaken))
+        game.untaken.clear()
+        game.unshown.clear()
     if ended.startswith("won:"):
         result = "won" if int(ended.split(":", 1)[1]) == FIRST else "lost"
         tell("I won." if result == "won" else "I lost. They found the better line.")
